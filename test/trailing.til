@@ -11,8 +11,8 @@ Color := enum {
 
 // Trailing comma in struct fields + constructor
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 
 // Trailing comma in func params

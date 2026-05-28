@@ -111,13 +111,13 @@ utf16be_ascii := func(s: Str) returns Str {
 // A single glyph with its bounding box and the raw simple-glyph bytes
 // (from numberOfContours through yCoordinates, inclusive).
 Glyph := struct {
-    mut bytes := ""
-    mut x_min := 0
-    mut y_min := 0
-    mut x_max := 0
-    mut y_max := 0
-    mut num_contours := 0
-    mut num_points := 0
+    bytes := ""
+    x_min := 0
+    y_min := 0
+    x_max := 0
+    y_max := 0
+    num_contours := 0
+    num_points := 0
 }
 
 // ON_CURVE flag bit in a glyph point's flags byte.
@@ -388,10 +388,10 @@ build_post := func() returns Str {
 
 // name table with 6 nameIDs on platform 3 / encoding 1 / language 0x409.
 NameRec := struct {
-    mut name_id := 0
-    mut text := ""
-    mut offset := 0     // offset into string pool
-    mut length := 0     // UTF-16BE byte length
+    name_id := 0
+    text := ""
+    offset := 0     // offset into string pool
+    length := 0     // UTF-16BE byte length
 }
 
 build_name := func() returns Str {

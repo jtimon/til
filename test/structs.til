@@ -1,27 +1,27 @@
 mode test
 
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 
 Person := struct {
-    mut name := "unknown"
-    mut age := 0
+    name := "unknown"
+    age := 0
 }
 
 NameBox := struct {
-    mut name := "default"
+    name := "default"
 }
 
 Flags := struct {
-    mut active := false
-    mut visible := true
+    active := false
+    visible := true
 }
 
 Entity := struct {
-    id := 0
-    mut name := "unnamed"
+    const id := 0
+    name := "unnamed"
 }
 
 test_basic_struct := test() {
@@ -105,8 +105,8 @@ test_independence := test() {
 }
 
 Line := struct {
-    mut start := Point()
-    mut end := Point()
+    start := Point()
+    end := Point()
 }
 
 test_nested_structs := test() {
@@ -132,7 +132,7 @@ test_nested_structs := test() {
 }
 
 Counter := struct {
-    mut value := 0
+    value := 0
     namespace:
     mut instance_count := 0
     default_name := "Counter"
@@ -166,7 +166,7 @@ Greeter := struct {
 }
 
 Describable := struct {
-    mut val := 0
+    val := 0
     namespace:
     describe := func(d: Describable) returns Str {
         return format("val=", d.val.to_str())
@@ -235,7 +235,7 @@ test_delete := test() {
 
 // Custom clone: adds 1 to val, proving auto-generated clone was skipped
 CloneCustom := struct {
-    mut val := 0
+    val := 0
     namespace:
     clone := func(self: CloneCustom) returns CloneCustom {
         return CloneCustom(val=self.val.add(1))
@@ -244,7 +244,7 @@ CloneCustom := struct {
 
 // Custom delete: increments namespace counter, proving auto-generated delete was skipped
 DeleteCustom := struct {
-    mut id := 0
+    id := 0
     namespace:
     mut delete_count := 0
     delete := func(own self: DeleteCustom, call_free: Bool = true) {
@@ -272,7 +272,7 @@ test_custom_delete := test() {
 }
 
 Container := struct {
-    mut items := Vec.new(I64)
+    items := Vec.new(I64)
 }
 
 test_vec_in_struct := test() {
@@ -355,8 +355,8 @@ test_nested_struct_alias := test() {
 
 // Anonymous ext_struct (like libffi's ffi_cif)
 AnonPair := ext_struct("") {
-    mut a : I32 = 0
-    mut b : I32 = 0
+    a : I32 = 0
+    b : I32 = 0
 }
 
 test_ext_struct_anon := test() {
@@ -367,7 +367,7 @@ test_ext_struct_anon := test() {
 
 // Custom tag ext_struct (like libffi's _ffi_type -> ffi_type)
 TaggedThing := ext_struct("_tagged_thing") {
-    mut val : I64 = 0
+    val : I64 = 0
 }
 
 test_ext_struct_custom_tag := test() {

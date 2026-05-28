@@ -44,9 +44,9 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 PhaseResult := struct {
-    mut status := -1
-    mut ms := 0
-    mut mem := 0
+    status := -1
+    ms := 0
+    mem := 0
 }
 
 run_phase := proc(cmd: Str) returns PhaseResult {

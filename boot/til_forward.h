@@ -324,6 +324,7 @@ typedef struct Declaration {
     Str doc;
     Str explicit_type;
     Bool is_mut;
+    Bool redundant_mut;
     Bool is_priv;
     Bool used;
     OwnType own_type;

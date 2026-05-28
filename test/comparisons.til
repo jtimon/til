@@ -59,13 +59,13 @@ test_cmp := test() {
 }
 
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 
 Line := struct {
-    mut start := Point()
-    mut end := Point()
+    start := Point()
+    end := Point()
     namespace:
     length_sq := func(self: Line) returns I64 {
         dx := self.end.x.sub(self.start.x)

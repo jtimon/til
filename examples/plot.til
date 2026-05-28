@@ -39,15 +39,15 @@ qa := func(val: Str) returns Str {
 
 // Data row
 Row := struct {
-    commit := ""
-    interp_ms := 0
-    compile_ms := 0
-    run_ms := 0
-    wall_ms := 0
-    mem_inte := 0
-    mem_comp := 0
-    mem_run := 0
-    mem_total := 0
+    const commit := ""
+    const interp_ms := 0
+    const compile_ms := 0
+    const run_ms := 0
+    const wall_ms := 0
+    const mem_inte := 0
+    const mem_comp := 0
+    const mem_run := 0
+    const mem_total := 0
 }
 
 parse_csv := func(content: Str) returns Vec {

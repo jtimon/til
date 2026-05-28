@@ -13,8 +13,8 @@ bug78_unused_til_helper := func() returns I64 {
 
 // struct with ext methods
 Pair := struct {
-    mut a := 0
-    mut b := 0
+    a := 0
+    b := 0
     namespace:
     sum := ext_func(self: Pair) returns I64 {}
     swap := ext_func(self: Pair) returns Pair {}
@@ -107,8 +107,8 @@ test_delete := func() {
 
 // Regular struct used as ext_func arg/return
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 
 add_points := ext_func(a: Point, b: Point) returns Point {}

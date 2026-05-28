@@ -46,7 +46,7 @@ counter = 100
 assert(__LOC__, counter.eq(100))
 
 DeleteOnOverwrite := struct {
-    mut id := 0
+    id := 0
     namespace:
     mut delete_count := 0
     delete := func(own self: DeleteOnOverwrite, call_free: Bool = true) {

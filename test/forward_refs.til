@@ -43,8 +43,8 @@ fwd_make_point := func(x: I64, y: I64) returns FwdPoint {
 }
 
 FwdPoint := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 
 test_forward_struct := test() {
@@ -60,7 +60,7 @@ test_forward_struct := test() {
 FwdAliasTop := U32
 
 FwdAliasTopHolder := struct {
-    mut count : FwdAliasTop = 0
+    count : FwdAliasTop = 0
 namespace:
     inc := func(mut self: FwdAliasTopHolder) {
         self.count = self.count.add(1)
@@ -79,7 +79,7 @@ test_alias_top_of_file := test() {
 // In-file source order should not matter for type aliases to builtin
 // primitives.
 FwdAliasBottomHolder := struct {
-    mut value : FwdAliasBottom = 0
+    value : FwdAliasBottom = 0
 namespace:
     set := func(mut self: FwdAliasBottomHolder, v: FwdAliasBottom) {
         self.value = v

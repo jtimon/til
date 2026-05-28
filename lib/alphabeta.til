@@ -14,13 +14,13 @@ default_heuristic : Heuristic = (_board) { return 0 }
 default_next_boards : NextBoardsFn = (_board) { return Vec.new(Board) }
 
 Board := struct {
-    mut data := Array.new(U8, MAX_BOARD.to_usize())
+    data := Array.new(U8, MAX_BOARD.to_usize())
 }
 
 AlphaBeta := struct {
-    mut h : Heuristic = default_heuristic
-    mut nexts : NextBoardsFn = default_next_boards
-    mut depth := 3
+    h : Heuristic = default_heuristic
+    nexts : NextBoardsFn = default_next_boards
+    depth := 3
 namespace:
     search := proc(self: AlphaBeta, board: Board) returns I64 {
         return AlphaBeta.search_ab(self, board, self.depth, 0.sub(AB_INF), AB_INF)

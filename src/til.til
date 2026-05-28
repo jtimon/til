@@ -345,16 +345,16 @@ usage := proc() {
 }
 
 CliArgs := struct {
-    mut command := ""
-    mut path := ""
-    mut custom_bin := ""
-    mut custom_c := ""
-    mut target_str := ""
-    mut cc := ""
-    mut install_prefix := ""
-    mut path_idx : USize = 1
-    mut early_return := false
-    mut asan := false
+    command := ""
+    path := ""
+    custom_bin := ""
+    custom_c := ""
+    target_str := ""
+    cc := ""
+    install_prefix := ""
+    path_idx : USize = 1
+    early_return := false
+    asan := false
 }
 
 parse_args := proc(args: Array) returns CliArgs {

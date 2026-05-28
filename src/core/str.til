@@ -29,9 +29,9 @@ format := func(parts: ..Str) returns Str {
 /// I8 (= C `char`) so direct FFI bindings against `const char *` APIs
 /// can pass `s.c_str` without an intermediate pointer-cast helper.
 Str := struct {
-    own mut c_str : I8 = 0
-    mut count : USize = 0
-    mut cap : USize = 0
+    own c_str : I8 = 0
+    count : USize = 0
+    cap : USize = 0
 
 namespace:
     len := func(self: Str) returns shallow USize { return self.count }

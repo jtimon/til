@@ -4,27 +4,27 @@ import("../../vendor/bindings/libffi")
 link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 
 priv ExtStr := struct {
-    ref mut data : U8 = NULL
-    mut count : U64 = 0
-    mut cap : U64 = 0
+    ref data : U8 = NULL
+    count : U64 = 0
+    cap : U64 = 0
 }
 
 FFIEntry := struct {
-    ref mut fn : U8 = NULL
-    ref mut return_type : Str = NULL
-    mut nparam : I32 = 0
-    ref mut param_shallows : U8 = NULL
-    mut return_is_shallow := false
-    ref mut cif : ffi_cif = NULL
-    ref mut arg_types : Dynamic = NULL
+    ref fn : U8 = NULL
+    ref return_type : Str = NULL
+    nparam : I32 = 0
+    ref param_shallows : U8 = NULL
+    return_is_shallow := false
+    ref cif : ffi_cif = NULL
+    ref arg_types : Dynamic = NULL
 }
 
 ExprPtrBox := struct {
-    ref mut ptr : Expr = NULL
+    ref ptr : Expr = NULL
 }
 
 FFITypePtrBox := struct {
-    ref mut ptr : ffi_type = NULL
+    ref ptr : ffi_type = NULL
 }
 
 // Reset all FFI state so a fresh scan can run.

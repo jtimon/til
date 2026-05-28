@@ -5,8 +5,8 @@ double := func(x: I64) returns I64 {
 }
 
 Point := struct {
-    x := 0
-    y := 0
+    const x := 0
+    const y := 0
 }
 
 MyConst := 123

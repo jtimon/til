@@ -3,28 +3,28 @@ mode lib
 import("parser")
 
 TypeBinding := struct {
-    mut name := ""
-    mut type := Type.Unknown
-    mut func_type := FuncType.None
-    mut is_mut := false
-    mut is_priv := false
-    mut path := ""
-    mut line : U32 = 0
-    mut col : U32 = 0
-    mut is_param := false
-    mut own_type := OwnType.Shallow
-    mut is_alias := false
-    mut is_type_alias := false
-    mut alias_target := ""
-    ref mut struct_def : Expr = NULL
-    ref mut func_def : Expr = NULL
-    mut is_builtin := false
-    mut used := false
+    name := ""
+    type := Type.Unknown
+    func_type := FuncType.None
+    is_mut := false
+    is_priv := false
+    path := ""
+    line : U32 = 0
+    col : U32 = 0
+    is_param := false
+    own_type := OwnType.Shallow
+    is_alias := false
+    is_type_alias := false
+    alias_target := ""
+    ref struct_def : Expr = NULL
+    ref func_def : Expr = NULL
+    is_builtin := false
+    used := false
     // Issue #93: mirror of Declaration.orig_name -- non-empty means
     // init_declarations_unit hoisted this decl from a function body and
     // the unused-priv check should report it in source terms (original
     // name + enclosing parent) rather than as a synthetic mangled name.
-    mut orig_name := ""
+    orig_name := ""
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
         return a.name.eq(b.name)
@@ -82,8 +82,8 @@ priv_c_name := func(path: Str, name: Str) returns Str {
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
 TypeScope := struct {
-    mut bindings := Map.new(Str, TypeBinding)
-    ref mut parent : TypeScope = NULL
+    bindings := Map.new(Str, TypeBinding)
+    ref parent : TypeScope = NULL
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
         if self.bindings.has(name) {
@@ -157,52 +157,52 @@ namespace:
 }
 
 ImportUnit := struct {
-    mut mode := Mode()
-    own mut ast := Expr.new(NodeType.Body, 0, 0)
-    mut imports := Vec.new(Str)
+    mode := Mode()
+    own ast := Expr.new(NodeType.Body, 0, 0)
+    imports := Vec.new(Str)
 }
 
 Context := struct {
-    mut mode := Mode()
-    mut path := ""
-    mut path_modes := Map.new(Str, Mode)
+    mode := Mode()
+    path := ""
+    path_modes := Map.new(Str, Mode)
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
-    mut imported := Map.new(Str, ImportUnit)
-    mut imports_init_done := Set.new(Str)
-    mut imports_typer_done := Set.new(Str)
-    mut imports_precomp_done := Set.new(Str)
-    mut imports_eval_done := Set.new(Str)
+    imported := Map.new(Str, ImportUnit)
+    imports_init_done := Set.new(Str)
+    imports_typer_done := Set.new(Str)
+    imports_precomp_done := Set.new(Str)
+    imports_eval_done := Set.new(Str)
 
-    mut scope := TypeScope()
-    mut is_repl := false
+    scope := TypeScope()
+    is_repl := false
 
     // Precomp state moved off module globals. The same Context crosses
     // imported files and later phases, so these three tables live here
     // directly rather than as a separate module-global side store.
-    mut precomp_macros := Set.new(Str)
-    mut precomp_funcs := Set.new(Str)
-    mut precomp_known := Map.new(Str, Value)
+    precomp_macros := Set.new(Str)
+    precomp_funcs := Set.new(Str)
+    precomp_known := Map.new(Str, Value)
 
     // Interpreter runtime state, moved off module globals (same
     // direct-on-Context approach as the precomp tables above). The
     // control-flow flags and return slot drive eval_body /
     // eval_user_func; ns_fields/ns_keys hold static struct fields keyed
     // `<Type>.<field>`; ns_inited guards their one-time (re)creation.
-    mut has_return := false
-    mut has_break := false
-    mut has_continue := false
-    mut return_value := Value.None
-    mut ns_fields := Map.new(Str, Value)
-    mut ns_keys := Vec.new(Dynamic)
-    mut ns_inited := false
+    has_return := false
+    has_break := false
+    has_continue := false
+    return_value := Value.None
+    ns_fields := Map.new(Str, Value)
+    ns_keys := Vec.new(Dynamic)
+    ns_inited := false
 
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
     // test() decls at the namespace level even though scope.parent is
     // the type's inner scope, while still rejecting test() decls
     // inside arbitrary nested function bodies.
-    mut typing_namespace_member := false
+    typing_namespace_member := false
 
     // #178 first table: per-function-emission cache of FuncPtr local
     // signatures, populated by the builder when it emits a FuncPtr-typed
@@ -211,30 +211,30 @@ Context := struct {
     // per emission. The eventual rstil-style direction is to populate
     // this from the typer (keyed by function name) so the builder reads
     // without a per-emit reset; this commit only moves the storage.
-    mut local_fn_sigs := Map.new(Str, Dynamic)
+    local_fn_sigs := Map.new(Str, Dynamic)
 
     // #178 builder lookup tables migrated from module-globals. Populated
     // at build registration time, read throughout codegen.
-    mut func_defs := Map.new(Str, Dynamic)
-    mut struct_def_exprs := Map.new(Str, Dynamic)
-    mut funcsig_names := Set.new(Str)
-    mut script_globals := Set.new(Str)
-    mut ref_globals := Set.new(Str)
+    func_defs := Map.new(Str, Dynamic)
+    struct_def_exprs := Map.new(Str, Dynamic)
+    funcsig_names := Set.new(Str)
+    script_globals := Set.new(Str)
+    ref_globals := Set.new(Str)
 
     // Issue #198: typer-owned error-type registries, moved off
     // module-level globals so they live on the same Context that
     // crosses unit boundaries. throw_type_registry is the integer-tag
     // table used by tag_for_type; throws_names/throws_per is the
     // Decl-name -> throws-types map used by inject_throw_args_in_body.
-    mut throw_type_registry := Vec.new(Str)
-    mut throws_names_global := Vec.new(Str)
-    mut throws_per_global := Vec.new(Vec)
+    throw_type_registry := Vec.new(Str)
+    throws_names_global := Vec.new(Str)
+    throws_per_global := Vec.new(Vec)
 
     // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
     // temps emitted when hoisting nested `f()!` calls. Lives on
     // ctx so the same Context that already threads the throws
     // registries also owns the matching temp counter.
-    mut bang_counter : I64 = 0
+    bang_counter : I64 = 0
 
     // Two typer-scope flags shared with asaper: typer_in_main_func is
     // set while infer_func_def_expr is checking main(), so the asaper
@@ -242,29 +242,29 @@ Context := struct {
     // caller frees them); typer_in_shallow_return is set when the
     // current function returns `shallow T`, so the asaper keeps a
     // would-be-moved struct local Shallow for the codegen.
-    mut typer_in_shallow_return : Bool = false
-    mut typer_in_main_func : Bool = false
+    typer_in_shallow_return : Bool = false
+    typer_in_main_func : Bool = false
 
     // Resolved declared return type name of the function currently being
     // type-checked (empty when none / not in a func). infer_return_stmt
     // reads it to narrow a bare numeric literal return value to the
     // declared numeric type, mirroring the call-argument narrowing in
     // validate_fcall_arg. Saved+restored around each func body.
-    mut typer_return_type_name : Str = ""
+    typer_return_type_name : Str = ""
 
     // Monotonically-increasing builder counter for synthesised
     // constructor temp names (`_ctor_<N>`). The codegen never
     // resets this -- it just needs unique names across the whole
     // emission, so a single ctx-owned counter is sufficient.
-    mut ctor_seq : I32 = 0
+    ctor_seq : I32 = 0
 
     // Builder emission-state flags. in_func_def is true while
     // emit_func_def is emitting a function body, so emit_stmt_decl
     // knows a Decl is a local (not a header global); in_main_func is
     // true while emitting main()'s body so emit_stmt_return can
     // append `return 0;` after the user code.
-    mut in_func_def : Bool = false
-    mut in_main_func : Bool = false
+    in_func_def : Bool = false
+    in_main_func : Bool = false
 
     // Typer proc/func validation: proc_def_depth counts the nesting
     // depth of `proc` definitions currently being typed (>0 means we
@@ -272,8 +272,8 @@ Context := struct {
     // call sites seen in the active proc body. infer_func_def_expr
     // saves+restores both around each body so a proc that contains
     // no proc-calls trips the "should be a func" diagnostic.
-    mut proc_calls_count : I32 = 0
-    mut proc_def_depth : I32 = 0
+    proc_calls_count : I32 = 0
+    proc_def_depth : I32 = 0
 
     // Typer unique-name generators. Each counter mints a fresh
     // suffix for a different family of synthesised temps that the
@@ -284,10 +284,10 @@ Context := struct {
     // (`_kw<N>`), coll_counter for vec/array literal hoists
     // (`_vec_<N>`, `_array_<N>`). They never reset -- they only
     // need to mint unique-across-program names.
-    mut hoist_counter : I32 = 0
-    mut va_counter : I32 = 0
-    mut kw_counter : I32 = 0
-    mut coll_counter : I32 = 0
+    hoist_counter : I32 = 0
+    va_counter : I32 = 0
+    kw_counter : I32 = 0
+    coll_counter : I32 = 0
 
     // Remaining typer-phase scratch, moved off module globals. errors is
     // the per-unit type-error counter (reset and returned by
@@ -298,39 +298,39 @@ Context := struct {
     // reads; throw_used_local_names tracks err-slot locals referenced
     // while lowering throw/catch. (typer_path is not duplicated here --
     // it was always a copy of ctx.path.)
-    mut errors : I32 = 0
-    mut current_type_name := ""
-    mut current_top_func_name := ""
-    mut auto_gen_depth : I32 = 0
-    mut throw_used_local_names := Set.new(Str)
+    errors : I32 = 0
+    current_type_name := ""
+    current_top_func_name := ""
+    auto_gen_depth : I32 = 0
+    throw_used_local_names := Set.new(Str)
 
     // #178 builder per-function transients. The builder resets these on
     // entering each function body and reads them throughout that body's
     // emission. emit_func_def is not actually recursive (the typer lifts
     // nested funcs to top level), so a per-emit reset is sufficient.
-    mut stack_locals := Set.new(Str)
-    mut stack_local_types := Map.new(Str, Str)
-    mut unsafe_to_hoist := Set.new(Str)
-    mut ref_locals := Set.new(Str)
+    stack_locals := Set.new(Str)
+    stack_local_types := Map.new(Str, Str)
+    unsafe_to_hoist := Set.new(Str)
+    ref_locals := Set.new(Str)
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
     // separately so emit_deref can typed-cast a Dynamic-declared
     // local when the typer's narrow_dynamic has retyped a use of it
     // to a concrete primitive (`not(x)`, `y.add(x)`, etc.). Without
     // the cast the codegen would emit `DEREF(x)` on a `void *`,
     // which is invalid C.
-    mut ref_dyn_locals := Set.new(Str)
-    ref mut current_fdef : Expr = NULL
+    ref_dyn_locals := Set.new(Str)
+    ref current_fdef : Expr = NULL
 
     // #177 interpreter caches for well-known core types, populated during
     // interpret_register_defs by interpret_register_struct_defs and read
     // back by make_str_value / build_array_from_argv. These were the
     // remaining six module-scope ref-mut + NULL globals after #178.
-    ref mut cached_str_def : Expr = NULL
-    ref mut cached_str_name : Str = NULL
-    ref mut cached_array_def : Expr = NULL
-    ref mut cached_array_name : Str = NULL
-    ref mut cached_vec_def : Expr = NULL
-    ref mut cached_vec_name : Str = NULL
+    ref cached_str_def : Expr = NULL
+    ref cached_str_name : Str = NULL
+    ref cached_array_def : Expr = NULL
+    ref cached_array_name : Str = NULL
+    ref cached_vec_def : Expr = NULL
+    ref cached_vec_name : Str = NULL
 
     // Interpreter type-def registry: maps every struct/enum name to its
     // AST def Expr. Populated by interpreter_init_ns, read via
@@ -340,7 +340,7 @@ Context := struct {
     // Map(Str, Dynamic) of malloc'd cells holding the Expr pointer
     // (same encoding as struct_def_exprs / func_defs) so the field type
     // stays in scope at the Context definition in this file.
-    mut interp_type_defs := Map.new(Str, Dynamic)
+    interp_type_defs := Map.new(Str, Dynamic)
 
     // Dispatch / FFI runtime state (previously module-level globals in
     // dispatch.til). FFIEntry / FFITypePtrBox are defined in dispatch.til
@@ -348,14 +348,14 @@ Context := struct {
     // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
     // these maps to fresh, so Context's auto-delete only ever frees empty
     // containers -- no double free of the libffi allocations.
-    mut dispatch_map := Map.new(Str, Dynamic)
-    mut dispatch_inited := false
-    mut ffi_map := Map.new(Str, FFIEntry)
-    mut ffi_map_inited := false
-    mut ffi_loaded := false
-    mut ffi_struct_defs := Map.new(Str, Dynamic)
-    mut ffi_type_cache := Vec.new(FFITypePtrBox)
-    mut ffi_type_cache_inited := false
+    dispatch_map := Map.new(Str, Dynamic)
+    dispatch_inited := false
+    ffi_map := Map.new(Str, FFIEntry)
+    ffi_map_inited := false
+    ffi_loaded := false
+    ffi_struct_defs := Map.new(Str, Dynamic)
+    ffi_type_cache := Vec.new(FFITypePtrBox)
+    ffi_type_cache_inited := false
 }
 
 priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {

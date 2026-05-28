@@ -31,20 +31,35 @@ sequence, each step merged to master before the next:
     No source migration in this commit; once it is on master, master's
     til_boot understands `const` AND defaults fields to mutable.
 
-  - COMMIT 2 (migration + enforcement, PENDING commit 1 landing on
-    master -- a remote agent cannot author it before then):
-      * strip the now-redundant `mut` from every struct FIELD decl
-        across src/**, test/**, and add `const` to every field that is
-        bare today (currently immutable) so its guarantee is preserved
-        (audit: a bare field never assigned is silently const now and
-        would silently become mut otherwise).
-      * add the typer error that FORBIDS redundant `mut` on a field
-        (model on redundant_conversion_error), and drop the
-        `else if check(p, TokenType.KwMut)` acceptance in the parser.
-      * update build_til_binding in src/self/builder.til to emit `const`
-        for immutable fields instead of `mut` for mutable ones.
-      * update doc/facts.org ("Everything is immutable by default") and
-        doc/qualifiers.org.
+  - COMMIT 2 (migration + enforcement, DONE):
+      * stripped the now-redundant `mut` from every struct FIELD decl
+        across src/**, test/**, examples/**, lib/**, and
+        vendor/bindings/**, and added `const` to every field that was
+        immutable (bare) before the flip so its guarantee is PRESERVED.
+        This is the behaviour-preserving migration: a field that was
+        immutable stays immutable (now via explicit `const`), it does not
+        silently become mutable. The originally-immutable set was
+        recovered from the last pre-flip commit (db47224, where bare ==
+        immutable); a field bare there gets `const`, a field that was
+        `mut` there just loses the keyword. (`const` is still "rare" in
+        new code -- this only restores existing guarantees.)
+      * Declaration gained a `redundant_mut` flag (src/core/ast.til);
+        the parser sets it when a field carries `mut`, and the typer's
+        struct-field loop (infer_type_def_expr) emits a type_error
+        rejecting it (modeled on redundant_conversion_error). Put in the
+        TYPER rather than the parser so all offenders are reported in one
+        pass (the parser is fail-fast); this also let `bin/til` enumerate
+        every field-`mut` to drive the migration precisely.
+      * build_til_binding in src/self/builder.til now emits `const` for
+        immutable fields (and never the redundant `mut`).
+      * doc/facts.org and doc/qualifiers.org updated.
+
+*** Still open: enum payloads
+
+Enum variant payloads still take no mut/const annotation. Whether they
+should follow the struct-field rule (mutable by default, const opt-out)
+or stay as-is is unresolved -- a separate change. The struct-field part
+of this issue is complete.
 
 *** Summary
 

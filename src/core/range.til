@@ -5,8 +5,8 @@ import("u64")
 
 /// Integer interval from start (inclusive) to end (exclusive).
 Range := struct {
-    start : U64 = 0
-    end : U64 = 0
+    const start : U64 = 0
+    const end : U64 = 0
 
 namespace:
     /// Create a Range from `start` (inclusive) to `end` (exclusive).

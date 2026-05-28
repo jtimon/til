@@ -206,9 +206,9 @@ priv CtorArg := enum {
 // ~sub_nodes~ entry means "the variant's payload was never decomposed"
 // and is only fully_covered iff its own ~fully_covered~ bit is set.
 priv CoverageNode := struct {
-    mut fully_covered := false
-    mut sub_names := Vec.new(Str)
-    mut sub_nodes := Vec.new(CoverageNode)
+    fully_covered := false
+    sub_names := Vec.new(Str)
+    sub_nodes := Vec.new(CoverageNode)
 }
 
 // Seed a node with empty per-variant sub-coverage for an enum_def.
@@ -2387,6 +2387,9 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     switch expr.node_type {
     case NodeType.StructDef(tc_sdd):
         for fd : Declaration in tc_sdd.fields {
+            if fd.redundant_mut {
+                type_error(fd.default_value, "redundant 'mut' on struct field '".concat(fd.name).concat("': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
+            }
             if is_null(fd.default_value).not().and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
                 infer_expr(inner, fd.default_value, 0, ctx)
                 check_ref_field_owned_default(fd, inner, ctx)

@@ -55,7 +55,7 @@ m = "oops"
 // cannot assign to const struct field (#211: fields are mut by default)
 ImmutStruct := struct {
     const id := 0
-    mut name := "x"
+    name := "x"
 }
 immut_struct := ImmutStruct()
 immut_struct.id = 5
@@ -70,11 +70,11 @@ bad2 := ImmutStruct(42)
 bad_fn : Str = func(n: I64) returns I64 { return n }
 
 // wrong explicit type on struct def
-bad_st : I64 = struct { mut x := 0 }
+bad_st : I64 = struct { x := 0 }
 
 // cannot assign to immutable namespace field
 NsStruct := struct {
-    mut x := 0
+    x := 0
     namespace:
     mut count := 0
     label := "fixed"
@@ -124,7 +124,7 @@ println(doomed.to_str())
 
 // own: missing 'own' on UFCS call to own-taking method
 OwnTest := struct {
-    mut val := 0
+    val := 0
 }
 ot1 := OwnTest(val=1)
 ot1.delete()
@@ -135,7 +135,7 @@ OwnTest.delete(ot2)
 
 // struct literal: non-ref fields consume variables
 CtorOwn := struct {
-    mut name := "default"
+    name := "default"
 }
 ctor_name := "hello"
 co := CtorOwn(name=ctor_name)
@@ -246,7 +246,7 @@ take_shallow(NULL)
 
 // #99: struct with new() -- literal outside namespace is an error
 HasNew := struct {
-    mut x := 0
+    x := 0
 namespace:
     new := func(x: I64) returns HasNew { return HasNew(x = x) }
 }
@@ -264,7 +264,7 @@ unused_local := func() returns I64 {
 unused_local()
 
 // #161: 'ref mut' cannot launder mutability from an immutable ref local
-TerrLaunder := struct { mut field := 0 }
+TerrLaunder := struct { field := 0 }
 terr_launder_local := TerrLaunder(field=1)
 ref terr_launder_r : TerrLaunder = terr_launder_local
 ref mut terr_launder_rm : TerrLaunder = terr_launder_r
@@ -305,7 +305,7 @@ useless_proc := proc(_x: I64) {
 useless_proc(1)
 
 // #168 step 1: ref binding cannot be initialized from .clone()
-TerrCloneRefSrc := struct { mut field := 0 }
+TerrCloneRefSrc := struct { field := 0 }
 terr_clone_ref_src := TerrCloneRefSrc(field=1)
 ref terr_clone_ref : TerrCloneRefSrc = terr_clone_ref_src.clone()
 ref mut terr_clone_ref_mut : TerrCloneRefSrc = terr_clone_ref_src.clone()
@@ -325,8 +325,8 @@ terr_step5_bad_ret := func(f: TerrCloneRefSrc) returns ref TerrCloneRefSrc {
 // #168 step 3: ref struct field default cannot be an owned value.
 // NULL stays allowed (forced exception for ref fields).
 TerrStep3 := struct {
-    ref mut bad_field : TerrCloneRefSrc = TerrCloneRefSrc(field=3)
-    ref mut ok_field : TerrCloneRefSrc = NULL
+    ref bad_field : TerrCloneRefSrc = TerrCloneRefSrc(field=3)
+    ref ok_field : TerrCloneRefSrc = NULL
 }
 
 // #168 step 2 follow-up: enum variant constructors are caught too,
@@ -338,7 +338,7 @@ ref terr_step2_enum : TerrStep2Enum = TerrStep2Enum.TerrPayload(5)
 // #168 step 4: assignment to a ref-typed lvalue cannot accept an owned
 // RHS. Catches both plain Assign and FieldAssign shapes.
 TerrStep4Field := struct {
-    ref mut data : Str = NULL
+    ref data : Str = NULL
 namespace:
     set_clone := func(mut self: TerrStep4Field, src: Str) returns I64 {
         self.data = src.clone()
@@ -476,8 +476,8 @@ case: println("other")
 // struct pattern that omits a field without `..` is rejected; either
 // bind all fields or use `..` to make the partial match explicit.
 TerrRestPoint := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
     namespace:
     eq := func(a: TerrRestPoint, b: TerrRestPoint) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
     to_str := func(self: TerrRestPoint) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
@@ -515,7 +515,7 @@ terr_self_conv_str := func() returns Str {
     val : Str = "hello"
     return val.to_str()
 }
-TerrSelfAaa := struct { mut field := 0 }
+TerrSelfAaa := struct { field := 0 }
 terr_self_conv_struct := func() returns TerrSelfAaa {
     val := TerrSelfAaa(field = 1)
     return val.to_terrselfaaa()

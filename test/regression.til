@@ -13,7 +13,7 @@ mode test
 // from one type's namespace inside another type's namespace).
 
 Bug47Helper := struct {
-    val : I64 = 0
+    const val : I64 = 0
 namespace:
     make := func(n: I64) returns Bug47Helper {
         return Bug47Helper(val = n)
@@ -21,7 +21,7 @@ namespace:
 }
 
 Bug47Wrapper := struct {
-    data : Bug47Helper = Bug47Helper()
+    const data : Bug47Helper = Bug47Helper()
 namespace:
     from_int := func(n: I64) returns Bug47Wrapper {
         // Cross-namespace call: Bug47Helper.make from Bug47Wrapper's namespace

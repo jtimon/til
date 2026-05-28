@@ -9,13 +9,13 @@ import("u8")
 
 /// Unordered collection of unique typed elements.
 Set := struct {
-    own mut data : U8 = 0
-    mut count : USize = 0
-    mut cap : USize = 0
-    elem_size : USize = 0
-    elem_clone : CloneFn = default_clone
-    elem_delete : DeleteFn = default_delete
-    elem_cmp : CmpFn = default_cmp
+    own data : U8 = 0
+    count : USize = 0
+    cap : USize = 0
+    const elem_size : USize = 0
+    const elem_clone : CloneFn = default_clone
+    const elem_delete : DeleteFn = default_delete
+    const elem_cmp : CmpFn = default_cmp
 
 namespace:
     /// Create an empty Set. elem_type must implement `cmp`.

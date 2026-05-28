@@ -22,13 +22,13 @@ mode lib
 // typer.til so those names are in scope.
 
 priv LocalInfo := struct {
-    ref mut name : Str = NULL
-    mut type := Type.Unknown
-    mut decl_index : I32 = 0
-    mut last_use : I32 = 0
-    mut own_transfer : I32 = -1
-    mut skip_scope_delete := false
-    mut is_heap := false
+    ref name : Str = NULL
+    type := Type.Unknown
+    decl_index : I32 = 0
+    last_use : I32 = 0
+    own_transfer : I32 = -1
+    skip_scope_delete := false
+    is_heap := false
 }
 
 alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow Bool {

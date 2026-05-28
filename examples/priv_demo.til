@@ -32,10 +32,10 @@ sum_of_squares := func(a: I64, b: I64) returns I64 {
 // Struct with a priv field and a priv namespace method.
 // ---------------------------------------------------------------
 Counter := struct {
-    mut value := 0
+    value := 0
     // Hidden state: callers should not depend on the bookkeeping
     // counter. Only Counter's own ns methods can read or write it.
-    priv mut bumps := 0
+    priv bumps := 0
 namespace:
     new := func(start: I64) returns Counter {
         return Counter(value = start, bumps = 0)

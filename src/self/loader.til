@@ -94,9 +94,9 @@ resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
 // --- Import resolution ---
 
 ProgramUnit := struct {
-    mut path := ""
-    mut mode := Mode()
-    mut imports := Vec.new(Str)
+    path := ""
+    mode := Mode()
+    imports := Vec.new(Str)
 }
 
 // Resolve a file's direct import paths to display paths.
@@ -237,20 +237,20 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
-    own mut core_units := Vec.new(ProgramUnit)
-    own mut units := Vec.new(ProgramUnit)
+    own core_units := Vec.new(ProgramUnit)
+    own units := Vec.new(ProgramUnit)
 
-    mut target := Target.LinuxX64
-    mut cur_mode := Mode()
-    mut ctx := Context()
-    mut skip_core := false
-    mut mode_str := ""
-    mut path := ""
-    mut ext_c_path := ""
-    mut link_flags := ""
-    mut include_flags := ""
-    mut link_c_paths := ""
-    mut run_tests := false
+    target := Target.LinuxX64
+    cur_mode := Mode()
+    ctx := Context()
+    skip_core := false
+    mode_str := ""
+    path := ""
+    ext_c_path := ""
+    link_flags := ""
+    include_flags := ""
+    link_c_paths := ""
+    run_tests := false
 }
 
 retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: Str) {
@@ -362,8 +362,8 @@ precomp_imported := proc(mut lp: LoadedProgram) {
 // Scavenge across per-file units (rstil-style): compute a single visited set
 // from merged views, then filter each file's canonical AST in ctx.imported.
 priv DeclRef := struct {
-    mut path := ""
-    mut idx : U32 = 0
+    path := ""
+    idx : U32 = 0
 }
 
 find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns ref Expr {

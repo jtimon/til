@@ -56,23 +56,23 @@ NNG_PATCH_VERSION : I64 = 0
 // access the ID member directly.
 
 nng_ctx := ext_struct("nng_ctx_s") {
-    mut id : U32 = 0
+    id : U32 = 0
 }
 
 nng_dialer := ext_struct("nng_dialer_s") {
-    mut id : U32 = 0
+    id : U32 = 0
 }
 
 nng_listener := ext_struct("nng_listener_s") {
-    mut id : U32 = 0
+    id : U32 = 0
 }
 
 nng_pipe := ext_struct("nng_pipe_s") {
-    mut id : U32 = 0
+    id : U32 = 0
 }
 
 nng_socket := ext_struct("nng_socket_s") {
-    mut id : U32 = 0
+    id : U32 = 0
 }
 
 nng_duration := I32
@@ -120,8 +120,8 @@ nng_sockaddr := Dynamic  // typedef union from C, opaque here
 
 // Scatter/gather I/O.
 nng_iov := struct {
-    ref mut iov_buf : Dynamic = NULL
-    mut iov_len : USize = 0
+    ref iov_buf : Dynamic = NULL
+    iov_len : USize = 0
 }
 
 // Some definitions for durations used with timeouts.
@@ -937,16 +937,16 @@ nng_device_aio := ext_proc(_arg : nng_aio, shallow _arg : nng_socket, shallow _a
 // give us a convenient way of doing so.
 
 nng_url := struct {
-    ref mut u_rawurl : I8 = NULL  // never NULL
-    ref mut u_scheme : I8 = NULL  // never NULL
-    ref mut u_userinfo : I8 = NULL  // will be NULL if not specified
-    ref mut u_host : I8 = NULL  // including colon and port
-    ref mut u_hostname : I8 = NULL  // name only, will be "" if not specified
-    ref mut u_port : I8 = NULL  // port, will be "" if not specified
-    ref mut u_path : I8 = NULL  // path, will be "" if not specified
-    ref mut u_query : I8 = NULL  // without '?', will be NULL if not specified
-    ref mut u_fragment : I8 = NULL  // without '#', will be NULL if not specified
-    ref mut u_requri : I8 = NULL  // includes query and fragment, "" if not specified
+    ref u_rawurl : I8 = NULL  // never NULL
+    ref u_scheme : I8 = NULL  // never NULL
+    ref u_userinfo : I8 = NULL  // will be NULL if not specified
+    ref u_host : I8 = NULL  // including colon and port
+    ref u_hostname : I8 = NULL  // name only, will be "" if not specified
+    ref u_port : I8 = NULL  // port, will be "" if not specified
+    ref u_path : I8 = NULL  // path, will be "" if not specified
+    ref u_query : I8 = NULL  // without '?', will be NULL if not specified
+    ref u_fragment : I8 = NULL  // without '#', will be NULL if not specified
+    ref u_requri : I8 = NULL  // includes query and fragment, "" if not specified
 }
 
 // nng_url_parse parses a URL string into a structured form.

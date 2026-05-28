@@ -58,7 +58,7 @@ test_dyn_map_overwrite := test() {
 }
 
 Foo := struct {
-    x := 0
+    const x := 0
     namespace:
     bar := func(self: Foo) returns I64 { return self.x }
 }
@@ -196,7 +196,7 @@ test_dyn_size_of := test() {
 }
 
 TypeNameStruct := struct {
-    x := 0
+    const x := 0
 }
 
 type_name_passthrough := func(T: Type) returns Str {

@@ -5,17 +5,17 @@ mode test
 // If the topo sort is broken, this won't compile.
 
 A := struct {
-    mut x : I64 = 0
+    x : I64 = 0
 }
 
 B := struct {
-    mut a := A()
-    mut y : I64 = 0
+    a := A()
+    y : I64 = 0
 }
 
 C := struct {
-    mut b := B()
-    mut z : I64 = 0
+    b := B()
+    z : I64 = 0
 }
 
 test_topo_inline_struct := test() {

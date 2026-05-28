@@ -11,7 +11,7 @@ Direction := enum {
 }
 
 Counter := struct {
-    mut value := 0
+    value := 0
     namespace:
     mut instances := 0
     label := "Counter"

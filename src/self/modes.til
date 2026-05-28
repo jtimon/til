@@ -3,13 +3,13 @@ mode lib
 import("initer")
 
 Mode := struct {
-    mut needs_main := false
-    mut decls_only := true
-    mut auto_import := ""
-    mut is_library := false
-    mut is_pure := false
-    mut run_tests := false
-    mut debug_prints := false
+    needs_main := false
+    decls_only := true
+    auto_import := ""
+    is_library := false
+    is_pure := false
+    run_tests := false
+    debug_prints := false
 }
 
 context_register_path_mode := func(mut ctx: Context, path: Str, mode: Mode) {

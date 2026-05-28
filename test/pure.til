@@ -9,8 +9,8 @@ double := func(x: I64) returns I64 {
 }
 
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 
     namespace:
     sum := func(self: Point) returns I64 {

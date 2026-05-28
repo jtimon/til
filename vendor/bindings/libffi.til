@@ -138,10 +138,10 @@ FFI_64_BIT_MAX : I64 = 9223372036854775807
    can hold a pointer.  */
 
 ffi_type := ext_struct("_ffi_type") {
-    mut size : USize = 0
-    mut alignment : I16 = 0
-    mut type : I16 = 0
-    ref mut elements : Dynamic = NULL
+    size : USize = 0
+    alignment : I16 = 0
+    type : I16 = 0
+    ref elements : Dynamic = NULL
 }
 
 /* Need minimal decorations for DLLs to work on Windows.  GCC has
@@ -164,12 +164,12 @@ FFI_BAD_ABI : I32 = 2.to_i32()
 FFI_BAD_ARGTYPE : I32 = 3.to_i32()
 
 ffi_cif := ext_struct("") {
-    mut abi : ffi_abi = 0
-    mut nargs : U32 = 0
-    ref mut arg_types : Dynamic = NULL
-    ref mut rtype : ffi_type = NULL
-    mut bytes : U32 = 0
-    mut flags : U32 = 0
+    abi : ffi_abi = 0
+    nargs : U32 = 0
+    ref arg_types : Dynamic = NULL
+    ref rtype : ffi_type = NULL
+    bytes : U32 = 0
+    flags : U32 = 0
 }
 
 /* ---- Definitions for the raw API -------------------------------------- */

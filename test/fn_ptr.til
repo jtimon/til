@@ -193,7 +193,7 @@ test_return_funcsig_pass := test() {
 // --- Struct fields with FuncSig type ---
 
 Handler := struct {
-    mut on_click : BinaryOp = fn_add
+    on_click : BinaryOp = fn_add
 }
 
 test_struct_field_funcsig := test() {

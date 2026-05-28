@@ -33,14 +33,20 @@ Compound types: Str, user-defined structs, enums.
 
 ** Struct fields
 
-| til                        | C struct member  | semantics                            |
-|----------------------------+------------------+--------------------------------------|
-| ~field := default~         | ~Type field~     | inline value (default)               |
-| ~mut field := default~     | ~Type field~     | mutable inline value                 |
-| ~own field := default~     | ~Type *field~    | owned heap pointer                   |
-| ~own mut field := default~ | ~Type *field~    | mutable owned heap pointer           |
-| ~ref field : Type = NULL~  | ~Type *field~    | borrowed pointer (caller owns data)  |
-| ~ref mut field : Type = NULL~ | ~Type *field~ | mutable borrowed pointer             |
+Unlike locals and parameters, struct instance fields are MUTABLE by
+default (#211): a struct is usually a bag of state updated over its
+lifetime, so the common case needs no annotation. ~const~ opts a field
+out (immutable after construction). An explicit ~mut~ on a field is
+redundant and rejected by the typer.
+
+| til                          | C struct member  | semantics                            |
+|------------------------------+------------------+--------------------------------------|
+| ~field := default~           | ~Type field~     | inline value, mutable (default)      |
+| ~const field := default~     | ~Type field~     | immutable inline value               |
+| ~own field := default~       | ~Type *field~    | owned heap pointer (mutable)         |
+| ~own const field := default~ | ~Type *field~    | immutable owned heap pointer         |
+| ~ref field : Type = NULL~    | ~Type *field~    | borrowed pointer (caller owns data)  |
+| ~ref const field : Type = NULL~ | ~Type *field~ | immutable borrowed pointer           |
 
 ** Key rules
 
@@ -52,6 +58,10 @@ Compound types: Str, user-defined structs, enums.
 - Locals are owned by default, so explicit ~own~ on locals is redundant:
   ~own x := ...~, ~own mut x := ...~, ~own x : Type = ...~, and
   ~own mut x : Type = ...~ are all rejected
+- Struct fields are mutable by default, so explicit ~mut~ on a field is
+  redundant and rejected; use ~const~ to make a field immutable
+  (namespace decls inside a struct keep the const-by-default rule and
+  still opt in with ~mut~)
 - ~Dynamic~ is the raw owned-pointer exception:
   - use ~buf : Dynamic = malloc(...)~ for owned allocations
   - use ~ref elem : T = buf~ or ~ref elem : T = ptr_add(buf, i)~ for typed access

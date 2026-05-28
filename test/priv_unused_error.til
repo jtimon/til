@@ -7,7 +7,7 @@ mode script
 priv unused_helper := func(x: I64) returns I64 { return x }
 
 priv UnusedStruct := struct {
-    mut value := 0
+    value := 0
 }
 
 priv UnusedEnum := enum { A, B }
@@ -19,15 +19,15 @@ priv mut unused_counter := 0
 // namespace ever reads. The struct itself is non-priv (so the
 // top-level check stays quiet) but the field is dead.
 StructWithUnusedField := struct {
-    mut tag := 0
-    priv mut secret := 0
+    tag := 0
+    priv secret := 0
 namespace:
     show := func(self: StructWithUnusedField) returns I64 { return self.tag }
 }
 
 // #187 step 3: priv namespace method that no other ns member calls.
 StructWithUnusedNs := struct {
-    mut value := 0
+    value := 0
 namespace:
     public := func(self: StructWithUnusedNs) returns I64 { return self.value }
     priv unused_helper := func(self: StructWithUnusedNs) returns I64 {

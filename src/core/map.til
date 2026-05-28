@@ -9,10 +9,10 @@ import("vec")
 
 /// Ordered map from typed keys to typed values.
 Map := struct {
-    mut keys : Vec = Vec.new(Dynamic)
-    mut values : Vec = Vec.new(Dynamic)
+    keys : Vec = Vec.new(Dynamic)
+    values : Vec = Vec.new(Dynamic)
 
-    mut key_cmp : CmpFn = default_cmp
+    key_cmp : CmpFn = default_cmp
 
 namespace:
     /// Create an empty Map. Both key_type and val_type must be non-empty;

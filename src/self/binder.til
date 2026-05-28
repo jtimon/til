@@ -185,8 +185,8 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
 // mutable state). Stored as single `|NAME|...|` Strs so lookups are a
 // `.contains` check with no Vec<Str> ownership to manage.
 priv BinderState := struct {
-    mut alias_to_primitive := "|"
-    mut alias_to_dynamic := "|"
+    alias_to_primitive := "|"
+    alias_to_dynamic := "|"
 }
 
 priv register_alias := func(mut bs: BinderState, name: Str) {

@@ -24,15 +24,15 @@ PANEL_LABEL_H := 28
 EMPTY_PANEL_W := 120
 
 UmlType := struct {
-    mut file := ""
-    mut name := ""
-    mut kind := ""
-    mut lines := Vec.new(Str)
+    file := ""
+    name := ""
+    kind := ""
+    lines := Vec.new(Str)
 }
 
 UmlPanel := struct {
-    mut file := ""
-    mut types := Vec.new(UmlType)
+    file := ""
+    types := Vec.new(UmlType)
 }
 
 file_label := func(path: Str) returns Str {

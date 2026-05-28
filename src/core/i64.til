@@ -159,5 +159,5 @@ DivideByZero := struct {}
 /// "file:line:col:<method>: a OP b overflows/underflows" msg. One
 /// shared type for all integer widths.
 IntegerOverflow := struct {
-    mut msg: Str = ""
+    msg: Str = ""
 }

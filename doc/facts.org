@@ -50,10 +50,17 @@
   Fixed by #8: variadic params now work in regular funcs, procs, and macros.
   Variadic args are received as an Array inside the function body.
 
-* TRUE Everything is immutable by default, mut opts in to mutation
-  Applies to variable declarations (mut x := 5), struct fields (mut x := 0),
-  and function/proc parameters (mut self: Point). The typer enforces this —
-  assignments to non-mut bindings are type errors.
+* TRUE Locals and parameters are immutable by default, mut opts in
+  Variable declarations (mut x := 5) and function/proc parameters
+  (mut self: Point) are immutable unless marked mut. The typer enforces
+  this -- assignments to non-mut bindings are type errors.
+
+* TRUE Struct instance fields are MUTABLE by default, const opts out (#211)
+  A struct is usually mutable state, so instance fields need no
+  annotation to be writable; const makes a field immutable after
+  construction. An explicit mut on a field is redundant and the typer
+  rejects it. Namespace declarations inside a struct keep the
+  immutable-by-default rule (they opt in with mut, like locals).
 
 * TRUE The own keyword marks ownership transfer
   At call sites, own marks that the caller gives up ownership: own p.delete().

@@ -3,8 +3,8 @@ mode test
 // Auto-generated inc/dec from add+sub+unity
 
 Vec2 := struct {
-    mut x : I64 = 0
-    mut y : I64 = 0
+    x : I64 = 0
+    y : I64 = 0
 namespace:
     add := func(a: Vec2, b: Vec2) returns Vec2 {
         return Vec2(x = a.x.add(b.x), y = a.y.add(b.y))

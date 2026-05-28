@@ -54,10 +54,10 @@ TokenType := enum {
 // til Token uses text: Str (copied substring). Simpler memory model.
 
 Token := struct {
-    type := TokenType.Eof
-    text := ""
-    line : U32 = 0
-    col : U32 = 0
+    const type := TokenType.Eof
+    const text := ""
+    const line : U32 = 0
+    const col : U32 = 0
 }
 
 // --- Character helpers ---

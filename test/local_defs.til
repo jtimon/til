@@ -8,8 +8,8 @@ mode test
 
 test_local_struct := test() {
     LocalPoint := struct {
-        mut x := 0
-        mut y := 0
+        x := 0
+        y := 0
     }
     mut p := LocalPoint()
     p.x = 5
@@ -20,7 +20,7 @@ test_local_struct := test() {
 
 test_local_struct_same_name_different_shape := test() {
     LocalPoint := struct {
-        mut a := 11
+        a := 11
     }
     p := LocalPoint()
     assert_eq(__LOC__, p.a, 11)
@@ -56,8 +56,8 @@ test_local_func := test() {
 
 test_local_struct_with_local_func := test() {
     LocalPair := struct {
-        mut a := 0
-        mut b := 0
+        a := 0
+        b := 0
     }
     sum_pair := func(p: LocalPair) returns I64 { return p.a.add(p.b) }
     mut q := LocalPair()
@@ -68,7 +68,7 @@ test_local_struct_with_local_func := test() {
 
 test_local_struct_in_block := test() {
     {
-        BlockBox := struct { mut v := 0 }
+        BlockBox := struct { v := 0 }
         mut b := BlockBox()
         b.v = 11
         assert_eq(__LOC__, b.v, 11)
@@ -80,7 +80,7 @@ test_local_struct_in_block := test() {
 // not `LocalPair`, so type/value namespaces don't collide).
 test_local_func_field_name_match := test() {
     LocalPair := struct {
-        mut z := 0
+        z := 0
     }
     z := LocalPair()
     assert_eq(__LOC__, z.z, 0)
@@ -93,11 +93,11 @@ test_local_func_field_name_match := test() {
 // generated C fails to compile).
 test_local_struct_with_method_with_nested := test() {
     Outer := struct {
-        mut tag := 0
+        tag := 0
     namespace:
         build := func() returns I64 {
             Inner := struct {
-                mut q := 7
+                q := 7
             }
             i := Inner()
             return i.q

@@ -10,7 +10,7 @@ mode test
 // when bin/til was self-compiled with the same pattern.
 
 priv Inner := struct {
-    mut items := Vec.new(Str)
+    items := Vec.new(Str)
 namespace:
     eq := func(a: Inner, b: Inner) returns Bool { return a.items.len().eq(b.items.len()) }
     to_str := func(_self: Inner) returns Str { return "Inner" }
@@ -23,7 +23,7 @@ priv NT := enum {
 }
 
 priv Box := struct {
-    mut nt := NT.Empty
+    nt := NT.Empty
 namespace:
     self_ref := func(self: Box) returns ref Box { return self }
 }

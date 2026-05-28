@@ -10,11 +10,11 @@ array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
 
 /// Fixed-capacity array of typed elements.
 Array := struct {
-    own mut data : U8 = 0
-    cap : USize = 0
-    elem_size : USize = 0
-    elem_clone : CloneFn = default_clone
-    elem_delete : DeleteFn = default_delete
+    own data : U8 = 0
+    const cap : USize = 0
+    const elem_size : USize = 0
+    const elem_clone : CloneFn = default_clone
+    const elem_delete : DeleteFn = default_delete
 
 namespace:
     /// Create a zero-initialized Array with the given element type and capacity.

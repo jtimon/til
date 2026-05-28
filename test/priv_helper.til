@@ -12,7 +12,7 @@ priv internal_inc := func(x: I64) returns I64 {
 
 // #179 step 2: a priv struct -- type name hidden from other files.
 priv Secret := struct {
-    mut value := 0
+    value := 0
 namespace:
     show := func(self: Secret) returns I64 { return self.value }
 }
@@ -29,8 +29,8 @@ make_secret := func(v: I64) returns I64 {
 // invisible outside Box's own namespace methods, even within this
 // declaring file.
 Box := struct {
-    mut tag := 0
-    priv mut hidden := 0
+    tag := 0
+    priv hidden := 0
 namespace:
     // Public method may read the priv field freely (same struct).
     hidden_plus_one := func(self: Box) returns I64 {

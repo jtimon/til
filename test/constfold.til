@@ -116,8 +116,8 @@ test_fold_f32 := test() {
 // --- Struct comptime folding ---
 
 CfVec2 := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 
     namespace:
     magic := func() returns CfVec2 {
@@ -145,8 +145,8 @@ test_struct_fold_values := test() {
 
 // Test 10: Nested struct.
 CfRect := struct {
-    mut top_left := CfVec2()
-    mut bottom_right := CfVec2()
+    top_left := CfVec2()
+    bottom_right := CfVec2()
 
     namespace:
     sample := func() returns CfRect {

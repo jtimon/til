@@ -34,8 +34,8 @@ cfile_read_all := ext_func(handle: Dynamic) returns Str {}
 
 /// File handle for reading or writing on disk.
 File := struct {
-    ref mut handle : U8 = NULL
-    mut is_write := false
+    ref handle : U8 = NULL
+    is_write := false
 
 namespace:
     readfile := ext_func(path: Str) returns Str {}

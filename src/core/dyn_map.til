@@ -8,7 +8,7 @@ import("tuple")
 
 /// String-keyed map of dynamically-typed values.
 DynMap := struct {
-    mut items := Map.new(Str, Tuple)
+    items := Map.new(Str, Tuple)
 
 namespace:
     /// Create an empty DynMap.

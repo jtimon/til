@@ -18,7 +18,7 @@ test_priv_same_file := test() {
 
 // #179 step 2: same-file priv struct works (construct + method call).
 priv LocalSecret := struct {
-    mut value := 0
+    value := 0
 namespace:
     doubled := func(self: LocalSecret) returns I64 {
         return self.value.add(self.value)
@@ -100,8 +100,8 @@ test_priv_global_indirect := test() {
 // initer); a hand-written method with the same name is regular
 // user code with auto_generated == false.
 priv UserCloneStruct := struct {
-    mut tag := 0
-    priv mut secret := 0
+    tag := 0
+    priv secret := 0
 namespace:
     new := func(t: I64, s: I64) returns UserCloneStruct {
         return UserCloneStruct(tag = t, secret = s)
@@ -129,8 +129,8 @@ test_user_clone_marks_priv_used := test() {
 // having both layers on the same type doesn't surprise the typer.
 
 priv NestedSecret := struct {
-    mut tag := 0
-    priv mut hidden := 0
+    tag := 0
+    priv hidden := 0
 namespace:
     new := func(t: I64, h: I64) returns NestedSecret {
         return NestedSecret(tag = t, hidden = h)

@@ -120,23 +120,23 @@ RAYLIB_VERSION_PATCH : I64 = 0
 
 // Vector2, 2 components
 Vector2 := struct {
-    mut x : F32 = 0  // Vector x component
-    mut y : F32 = 0  // Vector y component
+    x : F32 = 0  // Vector x component
+    y : F32 = 0  // Vector y component
 }
 
 // Vector3, 3 components
 Vector3 := struct {
-    mut x : F32 = 0  // Vector x component
-    mut y : F32 = 0  // Vector y component
-    mut z : F32 = 0  // Vector z component
+    x : F32 = 0  // Vector x component
+    y : F32 = 0  // Vector y component
+    z : F32 = 0  // Vector z component
 }
 
 // Vector4, 4 components
 Vector4 := struct {
-    mut x : F32 = 0  // Vector x component
-    mut y : F32 = 0  // Vector y component
-    mut z : F32 = 0  // Vector z component
-    mut w : F32 = 0  // Vector w component
+    x : F32 = 0  // Vector x component
+    y : F32 = 0  // Vector y component
+    z : F32 = 0  // Vector z component
+    w : F32 = 0  // Vector w component
 }
 
 // Quaternion, 4 components (Vector4 alias)
@@ -147,36 +147,36 @@ Matrix := ext_struct("Matrix") {}  // opaque: unsupported field shape
 
 // Color, 4 components, R8G8B8A8 (32bit)
 Color := struct {
-    mut r : U8 = 0  // Color red value
-    mut g : U8 = 0  // Color green value
-    mut b : U8 = 0  // Color blue value
-    mut a : U8 = 0  // Color alpha value
+    r : U8 = 0  // Color red value
+    g : U8 = 0  // Color green value
+    b : U8 = 0  // Color blue value
+    a : U8 = 0  // Color alpha value
 }
 
 // Rectangle, 4 components
 Rectangle := struct {
-    mut x : F32 = 0  // Rectangle top-left corner position x
-    mut y : F32 = 0  // Rectangle top-left corner position y
-    mut width : F32 = 0  // Rectangle width
-    mut height : F32 = 0  // Rectangle height
+    x : F32 = 0  // Rectangle top-left corner position x
+    y : F32 = 0  // Rectangle top-left corner position y
+    width : F32 = 0  // Rectangle width
+    height : F32 = 0  // Rectangle height
 }
 
 // Image, pixel data stored in CPU memory (RAM)
 Image := struct {
-    ref mut data : Dynamic = NULL  // Image raw data
-    mut width : I32 = 0  // Image base width
-    mut height : I32 = 0  // Image base height
-    mut mipmaps : I32 = 0  // Mipmap levels, 1 by default
-    mut format : I32 = 0  // Data format (PixelFormat type)
+    ref data : Dynamic = NULL  // Image raw data
+    width : I32 = 0  // Image base width
+    height : I32 = 0  // Image base height
+    mipmaps : I32 = 0  // Mipmap levels, 1 by default
+    format : I32 = 0  // Data format (PixelFormat type)
 }
 
 // Texture, tex data stored in GPU memory (VRAM)
 Texture := struct {
-    mut id : U32 = 0  // OpenGL texture id
-    mut width : I32 = 0  // Texture base width
-    mut height : I32 = 0  // Texture base height
-    mut mipmaps : I32 = 0  // Mipmap levels, 1 by default
-    mut format : I32 = 0  // Data format (PixelFormat type)
+    id : U32 = 0  // OpenGL texture id
+    width : I32 = 0  // Texture base width
+    height : I32 = 0  // Texture base height
+    mipmaps : I32 = 0  // Mipmap levels, 1 by default
+    format : I32 = 0  // Data format (PixelFormat type)
 }
 
 // Texture2D, same as Texture
@@ -187,9 +187,9 @@ TextureCubemap := Texture
 
 // RenderTexture, fbo for texture rendering
 RenderTexture := struct {
-    mut id : U32 = 0  // OpenGL framebuffer object id
-    mut texture : Texture = Texture()  // Color buffer attachment texture
-    mut depth : Texture = Texture()  // Depth buffer attachment texture
+    id : U32 = 0  // OpenGL framebuffer object id
+    texture : Texture = Texture()  // Color buffer attachment texture
+    depth : Texture = Texture()  // Depth buffer attachment texture
 }
 
 // RenderTexture2D, same as RenderTexture
@@ -197,88 +197,88 @@ RenderTexture2D := RenderTexture
 
 // NPatchInfo, n-patch layout info
 NPatchInfo := struct {
-    mut source : Rectangle = Rectangle()  // Texture source rectangle
-    mut left : I32 = 0  // Left border offset
-    mut top : I32 = 0  // Top border offset
-    mut right : I32 = 0  // Right border offset
-    mut bottom : I32 = 0  // Bottom border offset
-    mut layout : I32 = 0  // Layout of the n-patch: 3x3, 1x3 or 3x1
+    source : Rectangle = Rectangle()  // Texture source rectangle
+    left : I32 = 0  // Left border offset
+    top : I32 = 0  // Top border offset
+    right : I32 = 0  // Right border offset
+    bottom : I32 = 0  // Bottom border offset
+    layout : I32 = 0  // Layout of the n-patch: 3x3, 1x3 or 3x1
 }
 
 // GlyphInfo, font characters glyphs info
 GlyphInfo := struct {
-    mut value : I32 = 0  // Character value (Unicode)
-    mut offsetX : I32 = 0  // Character offset X when drawing
-    mut offsetY : I32 = 0  // Character offset Y when drawing
-    mut advanceX : I32 = 0  // Character advance position X
-    mut image : Image = Image()  // Character image data
+    value : I32 = 0  // Character value (Unicode)
+    offsetX : I32 = 0  // Character offset X when drawing
+    offsetY : I32 = 0  // Character offset Y when drawing
+    advanceX : I32 = 0  // Character advance position X
+    image : Image = Image()  // Character image data
 }
 
 // Font, font texture and GlyphInfo array data
 Font := struct {
-    mut baseSize : I32 = 0  // Base size (default chars height)
-    mut glyphCount : I32 = 0  // Number of glyph characters
-    mut glyphPadding : I32 = 0  // Padding around the glyph characters
-    mut texture : Texture2D = Texture2D()  // Texture atlas containing the glyphs
-    ref mut recs : Rectangle = NULL  // Rectangles in texture for the glyphs
-    ref mut glyphs : GlyphInfo = NULL  // Glyphs info data
+    baseSize : I32 = 0  // Base size (default chars height)
+    glyphCount : I32 = 0  // Number of glyph characters
+    glyphPadding : I32 = 0  // Padding around the glyph characters
+    texture : Texture2D = Texture2D()  // Texture atlas containing the glyphs
+    ref recs : Rectangle = NULL  // Rectangles in texture for the glyphs
+    ref glyphs : GlyphInfo = NULL  // Glyphs info data
 }
 
 // Camera, defines position/orientation in 3d space
 Camera3D := struct {
-    mut position : Vector3 = Vector3()  // Camera position
-    mut target : Vector3 = Vector3()  // Camera target it looks-at
-    mut up : Vector3 = Vector3()  // Camera up vector (rotation over its axis)
-    mut fovy : F32 = 0  // Camera field-of-view aperture in Y (degrees) in perspective, used as near plane height in world units in orthographic
-    mut projection : I32 = 0  // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
+    position : Vector3 = Vector3()  // Camera position
+    target : Vector3 = Vector3()  // Camera target it looks-at
+    up : Vector3 = Vector3()  // Camera up vector (rotation over its axis)
+    fovy : F32 = 0  // Camera field-of-view aperture in Y (degrees) in perspective, used as near plane height in world units in orthographic
+    projection : I32 = 0  // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
 }
 
 Camera := Camera3D
 
 // Camera2D, defines position/orientation in 2d space
 Camera2D := struct {
-    mut offset : Vector2 = Vector2()  // Camera offset (screen space offset from window origin)
-    mut target : Vector2 = Vector2()  // Camera target (world space target point that is mapped to screen space offset)
-    mut rotation : F32 = 0  // Camera rotation in degrees (pivots around target)
-    mut zoom : F32 = 0  // Camera zoom (scaling around target), must not be set to 0, set to 1.0f for no scale
+    offset : Vector2 = Vector2()  // Camera offset (screen space offset from window origin)
+    target : Vector2 = Vector2()  // Camera target (world space target point that is mapped to screen space offset)
+    rotation : F32 = 0  // Camera rotation in degrees (pivots around target)
+    zoom : F32 = 0  // Camera zoom (scaling around target), must not be set to 0, set to 1.0f for no scale
 }
 
 // Mesh, vertex data and vao/vbo
 Mesh := struct {
-    mut vertexCount : I32 = 0  // Number of vertices stored in arrays
-    mut triangleCount : I32 = 0  // Number of triangles stored (indexed or not)
+    vertexCount : I32 = 0  // Number of vertices stored in arrays
+    triangleCount : I32 = 0  // Number of triangles stored (indexed or not)
     // Vertex attributes data
-    ref mut vertices : F32 = NULL  // Vertex position (XYZ - 3 components per vertex) (shader-location = 0)
-    ref mut texcoords : F32 = NULL  // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
-    ref mut texcoords2 : F32 = NULL  // Vertex texture second coordinates (UV - 2 components per vertex) (shader-location = 5)
-    ref mut normals : F32 = NULL  // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
-    ref mut tangents : F32 = NULL  // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
-    ref mut colors : U8 = NULL  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
-    ref mut indices : I16 = NULL  // Vertex indices (in case vertex data comes indexed)
+    ref vertices : F32 = NULL  // Vertex position (XYZ - 3 components per vertex) (shader-location = 0)
+    ref texcoords : F32 = NULL  // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
+    ref texcoords2 : F32 = NULL  // Vertex texture second coordinates (UV - 2 components per vertex) (shader-location = 5)
+    ref normals : F32 = NULL  // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
+    ref tangents : F32 = NULL  // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
+    ref colors : U8 = NULL  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
+    ref indices : I16 = NULL  // Vertex indices (in case vertex data comes indexed)
     // Skin data for animation
-    mut boneCount : I32 = 0  // Number of bones (MAX: 256 bones)
-    ref mut boneIndices : U8 = NULL  // Vertex bone indices, up to 4 bones influence by vertex (skinning) (shader-location = 6)
-    ref mut boneWeights : F32 = NULL  // Vertex bone weight, up to 4 bones influence by vertex (skinning) (shader-location = 7)
+    boneCount : I32 = 0  // Number of bones (MAX: 256 bones)
+    ref boneIndices : U8 = NULL  // Vertex bone indices, up to 4 bones influence by vertex (skinning) (shader-location = 6)
+    ref boneWeights : F32 = NULL  // Vertex bone weight, up to 4 bones influence by vertex (skinning) (shader-location = 7)
     // Runtime animation vertex data (CPU skinning)
     // NOTE: In case of GPU skinning, not used, pointers are NULL
-    ref mut animVertices : F32 = NULL  // Animated vertex positions (after bones transformations)
-    ref mut animNormals : F32 = NULL  // Animated normals (after bones transformations)
+    ref animVertices : F32 = NULL  // Animated vertex positions (after bones transformations)
+    ref animNormals : F32 = NULL  // Animated normals (after bones transformations)
     // OpenGL identifiers
-    mut vaoId : U32 = 0  // OpenGL Vertex Array Object id
-    ref mut vboId : U32 = NULL  // OpenGL Vertex Buffer Objects id (default vertex data)
+    vaoId : U32 = 0  // OpenGL Vertex Array Object id
+    ref vboId : U32 = NULL  // OpenGL Vertex Buffer Objects id (default vertex data)
 }
 
 // Shader
 Shader := struct {
-    mut id : U32 = 0  // Shader program id
-    ref mut locs : I32 = NULL  // Shader locations array (RL_MAX_SHADER_LOCATIONS)
+    id : U32 = 0  // Shader program id
+    ref locs : I32 = NULL  // Shader locations array (RL_MAX_SHADER_LOCATIONS)
 }
 
 // MaterialMap
 MaterialMap := struct {
-    mut texture : Texture2D = Texture2D()  // Material map texture
-    mut color : Color = Color()  // Material map color
-    mut value : F32 = 0  // Material map value
+    texture : Texture2D = Texture2D()  // Material map texture
+    color : Color = Color()  // Material map color
+    value : F32 = 0  // Material map value
 }
 
 // Material, includes shader and maps
@@ -286,9 +286,9 @@ Material := ext_struct("Material") {}  // opaque: unsupported field shape
 
 // Transform, vertex transformation data
 Transform := struct {
-    mut translation : Vector3 = Vector3()  // Translation
-    mut rotation : Quaternion = Quaternion()  // Rotation
-    mut scale : Vector3 = Vector3()  // Scale
+    translation : Vector3 = Vector3()  // Translation
+    rotation : Quaternion = Quaternion()  // Rotation
+    scale : Vector3 = Vector3()  // Scale
 }
 
 // Anim pose, an array of Transform[]
@@ -299,24 +299,24 @@ BoneInfo := ext_struct("BoneInfo") {}  // opaque: unsupported field shape
 
 // Skeleton, animation bones hierarchy
 ModelSkeleton := struct {
-    mut boneCount : I32 = 0  // Number of bones
-    ref mut bones : BoneInfo = NULL  // Bones information (skeleton)
-    ref mut bindPose : ModelAnimPose = NULL  // Bones base transformation (Transform[])
+    boneCount : I32 = 0  // Number of bones
+    ref bones : BoneInfo = NULL  // Bones information (skeleton)
+    ref bindPose : ModelAnimPose = NULL  // Bones base transformation (Transform[])
 }
 
 // Model, meshes, materials and animation data
 Model := struct {
-    mut transform : Matrix = Matrix()  // Local transform matrix
-    mut meshCount : I32 = 0  // Number of meshes
-    mut materialCount : I32 = 0  // Number of materials
-    ref mut meshes : Mesh = NULL  // Meshes array
-    ref mut materials : Material = NULL  // Materials array
-    ref mut meshMaterial : I32 = NULL  // Mesh material number
+    transform : Matrix = Matrix()  // Local transform matrix
+    meshCount : I32 = 0  // Number of meshes
+    materialCount : I32 = 0  // Number of materials
+    ref meshes : Mesh = NULL  // Meshes array
+    ref materials : Material = NULL  // Materials array
+    ref meshMaterial : I32 = NULL  // Mesh material number
     // Animation data
-    mut skeleton : ModelSkeleton = ModelSkeleton()  // Skeleton for animation
+    skeleton : ModelSkeleton = ModelSkeleton()  // Skeleton for animation
     // Runtime animation data (CPU/GPU skinning)
-    ref mut currentPose : ModelAnimPose = NULL  // Current animation pose (Transform[])
-    ref mut boneMatrices : Matrix = NULL  // Bones animated transformation matrices
+    ref currentPose : ModelAnimPose = NULL  // Current animation pose (Transform[])
+    ref boneMatrices : Matrix = NULL  // Bones animated transformation matrices
 }
 
 // ModelAnimation, contains a full animation sequence
@@ -324,31 +324,31 @@ ModelAnimation := ext_struct("ModelAnimation") {}  // opaque: unsupported field 
 
 // Ray, ray for raycasting
 Ray := struct {
-    mut position : Vector3 = Vector3()  // Ray position (origin)
-    mut direction : Vector3 = Vector3()  // Ray direction (normalized)
+    position : Vector3 = Vector3()  // Ray position (origin)
+    direction : Vector3 = Vector3()  // Ray direction (normalized)
 }
 
 // RayCollision, ray hit information
 RayCollision := struct {
-    mut hit : Bool = false  // Did the ray hit something?
-    mut distance : F32 = 0  // Distance to the nearest hit
-    mut point : Vector3 = Vector3()  // Point of the nearest hit
-    mut normal : Vector3 = Vector3()  // Surface normal of hit
+    hit : Bool = false  // Did the ray hit something?
+    distance : F32 = 0  // Distance to the nearest hit
+    point : Vector3 = Vector3()  // Point of the nearest hit
+    normal : Vector3 = Vector3()  // Surface normal of hit
 }
 
 // BoundingBox
 BoundingBox := struct {
-    mut min : Vector3 = Vector3()  // Minimum vertex box-corner
-    mut max : Vector3 = Vector3()  // Maximum vertex box-corner
+    min : Vector3 = Vector3()  // Minimum vertex box-corner
+    max : Vector3 = Vector3()  // Maximum vertex box-corner
 }
 
 // Wave, audio wave data
 Wave := struct {
-    mut frameCount : U32 = 0  // Total number of frames (considering channels)
-    mut sampleRate : U32 = 0  // Frequency (samples per second)
-    mut sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
-    mut channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
-    ref mut data : Dynamic = NULL  // Buffer data pointer
+    frameCount : U32 = 0  // Total number of frames (considering channels)
+    sampleRate : U32 = 0  // Frequency (samples per second)
+    sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
+    channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
+    ref data : Dynamic = NULL  // Buffer data pointer
 }
 
 // Opaque structs declaration
@@ -359,26 +359,26 @@ rAudioProcessor := ext_struct("rAudioProcessor") {}
 
 // AudioStream, custom audio stream
 AudioStream := struct {
-    ref mut buffer : rAudioBuffer = NULL  // Pointer to internal data used by the audio system
-    ref mut processor : rAudioProcessor = NULL  // Pointer to internal data processor, useful for audio effects
-    mut sampleRate : U32 = 0  // Frequency (samples per second)
-    mut sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
-    mut channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
+    ref buffer : rAudioBuffer = NULL  // Pointer to internal data used by the audio system
+    ref processor : rAudioProcessor = NULL  // Pointer to internal data processor, useful for audio effects
+    sampleRate : U32 = 0  // Frequency (samples per second)
+    sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
+    channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
 }
 
 // Sound
 Sound := struct {
-    mut stream : AudioStream = AudioStream()  // Audio stream
-    mut frameCount : U32 = 0  // Total number of frames (considering channels)
+    stream : AudioStream = AudioStream()  // Audio stream
+    frameCount : U32 = 0  // Total number of frames (considering channels)
 }
 
 // Music, audio stream, anything longer than ~10 seconds should be streamed
 Music := struct {
-    mut stream : AudioStream = AudioStream()  // Audio stream
-    mut frameCount : U32 = 0  // Total number of frames (considering channels)
-    mut looping : Bool = false  // Music looping enable
-    mut ctxType : I32 = 0  // Type of music context (audio filetype)
-    ref mut ctxData : Dynamic = NULL  // Audio context data, depends on type
+    stream : AudioStream = AudioStream()  // Audio stream
+    frameCount : U32 = 0  // Total number of frames (considering channels)
+    looping : Bool = false  // Music looping enable
+    ctxType : I32 = 0  // Type of music context (audio filetype)
+    ref ctxData : Dynamic = NULL  // Audio context data, depends on type
 }
 
 // VrDeviceInfo, Head-Mounted-Display device parameters
@@ -389,8 +389,8 @@ VrStereoConfig := ext_struct("VrStereoConfig") {}  // opaque: unsupported field 
 
 // File path list
 FilePathList := struct {
-    mut count : U32 = 0  // Filepaths entries count
-    ref mut paths : Dynamic = NULL  // Filepaths entries
+    count : U32 = 0  // Filepaths entries count
+    ref paths : Dynamic = NULL  // Filepaths entries
 }
 
 // Automation event
@@ -398,9 +398,9 @@ AutomationEvent := ext_struct("AutomationEvent") {}  // opaque: unsupported fiel
 
 // Automation event list
 AutomationEventList := struct {
-    mut capacity : U32 = 0  // Events max entries (MAX_AUTOMATION_EVENTS)
-    mut count : U32 = 0  // Events entries count
-    ref mut events : AutomationEvent = NULL  // Events entries
+    capacity : U32 = 0  // Events max entries (MAX_AUTOMATION_EVENTS)
+    count : U32 = 0  // Events entries count
+    ref events : AutomationEvent = NULL  // Events entries
 }
 
 //----------------------------------------------------------------------------------

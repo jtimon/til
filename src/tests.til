@@ -87,16 +87,16 @@ mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
 // --- Data structures ---
 
 ModeData := struct {
-    mut interp_ms := 0
-    mut interp_ok := 0
-    mut interp_mem := 0
-    mut compile_ms := 0
-    mut compile_ok := 0
-    mut compile_mem := 0
-    mut run_ms := 0
-    mut run_ok := 0
-    mut run_mem := 0
-    mut output_match := 1
+    interp_ms := 0
+    interp_ok := 0
+    interp_mem := 0
+    compile_ms := 0
+    compile_ok := 0
+    compile_mem := 0
+    run_ms := 0
+    run_ok := 0
+    run_mem := 0
+    output_match := 1
     namespace:
     eq := func(a: ModeData, b: ModeData) returns Bool {
         return a.interp_ms.eq(b.interp_ms).and(a.interp_ok.eq(b.interp_ok))
@@ -113,27 +113,27 @@ ModeData := struct {
 TestKind := enum { Mode: ModeData, Single, Count }
 
 Test := struct {
-    mut label := ""
-    mut cmd := ""
-    mut outfile := ""
-    mut category := ""
-    mut kind := TestKind.Single
+    label := ""
+    cmd := ""
+    outfile := ""
+    category := ""
+    kind := TestKind.Single
     // scheduling
-    mut pid := 0
-    mut start_ms := 0
+    pid := 0
+    start_ms := 0
     // common results
-    mut ok := 0
-    mut ms := 0
-    mut mem := 0
+    ok := 0
+    ms := 0
+    mem := 0
     // mode config flags
-    mut has_interp := 0
-    mut has_run := 0
+    has_interp := 0
+    has_run := 0
 }
 
 Slot := struct {
-    mut test_idx : USize = 0
-    mut pid := 0
-    mut start_ms := 0
+    test_idx : USize = 0
+    pid := 0
+    start_ms := 0
 }
 
 // --- Output helpers ---

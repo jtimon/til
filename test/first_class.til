@@ -50,7 +50,7 @@ test_lambda_nested_calls := test() {
 // --- Lambda as UFCS method-call argument ---
 
 Wrapper := struct {
-    mut val : I64 = 0
+    val : I64 = 0
 
 namespace:
     apply := func(self: Wrapper, op: UnaryOp) returns I64 {
@@ -80,7 +80,7 @@ test_lambda_as_value_binary := test() {
 // --- Lambda as struct-field default value ---
 
 Handler := struct {
-    mut on_click : BinaryOp = func(a: I64, b: I64) returns I64 { return a.add(b) }
+    on_click : BinaryOp = func(a: I64, b: I64) returns I64 { return a.add(b) }
 }
 
 test_struct_field_lambda_default := test() {
@@ -153,8 +153,8 @@ test_explicit_funcdef_annotation := test() {
 // What works today is covered below.
 
 Point56 := struct {
-    mut x: I64 = 0
-    mut y: I64 = 0
+    x: I64 = 0
+    y: I64 = 0
 }
 
 // A struct type can be passed where a `Type` parameter is expected and
@@ -190,8 +190,8 @@ test_vec_of_struct_instances := test() {
 
 test_anon_struct_ctor := test() {
     p := struct {
-        mut x: I64 = 0
-        mut y: I64 = 0
+        x: I64 = 0
+        y: I64 = 0
     }(x=10, y=20)
     assert_eq(__LOC__, p.x, 10)
     assert_eq(__LOC__, p.y, 20)
@@ -199,7 +199,7 @@ test_anon_struct_ctor := test() {
 
 test_anon_struct_defaults := test() {
     q := struct {
-        mut a: I64 = 7
+        a: I64 = 7
     }()
     assert_eq(__LOC__, q.a, 7)
 }
@@ -254,8 +254,8 @@ test_anon_enum_payload_switch := test() {
 // Conversely, literals that differ observably (here, a field default) stay
 // distinct types and keep their own defaults.
 test_anon_struct_distinct_defaults := test() {
-    a := struct { mut x: I64 = 1 }()
-    b := struct { mut x: I64 = 2 }()
+    a := struct { x: I64 = 1 }()
+    b := struct { x: I64 = 2 }()
     assert_eq(__LOC__, a.x, 1)
     assert_eq(__LOC__, b.x, 2)
 }

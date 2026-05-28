@@ -19,7 +19,7 @@ test_simplest_catch := test() {
 }
 
 ErrorWithMessage := struct {
-    mut msg: Str = "default error message"
+    msg: Str = "default error message"
 }
 
 test_catch_with_fields := test() {
@@ -88,7 +88,7 @@ test_catch_error_with_str_field := test() {
 // ==========================================================
 
 Bug34Error := struct {
-    mut msg: Str = ""
+    msg: Str = ""
 }
 
 bug34_maybe_throw := func(should_throw: Bool) throws Bug34Error {

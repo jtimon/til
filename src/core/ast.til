@@ -182,25 +182,29 @@ OwnType := enum {
 
 /// Variable/field/parameter declaration node.
 Declaration := struct {
-    mut name := ""
-    mut doc := ""
-    mut explicit_type := ""
-    mut is_mut := false
-    mut is_priv := false
-    mut used := false
-    mut own_type := OwnType.Shallow
-    mut til_type := Type.Unknown
-    mut field_offset : I32 = 0
-    mut field_size : I32 = 0
-    ref mut field_struct_def : Expr = NULL
-    own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
+    name := ""
+    doc := ""
+    explicit_type := ""
+    is_mut := false
+    // #211: set by the parser when a struct FIELD carries an explicit
+    // `mut`. Fields are mutable by default, so the keyword is redundant
+    // and the typer rejects it. Meaningless for locals/params/ns-decls.
+    redundant_mut := false
+    is_priv := false
+    used := false
+    own_type := OwnType.Shallow
+    til_type := Type.Unknown
+    field_offset : I32 = 0
+    field_size : I32 = 0
+    ref field_struct_def : Expr = NULL
+    own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
     // Issue #93: when init_declarations_unit hoists a nested struct/enum/
     // func from inside a function body to file scope, it stores the
     // original unmangled identifier here so unused-priv diagnostics can
     // report it (and the enclosing parent function name, derived by
     // stripping the trailing "_<orig_name>" from the mangled `name`)
     // in source terms instead of leaking the synthetic mangled name.
-    mut orig_name := ""
+    orig_name := ""
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
@@ -209,24 +213,24 @@ namespace:
 // --- FunctionDef struct ---
 /// Function signature metadata: params, return type, variadic info.
 FunctionDef := struct {
-    mut func_type := FuncType.Func
-    mut params := Vec.new(Declaration)
-    mut return_type := ""
+    func_type := FuncType.Func
+    params := Vec.new(Declaration)
+    return_type := ""
     // Issue #198: list of error type names declared in the
     // ~throws T1, T2, ...~ clause of the signature. Empty Vec when
     // the function does not throw. Names match Type.Custom payloads
     // (e.g. ~"DivideByZero"~, ~"Str"~).
-    mut throw_types := Vec.new(Str)
-    mut variadic_index : I32 = -1
-    mut kwargs_index : I32 = -1
-    mut return_own_type := OwnType.Own
+    throw_types := Vec.new(Str)
+    variadic_index : I32 = -1
+    kwargs_index : I32 = -1
+    return_own_type := OwnType.Own
     // #187 step 2: set true on FuncDefs emitted by initer's auto-gen
     // helpers (clone/delete/size/eq/to_str/variant constructors).
     // The unused-priv-member check skips field/ns reads inside these
     // bodies so genuinely-unused priv members don't get masked by
     // boilerplate references.
-    mut auto_generated := false
-    mut is_enum_variant_ctor := false
+    auto_generated := false
+    is_enum_variant_ctor := false
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
@@ -239,20 +243,20 @@ namespace:
 /// fcall_kwargs_count (the kwargs block is always the trailing children,
 /// since the parser forbids any parameter after kwargs).
 FCallData := struct {
-    mut variadic_index : I32 = -1
-    mut variadic_count : USize = 0
-    mut kwargs_index : I32 = -1
-    mut is_splat := false
+    variadic_index : I32 = -1
+    variadic_count : USize = 0
+    kwargs_index : I32 = -1
+    is_splat := false
     // Issue #198: parser sets this when the call is followed by ~?~,
     // marking it as a call to a throwing function. The typer
     // validates that does_throw matches the callee's throws set.
-    mut does_throw := false
+    does_throw := false
     // Issue #202: parser sets this when the call is followed by ~!~,
     // the "panic on throw" sugar. The typer desugars f(args)! into
     // f(args)? followed by an auto-injected catch (e: T) { panic } per
     // declared throw type, then clears the flag.
-    mut is_bang := false
-    mut own_args : U64 = 0
+    is_bang := false
+    own_args : U64 = 0
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
     // set_fcall_til_type helper at FCall infer time, and
@@ -262,7 +266,7 @@ FCallData := struct {
     // ~proc~, but not a func/proc distinction (per CLAUDE.md
     // "func vs proc is not Pascal", the only rule is "func cannot
     // call proc"; both kinds may or may not return a value).
-    mut til_type := Type.Unknown
+    til_type := Type.Unknown
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
@@ -273,8 +277,8 @@ namespace:
 }
 
 LiteralNumData := struct {
-    mut text := ""
-    mut til_type := Type.Unknown
+    text := ""
+    til_type := Type.Unknown
 namespace:
     eq := func(a: LiteralNumData, b: LiteralNumData) returns Bool { return a.text.eq(b.text) }
     to_str := func(self: LiteralNumData) returns Str { return self.text }
@@ -288,8 +292,8 @@ namespace:
 }
 
 IdentData := struct {
-    mut name := ""
-    mut til_type := Type.Unknown
+    name := ""
+    til_type := Type.Unknown
 namespace:
     eq := func(a: IdentData, b: IdentData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: IdentData) returns Str { return self.name }
@@ -305,8 +309,8 @@ namespace:
 }
 
 FieldAccessData := struct {
-    mut name := ""
-    mut til_type := Type.Unknown
+    name := ""
+    til_type := Type.Unknown
 namespace:
     eq := func(a: FieldAccessData, b: FieldAccessData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: FieldAccessData) returns Str { return self.name }
@@ -346,10 +350,10 @@ get_own_arg := func(fcall: Expr, shallow arg_index: USize) returns shallow Bool 
 
 /// Struct definition: field declarations, namespace methods, total size.
 StructDef : StructDef = struct {
-    mut total_struct_size : I32 = 0
-    mut fields := Vec.new(Declaration)
-    mut ns_decls := Vec.new(Declaration)
-    mut c_tag := ""
+    total_struct_size : I32 = 0
+    fields := Vec.new(Declaration)
+    ns_decls := Vec.new(Declaration)
+    c_tag := ""
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
         return a.total_struct_size.eq(b.total_struct_size)
@@ -359,10 +363,10 @@ namespace:
 
 /// Enum definition: variants, payload types, namespace methods.
 EnumDef : StructDef = struct {
-    mut ns_decls := Vec.new(Declaration)
-    mut variants := Vec.new(Str)
-    mut payload_types := Map.new(I64, Str)
-    mut total_enum_size : I32 = 0
+    ns_decls := Vec.new(Declaration)
+    variants := Vec.new(Str)
+    payload_types := Map.new(I64, Str)
+    total_enum_size : I32 = 0
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len().eq(b.variants.len())
@@ -431,16 +435,16 @@ func_sig_of := func(type_name: Str) returns FunctionDef {
 
 /// Payload for assignment nodes: which name is being assigned to.
 AssignData := struct {
-    mut name := ""
-    mut save_old_delete := false
+    name := ""
+    save_old_delete := false
 namespace:
     eq := func(a: AssignData, b: AssignData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: AssignData) returns Str { return self.name }
 }
 
 FieldAssignData := struct {
-    mut name := ""
-    mut save_old_delete := false
+    name := ""
+    save_old_delete := false
 namespace:
     eq := func(a: FieldAssignData, b: FieldAssignData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: FieldAssignData) returns Str { return self.name }
@@ -448,9 +452,9 @@ namespace:
 
 /// Payload for `for name in range` loop nodes.
 ForInData := struct {
-    mut name := ""
-    mut is_mut := false
-    mut til_type := Type.Unknown
+    name := ""
+    is_mut := false
+    til_type := Type.Unknown
 namespace:
     eq := func(a: ForInData, b: ForInData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: ForInData) returns Str { return self.name }
@@ -527,10 +531,10 @@ namespace:
 
 /// AST expression node with line/col, type, children, and node-specific payload.
 Expr := struct {
-    mut node_type := NodeType.Body
-    mut children := Vec.new(Expr)
-    mut line : U32 = 0
-    mut col : U32 = 0
+    node_type := NodeType.Body
+    children := Vec.new(Expr)
+    line : U32 = 0
+    col : U32 = 0
 
 namespace:
     /// Print a diagnostic error with file path and source location.

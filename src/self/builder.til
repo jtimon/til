@@ -6,14 +6,14 @@ import("targets")
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
 priv CollectionInfo := struct {
-    ref mut type_name : Str = NULL
-    mut is_vec : I32 = 0
+    ref type_name : Str = NULL
+    is_vec : I32 = 0
 }
 
 priv DynCallInfo := struct {
-    ref mut method : Str = NULL
-    mut nargs : I32 = 1
-    mut has_return := false
+    ref method : Str = NULL
+    nargs : I32 = 1
+    has_return := false
 }
 
 // in_func_def / in_main_func / ctor_seq previously lived here as
@@ -3864,8 +3864,10 @@ build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) retur
                 f.write(dd.name); f.write(" := struct {\n")
                 for fdd : Declaration in btb_sdd.fields {
                     f.write("    ")
-                    if fdd.is_mut { f.write("mut ") }
                     if fdd.own_type.is(OwnType.Own) { f.write("own ") }
+                    // #211: fields are mutable by default; emit `const` only
+                    // for immutable fields (never the redundant `mut`).
+                    if fdd.is_mut.not() { f.write("const ") }
                     f.write(fdd.name)
                     if fdd.explicit_type.len().gt(0) { f.write(" : "); f.write(fdd.explicit_type) }
                     f.write(" := ")
@@ -6534,14 +6536,14 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: Loade
 }
 
 priv BuildPaths := struct {
-    mut name := ""
-    mut c_path := ""
-    mut bin_path := ""
-    mut fwd_path := ""
-    mut h_path := ""
-    mut til_path := ""
-    mut py_path := ""
-    mut do_lib := false
+    name := ""
+    c_path := ""
+    bin_path := ""
+    fwd_path := ""
+    h_path := ""
+    til_path := ""
+    py_path := ""
+    do_lib := false
 }
 
 derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {

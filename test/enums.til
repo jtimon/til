@@ -106,8 +106,8 @@ test_payload_clone := test() {
 
 # Simple enum field
 Painted := struct {
-    color := Color.Red
-    mut label := ""
+    const color := Color.Red
+    label := ""
 }
 
 test_simple_enum_field := test() {
@@ -135,8 +135,8 @@ test_payload_func_params := test() {
 # --- struct payload in tagged enum ---
 
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
     namespace:
     eq := func(a: Point, b: Point) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
     to_str := func(self: Point) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
@@ -184,14 +184,14 @@ test_struct_payload_to_str := test() {
 // payload enum as struct field (#53)
 
 Data := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
     namespace:
     eq := func(a: Data, b: Data) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
     to_str := func(self: Data) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
 }
 Kind := enum { A: Data, B: I64, C }
-Container := struct { mut name := ""; mut kind := Kind.C }
+Container := struct { name := ""; kind := Kind.C }
 
 test_payload_enum_field := test() {
     c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))
@@ -447,8 +447,8 @@ test_nested_triple_fallthrough := test() {
 # --- struct field matching in switch cases (#36) ---
 
 PointPat := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
     namespace:
     eq := func(a: PointPat, b: PointPat) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
     to_str := func(self: PointPat) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }

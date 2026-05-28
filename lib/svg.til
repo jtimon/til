@@ -18,11 +18,11 @@ SegKind := enum { Move, Line, Quad, Close }
 // One segment of a path, in em-space (transform already applied).
 // x,y = endpoint for Move/Line/Quad; cx,cy = quad control point.
 Segment := struct {
-    mut kind := SegKind.Close
-    mut x := 0
-    mut y := 0
-    mut cx := 0
-    mut cy := 0
+    kind := SegKind.Close
+    x := 0
+    y := 0
+    cx := 0
+    cy := 0
 }
 
 // --- Fill colour scanner ---

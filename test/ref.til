@@ -41,8 +41,8 @@ test_ref_from_param := test() {
 # --- ref from owned compound local ---
 
 RefPoint := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 
 test_ref_from_owned_compound := test() {
@@ -55,7 +55,7 @@ test_ref_from_owned_compound := test() {
 # --- ref from field access ---
 
 RefBox := struct {
-    mut n := 0
+    n := 0
     namespace:
     get_n := func(self: RefBox) returns ref I64 {
         return self.n
@@ -100,8 +100,8 @@ test_null_borrowed_arg := test() {
 }
 
 RefNode := struct {
-    value := 0
-    ref mut next : RefNode = NULL
+    const value := 0
+    ref next : RefNode = NULL
 }
 
 test_ref_struct_field := test() {

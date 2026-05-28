@@ -47,10 +47,10 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef) returns shallow Bool 
 }
 
 StructInstance := struct {
-    ref mut struct_name : Str = NULL
-    ref mut struct_def : Expr = NULL
-    own mut data : U8 = 0
-    mut borrowed := false
+    ref struct_name : Str = NULL
+    ref struct_def : Expr = NULL
+    own data : U8 = 0
+    borrowed := false
 namespace:
     eq := func(a: StructInstance, b: StructInstance) returns shallow Bool {
         return a.struct_name.eq(b.struct_name)
@@ -185,9 +185,9 @@ namespace:
 }
 
 EnumInstance := struct {
-    ref mut enum_name : Str = NULL
-    own mut data : U8 = 0
-    mut data_size : I32 = 0
+    ref enum_name : Str = NULL
+    own data : U8 = 0
+    data_size : I32 = 0
 namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
         return a.is(b)
@@ -330,18 +330,18 @@ namespace:
 }
 
 Cell := struct {
-    mut val := Value.None
+    val := Value.None
 }
 
 Binding := struct {
-    ref mut name : Str = NULL
-    ref mut cell : Cell = NULL
-    mut cell_is_local := false
+    ref name : Str = NULL
+    ref cell : Cell = NULL
+    cell_is_local := false
 }
 
 Scope := struct {
-    mut bindings := Map.new(Str, Binding)
-    ref mut parent : Scope = NULL
+    bindings := Map.new(Str, Binding)
+    ref parent : Scope = NULL
 }
 
 // Return-value / control-flow state and namespace fields now live on
@@ -1389,7 +1389,7 @@ cleanup_value_payload := func(shallow v: Value) {
 // whereas an `own` struct field is accepted (same trick as the Str c_str
 // free in cleanup_value_payload above).
 priv DynPtrBox := struct {
-    own mut p : U8 = 0
+    own p : U8 = 0
 }
 
 // Destroy a binding that is the real owner being explicitly deleted: frees

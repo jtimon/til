@@ -5,13 +5,13 @@ import("lexer")
 // --- Parser state ---
 
 priv Parser := struct {
-    mut tokens := Vec.new(Token)
-    mut pos : USize = 0
-    mut path := ""
-    mut fn_sig_decls := Vec.new(Expr)
+    tokens := Vec.new(Token)
+    pos : USize = 0
+    path := ""
+    fn_sig_decls := Vec.new(Expr)
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
-    mut pending_doc := ""
+    pending_doc := ""
 }
 
 priv peek := func(p: Parser) returns ref Token {
@@ -460,13 +460,14 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         } else {
             mut f_own_type := OwnType.Shallow
             // #211: struct instance fields are mutable by default; `const`
-            // opts out. `mut` is still accepted (redundant) during the staged
-            // migration -- a later commit forbids it once sources are migrated.
+            // opts out. An explicit `mut` is redundant -- record it so the
+            // typer can reject it with a helpful message.
             mut f_is_mut := true
+            mut f_redundant_mut := false
             if check(p, TokenType.KwOwn) { advance(p); f_own_type = OwnType.Own }
             if check(p, TokenType.KwRef) { advance(p); f_own_type = OwnType.Ref }
             if check(p, TokenType.KwConst) { advance(p); f_is_mut = false }
-            else if check(p, TokenType.KwMut) { advance(p) }
+            else if check(p, TokenType.KwMut) { advance(p); f_redundant_mut = true }
             f_name := expect_text(p, TokenType.Ident)
             mut f_explicit_type := ""
             if check(p, TokenType.Colon) {
@@ -481,6 +482,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             p.pending_doc = ""
             mut f_value := parse_expression(p)
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
+                redundant_mut = f_redundant_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
                 til_type = til_type_from_explicit_type(f_explicit_type),
                 doc = f_doc,

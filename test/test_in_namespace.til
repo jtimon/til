@@ -5,7 +5,7 @@ mode test
 # and `til build` (emit_test_main).
 
 Counter := struct {
-    mut value : I64 = 0
+    value : I64 = 0
     namespace:
     bump := func(self: Counter) returns I64 { return self.value.add(1) }
 
