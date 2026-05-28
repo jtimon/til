@@ -97,6 +97,8 @@ typedef enum {
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Array Array;
+typedef struct Tuple Tuple;
+typedef struct DynMap DynMap;
 typedef struct File File;
 typedef struct Set Set;
 typedef enum {
@@ -459,6 +461,20 @@ typedef struct Array {
     void * elem_clone;
     void * elem_delete;
 } Array;
+
+
+typedef struct Tuple {
+    U8 *data;
+    U32 total_size;
+    U32 cap;
+    Vec type_names;
+    Vec type_sizes;
+} Tuple;
+
+
+typedef struct DynMap {
+    Map items;
+} DynMap;
 
 
 typedef struct File {
@@ -1127,6 +1143,12 @@ void Array_set(Array * self, U32 * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U32 Array_size(void);
+void Tuple_delete(Tuple * self, Bool * call_free);
+Tuple * Tuple_clone(Tuple * self);
+U32 Tuple_size(void);
+DynMap * DynMap_clone(DynMap * self);
+void DynMap_delete(DynMap * self, Bool * call_free);
+U32 DynMap_size(void);
 void panic(Str * loc_str, Array * parts);
 void UNREACHABLE(Str * loc_str);
 void println(Array * parts);
