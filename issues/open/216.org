@@ -1,0 +1,105 @@
+# priority: low
+** OPEN #216 Audit src/core/sys.til and move non-essential syscalls into src/std
+
+Blocks issue [[file:215.org][#215]] (mode safe_script).  Today
+~src/core/sys.til~ is imported by ~core~ as a matter of course, which
+means *every* til program -- regardless of mode -- gets the full
+syscall surface in scope.  That defeats the point of having a
+restricted mode like ~safe_script~: even if we gate ~spawn_cmd~ on
+the current mode, an attacker can simply ~import~ a ~mode lib~
+helper that calls ~spawn_cmd~ for them and the mode check is
+bypassed.
+
+The cleanest fix is structural: pull the dangerous bits out of
+~core~ into ~std~, so the only way to get at them is to import them
+explicitly.  Then ~safe_script~ bans any (transitive) import of the
+syscall library and the door closes mechanically.
+
+* Scope
+
+** Audit and split ~src/core/sys.til~
+Today the file is:
+
+#+begin_src til
+mode lib
+import("i64") import("str") import("u64")
+spawn_cmd            : ext_proc(cmd: Str) returns I64
+check_cmd_status     : ext_func(pid: I64) returns I64
+sleep_ms             : ext_proc(ms: I64)
+noop_proc            : ext_proc()
+file_mtime           : ext_func(path: Str) returns I64
+clock_ms             : ext_func() returns I64
+get_thread_count     : ext_func() returns I64
+peak_rss_bytes       : ext_func() returns U64
+current_rss_bytes    : ext_func(pid: I64) returns U64
+host_os              : ext_func() returns Str
+mkdir_p              : ext_func(path: Str) returns I32
+copy_file            : ext_func(src: Str, dst: Str) returns I32
+copy_tree            : ext_func(src: Str, dst: Str) returns I32
+wait_cmd             : proc(pid: I64) returns I64
+run_cmd              : proc(mut output: Str, args: ..Str) returns I64
+#+end_src
+
+Default rule: anything that *causes* a side effect on the world
+(spawn, sleep, fs mutation) belongs in ~std~.  Anything that just
+reads from a process-local clock or counter is borderline -- defer
+the call but lean toward ~std~ for those too, since they leak host
+state.
+
+Proposed split:
+- *Move to ~src/std/sys.til~ (the new file)*: ~spawn_cmd~,
+  ~check_cmd_status~, ~wait_cmd~, ~run_cmd~, ~sleep_ms~,
+  ~mkdir_p~, ~copy_file~, ~copy_tree~, ~file_mtime~, ~host_os~.
+- *Probably also ~std~*: ~clock_ms~, ~peak_rss_bytes~,
+  ~current_rss_bytes~, ~get_thread_count~.  None of these are
+  required by the self-hosted compiler proper -- they are used by
+  benchmarks / runners.  No reason for a pure ~mode lib~ to see
+  them.
+- *Stays in ~core~*: ~noop_proc~ (it's a precomp escape hatch with
+  no side effect on the host).
+
+Open: do we want ~src/std/sys.til~ to fan out further
+(~std/process.til~ for spawn/wait/run, ~std/fs.til~ for mkdir/copy,
+~std/time.til~ for clock/sleep)?  Decide during implementation; one
+file is fine for v1.
+
+** Update callers
+Grep across the repo for callers and add explicit
+~import("std.sys")~ (or whichever path lands).  Known sites:
+- ~src/til.til~ (calls ~run_cmd~ for git rev-parse).
+- ~src/self/targets.til~ (calls ~run_cmd~ for ~uname~).
+- ~src/self/binder.til~ (calls ~run_cmd~ for ~cc -E~).
+- ~src/test_runner.til~ (calls into ~run_cmd~-ish helpers).
+- ~src/self/precomp.til~ (knows ~run_cmd~ by name for the precomp
+  whitelist -- update the string).
+
+** Add Str.trim / Str.trim_start
+Independent micro-task that lands in the same audit, because issue
+#215's argv[0] extraction wants it (~spawn_cmd(" ls ...")~ should
+not slip past the whitelist by virtue of a leading space).  Both
+should be view-only (~Str.cap = CAP_VIEW~) like ~substr~, so no
+allocation.
+
+** Test the move
+~make clean && make test~ must pass.  Two-pass build likely required
+because ~src/self/binder.til~ is on the bootstrap path; the prefix
+~"Two-pass: "~ applies to the commit.
+
+* Why this is filed separately from #215
+
+The audit + move is mechanical, but it touches every site that
+shells out and changes which file declares ~run_cmd~.  Doing it as
+part of the safe_script implementation would conflate "where do
+syscalls live" with "how does safe_script check them", and make the
+diff much harder to review.  Splitting also lets this land first,
+so by the time safe_script gets implemented the only new code is
+the whitelist + the mode-aware refusal.
+
+* Pointers
+- ~src/core/sys.til~ (current home).
+- ~src/core/str.til~ (where ~trim~ lands).
+- All grep hits for ~run_cmd~ / ~spawn_cmd~ outside ~tmp/~ in this
+  repo.
+- Blocks: issue [[file:215.org][#215]].
+- Related: issue #63 (user-defined modes will also benefit from
+  modes that ban whole import subtrees).

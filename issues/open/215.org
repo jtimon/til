@@ -1,0 +1,347 @@
+# priority: low
+** OPEN #215 Investigate mode safe_script (port from rstil)
+
+Idea taken from Roc's platforms.  Researched in the rstil repo
+([[https://github.com/jtimon/rstil]]), where a first cut of safe_script
+exists in the rs interpreter only -- the self-hosted til version
+parses the mode keyword but throws on it.
+
+* What was done in rstil
+
+** Mode registration
+File: ~src/modes/modes.til~ (and twin ~src/self/mode.til~ /
+~src/rs/mode.rs~).
+
+A new ~ModeDef~ entry was added to ~mode_from_name~:
+
+#+begin_src til
+case "safe_script":
+    md.allows_procs         = true
+    md.allows_base_calls    = true
+    md.allows_base_mut      = true
+    md.allows_base_anything = true
+    md.needs_main_proc      = false
+#+end_src
+
+i.e. structurally identical to ~mode script~ at the mode-level flags.
+The self-hosted version (~src/self/mode.til~) additionally pushes
+~modes.safe_script~ into ~ModeDef.imports~ so the mode auto-imports its
+own support library (which currently only does ~import("std.sys")~).
+That same self-hosted ~parse_mode~ then rejects the mode with:
+
+#+begin_src til
+if m_name.eq("safe_script") {
+    throw t.error(path, format("mode '", m.name,
+        "' is not properly supported yet. Try mode 'script' instead"))
+}
+#+end_src
+
+So safe_script only actually runs through the rust ~rstil interpret~
+path, not the self-hosted ~til~ binary.
+
+** Whitelists in the core
+File: ~src/rs/ext.rs~ (twin: ~src/self/ext.til~).
+
+Two compile-time arrays carry the allowed commands:
+
+#+begin_src rust
+// General whitelist for all modes
+const ALLOWED_COMMANDS: [&str; 9] =
+    ["ls", "mkdir", "find", "gcc", "./bin/rstil",
+     "diff", "bash", "rm", "cp"];
+// More restrictive whitelist for safe_script mode
+const SAFE_COMMANDS: [&str; 2] = ["ls", "mkdir"];
+#+end_src
+
+(The same two lists appear in ~src/self/ext.til~ built via
+~Array.new(Str, N)~ + ~set~.)
+
+A comment notes that ~bash~ is a temporary workaround for passing
+arguments to the test suite (~src/tests.til~), and acknowledges that
+having ~bash~ in the *general* whitelist defeats the whitelist's
+purpose, because ~bash -c~ can run anything.  ~safe_script~'s narrower
+list does not include ~bash~.
+
+** Decision for this repo: drop the general whitelist
+Here we will keep only the ~safe_script~ whitelist.  Every other mode
+leaves ~run_cmd~ / ~spawn_cmd~ unrestricted, same as today.  Rationale:
+rstil's general ~ALLOWED_COMMANDS~ is security theatre -- its own
+comment admits ~bash~ is in it as a test-harness workaround and that
+having ~bash~ on the list "defeats the whitelist purpose since ~bash
+-c~ can run anything."  One list, gated only when the importing file
+is ~mode safe_script~, is cleaner: adding a command for the test suite
+stops being a security-relevant edit, and "safe_script is the opt-in
+restriction" is the actual mental model.
+
+** Enforcement at the run_cmd call site
+File: ~src/rs/ext.rs~, function ~proc_run_cmd~ (and twin
+~src/self/ext.til~ ~proc_run_cmd~).
+
+After evaluating the command name, but before spawning, the
+interpreter branches on the current mode:
+
+#+begin_src rust
+if context.mode_def.name == "safe_script" {
+    if !SAFE_COMMANDS.contains(&cmd.as_str()) {
+        return Err(e.error(&context.path, "eval",
+            &format!("Command '{}' not in safe_script whitelist: {:?}",
+                     cmd, SAFE_COMMANDS)));
+    }
+} else {
+    if !ALLOWED_COMMANDS.contains(&cmd.as_str()) {
+        return Err(e.error(&context.path, "eval",
+            &format!("Command '{}' not in allowed whitelist: {:?}",
+                     cmd, ALLOWED_COMMANDS)));
+    }
+}
+#+end_src
+
+This is the only place in rstil that consults the mode for safety.
+Everything else (file I/O, ~spawn_cmd~, ~check_cmd_status~, ~wait_cmd~,
+~readfile~, ~writefile~, ...) is uniformly allowed regardless of mode.
+
+The ~run_cmd~ ext_proc itself is declared in ~src/std/sys.til~ with
+just a doc-comment warning -- no language-level annotation that it is
+"unsafe", and no equivalent guard for the other syscalls.
+
+** Documentation and example
+- ~README.org~ documents the mode under "Modes -> safe_script": "Like
+  script but only whitelisted commands (~ls~, ~mkdir~) are allowed via
+  ~run_cmd~."
+- ~src/examples/hello_safe_script.til~ is a 12-line file that runs
+  ~ls editor/~ successfully and then deliberately calls
+  ~bash -c "echo hello"~ which the whitelist rejects.
+- ~doc/todo/post_old.org~ has a TODO entry "Implement safe_script
+  Mode" with this checklist:
+  - [X] Design safe_script mode semantics
+  - [ ] Implement user confirmation prompts
+  - [X] Add whitelist for safe commands
+  - [X] Create hello_safe_script.til test case
+  - [X] Document safe_script mode in README
+  - [ ] Fix: current implementation can probably be bypassed with
+    import
+- The same TODOs are repeated in ~README.org~: "user confirmation
+  prompts instead of always failing for non-whitelisted commands" and
+  "current implementation can probably be bypassed with import".
+- ~src/self/mode.til~'s explicit throw is the marker that the
+  self-hosted port was never finished.
+
+** Known holes (called out by rstil itself)
+1. Bypass via import: a ~safe_script~ file can ~import~ a ~mode lib~
+   file that calls ~run_cmd("bash", ...)~; the whitelist check runs in
+   the importing-file's mode context, but it is not obvious whether
+   the imported file's calls are checked against ~safe_script~ or
+   against the imported file's own mode.  README/TODO both flag this.
+2. ~run_cmd~ is the only guarded syscall.  ~spawn_cmd~, file writes,
+   ~readfile~, ~fs_mkdir_p~, ~list_dir_raw~ etc. are all unguarded,
+   so a safe_script can still ~writefile~ to ~/.bashrc~, spawn an
+   arbitrary process via ~spawn_cmd~, etc.
+3. Whitelist is hardcoded; not user-extensible, not per-call
+   configurable, no per-invocation user prompt.
+4. No host-side argument validation (no path sandbox; ~ls /etc/shadow~
+   passes).
+5. Self-hosted ~til~ binary outright rejects the mode -- only the
+   rust ~rstil interpret~ honours it, so safe_script files break the
+   moment you compile/translate through the self-hosted path.
+
+* Mode system in this repo, for comparison
+
+Modes here are described by ~src/self/modes.til~'s ~Mode~ struct and
+the ~core_modes~ map:
+
+#+begin_src til
+Mode := struct {
+    mut needs_main := false
+    mut decls_only := true
+    mut auto_import := ""
+    mut is_library := false
+    mut is_pure := false
+    mut run_tests := false
+    mut debug_prints := false
+}
+
+core_modes := {
+    "script": Mode(decls_only = false),
+    "cli":    Mode(needs_main = true),
+    "gui":    Mode(needs_main = true, auto_import = "gui"),
+    "test":   Mode(run_tests = true),
+    "pure":   Mode(is_library = true, is_pure = true),
+    "pura":   Mode(is_library = true, is_pure = true,
+                   debug_prints = true),
+    "lib":    Mode(is_library = true),
+    "liba":   Mode(is_library = true, debug_prints = true),
+}
+#+end_src
+
+~run_cmd~ lives in ~src/core/sys.til~ as a proc on top of
+~spawn_cmd~ + ~wait_cmd~, with no mode-aware guard anywhere in the
+interpreter or codegen.  ~spawn_cmd~ itself is the ext_proc that
+actually shells out.
+
+Issue [[file:63.org][#63]] tracks user-defined modes; whatever shape
+safe_script takes will probably want to share machinery with that.
+
+* Options for starting safe_script here (less detail)
+
+Chosen direction is Option A.  B and C are kept below as "considered
+and not picked" so the rationale is on file.
+
+** Option A (chosen): minimal port -- one whitelist, only for safe_script
+Add a ~"safe_script"~ entry to ~core_modes~, add a single hardcoded
+~SAFE_COMMANDS~ list in the interpreter, gate ~spawn_cmd~ (the only
+real escape hatch -- our ~run_cmd~ is a pure-til wrapper around it,
+so gating ~spawn_cmd~ covers ~run_cmd~ automatically).  Add a
+separate whitelist for til-level file I/O procs (~writefile~,
+~readfile~, ~fs_mkdir_p~, ~list_dir_raw~, ~copy_file~, ~copy_tree~)
+since they are til functions, not ext_procs.  All other modes stay
+unrestricted, same as today.
+
+Per question 4 below, safe_script must also be forbidden from
+~import~-ing any file that (transitively) imports the syscall
+surface -- otherwise the whole gate is meaningless.
+
+** Option B: per-ext-proc capability flags
+Not chosen.  Instead of one mode-aware ~if~ inside ~spawn_cmd~, add a
+notion of "capability" on the ext_proc declaration: e.g.
+~ext_proc spawn_cmd(...) capability(spawn)~.  Each mode in
+~core_modes~ then carries a set of allowed capabilities.  Lets us
+gate the whole syscall surface (spawn, file write, env access, ...)
+uniformly, and would close the import bypass naturally because the
+check rides on the ext_proc itself, not on the caller's mode.
+Composes well with #63 (user-defined modes) and with future
+~mode web_lib~ / ~mode gui~ that want to forbid different subsets.
+Rejected for now because A solves the immediate "untrusted script
+shouldn't ~rm -rf~ me" problem with much less plumbing; B is a
+candidate refactor once we have more than one restricted mode.
+
+** Option C: defer to platform / sandbox the host process
+Not chosen.  Treat safety as a deployment concern: document that
+running untrusted til should happen under ~bubblewrap~ / ~firejail~
+/ OS sandbox, add nothing to the interpreter.  Rejected because the
+whole point of having modes is to put the restriction in the
+language itself.  Mentioned only so future readers know we
+considered it.
+
+* Resolved questions
+
+Numbering matches the discussion that produced this issue.
+
+** 1. Which ext_proc do we gate -- run_cmd or spawn_cmd?
+~spawn_cmd~.  ~run_cmd~ on this codebase is a pure-til wrapper around
+~spawn_cmd~ (see ~src/core/sys.til:32~), so gating ~run_cmd~ alone
+would be useless: a safe_script could just call ~spawn_cmd~ directly
+and bypass the check.  Gating ~spawn_cmd~ (the ext_proc) makes
+~run_cmd~ inherit the restriction automatically.
+
+** 2. spawn_cmd takes a single shell string, not argv -- how do we whitelist it?
+Parse the first whitespace-delimited word out of the command string
+and compare it against the whitelist.  ~src/core/str.til~ already has
+~find~, ~substr~ and ~split~, so ~cmd.split(" ").get(0)~ (or
+equivalently ~cmd.substr(0, cmd.find(" "))~) is sufficient.  One
+missing utility worth adding: ~trim_start~ / ~trim~, so a leading
+space in the user's string doesn't fool the parser.  Folded into the
+dependency issue (see "Dependencies" below).
+
+** 3. Compile-time or runtime check? -- LEFT OPEN
+This is the one decision the issue intentionally does not resolve.
+Both have merit:
+
+- *Compile-time* (the typer / precomp rejects ~spawn_cmd(x)~ unless
+  ~x~ is a string literal whose first word is on the whitelist).
+  Pros: the safe_script *is* safe by construction; no dynamic
+  command can be smuggled through a runtime-built string; composes
+  cleanly with the precomp constant-folding around ~run_cmd~ in
+  ~src/self/precomp.til:53,596~.
+  Cons: forbids legitimate dynamic dispatch (e.g.
+  ~spawn_cmd(format("ls ", dir))~) even when the command name is a
+  literal prefix; requires a precomp pass that walks the AST for
+  the first arg of every ~spawn_cmd~ call.
+
+- *Runtime* (the interpreter checks the string at call time).
+  Pros: trivial to implement (one ~if~ at the top of the ext_proc);
+  permits dynamic command construction as long as the resolved
+  argv[0] is on the list.
+  Cons: the script can pass typecheck and only fail in the middle
+  of a run, which is the worst UX for a *safety* mode; offers no
+  guarantee at all to a static auditor reading the script.
+
+Decide when the implementation starts.  Either is acceptable; the
+whitelist enforcement itself is identical, only the moment of the
+check differs.
+
+** 4. Import semantics
+Tighten via dependency: most of the syscall surface should not be in
+~core/~ at all.  Move command and process management (and probably
+most of what is today in ~src/core/sys.til~) into ~src/std/~ -- to
+be planned and executed in the dependency issue.  Once that move
+lands, ~mode safe_script~ is forbidden from ~import~-ing anything
+that (recursively) imports ~std/sys.til~ (or whichever name the
+syscall library ends up with), and forbidden from declaring any
+extra ~ext_func~ / ~ext_proc~ FFI beyond what is already in ~core~.
+That makes the answer to the rstil "import bypass" question
+mechanical: there is no syscall available unless you imported one,
+and safe_script can't import any.
+
+** 5. File I/O
+~writefile~, ~readfile~, ~fs_mkdir_p~, ~list_dir_raw~, ~copy_file~,
+~copy_tree~ get their own whitelist, separate from the command
+whitelist.  These are til-level procs, not ext_procs, so the
+mechanism is just a name-based check at call resolution.  Initial
+contents: a basic safe set, expandable later (see 6).  They are
+gated only in ~mode safe_script~.
+
+** 6. Initial whitelist contents
+Command whitelist (start small, expand or shrink as we learn what
+breaks):
+- ~ls~
+- ~mkdir~
+- ~find~
+- ~diff~
+- ~cat~
+
+File I/O whitelist (start small):
+- ~readfile~
+- ~list_dir_raw~
+- ~fs_mkdir_p~
+
+Explicitly *not* on either list initially: ~rm~, ~cp~, ~mv~,
+~writefile~, ~copy_file~, ~copy_tree~, ~bash~, ~sh~, anything that
+mutates outside the cwd.  The implementation issue gets to argue for
+adjustments.
+
+** 7. Behaviour on a non-whitelisted call
+Hard error (same as rstil's ~Err~ return from ~proc_run_cmd~, which
+surfaces as a fatal interpreter error -- no recovery, no prompt).
+Whether the error is raised at compile time or runtime is question
+3.  No interactive prompts, no per-call ~allow_cmd~ header in v1;
+either can be added later without breaking scripts that work today.
+
+* Dependencies
+
+Blocked on: issue [[file:216.org][#216]] -- "Audit src/core/sys.til
+and move non-essential syscalls into src/std".  Scope:
+- Walk every symbol in ~src/core/sys.til~ and decide whether it
+  truly belongs in ~core~ (i.e. every program needs it, regardless
+  of mode) or in ~std~.  Default to ~std~.
+- Move ~spawn_cmd~, ~check_cmd_status~, ~wait_cmd~, ~run_cmd~,
+  ~sleep_ms~, ~mkdir_p~, ~copy_file~, ~copy_tree~, ~host_os~,
+  ~file_mtime~ etc. into ~src/std/sys.til~ (or split further).
+- Decide which of ~clock_ms~, ~peak_rss_bytes~, ~current_rss_bytes~,
+  ~get_thread_count~ stay -- they are read-only introspection.
+- Add ~Str.trim~ / ~Str.trim_start~ in ~src/core/str.til~ for
+  argv[0] extraction.
+- Update every caller in ~src/self/~, ~src/test_runner.til~,
+  ~src/til.til~, ~src/self/binder.til~, ~src/self/targets.til~ etc.
+- Once that lands, ~mode safe_script~ can ban any transitive import
+  of ~std/sys~ and ban user-declared ~ext_proc~ / ~ext_func~ inside
+  a safe_script file.
+
+* Pointers
+- rstil clone for reference: ~tmp/rstil/~ (added by this task, not
+  committed).
+- Local mode plumbing: ~src/self/modes.til~, ~src/self/loader.til~.
+- Local syscalls: ~src/core/sys.til~ (~run_cmd~, ~spawn_cmd~,
+  ~spawn_cmd~ ext_proc).
+- Local string utils: ~src/core/str.til~.
+- Related: issue #63 (user-defined modes); dependency [[file:216.org][#216]]
+  for the core->std audit.
