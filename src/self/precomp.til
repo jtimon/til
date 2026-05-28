@@ -255,6 +255,10 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
         set_expr_til_type(e, Type.Struct("U8"))
         return e
+    case Value.Sbyte(x):
+        mut e := Expr.new(literal_num_node(x.to_i64().to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.Struct("I8"))
+        return e
     case Value.Short(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
         set_expr_til_type(e, Type.Primitive(Primitive.I16))
@@ -747,6 +751,11 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                     case Value.Byte(bv):
                         mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
                         set_expr_til_type(lit, Type.Struct("U8"))
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Sbyte(bv):
+                        mut lit := Expr.new(literal_num_node(bv.to_i64().to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.Struct("I8"))
                         ec.add_child(own lit)
                         continue
                     case Value.Short(sv):

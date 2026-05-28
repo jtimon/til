@@ -175,6 +175,7 @@ is_primitive_type := func(name: Str) returns shallow Bool {
     if name.eq("U8") { return true }
     if name.eq("I8") { return true }
     if name.eq("I16") { return true }
+    if name.eq("U16") { return true }
     if name.eq("I32") { return true }
     if name.eq("U32") { return true }
     if name.eq("U64") { return true }
@@ -595,6 +596,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.U8:      return "U8"
     case Type.I8:      return "I8"
     case Type.Primitive(Primitive.I16):     return "I16"
+    case Type.Primitive(Primitive.U16):     return "U16"
     case Type.I32:     return "I32"
     case Type.U32:     return "U32"
     case Type.U64:     return "U64"
@@ -664,6 +666,7 @@ type_name_to_c := func(name: Str, ctx: Context) returns Str {
     if name.eq("U8") { return "U8 *" }
     if name.eq("I8") { return "I8 *" }
     if name.eq("I16") { return "I16 *" }
+    if name.eq("U16") { return "U16 *" }
     if name.eq("I32") { return "I32 *" }
     if name.eq("U32") { return "U32 *" }
     if name.eq("U64") { return "U64 *" }
@@ -682,6 +685,7 @@ type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
     if name.eq("U8") { return "U8" }
     if name.eq("I8") { return "I8" }
     if name.eq("I16") { return "I16" }
+    if name.eq("U16") { return "U16" }
     if name.eq("I32") { return "I32" }
     if name.eq("U32") { return "U32" }
     if name.eq("U64") { return "U64" }
@@ -2659,6 +2663,8 @@ emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
         f.write("    I8 *"); f.write(pname); f.write(" = cli_parse_i8(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("I16") {
         f.write("    I16 *"); f.write(pname); f.write(" = cli_parse_i16(argv["); emit_i32(f, argi); f.write("]);\n")
+    } else if ptype.eq("U16") {
+        f.write("    U16 *"); f.write(pname); f.write(" = cli_parse_u16(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("I32") {
         f.write("    I32 *"); f.write(pname); f.write(" = cli_parse_i32(argv["); emit_i32(f, argi); f.write("]);\n")
     } else if ptype.eq("U32") {
@@ -2754,6 +2760,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                         f.write("        I8 *_val = cli_parse_i8(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("I16") {
                         f.write("        I16 *_val = cli_parse_i16(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
+                    } else if p.explicit_type.eq("U16") {
+                        f.write("        U16 *_val = cli_parse_u16(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("I32") {
                         f.write("        I32 *_val = cli_parse_i32(argv["); emit_i32(f, argi); f.write(" + _i]);\n")
                     } else if p.explicit_type.eq("U32") {
@@ -3497,7 +3505,7 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bo
 
 emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr, ctx: Context) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "I32")
+    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "U16"); emitted_h.add(own "I32")
     emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
     emitted_h.add(own "F32"); emitted_h.add(own "Bool")
     if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_h, ctx) }
@@ -3563,7 +3571,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr, c
 
 emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "I32")
+    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "U16"); emitted_h.add(own "I32")
     emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
     emitted_h.add(own "F32"); emitted_h.add(own "Bool")
     topo_emit_struct_enum_defs_lp(f, emitted_h, lp)
@@ -3931,6 +3939,7 @@ type_name_to_ctypes := func(name: Str) returns Str {
     if name.eq("U8") { return "ctypes.c_ubyte" }
     if name.eq("I8") { return "ctypes.c_byte" }
     if name.eq("I16") { return "ctypes.c_short" }
+    if name.eq("U16") { return "ctypes.c_ushort" }
     if name.eq("I32") { return "ctypes.c_int" }
     if name.eq("U32") { return "ctypes.c_uint" }
     if name.eq("U64") { return "ctypes.c_ulonglong" }
@@ -4032,6 +4041,7 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                         case Type.U8:   ct = "ctypes.POINTER(ctypes.c_ubyte)"
                         case Type.I8:   ct = "ctypes.POINTER(ctypes.c_byte)"
                         case Type.Primitive(Primitive.I16):  ct = "ctypes.POINTER(ctypes.c_short)"
+                        case Type.Primitive(Primitive.U16):  ct = "ctypes.POINTER(ctypes.c_ushort)"
                         case Type.I32:  ct = "ctypes.POINTER(ctypes.c_int)"
                         case Type.U32:  ct = "ctypes.POINTER(ctypes.c_uint)"
                         case Type.U64:  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
@@ -4658,7 +4668,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
 
     // Topo-sort struct/enum defs
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "I32")
+    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "U16"); emitted_mh.add(own "I32")
     emitted_mh.add(own "U32"); emitted_mh.add(own "U64"); emitted_mh.add(own "I64")
     emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
     if is_null(core_program).not() { topo_emit_struct_enum_defs(f, core_program, emitted_mh, ctx) }
@@ -4727,7 +4737,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
 
     // Topo-sort struct/enum defs across all units
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "I32")
+    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "U16"); emitted_mh.add(own "I32")
     emitted_mh.add(own "U32"); emitted_mh.add(own "U64"); emitted_mh.add(own "I64")
     emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
     topo_emit_struct_enum_defs_lp(f, emitted_mh, lp)

@@ -57,6 +57,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.U8:        variant_name = "U8"
     case Type.I8:        variant_name = "I8"
     case Type.Primitive(Primitive.I16):       variant_name = "I16"
+    case Type.Primitive(Primitive.U16):       variant_name = "U16"
     case Type.I32:       variant_name = "I32"
     case Type.U32:       variant_name = "U32"
     case Type.U64:       variant_name = "U64"
@@ -177,6 +178,7 @@ I64Name := "I64"
 U8Name := "U8"
 I8Name := "I8"
 I16Name := "I16"
+U16Name := "U16"
 I32Name := "I32"
 U32Name := "U32"
 U64Name := "U64"
@@ -2117,6 +2119,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // intentionally left at 0 for now.
 cast_int_size := func(t: Type) returns shallow I32 {
     tn := til_type_name_c(t)
+    if tn.eq("I8").or(tn.eq("U8"))   { return 1 }
     if tn.eq("I32").or(tn.eq("U32")) { return 4 }
     if tn.eq("I64").or(tn.eq("U64")) { return 8 }
     return 0
@@ -3214,6 +3217,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
         else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
+        else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
         else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
@@ -4911,7 +4915,7 @@ priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow 
     if type_name.eq("Str") { return Expr.new(NodeType.Literal(Literal.Str("")), line, col) }
     if type_name.eq("Bool") { return Expr.new(NodeType.Literal(Literal.Bool(false)), line, col) }
     if type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("I8")).or(type_name.eq("I16"))
-    .or(type_name.eq("I32")).or(type_name.eq("U32")).or(type_name.eq("U64"))
+    .or(type_name.eq("U16")).or(type_name.eq("I32")).or(type_name.eq("U32")).or(type_name.eq("U64"))
     .or(type_name.eq("F32")) {
         return Expr.new(literal_num_node("0"), line, col)
     }
@@ -6683,6 +6687,7 @@ is_numeric_type := func(t: Type) returns shallow Bool {
     case Type.U8:  return true
     case Type.I8:  return true
     case Type.Primitive(Primitive.I16): return true
+    case Type.Primitive(Primitive.U16): return true
     case Type.I32: return true
     case Type.U32: return true
     case Type.U64: return true
@@ -6702,6 +6707,7 @@ is_integral_numeric_type := func(t: Type) returns shallow Bool {
     case Type.U8:  return true
     case Type.I8:  return true
     case Type.Primitive(Primitive.I16): return true
+    case Type.Primitive(Primitive.U16): return true
     case Type.I32: return true
     case Type.U32: return true
     case Type.U64: return true
@@ -6774,6 +6780,9 @@ literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
     case Type.Primitive(Primitive.I16):
         val := val_str.to_i64()
         return val.gte(-32768).and(val.lte(32767))
+    case Type.Primitive(Primitive.U16):
+        val := val_str.to_i64()
+        return val.gte(0).and(val.lte(65535))
     case Type.I32:
         val := val_str.to_i64()
         return val.gte(-2147483648).and(val.lte(2147483647))
@@ -6816,6 +6825,7 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     to_is_u32 := to.is(Type.U32)
     to_is_u64 := to.is(Type.U64)
     to_is_i16 := to.is(Type.Primitive(Primitive.I16))
+    to_is_u16 := to.is(Type.Primitive(Primitive.U16))
     mut from_is_u8 := from.is(Type.U8)
     mut from_is_i8 := from.is(Type.I8)
     switch from {
@@ -6826,6 +6836,7 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     }
     if from_is_u8 {
         if to_is_i16 { return true }
+        if to_is_u16 { return true }
         if to_is_i32 { return true }
         if to_is_i64 { return true }
         if to_is_u32 { return true }
@@ -6847,6 +6858,12 @@ can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
     case Type.Primitive(Primitive.I16):
         if to_is_i32 { return true }
         if to_is_i64 { return true }
+        return false
+    case Type.Primitive(Primitive.U16):
+        if to_is_i32 { return true }
+        if to_is_i64 { return true }
+        if to_is_u32 { return true }
+        if to_is_u64 { return true }
         return false
     case Type.U32:
         if to_is_u64 { return true }
@@ -6883,6 +6900,7 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     if name.eq("U8")   { return Type.Struct("U8") }
     if name.eq("I8")   { return Type.Struct("I8") }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
+    if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
     if name.eq("I32")  { return Type.Struct("I32") }
     if name.eq("U32")  { return Type.U32 }
     if name.eq("U64")  { return Type.U64 }
@@ -7099,6 +7117,7 @@ type_prefix := func(t: Type) returns Str {
     case Type.U8: return "U8"
     case Type.I8: return "I8"
     case Type.Primitive(Primitive.I16): return "I16"
+    case Type.Primitive(Primitive.U16): return "U16"
     case Type.I32: return "I32"
     case Type.U32: return "U32"
     case Type.U64: return "U64"
@@ -7130,6 +7149,7 @@ type_to_name := func(t: Type) returns Str {
     case Type.U8: return U8Name.clone()
     case Type.I8: return I8Name.clone()
     case Type.Primitive(Primitive.I16): return I16Name.clone()
+    case Type.Primitive(Primitive.U16): return U16Name.clone()
     case Type.I32: return I32Name.clone()
     case Type.U32: return U32Name.clone()
     case Type.U64: return U64Name.clone()

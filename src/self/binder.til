@@ -138,7 +138,7 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("char").or(c.eq("signed char")) { out.push_str("I8"); return true }
     if c.eq("unsigned char") { out.push_str("U8"); return true }
     if c.eq("short").or(c.eq("short int")) { out.push_str("I16"); return true }
-    if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("I16"); return true }
+    if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("U16"); return true }
     if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32"); return true }
     if c.eq("unsigned").or(c.eq("unsigned int")) { out.push_str("U32"); return true }
     if c.eq("long").or(c.eq("long int"))
@@ -155,7 +155,7 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("int8_t") { out.push_str("I8"); return true }
     if c.eq("uint8_t") { out.push_str("U8"); return true }
     if c.eq("int16_t") { out.push_str("I16"); return true }
-    if c.eq("uint16_t") { out.push_str("I16"); return true }
+    if c.eq("uint16_t") { out.push_str("U16"); return true }
     if c.eq("int32_t") { out.push_str("I32"); return true }
     if c.eq("uint32_t") { out.push_str("U32"); return true }
     if c.eq("int64_t") { out.push_str("I64"); return true }

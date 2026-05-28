@@ -238,7 +238,12 @@ Value := enum {
     Struct: StructInstance,
     Enum: EnumInstance,
     Ref: Dynamic,
-    Dynamic: Dynamic
+    Dynamic: Dynamic,
+    // Sbyte appended at the end (rather than next to Byte) so existing
+    // variant tag values stay stable: master's til_boot has the integer
+    // tags baked into its compiled C, and inserting a variant in the
+    // middle would mis-decode Value tags during bootstrap.
+    Sbyte: I8
 namespace:
     eq := func(a: Value, b: Value) returns Bool {
         switch a {
@@ -308,6 +313,7 @@ namespace:
             return out
         case Value.Int(v):     return Value.Int(v)
         case Value.Byte(v):    return Value.Byte(v)
+        case Value.Sbyte(v):   return Value.Sbyte(v)
         case Value.Short(v):   return Value.Short(v)
         case Value.Int32(v):   return Value.Int32(v)
         case Value.Uint32(v):  return Value.Uint32(v)
@@ -372,6 +378,9 @@ val_i64 := func(shallow v: I64) returns shallow Value {
 }
 val_u8 := func(shallow v: I64) returns shallow Value {
     return Value.Byte(v.to_u8())
+}
+val_i8 := func(shallow v: I64) returns shallow Value {
+    return Value.Sbyte(v.to_i8())
 }
 val_i16 := func(shallow v: I64) returns shallow Value {
     return Value.Short(v.to_i16())
@@ -504,6 +513,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         lit_t := expr_til_type(e)
         switch lit_t {
         case Type.U8:  return val_u8(num_str.to_i64())
+        case Type.I8:  return val_i8(num_str.to_i64())
         case Type.U32: return val_u32(num_str.to_i64())
         case Type.U64: return val_u64(num_str.to_u64())
         case Type.Primitive(Primitive.I16): return val_i16(num_str.to_i64())
@@ -512,6 +522,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         case Type.Struct(s):
             if s.eq("I32") { return val_i32(num_str.to_i64()) }
             if s.eq("U8")  { return val_u8(num_str.to_i64()) }
+            if s.eq("I8")  { return val_i8(num_str.to_i64()) }
             return val_i64(num_str.to_i64())
         case: return val_i64(num_str.to_i64())
         }
@@ -1675,6 +1686,7 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     switch val {
     case Value.Int(v):     if type_name.eq("I64")  { memcpy(dest, v, 8); return }
     case Value.Byte(v):    if type_name.eq("U8")   { memcpy(dest, v, 1); return }
+    case Value.Sbyte(v):   if type_name.eq("I8")   { memcpy(dest, v, 1); return }
     case Value.Short(v):   if type_name.eq("I16")  { memcpy(dest, v, 2); return }
     case Value.Int32(v):   if type_name.eq("I32")  { memcpy(dest, v, 4); return }
     case Value.Uint32(v):  if type_name.eq("U32")  { memcpy(dest, v, 4); return }
@@ -1915,6 +1927,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     }
     if ftype.eq("I64") { ref v : I64 = ptr; return val_i64(v) }
     if ftype.eq("U8") { ref v : U8 = ptr; return val_u8(v.to_i64()) }
+    if ftype.eq("I8") { ref v : I8 = ptr; return val_i8(v.to_i64()) }
     if ftype.eq("I16") { ref v : I16 = ptr; return val_i16(v.to_i64()) }
     if ftype.eq("I32") { ref v : I32 = ptr; return val_i32(v.to_i64()) }
     if ftype.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
@@ -2027,6 +2040,7 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
     switch val {
     case Value.Int(v):     memcpy(ptr, v, fsz.to_u64())
     case Value.Byte(v):    memcpy(ptr, v, fsz.to_u64())
+    case Value.Sbyte(v):   memcpy(ptr, v, fsz.to_u64())
     case Value.Short(v):   memcpy(ptr, v, fsz.to_u64())
     case Value.Int32(v):   memcpy(ptr, v, fsz.to_u64())
     case Value.Uint32(v):  memcpy(ptr, v, fsz.to_u64())

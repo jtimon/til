@@ -167,6 +167,7 @@ value_to_u64 := func(v: Value) returns U64 {
     switch v {
     case Value.Int(x):     return x.to_u64()
     case Value.Byte(x):    return x.to_u64()
+    case Value.Sbyte(x):   return x.to_u64()
     case Value.Short(x):   return x.to_u64()
     case Value.Int32(x):   return x.to_u64()
     case Value.Uint32(x):  return x.to_u64()
@@ -194,6 +195,7 @@ priv value_to_f32 := func(v: Value) returns F32 {
     switch v {
     case Value.Int(x):     return x.to_f32()
     case Value.Byte(x):    return x.to_f32()
+    case Value.Sbyte(x):   return x.to_i64().to_f32()
     case Value.Short(x):   return x.to_f32()
     case Value.Int32(x):   return x.to_f32()
     case Value.Uint32(x):  return x.to_f32()
@@ -334,6 +336,8 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bo
     v := eval_expr(s, e.child(1), ctx)
     raw := value_to_u64(v)
     tn := til_type_name_c(expr_til_type(e))
+    if tn.eq("I8")  { r = val_i8(raw.to_i64());  return true }
+    if tn.eq("U8")  { r = val_u8(raw.to_i64());  return true }
     if tn.eq("I32") { r = val_i32(raw.to_i64()); return true }
     if tn.eq("U32") { r = val_u32(raw.to_i64()); return true }
     if tn.eq("I64") { r = val_i64(raw.to_i64()); return true }
@@ -398,6 +402,7 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
     case Value.Dynamic(p): return p
     case Value.Int(p):     return p
     case Value.Byte(p):    return p
+    case Value.Sbyte(p):   return p
     case Value.Short(p):   return p
     case Value.Int32(p):   return p
     case Value.Uint32(p):  return p
@@ -787,6 +792,10 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             r = make_str_value("I16".c_str, 3, ctx)
             return true
         }
+        if tag.eq(enum_variant_tag(til_type_def, "U16")) {
+            r = make_str_value("U16".c_str, 3, ctx)
+            return true
+        }
         if tag.eq(enum_variant_tag(til_type_def, "I32")) {
             r = make_str_value("I32".c_str, 3, ctx)
             return true
@@ -924,6 +933,7 @@ priv known_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
     if type_name.eq("U8")    { return ffi_type_ref("ffi_type_uint8") }
     if type_name.eq("I8")    { return ffi_type_ref("ffi_type_sint8") }
     if type_name.eq("I16")   { return ffi_type_ref("ffi_type_sint16") }
+    if type_name.eq("U16")   { return ffi_type_ref("ffi_type_uint16") }
     if type_name.eq("I32")   { return ffi_type_ref("ffi_type_sint32") }
     if type_name.eq("U32")   { return ffi_type_ref("ffi_type_uint32") }
     if type_name.eq("U64")   { return ffi_type_ref("ffi_type_uint64") }
@@ -1173,6 +1183,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 switch payload {
                 case Value.Int(x):     pdata = to_ptr(x); psz = 8
                 case Value.Byte(x):    pdata = to_ptr(x); psz = 1
+                case Value.Sbyte(x):   pdata = to_ptr(x); psz = 1
                 case Value.Short(x):   pdata = to_ptr(x); psz = 2
                 case Value.Int32(x):   pdata = to_ptr(x); psz = 4
                 case Value.Uint32(x):  pdata = to_ptr(x); psz = 4
@@ -1255,6 +1266,7 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
     if ptr_eq(atype, ffi_type_ref("ffi_type_uint8"))  { type_name = "U8";  size = 1; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_sint8"))  { type_name = "I8";  size = 1; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_sint16")) { type_name = "I16"; size = 2; return true }
+    if ptr_eq(atype, ffi_type_ref("ffi_type_uint16")) { type_name = "U16"; size = 2; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_sint32")) { type_name = "I32"; size = 4; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_uint32")) { type_name = "U32"; size = 4; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_uint64")) { type_name = "U64"; size = 8; return true }
@@ -1341,6 +1353,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             switch v {
             case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
             case Value.Byte(p):    dp = malloc(1); memcpy(dp, p, 1)
+            case Value.Sbyte(p):   dp = malloc(1); memcpy(dp, p, 1)
             case Value.Short(p):   dp = malloc(2); memcpy(dp, p, 2)
             case Value.Int32(p):   dp = malloc(4); memcpy(dp, p, 4)
             case Value.Uint32(p):  dp = malloc(4); memcpy(dp, p, 4)

@@ -6,7 +6,8 @@ typedef struct Str Str;
 typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
-    Primitive_TAG_I16
+    Primitive_TAG_I16,
+    Primitive_TAG_U16
 } Primitive_tag;
 typedef struct Primitive Primitive;
 typedef enum {
@@ -233,7 +234,8 @@ typedef enum {
     Value_TAG_Struct,
     Value_TAG_Enum,
     Value_TAG_Ref,
-    Value_TAG_Dynamic
+    Value_TAG_Dynamic,
+    Value_TAG_Sbyte
 } Value_tag;
 typedef struct Value Value;
 typedef struct Cell Cell;
@@ -645,6 +647,7 @@ struct Value {
         EnumInstance Enum;
         void * Ref;
         void * Dynamic;
+        I8 Sbyte;
     } data;
 };
 
@@ -1845,6 +1848,7 @@ Value * Value_Struct(StructInstance * val);
 Value * Value_Enum(EnumInstance * val);
 Value * Value_Ref(void * val);
 Value * Value_Dynamic(void * val);
+Value * Value_Sbyte(I8 * val);
 Bool Value_is(Value * self, Value * other);
 void Value_delete(Value * self, Bool * call_free);
 U32 Value_size(void);
@@ -1861,6 +1865,7 @@ Expr * lookup_interp_type_def(Str * name, Context * ctx);
 Value val_none(void);
 Value val_i64(I64 v);
 Value val_u8(I64 v);
+Value val_i8(I64 v);
 Value val_i16(I64 v);
 Value val_i32(I64 v);
 Value val_u32(I64 v);
@@ -2188,6 +2193,7 @@ Value *Value_Struct(StructInstance *);
 Value *Value_Enum(EnumInstance *);
 Value *Value_Ref(void *);
 Value *Value_Dynamic(void *);
+Value *Value_Sbyte(I8 *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
@@ -2202,6 +2208,7 @@ extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;
 extern Str I16Name;
+extern Str U16Name;
 extern Str I32Name;
 extern Str U32Name;
 extern Str U64Name;
