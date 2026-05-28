@@ -127,13 +127,33 @@ namespace:
                     if is_null(dd.field_struct_def).not() {
                         if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
                             if enum_has_payloads(dd.field_struct_def) {
-                                ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
-                                if is_null(ei_ref).not() {
-                                    ref ei : EnumInstance = ei_ref
-                                    mut cloned_ei := ei.clone()
-                                    heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
-                                    move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
-                                    write_ptr(ptr_add(dst_data, foff.to_u64()), heap_ei)
+                                if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+                                    ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
+                                    if is_null(ei_ref).not() {
+                                        ref ei : EnumInstance = ei_ref
+                                        mut cloned_ei := ei.clone()
+                                        heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
+                                        move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
+                                        write_ptr(ptr_add(dst_data, foff.to_u64()), heap_ei)
+                                    }
+                                } else {
+                                    mut temp_decl := dd
+                                    temp_decl.own_type = OwnType.Shallow
+                                    val := read_field(self.data, temp_decl, Context())
+                                    mut cloned_val := val.clone()
+                                    switch cloned_val {
+                                    case Value.Enum(cei):
+                                        memcpy(ptr_add(dst_data, foff.to_u64()), cei.data, cei.data_size.to_u64())
+                                        free(own cei.data)
+                                        cei.data = NULL
+                                    case:
+                                    }
+                                    switch val {
+                                    case Value.Enum(cei):
+                                        free(own cei.data)
+                                        cei.data = NULL
+                                    case:
+                                    }
                                 }
                                 continue
                             }
@@ -1954,14 +1974,25 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         if edef_lookup.node_type.is(NodeType.EnumDef) {
             ref edef : Expr = edef_lookup
             if enum_has_payloads(edef) {
-                ref ei : EnumInstance = deref(ptr)
-                if is_null(ei) { return val_enum_simple(ftype, 0) }
-                ref etag_ref : Dynamic = ei.data
-                ref etag : I32 = etag_ref
-                psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
-                mut psz_final := psz
-                if psz.to_i64().lt(0) { psz_final = 0 }
-                return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
+                if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+                    ref ei : EnumInstance = deref(ptr)
+                    if is_null(ei) { return val_enum_simple(ftype, 0) }
+                    ref etag_ref : Dynamic = ei.data
+                    ref etag : I32 = etag_ref
+                    psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
+                    mut psz_final := psz
+                    if psz.to_i64().lt(0) { psz_final = 0 }
+                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
+                }
+                ref etag : I32 = ptr
+                mut psz_final : I32 = 0
+                switch edef.node_type {
+                case NodeType.EnumDef(edd):
+                    psz_final = edd.total_enum_size.sub(ENUM_PAYLOAD_OFFSET)
+                case:
+                }
+                if psz_final.to_i64().lt(0) { psz_final = 0 }
+                return val_enum_flat(ftype, etag, ptr_add(ptr, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
             }
             ref itag : I32 = ptr
             return val_i32(itag.to_i64())
@@ -2063,16 +2094,20 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
     case Value.Enum(ei):
         mut total := ei.data_size
         if total.to_i64().lt(8) { total = 8 }
-        heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
-        memcpy(heap_ei, ei, EnumInstance.size().to_u64())
-        // Deep-copy the data buffer
-        new_data : Dynamic = malloc(total.to_u64())
-        memcpy(new_data, ei.data, total.to_u64())
-        // Write data pointer into the heap EnumInstance. After dropping the
-        // dead enum_def field, EnumInstance is { enum_name(0..8),
-        // data(8..16), data_size(16..) } so the data slot is at offset 8.
-        write_ptr(ptr_add(heap_ei, 8), new_data)
-        write_ptr(ptr, heap_ei)
+        if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+            heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
+            memcpy(heap_ei, ei, EnumInstance.size().to_u64())
+            // Deep-copy the data buffer
+            new_data : Dynamic = malloc(total.to_u64())
+            memcpy(new_data, ei.data, total.to_u64())
+            // Write data pointer into the heap EnumInstance. After dropping the
+            // dead enum_def field, EnumInstance is { enum_name(0..8),
+            // data(8..16), data_size(16..) } so the data slot is at offset 8.
+            write_ptr(ptr_add(heap_ei, 8), new_data)
+            write_ptr(ptr, heap_ei)
+        } else {
+            memcpy(ptr, ei.data, total.to_u64())
+        }
     case Value.Ref(pv):     write_ptr(ptr, deref(pv))
     case Value.Dynamic(pv): write_ptr(ptr, deref(pv))
     case Value.Func(fv):    write_ptr(ptr, deref(fv))
