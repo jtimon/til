@@ -45,7 +45,7 @@ SIZE_LABELS := array("Str", "9x9", "13x13", "19x19")
 copy_board := func(mut dst: Array, mut src: Array, total: I64) {
     mut i := 0
     while i.lt(total) {
-        ref v : I64 = src.get(i.to_u32())
+        ref v : I64 = src.get(i.to_u32())!
         dst.set(i.to_u32(), own v.clone())
         i = i.add(1)
     }
@@ -55,8 +55,8 @@ copy_board := func(mut dst: Array, mut src: Array, total: I64) {
 boards_equal := func(mut a: Array, mut b: Array, total: I64) returns Bool {
     mut i := 0
     while i.lt(total) {
-        ref va : I64 = a.get(i.to_u32())
-        ref vb : I64 = b.get(i.to_u32())
+        ref va : I64 = a.get(i.to_u32())!
+        ref vb : I64 = b.get(i.to_u32())!
         if va.neq(vb) { return false }
         i = i.add(1)
     }
@@ -92,15 +92,15 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
         // up
         if cr.gt(0) {
             ni := cur.sub(size)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
-                        ref ls : I64 = lib_seen.get(ni.to_u32())
+                        ref ls : I64 = lib_seen.get(ni.to_u32())!
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
                             libs = libs.add(1)
@@ -112,15 +112,15 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
         // down
         if cr.lt(size.sub(1)) {
             ni := cur.add(size)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
-                        ref ls : I64 = lib_seen.get(ni.to_u32())
+                        ref ls : I64 = lib_seen.get(ni.to_u32())!
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
                             libs = libs.add(1)
@@ -132,15 +132,15 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
         // left
         if cc.gt(0) {
             ni := cur.sub(1)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
-                        ref ls : I64 = lib_seen.get(ni.to_u32())
+                        ref ls : I64 = lib_seen.get(ni.to_u32())!
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
                             libs = libs.add(1)
@@ -152,15 +152,15 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
         // right
         if cc.lt(size.sub(1)) {
             ni := cur.add(1)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
-                        ref ls : I64 = lib_seen.get(ni.to_u32())
+                        ref ls : I64 = lib_seen.get(ni.to_u32())!
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
                             libs = libs.add(1)
@@ -196,9 +196,9 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
         // up
         if cr.gt(0) {
             ni := cur.sub(size)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
@@ -208,9 +208,9 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
         // down
         if cr.lt(size.sub(1)) {
             ni := cur.add(size)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
@@ -220,9 +220,9 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
         // left
         if cc.gt(0) {
             ni := cur.sub(1)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
@@ -232,9 +232,9 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
         // right
         if cc.lt(size.sub(1)) {
             ni := cur.add(1)
-            ref nv : I64 = visited.get(ni.to_u32())
+            ref nv : I64 = visited.get(ni.to_u32())!
             if nv.eq(0) {
-                ref np : I64 = board.get(ni.to_u32())
+                ref np : I64 = board.get(ni.to_u32())!
                 if np.eq(color) {
                     visited.set(ni.to_u32(), own 1)
                     stk.push(own ni)
@@ -255,7 +255,7 @@ try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     total := size.mul(size)
 
     // Must be empty
-    ref cur : I64 = tmp.get(idx.to_u32())
+    ref cur : I64 = tmp.get(idx.to_u32())!
     if cur.neq(0) { return -1 }
 
     // Place stone
@@ -270,7 +270,7 @@ try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     // up
     if r.gt(0) {
         ni := idx.sub(size)
-        ref np : I64 = tmp.get(ni.to_u32())
+        ref np : I64 = tmp.get(ni.to_u32())!
         if np.eq(opp) {
             clear_arr(visited, total)
             clear_arr(lib_seen, total)
@@ -284,7 +284,7 @@ try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     // down
     if r.lt(size.sub(1)) {
         ni := idx.add(size)
-        ref np : I64 = tmp.get(ni.to_u32())
+        ref np : I64 = tmp.get(ni.to_u32())!
         if np.eq(opp) {
             clear_arr(visited, total)
             clear_arr(lib_seen, total)
@@ -298,7 +298,7 @@ try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     // left
     if c.gt(0) {
         ni := idx.sub(1)
-        ref np : I64 = tmp.get(ni.to_u32())
+        ref np : I64 = tmp.get(ni.to_u32())!
         if np.eq(opp) {
             clear_arr(visited, total)
             clear_arr(lib_seen, total)
@@ -312,7 +312,7 @@ try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     // right
     if c.lt(size.sub(1)) {
         ni := idx.add(1)
-        ref np : I64 = tmp.get(ni.to_u32())
+        ref np : I64 = tmp.get(ni.to_u32())!
         if np.eq(opp) {
             clear_arr(visited, total)
             clear_arr(lib_seen, total)
@@ -366,7 +366,7 @@ go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
     total := size.mul(size)
     mut i := 0
     while i.lt(total) {
-        ref v : I64 = cells.get(i.to_u32())
+        ref v : I64 = cells.get(i.to_u32())!
         board_set_i64(b, i, v)
         i = i.add(1)
     }
@@ -377,7 +377,7 @@ go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
     board_set_i64(b, GO_IDX_HAS_KO.to_i64(), has_ko_i)
     i = 0
     while i.lt(total) {
-        ref v : I64 = ko_board.get(i.to_u32())
+        ref v : I64 = ko_board.get(i.to_u32())!
         board_set_i64(b, (GO_IDX_KO + i.to_i32()).to_i64(), v)
         i = i.add(1)
     }
@@ -429,7 +429,7 @@ go_next_boards : NextBoardsFn = (b) {
     result := Vec.new(Board)
     mut i := 0
     while i.lt(total) {
-        ref p : I64 = cells.get(i.to_u32())
+        ref p : I64 = cells.get(i.to_u32())!
         if p.eq(0) {
             mut child := Array.new(I64, MAX_CELLS.to_u32())
             copy_board(child, cells, total)
@@ -462,7 +462,7 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
     // Count stones
     mut i := 0
     while i.lt(total) {
-        ref p : I64 = board.get(i.to_u32())
+        ref p : I64 = board.get(i.to_u32())!
         if p.eq(1) { black_score = black_score.add(1) }
         if p.eq(2) { white_score = white_score.add(1) }
         i = i.add(1)
@@ -471,8 +471,8 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
     // Flood fill empty regions to assign territory
     i = 0
     while i.lt(total) {
-        ref p : I64 = board.get(i.to_u32())
-        ref v : I64 = visited.get(i.to_u32())
+        ref p : I64 = board.get(i.to_u32())!
+        ref v : I64 = visited.get(i.to_u32())!
         if p.eq(0).and(v.eq(0)) {
             mut region_size := 0
             mut touches_black := false
@@ -493,9 +493,9 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                 // up
                 if cr.gt(0) {
                     ni := cur.sub(size)
-                    ref nv : I64 = visited.get(ni.to_u32())
+                    ref nv : I64 = visited.get(ni.to_u32())!
                     if nv.eq(0) {
-                        ref np : I64 = board.get(ni.to_u32())
+                        ref np : I64 = board.get(ni.to_u32())!
                         if np.eq(0) {
                             visited.set(ni.to_u32(), own 1)
                             stk.push(own ni)
@@ -509,9 +509,9 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                 // down
                 if cr.lt(size.sub(1)) {
                     ni := cur.add(size)
-                    ref nv : I64 = visited.get(ni.to_u32())
+                    ref nv : I64 = visited.get(ni.to_u32())!
                     if nv.eq(0) {
-                        ref np : I64 = board.get(ni.to_u32())
+                        ref np : I64 = board.get(ni.to_u32())!
                         if np.eq(0) {
                             visited.set(ni.to_u32(), own 1)
                             stk.push(own ni)
@@ -525,9 +525,9 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                 // left
                 if cc.gt(0) {
                     ni := cur.sub(1)
-                    ref nv : I64 = visited.get(ni.to_u32())
+                    ref nv : I64 = visited.get(ni.to_u32())!
                     if nv.eq(0) {
-                        ref np : I64 = board.get(ni.to_u32())
+                        ref np : I64 = board.get(ni.to_u32())!
                         if np.eq(0) {
                             visited.set(ni.to_u32(), own 1)
                             stk.push(own ni)
@@ -541,9 +541,9 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
                 // right
                 if cc.lt(size.sub(1)) {
                     ni := cur.add(1)
-                    ref nv : I64 = visited.get(ni.to_u32())
+                    ref nv : I64 = visited.get(ni.to_u32())!
                     if nv.eq(0) {
-                        ref np : I64 = board.get(ni.to_u32())
+                        ref np : I64 = board.get(ni.to_u32())!
                         if np.eq(0) {
                             visited.set(ni.to_u32(), own 1)
                             stk.push(own ni)
@@ -697,7 +697,7 @@ main := proc() {
 
                 mut sq := 0
                 while sq.lt(total) {
-                    ref ap : I64 = board.get(sq.to_u32())
+                    ref ap : I64 = board.get(sq.to_u32())!
                     if ap.eq(0) {
                         copy_board(tmp_board, board, total)
                         cap := try_place(tmp_board, visited, lib_seen, stk, sq, board_size, ai_color, ko_board, has_ko)
@@ -824,8 +824,8 @@ main := proc() {
             HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
             mut hi : I32 = 0
             while hi < 10 {
-                ref hr : I64 = HOSHI.get(hi.to_u32())
-                ref hc : I64 = HOSHI.get((hi + 1).to_u32())
+                ref hr : I64 = HOSHI.get(hi.to_u32())!
+                ref hc : I64 = HOSHI.get((hi + 1).to_u32())!
                 DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
                 hi = hi + 2
             }
@@ -834,8 +834,8 @@ main := proc() {
             HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
             mut hi : I32 = 0
             while hi < 10 {
-                ref hr : I64 = HOSHI.get(hi.to_u32())
-                ref hc : I64 = HOSHI.get((hi + 1).to_u32())
+                ref hr : I64 = HOSHI.get(hi.to_u32())!
+                ref hc : I64 = HOSHI.get((hi + 1).to_u32())!
                 DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
                 hi = hi + 2
             }
@@ -844,8 +844,8 @@ main := proc() {
             HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
             mut hi : I32 = 0
             while hi < 18 {
-                ref hr : I64 = HOSHI.get(hi.to_u32())
-                ref hc : I64 = HOSHI.get((hi + 1).to_u32())
+                ref hr : I64 = HOSHI.get(hi.to_u32())!
+                ref hc : I64 = HOSHI.get((hi + 1).to_u32())!
                 DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
                 hi = hi + 2
             }
@@ -855,7 +855,7 @@ main := proc() {
         COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
         mut ci : I32 = 0
         while ci < board_size.to_i32() {
-            ref cl : Str = COL_LABELS.get(ci.to_u32())
+            ref cl : Str = COL_LABELS.get(ci.to_u32())!
             lx := board_px + ci * cell_size - 4
             DrawText(cl.c_str, lx, board_py - margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
             DrawText(cl.c_str, lx, board_py + grid_span + margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
@@ -869,7 +869,7 @@ main := proc() {
         // Stones
         mut si : I32 = 0
         while si < total.to_i32() {
-            ref sp : I64 = board.get(si.to_u32())
+            ref sp : I64 = board.get(si.to_u32())!
             if sp.neq(0) {
                 sr := si / board_size.to_i32()
                 sc := si % board_size.to_i32()
@@ -909,7 +909,7 @@ main := proc() {
                     hrow := (my + half) / cell_size
                     if hrow >= 0 & hrow < board_size.to_i32() & hcol >= 0 & hcol < board_size.to_i32() {
                         hidx := (hrow * board_size.to_i32() + hcol).to_i64()
-                        ref hp : I64 = board.get(hidx.to_u32())
+                        ref hp : I64 = board.get(hidx.to_u32())!
                         if hp.eq(0) {
                             hx := board_px + hcol * cell_size
                             hy := board_py + hrow * cell_size
@@ -942,7 +942,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            ref clabel : Str = COLOR_LABELS.get(bi.to_u32())
+            ref clabel : Str = COLOR_LABELS.get(bi.to_u32())!
             DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -959,7 +959,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            ref mlabel : Str = MODE_LABELS.get(bi.to_u32())
+            ref mlabel : Str = MODE_LABELS.get(bi.to_u32())!
             DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -976,7 +976,7 @@ main := proc() {
                 sb = 155
             }
             DrawRectangle(sxp, RADIO_Y, SIZE_BTN_W - 2, BTN_H - 2, Color(r = sr.to_u8(), g = sg.to_u8(), b = sb.to_u8(), a = 255))
-            ref slabel : Str = SIZE_LABELS.get(bi.to_u32())
+            ref slabel : Str = SIZE_LABELS.get(bi.to_u32())!
             DrawText(slabel.c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }

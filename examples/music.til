@@ -85,9 +85,9 @@ LANGS := array("Array", LANG_PT, LANG_ES, LANG_EN)
 // -- Helper functions --
 
 triad_type := func(mut sc_chrom: Array, ti: USize) returns U32 {
-    ref root_c : I32 = sc_chrom.get(ti)
-    ref third_c : I32 = sc_chrom.get((ti + 2) % 7)
-    ref fifth_c : I32 = sc_chrom.get((ti + 4) % 7)
+    ref root_c : I32 = sc_chrom.get(ti)!
+    ref third_c : I32 = sc_chrom.get((ti + 2) % 7)!
+    ref fifth_c : I32 = sc_chrom.get((ti + 4) % 7)!
     i3 := (third_c - root_c + 12) % 12
     i5 := (fifth_c - root_c + 12) % 12
     if i3.eq(3).and(i5.eq(7)) { return 1 }
@@ -98,16 +98,16 @@ triad_type := func(mut sc_chrom: Array, ti: USize) returns U32 {
 
 note_name := func(diat_idx: USize, sel_notation: USize) returns ref Str {
     if sel_notation.eq(0) {
-        ref s : Str = NAMES_SOL.get(diat_idx)
+        ref s : Str = NAMES_SOL.get(diat_idx)!
         return s
     }
-    ref a : Str = NAMES_AME.get(diat_idx)
+    ref a : Str = NAMES_AME.get(diat_idx)!
     return a
 }
 
 lang_str := func(lang_idx: USize, label_idx: USize) returns ref Str {
-    ref lang : Array = LANGS.get(lang_idx)
-    ref s : Str = lang.get(label_idx)
+    ref lang : Array = LANGS.get(lang_idx)!
+    ref s : Str = lang.get(label_idx)!
     return s
 }
 
@@ -133,8 +133,8 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
                    mut sc_triad: Array, playing: Bool, play_idx: USize,
                    clicked_note: I32, sel_notation: USize, fnt: Font) {
     dnx := NOTE_X0 + dni.to_i32() * NOTE_DX
-    ref nd : I32 = sc_diat.get(dni)
-    ref no : I32 = sc_oct.get(dni)
+    ref nd : I32 = sc_diat.get(dni)!
+    ref no : I32 = sc_oct.get(dni)!
     staff_pos := nd - 2 + no * 7
     dny := staff_y(nd, no)
 
@@ -174,7 +174,7 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
     DrawCircle(dnx, dny, NOTE_R.to_f32(), note_color)
 
     // Accidental text
-    ref na : I32 = sc_acc.get(dni)
+    ref na : I32 = sc_acc.get(dni)!
     if !na.eq(0) {
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R * 2 }
@@ -187,8 +187,8 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
     nn_acc := acc_text(na.to_i64())
     mut nn := nn_base.concat(nn_acc)
     if dni.lt(7) {
-        ref trt2 : USize = sc_triad.get(dni)
-        ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)
+        ref trt2 : USize = sc_triad.get(dni)!
+        ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)!
         nn = nn.concat(tsuf)
     }
     DrawTextEx(fnt, nn.c_str, Vector2(x = (dnx - NOTE_R).to_f32(), y = LABEL_Y.to_f32()), FONT_SM.to_f32(), 1.to_f32(), LIGHT_GRAY)
@@ -197,7 +197,7 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
 recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
                         mut sc_chrom: Array, mut sc_diat: Array, mut sc_oct: Array,
                         mut sc_acc: Array, mut sc_freq: Array, mut sc_triad: Array) {
-    ref nat_c : I32 = NATURALS.get(sel_diatonic)
+    ref nat_c : I32 = NATURALS.get(sel_diatonic)!
     root_chromatic := (nat_c + sel_accidental + 12) % 12
     mut chrom_total := root_chromatic
     mut diat_pos := sel_diatonic.to_i32()
@@ -212,21 +212,21 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
         sc_oct.set(k, own diat_oct.clone())
 
         // Compute accidental
-        ref nat_ref : I32 = NATURALS.get(diat_pos.to_usize())
+        ref nat_ref : I32 = NATURALS.get(diat_pos.to_usize())!
         mut acc := chrom_mod - nat_ref
         if acc.gt(6) { acc = acc - 12 }
         if acc.lt(-6) { acc = acc + 12 }
         sc_acc.set(k, own acc)
 
         // Frequency
-        ref f : I64 = FREQS.get(chrom_mod.to_usize())
+        ref f : I64 = FREQS.get(chrom_mod.to_usize())!
         mut freq := f
         if chrom_oct.gt(0) { freq = freq * 2 }
         sc_freq.set(k, own freq)
 
         // Next note
         if k.lt(7) {
-            ref step : I32 = INTERVALS.get(sel_mode * 7 + k)
+            ref step : I32 = INTERVALS.get(sel_mode * 7 + k)!
             chrom_total = chrom_total + step
             prev_diat = diat_pos
             diat_pos = (diat_pos + 1) % 7
@@ -259,7 +259,7 @@ draw_piano := proc(active_chrom: I32, active_oct: USize) {
     // 2 octaves: 15 white keys (C4-B4, C5-B5, C6)
     for i : USize in 0..15 {
         kx := STAFF_X + i.to_i32() * WHITE_W
-        ref nat : I32 = NATURALS.get(i.mod(7))
+        ref nat : I32 = NATURALS.get(i.mod(7))!
         key_oct := i / 7
         mut k_color := KEY_WHITE
         if active_chrom.gte(0).and(nat.eq(active_chrom)).and(key_oct.eq(active_oct)) {
@@ -271,8 +271,8 @@ draw_piano := proc(active_chrom: I32, active_oct: USize) {
     // 10 black keys (5 per octave, 2 octaves)
     for oct : USize in 0..2 {
         for j : USize in 0..5 {
-            ref bpos : I32 = BLACK_KEY_POS.get(j)
-            ref bchrom : I32 = BLACK_CHROMS.get(j)
+            ref bpos : I32 = BLACK_KEY_POS.get(j)!
+            ref bchrom : I32 = BLACK_CHROMS.get(j)!
             bx := STAFF_X + (oct.to_i32() * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
             mut kb_color := KEY_BLACK
             if active_chrom.gte(0).and(bchrom.eq(active_chrom)).and(oct.eq(active_oct)) {
@@ -377,13 +377,13 @@ main := proc() {
 
             // Click on pentagram notes
             for ci : USize in 0..8 {
-                ref cd : I32 = sc_diat.get(ci)
-                ref co : I32 = sc_oct.get(ci)
+                ref cd : I32 = sc_diat.get(ci)!
+                ref co : I32 = sc_oct.get(ci)!
                 cnx := NOTE_X0 + ci.to_i32() * NOTE_DX
                 cny := staff_y(cd, co)
                 hit := NOTE_R * 3
                 if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
-                    ref cf : I64 = sc_freq.get(ci)
+                    ref cf : I64 = sc_freq.get(ci)!
                     play_note(cf, clicked_note, clicked_timer, ci.to_i32())
                 }
             }
@@ -410,7 +410,7 @@ main := proc() {
             if play_timer.gte(300) {
                 play_timer = 0
                 if play_idx.lt(8) {
-                    ref pf : I64 = sc_freq.get(play_idx)
+                    ref pf : I64 = sc_freq.get(play_idx)!
                     play_note(pf, clicked_note, clicked_timer, play_idx.to_i32())
                     play_idx = play_idx + 1
                 } else {
@@ -518,9 +518,9 @@ main := proc() {
         mut active_chrom : I32 = -1
         mut active_oct : USize = 0
         if clicked_note.gte(0) {
-            ref ac : I32 = sc_chrom.get(clicked_note.to_usize())
-            ref af : I64 = sc_freq.get(clicked_note.to_usize())
-            ref base_f : I64 = FREQS.get(ac.to_usize())
+            ref ac : I32 = sc_chrom.get(clicked_note.to_usize())!
+            ref af : I64 = sc_freq.get(clicked_note.to_usize())!
+            ref base_f : I64 = FREQS.get(ac.to_usize())!
             active_chrom = ac
             if af.gt(base_f) { active_oct = 1 }
         }

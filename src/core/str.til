@@ -454,3 +454,11 @@ cli_parse_bool := func(s: I8) returns Bool {
     panic(__LOC__, "cannot parse '", v, "' as Bool (expected true/false)")
     return false
 }
+
+/// Error thrown by the indexed collection accessors (Array.get,
+/// Vec.get, ...) when the index is past the end. The msg field
+/// carries a "file:line:col:<method>: index N out of bounds (len M)"
+/// description set at the throw site.
+OutOfBounds := struct {
+    msg: Str = ""
+}

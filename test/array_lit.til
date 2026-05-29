@@ -3,9 +3,9 @@ mode test
 test_i64_array_literal := test() {
     arr := array("I64", 1, 2, 3)
     assert_eq(__LOC__, arr.len().to_i64(), 3)
-    ref a0 : I64 = arr.get(0)
-    ref a1 : I64 = arr.get(1)
-    ref a2 : I64 = arr.get(2)
+    ref a0 : I64 = arr.get(0)!
+    ref a1 : I64 = arr.get(1)!
+    ref a2 : I64 = arr.get(2)!
     assert_eq(__LOC__, a0, 1)
     assert_eq(__LOC__, a1, 2)
     assert_eq(__LOC__, a2, 3)
@@ -25,8 +25,8 @@ test_i64_vec_literal := test() {
 test_str_array_literal := test() {
     sarr := array("Str", "hello", "world")
     assert_eq(__LOC__, sarr.len().to_i64(), 2)
-    ref s0 : Str = sarr.get(0)
-    ref s1 : Str = sarr.get(1)
+    ref s0 : Str = sarr.get(0)!
+    ref s1 : Str = sarr.get(1)!
     assert_eq_str(__LOC__, s0, "hello")
     assert_eq_str(__LOC__, s1, "world")
 }

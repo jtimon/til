@@ -6,9 +6,9 @@ test_array_new_get_set := test() {
     a.set(1, own 20)
     a.set(2, own 30)
 
-    ref x : I64 = a.get(0)
-    ref y : I64 = a.get(1)
-    ref z : I64 = a.get(2)
+    ref x : I64 = a.get(0)!
+    ref y : I64 = a.get(1)!
+    ref z : I64 = a.get(2)!
 
     assert_eq(__LOC__, x, 10)
     assert_eq(__LOC__, y, 20)
@@ -21,8 +21,8 @@ test_array_strings := test() {
     a.set(0, own "hello")
     a.set(1, own "world")
 
-    ref s0 : Str = a.get(0)
-    ref s1 : Str = a.get(1)
+    ref s0 : Str = a.get(0)!
+    ref s1 : Str = a.get(1)!
 
     assert_eq_str(__LOC__, s0, "hello")
     assert_eq_str(__LOC__, s1, "world")
@@ -34,6 +34,6 @@ test_array_overwrite := test() {
     a.set(1, own 2)
     a.set(0, own 99)
 
-    ref v : I64 = a.get(0)
+    ref v : I64 = a.get(0)!
     assert_eq(__LOC__, v, 99)
 }

@@ -47,7 +47,7 @@ main := proc(args: ..Str) {
 
     // Optional startup command: tilminal.til "<command>"
     if args.len() > 0 {
-        ref startup_cmd : Str = args.get(0)
+        ref startup_cmd : Str = args.get(0)!
         if startup_cmd.len() > 0 {
             run_shell_command(lines, startup_cmd)
         }

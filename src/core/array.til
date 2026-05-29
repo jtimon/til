@@ -34,11 +34,12 @@ namespace:
 
     len := func(self: Array) returns USize { return self.cap }
 
-    /// Ref to the element at index `i`. Panics if out of bounds.
-    get := func(self: Array, i: USize) returns ref Dynamic {
+    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
+    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    get := func(self: Array, i: USize) returns ref Dynamic throws OutOfBounds {
         if i.gte(self.cap) {
-            panic(__LOC__, "Array.get: index ", i.to_str(),
-                  " out of bounds (len ", self.cap.to_str(), ")")
+            throw OutOfBounds(msg = format(__LOC__, ":Array.get: index ", i.to_str(),
+                  " out of bounds (len ", self.cap.to_str(), ")"))
         }
         return ptr_add(self.data, i.mul(self.elem_size))
     }

@@ -610,3 +610,38 @@ test_i16_safe_mul_overflow := test() {
     assert(__LOC__, caught)
 }
 
+
+// ==========================================================
+// Array.get throws OutOfBounds (catch-friendly indexed access;
+// callers use arr.get(i)! to keep the panic-on-OOB behavior).
+// ==========================================================
+
+test_array_get_ok := test() {
+    arr := array("I64", 10, 20, 30)
+    ref v : I64 = arr.get(1)?
+    catch (err: OutOfBounds) {
+        assert(__LOC__, false)
+    }
+    assert(__LOC__, v.eq(20))
+}
+
+test_array_get_oob := test() {
+    arr := array("I64", 10, 20, 30)
+    mut caught := false
+    mut emsg := ""
+    ref _v : I64 = arr.get(99)?
+    catch (err: OutOfBounds) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("Array.get"))
+}
+
+// The bang form panics on OOB (same as the old behavior). The
+// success path returns the element normally.
+test_array_get_bang_ok := test() {
+    arr := array("I64", 5, 6, 7)
+    ref v : I64 = arr.get(2)!
+    assert(__LOC__, v.eq(7))
+}

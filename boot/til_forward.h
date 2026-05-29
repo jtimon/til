@@ -3,6 +3,7 @@
 
 typedef struct Vec Vec;
 typedef struct Str Str;
+typedef struct OutOfBounds OutOfBounds;
 typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
@@ -284,6 +285,11 @@ typedef struct Str {
     U32 count;
     U32 cap;
 } Str;
+
+
+typedef struct OutOfBounds {
+    Str msg;
+} OutOfBounds;
 
 
 typedef struct Dynamic {
@@ -992,6 +998,9 @@ U32 * cli_parse_u32(I8 * s);
 U64 * cli_parse_u64(I8 * s);
 U64 * cli_parse_uptr(I8 * s);
 Bool * cli_parse_bool(I8 * s);
+OutOfBounds * OutOfBounds_clone(OutOfBounds * self);
+void OutOfBounds_delete(OutOfBounds * self, Bool * call_free);
+U32 OutOfBounds_size(void);
 U32 * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool * _cf);
@@ -1139,7 +1148,7 @@ Str * enum_variant_type(Expr * enum_def, I32 tag);
 Array * Array_new_type_name(Str * elem_type, U32 * cap);
 Array * Array_new(Type * T, U32 * cap);
 U32 * Array_len(Array * self);
-void * Array_get(Array * self, U32 * i);
+void * Array_get(Array * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
 void Array_set(Array * self, U32 * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);

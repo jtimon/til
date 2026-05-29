@@ -366,7 +366,7 @@ parse_args := proc(args: Array) returns CliArgs {
         return cli
     }
 
-    ref cmd_ref : Str = args.get(0)
+    ref cmd_ref : Str = args.get(0)!
     cli.command = cmd_ref.clone()
 
     if cli.command.eq("--") {
@@ -375,7 +375,7 @@ parse_args := proc(args: Array) returns CliArgs {
             usage()
             exit(1)
         }
-        ref p : Str = args.get(1)
+        ref p : Str = args.get(1)!
         cli.command = "interpret"
         cli.path = p.clone()
         cli.path_idx = 1
@@ -404,7 +404,7 @@ parse_args := proc(args: Array) returns CliArgs {
     }
 
     if cli.command.eq("repl") {
-        ref mode_arg : Str = args.get(1)
+        ref mode_arg : Str = args.get(1)!
         run_repl(mode_arg)
         cli.early_return = true
         return cli
@@ -432,16 +432,16 @@ parse_args := proc(args: Array) returns CliArgs {
 
     // Scan for -o/-c/--target/--cc/--prefix flags before source file
     while cli.path_idx.lt(args.len()) {
-        ref flag : Str = args.get(cli.path_idx)
+        ref flag : Str = args.get(cli.path_idx)!
         if flag.eq("--") {
             cli.path_idx = cli.path_idx.add(1)
             break
         } else if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
-            ref oval : Str = args.get(cli.path_idx.add(1))
+            ref oval : Str = args.get(cli.path_idx.add(1))!
             cli.custom_bin = oval.clone()
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.eq("-c").and(cli.path_idx.add(1).lt(args.len())) {
-            ref cval : Str = args.get(cli.path_idx.add(1))
+            ref cval : Str = args.get(cli.path_idx.add(1))!
             cli.custom_c = cval.clone()
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.starts_with("--target=") {
@@ -451,7 +451,7 @@ parse_args := proc(args: Array) returns CliArgs {
             cli.cc = flag.substr(5, flag.len().sub(5)).clone()
             cli.path_idx = cli.path_idx.add(1)
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
-            ref pval : Str = args.get(cli.path_idx.add(1))
+            ref pval : Str = args.get(cli.path_idx.add(1))!
             cli.install_prefix = pval.clone()
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.starts_with("--prefix=") {
@@ -469,7 +469,7 @@ parse_args := proc(args: Array) returns CliArgs {
         usage()
         exit(1)
     }
-    ref p : Str = args.get(cli.path_idx)
+    ref p : Str = args.get(cli.path_idx)!
     cli.path = p.clone()
     return cli
 }
@@ -480,12 +480,12 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array, shallow start_idx:
     mut user_argv := Vec.new(Str)
     mut ai := start_idx
     while ai.lt(args.len()) {
-        ref arg : Str = args.get(ai)
+        ref arg : Str = args.get(ai)!
         if arg.starts_with("-l") {
             mut lib := arg.substr(2, arg.len())
             if lib.len().eq(0).and(ai.add(1).lt(args.len())) {
                 ai = ai.add(1)
-                ref next_arg : Str = args.get(ai)
+                ref next_arg : Str = args.get(ai)!
                 lib = next_arg.clone()
             }
             loaded_add_lflag(lp, lib)

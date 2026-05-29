@@ -63,7 +63,7 @@ main := proc() {
                 if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
                     idx := my * COLS + mx
                     idx_u : USize = idx.to_usize()
-                    ref st : I32 = state.get(idx_u)
+                    ref st : I32 = state.get(idx_u)!
                     if st == 0 {
                         if first_click {
                             // Place mines, avoiding clicked cell + neighbors
@@ -72,7 +72,7 @@ main := proc() {
                             while placed < NUM_MINES {
                                 pos := GetRandomValue(0, TOTAL - 1)
                                 pos_u : USize = pos.to_usize()
-                                ref m : I32 = mines.get(pos_u)
+                                ref m : I32 = mines.get(pos_u)!
                                 if m == 0 {
                                     // Check not near first click
                                     px := pos % COLS
@@ -91,7 +91,7 @@ main := proc() {
                             mut ci : I32 = 0
                             while ci < TOTAL {
                                 ci_u : USize = ci.to_usize()
-                                ref cm : I32 = mines.get(ci_u)
+                                ref cm : I32 = mines.get(ci_u)!
                                 if cm == 0 {
                                     cx := ci % COLS
                                     cy := ci / COLS
@@ -103,7 +103,7 @@ main := proc() {
                                             if nx >= 0 & nx < COLS & ny >= 0 & ny < ROWS {
                                                 ni := ny * COLS + nx
                                                 ni_u : USize = ni.to_usize()
-                                                ref nm : I32 = mines.get(ni_u)
+                                                ref nm : I32 = mines.get(ni_u)!
                                                 if nm == 1 {
                                                     cnt = cnt + 1
                                                 }
@@ -119,14 +119,14 @@ main := proc() {
                         }
 
                         // Check mine
-                        ref is_mine : I32 = mines.get(idx_u)
+                        ref is_mine : I32 = mines.get(idx_u)!
                         if is_mine == 1 {
                             game_over = true
                             // Reveal all mines
                             mut ri2 : I32 = 0
                             while ri2 < TOTAL {
                                 ri2_u : USize = ri2.to_usize()
-                                ref rm : I32 = mines.get(ri2_u)
+                                ref rm : I32 = mines.get(ri2_u)!
                                 if rm == 1 {
                                     state.set(ri2_u, own 1)
                                 }
@@ -142,10 +142,10 @@ main := proc() {
                                 stack.count = stack.count - 1
 
                                 cur_u : USize = cur.to_usize()
-                                ref cur_st : I32 = state.get(cur_u)
+                                ref cur_st : I32 = state.get(cur_u)!
                                 if cur_st == 0 {
                                     state.set(cur_u, own 1)
-                                    ref cur_cnt : I32 = counts.get(cur_u)
+                                    ref cur_cnt : I32 = counts.get(cur_u)!
                                     if cur_cnt == 0 {
                                         // Push all neighbors
                                         cur_x := cur % COLS
@@ -157,7 +157,7 @@ main := proc() {
                                                 if px >= 0 & px < COLS & py >= 0 & py < ROWS {
                                                     ni := py * COLS + px
                                                     ni_u : USize = ni.to_usize()
-                                                    ref ns : I32 = state.get(ni_u)
+                                                    ref ns : I32 = state.get(ni_u)!
                                                     if ns == 0 {
                                                         stack.push(own ni)
                                                     }
@@ -192,7 +192,7 @@ main := proc() {
                 if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
                     idx := my * COLS + mx
                     idx_u : USize = idx.to_usize()
-                    ref st : I32 = state.get(idx_u)
+                    ref st : I32 = state.get(idx_u)!
                     if st == 0 {
                         state.set(idx_u, own 2)
                         flags = flags + 1
@@ -230,7 +230,7 @@ main := proc() {
             py := dy * CELL + TOP_BAR
 
             di_u : USize = di.to_usize()
-            ref ds : I32 = state.get(di_u)
+            ref ds : I32 = state.get(di_u)!
             if ds == 0 {
                 // Hidden
                 DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_HIDDEN)
@@ -241,14 +241,14 @@ main := proc() {
                     DrawText("F".c_str, px + 9, py + 5, 20, YELLOW)
                 } else {
                     // Revealed
-                    ref dm : I32 = mines.get(di_u)
+                    ref dm : I32 = mines.get(di_u)!
                     if dm == 1 {
                         // Mine
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
                         DrawCircle(px + CELL / 2, py + CELL / 2, 8.to_f32(), RED)
                     } else {
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
-                        ref dc : I32 = counts.get(di_u)
+                        ref dc : I32 = counts.get(di_u)!
                         if dc > 0 {
                             // Number colors
                             mut nc := WHITE

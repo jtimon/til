@@ -184,7 +184,7 @@ main := proc() {
                 dy = next_dy
 
                 // P1 new head
-                ref head_pos : I32 = body.get(0)
+                ref head_pos : I32 = body.get(0)!
                 head_x := head_pos % COLS
                 head_y := head_pos / COLS
                 new_x := (head_x + dx + COLS) % COLS
@@ -196,7 +196,7 @@ main := proc() {
                     dy2 = next_dy2
 
                     // P2 new head
-                    ref head_pos2 : I32 = body2.get(0)
+                    ref head_pos2 : I32 = body2.get(0)!
                     head_x2 := head_pos2 % COLS
                     head_y2 := head_pos2 / COLS
                     new_x2 := (head_x2 + dx2 + COLS) % COLS
@@ -214,7 +214,7 @@ main := proc() {
                     if !game_over {
                         mut i : USize = 0
                         while i < snake_len {
-                            ref seg : I32 = body.get(i)
+                            ref seg : I32 = body.get(i)!
                             if seg == new_pos { p1_dead = true }
                             i++
                         }
@@ -223,7 +223,7 @@ main := proc() {
                     if !game_over {
                         mut i : USize = 0
                         while i < snake_len2 {
-                            ref seg : I32 = body2.get(i)
+                            ref seg : I32 = body2.get(i)!
                             if seg == new_pos { p1_dead = true }
                             i++
                         }
@@ -232,7 +232,7 @@ main := proc() {
                     if !game_over {
                         mut i : USize = 0
                         while i < snake_len2 {
-                            ref seg : I32 = body2.get(i)
+                            ref seg : I32 = body2.get(i)!
                             if seg == new_pos2 { p2_dead = true }
                             i++
                         }
@@ -241,7 +241,7 @@ main := proc() {
                     if !game_over {
                         mut i : USize = 0
                         while i < snake_len {
-                            ref seg : I32 = body.get(i)
+                            ref seg : I32 = body.get(i)!
                             if seg == new_pos2 { p2_dead = true }
                             i++
                         }
@@ -253,7 +253,7 @@ main := proc() {
                         // Shift P1 body
                         mut j : USize = snake_len - 1
                         while j > 0 {
-                            ref prev_ref : I32 = body.get(j - 1)
+                            ref prev_ref : I32 = body.get(j - 1)!
                             prev_val := prev_ref
                             body.set(j, own prev_val)
                             j--
@@ -263,7 +263,7 @@ main := proc() {
                         // Shift P2 body
                         mut j2 : USize = snake_len2 - 1
                         while j2 > 0 {
-                            ref prev_ref2 : I32 = body2.get(j2 - 1)
+                            ref prev_ref2 : I32 = body2.get(j2 - 1)!
                             prev_val2 := prev_ref2
                             body2.set(j2, own prev_val2)
                             j2--
@@ -272,7 +272,7 @@ main := proc() {
 
                         // Food collision P1
                         if new_x == food_x & new_y == food_y {
-                            ref tail_ref : I32 = body.get(snake_len - 1)
+                            ref tail_ref : I32 = body.get(snake_len - 1)!
                             tail_val := tail_ref
                             body.set(snake_len, own tail_val)
                             snake_len = snake_len + 1
@@ -282,7 +282,7 @@ main := proc() {
                         }
                         // Food collision P2
                         if new_x2 == food_x & new_y2 == food_y {
-                            ref tail_ref2 : I32 = body2.get(snake_len2 - 1)
+                            ref tail_ref2 : I32 = body2.get(snake_len2 - 1)!
                             tail_val2 := tail_ref2
                             body2.set(snake_len2, own tail_val2)
                             snake_len2 = snake_len2 + 1
@@ -302,7 +302,7 @@ main := proc() {
                     // 1P mode
                     mut i : USize = 0
                     while i < snake_len {
-                        ref seg : I32 = body.get(i)
+                        ref seg : I32 = body.get(i)!
                         if seg == new_pos { game_over = true }
                         i++
                     }
@@ -310,7 +310,7 @@ main := proc() {
                     if !game_over {
                         mut j : USize = snake_len - 1
                         while j > 0 {
-                            ref prev_ref : I32 = body.get(j - 1)
+                            ref prev_ref : I32 = body.get(j - 1)!
                             prev_val := prev_ref
                             body.set(j, own prev_val)
                             j--
@@ -318,7 +318,7 @@ main := proc() {
                         body.set(0, own new_pos)
 
                         if new_x == food_x & new_y == food_y {
-                            ref tail_ref : I32 = body.get(snake_len - 1)
+                            ref tail_ref : I32 = body.get(snake_len - 1)!
                             tail_val := tail_ref
                             body.set(snake_len, own tail_val)
                             snake_len = snake_len + 1
@@ -362,7 +362,7 @@ main := proc() {
         // P1 body segments
         mut k : USize = 1
         while k < snake_len {
-            ref seg : I32 = body.get(k)
+            ref seg : I32 = body.get(k)!
             sx := (seg % COLS) * CELL + 2
             sy := (seg / COLS) * CELL + 2 + BAR_H
             DrawRectangle(sx, sy, CELL - 4, CELL - 4, YELLOW)
@@ -370,7 +370,7 @@ main := proc() {
         }
 
         // P1 head
-        ref head : I32 = body.get(0)
+        ref head : I32 = body.get(0)!
         hx := (head % COLS) * CELL + CELL / 2
         hy := (head / COLS) * CELL + CELL / 2 + BAR_H
         DrawCircle(hx, hy, (CELL / 2 - 1).to_f32(), YELLOW)
@@ -379,13 +379,13 @@ main := proc() {
         if two_player {
             mut k2 : USize = 1
             while k2 < snake_len2 {
-                ref seg2 : I32 = body2.get(k2)
+                ref seg2 : I32 = body2.get(k2)!
                 sx2 := (seg2 % COLS) * CELL + 2
                 sy2 := (seg2 / COLS) * CELL + 2 + BAR_H
                 DrawRectangle(sx2, sy2, CELL - 4, CELL - 4, CYAN)
                 k2++
             }
-            ref head2 : I32 = body2.get(0)
+            ref head2 : I32 = body2.get(0)!
             hx2 := (head2 % COLS) * CELL + CELL / 2
             hy2 := (head2 / COLS) * CELL + CELL / 2 + BAR_H
             DrawCircle(hx2, hy2, (CELL / 2 - 1).to_f32(), CYAN)
