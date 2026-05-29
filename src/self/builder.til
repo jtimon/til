@@ -308,6 +308,7 @@ is_ext_h_type := func(name: Str) returns shallow Bool {
     if name.eq("U8") { return true }
     if name.eq("I8") { return true }
     if name.eq("I16") { return true }
+    if name.eq("U16") { return true }
     if name.eq("I32") { return true }
     if name.eq("F32") { return true }
     if name.eq("U32") { return true }
@@ -330,6 +331,7 @@ is_scalar_method_type := func(name: Str) returns shallow Bool {
     if name.eq("U8") { return true }
     if name.eq("I8") { return true }
     if name.eq("I16") { return true }
+    if name.eq("U16") { return true }
     if name.eq("I32") { return true }
     if name.eq("F32") { return true }
     if name.eq("U32") { return true }

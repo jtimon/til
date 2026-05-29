@@ -2101,6 +2101,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 cast_int_size := func(t: Type) returns shallow I32 {
     tn := til_type_name_c(t)
     if tn.eq("I8").or(tn.eq("U8"))   { return 1 }
+    if tn.eq("I16").or(tn.eq("U16")) { return 2 }
     if tn.eq("I32").or(tn.eq("U32")) { return 4 }
     if tn.eq("I64").or(tn.eq("U64")) { return 8 }
     return 0
