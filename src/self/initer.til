@@ -2564,14 +2564,10 @@ init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns
     for si : U32 in struct_idxs {
         ref stmt : Expr = program.child(si)
         gen_struct_size_method_for_stmt(stmt)
-        gen_cmp_derived_for_stmt(stmt)
-        gen_unity_derived_for_stmt(stmt)
     }
     for ei : U32 in enum_idxs {
         ref stmt : Expr = program.child(ei)
         gen_enum_size_method_for_stmt(stmt, scope)
-        gen_cmp_derived_for_stmt(stmt)
-        gen_unity_derived_for_stmt(stmt)
     }
     for fi : U32 in func_idxs {
         ref stmt : Expr = program.child(fi)
@@ -3025,18 +3021,16 @@ init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) 
     for ei : U32 in enum_idxs {
         compute_enum_layout(program.child(ei).child(0), scope)
     }
-    // Size + cmp/unity derived methods.
+    // Size derived methods. cmp/unity derived methods moved into
+    // type_decls_file (the typer's first sweep) as part of #147
+    // step 3-4 / #174 work.
     for si : U32 in struct_idxs {
         ref stmt : Expr = program.child(si)
         gen_struct_size_method_for_stmt(stmt)
-        gen_cmp_derived_for_stmt(stmt)
-        gen_unity_derived_for_stmt(stmt)
     }
     for ei : U32 in enum_idxs {
         ref stmt : Expr = program.child(ei)
         gen_enum_size_method_for_stmt(stmt, scope)
-        gen_cmp_derived_for_stmt(stmt)
-        gen_unity_derived_for_stmt(stmt)
     }
     // Re-register function/value decls -- new ones may have been generated
     // above (size methods etc) but those go into ns_decls, not program.children.

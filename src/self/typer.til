@@ -6862,11 +6862,14 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
 // per sweep, and the per-file ordering "imports first, then this
 // file" within each sweep matches today's single-sweep behaviour.
 //
-// During this initial scaffolding commit type_decls_file is a no-op:
-// every decl visit, methodgen call, and layout computation still
-// happens inside init_declarations_global's pre-typer pass, exactly
-// where it does today. Subsequent commits relocate work into the
-// decls sweep one piece at a time, each landing green.
+// type_decls_file currently owns the scope-free derived-method
+// generation that was previously called twice in init's pre-typer
+// passes (gen_cmp_derived_for_stmt / gen_unity_derived_for_stmt).
+// Both helpers are idempotent so moving them is safe even before the
+// initer call sites disappear -- but the initer sites are removed in
+// the same commit so each piece moves cleanly. Subsequent commits
+// relocate the layout computation and scope-using methodgen
+// (gen_struct_clone_delete, gen_*_size_method, etc.) the same way.
 type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     mut total : I32 = 0
     total = total.add(type_decls_file(path, ctx))
@@ -6874,8 +6877,13 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     return total
 }
 
-// Future home of init_declarations_global's scope-using work
-// (methodgen, layout, post-init re-registration). Empty stub today.
+// First of two typer sweeps: per file, recurse on imports first
+// (matching the existing rstil-style ordering), then run the
+// scope-free derived-method generators for each top-level
+// struct/enum decl. The cycle that #174 catalogues is in the
+// scope-using generators + layout work; the cmp/unity helpers only
+// inspect a single decl's own ns_decls, so they're cycle-free and
+// can move first without any other infrastructure change.
 type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
     if ctx.imports_typer_decls_done.has(path) {
         return 0
@@ -6904,6 +6912,22 @@ type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
         case:
             continue
         }
+    }
+
+    // Scope-free per-decl methodgen: walk top-level stmts and run
+    // gen_cmp_derived_for_stmt / gen_unity_derived_for_stmt on each
+    // struct or enum decl. Both helpers internally check
+    // is_struct_or_enum, so the dispatch could be unconditional, but
+    // the explicit check keeps the loop body cheap for non-decl
+    // statements.
+    for stmt : Expr in iu.ast.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.StructDef).not()
+            .and(rhs.node_type.is(NodeType.EnumDef).not()) { continue }
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
     }
     return total
 }
