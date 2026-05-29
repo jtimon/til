@@ -1,0 +1,45 @@
+# priority: low
+** OPEN #218 Interpreter: captured `ref X : Dynamic` slot reference does not survive memcpy dst arg
+
+In interpret mode, capturing a Vec/Map/HashMap slot via a local
+`ref slot : Dynamic = container.get(i)` and then passing `slot` as the
+DESTINATION argument to `memcpy(slot, src, n)` segfaults. The same code
+works in compile mode, and the same `slot` ref works fine when passed
+to `elem_delete(slot, false)` or read from. The crash is specifically
+on memcpy-as-dst.
+
+Repro shape (from #214's HashMap.set overwrite branch):
+
+  slot_idx : USize = existing.to_usize()
+  ref val_slot : Dynamic = self.values.get(slot_idx)
+  self.values.elem_delete(val_slot, false)         // fine
+  memcpy(val_slot, val, self.values.elem_size)     // SEGFAULT in interp
+
+Workaround: don't capture, re-call `self.values.get(slot_idx)` at each
+use:
+
+  slot_idx : USize = existing.to_usize()
+  self.values.elem_delete(self.values.get(slot_idx), false)
+  memcpy(self.values.get(slot_idx), val, self.values.elem_size)  // ok
+
+Both forms compile and run correctly under `bin/til run`, so compile
+mode is fine. Only interp is broken.
+
+*** Suspected cause
+
+The interpreter representation of a `ref Dynamic` binding differs from
+the in-Vec/Map/HashMap slot pointer that the same `get(...)` returns
+when called directly inside an arg list. `memcpy`'s ext_func then
+dereferences the binding wrong.
+
+This is likely cousin to #217 -- both are about how the interpreter
+threads Dynamic pointers across boundaries it didn't have to handle
+before HashMap landed.
+
+*** Why it matters
+
+Same as #217: every new container that does in-place mutation of a
+typed slot will have to either re-call `get` at each use site or carry
+the `ref-must-not-cross-memcpy` warning forward. Compile mode is
+fine, so the language semantics are fine; the interpreter's binding
+machinery is the one out of step.

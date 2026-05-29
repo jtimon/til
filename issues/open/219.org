@@ -1,0 +1,45 @@
+# priority: low
+** OPEN #219 Builder: emit ULL suffix on U64 literal constants
+
+When the constfolder reduces `0.sub(N).to_u64()` (the standard til
+idiom for materialising a U64 constant whose unsigned value exceeds
+I64 max) to a single literal, the builder writes the resulting decimal
+without a `ULL` suffix. `cc -Wall -Wextra -Werror` then rejects the
+emitted code:
+
+  gen/til/Foo.c:123: error: integer constant is so large that it is
+                            unsigned [-Werror]
+      U64 FNV_OFFSET = 14695981039346656037;
+
+Concrete repro: try to land 64-bit FNV-1a constants in
+[[file:../../lib/hash.til][lib/hash.til]] /
+[[file:../../src/std/hashmap.til][src/std/hashmap.til]] (issue #214):
+
+  FNV_OFFSET : U64 = 0.sub(3750763034362895579).to_u64()
+  FNV_PRIME  : U64 = 1099511628211.to_u64()
+
+The til-level computation is well-defined (two's-complement wrap
+through U64), interpret mode runs it correctly, and the constfolder
+correctly folds it to 14695981039346656037 in the C emit. The miss is
+the suffix on emission.
+
+Issue #214 worked around this by staying on the 32-bit Knuth / FNV
+constants, which is good enough for self-hosting bucket counts but
+loses some hash quality.
+
+*** Where the emit lives
+
+`src/self/builder.til`'s `emit_u64` (around line 699) writes
+`v.to_str()` with no suffix. That's fine for any value that fits in
+signed `long long`, but once `v > 9223372036854775807` the C grammar
+requires `ULL` to keep it well-typed under `-Werror`. The likely
+patch: at the call site that emits a U64 constant (not a USize length,
+which is already wrapped in `ULL` literally in several spots), append
+`"ULL"` after the decimal.
+
+*** Why it matters
+
+Any future container or hash that wants honest 64-bit constants will
+hit this wall. Fixing it once unlocks 64-bit FNV, 64-bit Knuth
+multipliers, larger bitmask sentinels, etc. without each one needing a
+sub(0, N) acrobat plus a comment apologising for the lost quality.

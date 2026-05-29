@@ -1,0 +1,182 @@
+mode lib
+
+// HashMap: unordered map with O(1) average lookup. Use this when you
+// have a big table and don't need keys in sorted order; use core's Map
+// when you need ordered iteration or have only a handful of entries
+// (the binary-search Map wins on small tables).
+//
+// Layout: dense parallel `keys` / `values` Vecs plus a `buckets` Vec
+// that stores the head entry index for each bucket and a `nexts` Vec
+// that stores the per-entry chain link. Separate chaining over arrays,
+// no per-entry malloc. Adapted from rstil's src/std/hashmap.til.
+
+import("../../lib/hash")
+
+HASHMAP_INIT_BUCKETS : USize = 16.to_usize()
+
+HashMap := struct {
+    keys : Vec = Vec.new(Dynamic)
+    values : Vec = Vec.new(Dynamic)
+    buckets : Vec = Vec.new(I64)  // bucket head entry index, -1 if empty
+    nexts : Vec = Vec.new(I64)    // per-entry next-in-chain index, -1 if end
+    key_is_str : Bool = false
+
+namespace:
+    new_type_names := func(key_type: Str, val_type: Str) returns HashMap {
+        if key_type.is_empty() {
+            panic(__LOC__, "HashMap.new: key_type required")
+        }
+        if val_type.is_empty() {
+            panic(__LOC__, "HashMap.new: val_type required")
+        }
+        mut m := HashMap()
+        m.keys = Vec.new_type_name(key_type)
+        m.values = Vec.new_type_name(val_type)
+        m.buckets = Vec.new(I64)
+        m.nexts = Vec.new(I64)
+        m.key_is_str = key_type.eq("Str")
+        for _ in 0..HASHMAP_INIT_BUCKETS {
+            m.buckets.push(own -1)
+        }
+        return m
+    }
+
+    new := func(K: Type, V: Type) returns HashMap {
+        key_type := dyn_type_to_str(K)
+        val_type := dyn_type_to_str(V)
+        return HashMap.new_type_names(key_type, val_type)
+    }
+
+    len := func(self: HashMap) returns USize { return self.keys.count }
+
+    // Hash dispatch: Str keys go through Str.hash (content-aware);
+    // everything else hashes the raw bytes of the key, which IS the
+    // value for primitives, POD structs, and enums.
+    //
+    // NB: the `to_ptr(key)` wrap works around issue #217 (interpreter
+    // segfault when forwarding a Dynamic local through a direct call).
+    // Compile mode is unaffected; drop the wraps once #217 lands.
+    hash_key := func(self: HashMap, key: Dynamic) returns U64 {
+        if self.key_is_str {
+            ref s : Str = key
+            return s.hash()
+        }
+        return hash_bytes(to_ptr(key), self.keys.elem_size)
+    }
+
+    keys_equal := func(self: HashMap, a: Dynamic, b: Dynamic) returns Bool {
+        if self.key_is_str {
+            ref sa : Str = a
+            ref sb : Str = b
+            return Str.cmp(sa, sb).eq(0)
+        }
+        for i in 0..self.keys.elem_size {
+            ref ba : U8 = ptr_add(to_ptr(a), i)
+            ref bb : U8 = ptr_add(to_ptr(b), i)
+            if ba.eq(bb).not() { return false }
+        }
+        return true
+    }
+
+    // Walk the chain at the key's bucket. Returns the entry index in the
+    // dense keys/values arrays, or -1 if not found.
+    find := func(self: HashMap, key: Dynamic) returns I64 {
+        if self.keys.count.eq(0.to_usize()) { return -1 }
+        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        ref head : I64 = self.buckets.get(bi)
+        mut entry : I64 = head.clone()
+        while entry.gte(0) {
+            entry_u : USize = entry.to_usize()
+            ref k : Dynamic = self.keys.get(entry_u)
+            if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
+            ref nxt : I64 = self.nexts.get(entry_u)
+            entry = nxt.clone()
+        }
+        return -1
+    }
+
+    has := func(self: HashMap, key: Dynamic) returns shallow Bool {
+        return self.find(key).gte(0)
+    }
+
+    get := func(self: HashMap, key: Dynamic) returns ref Dynamic {
+        idx := self.find(key)
+        if idx.lt(0) { panic(__LOC__, "HashMap.get: key not found") }
+        return self.values.get(idx.to_usize())
+    }
+
+    // Insert or overwrite. Both key and value are owned.
+    // Inlines the chain walk (cannot call self.find here -- a direct call
+    // would transfer ownership of `key` away before we know whether to
+    // free it as a duplicate or push it as a new entry).
+    set := func(mut self: HashMap, own key: Dynamic, own val: Dynamic) {
+        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        ref head : I64 = self.buckets.get(bi)
+        mut entry : I64 = head.clone()
+        mut existing : I64 = -1
+        while entry.gte(0) {
+            entry_u : USize = entry.to_usize()
+            ref k : Dynamic = self.keys.get(entry_u)
+            if self.keys_equal(to_ptr(key), to_ptr(k)) {
+                existing = entry.clone()
+                break
+            }
+            ref nxt : I64 = self.nexts.get(entry_u)
+            entry = nxt.clone()
+        }
+        if existing.gte(0) {
+            // Key already present: free the duplicate key, replace value.
+            // We re-call self.values.get(slot_idx) at each use rather
+            // than capturing the slot in a local `ref Dynamic`: issue
+            // #218 (captured ref dies when passed to memcpy as dst in
+            // interpret mode). Compile mode handles either form.
+            slot_idx : USize = existing.to_usize()
+            self.values.elem_delete(self.values.get(slot_idx), false)
+            memcpy(self.values.get(slot_idx), val, self.values.elem_size)
+            self.keys.elem_delete(key, false)
+            free(own key)
+            free(own val)
+        } else {
+            new_idx : I64 = self.keys.count.to_i64()
+            ref head2 : I64 = self.buckets.get(bi)
+            head_val : I64 = head2.clone()
+            self.nexts.push(own head_val)
+            self.keys.push(own key)
+            self.values.push(own val)
+            self.buckets.set(bi, own new_idx)
+            // Load factor 0.75 = count * 4 > buckets * 3.
+            if self.keys.count.mul(4.to_usize()).gt(self.buckets.count.mul(3.to_usize())) {
+                self.rehash()
+            }
+        }
+    }
+
+    rehash := func(mut self: HashMap) {
+        new_count : USize = self.buckets.count.mul(2.to_usize())
+        // Zero out existing buckets and grow to new_count.
+        for i in 0..self.buckets.count {
+            self.buckets.set(i, own -1)
+        }
+        while self.buckets.count.lt(new_count) {
+            self.buckets.push(own -1)
+        }
+        // Re-link every entry into its new bucket. Walk keys in index
+        // order; insert at the head of the new chain.
+        for i in 0..self.keys.count {
+            ref k : Dynamic = self.keys.get(i)
+            bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
+            ref head : I64 = self.buckets.get(bi)
+            head_val : I64 = head.clone()
+            self.nexts.set(i, own head_val)
+            self.buckets.set(bi, own i.to_i64())
+        }
+    }
+
+    delete := func(own self: HashMap, call_free: Bool = true) {
+        Vec.delete(own self.keys, false)
+        Vec.delete(own self.values, false)
+        Vec.delete(own self.buckets, false)
+        Vec.delete(own self.nexts, false)
+        if call_free { free(own self) }
+    }
+}

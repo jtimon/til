@@ -8,15 +8,15 @@ mode lib
 // (or per fixed-width input) and no allocations. til exposes mul / xor
 // on U64 but not shl / shr, so multiplicative hashes (Knuth, FNV-1a)
 // are the natural fit; bit-rotation hashes would need an ext_func.
+//
+// Constants are the 32-bit Knuth / FNV values. See issue #219: the
+// 64-bit FNV basis (14695981039346656037) is representable in til via
+// `0.sub(N).to_u64()`, but the builder emits the constfolded result
+// as a bare C decimal literal without a ULL suffix, which `cc -Werror`
+// rejects. Stay 32-bit until #219 lands -- still good enough for the
+// bucket counts a self-hosting compiler reaches.
 
-// Knuth's 32-bit golden-ratio multiplier. The 64-bit constant
-// (11400714819323198485) overflows I64 literals, so the wider variant
-// would need a U64 literal escape; this 32-bit form is good enough for
-// the bucket counts a self-hosting compiler reaches.
 KNUTH_MULT : I64 = 2654435761
-
-// FNV-1a 32-bit basis and prime, promoted to U64 so the accumulator
-// can wrap as unsigned without signed-overflow UB.
 FNV_OFFSET : U64 = 2166136261.to_u64()
 FNV_PRIME  : U64 = 16777619.to_u64()
 
@@ -38,6 +38,19 @@ hash_str := func(s: Str) returns U64 {
     mut h : U64 = FNV_OFFSET
     for i in 0..s.len() {
         ref b : I8 = s.byte_at(i)
+        h = h.xor(b.to_u64()).mul(FNV_PRIME)
+    }
+    return h
+}
+
+// FNV-1a over `n` raw bytes pointed to by `data`. Used as the default
+// hash for any HashMap key whose in-memory bytes ARE the value
+// (primitives, POD structs, enums) -- everything that doesn't carry a
+// heap pointer the way Str does.
+hash_bytes := func(data: Dynamic, n: USize) returns U64 {
+    mut h : U64 = FNV_OFFSET
+    for i in 0..n {
+        ref b : U8 = ptr_add(data, i)
         h = h.xor(b.to_u64()).mul(FNV_PRIME)
     }
     return h

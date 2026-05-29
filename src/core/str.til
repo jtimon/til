@@ -276,6 +276,23 @@ namespace:
         return self.substr(i, 1)
     }
 
+    /// FNV-1a 32-bit hash of the string content. Used by HashMap as the
+    /// override for Str keys, since the in-memory Str struct
+    /// {c_str, count, cap} carries a heap pointer and so a bytewise
+    /// hash of the struct would key on pointer identity, not content.
+    /// Stays 32-bit pending issue #219 (builder ULL suffix on U64
+    /// literals); 64-bit FNV constants overflow the bare C literal.
+    hash := func(self: Str) returns shallow U64 {
+        FNV_OFFSET : U64 = 2166136261.to_u64()
+        FNV_PRIME  : U64 = 16777619.to_u64()
+        mut h : U64 = FNV_OFFSET
+        for i in 0..self.count {
+            ref b : I8 = ptr_add(self.c_str, i)
+            h = h.xor(b.to_u64()).mul(FNV_PRIME)
+        }
+        return h
+    }
+
     /// If self starts with `prefix`, return the rest; otherwise clone.
     strip_prefix := func(self: Str, prefix: Str) returns Str {
         if self.starts_with(prefix) {

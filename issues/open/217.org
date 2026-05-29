@@ -1,0 +1,54 @@
+# priority: low
+** OPEN #217 Interpreter: Dynamic local segfaults when passed through nested direct calls
+
+When a function with `key: Dynamic` parameter is called from a context
+that has its own `own key: Dynamic` (typically because the literal was
+autoboxed at the outer call site), the interpreter segfaults instead
+of passing the same Dynamic pointer through. The compile path is
+unaffected.
+
+Minimal repro:
+
+  hash_bytes := func(data: Dynamic, n: USize) returns U64 { /* ... */ }
+  inner := func(key: Dynamic, n: USize) returns U64 {
+      return hash_bytes(key, n)
+  }
+  outer := func(own x: Dynamic) returns U64 {
+      return inner(x, 8.to_usize())
+  }
+  test_it := test() {
+      r := outer(own 42)
+      // segfaults in interpret mode; compile mode works
+  }
+
+Wrapping the inner-call argument as `inner(to_ptr(x), n)` works around
+the crash. The current `src/std/hashmap.til` (issue #214) sprinkles
+`to_ptr(...)` at every method->helper hop that takes Dynamic for
+exactly this reason; the workaround comments there are the breadcrumb
+trail.
+
+*** Suspected cause
+
+The interpreter's calling convention for direct (non-fn-pointer) calls
+with `Dynamic` parameters appears not to forward the heap-box pointer
+properly across more than one frame -- the second frame ends up with
+the raw I64 value, then dereferences it as if it were a pointer.
+
+Map / Set / Vec sidestep this in core today by routing key/value
+threading through function pointer fields (e.g. Map.key_cmp), which is
+why the test suite never hit it before HashMap.
+
+*** Fix sketch
+
+Audit how `Dynamic` args are passed in the interpreter's call dispatch
+when the callee is a method/func (not a function-pointer call) and the
+caller's binding is itself a `Dynamic`. Likely a missing box
+re-materialization on the call boundary.
+
+*** Why it matters
+
+Until this is fixed, every new container in `src/std/` will have to
+hand-sprinkle `to_ptr(...)` at every internal Dynamic hop. That's
+fragile (silent footgun for the next contributor) and ugly. Compile
+mode works, so the typer is happy with the without-to_ptr shape -- the
+interpreter is the one out of step.

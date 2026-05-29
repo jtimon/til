@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #214 Unordered HashMap for big tables where key order does not matter
+** WIP #214 Unordered HashMap for big tables where key order does not matter
 
 `Map` in [[file:../../src/core/map.til][src/core/map.til]] is a sorted-array
 ordered map: every `set` does a binary search and then a `memmove` of the
@@ -14,46 +14,38 @@ The places that actually iterate in key order are rare. On big tables
 binary search + memmove cost is paid on every lookup and every insert,
 even though we never observe the ordering it buys us.
 
-Proposal: add an unordered `HashMap` next to `Map`, keyed off the cheap
-hash primitives just landed in [[file:../../lib/hash.til][lib/hash.til]]
-(see also [[file:../../test/hashes.til][test/hashes.til]]). What matters:
+*** Status
 
-- O(1) average `get` / `has` / `set` -- the whole point.
-- Speed on big tables, not on 3-entry literals. A `HashMap` with 4 entries
-  will lose to the sorted `Map` because the hash + indirection cost more
-  than a 2-step binary search. Keep `Map` for the literal-init use case
-  and document the crossover (probably around a few dozen entries on
-  current targets).
-- Cheap hashing, no allocations per lookup. `lib/hash.til` already
-  exposes `hash_i64`, `hash_u64`, `hash_str`, and `bucket(h, cap)`. Any
-  key type plugged into `HashMap` needs a `hash` method (the same way
-  `Map` requires `cmp`). For the built-in scalar / Str types we wire
-  them straight through to `lib/hash.til`.
-- Open addressing (linear probing) over separate chaining: keeps the
-  buckets contiguous and avoids the per-entry malloc that separate
-  chaining costs. Loose target: load factor 0.75 with power-of-two
-  capacity so `bucket` is an `and(cap.sub(1))` instead of a `mod`.
-- Iteration order is unspecified. Anyone who relies on key order should
-  keep using `Map`.
+Initial implementation landed:
+- [[file:../../src/std/hashmap.til][src/std/hashmap.til]] -- `HashMap` struct, separate chaining,
+  load factor 0.75, no per-entry malloc. Adapted from rstil's
+  src/std/hashmap.til (same shape).
+- [[file:../../src/core/str.til][src/core/str.til]] -- `Str.hash` method (FNV-1a over content).
+- [[file:../../lib/hash.til][lib/hash.til]] -- `hash_bytes(data, n)` primitive, default for
+  any key whose in-memory bytes ARE the value.
+- [[file:../../test/hashmaps.til][test/hashmaps.til]] -- 6 tests, all green under --asan.
 
-Open questions:
+Dispatch matches rstil: bytewise FNV-1a is the default; Str overrides
+because its struct {c_str, count, cap} carries a heap pointer so a
+bytewise hash would key on pointer identity, not content.
 
-- Drop-in or new type? `Map.new(K, V)` already exists with sorted
-  semantics; switching that to a hash table silently would break the
-  ordered iteration that a handful of call sites depend on. Cleaner to
-  add `HashMap.new(K, V)` and let the typer / scope tables migrate one
-  by one once we measure the win.
-- 64-bit hash constants. `lib/hash.til` currently uses the 32-bit
-  Knuth / FNV constants because the 64-bit constants overflow I64
-  literals. Once the lexer learns U64 literals (or once we add a
-  `U64.from_hex` ext_func) the multiplicative hash quality goes up
-  for free.
+*** Known caveats / follow-ups
+
+- Hash constants are still 32-bit, gated on issue #219 (builder ULL
+  suffix on U64 literals).
+- The current code sprinkles `to_ptr(...)` at every Dynamic->helper hop
+  and re-calls `self.values.get(slot_idx)` instead of capturing a
+  `ref Dynamic`. Both are interpret-mode workarounds tracked as
+  issues #217 and #218 -- compile mode works either way.
+
+*** Still open
+
+- Migration. No call site has migrated from `Map` to `HashMap` yet.
+  Pick a hot table first (typer scope, dyn dispatch) and measure the
+  crossover before bulk migrating.
 - Robin-hood vs straight linear probing. Robin-hood smooths the worst
   case but adds bookkeeping; not worth it for the first cut.
-- Resizing strategy. Double the cap when load factor crosses 0.75; do
-  not shrink (insert-heavy workloads).
 - Removal. Tombstones vs back-shift; back-shift is simpler for linear
   probing and avoids the load-factor drift that tombstones cause.
 - Benchmark target. Build a microbench that fills a Map vs a HashMap
-  with 10k, 100k, 1M keys and measures get / set wall time. Land the
-  HashMap only if the crossover sits where we expect.
+  with 10k, 100k, 1M keys and measures get / set wall time.
