@@ -271,6 +271,9 @@ void write_ptr(void *dest, void *val);
  * to mirror writes through payload-aliased bindings. */
 void write_i64(void *dest, I64 val);
 void write_u8(void *dest, U8 val);
+void write_i8(void *dest, I8 val);
+void write_i16(void *dest, I16 val);
+void write_u16(void *dest, U16 val);
 void write_i32(void *dest, I32 val);
 void write_u32(void *dest, U32 val);
 void write_u64(void *dest, U64 val);

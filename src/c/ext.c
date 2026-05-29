@@ -551,6 +551,9 @@ void write_ptr(void *dest, void *val) { *(void **)dest = val; }
  * into the underlying enum's payload memory. */
 void write_i64(void *dest, I64 val) { *(I64 *)dest = val; }
 void write_u8(void *dest, U8 val)   { *(U8 *)dest  = val; }
+void write_i8(void *dest, I8 val)   { *(I8 *)dest  = val; }
+void write_i16(void *dest, I16 val) { *(I16 *)dest = val; }
+void write_u16(void *dest, U16 val) { *(U16 *)dest = val; }
 void write_i32(void *dest, I32 val) { *(I32 *)dest = val; }
 void write_u32(void *dest, U32 val) { *(U32 *)dest = val; }
 void write_u64(void *dest, U64 val) { *(U64 *)dest = val; }

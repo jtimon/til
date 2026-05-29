@@ -18,6 +18,9 @@ write_ptr := ext_func(dest: Dynamic, val: Dynamic) {}
 // straight through the pointer); they exist for the interp path.
 write_i64 := ext_func(dest: Dynamic, shallow val: I64) {}
 write_u8  := ext_func(dest: Dynamic, shallow val: U8)  {}
+write_i8  := ext_func(dest: Dynamic, shallow val: I8)  {}
+write_i16 := ext_func(dest: Dynamic, shallow val: I16) {}
+write_u16 := ext_func(dest: Dynamic, shallow val: U16) {}
 write_i32 := ext_func(dest: Dynamic, shallow val: I32) {}
 write_u32 := ext_func(dest: Dynamic, shallow val: U32) {}
 write_u64 := ext_func(dest: Dynamic, shallow val: U64) {}

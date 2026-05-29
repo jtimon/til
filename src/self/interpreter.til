@@ -920,6 +920,12 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                     if type_name.eq("I64") { write_i64(dest, iv) }
                                 case Value.Byte(bv):
                                     if type_name.eq("U8") { write_u8(dest, bv) }
+                                case Value.Sbyte(i8v):
+                                    if type_name.eq("I8") { write_i8(dest, i8v) }
+                                case Value.Short(i16v):
+                                    if type_name.eq("I16") { write_i16(dest, i16v) }
+                                case Value.Ushort(u16v):
+                                    if type_name.eq("U16") { write_u16(dest, u16v) }
                                 case Value.Int32(i32v):
                                     if type_name.eq("I32") { write_i32(dest, i32v) }
                                 case Value.Uint32(u32v):
