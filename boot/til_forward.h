@@ -1791,7 +1791,6 @@ File * priv___src_self_builder_til__emit_deref(File * f, Expr * e, I32 depth, Co
 File * emit_as_ptr(File * f, Expr * e, I32 depth, Bool is_own, Context * ctx);
 void emit_usize_ref(File * f, Expr * e, I32 depth, Context * ctx);
 void emit_uptr_ref(File * f, Expr * e, I32 depth, Context * ctx);
-Bool * priv___src_self_builder_til__cli_scalar_supported(Str * ttype);
 Str * priv___src_self_builder_til__cli_conv_expr(Str * ttype, Str * cv);
 void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg, Str * cv);
 void emit_cli_parse_arg(File * f, Str * pname, Str * ptype, I32 argi);

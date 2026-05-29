@@ -2687,18 +2687,11 @@ emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
     f.write("UPTR_REF(").emit_deref(e, depth, ctx).write(")")
 }
 
-// True for the scalar CLI arg types parsed inline by emit_cli_parse_value.
-// Str is handled separately (Str_clone, no Str.to_* conversion).
-priv cli_scalar_supported := func(ttype: Str) returns Bool {
-    return ttype.eq("I64").or(ttype.eq("U8")).or(ttype.eq("I8")).or(ttype.eq("I16"))
-        .or(ttype.eq("U16")).or(ttype.eq("I32")).or(ttype.eq("U32")).or(ttype.eq("U64"))
-        .or(ttype.eq("USize")).or(ttype.eq("UPtr")).or(ttype.eq("Bool"))
-}
-
 // C expression converting the Str view `cv` into a value of til type `ttype`.
 // Mirrors the old cli_parse_* bodies (Str.from_c_str(s).to_*()). i8/i16/u16
-// route through to_i64 then I64.to_* like the .til source did. Bool is not
-// handled here -- emit_cli_parse_value emits its compare-and-box inline.
+// route through to_i64 then I64.to_* like the .til source did. Returns "" for
+// types with no direct conversion (Str and Bool are handled specially by
+// emit_cli_parse_value); a "" result for any other type means "unsupported".
 priv cli_conv_expr := func(ttype: Str, cv: Str) returns Str {
     if ttype.eq("I64") { return "Str_to_i64(".format(cv, ")") }
     if ttype.eq("U8") { return "Str_to_u8(".format(cv, ")") }
@@ -2714,11 +2707,25 @@ priv cli_conv_expr := func(ttype: Str, cv: Str) returns Str {
 }
 
 // Emit C statements (indented by `ind`) that parse the argv c-string
-// expression `arg` into a freshly malloc'd boxed value of til type `ttype`,
-// bound to C variable `var`. `cv` names the temporary Str view. This inlines
-// what the removed cli_parse_* helpers did: wrap with Str.from_c_str, run the
-// Str.to_* conversion, box the result, then free the view.
+// expression `arg` into a heap-allocated boxed value of til type `ttype`,
+// bound to C variable `var`. `cv` names the temporary Str view. Single
+// dispatch over `ttype` for both fixed and variadic CLI args:
+//   Str     -> Str_clone (owns its bytes; no view, no conversion)
+//   scalars -> Str.from_c_str view + Str.to_* / I64.to_* conversion, boxed,
+//              then Str_delete of the view (inlines the old cli_parse_*)
+//   Bool    -> compare-and-box, error out on a non-true/false value
+//   default -> unsupported type: emit the diagnostic and bail from main()
 priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, cv: Str) {
+    if ttype.eq("Str") {
+        f.write(ind); f.write("Str *"); f.write(var); f.write(" = Str_clone(&(Str){.c_str = (void *)"); f.write(arg); f.write(", .count = strlen("); f.write(arg); f.write("), .cap = TIL_CAP_LIT});\n")
+        return
+    }
+    conv := cli_conv_expr(ttype, cv)
+    if ttype.eq("Bool").not().and(conv.eq("")) {
+        f.write(ind); f.write("// unsupported CLI arg type: "); f.write(ttype); f.write("\n")
+        f.write(ind); f.write("fprintf(stderr, \"error: unsupported CLI argument type '"); f.write(ttype); f.write("'\\n\"); return 1;\n")
+        return
+    }
     f.write(ind); f.write("Str *"); f.write(cv); f.write(" = Str_from_c_str("); f.write(arg); f.write(");\n")
     f.write(ind); f.write(ttype); f.write(" *"); f.write(var); f.write(" = malloc(sizeof("); f.write(ttype); f.write("));\n")
     if ttype.eq("Bool") {
@@ -2726,21 +2733,14 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
         f.write(ind); f.write("else if (Str_cmp("); f.write(cv); f.write(", &(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}) == 0) { *"); f.write(var); f.write(" = 0; }\n")
         f.write(ind); f.write("else { fprintf(stderr, \"error: cannot parse '%s' as Bool (expected true/false)\\n\", "); f.write(arg); f.write("); return 1; }\n")
     } else {
-        f.write(ind); f.write("*"); f.write(var); f.write(" = "); f.write(cli_conv_expr(ttype, cv)); f.write(";\n")
+        f.write(ind); f.write("*"); f.write(var); f.write(" = "); f.write(conv); f.write(";\n")
     }
     f.write(ind); f.write("Str_delete("); f.write(cv); f.write(", &(Bool){1});\n")
 }
 
 emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
-    if ptype.eq("Str") {
-        f.write("    Str *"); f.write(pname); f.write(" = Str_clone(&(Str){.c_str = (void *)argv["); emit_i32(f, argi); f.write("], .count = strlen(argv["); emit_i32(f, argi); f.write("]), .cap = TIL_CAP_LIT});\n")
-    } else if cli_scalar_supported(ptype) {
-        arg := "argv[".format(argi.to_str(), "]")
-        emit_cli_parse_value(f, "    ", ptype, pname, arg, "_cv_".concat(pname))
-    } else {
-        f.write("    // unsupported CLI arg type: "); f.write(ptype); f.write("\n")
-        f.write("    fprintf(stderr, \"error: unsupported CLI argument type '"); f.write(ptype); f.write("'\\n\"); return 1;\n")
-    }
+    arg := "argv[".format(argi.to_str(), "]")
+    emit_cli_parse_value(f, "    ", ptype, pname, arg, "_cv_".concat(pname))
 }
 
 emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is_static: Bool, lp: LoadedProgram) {
@@ -2810,12 +2810,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
-                    if p.explicit_type.eq("Str") {
-                        f.write("        Str *_val = Str_clone(&(Str){.c_str = (void *)argv["); emit_i32(f, argi); f.write(" + _i], .count = strlen(argv["); emit_i32(f, argi); f.write(" + _i]), .cap = TIL_CAP_LIT});\n")
-                    } else if cli_scalar_supported(p.explicit_type) {
-                        varg := "argv[".format(argi.to_str(), " + _i]")
-                        emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg, "_cv")
-                    }
+                    varg := "argv[".format(argi.to_str(), " + _i]")
+                    emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg, "_cv")
                     f.write("        Array_set("); f.write(p.name); f.write(", &(USize){_idx}, _val);\n")
                     f.write("    }\n")
                 } else {
