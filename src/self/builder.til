@@ -594,6 +594,10 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns shallow 
 
 fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns shallow Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
+    // Same override-aware short-circuit as fcall_is_shallow_return:
+    // cast(e, T) is declared `returns shallow Dynamic` but the typer
+    // sets the call's til_type to T. Trust the override.
+    if expr_til_type(fcall).is(Type.Dynamic).not() { return false }
     ref callee_node : Expr = fcall.child(0)
     switch callee_node.node_type {
     case NodeType.FieldAccess(mname):
@@ -1011,6 +1015,17 @@ fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
     if fcall.node_type.is(NodeType.FCall).not() { return "" }
     callee := resolve_callee_name(fcall)
     if callee.len().eq(0) { return "" }
+    // cast(e, T) is declared `returns shallow Dynamic` but the typer
+    // narrows the FCall's til_type to T. For such typer-overridden
+    // Dynamic returns, prefer the concrete C type (otherwise we get
+    // "void *" from callee_return_ctype). Limited to the Dynamic case
+    // so struct-returning calls (like Array_new) keep their lookup.
+    if callee_returns_dynamic(callee, ctx) {
+        t := expr_til_type(fcall)
+        if t.is(Type.Unknown).not().and(t.is(Type.Dynamic).not()) {
+            return til_type_to_c(t)
+        }
+    }
     return callee_return_ctype(callee, ctx)
 }
 
