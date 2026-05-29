@@ -1265,30 +1265,66 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
 redundant_literal_conversion := func(e: Expr, expected: Type) returns shallow Bool {
     if is_numeric_type(expected).not() { return false }
     if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().neq(1) { return false }
     if is_numeric_type(expr_til_type(e)).not() { return false }
-    ref fa : Expr = e.child(0)
-    mut method := ""
-    switch fa.node_type {
-    case NodeType.FieldAccess(m):
-        method = field_access_name(m)
-    case:
-        return false
+    // `<lit>.to_X()` form: FCall with 1 child (a FieldAccess callee).
+    if e.children.len().eq(1) {
+        ref fa : Expr = e.child(0)
+        mut method := ""
+        switch fa.node_type {
+        case NodeType.FieldAccess(m):
+            method = field_access_name(m)
+        case:
+            return false
+        }
+        if method.starts_with("to_").not() { return false }
+        if fa.children.len().eq(0) { return false }
+        ref recv : Expr = fa.child(0)
+        switch recv.node_type {
+        case NodeType.Literal(Literal.Num(lit_str)):
+            return literal_in_range(literal_num_text(lit_str), expected)
+        case:
+            return false
+        }
     }
-    if method.starts_with("to_").not() { return false }
-    if fa.children.len().eq(0) { return false }
-    ref recv : Expr = fa.child(0)
-    switch recv.node_type {
-    case NodeType.Literal(Literal.Num(lit_str)):
-        return literal_in_range(literal_num_text(lit_str), expected)
-    case:
-        return false
+    // `<lit>.cast(T)` UFCS form: FCall with FieldAccess(lit, "cast")
+    // callee plus the T arg as e.child(1).
+    if e.children.len().eq(2) {
+        ref fa : Expr = e.child(0)
+        mut method := ""
+        switch fa.node_type {
+        case NodeType.FieldAccess(m):
+            method = field_access_name(m)
+        case:
+            return false
+        }
+        if method.eq("cast").not() { return false }
+        if fa.children.len().eq(0) { return false }
+        ref recv : Expr = fa.child(0)
+        ref tgt_arg : Expr = e.child(1)
+        // Literal receiver + target name matching `expected` -- same
+        // shape as the to_<X> case, with the target on the call side
+        // instead of the method name.
+        mut tgt_name := ""
+        switch tgt_arg.node_type {
+        case NodeType.Ident(tn_id):
+            tgt_name = ident_name(tn_id)
+        case:
+            return false
+        }
+        if til_type_name_c(expected).eq(tgt_name).not() { return false }
+        switch recv.node_type {
+        case NodeType.Literal(Literal.Num(lit_str)):
+            return literal_in_range(literal_num_text(lit_str), expected)
+        case:
+            return false
+        }
     }
+    return false
 }
 
 redundant_conversion_error := proc(at: Expr, expected: Type, ctx: Context) {
     type_error(at, "redundant conversion: numeric literal already narrows to "
-        .concat(type_to_name(expected)).concat(" in this context; drop the .to_* conversion"), ctx)
+        .concat(type_to_name(expected)).concat(" in this context; drop the .to_* / .cast(T) conversion"), ctx)
 }
 
 validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context) {
@@ -1669,6 +1705,26 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
             ), ctx)
             set_expr_til_type(e, Type.Unknown)
             return true
+        }
+        // Same diagnostic for `x.cast(X)` where X matches the receiver's
+        // type -- identity casts are accepted by infer_cast_fcall's
+        // same-size rule, but they are always pointless and almost
+        // always a copy-paste / migration mistake.
+        if has_type_name.and(method.eq("cast")).and(e.children.len().eq(2)) {
+            ref cast_target_arg : Expr = e.child(1)
+            switch cast_target_arg.node_type {
+            case NodeType.Ident(cast_id_data):
+                if ident_name(cast_id_data).eq(type_name) {
+                    type_error(e, format(
+                        "redundant self-cast: 'cast(", type_name,
+                        ")' would reinterpret ", type_name,
+                        " as itself; drop the .cast(", type_name, ")",
+                    ), ctx)
+                    set_expr_til_type(e, Type.Unknown)
+                    return true
+                }
+            case:
+            }
         }
 
         ref sdef1 : Expr = scope.get_struct(type_name)

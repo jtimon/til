@@ -287,7 +287,7 @@ namespace:
     /// {c_str, count, cap} carries a heap pointer and so a bytewise
     /// hash of the struct would key on pointer identity, not content.
     hash := func(self: Str) returns shallow U64 {
-        FNV_OFFSET : U64 = 0.sub(3750763034362895579).cast(U64)
+        FNV_OFFSET : U64 = 0.sub(3750763034362895579)
         FNV_PRIME  : U64 = 1099511628211
         mut h : U64 = FNV_OFFSET
         for i in 0..self.count {
