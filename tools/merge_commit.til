@@ -46,13 +46,17 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
 }
 
 pct_str := func(old_val: I64, new_val: I64) returns Str {
-    if old_val.eq(0) { return "0.0" }
+    if old_val.eq(0) { return "0.0%" }
     delta := new_val.sub(old_val)
     mut pct_x10 := delta.mul(1000).div(old_val)
+    mut sign := ""
+    if pct_x10.lt(0) {
+        sign = "-"
+        pct_x10 = pct_x10.neg()
+    }
     whole := pct_x10.div(10)
-    mut frac := pct_x10.mod(10)
-    if frac.lt(0) { frac = frac.neg() }
-    return format(whole.to_str(), ".", frac.to_str(), "%")
+    frac := pct_x10.mod(10)
+    return format(sign, whole.to_str(), ".", frac.to_str(), "%")
 }
 
 delta_str := func(old_val: I64, new_val: I64) returns Str {
