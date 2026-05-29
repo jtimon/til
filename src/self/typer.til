@@ -6907,10 +6907,21 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     }
     sf_assign := scope.find(aname)
     mut is_ref_target := false
+    mut is_payload_alias := false
     switch sf_assign {
     case ScopeFind.Found(ab):
-        if ab.own_type.is(OwnType.Ref).and(ab.is_param.not()) { is_ref_target = true }
+        if ab.own_type.is(OwnType.Ref).and(ab.is_param.not()) {
+            is_ref_target = true
+            if ab.is_alias { is_payload_alias = true }
+        }
     case:
+    }
+    if is_payload_alias {
+        switch stmt.node_type {
+        case NodeType.Assign(adata_p):
+            adata_p.is_payload_alias = true
+        case:
+        }
     }
     if is_ref_target {
         check_ref_assign_owned_rhs(stmt, aname, rhs, scope, ctx)

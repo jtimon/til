@@ -447,6 +447,7 @@ func_sig_of := func(type_name: Str) returns FunctionDef {
 AssignData := struct {
     name := ""
     save_old_delete := false
+    is_payload_alias := false
 namespace:
     eq := func(a: AssignData, b: AssignData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: AssignData) returns Str { return self.name }

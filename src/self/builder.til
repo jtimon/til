@@ -1742,6 +1742,33 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
         if expr_til_type(e).is(Type.Dynamic) {
             f.write(aname); f.write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n"); return
         }
+        if ad.is_payload_alias {
+            mut is_compound := false
+            if expr_til_type(e).is(Type.Struct).or(expr_til_type(e).is(Type.Enum)) { is_compound = true }
+            if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
+                ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)), ctx)
+                f.write("{ "); f.write(ctype); f.write("_delete("); f.write(aname); f.write(", &(Bool){0}); ")
+                f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
+                emit_expr(f, rhs, depth, ctx)
+                f.write("; *"); f.write(aname); f.write(" = *_new; free(_new); }\n")
+            } else {
+                f.write("*"); f.write(aname); f.write(" = ")
+                mut is_ref_rhs := false
+                switch rhs.node_type {
+                case NodeType.Ident(rid):
+                    if is_ref_local(ident_name(rid), ctx) {
+                        is_ref_rhs = true
+                        f.write("*"); f.write(ident_name(rid))
+                    }
+                case:
+                }
+                if is_ref_rhs.not() {
+                    emit_deref(f, rhs, depth, ctx)
+                }
+                f.write(";\n")
+            }
+            return
+        }
         if is_hoisted {
             if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                 f.write(aname); f.write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")

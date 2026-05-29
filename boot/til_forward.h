@@ -408,6 +408,7 @@ typedef struct EnumDef {
 typedef struct AssignData {
     Str name;
     Bool save_old_delete;
+    Bool is_payload_alias;
 } AssignData;
 
 
