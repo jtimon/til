@@ -241,16 +241,16 @@ namespace:
 }
 
 // --- FCall payload struct ---
-/// Per-callsite data for function calls: variadic index, kwargs index,
-/// own_args bitmap, result type. The variadic and kwargs arg counts
-/// are not stored: kwargs_count is derived from kwargs_index +
-/// children length via fcall_kwargs_count (kwargs block is trailing),
-/// and variadic_count is derived from kwargs_index + children length
-/// + the callee's nparam via fcall_variadic_count (variadic block may
-/// be followed by default-valued params, so it needs the callee).
+/// Per-callsite data for function calls: variadic index, own_args
+/// bitmap, result type. Neither the kwargs arg count nor a
+/// kwargs_index field is stored: kwargs_count is derived from the
+/// trailing-NamedArg structural marker (fcall_kwargs_count), and the
+/// kwargs block position is derived from the resolved callee's param
+/// layout via fcall_kwargs_index_via_scope. variadic_count likewise
+/// derives via fcall_variadic_count (needs the callee's nparam +
+/// has-kwargs).
 FCallData := struct {
     variadic_index : I32 = -1
-    kwargs_index : I32 = -1
     is_splat := false
     // Issue #198: parser sets this when the call is followed by ~?~,
     // marking it as a call to a throwing function. The typer
@@ -275,7 +275,6 @@ FCallData := struct {
 namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.variadic_index.eq(b.variadic_index)
-        .and(a.kwargs_index.eq(b.kwargs_index))
     }
     to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
@@ -607,7 +606,6 @@ namespace:
         switch out.node_type {
         case NodeType.FCall(fcall_data):
             fcall_data.variadic_index = -1
-            fcall_data.kwargs_index = -1
         case:
         }
         return out
@@ -874,18 +872,28 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     println(")")
 }
 
-// Per-call count of kwargs args. The kwargs param is always the last
-// parameter (parser enforces "no parameter allowed after kwargs"), so
-// the kwargs args are the trailing children block: their count is the
-// children length minus the stored kwargs_index. Returns 0 when the
-// call has no kwargs block (kwargs_index < 0), so it stays valid after
-// the kwargs desugar clears the index. Derived rather than stored to
-// keep FCallData free of a redundant typer-written count.
+// Per-call count of kwargs args. After desugar puts the FCall in
+// param-aligned form, kwargs args are the trailing children block --
+// kwargs is always the last parameter (the parser forbids any
+// parameter after it) and NamedArg nodes only survive to that block
+// (the NamedArg-to-fixed-slot matching at desugar time unwraps any
+// NamedArg whose name matches a non-kwargs param). The count is
+// therefore the consecutive trailing NamedArg child count: pre-rewrite
+// = the kwargs args, post-rewrite = 0 (the rewrite replaces the
+// NamedArg children with a single DynMap-setter ident).
 fcall_kwargs_count := func(fcall: Expr) returns USize {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        if fcd.kwargs_index.lt(0) { return 0 }
-        return fcall.children.len().sub(fcd.kwargs_index.to_usize())
+    case NodeType.FCall:
+        mut count : USize = 0
+        ref ch : Vec = fcall.children
+        mut i : USize = ch.len()
+        while i.gt(0) {
+            i = i.sub(1)
+            ref c : Expr = ch.get(i)
+            if c.node_type.is(NodeType.NamedArg).not() { break }
+            count = count.add(1)
+        }
+        return count
     case:
         UNREACHABLE(__LOC__)
         return 0
@@ -895,26 +903,30 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
 // Per-call count of variadic args. Unlike kwargs, the variadic block
 // is not always trailing: default-valued params may follow a variadic
 // (parser.til allows it via the `has_default` guard), so the count
-// cannot be derived from index + children length alone. It needs the
-// callee's param count (and, when kwargs is present, the fact that
-// kwargs is always the last param). Caller must pass the resolved
-// callee's `params.len()` as `nparam`; sites that don't have the
-// callee on hand use the scope-resolving wrapper in typer.til.
+// cannot be derived from children length alone. It needs the callee's
+// param count, plus whether the callee has a kwargs param (since
+// kwargs trails the variadic when both are present and shifts the
+// trailing-children accounting).
 //
-// Derivation (post-desugar param-aligned children):
-//   children = 1 (callee) + (nparam - has_variadic - has_kwargs)*1
+// Derivation (post-desugar param-aligned children, pre-variadic-rewrite):
+//   children = 1 (callee) + (nparam - has_variadic - callee_has_kwargs)
 //              + variadic_count + kwargs_count
-// With has_variadic = 1 (variadic_index >= 0) and kwargs always the
-// last param when present (fkwi = nparam - 1):
-//   - kwargs present: variadic_count = kwargs_index - fkwi
-//                                    = kwargs_index - (nparam - 1)
-//   - no kwargs     : variadic_count = children.len() - nparam
-fcall_variadic_count := func(fcall: Expr, shallow nparam: USize) returns USize {
+// Solving for variadic_count with has_variadic = 1 (caller is guarded
+// by variadic_index >= 0, so caller's variadic-present is equivalent
+// to callee's):
+//   - callee_has_kwargs : variadic_count
+//       = children.len() - 1 - (nparam - 2) - kwargs_count
+//       = children.len() - nparam + 1 - kwargs_count
+//   - no kwargs         : variadic_count = children.len() - nparam
+// kwargs_count comes from the structural trailing-NamedArg count
+// (see fcall_kwargs_count) so neither path needs a stored kwargs index.
+fcall_variadic_count := func(fcall: Expr, shallow nparam: USize, shallow callee_has_kwargs: Bool) returns USize {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         if fcd.variadic_index.lt(0) { return 0 }
-        if fcd.kwargs_index.gte(0) {
-            return fcd.kwargs_index.to_usize().sub(nparam.sub(1))
+        if callee_has_kwargs {
+            kc := fcall_kwargs_count(fcall)
+            return fcall.children.len().add(1).sub(nparam).sub(kc)
         }
         return fcall.children.len().sub(nparam)
     case:

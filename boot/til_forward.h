@@ -356,7 +356,6 @@ typedef struct FunctionDef {
 
 typedef struct FCallData {
     I32 variadic_index;
-    I32 kwargs_index;
     Bool is_splat;
     Bool does_throw;
     Bool is_bang;
@@ -1128,7 +1127,7 @@ Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
 U32 * fcall_kwargs_count(Expr * fcall);
-U32 * fcall_variadic_count(Expr * fcall, U32 nparam);
+U32 * fcall_variadic_count(Expr * fcall, U32 nparam, Bool callee_has_kwargs);
 Bool is_decl_with_child(Expr * stmt);
 Bool is_struct_or_enum(Expr * stmt);
 Bool is_func_decl(Expr * stmt);
@@ -1513,7 +1512,7 @@ Bool expr_uses_var(Expr * e, Str * name);
 Bool expr_contains_decl(Expr * e, Str * name);
 Bool expr_used_in_nested_func(Expr * e, Str * name);
 Expr * priv___src_self_typer_til__find_variadic_fcall(Expr * e);
-Expr * find_kwargs_fcall(Expr * e);
+Expr * find_kwargs_fcall(Expr * e, TypeScope * scope);
 Expr * find_array_vec_fcall(Expr * e);
 Str * type_prefix(Type * t);
 Str * type_to_name(Type * t);
@@ -1550,9 +1549,11 @@ void hoist_field_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope
 void hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, U32 vc);
 U32 * fcall_variadic_count_via_scope(Expr * fcall, TypeScope * scope);
+I32 * fcall_kwargs_index_via_scope(Expr * fcall, TypeScope * scope);
+I32 * priv___src_self_typer_til__derive_fcall_kwargs_index(Expr * fcall, FunctionDef * fdef_data);
 Str * resolve_variadic_elem_type(Expr * fcall, TypeScope * scope);
 Bool desugar_pure_splat_variadic_call(Expr * fcall, U32 vc);
-void rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name);
+void rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
 Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope, Context * ctx);

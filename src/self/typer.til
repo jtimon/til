@@ -906,7 +906,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
         fkwi := fdef_data.kwargs_index
         mut fvc : U32 = 0
         if fvi.gte(0) {
-            fvc = fcall_variadic_count(e, fdef_data.params.len())
+            fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi.gte(0))
         }
         mut fkc : U32 = 0
         if fkwi.gte(0) {
@@ -1217,15 +1217,9 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                     UNREACHABLE(__LOC__)
                 }
             } else if i.to_i32().eq(kwi) {
-                switch e.node_type {
-                case NodeType.FCall(fcall_data):
-                    fcall_data.kwargs_index = new_ch.len().to_i32()
-                    kw_count := kw_args.len()
-                    for kwi2 in 0..kw_count {
-                        new_ch.push_take(kw_args, kwi2)
-                    }
-                case:
-                    UNREACHABLE(__LOC__)
+                kw_count := kw_args.len()
+                for kwi2 in 0..kw_count {
+                    new_ch.push_take(kw_args, kwi2)
                 }
             } else {
                 ref slot_arg : Expr = new_args.get(i)
@@ -1332,7 +1326,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         fkwi := fdef_data.kwargs_index
         mut fvc : U32 = 0
         if fvi.gte(0) {
-            fvc = fcall_variadic_count(e, fdef_data.params.len())
+            fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi.gte(0))
         }
         mut fkc : U32 = 0
         if fkwi.gte(0) {
@@ -7319,19 +7313,19 @@ priv find_variadic_fcall := func(e: Expr) returns ref Expr {
     return NULL
 }
 
-find_kwargs_fcall := func(e: Expr) returns ref Expr {
+find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
     if is_null(e) { return NULL }
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
     if e.node_type.is(NodeType.Body) { return NULL }
     switch e.node_type {
-    case NodeType.FCall(fcall):
-        if fcall.kwargs_index.gte(0) { return e }
+    case NodeType.FCall:
+        if fcall_kwargs_index_via_scope(e, scope).gte(0) { return e }
     case:
     }
     for e_i : Expr in e.children {
-        ref found : Expr = find_kwargs_fcall(e_i)
+        ref found : Expr = find_kwargs_fcall(e_i, scope)
         if is_null(found).not() { return found }
     }
     return NULL
@@ -8167,20 +8161,22 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
                 }
             }
         }
-        if has_kwargs.and(fcall_data.kwargs_index.gte(0)) {
-            ki := fcall_data.kwargs_index
-            kc := fcall_kwargs_count(e)
-            kw_name := "_kw".concat(ctx.kw_counter.to_str())
-            ctx.kw_counter++
-            kw_decl := build_kwargs_dynmap_decl(e, kw_name)
-            scope.set(kw_name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, e.line, e.col, false, OwnType.Shallow)
-            new_ch.push(own kw_decl)
-            for j in 0..kc {
-                ref named_arg : Expr = e.child(ki.add(j.to_i32()).to_usize())
-                mut setter := build_kwargs_dynmap_set(e, scope, kw_name, named_arg, ctx)
-                new_ch.push(own setter)
+        if has_kwargs {
+            ki := fcall_kwargs_index_via_scope(e, scope)
+            if ki.gte(0) {
+                kc := fcall_kwargs_count(e)
+                kw_name := "_kw".concat(ctx.kw_counter.to_str())
+                ctx.kw_counter++
+                kw_decl := build_kwargs_dynmap_decl(e, kw_name)
+                scope.set(kw_name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, e.line, e.col, false, OwnType.Shallow)
+                new_ch.push(own kw_decl)
+                for j in 0..kc {
+                    ref named_arg : Expr = e.child(ki.add(j.to_i32()).to_usize())
+                    mut setter := build_kwargs_dynmap_set(e, scope, kw_name, named_arg, ctx)
+                    new_ch.push(own setter)
+                }
+                rewrite_kwargs_fcall_args(e, kw_name, ki)
             }
-            rewrite_kwargs_fcall_args(e, kw_name)
         }
     case:
     }
@@ -8228,7 +8224,7 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
                 if is_null(find_variadic_fcall(stmt)).not() { has_variadic = true }
             }
             if has_kwargs.not() {
-                if is_null(find_kwargs_fcall(stmt)).not() { has_kwargs = true }
+                if is_null(find_kwargs_fcall(stmt, scope)).not() { has_kwargs = true }
             }
         }
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {
@@ -8699,18 +8695,10 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, shallow vc: U
         }
         fcall.children.move_from(fcall_new_ch)
         fcall_data.own_args = new_own
-        // Variadic + kwargs may coexist in one signature. When the
-        // variadic range collapses to a single _va_Array_N ident,
-        // children's length changes by (1 - vc): shift kwargs_index
-        // by the same delta so the kwargs handler downstream still
-        // points at the named-arg block (or past-end when there are
-        // no kwargs args). The kwargs param always sits to the right
-        // of the variadic param (parser invariant), so the shift is
-        // unconditional whenever kwargs_index is set.
-        if fcall_data.kwargs_index.gte(0) {
-            delta := 1.to_i32().sub(vc.to_i32())
-            fcall_data.kwargs_index = fcall_data.kwargs_index.add(delta)
-        }
+        // No need to shift the kwargs position here: kwargs_index is
+        // now derived from the resolved callee + post-variadic-rewrite
+        // children layout (see fcall_kwargs_index_via_scope), so the
+        // post-collapse children.len() change is automatically reflected.
         fcall_data.variadic_index = -1
     case:
         UNREACHABLE(__LOC__)
@@ -8733,6 +8721,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, shallow vc: U
 // resolved -- the desugar then skips the rewrite, same as the
 // elem-type-null branch a few lines below.
 fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns USize {
+    if fcall.children.len().eq(0) { return 0 }
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
     case NodeType.Ident(callee_name):
@@ -8741,7 +8730,7 @@ fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns US
             if is_null(cb.func_def).not() {
                 switch cb.func_def.node_type {
                 case NodeType.FuncDef(cb_fdef):
-                    return fcall_variadic_count(fcall, cb_fdef.params.len())
+                    return fcall_variadic_count(fcall, cb_fdef.params.len(), cb_fdef.kwargs_index.gte(0))
                 case:
                 }
             }
@@ -8759,7 +8748,7 @@ fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns US
                         if is_null(nd.default_value) { break }
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
-                            return fcall_variadic_count(fcall, ffd.params.len())
+                            return fcall_variadic_count(fcall, ffd.params.len(), ffd.kwargs_index.gte(0))
                         case:
                         }
                         break
@@ -8771,6 +8760,81 @@ fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns US
     case:
     }
     return 0
+}
+
+// Scope-resolving derivation of an FCall's kwargs block position.
+// kwargs is always the callee's last parameter (parser invariant), so
+// post-desugar param-aligned children layout puts the kwargs block at:
+//   - nparam            -- no variadic on callee, OR variadic has
+//                          already been collapsed to a single
+//                          va_array ident (fcall.variadic_index < 0)
+//   - nparam - 1 + vc   -- pre-variadic-rewrite, with variadic_count
+//                          variadic args in the block
+// Returns -1 when the callee has no kwargs param OR when the kwargs
+// block has already been rewritten away (callee resolution fails or
+// callee has no kwi). Callee resolution mirrors
+// resolve_variadic_elem_type's Ident-binding / Type.method namespace
+// shapes.
+fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns I32 {
+    if fcall.children.len().eq(0) { return -1 }
+    ref callee : Expr = fcall.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(callee_name):
+        ref cb : TypeBinding = scope.get_binding(ident_name(callee_name))
+        if is_null(cb).not() {
+            if is_null(cb.func_def).not() {
+                switch cb.func_def.node_type {
+                case NodeType.FuncDef(cb_fdef):
+                    return derive_fcall_kwargs_index(fcall, cb_fdef)
+                case:
+                }
+            }
+        }
+    case NodeType.FieldAccess(method_name):
+        if fa_is_ns(callee, scope) {
+            ref type_node : Expr = callee.child(0)
+            switch type_node.node_type {
+            case NodeType.Ident(type_name):
+                ref sdef : Expr = scope.get_struct(ident_name(type_name))
+                if is_null(sdef).not() {
+                    ref ns : Vec = def_ns_decls(sdef)
+                    for nd : Declaration in ns {
+                        if nd.name.eq(field_access_name(method_name)).not() { continue }
+                        if is_null(nd.default_value) { break }
+                        switch nd.default_value.node_type {
+                        case NodeType.FuncDef(ffd):
+                            return derive_fcall_kwargs_index(fcall, ffd)
+                        case:
+                        }
+                        break
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    return -1
+}
+
+// Shared derivation given a resolved callee FuncDef payload.
+priv derive_fcall_kwargs_index := func(fcall: Expr, fdef_data: FunctionDef) returns I32 {
+    fkwi := fdef_data.kwargs_index
+    if fkwi.lt(0) { return -1 }
+    nparam := fdef_data.params.len()
+    fvi := fdef_data.variadic_index
+    mut has_variadic_pre := false
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        has_variadic_pre = fvi.gte(0).and(fcd.variadic_index.gte(0))
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    if has_variadic_pre {
+        vc := fcall_variadic_count(fcall, nparam, true)
+        return nparam.sub(1).add(vc).to_i32()
+    }
+    return nparam.to_i32()
 }
 
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
@@ -8859,10 +8923,9 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr, shallow vc: USize) ret
     }
 }
 
-rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
+rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, shallow ki: I32) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
-        ki := fcd.kwargs_index
         kc := fcall_kwargs_count(fcall)
         old_own := fcd.own_args
         mut old_args := Vec.new(Expr)
@@ -8915,7 +8978,6 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str) {
 
         fcall.children.move_from(fcall_new_ch)
         fcd.own_args = new_own
-        fcd.kwargs_index = -1
     case:
         UNREACHABLE(__LOC__)
     }
