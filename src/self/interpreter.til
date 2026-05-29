@@ -898,10 +898,10 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
             memcpy(cell.val, new_val, Value.size())
             // #211 follow-up: if this binding aliases an enum's payload
             // memory, mirror the write into ei.data + ENUM_PAYLOAD_OFFSET
-            // so the change is visible after the case body. Only handles
-            // primitive payloads for now; compound payloads (Str / struct)
-            // would need clone / delete plumbing and are left as future
-            // work, but the binding mutation itself still happens above.
+            // so the change is visible after the case body. Primitives
+            // dispatch through typed write_* primitives; Str and user
+            // struct payloads memcpy the struct bytes (same shape as
+            // write_field). Nested-enum payloads are still TODO.
             payload_alias := scope_get_payload_alias(scope, ad.name)
             if payload_alias.len().gt(0) {
                 pipe_pos := payload_alias.find("|")
@@ -936,6 +936,40 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                     if type_name.eq("F32") { write_f32(dest, fv) }
                                 case Value.Boolean(boov):
                                     if type_name.eq("Bool") { write_bool(dest, boov) }
+                                case Value.Struct(si):
+                                    // Compound payload (Str or user struct). Look up the
+                                    // payload type's def to get its total struct size and
+                                    // memcpy the struct bytes -- same approach write_field
+                                    // takes for struct-typed fields. If the new value is a
+                                    // borrowed view, clone it first so the enum's payload
+                                    // owns its own copy of the bytes.
+                                    mut sz : I32 = 0
+                                    if type_name.eq("Str") {
+                                        sz = Str.size().to_i32()
+                                    } else {
+                                        ref tdef : Expr = lookup_interp_type_def(type_name, ctx)
+                                        if is_null(tdef).not() {
+                                            switch tdef.node_type {
+                                            case NodeType.StructDef(payload_sdd):
+                                                sz = payload_sdd.total_struct_size
+                                            case:
+                                            }
+                                        }
+                                    }
+                                    if sz.to_i64().gt(0) {
+                                        if si.borrowed {
+                                            mut cloned := new_val.clone()
+                                            switch cloned {
+                                            case Value.Struct(csi):
+                                                memcpy(dest, csi.data, sz.to_u64())
+                                                free(own csi.data)
+                                                csi.data = NULL
+                                            case:
+                                            }
+                                        } else {
+                                            memcpy(dest, si.data, sz.to_u64())
+                                        }
+                                    }
                                 case:
                                 }
                             }
@@ -1709,6 +1743,12 @@ scope_free := func(own s: Scope) {
     own s.bindings.delete(false)
     // Zero out bindings so Scope destructor doesn't double-free
     memset(s.bindings, 0, Map.size().to_u64())
+    // #211 follow-up: same treatment for payload_aliases. Was leaking
+    // one Map.new(Str, Str) per scope per program (every scope_new()
+    // defaulted the field), pushing translate ASAN from 146K to 707K
+    // bytes leaked.
+    own s.payload_aliases.delete(false)
+    memset(s.payload_aliases, 0, Map.size().to_u64())
     free(own s)
 }
 // Body of interp_fa_is_ns_inner pulled out so both FieldAccess and

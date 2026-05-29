@@ -105,8 +105,8 @@
 
    #+begin_src til
    Vec2 := struct {
-       mut x : I64 = 0
-       mut y : I64 = 0
+       x : I64 = 0
+       y : I64 = 0
    namespace:
        add := func(a: Vec2, b: Vec2) returns Vec2 {
            return Vec2(x = a.x.add(b.x), y = a.y.add(b.y))
@@ -155,11 +155,11 @@
 
    #+begin_src til
    Range := struct {
-       mut len_val : U64 = 0
-       mut ascending := true
-       mut elem_type := ""
-       mut elem_size : USize = 0
-       own mut elem : U8 = 0    // current iteration value (raw bytes)
+       len_val : U64 = 0
+       ascending := true
+       elem_type := ""
+       elem_size : USize = 0
+       own elem : U8 = 0        // current iteration value (raw bytes)
 
    namespace:
        new := proc(elem_type: Str, elem_size: USize,

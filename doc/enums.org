@@ -115,9 +115,16 @@ case binding to a real ~T *p~ pointer into the enum's payload, so
 on the scope, and mirrors each assignment to the binding into the
 source enum's ~ei.data + ENUM_PAYLOAD_OFFSET~ via the typed
 ~write_i64~ / ~write_u8~ / ... primitives (see ~src/c/ext.c~).
-Primitive payloads (I64, U8, I32, U32, U64, F32, Bool) are covered;
-compound payloads (Str, struct) are not yet propagated in interp and
-would need clone / delete plumbing on the writeback path.
+Primitives (I64, U8, I8, I32, U32, U64, F32, Bool) propagate in both
+backends. ~Str~ payloads also propagate under ~til interpret~ (the
+writeback memcpys the new ~Str~ struct into the payload region; literal
+sources are leak-free, owned sources are the open piece). The compile
+backend currently has a separate bug for ~Str~ payload writes (it
+rebinds the local ~Str *~ instead of writing through) -- see #221. Once
+that is fixed, both backends agree for ~Str~ payloads too. Struct
+payloads (~Variant: SomeStruct~) cannot yet be written via ~p =
+SomeStruct(...)~ at all (the typer rejects assigning an owned value to
+a ref target); when that opens up the same writeback covers them.
 
 * Current tests to extend
 

@@ -208,12 +208,14 @@ typedef struct { int x; int y; } Point;
 
 #+begin_src til
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
 }
 #+end_src
 
-Fields are immutable by default; use ~mut~ to allow assignment.
+Fields are mutable by default (#211); use ~const~ to forbid assignment
+after construction. An explicit ~mut~ on a field is rejected as
+redundant.
 
 *** Instantiation
 

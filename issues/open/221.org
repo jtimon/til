@@ -1,0 +1,72 @@
+# priority: low
+** OPEN #221 Builder: Str-payload `case V(p): p = new_str` rebinds the local pointer instead of writing through
+
+*** Repro
+
+#+begin_src til
+mode script
+Tok := enum { Name: Str, Eof }
+mut e := Tok.Name("hello")
+switch e {
+case Tok.Name(p): p = "world"
+case Tok.Eof:
+}
+switch e {
+case Tok.Name(n): println("Name(", n, ")")
+case Tok.Eof:    println("Eof")
+}
+#+end_src
+
+Expected: ~Name(world)~ (mutable payload, mut enum, propagation works).
+~til interpret~ prints ~Name(world)~ (#211 interp follow-up landed).
+~til run~ prints ~Name(hello)~.
+
+*** Why
+
+The typer desugars the case body to ~ref mut p : Str = get_payload(&e); p = "world"~.
+For a primitive payload (~Num: I64~) the builder emits ~*p = 99~, which writes
+through into ~e~'s payload. For ~Str~ the builder emits something like:
+
+#+begin_src c
+Str *p = get_payload(&e);
+Str_delete(p, &(Bool){0});
+p = ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){...}; _lit; });
+#+end_src
+
+~p = malloc(...)~ rebinds the LOCAL pointer to a fresh heap ~Str~ ("world"); the
+delete first wipes the original payload at ~&e~'s data + offset, but it is
+never written. After the case body ~e~ still holds ~Name("hello"->emptied)~,
+and the fresh ~Str~ for "world" leaks. The interp path now propagates
+because the AST interpreter mirrors the Assign into ~ei.data +
+ENUM_PAYLOAD_OFFSET~ (see #211 follow-up); the compile path needs the
+analogous fix in the builder.
+
+*** Suggested fix
+
+In ~src/self/builder.til~, the assignment lowering for ~p = <rhs>~ when ~p~ is
+a ~ref mut~ binding to ~get_payload(...)~ with a compound type should emit
+either ~*p = <rhs>~ directly (for non-owning struct values) or
+~Str_delete(p, false); *p = *new; free(new);~ for owned ~Str~. The current
+emit treats this like a normal owned-local reassignment, which is wrong
+for a ~ref mut~ alias.
+
+A parallel exists in ~build_til_binding~ / the field-assign path -- the
+existing pattern for assigning a struct value to a field via ~mut self~
+already does ~*ptr = <new bytes>~. Replicate that here for payload
+bindings, gated on ~own_type == Ref~ + rhs being a constructor / literal.
+
+*** Notes
+
+- Primitives work in both modes today (#211).
+- ~til interpret~ also handles ~Str~ propagation (#211 follow-up). The
+  interp path uses Str_size memcpy of the new bytes into the payload
+  region; the old c_str pointer is overwritten. For literal sources
+  (~CAP_LIT~) this is leak-free; for owned sources the writeback would
+  need to delete the old c_str first. Treat this issue's compile fix
+  and the interp leak as paired; the cleanest end state is for both
+  backends to share a single ~Str_payload_replace~ helper that does the
+  delete + write.
+- Struct payloads (~Variant: SomeStruct~) cannot currently be written
+  via ~p = SomeStruct(...)~ at all -- the typer rejects the assignment
+  ("ref target 'p' cannot be assigned an owned value"). That is a
+  separate question; once it is allowed the same compile fix applies.

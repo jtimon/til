@@ -77,10 +77,14 @@ registering a per-scope `payload_aliases` entry (binding name -> source
 enum variable + payload type), and mirroring each Assign into
 `ei.data + ENUM_PAYLOAD_OFFSET` via new typed primitives `write_i64` /
 `write_u8` / ... in src/c/ext.c. Covers I64, U8, I8, I32, U32, U64, F32,
-Bool. Compound payloads (Str, struct) are not yet propagated under
-interp -- the writeback needs clone / delete plumbing -- but the
-binding still mutates locally as today, and the compile path is
-unchanged.
+Bool. The same writeback also handles Str and user-struct payloads by
+memcpy of the struct bytes (matching the shape `write_field` uses for
+struct-typed fields): literal Str sources are leak-free; owned-source
+cleanup is the remaining piece. Struct payloads can't yet be written
+via `p = SomeStruct(...)` because the typer rejects assigning an owned
+value to a ref target; the writeback path is in place for when that
+opens up. The compile backend has a separate bug for Str payload writes
+(rebinds the local pointer instead of writing through) -- filed as #221.
 
 The regression test (`test_mut_payload_binding` in test/enums.til) now
 asserts that the second switch sees the post-write payload value, so
