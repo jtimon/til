@@ -157,6 +157,7 @@ namespace:
 }
 
 ImportUnit := struct {
+    mode_str := ""
     mode := Mode()
     own ast := Expr.new(NodeType.Body, 0, 0)
     imports := Vec.new(Str)

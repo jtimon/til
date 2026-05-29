@@ -239,6 +239,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 LoadedProgram := struct {
     own core_units := Vec.new(ProgramUnit)
     own units := Vec.new(ProgramUnit)
+    mode_files := Vec.new(Str)
 
     target := Target.LinuxX64
     cur_mode := Mode()
@@ -704,9 +705,81 @@ extract_link_info := func(mut lp: LoadedProgram) {
     }
 }
 
+load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
+    abs_path := realpath_str(path)
+    if abs_path.eq("") { return }
+    disp := display_path(abs_path, cwd)
+    source := File.readfile(abs_path)
+    tokens := tokenize(source, disp)
+    mut mode_str := ""
+    ast := parse(tokens, disp, mode_str)
+    mode_str = normalize_mode_name(mode_str)
+    if mode_str.eq("mode").not() {
+        panic(__LOC__, "file '", disp, "' is not a 'mode mode' file")
+    }
+for stmt : Expr in ast.children { 
+        if stmt.node_type.is(NodeType.Decl) {
+            switch stmt.node_type {
+            case NodeType.Decl(decl):
+                if stmt.children.len().gt(0) {
+                    ref val : Expr = stmt.child(0)
+                    if val.node_type.is(NodeType.FCall).and(val.children.len().gt(0)) {
+                        ref callee : Expr = val.child(0)
+                        switch callee.node_type {
+                        case NodeType.Ident(id):
+                            if ident_name(id).eq("Mode") {
+                                mut m := Mode()
+                                for i in 1..val.children.len() {
+                                    ref arg : Expr = val.child(i)
+                                    switch arg.node_type {
+                                    case NodeType.NamedArg(arg_name):
+                                        ref arg_val : Expr = arg.child(0)
+                                        switch arg_val.node_type {
+                                        case NodeType.Literal(Literal.Bool(b)):
+                                            if arg_name.eq("needs_main") { m.needs_main = b }
+                                            else if arg_name.eq("decls_only") { m.decls_only = b }
+                                            else if arg_name.eq("is_library") { m.is_library = b }
+                                            else if arg_name.eq("is_pure") { m.is_pure = b }
+                                            else if arg_name.eq("run_tests") { m.run_tests = b }
+                                            else if arg_name.eq("debug_prints") { m.debug_prints = b }
+                                            else { panic(__LOC__, disp, ": unknown bool argument '", arg_name, "'") }
+                                        case NodeType.Literal(Literal.Str(s)):
+                                            if arg_name.eq("auto_import") { m.auto_import = s.clone() }
+                                            else { panic(__LOC__, disp, ": unknown string argument '", arg_name, "'") }
+                                        case:
+                                            panic(__LOC__, disp, ": argument '", arg_name, "' must be a literal")
+                                        }
+                                    case:
+                                        panic(__LOC__, disp, ": Mode arguments must be named (e.g. needs_main = true)")
+                                    }
+                                }
+                                mode_register(decl.name, m)
+                            }
+                        case:
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    }
+    
+    // Store in lp.ctx.imported so it can be typechecked.
+    ref mode_mode_def : Mode = mode_resolve(mode_str)
+    if is_null(mode_mode_def) {
+        panic(__LOC__, "unknown mode '", mode_str, "' for mode file")
+    }
+    mut iu := ImportUnit(mode_str = mode_str.clone())
+    iu.mode = mode_mode_def.clone()
+    iu.ast.take_children(ast)
+    context_register_path_mode(lp.ctx, disp, iu.mode)
+    lp.ctx.imported.set(own disp.clone(), own iu)
+    lp.mode_files.push(own disp.clone())
+}
+
 // Load core.til + user file + imports + mode auto_import. Returns a
 // LoadedProgram with the merged ASTs and link info populated.
-load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns LoadedProgram {
+load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec) returns LoadedProgram {
     mut lp := LoadedProgram()
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
@@ -715,9 +788,66 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_path := bin_dir.concat("/src/core/core.til")
     core_disp := display_path(core_path, cwd)
 
+    load_mode_file(lp, bin_dir.concat("/src/core/modes.til"), cwd)
+    for extra_mode : Str in extra_modes {
+        load_mode_file(lp, extra_mode, cwd)
+    }
+
+
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new(Str)
     resolve_stack := Vec.new(Expr)
+
+    // Resolve mode files' imports
+    core_units := Vec.new(ProgramUnit)
+    for mode_file : Str in lp.mode_files {
+        ref miu_temp : ImportUnit = lp.ctx.imported.get(mode_file)
+        mut mode_imports := extract_imports(miu_temp.ast, mode_file)
+        mut auto_disp := ""
+        if miu_temp.mode.auto_import.len().gt(0) {
+            mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
+            if realpath_str(auto_path).eq("") {
+                auto_path = bin_dir.format("/src/modes/", miu_temp.mode.auto_import, ".til")
+            }
+            abs_auto := realpath_str(auto_path)
+            if abs_auto.len().gt(0) {
+                if Set.has(resolved, abs_auto).not() {
+                    Set.add(resolved, own abs_auto.clone())
+                    disp_auto := display_path(abs_auto, cwd)
+                    source_auto := File.readfile(abs_auto)
+                    tokens_auto := tokenize(source_auto, disp_auto)
+                    mut mode_auto := ""
+                    ast_auto := parse(tokens_auto, disp_auto, mode_auto)
+                    mode_auto = normalize_mode_name(mode_auto)
+                    ref mode_auto_def : Mode = require_mode(disp_auto, mode_auto)
+                    context_register_path_mode(lp.ctx, disp_auto, mode_auto_def)
+
+                    mut iu_auto := ImportUnit(mode_str = mode_auto.clone())
+                    iu_auto.mode = mode_auto_def.clone()
+                    iu_auto.ast.take_children(ast_auto)
+                    lp.ctx.imported.set(own disp_auto.clone(), own iu_auto)
+
+                    mut unit_auto := ProgramUnit(path = disp_auto.clone(), mode = mode_auto_def.clone())
+                    core_units.push(own unit_auto)
+                }
+                auto_disp = display_path(abs_auto, cwd)
+            }
+        }
+        if mode_imports.len().gt(0) {
+            mode_dir := dir_of(realpath_str(mode_file))
+            err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
+                core_units, "", lp.ctx, "lib", cwd)
+            if err.gt(0) {
+                panic(__LOC__, "failed to resolve imports for mode file ", mode_file)
+            }
+            ref miu : ImportUnit = lp.ctx.imported.get(mode_file)
+            miu.imports = resolve_import_disps(mode_imports, mode_dir, "", cwd)
+        }
+        if auto_disp.len().gt(0) {
+            ref miu : ImportUnit = lp.ctx.imported.get(mode_file)
+            miu.imports.push(own auto_disp)
+        }
+    }
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     abs_path := realpath_str(path)
@@ -732,7 +862,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
     core_ast := parse(core_tokens, core_disp, core_mode_str)
-    ref core_mode : Mode = require_mode(core_disp, "lib")
+    ref core_mode : Mode = require_mode(core_disp, core_mode_str)
     context_register_path_mode(lp.ctx, core_disp, core_mode)
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
@@ -746,7 +876,6 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     }
 
     // Resolve core imports
-    core_units := Vec.new(ProgramUnit)
     core_imports := extract_imports(core_ast, core_disp)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
@@ -800,7 +929,13 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
     // followed by imported files, with the user entrypoint unit last.
     mut mode_disp := ""
     if auto_import.len().gt(0) {
-        mode_til_path := bin_dir.format("/src/modes/", auto_import, ".til")
+        mut mode_til_path := bin_dir.format("/", auto_import, ".til")
+        if realpath_str(mode_til_path).eq("") {
+            mode_til_path = user_dir.format("/", auto_import, ".til")
+        }
+        if realpath_str(mode_til_path).eq("") {
+            mode_til_path = bin_dir.format("/src/modes/", auto_import, ".til")
+        }
         mode_disp = display_path(mode_til_path, cwd)
         mode_source := File.readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_disp)
@@ -812,7 +947,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns
 
         // Resolve the auto-import file's own imports (mirrors core.til).
         mode_imports := extract_imports(mode_ast, mode_disp)
-        mode_dir := bin_dir.concat("/src/modes")
+        mode_dir := dir_of(realpath_str(mode_til_path))
         if mode_imports.len().gt(0) {
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
                 units, lib_dir, lp.ctx, "", cwd)
@@ -1536,6 +1671,10 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     }
     ref user_root : ProgramUnit = lp.units.get(lp.units.len().sub(1))
     init_file(user_root.path, lp.ctx)
+    for mode_file : Str in lp.mode_files {
+        init_file(mode_file, lp.ctx)
+    }
+
 
     // Global init steps: these generate methods/layouts that later phases
     // assume exist (e.g. comparison helpers on USize).
@@ -1590,6 +1729,10 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
         ref uiu : ImportUnit = lp.ctx.imported.get(uu.path)
         type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path, lp.ctx))
     }
+    for mode_file : Str in lp.mode_files {
+        type_errors = type_errors.add(type_file(mode_file, lp.ctx))
+    }
+
     if type_errors.gt(0) {
         println(type_errors.to_str(), " type error(s) found")
         exit(1)

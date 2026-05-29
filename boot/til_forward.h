@@ -1,6 +1,7 @@
 #pragma once
 #include "ext.h"
 
+typedef struct Mode Mode;
 typedef struct Vec Vec;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
@@ -190,7 +191,6 @@ typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
 typedef struct Context Context;
-typedef struct Mode Mode;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -558,17 +558,6 @@ typedef struct TypeScope {
 } TypeScope;
 
 
-typedef struct Mode {
-    Bool needs_main;
-    Bool decls_only;
-    Str auto_import;
-    Bool is_library;
-    Bool is_pure;
-    Bool run_tests;
-    Bool debug_prints;
-} Mode;
-
-
 struct Lang {
     Lang_tag tag;
 };
@@ -600,13 +589,6 @@ typedef struct priv___src_self_asaper_til__LocalInfo {
     Bool skip_scope_delete;
     Bool is_heap;
 } priv___src_self_asaper_til__LocalInfo;
-
-
-typedef struct ProgramUnit {
-    Str path;
-    Mode mode;
-    Vec imports;
-} ProgramUnit;
 
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -803,10 +785,23 @@ typedef struct CliArgs {
     U32 path_idx;
     Bool early_return;
     Bool asan;
+    Vec *extra_modes;
 } CliArgs;
 
 
+typedef struct Mode {
+    Bool needs_main;
+    Bool decls_only;
+    Str auto_import;
+    Bool is_library;
+    Bool is_pure;
+    Bool run_tests;
+    Bool debug_prints;
+} Mode;
+
+
 typedef struct ImportUnit {
+    Str mode_str;
     Mode mode;
     Expr *ast;
     Vec imports;
@@ -888,9 +883,17 @@ typedef struct Context {
 } Context;
 
 
+typedef struct ProgramUnit {
+    Str path;
+    Mode mode;
+    Vec imports;
+} ProgramUnit;
+
+
 typedef struct LoadedProgram {
     Vec *core_units;
     Vec *units;
+    Vec mode_files;
     Target target;
     Mode cur_mode;
     Context ctx;
@@ -905,6 +908,9 @@ typedef struct LoadedProgram {
 } LoadedProgram;
 
 
+Mode * Mode_clone(Mode * self);
+void Mode_delete(Mode * self, Bool * call_free);
+U32 Mode_size(void);
 void F32_delete(F32 * self, Bool * call_free);
 U32 * F32_size(void);
 Str * U64_to_str(U64 val);
@@ -1307,12 +1313,10 @@ I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Contex
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);
 I32 init_file(Str * path, Context * ctx);
-Mode * Mode_clone(Mode * self);
-void Mode_delete(Mode * self, Bool * call_free);
-U32 Mode_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
+void mode_register(Str * name, Mode * mode_def);
 Mode * mode_resolve(Str * name);
 Bool Lang_is(Lang * self, Lang * other);
 Bool Lang_eq(Lang * self, Lang * other);
@@ -1671,7 +1675,8 @@ Expr * find_ns_decl_fdef_imported(Context * ctx, Map * top, Str * name);
 Set * scavenge_visited_imported(LoadedProgram * lp);
 void scavenge_imported(LoadedProgram * lp);
 void extract_link_info(LoadedProgram * lp);
-LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path);
+void load_mode_file(LoadedProgram * lp, Str * path, Str * cwd);
+LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec * extra_modes);
 Str * escape_doc_for_literal_str(Str * raw);
 Str * func_kind(FuncType * ft);
 Str * til_type_user(Type * t);
@@ -2132,8 +2137,8 @@ U32 Camera3D_size(void);
 Str * repl_read_line(Str * mode_name);
 I32 repl_typecheck(LoadedProgram * lp);
 Bool * repl_should_wrap(Expr * peek_ast, Expr * typed_ast);
-void run_repl_session(Str * mode_name_in, Str * next_mode_out);
-void run_repl(Str * initial_mode);
+void run_repl_session(Str * mode_name_in, Str * next_mode_out, Vec * extra_modes);
+void run_repl(Str * initial_mode, Vec * extra_modes);
 void usage(void);
 CliArgs * CliArgs_clone(CliArgs * self);
 void CliArgs_delete(CliArgs * self, Bool * call_free);
@@ -2261,7 +2266,7 @@ extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
 extern I64 anon_struct_counter;
-extern Map core_modes;
+extern Map mode_registry;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;

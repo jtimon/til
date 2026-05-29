@@ -1,0 +1,33 @@
+import("loader")
+import("parser")
+
+main := proc(args: ..Str) {
+    source := File.readfile("src/core/modes.til")
+    tokens := tokenize(source, "modes.til")
+    mut mode_str := ""
+    ast := parse(tokens, "modes.til", mode_str)
+    for stmt : Expr in ast.children {
+        println("Stmt: ", stmt.node_type.to_str())
+        if stmt.node_type.is(NodeType.Decl) {
+            switch stmt.node_type {
+            case NodeType.Decl(decl):
+                println("Decl: ", decl.name)
+                if is_null(decl.default_value).not() {
+                    ref val : Expr = decl.default_value
+                    println("  val: ", val.node_type.to_str())
+                    if val.node_type.is(NodeType.FCall) {
+                        println("  children: ", val.children.len().to_str())
+                        ref callee : Expr = val.child(0)
+                        println("  callee: ", callee.node_type.to_str())
+                        switch callee.node_type {
+                        case NodeType.Ident(id):
+                            println("    id: ", ident_name(id))
+                        case:
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    }
+}

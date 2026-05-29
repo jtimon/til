@@ -1,0 +1,10 @@
+mode mode
+
+script := Mode(decls_only = false)
+cli    := Mode(needs_main = true, decls_only = false)
+gui    := Mode(needs_main = true, auto_import = "src/modes/gui", decls_only = false)
+test   := Mode(run_tests = true, decls_only = false)
+pure   := Mode(is_library = true, is_pure = true, decls_only = false)
+pura   := Mode(is_library = true, is_pure = true, debug_prints = true, decls_only = false)
+lib    := Mode(is_library = true, decls_only = false)
+liba   := Mode(is_library = true, debug_prints = true, decls_only = false)

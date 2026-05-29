@@ -1281,7 +1281,13 @@ parse_expression := proc(mut p: Parser) returns Expr {
 parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_type: OwnType) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
-    name := expect_text(p, TokenType.Ident)
+    mut name := ""
+    if check(p, TokenType.KwTest) {
+        name = "test"
+        advance(p)
+    } else {
+        name = expect_text(p, TokenType.Ident)
+    }
 
     // Declaration: name := value
     if check(p, TokenType.ColonEq) {
@@ -1640,6 +1646,16 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.Ident) {
         return parse_statement_ident(p, false, OwnType.Shallow)
     }
+    if t.type.is(TokenType.KwTest) {
+        if p.pos.add(1).lt(p.tokens.len()) {
+            ref nt : Token = p.tokens.get(p.pos.add(1))
+            if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon))
+            .or(nt.type.is(TokenType.Eq)).or(nt.type.is(TokenType.Dot)) {
+                return parse_statement_ident(p, false, OwnType.Shallow)
+            }
+        }
+        return parse_expression(p)
+    }
     if t.type.is(TokenType.KwRef) {
         advance(p)
         mut ref_mut := false
@@ -1705,7 +1721,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.StringTok).or(t.type.is(TokenType.Number))
     .or(t.type.is(TokenType.KwTrue)).or(t.type.is(TokenType.KwFalse))
     .or(t.type.is(TokenType.KwNull)).or(t.type.is(TokenType.LParen))
-    .or(t.type.is(TokenType.Minus)) {
+    .or(t.type.is(TokenType.Minus)).or(t.type.is(TokenType.KwMacro)) {
         return parse_expression(p)
     }
     if t.type.is(TokenType.LBrace) {

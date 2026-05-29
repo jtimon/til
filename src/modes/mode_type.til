@@ -1,0 +1,11 @@
+mode lib
+
+Mode := struct {
+    needs_main := false
+    decls_only := false
+    auto_import := ""
+    is_library := false
+    is_pure := false
+    run_tests := false
+    debug_prints := false
+}

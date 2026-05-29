@@ -1,16 +1,8 @@
 mode lib
 
+import("../std/mode_type")
 import("initer")
 
-Mode := struct {
-    needs_main := false
-    decls_only := true
-    auto_import := ""
-    is_library := false
-    is_pure := false
-    run_tests := false
-    debug_prints := false
-}
 
 context_register_path_mode := func(mut ctx: Context, path: Str, mode: Mode) {
     ctx.path_modes.set(own path.clone(), own mode.clone())
@@ -30,19 +22,19 @@ context_enter_file := func(mut ctx: Context, path: Str) {
     context_set_mode_from_path(ctx, path)
 }
 
-// Core mode registry — user-defined modes (#63) will add to this via -M flag
-core_modes := {
-    "script": Mode(decls_only = false),
-    "cli":    Mode(needs_main = true),
-    "gui":    Mode(needs_main = true, auto_import = "gui"),
-    "test":   Mode(run_tests = true),
-    "pure":   Mode(is_library = true, is_pure = true),
-    "pura":   Mode(is_library = true, is_pure = true, debug_prints = true),
-    "lib":    Mode(is_library = true),
-    "liba":   Mode(is_library = true, debug_prints = true),
+// Dynamic mode registry — user-defined modes (#63) will add to this via -M/--extra-modes flag
+mut mode_registry := {
+    "mode": Mode(decls_only = true, auto_import = "src/std/mode_type")
+}
+
+mode_register := func(name: Str, mode_def: Mode) {
+    mode_registry.set(own name.clone(), own mode_def.clone())
 }
 
 mode_resolve := func(name: Str) returns ref Mode {
-    ref m : Mode = core_modes.get(name)
+    if mode_registry.has(name).not() {
+        return NULL
+    }
+    ref m : Mode = mode_registry.get(name)
     return m
 }

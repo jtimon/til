@@ -1,4 +1,4 @@
-mode lib
+mode mode
 
 import("array")
 import("ast")

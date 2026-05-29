@@ -6807,7 +6807,44 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
         }
     }
 
-    ctx.mode = iu.mode.clone()
+    context_enter_file(ctx, path)
+    if iu.mode_str.eq("mode") {
+        for stmt : Expr in iu.ast.children {
+            mut is_valid := false
+            if stmt.node_type.is(NodeType.Decl) {
+                switch stmt.node_type {
+                case NodeType.Decl(_dd):
+                    if stmt.children.len().gt(0) {
+                        ref val : Expr = stmt.child(0)
+                        if val.node_type.is(NodeType.NoDefaultArg).not() {
+                            if val.node_type.is(NodeType.FCall).and(val.children.len().gt(0)) {
+                                ref callee : Expr = val.child(0)
+                                switch callee.node_type {
+                                case NodeType.Ident(id):
+                                    if ident_name(id).eq("Mode") {
+                                        is_valid = true
+                                    }
+                                case:
+                                }
+                            }
+                        }
+                    }
+                case:
+                }
+            } else if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
+                if stmt.child(1).node_type.is_literal_str() {
+                    switch stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_valid = true }
+                    case:
+                    }
+                }
+            }
+            if is_valid.not() {
+                type_error(stmt, "only Mode declarations (e.g. `cli := Mode(...)`) and imports are allowed in 'mode mode'", ctx)
+            }
+        }
+    }
     return total.add(type_check_unit(path, iu.ast, ctx.scope, ctx))
 }
 
