@@ -10,6 +10,7 @@ mode lib
 // Lexer exports is_digit / is_alpha / is_alnum (same I8 -> Bool helpers
 // that classify identifier bytes), so reuse them rather than redefining.
 import("lexer")
+import("../std/sys")
 //
 // What it does NOT do:
 //   * emit `link("...")` -- callers add that themselves where they `import`.

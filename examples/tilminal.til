@@ -1,5 +1,7 @@
 mode gui
 
+import("../src/std/sys")
+
 push_line := func(lines: Vec, text: Str) {
     lines.push(own text.clone())
 }

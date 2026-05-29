@@ -2,6 +2,7 @@ mode lib
 
 import("loader")
 import("targets")
+import("../std/sys")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 

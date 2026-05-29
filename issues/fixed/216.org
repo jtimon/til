@@ -1,5 +1,12 @@
-# priority: low
-** OPEN #216 Audit src/core/sys.til and move non-essential syscalls into src/std
+** #216 Audit src/core/sys.til and move non-essential syscalls into src/std
+
+Fixed.  Created ~src/std/sys.til~ holding the host-facing primitives
+(spawn_cmd, check_cmd_status, sleep_ms, file_mtime, clock_ms,
+get_thread_count, peak_rss_bytes, current_rss_bytes, host_os, mkdir_p,
+copy_file, copy_tree, wait_cmd, run_cmd).  ~src/core/sys.til~ keeps only
+~noop_proc~.  All callers now ~import("std/sys")~ (or the relative path)
+explicitly.  Added view-only ~Str.trim~ / ~Str.trim_start~ (CAP_VIEW).
+This unblocks issue #215 (mode safe_script can ban the std/sys subtree).
 
 Blocks issue [[file:215.org][#215]] (mode safe_script).  Today
 ~src/core/sys.til~ is imported by ~core~ as a matter of course, which

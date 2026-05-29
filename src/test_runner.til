@@ -1,5 +1,7 @@
 mode cli
 
+import("std/sys")
+
 // test_runner.til — runs tests and reports structured results for tests.til.
 //
 // Usage:

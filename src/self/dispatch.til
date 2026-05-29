@@ -1,5 +1,6 @@
 mode lib
 
+import("../std/sys")
 import("../../vendor/bindings/libffi")
 link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 

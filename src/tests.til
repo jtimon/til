@@ -1,5 +1,7 @@
 mode cli
 
+import("std/sys")
+
 NL := "\n"
 TIL := "bin/til"
 RUNNER := "bin/test_runner"

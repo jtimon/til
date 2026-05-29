@@ -1,5 +1,7 @@
 mode lib
 
+import("../std/sys")
+
 // Target and Lang definitions for cross-compilation support.
 // Mirrors rstil's src/rs/target.rs.
 
