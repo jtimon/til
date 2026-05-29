@@ -2179,6 +2179,35 @@ cast_int_size := func(t: Type) returns shallow I32 {
     return 0
 }
 
+// True for the signed integer primitives the cast typer recognises.
+// Used by cast_pair_ok to gate same-signedness widening; cross-
+// signedness widening (e.g. I8 -> U16) is deferred for now because it
+// changes the value's signed interpretation -- the operand and result
+// no longer agree on what the bits mean.
+cast_is_signed := func(t: Type) returns shallow Bool {
+    tn := til_type_name_c(t)
+    if tn.eq("I8").or(tn.eq("I16")).or(tn.eq("I32")).or(tn.eq("I64")) {
+        return true
+    }
+    return false
+}
+
+// True iff cast(src -> target) is legal for issue #212's current
+// scope: same-size integer reinterpret (any signedness combination)
+// OR same-signedness widening (src.size < target.size, both signed
+// or both unsigned). Narrowing and cross-signedness widening are
+// intentionally rejected.
+cast_pair_ok := func(src: Type, target: Type) returns shallow Bool {
+    src_size := cast_int_size(src)
+    target_size := cast_int_size(target)
+    if src_size.eq(0).or(target_size.eq(0)) { return false }
+    if src_size.eq(target_size) { return true }
+    if src_size.lt(target_size) {
+        return cast_is_signed(src).eq(cast_is_signed(target))
+    }
+    return false
+}
+
 // Issue #212: type-check a `cast(e, T)` call. Validates that e and T are
 // integer primitives of the same byte size, rewrites the T argument into
 // a Type value (so downstream passes see a well-formed Type, as with
@@ -2210,13 +2239,11 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
         return
     }
     target_type := til_type_from_explicit_type(tname)
-    src_size := cast_int_size(src_type)
-    target_size := cast_int_size(target_type)
-    if src_size.eq(0).or(target_size.eq(0)).or(src_size.neq(target_size)) {
+    if cast_pair_ok(src_type, target_type).not() {
         type_error(e, format(
             "cast only supports same-size integer reinterpret ",
-            "(I32<->U32, I64<->U64); cannot cast ",
-            til_type_name_c(src_type), " to ", tname,
+            "(any signedness) and same-signedness widening; ",
+            "cannot cast ", til_type_name_c(src_type), " to ", tname,
         ), ctx)
         set_expr_til_type(e, Type.Unknown)
         return

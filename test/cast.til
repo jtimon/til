@@ -1,13 +1,17 @@
 mode test
 
-// Issue #212: same-size integer reinterpret cast via UFCS `e.cast(T)`.
-// Supported same-size signed/unsigned integer pairs:
-//   U8<->I8   (1 byte)
-//   I16<->U16 (2 bytes)
-//   I32<->U32 (4 bytes)
-//   I64<->U64 (8 bytes)
-// It is a free bit reinterpret, so out-of-range values wrap rather
-// than panic.
+// Issue #212: integer cast via UFCS `e.cast(T)`. Two families supported:
+//
+//   - Same-size reinterpret (any signedness combo):
+//       U8<->I8 (1B), I16<->U16 (2B), I32<->U32 (4B), I64<->U64 (8B)
+//     Bits unchanged; out-of-range values wrap rather than panic.
+//
+//   - Same-signedness widening (src.size < target.size, both signed
+//     or both unsigned): U8->U16/U32/U64, I8->I16/I32/I64,
+//     U16->U32/U64, I16->I32/I64, U32->U64, I32->I64. The numeric
+//     value is preserved -- zero-extend for unsigned, sign-extend for
+//     signed. Cross-signedness widening is intentionally rejected (it
+//     changes how the bits are interpreted).
 
 test_cast_u8_i8 := test() {
     // 0xFF reinterpreted as I8 is -1.
@@ -79,4 +83,40 @@ test_cast_plain_call := test() {
     // Non-UFCS spelling works too.
     a : U32 = 4294967295
     assert_eq(__LOC__, cast(a, I32).to_i64(), -1)
+}
+
+test_cast_widen_unsigned := test() {
+    // Unsigned widening: value preserved, high bits zero-filled.
+    a : U8 = 200
+    assert_eq(__LOC__, a.cast(U16).to_i64(), 200)
+    assert_eq(__LOC__, a.cast(U32).to_i64(), 200)
+    assert_eq(__LOC__, a.cast(U64).cast(I64), 200)
+
+    b : U16 = 65535
+    assert_eq(__LOC__, b.cast(U32).to_i64(), 65535)
+    assert_eq(__LOC__, b.cast(U64).cast(I64), 65535)
+
+    c : U32 = 4000000000
+    assert_eq_str(__LOC__, c.cast(U64).to_str(), "4000000000")
+}
+
+test_cast_widen_signed := test() {
+    // Signed widening preserves the numeric value: -1 in any signed
+    // width is still -1 after widening (sign-extended bits).
+    a : I8 = -1
+    assert_eq(__LOC__, a.cast(I16).to_i64(), -1)
+    assert_eq(__LOC__, a.cast(I32).to_i64(), -1)
+    assert_eq(__LOC__, a.cast(I64), -1)
+
+    // Negative in-range value also rides through.
+    b : I8 = -128
+    assert_eq(__LOC__, b.cast(I32).to_i64(), -128)
+
+    // Positive value: trivial.
+    c : I16 = 30000
+    assert_eq(__LOC__, c.cast(I32).to_i64(), 30000)
+    assert_eq(__LOC__, c.cast(I64), 30000)
+
+    d : I32 = -123456789
+    assert_eq(__LOC__, d.cast(I64), -123456789)
 }
