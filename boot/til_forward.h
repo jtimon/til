@@ -356,7 +356,6 @@ typedef struct FunctionDef {
 
 typedef struct FCallData {
     I32 variadic_index;
-    U32 variadic_count;
     I32 kwargs_index;
     Bool is_splat;
     Bool does_throw;
@@ -1127,6 +1126,7 @@ Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
 U32 * fcall_kwargs_count(Expr * fcall);
+U32 * fcall_variadic_count(Expr * fcall, U32 nparam);
 Bool is_decl_with_child(Expr * stmt);
 Bool is_struct_or_enum(Expr * stmt);
 Bool is_func_decl(Expr * stmt);
@@ -1538,9 +1538,10 @@ void hoist_return_expr(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * sc
 void hoist_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_field_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name);
+void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, U32 vc);
+U32 * fcall_variadic_count_via_scope(Expr * fcall, TypeScope * scope);
 Str * resolve_variadic_elem_type(Expr * fcall, TypeScope * scope);
-Bool desugar_pure_splat_variadic_call(Expr * fcall);
+Bool desugar_pure_splat_variadic_call(Expr * fcall, U32 vc);
 void rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name);
 Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);

@@ -906,12 +906,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
         fkwi := fdef_data.kwargs_index
         mut fvc : U32 = 0
         if fvi.gte(0) {
-            switch e.node_type {
-            case NodeType.FCall(fcall_data0):
-                fvc = fcall_data0.variadic_count
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            fvc = fcall_variadic_count(e, fdef_data.params.len())
         }
         mut fkc : U32 = 0
         if fkwi.gte(0) {
@@ -1218,7 +1213,6 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                     for vai in 0..va_count {
                         new_ch.push_take(va_args, vai)
                     }
-                    fcall_data.variadic_count = va_count
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -1338,12 +1332,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         fkwi := fdef_data.kwargs_index
         mut fvc : U32 = 0
         if fvi.gte(0) {
-            switch e.node_type {
-            case NodeType.FCall(fcall_data0):
-                fvc = fcall_data0.variadic_count
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            fvc = fcall_variadic_count(e, fdef_data.params.len())
         }
         mut fkc : U32 = 0
         if fkwi.gte(0) {
@@ -7888,11 +7877,15 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
             case:
             }
             if skip.not() {
-                if desugar_pure_splat_variadic_call(e).not() {
+                // Resolve callee once via scope to derive the per-call
+                // variadic arg count; thread it into both the
+                // pure-splat detector and the array-wrapping rewrite
+                // so neither needs to re-resolve.
+                vc := fcall_variadic_count_via_scope(e, scope)
+                if desugar_pure_splat_variadic_call(e, vc).not() {
                     line := e.line
                     col := e.col
                     vi := fcall_data.variadic_index
-                    vc := fcall_data.variadic_count
                     ref elem_type : Str = resolve_variadic_elem_type(e, scope)
                     // elem_type-null here means the typer already
                     // reported an error upstream; just leave the
@@ -7907,7 +7900,7 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
                             mut setter := build_variadic_array_set(e, scope, va_name, vi, j, ctx)
                             new_ch.push(own setter)
                         }
-                        rewrite_variadic_fcall_args(e, va_name)
+                        rewrite_variadic_fcall_args(e, va_name, vc)
                     }
                 }
             }
@@ -8400,11 +8393,10 @@ hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut
     stmt = popped
 }
 
-rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
+rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, shallow vc: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcall_data):
         vi := fcall_data.variadic_index
-        vc := fcall_data.variadic_count
         old_own := fcall_data.own_args
         line := fcall.line
         col := fcall.col
@@ -8468,7 +8460,6 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
             fcall_data.kwargs_index = fcall_data.kwargs_index.add(delta)
         }
         fcall_data.variadic_index = -1
-        fcall_data.variadic_count = 0
     case:
         UNREACHABLE(__LOC__)
     }
@@ -8480,6 +8471,56 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str) {
 // first then kwargs to the same stmt before pushing, matching the
 // original sequential order so the kwargs handling sees the
 // variadic-rewritten fcall.
+// Scope-resolving wrapper around fcall_variadic_count: looks up the
+// callee FuncDef the same way resolve_variadic_elem_type does (Ident
+// binding, or Type.method namespace lookup) to recover its param count,
+// then derives the per-call variadic arg count. Used by the variadic
+// desugar sites (process_call_desugars and the helpers it threads into)
+// that don't have the callee fdef_data on hand the way validate/
+// infer_and_validate_fcall_args do. Returns 0 if the callee can't be
+// resolved -- the desugar then skips the rewrite, same as the
+// elem-type-null branch a few lines below.
+fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns USize {
+    ref callee : Expr = fcall.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(callee_name):
+        ref cb : TypeBinding = scope.get_binding(ident_name(callee_name))
+        if is_null(cb).not() {
+            if is_null(cb.func_def).not() {
+                switch cb.func_def.node_type {
+                case NodeType.FuncDef(cb_fdef):
+                    return fcall_variadic_count(fcall, cb_fdef.params.len())
+                case:
+                }
+            }
+        }
+    case NodeType.FieldAccess(method_name):
+        if fa_is_ns(callee, scope) {
+            ref type_node : Expr = callee.child(0)
+            switch type_node.node_type {
+            case NodeType.Ident(type_name):
+                ref sdef : Expr = scope.get_struct(ident_name(type_name))
+                if is_null(sdef).not() {
+                    ref ns : Vec = def_ns_decls(sdef.child(0))
+                    for nd : Declaration in ns {
+                        if nd.name.eq(field_access_name(method_name)).not() { continue }
+                        if is_null(nd.default_value) { break }
+                        switch nd.default_value.node_type {
+                        case NodeType.FuncDef(ffd):
+                            return fcall_variadic_count(fcall, ffd.params.len())
+                        case:
+                        }
+                        break
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    return 0
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
@@ -8531,13 +8572,12 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
 
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
-desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
+desugar_pure_splat_variadic_call := func(mut fcall: Expr, shallow vc: USize) returns shallow Bool {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
-        vi := fcd.variadic_index
-        vc := fcd.variadic_count
         if vc.eq(1).not() { return false }
         if fcd.is_splat.not() { return false }
+        vi := fcd.variadic_index
 
         mut old_args := Vec.new(Expr)
         old_args.move_from(fcall.children)
@@ -8560,7 +8600,6 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr) returns shallow Bool {
         fcall.children.move_from(fcall_new_ch)
         set_own_arg(fcall, vi.to_usize())
         fcd.variadic_index = -1
-        fcd.variadic_count = 0
         return true
     case:
         UNREACHABLE(__LOC__)
