@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #218 Interpreter: captured `ref X : Dynamic` slot reference does not survive memcpy dst arg
+** FIXED #218 Interpreter: captured `ref X : Dynamic` slot reference does not survive memcpy dst arg
 
 In interpret mode, capturing a Vec/Map/HashMap slot via a local
 `ref slot : Dynamic = container.get(i)` and then passing `slot` as the

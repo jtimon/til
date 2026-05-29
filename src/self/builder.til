@@ -2005,6 +2005,13 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
         emit_str_lit_expr(f, s)
     case NodeType.Literal(Literal.Num(num)):
         f.write(literal_num_text(num))
+        // Issue #219: U64 literals whose value exceeds LLONG_MAX need
+        // the ULL suffix or `cc -Werror` rejects "integer constant is
+        // so large that it is unsigned". The constfolder marks the
+        // type, we just have to emit the suffix.
+        if expr_til_type(e).is(Type.U64) {
+            f.write("ULL")
+        }
     case NodeType.Literal(Literal.Bool(b)):
         if b { emit_i32(f, 1) } else { emit_i32(f, 0) }
     case NodeType.Literal(Literal.Null):

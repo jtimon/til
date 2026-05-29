@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #217 Interpreter: Dynamic local segfaults when passed through nested direct calls
+** FIXED #217 Interpreter: Dynamic local segfaults when passed through nested direct calls
 
 When a function with `key: Dynamic` parameter is called from a context
 that has its own `own key: Dynamic` (typically because the literal was

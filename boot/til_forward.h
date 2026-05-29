@@ -1954,6 +1954,7 @@ U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
 void free_value_full(Value v);
 Bool needs_widen(Value * val, Str * ptype);
 Value shallow_copy_value(Value * v);
+Value * box_scalar_to_dynamic(Value * v);
 Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed);
 Value * widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);

@@ -29,14 +29,15 @@ Dispatch matches rstil: bytewise FNV-1a is the default; Str overrides
 because its struct {c_str, count, cap} carries a heap pointer so a
 bytewise hash would key on pointer identity, not content.
 
-*** Known caveats / follow-ups
+*** Resolved bug workarounds
 
-- Hash constants are still 32-bit, gated on issue #219 (builder ULL
-  suffix on U64 literals).
-- The current code sprinkles `to_ptr(...)` at every Dynamic->helper hop
-  and re-calls `self.values.get(slot_idx)` instead of capturing a
-  `ref Dynamic`. Both are interpret-mode workarounds tracked as
-  issues #217 and #218 -- compile mode works either way.
+- 64-bit Knuth / FNV-1a constants in [[file:../../lib/hash.til][lib/hash.til]] and Str.hash
+  (issue #219 fix: builder now emits the ULL suffix).
+- All `to_ptr(...)` wraps in [[file:../../src/std/hashmap.til][src/std/hashmap.til]] dropped
+  (issue #217 fix: scalar args to Dynamic params autobox in interp).
+- `ref val_slot : Dynamic = self.values.get(slot_idx)` restored
+  (issue #218 fix: function-pointer dispatch no longer applies
+  own-semantics across the bridge).
 
 *** Still open
 

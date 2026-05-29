@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #219 Builder: emit ULL suffix on U64 literal constants
+** FIXED #219 Builder: emit ULL suffix on U64 literal constants
 
 When the constfolder reduces `0.sub(N).to_u64()` (the standard til
 idiom for materialising a U64 constant whose unsigned value exceeds

@@ -1246,7 +1246,17 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 
         // Regular function body call
         ref body_ns : Expr = func_def.child(0)
-        if guard_own_param_skip(scope, e, func_def) { return val_none() }
+        // Issue #218: when the callee is a function-pointer field
+        // (e.g. Vec.elem_delete dispatching to I64.delete), the
+        // resolved function may declare its first parameter `own`
+        // even though the call goes through a non-owning DeleteFn
+        // signature. guard_own_param_skip would then null a borrowed
+        // ref-Dynamic binding the user expects to keep alive. Compile
+        // mode doesn't apply own-semantics across the function-pointer
+        // bridge either, so skip the guard for FuncPtr callees.
+        if expr_til_type(callee_expr).is(Type.FuncPtr).not() {
+            if guard_own_param_skip(scope, e, func_def) { return val_none() }
+        }
         call_scope := scope_new(scope)
         switch func_def.node_type {
         case NodeType.FuncDef(fdef_params):
@@ -1268,6 +1278,12 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         mut arg := arg_cell.val.clone()
                         arg = widen_numeric(arg, param.explicit_type, ctx)
                         scope_set_owned(call_scope, param.name, arg)
+                    } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
+                        // Issue #217: scalar Ident bound to a Dynamic
+                        // parameter needs a heap box so downstream
+                        // ptr-deref sees a valid pointer.
+                        arg := box_scalar_to_dynamic(arg_cell.val)
+                        scope_set_owned(call_scope, param.name, arg)
                     } else {
                         scope_set_borrowed(call_scope, param.name, arg_cell)
                     }
@@ -1277,6 +1293,13 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         arg = reinterpret_ptr_value(arg, param.explicit_type, scope, ctx)
                     }
                     arg = widen_numeric(arg, param.explicit_type, ctx)
+                    // Issue #217: scalar arg to a Dynamic param needs
+                    // a heap-allocated box so that ptr_add / memcpy /
+                    // anything-that-reads-bytes downstream sees a real
+                    // pointer instead of dereferencing the scalar.
+                    if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
+                        arg = box_scalar_to_dynamic(arg)
+                    }
                     scope_set_owned(call_scope, param.name, arg)
                 }
             }
@@ -1468,12 +1491,22 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         mut arg := arg_cell.val.clone()
                         arg = widen_numeric(arg, param.explicit_type, ctx)
                         scope_set_owned(call_scope2, param.name, arg)
+                    } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
+                        // Issue #217: scalar Ident bound to a Dynamic
+                        // parameter needs a heap box; see the Literal
+                        // branch below for context.
+                        arg := box_scalar_to_dynamic(arg_cell.val)
+                        scope_set_owned(call_scope2, param.name, arg)
                     } else {
                         scope_set_borrowed(call_scope2, param.name, arg_cell)
                     }
                 case:
                     mut arg := eval_expr(scope, arg_expr, ctx)
                     arg = widen_numeric(arg, param.explicit_type, ctx)
+                    // Issue #217: see the namespace path above.
+                    if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
+                        arg = box_scalar_to_dynamic(arg)
+                    }
                     scope_set_owned(call_scope2, param.name, arg)
                 }
             }
@@ -1589,6 +1622,37 @@ shallow_copy_value := func(v: Value) returns shallow Value {
     mut r := Value.None
     memcpy(r, v, Value.size())
     return r
+}
+
+// Issue #217: in interpret mode `own 42` bound to a `: Dynamic`
+// parameter must look the same as compile mode's autobox (a heap I64
+// the callee sees as a Dynamic pointer). Without boxing, downstream
+// ext_funcs like ptr_add try to dereference Value.Int.payload as a
+// pointer and segfault one or two frames deeper, since the scalar's
+// in-Value storage is a local stack location that doesn't survive
+// the call chain.
+//
+// This leaks one allocation per call. scope_free can't reclaim them
+// without knowing whether a Value.Dynamic is owned or borrowed, which
+// the interpreter doesn't currently track. The leak is bounded (one
+// per scalar-to-Dynamic call) and matches what `to_ptr(x)` was doing
+// implicitly via FFI dispatch as the manual workaround.
+box_scalar_to_dynamic := func(v: Value) returns Value {
+    mut dp : Dynamic = 0
+    switch v {
+    case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
+    case Value.Byte(p):    dp = malloc(1); memcpy(dp, p, 1)
+    case Value.Sbyte(p):   dp = malloc(1); memcpy(dp, p, 1)
+    case Value.Short(p):   dp = malloc(2); memcpy(dp, p, 2)
+    case Value.Ushort(p):  dp = malloc(2); memcpy(dp, p, 2)
+    case Value.Int32(p):   dp = malloc(4); memcpy(dp, p, 4)
+    case Value.Uint32(p):  dp = malloc(4); memcpy(dp, p, 4)
+    case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)
+    case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
+    case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
+    case: return shallow_copy_value(v)
+    }
+    return Value.Dynamic(dp)
 }
 
 make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool) returns shallow Value {

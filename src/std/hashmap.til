@@ -52,16 +52,12 @@ namespace:
     // Hash dispatch: Str keys go through Str.hash (content-aware);
     // everything else hashes the raw bytes of the key, which IS the
     // value for primitives, POD structs, and enums.
-    //
-    // NB: the `to_ptr(key)` wrap works around issue #217 (interpreter
-    // segfault when forwarding a Dynamic local through a direct call).
-    // Compile mode is unaffected; drop the wraps once #217 lands.
     hash_key := func(self: HashMap, key: Dynamic) returns U64 {
         if self.key_is_str {
             ref s : Str = key
             return s.hash()
         }
-        return hash_bytes(to_ptr(key), self.keys.elem_size)
+        return hash_bytes(key, self.keys.elem_size)
     }
 
     keys_equal := func(self: HashMap, a: Dynamic, b: Dynamic) returns Bool {
@@ -71,8 +67,8 @@ namespace:
             return Str.cmp(sa, sb).eq(0)
         }
         for i in 0..self.keys.elem_size {
-            ref ba : U8 = ptr_add(to_ptr(a), i)
-            ref bb : U8 = ptr_add(to_ptr(b), i)
+            ref ba : U8 = ptr_add(a, i)
+            ref bb : U8 = ptr_add(b, i)
             if ba.eq(bb).not() { return false }
         }
         return true
@@ -82,13 +78,13 @@ namespace:
     // dense keys/values arrays, or -1 if not found.
     find := func(self: HashMap, key: Dynamic) returns I64 {
         if self.keys.count.eq(0.to_usize()) { return -1 }
-        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        bi := bucket(self.hash_key(key), self.buckets.count)
         ref head : I64 = self.buckets.get(bi)
         mut entry : I64 = head.clone()
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
             ref k : Dynamic = self.keys.get(entry_u)
-            if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
+            if self.keys_equal(key, k) { return entry }
             ref nxt : I64 = self.nexts.get(entry_u)
             entry = nxt.clone()
         }
@@ -110,14 +106,14 @@ namespace:
     // would transfer ownership of `key` away before we know whether to
     // free it as a duplicate or push it as a new entry).
     set := func(mut self: HashMap, own key: Dynamic, own val: Dynamic) {
-        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        bi := bucket(self.hash_key(key), self.buckets.count)
         ref head : I64 = self.buckets.get(bi)
         mut entry : I64 = head.clone()
         mut existing : I64 = -1
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
             ref k : Dynamic = self.keys.get(entry_u)
-            if self.keys_equal(to_ptr(key), to_ptr(k)) {
+            if self.keys_equal(key, k) {
                 existing = entry.clone()
                 break
             }
@@ -126,13 +122,10 @@ namespace:
         }
         if existing.gte(0) {
             // Key already present: free the duplicate key, replace value.
-            // We re-call self.values.get(slot_idx) at each use rather
-            // than capturing the slot in a local `ref Dynamic`: issue
-            // #218 (captured ref dies when passed to memcpy as dst in
-            // interpret mode). Compile mode handles either form.
             slot_idx : USize = existing.to_usize()
-            self.values.elem_delete(self.values.get(slot_idx), false)
-            memcpy(self.values.get(slot_idx), val, self.values.elem_size)
+            ref val_slot : Dynamic = self.values.get(slot_idx)
+            self.values.elem_delete(val_slot, false)
+            memcpy(val_slot, val, self.values.elem_size)
             self.keys.elem_delete(key, false)
             free(own key)
             free(own val)
@@ -164,7 +157,7 @@ namespace:
         // order; insert at the head of the new chain.
         for i in 0..self.keys.count {
             ref k : Dynamic = self.keys.get(i)
-            bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
+            bi := bucket(self.hash_key(k), self.buckets.count)
             ref head : I64 = self.buckets.get(bi)
             head_val : I64 = head.clone()
             self.nexts.set(i, own head_val)
