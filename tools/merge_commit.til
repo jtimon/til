@@ -13,8 +13,7 @@ capture := proc(cmd: Str) returns Str {
     if _mk.lt(0) { }
     tmpf := format("tmp/_mc_", clock_ms().to_str())
     pid := spawn_cmd(format(cmd, " > ", tmpf, " 2>&1"))
-    ec := wait_cmd(pid)
-    (void)ec
+    _ec := wait_cmd(pid)
     content := File.readfile(tmpf)
     return content
 }
@@ -97,7 +96,7 @@ trim_spaces := func(s: Str) returns Str {
         if c.eq(" ").not() { break }
         end = end.sub(1)
     }
-    return s.substr(start, end.sub(start))
+    return s.substr(start, end.sub(start)).clone()
 }
 
 trim_leading_whitespace := func(s: Str) returns Str {
@@ -109,7 +108,7 @@ trim_leading_whitespace := func(s: Str) returns Str {
         }
         start = start.add(1)
     }
-    return s.substr(start, s.len().sub(start))
+    return s.substr(start, s.len().sub(start)).clone()
 }
 
 trim_quotes := func(s: Str) returns Str {
@@ -124,7 +123,7 @@ trim_quotes := func(s: Str) returns Str {
         if c.eq("\"").not().and(c.eq("'").not()) { break }
         end = end.sub(1)
     }
-    return s.substr(start, end.sub(start))
+    return s.substr(start, end.sub(start)).clone()
 }
 
 
@@ -187,7 +186,8 @@ main := proc(args: ..Str) {
     print("\n")
 
     mut clean_msg := trim_leading_whitespace(msg)
-    raw_subject := clean_msg.substr(0, count_subject_end(clean_msg))
+    raw_subject := clean_msg.substr(0, count_subject_end(clean_msg)).clone()
+    if clean_msg.len().lt(0) { }
     subject := trim_quotes(trim_spaces(raw_subject))
 
     mut test_target := "make test"
