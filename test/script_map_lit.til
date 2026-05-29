@@ -1,11 +1,48 @@
 mode script
 
-// Issue #220: a `mode script` program that uses map/set literals must
-// emit valid C. The shared library functions Map.new_type_names (local
-// `m`) and format (loop var `s`) previously inherited the value-global
-// classification of the script's top-level `m`/`s`, producing invalid
-// C (`.` access on a pointer, `&s` where `s` was already a pointer).
+import("../src/std/hashmap")
+
+// Issue #220: in `mode script` the top-level vars below become value
+// globals. Library functions pulled into the build that declare a local
+// of the same name (Map.new_type_names's heap-pointer `m`, format's
+// for-in loop var `s`, mem.swap's Dynamic local `tmp`, ...) must not
+// inherit the global's value classification, or codegen emits invalid C
+// (`.` on a pointer, `&s`, value-return / own-boxing of a pointer) that
+// cc -Werror rejects. The same source builds fine under `mode test`,
+// where top-level value globals don't exist. The fix records every
+// in-function decl name so the use-site classifiers treat it as a local.
+//
+// Top-level globals deliberately named after common library-internal
+// locals (`m`, `s`, `tmp`, `out`, `result`, `node`) so a regression in
+// any pulled-in function surfaces here.
 m := {"a": 1, "b": 2, "c": 3}
 s := {10, 20, 30}
-println(m.len().to_str())
-println(s.len().to_str())
+tmp := {"p": 1}
+out := {"x": 100}
+result := {1, 2, 3}
+node := {"k": "v"}
+
+// Map get (ref) + has + key iteration.
+ref ga : I64 = m.get("a")
+println(ga.to_str())
+println(m.has("b").to_str())
+for k : Str in m.keys {
+    println(k)
+}
+
+// Set membership.
+println(s.has(20).to_str())
+
+// HashMap is a separate library (src/std/hashmap.til), also with a
+// local `m` in HashMap.new_type_names.
+h := HashMap.new(Str, I64)
+h.set(own "one", own 1)
+ref hv : I64 = h.get("one")
+println(hv.to_str())
+
+// format() iterates a Str* parts array (the `s` loop-var symptom).
+println(format("len=", m.len().to_str(), " set=", s.len().to_str()))
+println(tmp.len().to_str())
+println(out.len().to_str())
+println(result.len().to_str())
+println(node.len().to_str())

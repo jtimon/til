@@ -322,12 +322,16 @@ Context := struct {
     stack_local_types := Map.new(Str, Str)
     unsafe_to_hoist := Set.new(Str)
     ref_locals := Set.new(Str)
-    // #220: own-heap pointer locals (`Type *name = malloc(...)`) declared
-    // in the current function body. Unlike stack_locals/ref_locals these
-    // were previously untracked, so a local that shadowed a script global
-    // (e.g. Map.new_type_names's `m` vs a top-level `m`) inherited the
-    // global's value classification and codegen emitted `.`/value-return
-    // against a pointer. Consulted only by is_value_global/is_ref_global.
+    // #220: names of decls made inside the current function body. Inside a
+    // function every `:=` decl is a local (is_global/is_rg are gated on
+    // in_func_def.not()), but stack_locals/ref_locals only capture a subset
+    // of emit paths -- own-heap pointer locals (`Type *m = malloc(...)`) and
+    // Dynamic locals (`void *tmp = ...`) were untracked. A local that shadows
+    // a script global of the same name then inherited the global's value
+    // classification and codegen emitted `.`/`&`/value-return against a
+    // pointer. Recorded for every in-function decl; consulted only by
+    // is_value_global/is_ref_global so the effect is limited to the
+    // global-vs-local decision.
     ptr_locals := Set.new(Str)
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
     // separately so emit_deref can typed-cast a Dynamic-declared
