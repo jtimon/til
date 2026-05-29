@@ -1,0 +1,12 @@
+mode script
+
+// #211: writing to a const-payload binding is a type error, even on
+// a mut enum.
+
+Tok := enum { const Num: I64, Eof }
+
+mut t := Tok.Num(7)
+switch t {
+case Tok.Num(p): p = 99
+case Tok.Eof:
+}

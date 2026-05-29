@@ -401,6 +401,7 @@ typedef struct EnumDef {
     Vec variants;
     Map payload_types;
     I32 total_enum_size;
+    Vec payload_consts;
 } EnumDef;
 
 
@@ -1145,6 +1146,7 @@ Vec * def_ns_decls(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
+Bool enum_variant_payload_const(Expr * enum_def, I32 tag);
 Array * Array_new_type_name(Str * elem_type, U32 * cap);
 Array * Array_new(Type * T, U32 * cap);
 U32 * Array_len(Array * self);
@@ -1263,7 +1265,7 @@ void precomp_classify_stmt(Expr * stmt, Context * ctx);
 Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
 Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, U32 line, U32 col);
-Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col);
+Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col, Bool is_mut);
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 I32 register_struct_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);

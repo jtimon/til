@@ -71,6 +71,49 @@ case:
 This should be accepted as explicitly non-exhaustive because it has a
 default case.
 
+* Payload mutability (#211)
+
+Enum variant payloads are mutable by default, like struct instance
+fields. In a ~switch~ case binding, the payload variable inherits the
+matched value's mutability:
+
+  - matched value is ~mut~ -> payload binding is ~ref mut~, so the case
+    body can write through it (and the change is visible after the
+    switch).
+  - matched value is immutable -> payload binding is ~ref~, writes are
+    rejected by the typer.
+
+#+begin_src til
+mut tok := Token.Num(0)
+switch tok {
+case Token.Num(n): n = 42       // OK: tok is mut, payload binding is ref mut
+case Token.Eof:
+}
+// tok is now Token.Num(42)
+#+end_src
+
+To opt out, mark the variant ~const~: ~const Variant: Type~ declares an
+immutable payload, and writes to its case binding are rejected even on
+a mut enum. This is the parallel to ~const field~ on structs.
+
+#+begin_src til
+Tok := enum { const Num: I64, Eof }
+mut t := Tok.Num(7)
+switch t {
+case Tok.Num(p): p = 99     // type error: cannot assign to immutable 'p'
+case Tok.Eof:
+}
+#+end_src
+
+Plain mut/const on the variant tag itself (no payload, e.g. ~mut Eof~)
+is not meaningful and has no effect.
+
+Known limitation: the compiled (C) backend propagates writes through
+the binding into the enum's payload storage. The AST interpreter binds
+payloads by copy, so writes do not propagate under ~til interpret~ --
+the typer accepts the assignment in both modes but only the compiled
+path observes the in-place update.
+
 * Current tests to extend
 
 Main reference file:

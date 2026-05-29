@@ -3693,7 +3693,20 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         condition.add_child(own vref)
 
                                         mut sw_id2 := sw_ref.clone()
-                                        mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col)
+                                        // #211: payload binding inherits the matched value's
+                                        // mutability AND the variant's payload const-ness.
+                                        // `mut e; case V(p): p = ...` works iff e is mut and the
+                                        // variant payload was NOT declared `const`.
+                                        mut source_mut := false
+                                        switch sw_ref.node_type {
+                                        case NodeType.Ident(sw_idn):
+                                            ref sw_b : TypeBinding = scope.get_binding(ident_name(sw_idn))
+                                            if is_null(sw_b).not() { source_mut = sw_b.is_mut }
+                                        case:
+                                        }
+                                        payload_const := enum_variant_payload_const(enum_def, vt_tag)
+                                        bind_is_mut := source_mut.and(payload_const.not())
+                                        mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col, bind_is_mut)
 
                                         mut old := Vec.new(Expr)
                                         old.move_from(case_body.children)

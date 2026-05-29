@@ -196,6 +196,10 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+        if check(p, TokenType.KwConst) {
+            panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                ": redundant 'const' on parameter: parameters are immutable by default; drop it")
+        }
         ptype := expect_text(p, TokenType.Ident)
         ptypes.push(own ptype)
         pmuts.push(own is_mut)
@@ -296,6 +300,10 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.KwOwn) { advance(p); own_type = OwnType.Own }
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+        if check(p, TokenType.KwConst) {
+            panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                ": redundant 'const' on parameter: parameters are immutable by default; drop it")
+        }
         if check(p, TokenType.KwRef) {
             panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                 ": no need for 'ref' on parameter; parameters are borrowed by default")
@@ -535,6 +543,10 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut ns_name := ""
             mut ns_explicit_type := ""
             mut ns_is_mut := false
+            if check(p, TokenType.KwConst) {
+                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                    ": redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
+            }
             if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
             ns_name = expect_text(p, TokenType.Ident)
             if check(p, TokenType.ColonEq) {
@@ -641,6 +653,10 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             mut ns_name := ""
             mut ns_explicit_type := ""
             mut ns_is_mut := false
+            if check(p, TokenType.KwConst) {
+                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                    ": redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
+            }
             if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
             ns_name = expect_text(p, TokenType.Ident)
             if check(p, TokenType.ColonEq) {
@@ -671,6 +687,13 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             // discard any leading /// so it doesn't bleed into the next
             // ns_decl.
             p.pending_doc = ""
+            // #211: `const Variant: Type` makes the payload immutable
+            // (default is mut, like struct fields).
+            mut v_payload_const := false
+            if check(p, TokenType.KwConst) {
+                advance(p)
+                v_payload_const = true
+            }
             vname := expect_text(p, TokenType.Ident)
             mut vtype := ""
             if check(p, TokenType.Colon) {
@@ -683,6 +706,9 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 if vtype.len().gt(0) {
                     edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
                 }
+                // payload_consts is dense, parallel to variants: push one
+                // entry per variant (false for non-const / no-payload).
+                edd.payload_consts.push(own v_payload_const.clone())
             case:
                 UNREACHABLE(__LOC__)
             }
@@ -1643,6 +1669,11 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         advance(p)
         panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
             ": locals cannot use 'shallow'; locals are owned by default")
+    }
+    if t.type.is(TokenType.KwConst) {
+        advance(p)
+        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+            ": redundant 'const' on local: locals are immutable by default; drop it")
     }
     if t.type.is(TokenType.KwReturn) {
         advance(p)

@@ -62,6 +62,14 @@
   rejects it. Namespace declarations inside a struct keep the
   immutable-by-default rule (they opt in with mut, like locals).
 
+* TRUE Enum variant payloads are MUTABLE by default (#211)
+  Payloads behave like struct instance fields: there is no mut/const
+  keyword on the variant declaration, and writability is determined by
+  the holder. In a switch case binding, the payload variable is a
+  ref-mut borrow when the matched value is mut, and a plain ref borrow
+  otherwise -- so `case V(p): p = ...` is allowed iff the enum value is
+  mut. See doc/enums.org "Payload mutability".
+
 * TRUE The own keyword marks ownership transfer
   At call sites, own marks that the caller gives up ownership: own p.delete().
   On func/proc param defs, param_owns marks which params take ownership.

@@ -1,0 +1,217 @@
+# priority: low
+** #211 Reconsider the default mutability of struct fields (mut-by-default vs const-by-default)
+
+*** Progress (staged migration -- see doc/self.org "Staged migration across master merges")
+
+Decision: proceed with option (2) -- flip STRUCT INSTANCE fields to
+mut-by-default with a `const` opt-out. Namespace decls inside a struct
+keep const-by-default (they behave like module-level constants), and
+enum payloads are left for a separate pass (still an open question
+below).
+
+Because `const` is a NEW keyword that HEAD's til_boot does not know, and
+because a bare field means the OPPOSITE thing under the old vs new
+default, this cannot land in a single commit -- it needs the staged
+sequence, each step merged to master before the next:
+
+  - COMMIT 1 (transitional, DONE): teach the compiler the new rule
+    without migrating sources.
+      * lexer: add the `KwConst` token ("const" keyword).
+      * parser `parse_struct_def`: instance fields default to mutable
+        (`f_is_mut := true`); `const` opts out; `mut` is still ACCEPTED
+        (redundant, no error yet) so existing sources keep parsing under
+        HEAD's til_boot.
+      * typer: the instance-field assign error now says "cannot assign
+        to const field '<f>'; remove the 'const' keyword ..." (the
+        namespace-field assign error is unchanged -- namespace decls
+        stay const-by-default).
+      * test/typer_errors.til: the field it relied on for the
+        immutable-assign error is now `const id := 0` so the negative
+        test still fires (count stays 117).
+    No source migration in this commit; once it is on master, master's
+    til_boot understands `const` AND defaults fields to mutable.
+
+  - COMMIT 2 (migration + enforcement, DONE):
+      * stripped the now-redundant `mut` from every struct FIELD decl
+        across src/**, test/**, examples/**, lib/**, and
+        vendor/bindings/**, and added `const` to every field that was
+        immutable (bare) before the flip so its guarantee is PRESERVED.
+        This is the behaviour-preserving migration: a field that was
+        immutable stays immutable (now via explicit `const`), it does not
+        silently become mutable. The originally-immutable set was
+        recovered from the last pre-flip commit (db47224, where bare ==
+        immutable); a field bare there gets `const`, a field that was
+        `mut` there just loses the keyword. (`const` is still "rare" in
+        new code -- this only restores existing guarantees.)
+      * Declaration gained a `redundant_mut` flag (src/core/ast.til);
+        the parser sets it when a field carries `mut`, and the typer's
+        struct-field loop (infer_type_def_expr) emits a type_error
+        rejecting it (modeled on redundant_conversion_error). Put in the
+        TYPER rather than the parser so all offenders are reported in one
+        pass (the parser is fail-fast); this also let `bin/til` enumerate
+        every field-`mut` to drive the migration precisely.
+      * build_til_binding in src/self/builder.til now emits `const` for
+        immutable fields (and never the redundant `mut`).
+      * doc/facts.org and doc/qualifiers.org updated.
+
+*** Enum payloads (also done)
+
+Enum variant payloads now follow the same rule (mutable by default,
+treated like struct instance fields). There is no mut/const keyword on
+a variant declaration; instead the payload binding in a switch case
+inherits the matched value's mutability -- `mut e := ...; switch e {
+case V(p): p = ... }` works, an immutable e gets a `ref` binding and
+writes are rejected. Implemented by threading source mutability into
+make_payload_ref_decl (initer.til) and computing it at the switch-case
+site (typer.til). Regression test: test/enums.til
+`test_mut_payload_binding`. Documented in doc/enums.org "Payload
+mutability".
+
+Known limitation: the compiled (C) backend propagates the write into
+the underlying enum value, but the AST interpreter binds payloads by
+copy and does not propagate. The typer accepts the assignment in both
+modes; the test only checks that. A follow-up could teach the
+interpreter to back the payload binding with a real mutable reference
+into the enum's payload storage.
+
+Const opt-out (also done): `const Variant: Type` declares the payload
+as immutable. The case binding is `ref` (not `ref mut`) even when the
+enum value is `mut`, so writing through it is a typer error. Storage:
+a parallel `Vec(Bool)` field `payload_consts` on EnumDef, indexed by
+variant tag, populated by the parser. (Map/Set defaults on EnumDef
+trigger a master til_boot segfault during bootstrap; a plain
+`Vec.new(Bool)` does not, so Vec is the encoding.) Helper:
+`enum_variant_payload_const` in ast.til; the typer's switch-case
+desugar combines it with source mutability:
+`bind_is_mut = source_mut && !payload_const`. Regression test:
+`test/const_payload_error.til`.
+
+*** Redundant `const` outside fields (done)
+
+`const` is now meaningful only on struct fields. The parser rejects
+`const x := ...` (local), `const x: T` (parameter), and `const x := ...`
+inside a struct/enum `namespace:` section with a clear
+"redundant 'const' on ... drop it" message -- symmetric to the
+"redundant 'mut' on field" error. Regression tests:
+`test/qualifier_const_local_error.til` and
+`test/qualifier_const_param_error.til`.
+
+*** Summary
+
+Today til is uniform: everything is immutable (const) by default and
+`mut` opts in. This is a documented TRUE fact in
+[[file:../../doc/facts.org][doc/facts.org]], the "Everything is immutable by default, mut
+opts in to mutation" entry: it applies to variable declarations
+(mut x := 5), struct fields (mut x := 0), and function/proc parameters
+(mut self: Point).
+
+This issue proposes splitting that single rule by declaration context:
+keep const-by-default for local variable declarations and parameters,
+but make STRUCT FIELDS mut-by-default, with an explicit `const` keyword
+for the rare field that must not change after the struct is built from
+a literal (a unique id, an interned handle, a creation timestamp, etc).
+
+*** The argument for flipping struct fields
+
+For local bindings and params, const-by-default is clearly right: most
+locals are never reassigned, so the common case wants no annotation and
+`mut` flags the exception.
+
+For struct fields the common case is arguably the opposite. A struct is
+usually a bag of mutable state -- you construct it, then update fields
+over its lifetime. Under the current rule almost every field has to be
+written `mut x: I64`, and the bare `x: I64` (the "cheap default") is the
+case you rarely want. That inverts the usual "default == common case"
+ergonomic. Flipping it would make the unannotated field the mutable one
+and reserve `const field` for the genuinely-immutable-after-construction
+field, which is the rare case.
+
+*** The cost: loss of a single uniform rule
+
+The thing being traded away is real and is exactly the property
+facts.org currently advertises: ONE rule everywhere. Under this proposal
+the meaning of an unannotated declaration depends on where it appears:
+
+  - `x := 5`        (local)         -> const
+  - `x: I64`        (struct field)  -> mut
+  - `self: Point`   (param)         -> const
+
+So a reader/author must remember that "no keyword" means immutable in
+two contexts and mutable in a third. That is two rules instead of one,
+and it makes `mut`/its-absence context-sensitive. Whether the
+ergonomic win for the common field case outweighs the cost of a
+context-dependent default is the actual decision this issue exists to
+make; it is a judgement call, not a clear win either way.
+
+*** Open question this surfaces: enum payloads
+
+The proposal was prompted by noticing enum payloads already look like an
+exception to "const by default" -- they don't take a `mut`/`const`
+annotation the way fields and locals do, which may mean til currently
+only supports ONE of the two mutability options for payloads (they are
+effectively fixed, or effectively mutable, but the choice is not
+expressible). Before deciding the struct-field default we should pin
+down what the payload rule actually is today and whether it is
+intentional:
+
+  - Are enum payloads mutable or immutable in practice right now?
+  - Is that enforced by the typer, or just unannotatable?
+  - If we make struct fields mut-by-default, should enum payloads follow
+    the same default (and gain a `const` opt-out), for consistency
+    between the two product/sum aggregate forms?
+
+*** Decision needed (pick one, this is a design call not a bug)
+
+  1. *Status quo* -- keep const-by-default everywhere; field authors
+     keep writing `mut`. One rule, more annotations on fields.
+  2. *Flip struct fields* -- mut-by-default for fields, add `const field`
+     for the immutable exception. Fewer annotations on the common field,
+     context-sensitive default.
+  3. *Flip struct fields AND enum payloads together* -- same rule for
+     both aggregate forms, fully resolving the payload asymmetry.
+
+*** If we proceed with (2)/(3), scope to investigate
+
+  - typer: where struct-field mutability is checked (the field-decl and
+    field-assignment paths in src/self/typer.til); flip the default and
+    add `const` parsing for fields.
+  - lexer/parser: a `const` field qualifier and (for option 3) a
+    payload qualifier.
+  - *Forced removal of the now-redundant `mut`.* Once `mut` is the
+    field default, every existing `mut <field>` declaration becomes
+    redundant. This must not be left optional: add a rule (a typer
+    error, not a soft lint) that REQUIRES the redundant `mut` keyword to
+    be removed from struct field declarations, so the source can't carry
+    both the new default and the old opt-in keyword. This is the same
+    spirit as the existing "redundant keyword" diagnostics -- find where
+    the typer already rejects redundant qualifiers and add the field-mut
+    case there.
+  - *Adapt the const-field error to suggest removing `const`.* Today
+    assigning to (or passing as a `mut` argument) an immutable field is
+    a type error whose message points at the missing `mut`. Under the
+    flip the immutable field is the one carrying explicit `const`, so
+    the diagnostic must invert: when an assignment to a `const` field,
+    or passing a `const` field where a `mut` parameter is expected,
+    fails, the error should suggest "remove the `const` keyword from the
+    field declaration" as the fix. Update the corresponding error
+    emitter in the typer (the function that builds the mutability /
+    "cannot assign to immutable" message).
+  - migration: every existing `mut <field>` in til sources gets stripped
+    by the rule above; conversely, fields that were relying on the
+    immutable default and are never reassigned would need an explicit
+    `const` added to preserve their guarantee (audit needed -- a field
+    that is bare today and never written is silently const now and would
+    silently become mut, which could mask a real bug). This migration
+    is the risky part: the flip can hide an unintended mutation that the
+    old default would have caught at type-check time.
+  - docs: update the "Everything is immutable by default" entry in
+    doc/facts.org and the field-qualifier sections of doc/qualifiers.org.
+
+*** Notes
+
+  - This is a language-semantics design decision, not a defect; til is
+    correct and consistent as-is. Filed for discussion, low priority.
+  - Contrast with Rust, which avoids per-field defaults entirely: a
+    field is mutable iff the binding holding the struct is `mut`. til's
+    per-field model is a deliberate departure, so the field default is a
+    genuinely open choice rather than something inherited from prior art.

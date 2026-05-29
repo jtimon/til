@@ -370,6 +370,10 @@ EnumDef : StructDef = struct {
     variants := Vec.new(Str)
     payload_types := Map.new(I64, Str)
     total_enum_size : I32 = 0
+    // #211: per-variant flag (indexed by variant tag) marking variants
+    // whose payload was declared `const Type`. Appended at the end of
+    // the field list to minimise layout disturbance for til_boot.
+    payload_consts := Vec.new(Bool)
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len().eq(b.variants.len())
@@ -1014,4 +1018,21 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
         UNREACHABLE(__LOC__)
     }
     return ""
+}
+
+// #211: true iff the variant's payload was declared `const Type`.
+// payload_consts is a Vec parallel to `variants` populated by the parser
+// (one entry per variant, false when no annotation).
+enum_variant_payload_const := func(enum_def: Expr, shallow tag: I32) returns shallow Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        tag_u := tag.to_u32()
+        if tag_u.lt(edd.payload_consts.len()) {
+            ref pc : Bool = edd.payload_consts.get(tag_u)
+            if pc { return true }
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return false
 }

@@ -68,5 +68,4 @@
 ** Medium
 ** Low
 *** [[./open/205.org][#205]] Collapse Primitive enum + per-primitive Type variants into Type.Struct(name)
-*** [[./open/211.org][#211]] Reconsider the default mutability of struct fields (mut-by-default vs const-by-default)
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter

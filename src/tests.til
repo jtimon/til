@@ -531,6 +531,15 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
               format(til_bin, " interpret test/qualifier_returns_own_error.til"))
+    add_count(tests, "qualifier_const_local_error", "parser",
+              "on local: locals are immutable by default", 1,
+              format(til_bin, " interpret test/qualifier_const_local_error.til"))
+    add_count(tests, "qualifier_const_param_error", "parser",
+              "on parameter: parameters are immutable by default", 1,
+              format(til_bin, " interpret test/qualifier_const_param_error.til"))
+    add_count(tests, "const_payload_error", "typer",
+              "cannot assign to immutable variable", 1,
+              format(til_bin, " interpret test/const_payload_error.til"))
     add_count(tests, "priv_error_interp", "typer",
               "is private to", 4,
               format(til_bin, " interpret test/priv_error.til"))

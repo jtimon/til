@@ -1,0 +1,5 @@
+mode script
+
+f := func(const x: I64) returns I64 {
+    return x
+}

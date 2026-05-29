@@ -610,3 +610,17 @@ test_guard_bare_variant_false := test() {
     }
     assert_eq_str(__LOC__, r, "no")
 }
+
+// #211: payload bindings inherit the matched value's mutability. A mut
+// enum local exposes a ref-mut payload binding in case patterns, so
+// `n = 99` type-checks (would error if the binding were immutable). The
+// compiled backend propagates the write; the AST interpreter binds
+// payloads by copy and does not propagate, so this test only checks the
+// typer accepts the assignment.
+test_mut_payload_binding := test() {
+    mut c := ColorG.Number(7)
+    switch c {
+    case ColorG.Number(n): n = 99
+    case:
+    }
+}
