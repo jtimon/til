@@ -45,6 +45,7 @@
 *** [[./open/217.org][#217]] Interpreter: Dynamic local segfaults when passed through nested direct calls
 *** [[./open/218.org][#218]] Interpreter: captured `ref X : Dynamic` slot reference does not survive memcpy dst arg
 *** [[./open/219.org][#219]] Builder: emit ULL suffix on U64 literal constants
+*** [[./open/220.org][#220]] Builder: mode script emits invalid C for Map literals and format() Str iteration
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
