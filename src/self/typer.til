@@ -6779,12 +6779,71 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     return ctx.errors
 }
 
-// rstil-style typer: recursively type imports then this file.
+// Two-sweep typer driver (#174 / #147 step 3-4 prep). type_file calls
+// type_decls_file first (decls + methodgen + layout, future home of
+// init_declarations_global's scope-using work) and then
+// type_bodies_file (function body type-checking). Both walks are
+// rstil-style: recurse on imports in source order, then handle this
+// file. The split memo Sets (imports_typer_decls_done /
+// imports_typer_bodies_done) ensure each file is visited at most once
+// per sweep, and the per-file ordering "imports first, then this
+// file" within each sweep matches today's single-sweep behaviour.
+//
+// During this initial scaffolding commit type_decls_file is a no-op:
+// every decl visit, methodgen call, and layout computation still
+// happens inside init_declarations_global's pre-typer pass, exactly
+// where it does today. Subsequent commits relocate work into the
+// decls sweep one piece at a time, each landing green.
 type_file := proc(path: Str, ctx: Context) returns shallow I32 {
-    if ctx.imports_typer_done.has(path) {
+    mut total : I32 = 0
+    total = total.add(type_decls_file(path, ctx))
+    total = total.add(type_bodies_file(path, ctx))
+    return total
+}
+
+// Future home of init_declarations_global's scope-using work
+// (methodgen, layout, post-init re-registration). Empty stub today.
+type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
+    if ctx.imports_typer_decls_done.has(path) {
         return 0
     }
-    ctx.imports_typer_done.add(own path.clone())
+    ctx.imports_typer_decls_done.add(own path.clone())
+
+    ref iu : ImportUnit = ctx.imported.get(path)
+    mut total : I32 = 0
+    ast_count : USize = count_ast_imports(iu.ast)
+    auto_count : USize = iu.imports.len().sub(ast_count)
+    for i in 0..auto_count {
+        ref dep : Str = iu.imports.get(i)
+        total = total.add(type_decls_file(dep, ctx))
+    }
+    mut import_idx : USize = auto_count
+    for stmt : Expr in iu.ast.children {
+        if stmt.node_type.is(NodeType.FCall).not() { continue }
+        if stmt.children.len().neq(2) { continue }
+        if stmt.child(1).node_type.is_literal_str().not() { continue }
+        switch stmt.child(0).node_type {
+        case NodeType.Ident(id):
+            if ident_name(id).eq("import").not() { continue }
+            ref dep : Str = iu.imports.get(import_idx)
+            total = total.add(type_decls_file(dep, ctx))
+            import_idx = import_idx.add(1)
+        case:
+            continue
+        }
+    }
+    return total
+}
+
+// Per-file body type-check sweep (the second of two). The recursion
+// here is the same shape as the current single-sweep type_file: walk
+// imports in source order, then type_check_unit. Renamed from
+// type_file to make the two-sweep split explicit.
+type_bodies_file := proc(path: Str, ctx: Context) returns shallow I32 {
+    if ctx.imports_typer_bodies_done.has(path) {
+        return 0
+    }
+    ctx.imports_typer_bodies_done.add(own path.clone())
 
     ref iu : ImportUnit = ctx.imported.get(path)
 
@@ -6798,7 +6857,7 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     auto_count : USize = iu.imports.len().sub(ast_count)
     for i in 0..auto_count {
         ref dep : Str = iu.imports.get(i)
-        total = total.add(type_file(dep, ctx))
+        total = total.add(type_bodies_file(dep, ctx))
     }
     mut import_idx : USize = auto_count
     for stmt : Expr in iu.ast.children {
@@ -6809,7 +6868,7 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
         case NodeType.Ident(id):
             if ident_name(id).eq("import").not() { continue }
             ref dep : Str = iu.imports.get(import_idx)
-            total = total.add(type_file(dep, ctx))
+            total = total.add(type_bodies_file(dep, ctx))
             import_idx = import_idx.add(1)
         case:
             continue

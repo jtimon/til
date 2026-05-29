@@ -815,7 +815,8 @@ typedef struct Context {
     Map path_modes;
     Map imported;
     Set imports_init_done;
-    Set imports_typer_done;
+    Set imports_typer_decls_done;
+    Set imports_typer_bodies_done;
     Set imports_precomp_done;
     Set imports_eval_done;
     TypeScope scope;
@@ -1503,6 +1504,8 @@ void priv___src_self_typer_til__typer_register_lifted_lambda(TypeScope * scope, 
 void priv___src_self_typer_til__typer_lift_lambdas(TypeScope * scope, Expr * prog, Context * ctx);
 I32 type_check_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 type_file(Str * path, Context * ctx);
+I32 type_decls_file(Str * path, Context * ctx);
+I32 type_bodies_file(Str * path, Context * ctx);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 Bool rhs_is_clone_fcall(Expr * rhs);
 Bool assign_target_is_func_local(TypeScope * scope, Str * name);

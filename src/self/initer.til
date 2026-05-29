@@ -171,7 +171,16 @@ Context := struct {
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map.new(Str, ImportUnit)
     imports_init_done := Set.new(Str)
-    imports_typer_done := Set.new(Str)
+    // Two-sweep typer (issue #174 / #147 step 3-4 prep). The typer
+    // recursion is split into a decls-first sweep (struct/enum decls,
+    // methodgen, layout) and a bodies sweep (function body
+    // type-checking). The decls sweep produces all method-name
+    // bindings before any body type-checks, so the Vec/Str/I64 method
+    // cycle that #174 catalogues is broken: bodies in either
+    // direction always see the other's methods. Each sweep has its
+    // own per-file memo Set.
+    imports_typer_decls_done := Set.new(Str)
+    imports_typer_bodies_done := Set.new(Str)
     imports_precomp_done := Set.new(Str)
     imports_eval_done := Set.new(Str)
 
