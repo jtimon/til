@@ -1,9 +1,9 @@
 * ASAN baseline
 
 Last known good from the previous processed commit.
-Updated by tools/merge_commit.til.
+Updated by examples/merge_commit.til.
 
 | Channel   | Bytes    | Allocs   | Delta           |
 |-----------+----------+----------+-----------------|
-| interpret | 149239   | 23599    | 0.1% / 0.1%     |
-| translate | 146615   | 23023    | -0.4% / 0.0%     |
+| interpret | 149239   | 23599    | 0.0% / 0.0%     |
+| translate | 146615   | 23023    | 0.0% / 0.0%     |

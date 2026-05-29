@@ -278,7 +278,7 @@ main := proc(args: ..Str) {
     File.writefile("doc/bots/asan.org",
         format("* ASAN baseline\n\n",
                "Last known good from the previous processed commit.\n",
-               "Updated by tools/merge_commit.til.\n\n",
+               "Updated by examples/merge_commit.til.\n\n",
                "| Channel   | Bytes    | Allocs   | Delta           |\n",
                "|-----------+----------+----------+-----------------|\n",
                "| interpret | ", int_bytes.to_str(), "   | ", int_allocs.to_str(), "    | ",

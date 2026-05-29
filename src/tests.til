@@ -491,17 +491,17 @@ main := proc(args: ..Str) {
                format(til_bin, " run", asan_flag, " test/pura.til"))
 
     // === build tests: svg2ttf + issues summary ===
-    // svg2ttf: transparent 2-colour logo produces fonts/til_logo.ttf (exit=0);
+    // svg2ttf: transparent 2-colour logo produces img/til_logo.ttf (exit=0);
     // the full-colour logo panics with "too many colours" (exit=1).
     // Compiled-run only (no interpret variant); the interpreted run takes
     // ~90s and dominates wall time. Categorised as "build" so its time goes
     // into build_ms rather than cli_ms in totals.
-    run("mkdir -p fonts")
+    run("mkdir -p img")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
                format(til_bin,
                       " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
                       "examples/svg2ttf.til ",
-                      "img/logo-transparent.svg fonts/til_logo.ttf"))
+                      "img/logo-transparent.svg img/til_logo.ttf"))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
                format(til_bin,
                       " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",

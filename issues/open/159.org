@@ -1,7 +1,7 @@
 # priority: low
 ** OPEN #159 Show the til logo as a single character in the REPL prompt
 
-We have ~fonts/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
+We have ~img/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
    by [[file:../../examples/svg2ttf.til][examples/svg2ttf.til]]) with the logo mapped to codepoint
    ~'T'~ (0x54).  The goal: replace the REPL prompt's ~til[mode]>~
    (in ~src/til.til~ ~repl_read_line~) with ~<logo>[mode]>~ where
@@ -12,7 +12,7 @@ We have ~fonts/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
    - The REPL is a terminal-only CLI.  A terminal renders whatever
      font the user has configured; it cannot pick up an arbitrary
      TTF file from the repo.  To see the logo there, the user (or
-     an install step) has to copy ~fonts/til_logo.ttf~ into a
+     an install step) has to copy ~img/til_logo.ttf~ into a
      system font directory (~~/.local/share/fonts~ on Linux)
      and the terminal has to actually use that font, or a fallback
      chain that reaches it.  This is out of our control.
@@ -41,7 +41,7 @@ We have ~fonts/til_logo.ttf~ (generated from ~img/logo-transparent.svg~
       else sees the logo.  Low effort, limited reach.
 
    2. Ship a small [[file:../../examples/tilminal.til][examples/tilminal.til]]-hosted REPL that
-      loads ~fonts/til_logo.ttf~ via raylib and draws the prompt
+      loads ~img/til_logo.ttf~ via raylib and draws the prompt
       glyph plus user input.  Higher effort but no install step.
       A natural follow-up to [[file:../../examples/tilminal.til][examples/tilminal.til]].
 

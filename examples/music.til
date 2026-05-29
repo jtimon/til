@@ -288,7 +288,7 @@ main := proc() {
     SetTargetFPS(FPS)
     InitAudioDevice()
 
-    fnt := LoadFontEx("assets/DejaVuSans.ttf".c_str, 48, NULL, 0)
+    fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, NULL, 0)
 
     // Scale result arrays (8 notes: 7 degrees + octave)
     mut sc_chrom := Array.new(I32, 8)

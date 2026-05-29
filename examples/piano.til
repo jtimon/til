@@ -60,7 +60,7 @@ main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
     SetTargetFPS(FPS)
     InitAudioDevice()
-    fnt := LoadFontEx("assets/DejaVuSans.ttf".c_str, 48, NULL, 0)
+    fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, NULL, 0)
 
     // Key state tracking
     mut key_down := Array.new(I32, NUM_KEYS)

@@ -17,7 +17,7 @@ GUI music theory learning tool (examples/music.til). Uses mode gui
   translated per language), resolution-independent layout with fixed
   staff positioning (precalculated from note range), 2-octave piano
   roll visualization with key highlighting, DejaVuSans custom font
-  (bundled in assets/), Makita teal color scheme for UI elements.
+  (bundled in img/), Makita teal color scheme for UI elements.
 
   Code is organized with extracted helper functions: triad_type,
   note_name, acc_text, staff_y, lang_str, start_scale, play_note,
