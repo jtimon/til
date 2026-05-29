@@ -241,16 +241,19 @@ namespace:
 }
 
 // --- FCall payload struct ---
-/// Per-callsite data for function calls: variadic index, own_args
-/// bitmap, result type. Neither the kwargs arg count nor a
-/// kwargs_index field is stored: kwargs_count is derived from the
-/// trailing-NamedArg structural marker (fcall_kwargs_count), and the
-/// kwargs block position is derived from the resolved callee's param
-/// layout via fcall_kwargs_index_via_scope. variadic_count likewise
-/// derives via fcall_variadic_count (needs the callee's nparam +
-/// has-kwargs).
+/// Per-callsite data for function calls: parse-time flags (is_splat,
+/// does_throw, is_bang), own_args bitmap, result type. The variadic
+/// and kwargs block positions and counts are not stored -- they all
+/// derive from the resolved callee's param layout plus the structural
+/// markers in fcall.children:
+///   - kwargs_count : trailing-NamedArg count (fcall_kwargs_count).
+///   - kwargs_index : derived position via fcall_kwargs_index_via_scope.
+///   - variadic_count : children layout + nparam + has-kwargs
+///     (fcall_variadic_count).
+///   - variadic_index : implicit at `1 + fdef_data.variadic_index`
+///     post-desugar. Step 7 of #147 closes here: the trailing typer
+///     resolution artifact is gone.
 FCallData := struct {
-    variadic_index : I32 = -1
     is_splat := false
     // Issue #198: parser sets this when the call is followed by ~?~,
     // marking it as a call to a throwing function. The typer
@@ -273,8 +276,8 @@ FCallData := struct {
     // call proc"; both kinds may or may not return a value).
     til_type := Type.Unknown
 namespace:
-    eq := func(a: FCallData, b: FCallData) returns Bool {
-        return a.variadic_index.eq(b.variadic_index)
+    eq := func(_a: FCallData, _b: FCallData) returns Bool {
+        return true
     }
     to_str := func(_self: FCallData) returns Str { return "FCall" }
 }
@@ -606,13 +609,7 @@ namespace:
     }
     /// Create a new Expr with the given node_type and source location.
     new := func(data: NodeType, shallow line: U32, shallow col: U32) returns Expr {
-        mut out := Expr(node_type = data.clone(), line = line, col = col)
-        switch out.node_type {
-        case NodeType.FCall(fcall_data):
-            fcall_data.variadic_index = -1
-        case:
-        }
-        return out
+        return Expr(node_type = data.clone(), line = line, col = col)
     }
     eq := func(_self: Expr, _other: Expr) returns shallow Bool {
         TODO(__LOC__, "Expr.eq")
@@ -913,21 +910,20 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
 // trailing-children accounting).
 //
 // Derivation (post-desugar param-aligned children, pre-variadic-rewrite):
-//   children = 1 (callee) + (nparam - has_variadic - callee_has_kwargs)
+//   children = 1 (callee) + (nparam - 1 - callee_has_kwargs)
 //              + variadic_count + kwargs_count
-// Solving for variadic_count with has_variadic = 1 (caller is guarded
-// by variadic_index >= 0, so caller's variadic-present is equivalent
-// to callee's):
+// Solving for variadic_count:
 //   - callee_has_kwargs : variadic_count
-//       = children.len() - 1 - (nparam - 2) - kwargs_count
 //       = children.len() - nparam + 1 - kwargs_count
 //   - no kwargs         : variadic_count = children.len() - nparam
 // kwargs_count comes from the structural trailing-NamedArg count
 // (see fcall_kwargs_count) so neither path needs a stored kwargs index.
+// Caller must guarantee the callee has a variadic param; the function
+// is only meaningful in that case (no field check survives now that
+// FCallData.variadic_index has been derived away).
 fcall_variadic_count := func(fcall: Expr, shallow nparam: USize, shallow callee_has_kwargs: Bool) returns USize {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        if fcd.variadic_index.lt(0) { return 0 }
+    case NodeType.FCall:
         if callee_has_kwargs {
             kc := fcall_kwargs_count(fcall)
             return fcall.children.len().add(1).sub(nparam).sub(kc)

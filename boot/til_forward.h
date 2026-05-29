@@ -361,7 +361,6 @@ typedef struct FunctionDef {
 
 
 typedef struct FCallData {
-    I32 variadic_index;
     Bool is_splat;
     Bool does_throw;
     Bool is_bang;
@@ -1524,7 +1523,7 @@ Bool expr_contains_fcall(Expr * e);
 Bool expr_uses_var(Expr * e, Str * name);
 Bool expr_contains_decl(Expr * e, Str * name);
 Bool expr_used_in_nested_func(Expr * e, Str * name);
-Expr * priv___src_self_typer_til__find_variadic_fcall(Expr * e);
+Expr * priv___src_self_typer_til__find_variadic_fcall(Expr * e, TypeScope * scope);
 Expr * find_kwargs_fcall(Expr * e, TypeScope * scope);
 Expr * find_array_vec_fcall(Expr * e);
 Str * type_prefix(Type * t);
@@ -1560,12 +1559,14 @@ void hoist_return_expr(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * sc
 void hoist_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_field_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, U32 vc);
+void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, I32 vi, U32 vc);
 U32 * fcall_variadic_count_via_scope(Expr * fcall, TypeScope * scope);
+Bool * fcall_callee_has_variadic_via_scope(Expr * fcall, TypeScope * scope);
+I32 * fcall_variadic_index_via_scope(Expr * fcall, TypeScope * scope);
 I32 * fcall_kwargs_index_via_scope(Expr * fcall, TypeScope * scope);
-I32 * priv___src_self_typer_til__derive_fcall_kwargs_index(Expr * fcall, FunctionDef * fdef_data);
+I32 * priv___src_self_typer_til__derive_fcall_kwargs_index(Expr * _fcall, FunctionDef * fdef_data);
 Str * resolve_variadic_elem_type(Expr * fcall, TypeScope * scope);
-Bool desugar_pure_splat_variadic_call(Expr * fcall, U32 vc);
+Bool desugar_pure_splat_variadic_call(Expr * fcall, I32 vi, U32 vc);
 void rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
 Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
