@@ -252,7 +252,7 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
 priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns shallow I32 {
     for csi in 0..coverage.sub_names.len() {
         ref n : Str = coverage.sub_names.get(csi)
-        if n.eq(variant_name) { return csi.to_i32() }
+        if n.eq(variant_name) { return csi.cast(I32) }
     }
     return -1
 }
@@ -285,7 +285,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                 if type_name.eq(expected_type_name) {
                     idx := coverage_sub_index(coverage, variant_name)
                     if idx.gte(0) {
-                        ref sub : CoverageNode = coverage.sub_nodes.get(idx.to_u32())
+                        ref sub : CoverageNode = coverage.sub_nodes.get(idx.cast(U32))
                         return sub.fully_covered
                     }
                 }
@@ -313,7 +313,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                         if type_name2.eq(expected_type_name) {
                             idx2 := coverage_sub_index(coverage, variant_name2)
                             if idx2.gte(0) {
-                                ref sub2 : CoverageNode = coverage.sub_nodes.get(idx2.to_u32())
+                                ref sub2 : CoverageNode = coverage.sub_nodes.get(idx2.cast(U32))
                                 if sub2.fully_covered { return true }
                                 ref inner_pat : Expr = pattern.child(1)
                                 if inner_pat.node_type.is(NodeType.Ident) {
@@ -370,7 +370,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                 if type_name.eq(expected_type_name) {
                     idx := coverage_sub_index(coverage, variant_name)
                     if idx.gte(0) {
-                        ref mut sub : CoverageNode = coverage.sub_nodes.get(idx.to_u32())
+                        ref mut sub : CoverageNode = coverage.sub_nodes.get(idx.cast(U32))
                         sub.fully_covered = true
                     }
                 }
@@ -400,7 +400,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                         if type_name2.eq(expected_type_name) {
                             idx2 := coverage_sub_index(coverage, variant_name2)
                             if idx2.gte(0) {
-                                ref mut sub2 : CoverageNode = coverage.sub_nodes.get(idx2.to_u32())
+                                ref mut sub2 : CoverageNode = coverage.sub_nodes.get(idx2.cast(U32))
                                 ref inner_pat : Expr = pattern.child(1)
                                 if inner_pat.node_type.is(NodeType.Ident) {
                                     // Whole-payload binding -> covers all sub-variants.
@@ -939,14 +939,14 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
         while pi.lt(fdef_data.params.len()) {
             if ci.gte(e.children.len()) { break }
             if fvi.gte(0) {
-                if pi.to_i32().eq(fvi) {
+                if pi.cast(I32).eq(fvi) {
                     ci = ci.add(fvc)
                     pi = pi.add(1)
                     continue
                 }
             }
             if fkwi.gte(0) {
-                if pi.to_i32().eq(fkwi) {
+                if pi.cast(I32).eq(fkwi) {
                     ci = ci.add(fkc)
                     pi = pi.add(1)
                     continue
@@ -1065,7 +1065,7 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
                 for j in 0..nfields {
                     ref fld_decl : Declaration = ctor_sdd.fields.get(j)
                     if fld_decl.name.eq(aname) {
-                        slot = j.to_i32()
+                        slot = j.cast(I32)
                         break
                     }
                 }
@@ -1074,16 +1074,16 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
                     type_error(arg, msg, ctx)
                 }
                 if slot.gte(0) {
-                    ref ctor_fld : Declaration = ctor_sdd.fields.get(slot.to_u32())
+                    ref ctor_fld : Declaration = ctor_sdd.fields.get(slot.cast(U32))
                     check_member_priv(arg, name, aname, ctor_fld.is_priv, ctx)
                     if ctx.auto_gen_depth.eq(0) { ctor_fld.used = true }
-                    ref slot_arg : CtorArg = field_vals.get(slot.to_u32())
+                    ref slot_arg : CtorArg = field_vals.get(slot.cast(U32))
                     if slot_arg.is(CtorArg.Filled) {
                         msg := format("duplicate argument for field '", aname, "'")
                         type_error(arg, msg, ctx)
                     }
                     if slot_arg.is(CtorArg.Filled).not() {
-                        field_vals.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
@@ -1118,7 +1118,7 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
         for fi in 0..nfields {
             if fi.gte(e.children.len().sub(1)) { break }
             ref fld_decl : Declaration = ctor_sdd.fields.get(fi)
-            ai := fi.add(1).to_i32()
+            ai := fi.add(1).cast(I32)
             if fld_decl.own_type.is(OwnType.Ref) { continue }
             if fld_decl.own_type.is(OwnType.Own).not() {
                 if type_ctor_consumes(fld_decl.til_type).not() { continue }
@@ -1142,7 +1142,7 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
         kwi := fdef_data.kwargs_index
         mut fixed_count : U32 = nparam
         if vi.gte(0) {
-            fixed_count = vi.to_u32()
+            fixed_count = vi.cast(U32)
         }
         mut va_args := Vec.new(Expr)
         mut kw_args := Vec.new(Expr)
@@ -1159,11 +1159,11 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                 seen_named = true
                 mut slot : I32 = -1
                 for j in 0..nparam {
-                    if j.to_i32().eq(vi) { continue }
-                    if j.to_i32().eq(kwi) { continue }
+                    if j.cast(I32).eq(vi) { continue }
+                    if j.cast(I32).eq(kwi) { continue }
                     ref param : Declaration = fdef_data.params.get(j)
                     if param.name.eq(aname) {
-                        slot = j.to_i32()
+                        slot = j.cast(I32)
                         break
                     }
                 }
@@ -1174,12 +1174,12 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                         type_error(arg, format("'", name, "' has no parameter '", aname, "'"), ctx)
                     }
                 } else {
-                    ref slot_arg : Expr = new_args.get(slot.to_u32())
+                    ref slot_arg : Expr = new_args.get(slot.cast(U32))
                     if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         type_error(arg, format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        free_expr_slot_in_place(new_args.get(slot.to_u32()))
-                        new_args.set(slot.to_u32(), own arg.child(0).clone())
+                        free_expr_slot_in_place(new_args.get(slot.cast(U32)))
+                        new_args.set(slot.cast(U32), own arg.child(0).clone())
                     }
                 }
             case:
@@ -1201,8 +1201,8 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
             }
         }
         for i in 0..nparam {
-            if i.to_i32().eq(vi) { continue }
-            if i.to_i32().eq(kwi) { continue }
+            if i.cast(I32).eq(vi) { continue }
+            if i.cast(I32).eq(kwi) { continue }
             ref slot_arg : Expr = new_args.get(i)
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params.get(i)
@@ -1227,12 +1227,12 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..nparam {
-            if i.to_i32().eq(vi) {
+            if i.cast(I32).eq(vi) {
                 va_count := va_args.len()
                 for vai in 0..va_count {
                     new_ch.push_take(va_args, vai)
                 }
-            } else if i.to_i32().eq(kwi) {
+            } else if i.cast(I32).eq(kwi) {
                 kw_count := kw_args.len()
                 for kwi2 in 0..kw_count {
                     new_ch.push_take(kw_args, kwi2)
@@ -1353,7 +1353,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         while pi.lt(fdef_data.params.len()) {
             if ci.gte(e.children.len()) { break }
             if fvi.gte(0) {
-                if pi.to_i32().eq(fvi) {
+                if pi.cast(I32).eq(fvi) {
                     ref vparam : Declaration = fdef_data.params.get(pi)
                     vptype := type_from_name(vparam.explicit_type, scope, ctx)
                     for vk in 0..fvc {
@@ -1366,7 +1366,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                 }
             }
             if fkwi.gte(0) {
-                if pi.to_i32().eq(fkwi) {
+                if pi.cast(I32).eq(fkwi) {
                     ci = ci.add(fkc)
                     pi = pi.add(1)
                     continue
@@ -1385,7 +1385,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
         while pi.lt(fdef_data.params.len()) {
             if ci.gte(e.children.len()) { break }
             if fvi.gte(0) {
-                if pi.to_i32().eq(fvi) {
+                if pi.cast(I32).eq(fvi) {
                     ref vparam : Declaration = fdef_data.params.get(pi)
                     ref vptype_name : Str = vparam.explicit_type
                     mut is_splat := false
@@ -1425,7 +1425,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
                 }
             }
             if fkwi.gte(0) {
-                if pi.to_i32().eq(fkwi) {
+                if pi.cast(I32).eq(fkwi) {
                     ci = ci.add(fkc)
                     pi = pi.add(1)
                     continue
@@ -1792,18 +1792,18 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
                 for j in 0..np {
                     ref param : Declaration = ns_fdef.params.get(j)
                     if param.name.eq(aname) {
-                        slot = j.to_i32()
+                        slot = j.cast(I32)
                         break
                     }
                 }
                 if slot.lt(0) {
                     type_error(arg, format("no parameter '", aname, "'"), ctx)
                 } else {
-                    ref slot_arg : CtorArg = new_args.get(slot.to_u32())
+                    ref slot_arg : CtorArg = new_args.get(slot.cast(U32))
                     if slot_arg.is(CtorArg.Filled) {
                         type_error(arg, format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        new_args.set(slot.to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                        new_args.set(slot.cast(U32), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
@@ -2132,6 +2132,15 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     if e.children.len().neq(3) {
         type_error(e, "cast expects (value, Type), e.g. x.cast(I32)", ctx)
         set_expr_til_type(e, Type.Unknown)
+        return
+    }
+    // Idempotency: if the typer has already processed this cast (e.g. a
+    // for-range desugar re-infers an already-typed FCall), child(2) is
+    // no longer the bare Ident but a Type-value expr from
+    // make_til_type_expr. Re-infer args for safety but skip the rewrite
+    // / target-type derivation.
+    if expr_til_type(e).is(Type.Unknown).not() {
+        infer_expr(scope, e.child(1), in_func, ctx)
         return
     }
     infer_expr(scope, e.child(1), in_func, ctx)
@@ -2588,7 +2597,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                     type_error(expr, "parameter cannot be both 'shallow' and 'own'", ctx)
                 }
             }
-            if i.to_i32().eq(fdef.variadic_index) {
+            if i.cast(I32).eq(fdef.variadic_index) {
                 // Regular til funcs get a callee-side auto-cleanup
                 // (Array.delete at scope exit) so the caller can transfer
                 // ownership cleanly. ext_func/ext_proc bodies are
@@ -2599,7 +2608,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
                 if is_ext_va.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("Array"), FuncType.None, false, ctx.path, expr.line, expr.col, true, param.own_type)
-            } else if i.to_i32().eq(fdef.kwargs_index) {
+            } else if i.cast(I32).eq(fdef.kwargs_index) {
                 // Same rationale as variadic above.
                 is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
@@ -2661,8 +2670,8 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             for lpi in 0..fdef.params.len() {
                 ref lpp : Declaration = fdef.params.get(lpi)
                 mut lptn := lpp.explicit_type.clone()
-                if lpi.to_i32().eq(fdef.variadic_index) { lptn = "Array" }
-                if lpi.to_i32().eq(fdef.kwargs_index) { lptn = "DynMap" }
+                if lpi.cast(I32).eq(fdef.variadic_index) { lptn = "Array" }
+                if lpi.cast(I32).eq(fdef.kwargs_index) { lptn = "DynMap" }
                 if lptn.len().gt(0) { ctx.lowering_param_types.set(own lpp.name.clone(), own lptn) }
             }
             process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
@@ -6134,12 +6143,12 @@ priv process_throw_catch_in_body := proc(
                         }
                     }
                     ctx.throw_used_local_names.add(own idn.name.clone())
-                    mut scan_decl : I32 = new_ch.len().to_i32()
+                    mut scan_decl : I32 = new_ch.len().cast(I32)
                     if scan_decl.gt(0) {
                         scan_decl = scan_decl.sub(1)
                     }
                     while scan_decl.gte(0) {
-                        ref prior_stmt : Expr = new_ch.get(scan_decl.to_u32())
+                        ref prior_stmt : Expr = new_ch.get(scan_decl.cast(U32))
                         switch prior_stmt.node_type {
                         case NodeType.Decl(prior_dd):
                             if prior_dd.name.eq(idn.name.clone()) {
@@ -7592,16 +7601,16 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                         mut fd_idx : I32 = -1
                                         if field_name.is_empty() {
                                             // Positional: arg position ci-1 maps to field index.
-                                            fd_idx = ci.sub(1).to_i32()
+                                            fd_idx = ci.sub(1).cast(I32)
                                         } else {
                                             for fi in 0..tsv_sdd.fields.len() {
                                                 ref tfd : Declaration = tsv_sdd.fields.get(fi)
-                                                if tfd.name.eq(field_name) { fd_idx = fi.to_i32(); break }
+                                                if tfd.name.eq(field_name) { fd_idx = fi.cast(I32); break }
                                             }
                                         }
                                         if fd_idx.lt(0) { continue }
-                                        if fd_idx.to_u32().gte(tsv_sdd.fields.len()) { continue }
-                                        ref fld_decl : Declaration = tsv_sdd.fields.get(fd_idx.to_u32())
+                                        if fd_idx.cast(U32).gte(tsv_sdd.fields.len()) { continue }
+                                        ref fld_decl : Declaration = tsv_sdd.fields.get(fd_idx.cast(U32))
                                         if fld_decl.own_type.is(OwnType.Shallow).not() { continue }
                                         if type_ctor_consumes(fld_decl.til_type) {
                                             return true
@@ -7822,7 +7831,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     set_expr_til_type(idx, usize_type(scope, ctx))
     set_call.add_child(own idx)
 
-    ref val_in : Expr = fcall.child(vi.add(j.to_i32()).to_usize())
+    ref val_in : Expr = fcall.child(vi.add(j.cast(I32)).to_usize())
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(expr_til_type(val_in))
@@ -8249,7 +8258,7 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
                 scope.set(kw_name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, e.line, e.col, false, OwnType.Shallow)
                 new_ch.push(own kw_decl)
                 for j in 0..kc {
-                    ref named_arg : Expr = e.child(ki.add(j.to_i32()).to_usize())
+                    ref named_arg : Expr = e.child(ki.add(j.cast(I32)).to_usize())
                     mut setter := build_kwargs_dynmap_set(e, scope, kw_name, named_arg, ctx)
                     new_ch.push(own setter)
                 }
@@ -8731,7 +8740,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, shallow vi: I
         mut va_inserted := false
         mut new_own : U64 = 0
         for j in 0..old_args.len() {
-            if j.to_i32().gte(vi).and(j.to_i32().lt(vi.add(vc.to_i32()))) {
+            if j.cast(I32).gte(vi).and(j.cast(I32).lt(vi.add(vc.cast(I32)))) {
                 if va_inserted.not() {
                     mut va_id := Expr.new(ident_node(va_name), line, col)
                     set_expr_til_type(va_id, Type.Struct("Array"))
@@ -8743,7 +8752,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, shallow vi: I
                 }
                 continue
             }
-            if j.to_i32().eq(vi).and(va_inserted.not()) {
+            if j.cast(I32).eq(vi).and(va_inserted.not()) {
                 mut va_id := Expr.new(ident_node(va_name), line, col)
                 set_expr_til_type(va_id, Type.Struct("Array"))
                 mut bit : U64 = 1
@@ -9005,7 +9014,7 @@ fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns I32 
 priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) returns I32 {
     fkwi := fdef_data.kwargs_index
     if fkwi.lt(0) { return -1 }
-    return fdef_data.params.len().to_i32()
+    return fdef_data.params.len().cast(I32)
 }
 
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
@@ -9076,7 +9085,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr, shallow vi: I32, shall
         }
         mut fcall_new_ch := Vec.new(Expr)
         for j in 0..old_args.len() {
-            ji := j.to_i32()
+            ji := j.cast(I32)
             if ji.eq(vi) {
                 fcall_new_ch.push(own splat)
             } else {
@@ -9104,8 +9113,8 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, shallow ki: I32
         mut new_own : U64 = 0
 
         for j in 0..old_args.len() {
-            ji := j.to_i32()
-            if ji.gte(ki).and(ji.lt(ki.add(kc.to_i32()))) {
+            ji := j.cast(I32)
+            if ji.gte(ki).and(ji.lt(ki.add(kc.cast(I32)))) {
                 if kw_inserted.not() {
                     mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
                     set_expr_til_type(kw_id, Type.Struct("DynMap"))

@@ -166,7 +166,7 @@ ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
 
 value_to_u64 := func(v: Value) returns U64 {
     switch v {
-    case Value.Int(x):     return x.to_u64()
+    case Value.Int(x):     return x.cast(U64)
     case Value.Byte(x):    return x.to_u64()
     case Value.Sbyte(x):   return x.to_u64()
     case Value.Short(x):   return x.to_u64()
@@ -351,13 +351,13 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bo
     v := eval_expr(s, e.child(1), ctx)
     raw := value_to_u64(v)
     tn := til_type_name_c(expr_til_type(e))
-    if tn.eq("I8")  { r = val_i8(raw.to_i64());  return true }
-    if tn.eq("U8")  { r = val_u8(raw.to_i64());  return true }
-    if tn.eq("I16") { r = val_i16(raw.to_i64()); return true }
-    if tn.eq("U16") { r = val_u16(raw.to_i64()); return true }
-    if tn.eq("I32") { r = val_i32(raw.to_i64()); return true }
-    if tn.eq("U32") { r = val_u32(raw.to_i64()); return true }
-    if tn.eq("I64") { r = val_i64(raw.to_i64()); return true }
+    if tn.eq("I8")  { r = val_i8(raw.cast(I64));  return true }
+    if tn.eq("U8")  { r = val_u8(raw.cast(I64));  return true }
+    if tn.eq("I16") { r = val_i16(raw.cast(I64)); return true }
+    if tn.eq("U16") { r = val_u16(raw.cast(I64)); return true }
+    if tn.eq("I32") { r = val_i32(raw.cast(I64)); return true }
+    if tn.eq("U32") { r = val_u32(raw.cast(I64)); return true }
+    if tn.eq("I64") { r = val_i64(raw.cast(I64)); return true }
     if tn.eq("U64") { r = val_u64(raw); return true }
     UNREACHABLE(__LOC__)
     return false
@@ -516,7 +516,7 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 
 h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -534,7 +534,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 
 h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -552,7 +552,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 
 h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -606,7 +606,7 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 
 h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -624,7 +624,7 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 
 h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -646,7 +646,7 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 
 h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -704,7 +704,7 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 
 h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -734,7 +734,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
 
 h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -763,7 +763,7 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 
 h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_i64()
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -1490,7 +1490,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         mut entry := FFIEntry()
         entry.fn = fn
         if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
-        entry.nparam = np.to_i32()
+        entry.nparam = np.cast(I32)
         entry.param_shallows = pshallows
         entry.return_is_shallow = ret_shallow
         entry.cif = cif

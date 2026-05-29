@@ -282,7 +282,7 @@ test_alias_in_struct_methods := test() {
     mut v := MyVec()
     v++
     v++
-    assert_eq(__LOC__, v.len().to_i64(), 2)
+    assert_eq(__LOC__, v.len().cast(I64), 2)
 }
 
 # === Type aliases: pointer-width integers (#81) ===
@@ -293,13 +293,13 @@ add_uptr := func(a: UPtr, b: UPtr) returns UPtr {
 
 test_uptr_type_alias := test() {
     x : UPtr = 42
-    assert_eq(__LOC__, x.to_i64(), 42)
+    assert_eq(__LOC__, x.cast(I64), 42)
     y : UPtr = 100
-    assert_eq(__LOC__, x.add(y).to_i64(), 142)
+    assert_eq(__LOC__, x.add(y).cast(I64), 142)
 }
 
 test_uptr_alias_in_func := test() {
-    assert_eq(__LOC__, add_uptr(3, 7).to_i64(), 10)
+    assert_eq(__LOC__, add_uptr(3, 7).cast(I64), 10)
 }
 
 test_uptr_memory_api := test() {

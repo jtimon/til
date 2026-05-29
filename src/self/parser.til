@@ -331,7 +331,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if fd.kwargs_index.neq(-1) {
                     panic(__LOC__, "only one kwargs parameter is allowed")
                 }
-                fd.kwargs_index = fd.params.len().to_i32()
+                fd.kwargs_index = fd.params.len().cast(I32)
                 is_kwargs = true
                 // For regular til funcs the codegen auto-inserts a
                 // DynMap.delete at the callee's scope exit, so the caller
@@ -354,7 +354,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
                 if own_type.is(OwnType.Shallow) { panic(__LOC__, "variadic param cannot be 'shallow'") }
                 if fd.variadic_index.neq(-1) { panic(__LOC__, "only one variadic param allowed") }
-                fd.variadic_index = fd.params.len().to_i32()
+                fd.variadic_index = fd.params.len().cast(I32)
                 is_variadic = true
                 // Same as kwargs above: regular til funcs get auto-cleanup
                 // via Array.delete at scope exit; ext_func/ext_proc bodies

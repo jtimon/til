@@ -24,14 +24,14 @@ test_hash_i64_negative_does_not_panic := test() {
 }
 
 test_hash_u64_deterministic := test() {
-    a := hash_u64(99.to_u64())
-    b := hash_u64(99.to_u64())
+    a := hash_u64(99.cast(U64))
+    b := hash_u64(99.cast(U64))
     assert(__LOC__, a.eq(b))
 }
 
 test_hash_u64_distinct := test() {
-    a := hash_u64(0.to_u64())
-    b := hash_u64(1.to_u64())
+    a := hash_u64(0.cast(U64))
+    b := hash_u64(1.cast(U64))
     assert(__LOC__, a.eq(b).not())
 }
 

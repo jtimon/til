@@ -211,7 +211,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         switch val {
         case Value.Int(iv):    etag = iv.to_i32()
         case Value.Int32(iv):  etag = iv
-        case Value.Uint32(uv): etag = uv.to_i32()
+        case Value.Uint32(uv): etag = uv.cast(I32)
         case:
         }
         if etag.gte(0) {

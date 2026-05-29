@@ -27,19 +27,19 @@ make_tone := proc(freq: I64, duration_ms: I64, shallow amp: F32) returns Sound {
     sr := 44100
     mut n := sr * duration_ms / 1000
     if n < 1 { n = 1 }
-    buf : Dynamic = malloc((n * 4).to_u64())
+    buf : Dynamic = malloc((n * 4).cast(U64))
     attack := sr / 100
     release := sr / 100
     pi2 : F32 = 6283185.div(1000000)
     freq_f := freq.to_f32()
     sr_f := sr.to_f32()
-    for i in 0..n.to_u64() {
+    for i in 0..n.cast(U64) {
         mut env : F32 = 1
-        if i.to_i64() < attack {
+        if i.cast(I64) < attack {
             env = i.to_f32().div(attack.to_f32())
         }
-        if i.to_i64() > n - release {
-            env = (n - i.to_i64()).to_f32().div(release.to_f32())
+        if i.cast(I64) > n - release {
+            env = (n - i.cast(I64)).to_f32().div(release.to_f32())
         }
         sample := sinf(pi2.mul(freq_f).mul(i.to_f32()).div(sr_f)).mul(amp).mul(env)
         memcpy(ptr_add(buf, i * 4), sample, 4)

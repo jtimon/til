@@ -446,7 +446,7 @@ test_i64_safe_mul_overflow := test() {
 test_u64_safe_add_overflow := test() {
     mut caught := false
     mut emsg := ""
-    max_u64 := -1.to_u64()
+    max_u64 := -1.cast(U64)
     _ := max_u64.safe_add(1)?
     catch (err: IntegerOverflow) {
         caught = true
@@ -472,7 +472,7 @@ test_u64_safe_sub_underflow := test() {
 test_u64_safe_mul_overflow := test() {
     mut caught := false
     mut emsg := ""
-    big := -1.to_u64()
+    big := -1.cast(U64)
     _ := big.safe_mul(2)?
     catch (err: IntegerOverflow) {
         caught = true

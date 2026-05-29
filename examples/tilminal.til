@@ -55,7 +55,7 @@ main := proc(args: ..Str) {
 
     mut input := ""
 
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE.to_u32())
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE.cast(U32))
     InitWindow(960, 640, "tilminal".c_str)
     SetWindowMinSize(320, 200)
     SetTargetFPS(60)

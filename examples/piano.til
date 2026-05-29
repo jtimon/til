@@ -130,8 +130,8 @@ main := proc() {
                         for j : USize in 0..5 {
                             ref bpos : I32 = BLACK_KEY_POS.get(j)!
                             ref bchrom_off : I32 = BLACK_CHROMS.get(j)!
-                            chrom := bchrom_off + oct.to_i32() * 12
-                            bx := (oct.to_i32() * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
+                            chrom := bchrom_off + oct.cast(I32) * 12
+                            bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
                             if chrom.to_usize() < NUM_KEYS & mx >= bx & mx < bx + BLACK_W {
                                 mouse_note = chrom
                             }
@@ -162,7 +162,7 @@ main := proc() {
                 ref s : Sound = sounds.get(i)!
                 PlaySound(s)
                 // Add note event
-                ev_note.set(ev_head.to_usize(), own i.to_i32())
+                ev_note.set(ev_head.to_usize(), own i.cast(I32))
                 t_val := timer
                 ev_start.set(ev_head.to_usize(), own t_val)
                 ev_end.set(ev_head.to_usize(), own -1)
@@ -180,7 +180,7 @@ main := proc() {
                     idx := (ev_head - 1 - j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
                     ref en : I32 = ev_note.get(idx.to_usize())!
                     ref ee : I64 = ev_end.get(idx.to_usize())!
-                    if en == i.to_i32() & ee == -1 {
+                    if en == i.cast(I32) & ee == -1 {
                         t_val := timer
                         ev_end.set(idx.to_usize(), own t_val)
                         break
@@ -204,9 +204,9 @@ main := proc() {
         DrawRectangle(0, 0, WINDOW_WIDTH, ROLL_H, ROLL_BG)
 
         // Piano roll grid lines (one per note, horizontal)
-        note_h := ROLL_H / NUM_KEYS.to_i32()
+        note_h := ROLL_H / NUM_KEYS.cast(I32)
         for i in 0..NUM_KEYS {
-            ny := i.to_i32() * note_h
+            ny := i.cast(I32) * note_h
             ref ib : I32 = IS_BLACK.get(i.mod(12))!
             if ib == 1 {
                 DrawRectangle(0, ny, WINDOW_WIDTH, note_h, GRID_BLACK)
@@ -252,7 +252,7 @@ main := proc() {
 
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
-            ny := ROLL_H - (i.to_i32() + 1) * note_h
+            ny := ROLL_H - (i.cast(I32) + 1) * note_h
             ref nn : Str = NOTE_NAMES.get(i.mod(12))!
             oct_label := nn.concat((i / 12 + 3).to_str())
             DrawTextEx(fnt, oct_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
@@ -261,10 +261,10 @@ main := proc() {
         // -- Piano keyboard --
         // Draw 21 white keys (3 octaves)
         for i : USize in 0..21 {
-            kx := i.to_i32() * WHITE_W
+            kx := i.cast(I32) * WHITE_W
             oct := i / 7
             ref nat : I32 = NATURALS.get(i.mod(7))!
-            chrom := nat + oct.to_i32() * 12
+            chrom := nat + oct.cast(I32) * 12
 
             mut k_color := KEY_WHITE
             if chrom.to_usize() < NUM_KEYS {
@@ -287,8 +287,8 @@ main := proc() {
             for j : USize in 0..5 {
                 ref bpos : I32 = BLACK_KEY_POS.get(j)!
                 ref bchrom_off : I32 = BLACK_CHROMS.get(j)!
-                chrom := bchrom_off + oct.to_i32() * 12
-                bx := (oct.to_i32() * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
+                chrom := bchrom_off + oct.cast(I32) * 12
+                bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
 
                 mut kb_color := KEY_BLACK
                 if chrom.to_usize() < NUM_KEYS {

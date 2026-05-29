@@ -11,7 +11,6 @@ U32 := struct {
 namespace:
     to_i64 := ext_func(shallow val: U32) returns shallow I64 {}
     to_u64 := ext_func(shallow val: U32) returns shallow U64 {}
-    to_i32 := ext_func(shallow val: U32) returns shallow I32 {}
     to_f32 := ext_func(shallow val: U32) returns shallow F32 {}
     /// Convert to decimal string representation.
     to_str := func(val: U32) returns Str {

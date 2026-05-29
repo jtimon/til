@@ -56,7 +56,7 @@ run_phase := proc(cmd: Str) returns PhaseResult {
     pid := spawn_cmd(cmd)
     mut mem := 0
     while true {
-        rss := current_rss_bytes(pid).to_i64()
+        rss := current_rss_bytes(pid).cast(I64)
         if rss.gt(mem) { mem = rss }
         status := check_cmd_status(pid)
         if status.neq(-1) {

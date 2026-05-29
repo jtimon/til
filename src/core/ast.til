@@ -995,7 +995,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
             ref vn : Str = edd.variants.get(i)
-            if vn.eq(variant_name) { return i.to_i32() }
+            if vn.eq(variant_name) { return i.cast(I32) }
         }
     case:
         UNREACHABLE(__LOC__)
@@ -1023,7 +1023,7 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
 enum_variant_payload_const := func(enum_def: Expr, shallow tag: I32) returns shallow Bool {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        tag_u := tag.to_u32()
+        tag_u := tag.cast(U32)
         if tag_u.lt(edd.payload_consts.len()) {
             ref pc : Bool = edd.payload_consts.get(tag_u)
             if pc { return true }

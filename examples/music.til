@@ -132,7 +132,7 @@ start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64)
 draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: Array,
                    mut sc_triad: Array, playing: Bool, play_idx: USize,
                    clicked_note: I32, sel_notation: USize, fnt: Font) {
-    dnx := NOTE_X0 + dni.to_i32() * NOTE_DX
+    dnx := NOTE_X0 + dni.cast(I32) * NOTE_DX
     ref nd : I32 = sc_diat.get(dni)!
     ref no : I32 = sc_oct.get(dni)!
     staff_pos := nd - 2 + no * 7
@@ -167,7 +167,7 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
     if playing.and(play_idx.gt(dni)) {
         note_color = Color(r = 100, g = 100, b = 0, a = 255)
     }
-    if clicked_note.eq(dni.to_i32()) {
+    if clicked_note.eq(dni.cast(I32)) {
         note_color = CYAN
     }
 
@@ -200,9 +200,9 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
     ref nat_c : I32 = NATURALS.get(sel_diatonic)!
     root_chromatic := (nat_c + sel_accidental + 12) % 12
     mut chrom_total := root_chromatic
-    mut diat_pos := sel_diatonic.to_i32()
+    mut diat_pos := sel_diatonic.cast(I32)
     mut diat_oct : I32 = 0
-    mut prev_diat := sel_diatonic.to_i32()
+    mut prev_diat := sel_diatonic.cast(I32)
 
     for k : USize in 0..8 {
         chrom_mod := chrom_total % 12
@@ -258,7 +258,7 @@ draw_piano := proc(active_chrom: I32, active_oct: USize) {
 
     // 2 octaves: 15 white keys (C4-B4, C5-B5, C6)
     for i : USize in 0..15 {
-        kx := STAFF_X + i.to_i32() * WHITE_W
+        kx := STAFF_X + i.cast(I32) * WHITE_W
         ref nat : I32 = NATURALS.get(i.mod(7))!
         key_oct := i / 7
         mut k_color := KEY_WHITE
@@ -273,7 +273,7 @@ draw_piano := proc(active_chrom: I32, active_oct: USize) {
         for j : USize in 0..5 {
             ref bpos : I32 = BLACK_KEY_POS.get(j)!
             ref bchrom : I32 = BLACK_CHROMS.get(j)!
-            bx := STAFF_X + (oct.to_i32() * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
+            bx := STAFF_X + (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
             mut kb_color := KEY_BLACK
             if active_chrom.gte(0).and(bchrom.eq(active_chrom)).and(oct.eq(active_oct)) {
                 kb_color = KEY_BLACK_PRESSED
@@ -379,12 +379,12 @@ main := proc() {
             for ci : USize in 0..8 {
                 ref cd : I32 = sc_diat.get(ci)!
                 ref co : I32 = sc_oct.get(ci)!
-                cnx := NOTE_X0 + ci.to_i32() * NOTE_DX
+                cnx := NOTE_X0 + ci.cast(I32) * NOTE_DX
                 cny := staff_y(cd, co)
                 hit := NOTE_R * 3
                 if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
                     ref cf : I64 = sc_freq.get(ci)!
-                    play_note(cf, clicked_note, clicked_timer, ci.to_i32())
+                    play_note(cf, clicked_note, clicked_timer, ci.cast(I32))
                 }
             }
         }
@@ -411,7 +411,7 @@ main := proc() {
                 play_timer = 0
                 if play_idx.lt(8) {
                     ref pf : I64 = sc_freq.get(play_idx)!
-                    play_note(pf, clicked_note, clicked_timer, play_idx.to_i32())
+                    play_note(pf, clicked_note, clicked_timer, play_idx.cast(I32))
                     play_idx = play_idx + 1
                 } else {
                     playing = false
@@ -426,8 +426,8 @@ main := proc() {
         // -- Note buttons (7 cols x 3 rows) --
         for row : USize in 0..3 {
             for col : USize in 0..7 {
-                bx := MARGIN + col.to_i32() * BTN_W
-                by := NOTE_ROW_Y + row.to_i32() * BTN_H
+                bx := MARGIN + col.cast(I32) * BTN_W
+                by := NOTE_ROW_Y + row.cast(I32) * BTN_H
 
                 // Highlight selected
                 mut b_color := BTN_INACTIVE
@@ -451,7 +451,7 @@ main := proc() {
 
         // -- Mode buttons --
         for mi : USize in 0..7 {
-            mbx := MARGIN + mi.to_i32() * BTN_W
+            mbx := MARGIN + mi.cast(I32) * BTN_W
             mby := MODE_ROW_Y
 
             mut mb_color := BTN_INACTIVE
@@ -467,7 +467,7 @@ main := proc() {
         // -- Radio buttons: lang + notation --
         // Lang: PT ES EN
         for li : USize in 0..3 {
-            lx := MARGIN + li.to_i32() * LANG_BTN_W
+            lx := MARGIN + li.cast(I32) * LANG_BTN_W
             mut lr_color := Color(r = 40, g = 40, b = 40, a = 255)
             if li.eq(sel_lang) { lr_color = BTN_ACTIVE }
             DrawRectangle(lx, RADIO_ROW_Y, LANG_BTN_W - 2, BTN_H - 2, lr_color)
@@ -476,7 +476,7 @@ main := proc() {
         }
         // Notation: solfege / american
         for ni : USize in 0..2 {
-            nx := NOTATION_X + ni.to_i32() * NOTATION_BTN_W
+            nx := NOTATION_X + ni.cast(I32) * NOTATION_BTN_W
             mut nr_color := Color(r = 40, g = 40, b = 40, a = 255)
             if ni.eq(sel_notation) { nr_color = BTN_ACTIVE }
             DrawRectangle(nx, RADIO_ROW_Y, NOTATION_BTN_W - 2, BTN_H - 2, nr_color)
@@ -487,14 +487,14 @@ main := proc() {
         // -- Pentagram --
         // Draw 5 staff lines
         for sli : USize in 0..5 {
-            line_pos := sli.to_i32() * 2
+            line_pos := sli.cast(I32) * 2
             ly := STAFF_BASE_Y - line_pos * STAFF_SP
             DrawRectangle(STAFF_X, ly, STAFF_W, 2, GRAY)
         }
 
         // Reference labels on both sides of staff (lines + spaces)
         for ri : USize in 0..9 {
-            ry := STAFF_BASE_Y - ri.to_i32() * STAFF_SP
+            ry := STAFF_BASE_Y - ri.cast(I32) * STAFF_SP
             rd := (ri + 2) % 7
             ref rn : Str = note_name(rd, sel_notation)
             // Left side label

@@ -67,7 +67,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
             switch s.node_type {
             case NodeType.Decl(dd):
                 if dd.name.eq(b.name) {
-                    decl_idx = j.to_i32()
+                    decl_idx = j.cast(I32)
                     break
                 }
             case:
@@ -76,7 +76,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
         if decl_idx.eq(-1) {
             for j in 0..body.children.len() {
                 if expr_contains_decl(body.child(j), b.name) {
-                    decl_idx = j.to_i32()
+                    decl_idx = j.cast(I32)
                     break
                 }
             }
@@ -92,11 +92,11 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
             ref stmt : Expr = body.child(j)
             if is_compile_directive(stmt) { continue }
             if expr_uses_var(stmt, b.name) {
-                last_use = j.to_i32()
+                last_use = j.cast(I32)
             }
             if own_transfer.eq(-1) {
                 if expr_transfers_own(stmt, b.name, scope, ctx) {
-                    own_transfer = j.to_i32()
+                    own_transfer = j.cast(I32)
                 }
             }
         }
@@ -145,7 +145,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
         // return, and which the typer otherwise leaves at Own for
         // Struct-returning FCalls).
         if decl_idx.gte(0) {
-            ref _li_stmt : Expr = body.child(decl_idx.to_u32())
+            ref _li_stmt : Expr = body.child(decl_idx.cast(U32))
             if _li_stmt.node_type.is(NodeType.Decl).and(_li_stmt.children.len().gt(0)) {
                 ref _li_rhs : Expr = _li_stmt.child(0)
                 if _li_rhs.node_type.is_literal_str() {
@@ -206,7 +206,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
             // src). Without aliasing analysis we can't pin a tighter bound,
             // so keep src alive through scope exit.
-            mut body_last := body.children.len().sub(1).to_i32()
+            mut body_last := body.children.len().sub(1).cast(I32)
             for local : LocalInfo in locals {
                 if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
                     local.last_use = body_last
@@ -231,10 +231,10 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             mut ref_last : I32 = -1
             for j in i.add(1)..body.children.len() {
                 if expr_uses_var(body.child(j), dd_name) {
-                    ref_last = j.to_i32()
+                    ref_last = j.cast(I32)
                 }
             }
-            if ref_last.eq(-1) { ref_last = i.to_i32() }
+            if ref_last.eq(-1) { ref_last = i.cast(I32) }
             for local : LocalInfo in locals {
                 if local.name.eq(dd_name).and(local.last_use.gt(ref_last)) {
                     ref_last = local.last_use
@@ -380,8 +380,8 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
-        if local.decl_index.lt(stmt_idx.to_i32()) {
-            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
+        if local.decl_index.lt(stmt_idx.cast(I32)) {
+            if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
                 live_vec.push(own local.clone())
             }
         }
@@ -416,8 +416,8 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
         }
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
-        if local.decl_index.lt(stmt_idx.to_i32()) {
-            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
+        if local.decl_index.lt(stmt_idx.cast(I32)) {
+            if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
                 if type_to_name(local.type).len().gt(0) {
                     heap := local.is_heap
                     del := make_delete_call(local.name, local.type, heap, heap, stmt)
@@ -454,7 +454,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
             if local.is_heap.and(is_aggregate(local.type)) {
-                if local.own_transfer.eq(stmt_idx.to_i32()) {
+                if local.own_transfer.eq(stmt_idx.cast(I32)) {
                     if type_to_name(local.type).len().gt(0) {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
@@ -473,7 +473,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
             }
             continue
         }
-        if local.last_use.eq(stmt_idx.to_i32()) {
+        if local.last_use.eq(stmt_idx.cast(I32)) {
             // FieldAssign with auto-cloned Ident RHS at the local's last use:
             // the clone allocates a deep copy, the field stores the copy, and
             // the local's contents would then be deleted by the normal
@@ -558,7 +558,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: 
                 if is_null(del).not() { new_ch.push(own del) }
             }
         }
-        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
+        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.cast(I32))) {
             if type_to_name(local.type).len().gt(0) {
                 heap := local.is_heap
                 del := make_delete_call(local.name, local.type, heap, heap, stmt)
@@ -602,7 +602,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
 promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals: Vec) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0) { continue }
-        ref stmt : Expr = body.child(local.decl_index.to_u32())
+        ref stmt : Expr = body.child(local.decl_index.cast(U32))
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         // Skip LiteralStr-RHS decls (temp or user-visible): the builder
         // emits these as stack-allocated compound-literal Str values, so
@@ -631,7 +631,7 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
         // out cleanly.
         if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(is_struct) {
             if local.last_use.gte(0) {
-                ref last_stmt : Expr = body.child(local.last_use.to_u32())
+                ref last_stmt : Expr = body.child(local.last_use.cast(U32))
                 if last_stmt.node_type.is(NodeType.Return) {
                     if last_stmt.children.len().gt(0) {
                         switch last_stmt.child(0).node_type {
@@ -700,8 +700,8 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, mut locals: Vec, 
         if type_to_name(local.type).len().eq(0) { continue }
         if type_to_name(local.type).eq("Str") { continue }
         if local.last_use.gt(local.own_transfer) { continue }
-        if local.own_transfer.gte(body.children.len().to_i32()) { continue }
-        ref tstmt : Expr = body.child(local.own_transfer.to_u32())
+        if local.own_transfer.gte(body.children.len().cast(I32)) { continue }
+        ref tstmt : Expr = body.child(local.own_transfer.cast(U32))
         if tstmt.node_type.is(NodeType.If).not() { continue }
         if tstmt.children.len().lt(2) { continue }
         ref then_body : Expr = tstmt.child(1)

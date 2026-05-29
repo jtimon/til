@@ -353,12 +353,12 @@ GO_IDX_KO := MAX_CELLS.add(3)
 
 // Board I64 accessors (Board.data is U8 Array, we access as I64 via ptr_add)
 board_get_i64 := func(b: Board, i: I64) returns ref I64 {
-    ref v : I64 = ptr_add(b.data.data, i.mul(8).to_u64())
+    ref v : I64 = ptr_add(b.data.data, i.mul(8).cast(U64))
     return v
 }
 
 board_set_i64 := func(mut b: Board, i: I64, shallow val: I64) {
-    memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
+    memcpy(ptr_add(b.data.data, i.mul(8).cast(U64)), val, 8)
 }
 
 go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
@@ -431,10 +431,10 @@ go_next_boards : NextBoardsFn = (b) {
     while i.lt(total) {
         ref p : I64 = cells.get(i.to_u32())!
         if p.eq(0) {
-            mut child := Array.new(I64, MAX_CELLS.to_u32())
+            mut child := Array.new(I64, MAX_CELLS.cast(U32))
             copy_board(child, cells, total)
-            mut child_vis := Array.new(I64, MAX_CELLS.to_u32())
-            mut child_lib := Array.new(I64, MAX_CELLS.to_u32())
+            mut child_vis := Array.new(I64, MAX_CELLS.cast(U32))
+            mut child_lib := Array.new(I64, MAX_CELLS.cast(U32))
             mut child_stk := Vec.new(I64)
             cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_cells, has_ko)
             if cap.gte(0) {
@@ -578,11 +578,11 @@ main := proc() {
     mut ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 1)
 
     // Shared work arrays
-    mut board := Array.new(I64, MAX_CELLS.to_u32())
-    mut tmp_board := Array.new(I64, MAX_CELLS.to_u32())
-    mut ko_board := Array.new(I64, MAX_CELLS.to_u32())
-    mut visited := Array.new(I64, MAX_CELLS.to_u32())
-    mut lib_seen := Array.new(I64, MAX_CELLS.to_u32())
+    mut board := Array.new(I64, MAX_CELLS.cast(U32))
+    mut tmp_board := Array.new(I64, MAX_CELLS.cast(U32))
+    mut ko_board := Array.new(I64, MAX_CELLS.cast(U32))
+    mut visited := Array.new(I64, MAX_CELLS.cast(U32))
+    mut lib_seen := Array.new(I64, MAX_CELLS.cast(U32))
     mut stk := Vec.new(I64)
 
     // Radio button state (only applied on restart / initial start)
@@ -824,8 +824,8 @@ main := proc() {
             HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
             mut hi : I32 = 0
             while hi < 10 {
-                ref hr : I64 = HOSHI.get(hi.to_u32())!
-                ref hc : I64 = HOSHI.get((hi + 1).to_u32())!
+                ref hr : I64 = HOSHI.get(hi.cast(U32))!
+                ref hc : I64 = HOSHI.get((hi + 1).cast(U32))!
                 DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
                 hi = hi + 2
             }
@@ -834,8 +834,8 @@ main := proc() {
             HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
             mut hi : I32 = 0
             while hi < 10 {
-                ref hr : I64 = HOSHI.get(hi.to_u32())!
-                ref hc : I64 = HOSHI.get((hi + 1).to_u32())!
+                ref hr : I64 = HOSHI.get(hi.cast(U32))!
+                ref hc : I64 = HOSHI.get((hi + 1).cast(U32))!
                 DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
                 hi = hi + 2
             }
@@ -844,8 +844,8 @@ main := proc() {
             HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
             mut hi : I32 = 0
             while hi < 18 {
-                ref hr : I64 = HOSHI.get(hi.to_u32())!
-                ref hc : I64 = HOSHI.get((hi + 1).to_u32())!
+                ref hr : I64 = HOSHI.get(hi.cast(U32))!
+                ref hc : I64 = HOSHI.get((hi + 1).cast(U32))!
                 DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4.to_f32(), Color(r = 40, g = 30, b = 10, a = 255))
                 hi = hi + 2
             }
@@ -855,7 +855,7 @@ main := proc() {
         COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
         mut ci : I32 = 0
         while ci < board_size.to_i32() {
-            ref cl : Str = COL_LABELS.get(ci.to_u32())!
+            ref cl : Str = COL_LABELS.get(ci.cast(U32))!
             lx := board_px + ci * cell_size - 4
             DrawText(cl.c_str, lx, board_py - margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
             DrawText(cl.c_str, lx, board_py + grid_span + margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
@@ -869,7 +869,7 @@ main := proc() {
         // Stones
         mut si : I32 = 0
         while si < total.to_i32() {
-            ref sp : I64 = board.get(si.to_u32())!
+            ref sp : I64 = board.get(si.cast(U32))!
             if sp.neq(0) {
                 sr := si / board_size.to_i32()
                 sc := si % board_size.to_i32()
@@ -942,7 +942,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            ref clabel : Str = COLOR_LABELS.get(bi.to_u32())!
+            ref clabel : Str = COLOR_LABELS.get(bi.cast(U32))!
             DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -959,7 +959,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            ref mlabel : Str = MODE_LABELS.get(bi.to_u32())!
+            ref mlabel : Str = MODE_LABELS.get(bi.cast(U32))!
             DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -976,7 +976,7 @@ main := proc() {
                 sb = 155
             }
             DrawRectangle(sxp, RADIO_Y, SIZE_BTN_W - 2, BTN_H - 2, Color(r = sr.to_u8(), g = sg.to_u8(), b = sb.to_u8(), a = 255))
-            ref slabel : Str = SIZE_LABELS.get(bi.to_u32())!
+            ref slabel : Str = SIZE_LABELS.get(bi.cast(U32))!
             DrawText(slabel.c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }

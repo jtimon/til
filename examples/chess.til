@@ -599,12 +599,12 @@ copy_cf := func(mut dst: Array, mut src: Array) {
 
 // Board I64 accessors
 board_get_i64 := func(b: Board, i: I64) returns ref I64 {
-    ref v : I64 = ptr_add(b.data.data, i.mul(8).to_u64())
+    ref v : I64 = ptr_add(b.data.data, i.mul(8).cast(U64))
     return v
 }
 
 board_set_i64 := func(mut b: Board, i: I64, shallow val: I64) {
-    memcpy(ptr_add(b.data.data, i.mul(8).to_u64()), val, 8)
+    memcpy(ptr_add(b.data.data, i.mul(8).cast(U64)), val, 8)
 }
 
 // Pack chess state into Board.data (I64-indexed)
@@ -1071,7 +1071,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            ref clabel : Str = COLOR_LABELS.get(bi.to_u32())!
+            ref clabel : Str = COLOR_LABELS.get(bi.cast(U32))!
             DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -1088,7 +1088,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            ref mlabel : Str = MODE_LABELS.get(bi.to_u32())!
+            ref mlabel : Str = MODE_LABELS.get(bi.cast(U32))!
             DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -1195,7 +1195,7 @@ main := proc() {
         FILE_LABELS := array("Str", "a", "b", "c", "d", "e", "f", "g", "h")
         mut fi : I32 = 0
         while fi < 8 {
-            ref fl : Str = FILE_LABELS.get(fi.to_u32())!
+            ref fl : Str = FILE_LABELS.get(fi.cast(U32))!
             DrawText(fl.c_str, fi * CELL + CELL / 2 - 4, BOARD_Y + CELL * 8 + 5, 16, Color(r = 100, g = 100, b = 100, a = 255))
             fi = fi + 1
         }

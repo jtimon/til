@@ -120,7 +120,7 @@ enter_god_mode := func() { god_mode = true }
 exit_god_mode := func() { god_mode = false; reset_camera() }
 
 main := proc() {
-    SetConfigFlags((FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED).to_u32())
+    SetConfigFlags((FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED).cast(U32))
     InitWindow(WINDOW_W, WINDOW_H, "shootil".c_str)
     SetWindowMinSize(640, 480)
 

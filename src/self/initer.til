@@ -2338,7 +2338,7 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I3
         mut max_payload_size : I32 = 0
         mut max_payload_align : I32 = 4
         for vi in 0..edd.variants.len() {
-            vt := enum_variant_type(enum_def, vi.to_i32())
+            vt := enum_variant_type(enum_def, vi.cast(I32))
             if vt.len().eq(0) { continue }
             mut psz : I32 = 0
             mut palign : I32 = 0
