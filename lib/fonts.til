@@ -533,7 +533,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
         // pad
         rem := blob.len().mod(4)
         if rem.gt(0) {
-            pad : USize = 4.to_usize().sub(rem)
+            pad : USize = 4.sub(rem)
             mut pi : USize = 0
             while pi.lt(pad) { w_u8(file, 0); pi = pi.add(1) }
         }

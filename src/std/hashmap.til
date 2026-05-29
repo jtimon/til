@@ -12,7 +12,7 @@ mode lib
 
 import("../../lib/hash")
 
-HASHMAP_INIT_BUCKETS : USize = 16.to_usize()
+HASHMAP_INIT_BUCKETS : USize = 16
 
 HashMap := struct {
     keys : Vec = Vec.new(Dynamic)

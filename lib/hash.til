@@ -19,7 +19,7 @@ KNUTH_MULT : U64 = 0.sub(7046029254386353131).to_u64()
 // likewise exceeds I64 max and is materialised via the sub-from-zero
 // idiom. 2^64 - 14695981039346656037 = 3750763034362895579.
 FNV_OFFSET : U64 = 0.sub(3750763034362895579).to_u64()
-FNV_PRIME  : U64 = 1099511628211.to_u64()
+FNV_PRIME  : U64 = 1099511628211
 
 // Hash an I64 by Knuth's multiplicative hash. One multiply, bit-cast
 // through U64 so negative inputs don't panic and so the wrap-around is
