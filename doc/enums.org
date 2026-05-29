@@ -123,10 +123,15 @@ interpreter mirrors the assignment into ~ei.data + ENUM_PAYLOAD_OFFSET~
 via either a typed primitive write (~write_i64~ / ~write_u8~ / ... in
 ~src/c/ext.c~) or, for ~Str~ / user struct payloads, by ~memcpy~'ing the
 struct bytes after first calling ~Str_delete~-equivalent cleanup so
-owned sources don't leak. Struct payloads (~Variant: SomeStruct~)
-cannot yet be written via ~p = SomeStruct(...)~ at all (the typer
-rejects assigning an owned value to a ref target); when that opens up
-the same writeback covers them.
+owned sources don't leak. Struct payloads (~Variant: SomeStruct~) work
+too: the typer accepts a constructor RHS on the payload-alias ref-mut
+target (the rejection that flagged "ref target cannot be assigned an
+owned value" is gated by ~is_payload_alias~), the builder lowers it to
+~{ Type_delete(p, &(Bool){0}); Type *_new = (Type *)Type(...); *p =
+*_new; free(_new); }~, and the interp writeback memcpys the struct
+bytes via the existing ~Value.Struct~ path. The remaining open piece is
+nested-enum payloads (~Variant: SomeOtherEnum~): writes don't yet
+propagate when the payload is itself an enum.
 
 * Current tests to extend
 

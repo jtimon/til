@@ -3550,6 +3550,23 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
         }
         if sdecl.own_type.is(OwnType.Ref) {
             decl_b.own_type = OwnType.Ref
+            // #211: payload binding `ref T = get_payload(<ident>)` is the
+            // typer-emitted shape produced by make_switch_case_condition.
+            // Mark its TypeBinding as an alias so the subsequent Assign
+            // check at line 6935 recognises writes to it as
+            // write-through-the-payload and accepts a constructor /
+            // literal RHS (the builder lowers it to `*p = *new` for
+            // structs and `*p = (Str){...}` for Str literals).
+            if rhs.node_type.is(NodeType.FCall).and(rhs.children.len().eq(2)) {
+                ref head : Expr = rhs.child(0)
+                switch head.node_type {
+                case NodeType.Ident(head_id):
+                    if ident_name(head_id).eq("get_payload") {
+                        decl_b.is_alias = true
+                    }
+                case:
+                }
+            }
             if expr_is_ref_decl_source(rhs, scope).not() {
                 type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable", ctx)
             }
@@ -7048,7 +7065,12 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
         }
     }
     if is_ref_target {
-        check_ref_assign_owned_rhs(stmt, aname, rhs, scope, ctx)
+        // #211: payload aliases accept an owned-value RHS (the builder
+        // lowers it to `*p = *new` for structs and `*p = (Str){...}` for
+        // Str literals); only plain ref bindings still reject.
+        if is_payload_alias.not() {
+            check_ref_assign_owned_rhs(stmt, aname, rhs, scope, ctx)
+        }
     }
     if is_ref_target.not() {
         if rhs.node_type.is(NodeType.Ident).or(

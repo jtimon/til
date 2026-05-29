@@ -644,3 +644,21 @@ test_mut_str_payload_binding := test() {
     case: assert_eq_str(__LOC__, "wrong variant", "")
     }
 }
+
+// #211 follow-up: struct payloads also propagate now that the typer
+// accepts a constructor RHS on a payload-alias ref-mut target and the
+// builder lowers it to `*p = *new` (paired with the existing
+// is_payload_alias compound-payload write in builder.til).
+test_mut_struct_payload_binding := test() {
+    mut s := Shape.Dot(Point(x = 1, y = 2))
+    switch s {
+    case Shape.Dot(p): p = Point(x = 99, y = 42)
+    case:
+    }
+    switch s {
+    case Shape.Dot(q):
+        assert_eq(__LOC__, q.x, 99)
+        assert_eq(__LOC__, q.y, 42)
+    case: assert_eq_str(__LOC__, "wrong variant", "")
+    }
+}
