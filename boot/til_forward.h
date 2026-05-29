@@ -675,6 +675,7 @@ typedef struct Scope {
     Map bindings;
     Scope *parent;
     Map payload_aliases;
+    Vec box_owned_dynamics;
 } Scope;
 
 
@@ -1957,7 +1958,7 @@ U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
 void free_value_full(Value v);
 Bool needs_widen(Value * val, Str * ptype);
 Value shallow_copy_value(Value * v);
-Value * box_scalar_to_dynamic(Value * v);
+Value * box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool * track_for_free);
 Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed);
 Value * widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
