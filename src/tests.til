@@ -598,6 +598,11 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "fizzbuzz", "examples/fizzbuzz.til",
                  "", 0, format(exp, "fizzbuzz.out"), til_bin, asan_flag)
 
+    // Issue #220: script-mode map/set literals must compile under -Werror.
+    File.writefile(format(exp, "script_map_lit.out"), format("3", NL, "3", NL))
+    add_cli_pair(tests, "script_map_lit", "test/script_map_lit.til",
+                 "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
+
     File.writefile(format(exp, "cli_typed_alice42.out"), format("alice 42", NL))
     add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
                  "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin, asan_flag)

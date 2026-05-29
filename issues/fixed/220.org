@@ -1,0 +1,98 @@
+** #220 Builder: mode script emits invalid C for Map literals and format() Str iteration
+
+Fixed. Root cause: a script's top-level `m`/`s` are recorded in
+ctx.script_globals, but is_value_global / is_ref_global only excluded
+function *params* -- not function *locals*. So library functions that
+declare a local of the same name (Map.new_type_names's heap-pointer
+local `m`, format's for-in loop var `s`) inherited the script global's
+value classification and codegen emitted `.` field access / value
+returns / spurious `&` against a `Type *` local. Fix: those classifiers
+now also exclude stack_locals, ref_locals, and a new ptr_locals set
+(own-heap pointer locals like `Type *m = malloc(...)`, previously
+untracked). Regression: test/script_map_lit.til.
+
+A minimal `mode script` program that uses a map literal and prints
+something does not survive `cc -Werror`. The typer is happy; the breakage
+is purely in the C the builder writes for `mode script`, and the *same*
+til source compiles cleanly under `mode test`.
+
+*** Repro
+
+A 5-line ~mode script~ program:
+
+  mode script
+
+  m := {"a": 1, "b": 2, "c": 3}
+  s := {10, 20, 30}
+  println(m.len().to_str())
+  println(s.len().to_str())
+
+  bin/til build path/to/file.til
+  # -> cc1: all warnings being treated as errors (~12 errors)
+
+*** Symptom 1: Map_new_type_names emits ~m.X~ where ~m~ is ~Map *~
+
+Inside ~Map_new_type_names~ the same til source produces:
+
+  // gen/til/maps.c (mode test)               -- compiles
+  Map *m = malloc(sizeof(Map));
+  { ... m->keys = *_ca; ... }
+  m->key_cmp = (void *)(void *)default_cmp;
+  return m;
+
+  // gen/til/lit_check.c (mode script)        -- cc rejects
+  Map *m = malloc(sizeof(Map));
+  { ... m.keys = *_ca; ... }              // 'm' is a pointer; did you mean to use '->'?
+  m.key_cmp = (void *)(void *)default_cmp;
+  { Map *_r = malloc(sizeof(Map)); *_r = m;  // incompatible types: Map vs Map *
+    return _r; }
+
+So the builder is treating ~m~ as a Map value (~.~ accessors, value
+return via ~*_r = m~) even though the C declaration is ~Map *m~. The
+two halves disagree.
+
+*** Symptom 2: format() iterates ~Str *s~ but calls ~Str_len(&s)~
+
+The shared ~format~ helper iterates a ~parts~ array of ~Str~. Same
+source, different emit:
+
+  // gen/til/maps.c:802 (mode test)           -- compiles
+  Str *s = Array_get(_fc_Array_795, &_fi_USize_795);
+  ...
+  U32 hoisted__U32_800 = Str_len(s);
+
+  // gen/til/lit_check.c:812 (mode script)    -- cc rejects
+  Str *s = Array_get(_fc_Array_795, &_fi_USize_795);
+  ...
+  U32 hoisted__U32_800 = Str_len(&s);        // Str_len wants Str*, got Str**
+
+Same ~Str *s~ declaration; only the ~s.len()~ call site differs
+between modes. ~Str_push_str(out, &s)~ and ~print_single(&s)~ in the
+same function exhibit the identical address-of mistake.
+
+*** Why it matters
+
+~mode script~ is the entry-level mode (~examples/fizzbuzz.til~,
+~examples/hello_script.til~). The moment a script reaches for a map or
+set literal -- two of til's most natural data types -- the build fails
+with a wall of incompatible-pointer ~-Werror~s that don't point at the
+user's code. The bug is reproducible in 5 lines and a single command,
+so a fix can be measured by ~bin/til build tmp/lit_check.til~ exiting 0.
+
+*** Where to look
+
+Two separate decisions in the builder must be reconciled with how
+~mode script~ wraps top-level state:
+
+  1. The Map factory path that declares ~Map *m = malloc(...)~ but
+     emits ~m.foo~ -- one side is wrong. Likely a missing pointer-vs-
+     value classification on the local when codegen is invoked from
+     the script-mode top-level body.
+  2. The same Str-iteration call-site that picks between ~Str_len(s)~
+     and ~Str_len(&s)~. Likely the same root cause: a hoisting/dispatch
+     pass that runs in test/build modes but is skipped (or runs
+     differently) in script mode.
+
+A bisect against ~mode test~'s generated ~maps.c~ for the matching
+functions is the fast path: the two files agree on declarations but
+disagree on call sites and field-access syntax.

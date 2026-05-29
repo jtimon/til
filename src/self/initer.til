@@ -322,6 +322,13 @@ Context := struct {
     stack_local_types := Map.new(Str, Str)
     unsafe_to_hoist := Set.new(Str)
     ref_locals := Set.new(Str)
+    // #220: own-heap pointer locals (`Type *name = malloc(...)`) declared
+    // in the current function body. Unlike stack_locals/ref_locals these
+    // were previously untracked, so a local that shadowed a script global
+    // (e.g. Map.new_type_names's `m` vs a top-level `m`) inherited the
+    // global's value classification and codegen emitted `.`/value-return
+    // against a pointer. Consulted only by is_value_global/is_ref_global.
+    ptr_locals := Set.new(Str)
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
     // separately so emit_deref can typed-cast a Dynamic-declared
     // local when the typer's narrow_dynamic has retyped a use of it

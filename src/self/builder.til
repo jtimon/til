@@ -145,11 +145,25 @@ priv is_current_func_param := func(name: Str, ctx: Context) returns shallow Bool
 
 priv is_value_global := func(name: Str, ctx: Context) returns shallow Bool {
     if is_current_func_param(name, ctx) { return false }
+    // A local (loop var, decl) inside the current function shadows a
+    // script global of the same name. Without this guard a library
+    // function like Map.new_type_names (local `m`) would inherit the
+    // value-global classification of the script's top-level `m`, and
+    // codegen would emit `.` field access / value returns against a
+    // `Type *` local -- invalid C. See issue #220.
+    if is_stack_local(name, ctx) { return false }
+    if ctx.ref_locals.has(name) { return false }
+    if ctx.ptr_locals.has(name) { return false }
     return ctx.script_globals.has(name)
 }
 
 is_ref_global := func(name: Str, ctx: Context) returns shallow Bool {
     if is_current_func_param(name, ctx) { return false }
+    // Same shadowing rule as is_value_global: a current-function local
+    // beats a script-level ref global of the same name.
+    if is_stack_local(name, ctx) { return false }
+    if ctx.ref_locals.has(name) { return false }
+    if ctx.ptr_locals.has(name) { return false }
     return ctx.ref_globals.has(name)
 }
 
@@ -1308,6 +1322,12 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
+                        // #220: own-heap pointer local. Register before
+                        // emit_ctor_fields so the field assignments it
+                        // emits (m->keys = ...) see `m` as a local and
+                        // pick `->` over `.`, even when a script global
+                        // shares the name.
+                        ctx.ptr_locals.add(own dd.name.clone())
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     }
@@ -1401,7 +1421,10 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
                         if is_global { f.write(dd.name); f.write(" = ") }
-                        else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
+                        else {
+                            ctx.ptr_locals.add(own dd.name.clone()) // #220
+                            f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ")
+                        }
                         emit_expr(f, rhs, depth, ctx); f.write(";\n")
                     }
                 } else {
@@ -1413,6 +1436,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
+                        ctx.ptr_locals.add(own dd.name.clone()) // #220
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_indent(f, depth)
                         f.write("*"); f.write(dd.name); f.write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
@@ -2791,6 +2815,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.unsafe_to_hoist = Set.new(Str)
         lp.ctx.ref_locals = Set.new(Str)
         lp.ctx.ref_dyn_locals = Set.new(Str)
+        lp.ctx.ptr_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, body)
         lp.ctx.in_main_func = true
@@ -2825,6 +2850,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.unsafe_to_hoist = Set.new(Str)
         lp.ctx.ref_locals = Set.new(Str)
         lp.ctx.ref_dyn_locals = Set.new(Str)
+        lp.ctx.ptr_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
@@ -4598,6 +4624,7 @@ build_register_lookups := func(core_program: Expr, program: Expr, ctx: Context) 
     ctx.unsafe_to_hoist = Set.new(Str)
     ctx.ref_locals = Set.new(Str)
     ctx.ref_dyn_locals = Set.new(Str)
+    ctx.ptr_locals = Set.new(Str)
     if is_null(core_program).not() { register_lookups_prog(core_program, ctx) }
     register_lookups_prog(program, ctx)
 }
@@ -4610,6 +4637,7 @@ build_register_lookups_lp := func(lp: LoadedProgram) {
     lp.ctx.unsafe_to_hoist = Set.new(Str)
     lp.ctx.ref_locals = Set.new(Str)
     lp.ctx.ref_dyn_locals = Set.new(Str)
+    lp.ctx.ptr_locals = Set.new(Str)
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

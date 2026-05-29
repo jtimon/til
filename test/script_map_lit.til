@@ -1,0 +1,11 @@
+mode script
+
+// Issue #220: a `mode script` program that uses map/set literals must
+// emit valid C. The shared library functions Map.new_type_names (local
+// `m`) and format (loop var `s`) previously inherited the value-global
+// classification of the script's top-level `m`/`s`, producing invalid
+// C (`.` access on a pointer, `&s` where `s` was already a pointer).
+m := {"a": 1, "b": 2, "c": 3}
+s := {10, 20, 30}
+println(m.len().to_str())
+println(s.len().to_str())

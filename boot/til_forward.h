@@ -864,6 +864,7 @@ typedef struct Context {
     Map stack_local_types;
     Set unsafe_to_hoist;
     Set ref_locals;
+    Set ptr_locals;
     Set ref_dyn_locals;
     Expr *current_fdef;
     Expr *cached_str_def;
