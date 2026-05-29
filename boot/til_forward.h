@@ -345,6 +345,9 @@ typedef struct Declaration {
     Expr *field_struct_def;
     Expr *default_value;
     Str orig_name;
+    Bool precomp_static;
+    Str precomp_static_elem_type;
+    Str precomp_static_val_type;
 } Declaration;
 
 
@@ -822,6 +825,7 @@ typedef struct Context {
     Set precomp_macros;
     Set precomp_funcs;
     Map precomp_known;
+    Set precomp_static_vars;
     Bool has_return;
     Bool has_break;
     Bool has_continue;
@@ -1772,6 +1776,8 @@ void collect_dyn_has_methods(Expr * e, Vec * methods);
 Bool priv___src_self_builder_til__fcall_is_struct_ctor(Expr * e);
 Bool priv___src_self_builder_til__pod_ctor_args_are_safe(Expr * ctor, Context * ctx);
 void emit_pod_compound_literal(File * f, Expr * ctor, I32 depth, Context * ctx);
+void priv___src_self_builder_til__emit_precomp_static_set_decl(File * f, Expr * e, I32 depth, Context * ctx);
+Bool priv___src_self_builder_til__is_precomp_static_elide_stmt(Expr * e, Context * ctx);
 void emit_stmt_decl(File * f, Expr * e, I32 depth, Context * ctx);
 Str * builder_get_c_return_type(Context * ctx);
 Str * emit_return_ctype(Expr * rv, Context * ctx);

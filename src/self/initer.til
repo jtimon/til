@@ -185,6 +185,13 @@ Context := struct {
     precomp_funcs := Set.new(Str)
     precomp_known := Map.new(Str, Value)
 
+    // Names of vars marked Declaration.precomp_static at typer time.
+    // emit_stmt_decl adds the name here when it emits the static path,
+    // and the FCall-emit skip checks consult this set to elide the
+    // matching Set.add / Map.set / destructor calls that became
+    // redundant once the values were baked into a static C array.
+    precomp_static_vars := Set.new(Str)
+
     // Interpreter runtime state, moved off module globals (same
     // direct-on-Context approach as the precomp tables above). The
     // control-flow flags and return slot drive eval_body /

@@ -1218,9 +1218,167 @@ emit_pod_compound_literal := proc(f: File, ctor: Expr, shallow depth: I32, ctx: 
     f.write("}")
 }
 
+// Precomp-static path for a Decl whose rhs is a SetLit of all-literal
+// elements (MVP: I64 only). The typer marks the Decl with
+// `precomp_static = true` and bypasses the regular Set.new + N x Set.add
+// desugar. We emit a `static <elem>[N]` data array holding the sorted-
+// deduplicated values, run Set_new to fill the metadata fields
+// (elem_size + the three dyn-dispatched function pointers), then swap
+// `<name>.data` to point at the static array. The matching Set_delete
+// at body exit is elided via is_precomp_static_elide_stmt so it can't
+// free a non-heap pointer.
+priv emit_precomp_static_set_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+    switch e.node_type {
+    case NodeType.Decl(dd):
+        // child(0) is the Set.new call (kept so interpret mode sees a
+        // normal desugar); child(1) is a clone of the original SetLit
+        // attached by the typer when precomp_static is set, carrying
+        // the literal element values we need for the static array.
+        ref set_lit : Expr = e.child(1)
+        n_in := set_lit.children.len()
+        // Collect I64 values from the literal children.
+        mut vals := Vec.new(I64)
+        for i in 0..n_in {
+            ref vi : Expr = set_lit.child(i)
+            switch vi.node_type {
+            case NodeType.Literal(Literal.Num(num)):
+                v_push : I64 = num.to_i64()
+                vals.push(own v_push)
+            case:
+                // typer short-circuit gates on all-Literal; nothing else gets here
+                UNREACHABLE(__LOC__)
+            }
+        }
+        // Insertion-sort + dedupe in-place. n_in is the literal count
+        // and is small (set literals are written by hand); n^2 is fine.
+        // Read every value to a local I64 before reading from vals
+        // again because Vec.get hands out a `ref` and the in-place
+        // shifts below would otherwise overwrite a still-live reference.
+        mut n_sorted : USize = 0
+        for i2 in 0..n_in {
+            ref v_ref : I64 = vals.get(i2)
+            v_i64 : I64 = v_ref.clone()
+            mut pos : USize = 0
+            mut dup := false
+            while pos.lt(n_sorted) {
+                ref vp_ref : I64 = vals.get(pos)
+                vp : I64 = vp_ref.clone()
+                if vp.eq(v_i64) { dup = true; break }
+                if vp.lt(v_i64).not() { break }
+                pos = pos.add(1)
+            }
+            if dup.not() {
+                // shift sorted[pos..n_sorted] right by one, write v at pos
+                mut j : USize = n_sorted
+                while j.gt(pos) {
+                    ref vj_prev_ref : I64 = vals.get(j.sub(1))
+                    vj_copy : I64 = vj_prev_ref.clone()
+                    vals.set(j, own vj_copy)
+                    j = j.sub(1)
+                }
+                v_copy : I64 = v_i64.clone()
+                vals.set(pos, own v_copy)
+                n_sorted = n_sorted.add(1)
+            }
+        }
+        // Emit `static I64 _precomp_<name>_data[N] = { ... };` followed
+        // by a direct struct compound-literal init of the Set. Bypasses
+        // Set_new entirely (no runtime malloc/realloc + the function-
+        // pointer fields are baked at compile time). Function-local
+        // `static` has block scope but static storage duration -- safe
+        // in C, and the matching Set_delete at body exit is elided by
+        // is_precomp_static_elide_stmt so free() never sees the static.
+        // Forward-declare the dyn wrappers we reference: their
+        // definitions live near the end of the translation unit (after
+        // every user function), so C needs a visible declaration here.
+        // I64_delete already has a file-scope forward decl from the
+        // normal I64 emit.
+        f.write("extern void *I64_clone_dyn(void *);\n")
+        emit_indent(f, depth)
+        f.write("extern void *I64_cmp_dyn(void *, void *);\n")
+        emit_indent(f, depth)
+        f.write("static I64 _precomp_").write(dd.name).write("_data[")
+        emit_u64(f, n_sorted.to_u64())
+        f.write("] = {")
+        for k in 0..n_sorted {
+            if k.gt(0) { f.write(", ") }
+            ref v_emit : I64 = vals.get(k)
+            f.write(v_emit.to_str())
+        }
+        f.write("};\n")
+        emit_indent(f, depth)
+        // Declare-and-assign when the var is a function-local; assign
+        // only when it's a value-global (the file-scope decl already
+        // wrote `Set <name>;`). Mirrors the same is_global gate the
+        // regular Decl emit uses at line 1420.
+        is_global := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
+        if is_global { f.write(dd.name).write(" = (Set){") }
+        else {
+            f.write("Set ").write(dd.name).write(" = (Set){")
+            // Function-local statics still need the stack_locals
+            // classification so emit_expr at `s.has(x)` / `s.len()`
+            // call sites passes `&s` instead of `s` (the C Set_has /
+            // Set_len signatures take `Set *`).
+            ctx.stack_locals.add(own dd.name.clone())
+            ctx.stack_local_types.set(own dd.name.clone(), own "Set")
+        }
+        f.write(".data = (U8 *)_precomp_").write(dd.name).write("_data, ")
+        f.write(".count = ")
+        emit_u64(f, n_sorted.to_u64())
+        f.write(", .cap = ")
+        emit_u64(f, n_sorted.to_u64())
+        f.write(", .elem_size = sizeof(I64)")
+        f.write(", .elem_clone = (CloneFn)I64_clone_dyn")
+        f.write(", .elem_delete = (DeleteFn)I64_delete")
+        f.write(", .elem_cmp = (CmpFn)I64_cmp_dyn")
+        f.write("};\n")
+        Vec.delete(own vals, false)
+        // Register so is_precomp_static_elide_stmt skips the matching
+        // Set_delete at body exit (free of a static pointer would crash).
+        ctx.precomp_static_vars.add(own dd.name.clone())
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+// True for Set/Map FCall stmts on a var the builder already emitted via
+// the precomp-static path. Skips: <Type>.delete(name, _) (the body-exit
+// destructor that would free a non-heap pointer) and any leftover
+// Set.add / Map.set / Set.clear / Map.clear the user wrote -- the
+// typer's mut-gate keeps semantics correct because precomp-static is
+// only taken when the user wrote a non-mut decl, but a defensive elide
+// here keeps a runaway desugar from emitting double-init code.
+priv is_precomp_static_elide_stmt := func(e: Expr, ctx: Context) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().lt(2) { return false }
+    ref c0 : Expr = e.child(0)
+    switch c0.node_type {
+    case NodeType.FieldAccess(fname):
+        method := field_access_name(fname)
+        if method.eq("add").or(method.eq("set")).or(method.eq("delete")).or(method.eq("clear")).not() { return false }
+    case:
+        return false
+    }
+    ref c1 : Expr = e.child(1)
+    switch c1.node_type {
+    case NodeType.Ident(arg_id):
+        return ctx.precomp_static_vars.has(ident_name(arg_id))
+    case:
+        return false
+    }
+}
+
 // Emit layer
 emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
     if e.children.len().eq(0) { return }
+    switch e.node_type {
+    case NodeType.Decl(precomp_dd):
+        if precomp_dd.precomp_static {
+            emit_precomp_static_set_decl(f, e, depth, ctx)
+            return
+        }
+    case:
+    }
     switch e.node_type {
     case NodeType.Decl(dd):
     ref rhs : Expr = e.child(0)
@@ -1686,6 +1844,36 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns shallow Bool {
 
 priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
     if is_noop_delete_stmt(e, ctx) { return }
+    if is_precomp_static_elide_stmt(e, ctx) {
+        // For elided Set.add / Map.set the second arg is a hoisted
+        // own-malloc'd value the typer set up to be consumed by the
+        // call -- since we're dropping the call, free() the malloc to
+        // avoid leaking. The Bool sentinel that the destructor takes
+        // is a compound literal on the stack and needs no cleanup, so
+        // delete/clear forms fall through to a bare return.
+        switch e.node_type {
+        case NodeType.FCall:
+            ref c0_elide : Expr = e.child(0)
+            switch c0_elide.node_type {
+            case NodeType.FieldAccess(fname_elide):
+                method_elide := field_access_name(fname_elide)
+                if method_elide.eq("add").or(method_elide.eq("set")) {
+                    if e.children.len().gte(3) {
+                        ref c2_elide : Expr = e.child(2)
+                        switch c2_elide.node_type {
+                        case NodeType.Ident(arg_ident_elide):
+                            emit_indent(f, depth)
+                            f.write("free(").write(ident_name(arg_ident_elide)).write(");\n")
+                        case:
+                        }
+                    }
+                }
+            case:
+            }
+        case:
+        }
+        return
+    }
     emit_indent(f, depth)
     switch e.node_type {
     case NodeType.Decl:
@@ -2825,6 +3013,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
             }
         }
         lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.precomp_static_vars = Set.new(Str)
         lp.ctx.stack_local_types = Map.new(Str, Str)
         lp.ctx.unsafe_to_hoist = Set.new(Str)
         lp.ctx.ref_locals = Set.new(Str)
@@ -2860,6 +3049,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
         lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.precomp_static_vars = Set.new(Str)
         lp.ctx.stack_local_types = Map.new(Str, Str)
         lp.ctx.unsafe_to_hoist = Set.new(Str)
         lp.ctx.ref_locals = Set.new(Str)
@@ -4634,6 +4824,7 @@ build_register_lookups := func(core_program: Expr, program: Expr, ctx: Context) 
     ctx.struct_def_exprs = Map.new(Str, Dynamic)
     ctx.func_defs = Map.new(Str, Dynamic)
     ctx.stack_locals = Set.new(Str)
+    ctx.precomp_static_vars = Set.new(Str)
     ctx.stack_local_types = Map.new(Str, Str)
     ctx.unsafe_to_hoist = Set.new(Str)
     ctx.ref_locals = Set.new(Str)
@@ -4647,6 +4838,7 @@ build_register_lookups_lp := func(lp: LoadedProgram) {
     lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
     lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.precomp_static_vars = Set.new(Str)
     lp.ctx.stack_local_types = Map.new(Str, Str)
     lp.ctx.unsafe_to_hoist = Set.new(Str)
     lp.ctx.ref_locals = Set.new(Str)
@@ -6585,6 +6777,7 @@ build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: Loade
     f.close()
     lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.precomp_static_vars = Set.new(Str)
     lp.ctx.stack_local_types = Map.new(Str, Str)
     lp.ctx.unsafe_to_hoist = Set.new(Str)
     return 0

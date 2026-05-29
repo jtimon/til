@@ -7994,12 +7994,38 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
 desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool {
     ref set_lit : Expr = stmt.child(0)
     mut var_name := ""
+    mut user_is_mut := false
     switch stmt.node_type {
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
+        user_is_mut = stmt_decl.is_mut
     case:
         UNREACHABLE(__LOC__)
         return false
+    }
+
+    // All-literal short-circuit detection: gate static-precomp emission
+    // on (a) the user wrote a non-mut decl (so a later s.add(...) can't
+    // mutate static memory) and (b) every SetLit element is a literal
+    // node of a type the builder can emit. MVP: I64 only -- widening
+    // (Str, Bool, U8/I32/U32/U64, ...) is follow-up codegen. We do NOT
+    // skip the desugar here: the regular Set.new + N x Set.add path
+    // is what the interpreter evaluates in `interp` mode; only the
+    // builder elides the runtime calls (via is_precomp_static_elide_stmt)
+    // and emits a static array instead.
+    mut all_literal := false
+    if user_is_mut.not().and(set_lit.children.len().gt(0)) {
+        first_elem_type := type_to_name(expr_til_type(set_lit.child(0)))
+        if first_elem_type.eq("I64").and(type_has_cmp(scope, first_elem_type)) {
+            mut probe_all := true
+            for j2 in 0..set_lit.children.len() {
+                ref vj : Expr = set_lit.child(j2)
+                if vj.node_type.is(NodeType.Literal).not() { probe_all = false; break }
+                vt := type_to_name(expr_til_type(vj))
+                if vt.len().eq(0).or(vt.eq(first_elem_type).not()) { probe_all = false; break }
+            }
+            all_literal = probe_all
+        }
     }
 
     if set_lit.children.len().eq(0) {
@@ -8035,11 +8061,23 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     case NodeType.Decl(dd):
         dd.name = var_name.clone()
         dd.is_mut = true
+        if all_literal {
+            dd.precomp_static = true
+            dd.precomp_static_elem_type = elem_type.clone()
+        }
     case:
         UNREACHABLE(__LOC__)
     }
     set_expr_til_type(decl, Type.Struct("Set"))
     decl.add_child(own new_call)
+    if all_literal {
+        // Second child: a clone of the SetLit. The builder reads this
+        // (via e.child(1)) when precomp_static is set, to gather the
+        // values for the static array. The desugared Set.add stmts
+        // emitted below remain in the AST for the interpreter, and the
+        // builder elides them via is_precomp_static_elide_stmt.
+        decl.add_child(own set_lit.clone())
+    }
 
     scope.set(var_name, Type.Struct("Set"), FuncType.None, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
 

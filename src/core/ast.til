@@ -209,6 +209,20 @@ Declaration := struct {
     // stripping the trailing "_<orig_name>" from the mangled `name`)
     // in source terms instead of leaking the synthetic mangled name.
     orig_name := ""
+    // Static-precomp marker: the typer desugar pass sets this on a
+    // SetLit/MapLit-rhs Decl whose elements are all literal nodes (and
+    // the var is shadowable to a static). When true the builder emits
+    // the var as a file-scope C `static` aggregate plus a static
+    // element-data array, skips the runtime construction + the
+    // matching Set.add / Map.set sibling statements, and skips the
+    // destructor. `precomp_static_elem_type` carries the type-name
+    // string ("I64", "Str", ...) needed to bake the elem_clone/
+    // elem_delete/elem_cmp function-pointer fields to concrete C
+    // symbols at codegen time. `precomp_static_val_type` is used only
+    // for Map (value type); empty for Set.
+    precomp_static := false
+    precomp_static_elem_type := ""
+    precomp_static_val_type := ""
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: Declaration) returns Str { return self.name }
