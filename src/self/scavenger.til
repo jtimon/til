@@ -126,6 +126,17 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                         push_builtin_methods(refs, "Array", "new", "set", "delete")
                     } else if ident_name(cn).eq("vec") {
                         push_builtin_methods(refs, "Vec", "new", "push", "delete")
+                    } else if ident_name(cn).eq("struct_def_of").or(ident_name(cn).eq("enum_def_of")) {
+                        // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
+                        // builds a runtime StructDef/EnumDef value by querying
+                        // the introspection primitives for type X. Pull X out
+                        // of the string-literal arg so the underlying decl
+                        // isn't scavenged as unused.
+                        switch e.child(1).node_type {
+                        case NodeType.Literal(Literal.Str(tname2)):
+                            vec_push_str(refs, tname2)
+                        case:
+                        }
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -219,7 +230,16 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
         if is_def(stmt) {
             switch stmt.node_type {
             case NodeType.Decl(d):
-                if visited.has(d.name).not() {
+                // Issue #56/#57: synthetic anon-lifted decls (AnonStructN /
+                // AnonEnumN) are emitted by the parser only when there's a
+                // matching user site, so they're always reachable in spirit.
+                // The scavenger's reachability walk can lose track of them
+                // when the typer rewrites a Type-ident into a constructor
+                // call and the hoister moves the type-name string into a
+                // hoisted Str temp; keep them unconditionally rather than
+                // duplicating that indirection here.
+                is_anon_lifted := d.name.starts_with("AnonStruct").or(d.name.starts_with("AnonEnum"))
+                if visited.has(d.name).not().and(is_anon_lifted.not()) {
                     memset(ptr_add(pm, i), 1, 1)
                 }
             case:

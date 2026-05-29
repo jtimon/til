@@ -748,13 +748,20 @@ parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shal
         }
         mut arg := parse_expression(p)
         // Issue #56/#57: a bare anonymous `struct { ... }` / `enum { ... }`
-        // passed as a call argument resolves to the corresponding generated
-        // AnonStructN/AnonEnumN type name -- so e.g. count_variants(enum { ... })
-        // is shaped just like count_variants(NamedEnum), and a `func(T: Type)`
-        // signature can introspect it via til_type_name + enum_variant_count.
+        // passed as a call argument resolves through anon_lift to the
+        // generated AnonStructN/AnonEnumN type. Two flavours of arg flow:
+        //   * `f(enum { ... })`         -> Ident(AnonEnumN) -- a type ref,
+        //     for func/macro params typed `Type` (introspection style).
+        //   * `f(own struct { ... })`   -> struct_def_of("AnonStructN")
+        //     -- a runtime StructDef value (issue #56). The `own` prefix
+        //     is the signal that the caller wants the definition AS A
+        //     VALUE (e.g. `defs.push(own struct { ... })`). Symmetric for
+        //     enums via enum_def_of.
         if arg.node_type.is(NodeType.StructDef).or(arg.node_type.is(NodeType.EnumDef)) {
             arg_line := arg.line
             arg_col := arg.col
+            mut helper := "struct_def_of"
+            if arg.node_type.is(NodeType.EnumDef) { helper = "enum_def_of" }
             lifted_name := anon_lift(p, own arg, arg_line, arg_col)
             if is_own_arg { set_own_arg(call, call.children.len()) }
             if is_splat {
@@ -765,7 +772,16 @@ parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shal
                     UNREACHABLE(__LOC__)
                 }
             }
-            call.add_child(own Expr.new(ident_node(lifted_name), arg_line, arg_col))
+            if is_own_arg {
+                mut sd_callee := Expr.new(ident_node(helper), arg_line, arg_col)
+                mut sd_strlit := Expr.new(NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
+                mut sd_call := Expr.new(NodeType.FCall(FCallData()), arg_line, arg_col)
+                sd_call.add_child(own sd_callee)
+                sd_call.add_child(own sd_strlit)
+                call.add_child(own sd_call)
+            } else {
+                call.add_child(own Expr.new(ident_node(lifted_name), arg_line, arg_col))
+            }
         } else {
             if is_own_arg { set_own_arg(call, call.children.len()) }
             if is_splat {
@@ -1045,8 +1061,30 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
                 mut marg := parse_expression(p)
-                if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
-                mcall.add_child(own marg)
+                // Issue #56/#57: same anon-arg lift as parse_call (the
+                // postfix method-call path duplicates the arg loop; keep
+                // all three sites in sync).
+                if marg.node_type.is(NodeType.StructDef).or(marg.node_type.is(NodeType.EnumDef)) {
+                    marg_line := marg.line
+                    marg_col := marg.col
+                    mut mhelper := "struct_def_of"
+                    if marg.node_type.is(NodeType.EnumDef) { mhelper = "enum_def_of" }
+                    mlifted_name := anon_lift(p, own marg, marg_line, marg_col)
+                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
+                    if is_own_arg {
+                        mut msd_callee := Expr.new(ident_node(mhelper), marg_line, marg_col)
+                        mut msd_strlit := Expr.new(NodeType.Literal(Literal.Str(mlifted_name.clone())), marg_line, marg_col)
+                        mut msd_call := Expr.new(NodeType.FCall(FCallData()), marg_line, marg_col)
+                        msd_call.add_child(own msd_callee)
+                        msd_call.add_child(own msd_strlit)
+                        mcall.add_child(own msd_call)
+                    } else {
+                        mcall.add_child(own Expr.new(ident_node(mlifted_name), marg_line, marg_col))
+                    }
+                } else {
+                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
+                    mcall.add_child(own marg)
+                }
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
@@ -1388,8 +1426,30 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
                 mut marg := parse_expression(p)
-                if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
-                mcall.add_child(own marg)
+                // Issue #56/#57: same anon-arg lift as parse_call (the
+                // statement-level method-call path duplicates the arg loop;
+                // keep all three sites in sync).
+                if marg.node_type.is(NodeType.StructDef).or(marg.node_type.is(NodeType.EnumDef)) {
+                    marg_line := marg.line
+                    marg_col := marg.col
+                    mut mhelper := "struct_def_of"
+                    if marg.node_type.is(NodeType.EnumDef) { mhelper = "enum_def_of" }
+                    mlifted_name := anon_lift(p, own marg, marg_line, marg_col)
+                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
+                    if is_own_arg {
+                        mut msd_callee := Expr.new(ident_node(mhelper), marg_line, marg_col)
+                        mut msd_strlit := Expr.new(NodeType.Literal(Literal.Str(mlifted_name.clone())), marg_line, marg_col)
+                        mut msd_call := Expr.new(NodeType.FCall(FCallData()), marg_line, marg_col)
+                        msd_call.add_child(own msd_callee)
+                        msd_call.add_child(own msd_strlit)
+                        mcall.add_child(own msd_call)
+                    } else {
+                        mcall.add_child(own Expr.new(ident_node(mlifted_name), marg_line, marg_col))
+                    }
+                } else {
+                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
+                    mcall.add_child(own marg)
+                }
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)

@@ -148,9 +148,9 @@ test_explicit_funcdef_annotation := test() {
 
 // --- First-class structs (issue #56), verified-working foundation ---
 // StructDef-as-value (Vec.new(StructDef) by value, struct_def_of,
-// anonymous struct construction, `func(T) returns T`) still depend on
-// #58's metatype-reflection foundation and are not yet supported.
-// What works today is covered below.
+// anonymous struct construction, `func(T) returns T`) is covered below
+// alongside the named foundation; `func(T) returns T` (full generics)
+// still depends on #58's metatype-reflection foundation.
 
 Point56 := struct {
     x: I64 = 0
@@ -327,6 +327,35 @@ AnonFieldHolder := struct {
 test_anon_field_type := test() {
     h := AnonFieldHolder(inner = struct { v: I64 = 0 }(v=42))
     assert_eq(__LOC__, h.inner.v, 42)
+}
+
+// --- Bare anonymous defs as values (issue #56) ---
+// `own struct { ... }` as a call argument resolves to a runtime
+// StructDef value (the definition itself, distinct from instantiation
+// or type-position usage), built via struct_def_of against the
+// underlying generated AnonStructN name. Symmetric for enums via
+// enum_def_of. The `own` prefix is the signal that the caller wants
+// the definition AS A VALUE; bare `struct { ... }` without `own`
+// elsewhere in an arg position remains a type reference for
+// introspection-style `func(T: Type)` callees.
+
+test_anon_struct_as_value := test() {
+    mut defs := Vec.new(StructDef)
+    defs.push(own struct {
+        x: I64 = 0
+        y: I64 = 0
+    })
+    defs.push(own struct {
+        a: I64 = 0
+    })
+    assert_eq(__LOC__, defs.len().to_i64(), 2)
+}
+
+test_anon_enum_as_value := test() {
+    mut enums := Vec.new(EnumDef)
+    enums.push(own enum { Red, Green, Blue })
+    enums.push(own enum { On, Off })
+    assert_eq(__LOC__, enums.len().to_i64(), 2)
 }
 
 // --- Anonymous defs as introspection-func args (issue #57/#58) ---
