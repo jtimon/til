@@ -1623,9 +1623,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     // surrounding code would have produced anyway. Reject at the typer
     // level so callers fix the source instead of paying for the copy.
     if method.eq("clone") {
-        if obj.node_type.is_literal_str()
-           .or(obj.node_type.is_literal_num())
-           .or(obj.node_type.is_literal_bool()) {
+        if obj.node_type.is_nonnull_literal() {
             type_error(e, "redundant '' on a literal", ctx)
             set_expr_til_type(e,  Type.Unknown)
             return true
@@ -8233,12 +8231,8 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
         }
         }
         if arg.node_type.is(NodeType.FCall).not() {
-            if arg.node_type.is_literal_num().not() {
-                if arg.node_type.is_literal_str().not() {
-                    if arg.node_type.is_literal_bool().not() {
-                        continue
-                    }
-                }
+            if arg.node_type.is_nonnull_literal().not() {
+                continue
             }
         }
 
@@ -8320,9 +8314,7 @@ hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mu
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FCall)
-    .or(rhs.node_type.is_literal_num())
-    .or(rhs.node_type.is_literal_str())
-    .or(rhs.node_type.is_literal_bool()) {
+    .or(rhs.node_type.is_nonnull_literal()) {
         replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
         free_expr_slot_in_place(stmt.children.get(0))
         stmt.children.set(0, own replacement)
@@ -8352,9 +8344,7 @@ hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut
     ref rhs : Expr = stmt.child(0)
     if do_hoist.and(
         rhs.node_type.is(NodeType.FCall)
-        .or(rhs.node_type.is_literal_num())
-        .or(rhs.node_type.is_literal_str())
-        .or(rhs.node_type.is_literal_bool())
+        .or(rhs.node_type.is_nonnull_literal())
     ) {
         stmt.children.set(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
@@ -8372,9 +8362,7 @@ hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     ref rhs : Expr = stmt.child(1)
     if fa_hoist.and(
         rhs.node_type.is(NodeType.FCall)
-        .or(rhs.node_type.is_literal_num())
-        .or(rhs.node_type.is_literal_str())
-        .or(rhs.node_type.is_literal_bool())
+        .or(rhs.node_type.is_nonnull_literal())
     ) {
         stmt.children.set(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }

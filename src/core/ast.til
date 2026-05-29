@@ -529,6 +529,17 @@ namespace:
     is_literal_null := func(self: NodeType) returns shallow Bool {
         switch self { case NodeType.Literal(Literal.Null): return true case: return false }
     }
+    // Any literal except Null: the str/num/bool constants. Hoisting and
+    // redundant-clone checks treat these as inlinable values while Null
+    // needs separate handling.
+    is_nonnull_literal := func(self: NodeType) returns shallow Bool {
+        switch self {
+        case NodeType.Literal(Literal.Str):  return true
+        case NodeType.Literal(Literal.Num):  return true
+        case NodeType.Literal(Literal.Bool): return true
+        case: return false
+        }
+    }
 }
 
 // --- Expr struct ---

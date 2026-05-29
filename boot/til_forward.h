@@ -1102,6 +1102,7 @@ Bool NodeType_is_literal_str(NodeType * self);
 Bool NodeType_is_literal_num(NodeType * self);
 Bool NodeType_is_literal_bool(NodeType * self);
 Bool NodeType_is_literal_null(NodeType * self);
+Bool NodeType_is_nonnull_literal(NodeType * self);
 Bool NodeType_is(NodeType * self, NodeType * other);
 void NodeType_delete(NodeType * self, Bool * call_free);
 NodeType * NodeType_clone(NodeType * self);
