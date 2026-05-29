@@ -236,6 +236,16 @@ Context := struct {
     // registries also owns the matching temp counter.
     bang_counter : I64 = 0
 
+    // Type-qualified throws lookup: throws_names_global stores method
+    // throws under "Type.method" keys (free functions stay bare). To
+    // resolve the receiver type of a `recv.method(...)` call site at
+    // lowering time (before infer_body runs), the throw/catch walk
+    // seeds this map with the current function's param-name -> type-name
+    // bindings. Local receivers are resolved by scanning the body's
+    // Decls (guess_local_type); the global scope handles the static
+    // `Type.method(...)` form.
+    lowering_param_types := Map.new(Str, Str)
+
     // Two typer-scope flags shared with asaper: typer_in_main_func is
     // set while infer_func_def_expr is checking main(), so the asaper
     // helpers can give main()'s non-Own params a scope-end delete (no
