@@ -54,8 +54,9 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
         // main()'s non-Own params are heap-allocated by the builder's CLI
-        // arg parsing (Str_clone / cli_parse_*) and owned by main itself;
-        // skip the usual is_param filter so they get a scope-end delete.
+        // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
+        // main itself; skip the usual is_param filter so they get a
+        // scope-end delete.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(ctx.typer_in_main_func.not()) { continue }
         if is_null(b.struct_def).not() { continue }
         if is_null(b.func_def).not() { continue }

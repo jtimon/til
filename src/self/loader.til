@@ -433,22 +433,25 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     if is_cli {
         vec_push_str(worklist, "main")
         // The generated CLI entry wrapper (emit_cli_parse_arg in
-        // builder.til) references the cli_parse_* family by raw-C name
-        // to parse typed argv into main()'s params. Those calls are
-        // emitted after this reachability prune, so the names never
-        // appear in the user stream -- seed them as roots here, or DCE
-        // drops the til definitions and the wrapper fails to link.
-        // The bodies pull in Str.from_c_str -> c_str_len -> Str.to_*
-        // transitively.
-        vec_push_str(worklist, "cli_parse_i64")
-        vec_push_str(worklist, "cli_parse_u8")
-        vec_push_str(worklist, "cli_parse_i8")
-        vec_push_str(worklist, "cli_parse_i16")
-        vec_push_str(worklist, "cli_parse_i32")
-        vec_push_str(worklist, "cli_parse_u32")
-        vec_push_str(worklist, "cli_parse_u64")
-        vec_push_str(worklist, "cli_parse_uptr")
-        vec_push_str(worklist, "cli_parse_bool")
+        // builder.til) parses typed argv into main()'s params inline,
+        // by raw-C name: Str.from_c_str wraps each argv c-string and the
+        // Str.to_* / I64.to_* family converts it. Those calls are emitted
+        // after this reachability prune, so the names never appear in the
+        // user stream -- seed them as roots here, or DCE drops the til
+        // definitions and the wrapper fails to link. (Str.from_c_str
+        // pulls in c_str_len transitively; Str.cmp/Str.delete come in via
+        // the "Str" root above but are listed for clarity.)
+        push_qn(worklist, "Str", "from_c_str")
+        push_qn(worklist, "Str", "to_i64")
+        push_qn(worklist, "Str", "to_u8")
+        push_qn(worklist, "Str", "to_i32")
+        push_qn(worklist, "Str", "to_u32")
+        push_qn(worklist, "Str", "to_u64")
+        push_qn(worklist, "Str", "cmp")
+        push_qn(worklist, "Str", "delete")
+        push_qn(worklist, "I64", "to_i8")
+        push_qn(worklist, "I64", "to_i16")
+        push_qn(worklist, "I64", "to_u16")
         for u : ProgramUnit in lp.units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             for stmt : Expr in iu.ast.children {

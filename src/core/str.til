@@ -438,28 +438,6 @@ c_str_len := func(s: I8) returns shallow USize {
     return n
 }
 
-// CLI argument parsers.  The builder emits calls to these in the
-// generated main() of programs whose main() takes typed args (see
-// emit_cli_parse_arg in builder.til).  Each wraps the raw argv
-// c-string in a Str view (Str.from_c_str) and parses it through the
-// Str.to_* family.
-cli_parse_i64 := func(s: I8) returns I64 { return Str.from_c_str(s).to_i64() }
-cli_parse_u8 := func(s: I8) returns U8 { return Str.from_c_str(s).to_u8() }
-cli_parse_i8 := func(s: I8) returns I8 { return Str.from_c_str(s).to_i64().to_i8() }
-cli_parse_i16 := func(s: I8) returns I16 { return Str.from_c_str(s).to_i64().to_i16() }
-cli_parse_u16 := func(s: I8) returns U16 { return Str.from_c_str(s).to_i64().to_u16() }
-cli_parse_i32 := func(s: I8) returns I32 { return Str.from_c_str(s).to_i32() }
-cli_parse_u32 := func(s: I8) returns U32 { return Str.from_c_str(s).to_u32() }
-cli_parse_u64 := func(s: I8) returns U64 { return Str.from_c_str(s).to_u64() }
-cli_parse_uptr := func(s: I8) returns UPtr { return Str.from_c_str(s).to_u64() }
-cli_parse_bool := func(s: I8) returns Bool {
-    v := Str.from_c_str(s)
-    if v.cmp("true").eq(0) { return true }
-    if v.cmp("false").eq(0) { return false }
-    panic(__LOC__, "cannot parse '", v, "' as Bool (expected true/false)")
-    return false
-}
-
 /// Error thrown by the indexed collection accessors (Array.get,
 /// Vec.get, ...) when the index is past the end. The msg field
 /// carries a "file:line:col:<method>: index N out of bounds (len M)"
