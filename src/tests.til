@@ -599,7 +599,9 @@ main := proc(args: ..Str) {
                  "", 0, format(exp, "fizzbuzz.out"), til_bin, asan_flag)
 
     // Issue #220: script-mode map/set literals must compile under -Werror.
-    File.writefile(format(exp, "script_map_lit.out"), format("3", NL, "3", NL))
+    File.writefile(format(exp, "script_map_lit.out"),
+        format("1", NL, "true", NL, "a", NL, "b", NL, "c", NL, "true", NL,
+               "1", NL, "len=3 set=3", NL, "1", NL, "1", NL, "3", NL, "1", NL))
     add_cli_pair(tests, "script_map_lit", "test/script_map_lit.til",
                  "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
 

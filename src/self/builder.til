@@ -1224,6 +1224,17 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
     switch e.node_type {
     case NodeType.Decl(dd):
     ref rhs : Expr = e.child(0)
+    // #220: any decl inside a function body introduces a local that
+    // shadows a same-named script global. is_global / is_rg below are
+    // both gated on ctx.in_func_def.not(), so inside a function every
+    // decl is emitted as a local -- record the name so the use-site
+    // classifiers (is_value_global / is_ref_global) don't mistake it for
+    // the global and emit `.`/`&`/value-return against a local. ptr_locals
+    // is consulted ONLY by those two classifiers, so this is surgical:
+    // it changes the global-vs-local decision and nothing else. (stack_locals
+    // and ref_locals already cover their own cases; adding here is harmless
+    // overlap.)
+    if ctx.in_func_def { ctx.ptr_locals.add(own dd.name.clone()) }
     // For any FuncPtr-typed decl (own, ref, or value), capture the local's
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
@@ -1322,12 +1333,6 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
-                        // #220: own-heap pointer local. Register before
-                        // emit_ctor_fields so the field assignments it
-                        // emits (m->keys = ...) see `m` as a local and
-                        // pick `->` over `.`, even when a script global
-                        // shares the name.
-                        ctx.ptr_locals.add(own dd.name.clone())
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     }
@@ -1421,10 +1426,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
                         if is_global { f.write(dd.name); f.write(" = ") }
-                        else {
-                            ctx.ptr_locals.add(own dd.name.clone()) // #220
-                            f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ")
-                        }
+                        else { f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = ") }
                         emit_expr(f, rhs, depth, ctx); f.write(";\n")
                     }
                 } else {
@@ -1436,7 +1438,6 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else {
-                        ctx.ptr_locals.add(own dd.name.clone()) // #220
                         f.write(ctype); f.write(" *"); f.write(dd.name); f.write(" = malloc(sizeof("); f.write(ctype); f.write("));\n")
                         emit_indent(f, depth)
                         f.write("*"); f.write(dd.name); f.write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
