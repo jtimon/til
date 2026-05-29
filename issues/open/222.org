@@ -1,0 +1,12 @@
+# priority: medium
+** OPEN #222 Dedicated bitwise operators and short-circuiting boolean operators
+
+Currently, TIL lacks short-circuiting boolean operators `&&` and `||`. The operators `&` and `|` map to `.and()` and `.or()` methods, which do not short-circuit because method arguments are strictly evaluated.
+
+Using `&` and `|` for boolean logic is error-prone since it looks like bitwise or boolean logic from C-family languages but behaves eagerly.
+
+A proposed design (related to #117) is to:
+1. Make `band`, `bor`, `bxor`, `bnot`, `shl`, `shr` the bitwise operators, or explicitly distinguish bitwise operations.
+2. Desugar `&` to bitwise `band` / `|` to `bor` (or remove `&`/`|` in favor of keywords).
+3. Introduce native short-circuiting `&&` and `||` for boolean logic.
+4. Desugar `&&` to `and` keyword, and `||` to `or` keyword independently of #117.
