@@ -115,16 +115,18 @@ case binding to a real ~T *p~ pointer into the enum's payload, so
 on the scope, and mirrors each assignment to the binding into the
 source enum's ~ei.data + ENUM_PAYLOAD_OFFSET~ via the typed
 ~write_i64~ / ~write_u8~ / ... primitives (see ~src/c/ext.c~).
-Primitives (I64, U8, I8, I32, U32, U64, F32, Bool) propagate in both
-backends. ~Str~ payloads also propagate under ~til interpret~ (the
-writeback memcpys the new ~Str~ struct into the payload region; literal
-sources are leak-free, owned sources are the open piece). The compile
-backend currently has a separate bug for ~Str~ payload writes (it
-rebinds the local ~Str *~ instead of writing through) -- see #221. Once
-that is fixed, both backends agree for ~Str~ payloads too. Struct
-payloads (~Variant: SomeStruct~) cannot yet be written via ~p =
-SomeStruct(...)~ at all (the typer rejects assigning an owned value to
-a ref target); when that opens up the same writeback covers them.
+Primitives (I64, U8, I8, I32, U32, U64, F32, Bool) and ~Str~ payloads
+propagate in both backends. The compile backend lowers ~p = "lit"~ on
+a ~ref mut Str~ payload binding to ~*p = (Str){.c_str=..., ...}~ (a
+write-through compound literal, not a heap rebind, see #221). The AST
+interpreter mirrors the assignment into ~ei.data + ENUM_PAYLOAD_OFFSET~
+via either a typed primitive write (~write_i64~ / ~write_u8~ / ... in
+~src/c/ext.c~) or, for ~Str~ / user struct payloads, by ~memcpy~'ing the
+struct bytes after first calling ~Str_delete~-equivalent cleanup so
+owned sources don't leak. Struct payloads (~Variant: SomeStruct~)
+cannot yet be written via ~p = SomeStruct(...)~ at all (the typer
+rejects assigning an owned value to a ref target); when that opens up
+the same writeback covers them.
 
 * Current tests to extend
 

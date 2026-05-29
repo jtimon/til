@@ -1709,6 +1709,25 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
         aname := ad.name
         ref rhs : Expr = e.child(0)
         if is_ref_local(aname, ctx) {
+            // #221: `ref mut p : Str = get_payload(<enum>); p = "literal"`
+            // must write the Str struct THROUGH `p` into the enum's payload
+            // memory, not rebind the local pointer to a fresh heap Str.
+            // The default emit_expr for a Literal.Str produces a heap
+            // wrapper (`({ Str *_lit = malloc(...); *_lit = (Str){...}; _lit; })`)
+            // which `p = ...` would just store in `p`, leaving the enum
+            // payload empty (the asaper-inserted Str_delete already wiped
+            // it) and leaking the malloc'd Str. Emit a compound-literal
+            // direct write instead: `*p = (Str){.c_str = "lit", ...};`.
+            if rhs.node_type.is_literal_str() {
+                f.write("*").write(aname).write(" = (Str){.c_str = (void *)\"")
+                switch rhs.node_type {
+                case NodeType.Literal(Literal.Str(lit_s)):
+                    f.write(lit_s).write("\", .count = ").emit_u64(c_lit_byte_count(lit_s).to_u64())
+                case:
+                }
+                f.write("ULL, .cap = TIL_CAP_LIT};\n")
+                return
+            }
             mut do_rebind := false
             switch rhs.node_type {
             case NodeType.FieldAccess: do_rebind = true

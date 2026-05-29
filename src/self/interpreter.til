@@ -957,6 +957,17 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                         }
                                     }
                                     if sz.to_i64().gt(0) {
+                                        // #221 paired: for Str payloads the old payload's
+                                        // c_str may own heap (cap < CAP_VIEW && count > 0);
+                                        // free it before overwriting the bytes so the
+                                        // writeback doesn't leak. Literal sources have
+                                        // cap == CAP_LIT and are skipped.
+                                        if type_name.eq("Str") {
+                                            ref old_str : Str = to_ptr(dest)
+                                            if old_str.count.to_i64().gt(0).and(old_str.cap.lt(CAP_VIEW)) {
+                                                if is_null(old_str.c_str).not() { free(own old_str.c_str) }
+                                            }
+                                        }
                                         if si.borrowed {
                                             mut cloned := new_val.clone()
                                             switch cloned {

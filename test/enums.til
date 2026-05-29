@@ -628,3 +628,19 @@ test_mut_payload_binding := test() {
     case: assert_eq_str(__LOC__, "wrong variant", "")
     }
 }
+
+// #221: Str payloads propagate in both backends too. The compile path
+// previously rebound the local Str pointer instead of writing through
+// (`p = malloc(new)` vs `*p = new`); the interp path now also frees the
+// old c_str before overwriting so owned sources don't leak.
+test_mut_str_payload_binding := test() {
+    mut c := ColorG.Name("hello")
+    switch c {
+    case ColorG.Name(p): p = "world"
+    case:
+    }
+    switch c {
+    case ColorG.Name(n2): assert_eq_str(__LOC__, n2, "world")
+    case: assert_eq_str(__LOC__, "wrong variant", "")
+    }
+}
