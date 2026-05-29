@@ -689,6 +689,7 @@ typedef struct Binding {
 typedef struct Scope {
     Map bindings;
     Scope *parent;
+    Map payload_aliases;
 } Scope;
 
 
@@ -1949,6 +1950,7 @@ Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed);
 Value * widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
+Str * scope_get_payload_alias(Scope * s, Str * name);
 void scope_set_owned(Scope * s, Str * name, Value * val);
 void scope_set_borrowed(Scope * s, Str * name, Cell * cell);
 void scope_free(Scope * s);

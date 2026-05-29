@@ -520,6 +520,16 @@ void *ptr_add(void *buf, UPtr offset) {
 void *to_ptr(void *a) { return a; }
 void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
+/* #211 follow-up: write a typed primitive into raw bytes. Used by the
+ * AST interpreter to mirror writes through a payload-aliased binding
+ * into the underlying enum's payload memory. */
+void write_i64(void *dest, I64 val) { *(I64 *)dest = val; }
+void write_u8(void *dest, U8 val)   { *(U8 *)dest  = val; }
+void write_i32(void *dest, I32 val) { *(I32 *)dest = val; }
+void write_u32(void *dest, U32 val) { *(U32 *)dest = val; }
+void write_u64(void *dest, U64 val) { *(U64 *)dest = val; }
+void write_f32(void *dest, F32 val) { *(F32 *)dest = val; }
+void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }

@@ -242,6 +242,15 @@ void *ptr_add(void *buf, UPtr offset);
 void *to_ptr(void *a);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);
+/* #211 follow-up: typed primitive writers used by the AST interpreter
+ * to mirror writes through payload-aliased bindings. */
+void write_i64(void *dest, I64 val);
+void write_u8(void *dest, U8 val);
+void write_i32(void *dest, I32 val);
+void write_u32(void *dest, U32 val);
+void write_u64(void *dest, U64 val);
+void write_f32(void *dest, F32 val);
+void write_bool(void *dest, Bool val);
 Bool is(void *self, void *other);
 void *get_payload(void *self);
 

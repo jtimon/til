@@ -108,11 +108,16 @@ case Tok.Eof:
 Plain mut/const on the variant tag itself (no payload, e.g. ~mut Eof~)
 is not meaningful and has no effect.
 
-Known limitation: the compiled (C) backend propagates writes through
-the binding into the enum's payload storage. The AST interpreter binds
-payloads by copy, so writes do not propagate under ~til interpret~ --
-the typer accepts the assignment in both modes but only the compiled
-path observes the in-place update.
+Writes propagate in both backends: the compiled (C) backend lowers the
+case binding to a real ~T *p~ pointer into the enum's payload, so
+~p = 99~ becomes ~*p = 99~. The AST interpreter detects the typer-emitted
+~ref T = get_payload(<ident>)~ shape, registers a payload-alias entry
+on the scope, and mirrors each assignment to the binding into the
+source enum's ~ei.data + ENUM_PAYLOAD_OFFSET~ via the typed
+~write_i64~ / ~write_u8~ / ... primitives (see ~src/c/ext.c~).
+Primitive payloads (I64, U8, I32, U32, U64, F32, Bool) are covered;
+compound payloads (Str, struct) are not yet propagated in interp and
+would need clone / delete plumbing on the writeback path.
 
 * Current tests to extend
 

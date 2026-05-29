@@ -67,12 +67,24 @@ site (typer.til). Regression test: test/enums.til
 `test_mut_payload_binding`. Documented in doc/enums.org "Payload
 mutability".
 
-Known limitation: the compiled (C) backend propagates the write into
-the underlying enum value, but the AST interpreter binds payloads by
-copy and does not propagate. The typer accepts the assignment in both
-modes; the test only checks that. A follow-up could teach the
-interpreter to back the payload binding with a real mutable reference
-into the enum's payload storage.
+Interpreter propagation (now also done for primitives): the compiled
+backend lowers the case binding to a real pointer into the enum's
+payload memory, so `p = 99` becomes `*p = 99` and is visible in `e`.
+The AST interpreter previously bound payloads by copy and dropped the
+write on the floor. Fixed by recognising the typer-emitted
+`ref T = get_payload(<ident>)` shape in the interpreter's Decl handler,
+registering a per-scope `payload_aliases` entry (binding name -> source
+enum variable + payload type), and mirroring each Assign into
+`ei.data + ENUM_PAYLOAD_OFFSET` via new typed primitives `write_i64` /
+`write_u8` / ... in src/c/ext.c. Covers I64, U8, I8, I32, U32, U64, F32,
+Bool. Compound payloads (Str, struct) are not yet propagated under
+interp -- the writeback needs clone / delete plumbing -- but the
+binding still mutates locally as today, and the compile path is
+unchanged.
+
+The regression test (`test_mut_payload_binding` in test/enums.til) now
+asserts that the second switch sees the post-write payload value, so
+both interp and compile must agree.
 
 Const opt-out (also done): `const Variant: Type` declares the payload
 as immutable. The case binding is `ref` (not `ref mut`) even when the

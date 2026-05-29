@@ -369,6 +369,13 @@ Binding := struct {
 Scope := struct {
     bindings := Map.new(Str, Binding)
     ref parent : Scope = NULL
+    // #211 follow-up: payload bindings that alias an enum's payload memory.
+    // Key: binding name (the case-binding identifier). Value: encoded as
+    // "<enum_var_name>|<payload_type>" so writes can find the source enum
+    // and mirror the assignment into ei.data + ENUM_PAYLOAD_OFFSET. An
+    // empty map (the default) means "no aliases" and assignment behaves
+    // exactly like before.
+    payload_aliases := Map.new(Str, Str)
 }
 
 // Return-value / control-flow state and namespace fields now live on
@@ -830,6 +837,32 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                 }
             }
             scope_set_owned(scope, dd.name, val)
+            // #211 follow-up: register an alias for `ref T = get_payload(<ident>)`.
+            // When the user later assigns to dd.name, we'll mirror the write into
+            // the source enum's payload memory so the change is visible after
+            // the case body (matching the compile backend).
+            if dd.own_type.is(OwnType.Ref) {
+                switch rhs.node_type {
+                case NodeType.FCall:
+                    if rhs.children.len().eq(2) {
+                        ref head : Expr = rhs.child(0)
+                        ref arg  : Expr = rhs.child(1)
+                        switch head.node_type {
+                        case NodeType.Ident(head_id):
+                            if ident_name(head_id).eq("get_payload") {
+                                switch arg.node_type {
+                                case NodeType.Ident(enum_id):
+                                    enc := ident_name(enum_id).concat("|").concat(dd.explicit_type)
+                                    scope.payload_aliases.set(own dd.name.clone(), own enc.clone())
+                                case:
+                                }
+                            }
+                        case:
+                        }
+                    }
+                case:
+                }
+            }
         case NodeType.Assign(ad):
             ref rhs : Expr = stmt.child(0)
             ref cell : Cell = scope_get(scope, ad.name)
@@ -853,6 +886,48 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
             }
             new_val := eval_expr(scope, rhs, ctx)
             memcpy(cell.val, new_val, Value.size())
+            // #211 follow-up: if this binding aliases an enum's payload
+            // memory, mirror the write into ei.data + ENUM_PAYLOAD_OFFSET
+            // so the change is visible after the case body. Only handles
+            // primitive payloads for now; compound payloads (Str / struct)
+            // would need clone / delete plumbing and are left as future
+            // work, but the binding mutation itself still happens above.
+            payload_alias := scope_get_payload_alias(scope, ad.name)
+            if payload_alias.len().gt(0) {
+                pipe_pos := payload_alias.find("|")
+                if pipe_pos.gte(0) {
+                    pipe_u := pipe_pos.to_u32()
+                    enum_var_name := payload_alias.substr(0.to_u32(), pipe_u)
+                    type_name := payload_alias.substr(pipe_u.add(1.to_u32()), payload_alias.len().sub(pipe_u).sub(1.to_u32()))
+                    ref enum_cell : Cell = scope_get(scope, enum_var_name)
+                    if is_null(enum_cell).not() {
+                        switch enum_cell.val {
+                        case Value.Enum(ei):
+                            if is_null(ei.data).not() {
+                                ref dest : Dynamic = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
+                                switch new_val {
+                                case Value.Int(iv):
+                                    if type_name.eq("I64") { write_i64(dest, iv) }
+                                case Value.Byte(bv):
+                                    if type_name.eq("U8") { write_u8(dest, bv) }
+                                case Value.Int32(i32v):
+                                    if type_name.eq("I32") { write_i32(dest, i32v) }
+                                case Value.Uint32(u32v):
+                                    if type_name.eq("U32") { write_u32(dest, u32v) }
+                                case Value.Uint64(u64v):
+                                    if type_name.eq("U64") { write_u64(dest, u64v) }
+                                case Value.Float(fv):
+                                    if type_name.eq("F32") { write_f32(dest, fv) }
+                                case Value.Boolean(boov):
+                                    if type_name.eq("Bool") { write_bool(dest, boov) }
+                                case:
+                                }
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
         case NodeType.FieldAssign(fad):
             fname := fad.name
             ref val_expr : Expr = stmt.child(1)
@@ -1541,6 +1616,24 @@ scope_get := func(mut s: Scope, name: Str) returns ref Cell {
 scope_new := func(parent: Scope) returns Scope {
     return Scope(parent = parent)
 }
+
+// #211 follow-up: walk the scope chain looking up a payload-alias entry
+// for `name`. Returns the encoded "<enum_var>|<type>" string when found
+// (registered by the Decl handler for `ref T = get_payload(<ident>)`),
+// or "" otherwise. The Assign handler uses this to mirror the write.
+scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
+    ref mut cur : Scope = s
+    while true {
+        if is_null(cur) { return "" }
+        if cur.payload_aliases.has(name) {
+            ref v : Str = cur.payload_aliases.get(name)
+            return v.clone()
+        }
+        cur = cur.parent
+    }
+    return ""
+}
+
 scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
     if s.bindings.has(name) {
         ref b : Binding = s.bindings.get(name)
