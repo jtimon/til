@@ -1,0 +1,6 @@
+mode mode
+
+client := Mode(auto_import = "lib/custom_modes/client", decls_only = false)
+server := Mode(auto_import = "lib/custom_modes/server", decls_only = false)
+publisher := Mode(auto_import = "lib/custom_modes/publisher", decls_only = false)
+subscriber := Mode(auto_import = "lib/custom_modes/subscriber", decls_only = false)

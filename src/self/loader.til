@@ -807,7 +807,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         if miu_temp.mode.auto_import.len().gt(0) {
             mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
             if realpath_str(auto_path).eq("") {
-                auto_path = bin_dir.format("/src/modes/", miu_temp.mode.auto_import, ".til")
+                // If it fails relative to bin_dir, maybe it's relative to the CWD (for custom modes in other projects)
+                auto_path = cwd.format("/", miu_temp.mode.auto_import, ".til")
             }
             abs_auto := realpath_str(auto_path)
             if abs_auto.len().gt(0) {

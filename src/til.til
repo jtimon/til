@@ -435,10 +435,13 @@ parse_args := proc(args: Array) returns CliArgs {
         .and(cli.command.eq("--help").not())
         .and(cli.command.eq("--version").not())
         .and(cli.command.eq("-v").not()) {
-        cli.path = cli.command
         cli.command = "interpret"
         cli.path_idx = 0
-        return cli
+    } else if cli.command.starts_with("-") {
+        // If it starts with '-', it's a flag, meaning there's no command specified.
+        // It's just `til --flag ... file.til`
+        cli.command = "interpret"
+        cli.path_idx = 0
     }
 
     // Scan for -o/-c/--target/--cc/--prefix flags before source file

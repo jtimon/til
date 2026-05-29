@@ -1,0 +1,24 @@
+mode publisher
+
+println(format("nng version ", read_cstr(nng_version())))
+
+url := "tcp://127.0.0.1:5556"
+
+mut pub := nng_socket(id = 0.to_u32())
+check(nng_pub0_open(pub), "pub0_open")
+
+check(nng_listen(pub, url.c_str, nng_listener(id = 0.to_u32()), 0.to_i32()), "listen")
+
+// Give the subscriber a moment to connect
+nng_msleep(1000.to_i32())
+
+publish := proc(sock: nng_socket, payload: Str) {
+    check(nng_send(sock, payload.c_str, payload.len().add(1.to_usize()), 0.to_i32()), "send")
+}
+
+publish(pub, "weather: sunny, 22C")
+publish(pub, "sports: home team won")
+publish(pub, "weather: cloudy, 18C")
+
+nng_msleep(1000.to_i32())
+check(nng_close(pub), "close pub")

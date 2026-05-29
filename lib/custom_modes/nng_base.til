@@ -1,0 +1,25 @@
+import("../../vendor/bindings/nng")
+link("vendor/nng/libnng.a")
+link("pthread")
+link("atomic")
+
+// Read a NUL-terminated C nng_recv_buffer into an owned til Str.
+read_cstr := func(p: Dynamic) returns Str {
+    mut n : USize = 0
+    while true {
+        ref b : I8 = ptr_add(p, n)
+        if b.eq(0.to_i8()) { break }
+        n = n.add(1.to_usize())
+    }
+    ref start : I8 = ptr_add(p, 0.to_usize())
+    view := Str(c_str = start, count = n, cap = CAP_VIEW)
+    return view.clone()
+}
+
+// Abort with the nng error string if rc is non-zero.
+check := proc(rc: I32, what: Str) {
+    if rc.eq(0.to_i32()) { return }
+    ref msg : I8 = nng_strerror(rc)
+    println(format(what, ": ", read_cstr(msg)))
+    panic(__LOC__, "nng call failed")
+}

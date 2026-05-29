@@ -1,0 +1,18 @@
+mode server
+
+println(format("nng version ", read_cstr(nng_version())))
+
+url := "tcp://127.0.0.1:5555"
+
+mut srv := nng_socket(id = 0.to_u32())
+check(nng_pair0_open(srv), "pair0_open srv")
+
+mut lst := nng_listener(id = 0.to_u32())
+check(nng_listen(srv, url.c_str, lst, 0.to_i32()), "listen")
+
+msg := "hello from til over nng!"
+// len+1 sends the trailing NUL so the receiver can treat it as a C string.
+check(nng_send(srv, msg.c_str, msg.len().add(1.to_usize()), 0.to_i32()), "send")
+
+nng_msleep(1000.to_i32()) // wait a bit for client to receive
+check(nng_close(srv), "close srv")

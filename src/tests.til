@@ -514,6 +514,16 @@ main := proc(args: ..Str) {
                       " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
                       "examples/issues.til"))
 
+    // === custom modes build tests ===
+    add_single(tests, "build_server", "build", 0, "",
+               format(til_bin, " build", asan_flag, " -o bin/server --extra-modes=examples/custom_modes.til examples/server.til"))
+    add_single(tests, "build_client", "build", 0, "",
+               format(til_bin, " build", asan_flag, " -o bin/client --extra-modes=examples/custom_modes.til examples/client.til"))
+    add_single(tests, "build_publisher", "build", 0, "",
+               format(til_bin, " build", asan_flag, " -o bin/publisher --extra-modes=examples/custom_modes.til examples/publisher.til"))
+    add_single(tests, "build_subscriber", "build", 0, "",
+               format(til_bin, " build", asan_flag, " -o bin/subscriber --extra-modes=examples/custom_modes.til examples/subscriber.til"))
+
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,

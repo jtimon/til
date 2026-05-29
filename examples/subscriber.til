@@ -1,0 +1,33 @@
+mode subscriber
+
+println(format("nng version ", read_cstr(nng_version())))
+
+url := "tcp://127.0.0.1:5556"
+
+mut sub := nng_socket(id = 0.to_u32())
+check(nng_sub0_open(sub), "sub0_open")
+
+// Subscribe to the "weather" topic prefix. An empty subscription (len 0)
+// would match everything.
+topic := "weather"
+check(nng_socket_set(sub, "sub:subscribe".c_str, topic.c_str, topic.len()), "subscribe")
+
+// Bound the receive loop so the demo can never hang.
+check(nng_socket_set_ms(sub, "recv-timeout".c_str, 3000.to_i32()), "set recv-timeout")
+
+check(nng_dial(sub, url.c_str, nng_dialer(id = 0.to_u32()), 0.to_i32()), "dial")
+
+// Drain everything the subscriber matched; a non-zero rc (NNG_ETIMEDOUT)
+// means no more messages are pending, so stop.
+mut nrecv := 0
+while true {
+    mut rbuf := Str.with_capacity(256.to_usize())
+    mut sz : USize = 256.to_usize()
+    rc := nng_recv(sub, rbuf.c_str, sz, 0.to_i32())
+    if rc.neq(0.to_i32()) { break }
+    println(format("received: ", read_cstr(rbuf.c_str)))
+    nrecv = nrecv.add(1)
+}
+println(format("total matched messages: ", nrecv.to_str()))
+
+check(nng_close(sub), "close sub")
