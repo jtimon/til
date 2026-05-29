@@ -1590,6 +1590,8 @@ void insert_exit_deletes_into_stmt(Expr * stmt, Vec * body_stmts, Vec * locals, 
 void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new_ch, TypeScope * scope);
 void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Context * ctx, Expr * body, Vec * locals);
+Bool priv___src_self_asaper_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);
+void priv___src_self_asaper_til__sink_conditional_transfer_deletes(Expr * body, Vec * locals, TypeScope * scope, Context * ctx);
 Bool insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool asap_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void asap_destroy(Context * ctx);

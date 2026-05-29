@@ -655,6 +655,79 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
 // tracks lifting the per-site calls into a single asap_destroy(ctx)
 // walk in prepare_program once #158's per-body scope cache is in
 // the Context.
+// Does a branch body unconditionally transfer ownership of `name`? True iff
+// a direct (top-level) statement of the branch transfers it -- a transfer
+// nested inside another if/while/switch is itself conditional and doesn't
+// count, so we stay conservative.
+priv branch_unconditionally_transfers := func(branch: Expr, name: Str, scope: TypeScope, ctx: Context) returns shallow Bool {
+    if is_null(branch) { return false }
+    if branch.node_type.is(NodeType.Body).not() { return false }
+    for c : Expr in branch.children {
+        if c.node_type.is(NodeType.If) { continue }
+        if c.node_type.is(NodeType.While) { continue }
+        if c.node_type.is(NodeType.Switch) { continue }
+        if c.node_type.is(NodeType.Body) { continue }
+        if expr_transfers_own(c, name, scope, ctx) { return true }
+    }
+    return false
+}
+
+// asap stands down on any `own` transfer (own_transfer >= 0). When the
+// transfer sits inside one branch of an `if`, the other path never frees the
+// local -- a leak (the conditional-transfer footgun). Fix: add the local's
+// delete to the branch that does NOT transfer it. This only ever ADDS a
+// delete on a path where the local is provably still owned, so it cannot
+// double-free; conservative detection (exactly one branch unconditionally
+// transfers, local unused after the if) leaves every other shape as-is.
+//
+// Restricted to body-declared LOCALS (decl_index >= 0). Params are excluded:
+// a delete method's own `self` does `if call_free { free(own self) }`, a
+// conditional transfer of `self`; sinking a delete into the else branch there
+// re-frees self on the call_free=false path (recursive delete -> bad-free).
+//
+// Str is excluded: its heap/literal/view duality (CAP_LIT / CAP_VIEW) means a
+// Str local can hold a borrowed view on the non-transfer path, and deleting
+// that frees the source's buffer. Vec/Set/Map/struct/enum locals are always
+// genuinely heap when owned, so they are safe to sink.
+priv sink_conditional_transfer_deletes := func(mut body: Expr, mut locals: Vec, scope: TypeScope, ctx: Context) {
+    for local : LocalInfo in locals {
+        if local.skip_scope_delete { continue }
+        if local.decl_index.lt(0) { continue }
+        if local.own_transfer.lt(0) { continue }
+        if local.is_heap.not() { continue }
+        if is_aggregate(local.type).not() { continue }
+        if type_to_name(local.type).len().eq(0) { continue }
+        if type_to_name(local.type).eq("Str") { continue }
+        if local.last_use.gt(local.own_transfer) { continue }
+        if local.own_transfer.gte(body.children.len().to_i32()) { continue }
+        ref tstmt : Expr = body.child(local.own_transfer.to_u32())
+        if tstmt.node_type.is(NodeType.If).not() { continue }
+        if tstmt.children.len().lt(2) { continue }
+        ref then_body : Expr = tstmt.child(1)
+        has_else := tstmt.children.len().gt(2)
+        then_xfer := branch_unconditionally_transfers(then_body, local.name, scope, ctx)
+        mut else_xfer := false
+        if has_else {
+            else_xfer = branch_unconditionally_transfers(tstmt.child(2), local.name, scope, ctx)
+        }
+        if then_xfer.and(else_xfer.not()) {
+            del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, tstmt)
+            if is_null(del) { continue }
+            if has_else {
+                tstmt.child(2).add_child(own del)
+            } else {
+                mut else_b := Expr.new(NodeType.Body, tstmt.line, tstmt.col)
+                else_b.add_child(own del)
+                tstmt.add_child(own else_b)
+            }
+        } else if else_xfer.and(then_xfer.not()) {
+            del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, tstmt)
+            if is_null(del) { continue }
+            then_body.add_child(own del)
+        }
+    }
+}
+
 insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
     if scope_exit.eq(0) { return false }
     is_program_scope := is_null(scope.parent)
@@ -666,6 +739,7 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sh
     extend_ref_local_lifetimes(body, locals_vec, scope)
     check_use_after_own_transfer(body, locals_vec, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
+    sink_conditional_transfer_deletes(body, locals_vec, scope, ctx)
 
     mut old := Vec.new(Expr)
     old.move_from(body.children)
