@@ -45,19 +45,21 @@ type_binding_is_type_token := func(b: TypeBinding) returns shallow Bool {
 }
 
 make_til_type_expr := func(src: Expr, t: Type) returns Expr {
-    mut type_ident := Expr.new(ident_node("Type"), src.line, src.col)
-    set_expr_til_type(type_ident, Type.Enum("Type"))
     mut variant_name := ""
     mut payload_name := ""
     mut has_payload := false
+    // Variants stored under Type.Primitive(Primitive.X) need a nested
+    // construction `Type.Primitive(Primitive.X)`, not a bare
+    // `Type.X` (Type has no such field). Built below after the switch.
+    mut primitive_variant := ""
     switch t {
     case Type.Unknown:   variant_name = "Unknown"
     case Type.None:      variant_name = "None"
     case Type.I64:       variant_name = "I64"
     case Type.U8:        variant_name = "U8"
     case Type.I8:        variant_name = "I8"
-    case Type.Primitive(Primitive.I16):       variant_name = "I16"
-    case Type.Primitive(Primitive.U16):       variant_name = "U16"
+    case Type.Primitive(Primitive.I16):       primitive_variant = "I16"
+    case Type.Primitive(Primitive.U16):       primitive_variant = "U16"
     case Type.I32:       variant_name = "I32"
     case Type.U32:       variant_name = "U32"
     case Type.U64:       variant_name = "U64"
@@ -72,6 +74,26 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.Dynamic:   variant_name = "Dynamic"
     case Type.Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
     }
+    if primitive_variant.len().gt(0) {
+        // Build Type.Primitive(Primitive.<primitive_variant>).
+        mut type_ident_p := Expr.new(ident_node("Type"), src.line, src.col)
+        set_expr_til_type(type_ident_p, Type.Enum("Type"))
+        mut prim_ident := Expr.new(ident_node("Primitive"), src.line, src.col)
+        set_expr_til_type(prim_ident, Type.Enum("Primitive"))
+        mut prim_fa := Expr.new(field_access_node(primitive_variant), src.line, src.col)
+        prim_fa.add_child(own prim_ident)
+        set_expr_til_type(prim_fa, Type.Enum("Primitive"))
+        mut type_prim_fa := Expr.new(field_access_node("Primitive"), src.line, src.col)
+        type_prim_fa.add_child(own type_ident_p)
+        set_expr_til_type(type_prim_fa, Type.Unknown)
+        mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+        call.add_child(own type_prim_fa)
+        call.add_child(own prim_fa)
+        set_expr_til_type(call, Type.Enum("Type"))
+        return call
+    }
+    mut type_ident := Expr.new(ident_node("Type"), src.line, src.col)
+    set_expr_til_type(type_ident, Type.Enum("Type"))
     mut fa := Expr.new(field_access_node(variant_name), src.line, src.col)
     fa.add_child(own type_ident)
     if has_payload.not() {

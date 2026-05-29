@@ -51,6 +51,7 @@ namespace:
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
     to_i8 := ext_func(shallow val: I64) returns shallow I8 {}
     to_i16 := ext_func(shallow val: I64) returns shallow I16 {}
+    to_u16 := ext_func(shallow val: I64) returns shallow U16 {}
     to_i32 := ext_func(shallow val: I64) returns shallow I32 {}
     to_u32 := ext_func(shallow val: I64) returns shallow U32 {}
     /// Convert to USize (target-width unsigned integer). Backed by the

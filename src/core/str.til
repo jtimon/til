@@ -443,6 +443,7 @@ cli_parse_i64 := func(s: I8) returns I64 { return cli_view(s).to_i64() }
 cli_parse_u8 := func(s: I8) returns U8 { return cli_view(s).to_u8() }
 cli_parse_i8 := func(s: I8) returns I8 { return cli_view(s).to_i64().to_i8() }
 cli_parse_i16 := func(s: I8) returns I16 { return cli_view(s).to_i64().to_i16() }
+cli_parse_u16 := func(s: I8) returns U16 { return cli_view(s).to_i64().to_u16() }
 cli_parse_i32 := func(s: I8) returns I32 { return cli_view(s).to_i32() }
 cli_parse_u32 := func(s: I8) returns U32 { return cli_view(s).to_u32() }
 cli_parse_u64 := func(s: I8) returns U64 { return cli_view(s).to_u64() }

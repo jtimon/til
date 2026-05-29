@@ -238,7 +238,8 @@ typedef enum {
     Value_TAG_Enum,
     Value_TAG_Ref,
     Value_TAG_Dynamic,
-    Value_TAG_Sbyte
+    Value_TAG_Sbyte,
+    Value_TAG_Ushort
 } Value_tag;
 typedef struct Value Value;
 typedef struct Cell Cell;
@@ -498,6 +499,7 @@ typedef struct Set {
 } Set;
 
 
+
 struct TokenType {
     TokenType_tag tag;
 };
@@ -670,6 +672,7 @@ struct Value {
         void * Ref;
         void * Dynamic;
         I8 Sbyte;
+        U16 Ushort;
     } data;
 };
 
@@ -1182,6 +1185,9 @@ void Set_add(Set * self, void * val);
 void Set_delete(Set * self, Bool * call_free);
 Set * Set_clone(Set * self);
 U32 Set_size(void);
+Str * U16_to_str(U16 * val);
+void U16_delete(U16 * self, Bool * call_free);
+U32 * U16_size(void);
 I64 * wait_cmd(I64 * pid);
 I64 * run_cmd(Str * output, Array * args);
 Bool TokenType_is(TokenType * self, TokenType * other);
@@ -1902,6 +1908,7 @@ Value * Value_Enum(EnumInstance * val);
 Value * Value_Ref(void * val);
 Value * Value_Dynamic(void * val);
 Value * Value_Sbyte(I8 * val);
+Value * Value_Ushort(U16 * val);
 Bool Value_is(Value * self, Value * other);
 void Value_delete(Value * self, Bool * call_free);
 U32 Value_size(void);
@@ -1920,6 +1927,7 @@ Value val_i64(I64 v);
 Value val_u8(I64 v);
 Value val_i8(I64 v);
 Value val_i16(I64 v);
+Value val_u16(I64 v);
 Value val_i32(I64 v);
 Value val_u32(I64 v);
 Value val_u64(U64 v);
@@ -2015,6 +2023,7 @@ Bool h_Bool_or(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_Bool_not(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_U8_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_I16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_U16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_I32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_F32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_U32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
@@ -2248,6 +2257,7 @@ Value *Value_Enum(EnumInstance *);
 Value *Value_Ref(void *);
 Value *Value_Dynamic(void *);
 Value *Value_Sbyte(I8 *);
+Value *Value_Ushort(U16 *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;

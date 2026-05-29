@@ -292,6 +292,7 @@ F32 U8_to_f32(U8 a) { return (F32)a; }
 U8 I64_to_u8(I64 a) { return (U8)a; }
 I8 I64_to_i8(I64 a) { return (I8)a; }
 I16 I64_to_i16(I64 a) { return (I16)a; }
+U16 I64_to_u16(I64 a) { return (U16)a; }
 I32 I64_to_i32(I64 a) { return (I32)a; }
 U32 I64_to_u32(I64 a) { return (U32)a; }
 U32 I32_to_u32(I32 a) { return (U32)a; }
@@ -353,6 +354,31 @@ I16 I16_from_i64_ext(const I64 *a) { return (I16)*a; }
 
 // I16 clone
 I16 I16_clone(const I16 *v) { return *v; }
+
+// U16 arithmetic
+U16 U16_add(U16 a, U16 b) { return (U16)(a + b); }
+U16 U16_sub(U16 a, U16 b) { return (U16)(a - b); }
+U16 U16_mul(U16 a, U16 b) { return (U16)(a * b); }
+U16 U16_div(U16 a, U16 b) { return (b == 0) ? 0 : (U16)(a / b); }
+U16 U16_mod(U16 a, U16 b) { return (b == 0) ? 0 : (U16)(a % b); }
+U16 U16_and(U16 a, U16 b) { return (U16)(a & b); }
+U16 U16_or(U16 a, U16 b) { return (U16)(a | b); }
+U16 U16_xor(U16 a, U16 b) { return (U16)(a ^ b); }
+
+// U16 comparisons
+Bool U16_eq(U16 a, U16 b) { return a == b; }
+I64 U16_cmp(U16 a, U16 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
+
+// U16 conversions
+I64 U16_to_i64(U16 a) { return (I64)a; }
+U64 U16_to_u64(U16 a) { return (U64)a; }
+U32 U16_to_u32(U16 a) { return (U32)a; }
+F32 U16_to_f32(U16 a) { return (F32)a; }
+U16 U16_from_i64(I64 v) { return (U16)v; }
+U16 U16_from_i64_ext(const I64 *a) { return (U16)*a; }
+
+// U16 clone
+U16 U16_clone(const U16 *v) { return *v; }
 
 // I32 arithmetic
 I32 I32_add(I32 a, I32 b) { return a + b; }

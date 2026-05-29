@@ -3,9 +3,9 @@ mode test
 // Issue #212: same-size integer reinterpret cast via UFCS `e.cast(T)`.
 // Supported same-size signed/unsigned integer pairs:
 //   U8<->I8   (1 byte)
+//   I16<->U16 (2 bytes)
 //   I32<->U32 (4 bytes)
 //   I64<->U64 (8 bytes)
-// 16-bit is deferred until U16 exists as a primitive.
 // It is a free bit reinterpret, so out-of-range values wrap rather
 // than panic.
 
@@ -25,6 +25,20 @@ test_cast_u8_i8 := test() {
     // High bit set: 0x80 -> I8 minimum.
     d : U8 = 128
     assert_eq(__LOC__, d.cast(I8).to_i64(), -128)
+}
+
+test_cast_u16_i16 := test() {
+    // 0xFFFF reinterpreted as I16 is -1.
+    a : U16 = 65535
+    assert_eq(__LOC__, a.cast(I16).to_i64(), -1)
+
+    // -1 reinterpreted as U16 is 65535 (round trip).
+    b : I16 = -1
+    assert_eq(__LOC__, b.cast(U16).to_i64(), 65535)
+
+    // High bit set: 0x8000 -> I16 minimum.
+    c : U16 = 32768
+    assert_eq(__LOC__, c.cast(I16).to_i64(), -32768)
 }
 
 test_cast_u32_i32 := test() {

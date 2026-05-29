@@ -325,6 +325,10 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
         set_expr_til_type(e, Type.Primitive(Primitive.I16))
         return e
+    case Value.Ushort(x):
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
+        set_expr_til_type(e, Type.Primitive(Primitive.U16))
+        return e
     case Value.Int32(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
         set_expr_til_type(e, Type.Struct("I32"))
@@ -414,6 +418,7 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         case Type.U32: return val_u32(num.to_i64())
         case Type.U64: return val_u64(num.to_u64())
         case Type.Primitive(Primitive.I16): return val_i16(num.to_i64())
+        case Type.Primitive(Primitive.U16): return val_u16(num.to_i64())
         case Type.I32: return val_i32(num.to_i64())
         case Type.F32: return val_f32(num.to_f32())
         case Type.Struct(s):
@@ -823,6 +828,11 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                     case Value.Short(sv):
                         mut lit := Expr.new(literal_num_node(sv.to_str()), arg.line, arg.col)
                         set_expr_til_type(lit, Type.Primitive(Primitive.I16))
+                        ec.add_child(own lit)
+                        continue
+                    case Value.Ushort(uv):
+                        mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
+                        set_expr_til_type(lit, Type.Primitive(Primitive.U16))
                         ec.add_child(own lit)
                         continue
                     case Value.Int32(iv):

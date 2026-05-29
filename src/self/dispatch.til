@@ -170,6 +170,7 @@ value_to_u64 := func(v: Value) returns U64 {
     case Value.Byte(x):    return x.to_u64()
     case Value.Sbyte(x):   return x.to_u64()
     case Value.Short(x):   return x.to_u64()
+    case Value.Ushort(x):  return x.to_u64()
     case Value.Int32(x):   return x.to_u64()
     case Value.Uint32(x):  return x.to_u64()
     case Value.Uint64(x):  return x.clone()
@@ -198,6 +199,7 @@ priv value_to_f32 := func(v: Value) returns F32 {
     case Value.Byte(x):    return x.to_f32()
     case Value.Sbyte(x):   return x.to_i64().to_f32()
     case Value.Short(x):   return x.to_f32()
+    case Value.Ushort(x):  return x.to_f32()
     case Value.Int32(x):   return x.to_f32()
     case Value.Uint32(x):  return x.to_f32()
     case Value.Uint64(x):  return x.to_f32()
@@ -293,6 +295,18 @@ h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
     }
 }
 
+h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+    v := eval_expr(s, e.child(1), ctx)
+    switch v {
+    case Value.Int(i):
+        r = val_u16(i)
+        return true
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
+}
+
 h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
@@ -339,6 +353,8 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bo
     tn := til_type_name_c(expr_til_type(e))
     if tn.eq("I8")  { r = val_i8(raw.to_i64());  return true }
     if tn.eq("U8")  { r = val_u8(raw.to_i64());  return true }
+    if tn.eq("I16") { r = val_i16(raw.to_i64()); return true }
+    if tn.eq("U16") { r = val_u16(raw.to_i64()); return true }
     if tn.eq("I32") { r = val_i32(raw.to_i64()); return true }
     if tn.eq("U32") { r = val_u32(raw.to_i64()); return true }
     if tn.eq("I64") { r = val_i64(raw.to_i64()); return true }
@@ -405,6 +421,7 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
     case Value.Byte(p):    return p
     case Value.Sbyte(p):   return p
     case Value.Short(p):   return p
+    case Value.Ushort(p):  return p
     case Value.Int32(p):   return p
     case Value.Uint32(p):  return p
     case Value.Float(p):   return p
@@ -1064,6 +1081,8 @@ dispatch_init := func(ctx: Context) {
     reg_dispatch("U8_from_i64_ext", h_U8_from_i64, ctx)
     reg_dispatch("I16_from_i64", h_I16_from_i64, ctx)
     reg_dispatch("I16_from_i64_ext", h_I16_from_i64, ctx)
+    reg_dispatch("U16_from_i64", h_U16_from_i64, ctx)
+    reg_dispatch("U16_from_i64_ext", h_U16_from_i64, ctx)
     reg_dispatch("I32_from_i64", h_I32_from_i64, ctx)
     reg_dispatch("I32_from_i64_ext", h_I32_from_i64, ctx)
     reg_dispatch("F32_from_i64", h_F32_from_i64, ctx)
@@ -1186,6 +1205,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Byte(x):    pdata = to_ptr(x); psz = 1
                 case Value.Sbyte(x):   pdata = to_ptr(x); psz = 1
                 case Value.Short(x):   pdata = to_ptr(x); psz = 2
+                case Value.Ushort(x):  pdata = to_ptr(x); psz = 2
                 case Value.Int32(x):   pdata = to_ptr(x); psz = 4
                 case Value.Uint32(x):  pdata = to_ptr(x); psz = 4
                 case Value.Uint64(x):  pdata = to_ptr(x); psz = 8
@@ -1224,6 +1244,7 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Contex
     if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
     else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
     else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.to_i64());   return true }
+    else if rtype.eq("U16")   { ref rv : U16 = p;   result = val_u16(rv.to_i64());   return true }
     else if rtype.eq("I32")   { ref rv : I32 = p;   result = val_i32(rv.to_i64());   return true }
     else if rtype.eq("U32")   { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
     else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
@@ -1356,6 +1377,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             case Value.Byte(p):    dp = malloc(1); memcpy(dp, p, 1)
             case Value.Sbyte(p):   dp = malloc(1); memcpy(dp, p, 1)
             case Value.Short(p):   dp = malloc(2); memcpy(dp, p, 2)
+            case Value.Ushort(p):  dp = malloc(2); memcpy(dp, p, 2)
             case Value.Int32(p):   dp = malloc(4); memcpy(dp, p, 4)
             case Value.Uint32(p):  dp = malloc(4); memcpy(dp, p, 4)
             case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)

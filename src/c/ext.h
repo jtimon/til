@@ -126,6 +126,31 @@ I16 I16_from_i64_ext(const I64 *a);
 // I16 clone
 I16 I16_clone(const I16 *v);
 
+// U16 arithmetic
+U16 U16_add(U16 a, U16 b);
+U16 U16_sub(U16 a, U16 b);
+U16 U16_mul(U16 a, U16 b);
+U16 U16_div(U16 a, U16 b);
+U16 U16_mod(U16 a, U16 b);
+U16 U16_and(U16 a, U16 b);
+U16 U16_or(U16 a, U16 b);
+U16 U16_xor(U16 a, U16 b);
+
+// U16 comparisons
+Bool U16_eq(U16 a, U16 b);
+I64 U16_cmp(U16 a, U16 b);
+
+// U16 conversions
+I64 U16_to_i64(U16 a);
+U64 U16_to_u64(U16 a);
+U32 U16_to_u32(U16 a);
+F32 U16_to_f32(U16 a);
+U16 I64_to_u16(I64 a);
+U16 U16_from_i64_ext(const I64 *a);
+
+// U16 clone
+U16 U16_clone(const U16 *v);
+
 // I32 arithmetic
 I32 I32_add(I32 a, I32 b);
 I32 I32_sub(I32 a, I32 b);
