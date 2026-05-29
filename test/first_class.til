@@ -296,6 +296,17 @@ test_anon_return_type := test() {
     assert_eq(__LOC__, p.x.add(p.y), 11)
 }
 
+// Anon enum as return type. Returning a bare tag-only enum variant used to
+// hit a pre-existing compile-mode codegen bug; issue #70's bootstrapping
+// fix (0678984) cleared it for both named and anonymous enums.
+anon_make_color := func() returns enum { Red, Green, Blue } {
+    return enum { Red, Green, Blue }.Green
+}
+
+test_anon_enum_return_type := test() {
+    assert_eq_str(__LOC__, anon_make_color().to_str(), "Green")
+}
+
 anon_name_of := func(c: enum { Red, Green, Blue }) returns Str {
     return c.to_str()
 }
