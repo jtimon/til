@@ -438,7 +438,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
         // emitted after this reachability prune, so the names never
         // appear in the user stream -- seed them as roots here, or DCE
         // drops the til definitions and the wrapper fails to link.
-        // The bodies pull in cli_view -> c_str_len -> Str.to_* transitively.
+        // The bodies pull in Str.from_c_str -> c_str_len -> Str.to_*
+        // transitively.
         vec_push_str(worklist, "cli_parse_i64")
         vec_push_str(worklist, "cli_parse_u8")
         vec_push_str(worklist, "cli_parse_i8")
