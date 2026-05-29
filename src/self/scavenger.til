@@ -551,14 +551,14 @@ priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns sh
                 mut decl_children := Vec.new(Expr)
                 decl_children.move_from(decl_stmt.children)
                 new_ch.push_take(decl_children, 0)
-                Vec.delete(own decl_children, false)
+                Vec.delete(own decl_children, true)
                 continue
             }
             new_ch.push_take(old, k)
         }
         body.children.move_from(new_ch)
-        Vec.delete(own old, false)
-        Vec.delete(own new_ch, false)
+        Vec.delete(own old, true)
+        Vec.delete(own new_ch, true)
 
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
@@ -567,10 +567,10 @@ priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns sh
         }
     }
     free(own marks)
-    Set.delete(own refs, false)
-    Set.delete(own candidates, false)
-    Set.delete(own candidates_replace, false)
-    Set.delete(own dropped, false)
+    Set.delete(own refs, true)
+    Set.delete(own candidates, true)
+    Set.delete(own candidates_replace, true)
+    Set.delete(own dropped, true)
     return any
 }
 

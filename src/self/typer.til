@@ -212,7 +212,7 @@ BoolName := "Bool"
 // payload does not leak. Non-priv so the asaper module
 // (src/self/asaper.til) can reuse it from insert_post_stmt_deletes.
 free_expr_slot_in_place := func(mut e: Expr) {
-    Type.delete(own expr_til_type(e), false)
+    Type.delete(own expr_til_type(e), true)
     NodeType.delete(own e.node_type, false)
     Vec.delete(own e.children, false)
 }
@@ -1848,7 +1848,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
         // drops the old contents in place, resizes if needed, and
         // bit-copies the new payload over.
         e.children.move_from(new_ch)
-        Vec.delete(own new_ch, false)
+        Vec.delete(own new_ch, true)
         // After UFCS rewriting, e.child(1) is the original receiver
         // Expr that was already inferred at the top of this proc. Skip
         // it (and any already-typed positional arg) to avoid firing
@@ -3174,8 +3174,8 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
             new_ch.push_take(old, j)
         }
         body.children.move_from(new_ch)
-        Vec.delete(own new_ch, false)
-        Vec.delete(own old, false)
+        Vec.delete(own new_ch, true)
+        Vec.delete(own old, true)
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
@@ -3734,8 +3734,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                             new_ch.push_take(old, bi)
                                         }
                                     case_body.children.move_from(new_ch)
-                                        Vec.delete(own new_ch, false)
-                                        Vec.delete(own old, false)
+                                        Vec.delete(own new_ch, true)
+                                        Vec.delete(own old, true)
                                         has_condition = true
                                     }
                                 }
@@ -6285,9 +6285,9 @@ priv process_throw_catch_in_body := proc(
     }
 
     body.children.move_from(new_ch)
-    Vec.delete(own new_ch, false)
-    Vec.delete(own old, false)
-    Vec.delete(own old_snapshot, false)
+    Vec.delete(own new_ch, true)
+    Vec.delete(own old, true)
+    Vec.delete(own old_snapshot, true)
 }
 
 // Function-body wrapper for the single-walk consolidated processing.
@@ -6386,8 +6386,8 @@ process_throw_catch_in_func_body := proc(
         new_ch.push(own ret)
     }
     body.children.move_from(new_ch)
-    Vec.delete(own new_ch, false)
-    Vec.delete(own old, false)
+    Vec.delete(own new_ch, true)
+    Vec.delete(own old, true)
 }
 
 is_compile_directive := func(e: Expr) returns shallow Bool {
@@ -7870,7 +7870,7 @@ rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_
     mut old_args := Vec.new(Expr)
     old_args.move_from(fcall.children)
     fcall.children = Vec.new(Expr)
-    Vec.delete(own old_args, false)
+    Vec.delete(own old_args, true)
     fcall.node_type = ident_node(coll_name)
     set_expr_til_type(fcall, coll_type)
 }
@@ -8351,7 +8351,7 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
             apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete)
             new_ch.push_take(old, i)
         }
-        Vec.delete(own temp_ch, false)
+        Vec.delete(own temp_ch, true)
     }
     body.children.move_from(new_ch)
     // Free the two scratch buffers (like temp_ch above). move_from zeroed
@@ -8359,8 +8359,8 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
     // push_take, so the only elements Vec.delete drops are old's
     // desugar-replaced husks -- dead AST whose contents already moved into
     // the emitted stmts. call_free is false: the Vec values are locals.
-    Vec.delete(own new_ch, false)
-    Vec.delete(own old, false)
+    Vec.delete(own new_ch, true)
+    Vec.delete(own old, true)
     return true
 }
 
@@ -8408,7 +8408,7 @@ apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Ve
             if do_hoist { apply_hoist_to_stmt(ctx, es, new_ch, scope) }
             new_ch.push_take(emitted, j)
         }
-        Vec.delete(own emitted, false)
+        Vec.delete(own emitted, true)
     }
     if do_hoist {
         apply_hoist_to_stmt(ctx, stmt, new_ch, scope)

@@ -309,6 +309,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if accum.len().gt(0) { accum = accum.format("\n") }
             accum = accum.format(block_eff)
         }
+        ffi_cleanup(typed_lp.ctx)
     }
 }
 
@@ -590,5 +591,6 @@ main := proc(args: ..Str) {
         result = 1
     }
 
+    ffi_cleanup(lp.ctx)
     if result.neq(0) { exit(result.to_i64()) }
 }

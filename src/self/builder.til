@@ -2852,7 +2852,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                 f.write("    (void)"); f.write(p.name); f.write(";\n")
             }
         }
-        Set.delete(own body_refs, false)
+        Set.delete(own body_refs, true)
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
         lp.ctx.stack_locals = Set.new(Str)
@@ -5855,8 +5855,8 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             }
             f.write("        }\n")
             f.write("        break;\n")
-            Vec.delete(own inner_names, false)
-            Vec.delete(own inner_types, false)
+            Vec.delete(own inner_names, true)
+            Vec.delete(own inner_types, true)
         }
     }
     // Fallback: reachable only for runtime tag values that don't
@@ -5868,8 +5868,8 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     emit_str_lit_expr(f, "?")
     f.write(";\n")
     f.write("}\n\n")
-    Vec.delete(own variant_names, false)
-    Vec.delete(own variant_types, false)
+    Vec.delete(own variant_names, true)
+    Vec.delete(own variant_types, true)
 }
 
 emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {

@@ -142,7 +142,7 @@ two_pass: bin/til
 # through src/self/builder.til. Same recipe is reusable for any .til
 # program ("bin/til build --asan -o foo foo.til") so we can asan-test
 # compiled outputs, not just the compiler itself.
-bin/til_asan: bin/til
+bin/til_asan: bin/til $(CORE) $(SELF) $(LIB_TIL) src/til.til
 	bin/til build --asan -o bin/til_asan src/til.til
 
 # --- Debug build (for gdb) ---

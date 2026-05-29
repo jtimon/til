@@ -1438,8 +1438,8 @@ gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
         generate_enum_to_str_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
     }
 
-    Vec.delete(own variant_names, false)
-    Vec.delete(own variant_types, false)
+    Vec.delete(own variant_names, true)
+    Vec.delete(own variant_types, true)
 }
 
 register_enum_and_gen_nonclone_methods_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
@@ -1490,8 +1490,8 @@ gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
         generate_enum_clone_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
-        Vec.delete(own variant_names, false)
-        Vec.delete(own variant_types, false)
+        Vec.delete(own variant_names, true)
+        Vec.delete(own variant_types, true)
     }
 }
 
@@ -2573,11 +2573,11 @@ init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns
         register_top_level_value_for_stmt(ctx, stmt, scope)
     }
 
-    Vec.delete(own struct_idxs, false)
-    Vec.delete(own enum_idxs, false)
-    Vec.delete(own alias_idxs, false)
-    Vec.delete(own func_idxs, false)
-    Vec.delete(own value_idxs, false)
+    Vec.delete(own struct_idxs, true)
+    Vec.delete(own enum_idxs, true)
+    Vec.delete(own alias_idxs, true)
+    Vec.delete(own func_idxs, true)
+    Vec.delete(own value_idxs, true)
     return errors
 }
 
@@ -2966,10 +2966,10 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
         register_top_level_value_for_stmt(ctx, program.child(vi), scope)
     }
 
-    Vec.delete(own enum_idxs, false)
-    Vec.delete(own alias_idxs, false)
-    Vec.delete(own func_idxs, false)
-    Vec.delete(own value_idxs, false)
+    Vec.delete(own enum_idxs, true)
+    Vec.delete(own alias_idxs, true)
+    Vec.delete(own func_idxs, true)
+    Vec.delete(own value_idxs, true)
     return errors
 }
 
@@ -3039,10 +3039,10 @@ init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) 
         register_top_level_value_for_stmt(ctx, program.child(vi), scope)
     }
 
-    Vec.delete(own struct_idxs, false)
-    Vec.delete(own enum_idxs, false)
-    Vec.delete(own func_idxs, false)
-    Vec.delete(own value_idxs, false)
+    Vec.delete(own struct_idxs, true)
+    Vec.delete(own enum_idxs, true)
+    Vec.delete(own func_idxs, true)
+    Vec.delete(own value_idxs, true)
     return errors
 }
 

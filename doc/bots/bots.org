@@ -178,41 +178,33 @@ pile up, run concurrently, thrash the CPU, and have to be hand-killed.
 Every time you background a build you force the human to stop what they
 are doing and `kill` your orphans. DO NOT DO IT.
 
-ONE TASK AT A TIME. Start a command, WAIT for it to finish in the
-foreground, read its output, THEN start the next one. Never have two
-builds or tests in flight at once. Never start a new build while another
-is still running. If you catch yourself about to launch a second thing
-"while the first one runs", STOP -- that is the exact mistake that
-spawns the orphan pile.
+ONE TASK AT A TIME. Start a command, WAIT for it to finish, read its
+output, THEN start the next one. Never have two builds or tests in
+flight at once. Never start a new build while another is still running.
+If you catch yourself about to launch a second thing "while the first
+one runs", STOP -- that is the exact mistake that spawns the orphan pile.
 
 Specifically, NEVER:
 
-- pass `run_in_background: true` or set `WaitMsBeforeAsync` < `3600000` in the run_command tool. Not for builds, not
+- pass `run_in_background: true` or set `WaitMsBeforeAsync` < `10000` in the run_command tool. Not for builds, not
   for tests, not for "I'll check on it later", not ever. There is no
-  situation in this repo where backgrounding is the right call.
+  situation in this repo where backgrounding is the right call. Always
+  pass a large `WaitMsBeforeAsync` to block.
 - end a shell command with `&` to backgroundize it.
 - `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
 - spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
-- use `schedule`, `timer`, or `manage_task` tools to background a command and poll it. Always run commands synchronously in the foreground.
+- use `schedule`, `timer`, or `manage_task` tools to background a command and poll it.
 
-If a build/test is slow, just WAIT for it -- the Bash tool blocks until
-it finishes, however long that takes. Pass a large `timeout` (the tool
-accepts up to 3600000 ms / 60 minutes) and let the single foreground
-command run to completion. Do NOT background it so you can "do other
-things meanwhile" -- the next step depends on the result anyway, so
-there is nothing useful to do in parallel.
+Note on Antigravity's 10-second limit:
+If a build/test is slow, it will automatically be sent to the background
+after 10 seconds (the maximum block time). When this happens, DO NOT
+poll with `manage_task` and DO NOT set timers. The system will
+AUTOMATICALLY notify you the moment the task completes. Simply stop calling
+tools to yield your turn, wait quietly for the notification, and then
+read the captured log file (`tmp/build.log`).
 
-If you think you need to background something to stay responsive: you
-don't. Run it in the foreground, wait, then continue. A slow synchronous
-command is always better than an orphaned background task the human has
-to clean up.
-
-Polling is also forbidden. A `while pgrep ...; do sleep N; done` loop
-is a background task in disguise: it stalls the turn, hides errors in
-the loop's stdout, and the harness will background it anyway when the
-inner command exits 0. If you started a command and need to wait, you
-already waited -- the Bash tool already blocked. Read the captured log
-file (`tmp/build.log`).
+A slow command is always better than an orphaned background task the human
+has to clean up. Do not look for ways to background things to stay responsive.
 
 ## Recovery
 
