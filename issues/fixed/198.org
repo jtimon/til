@@ -5,6 +5,19 @@
    both ~bin/til interpret~ and ~bin/til build~ (13 tests, all pass).
    ~make test~ stays green at 116/116.
 
+   *** Follow-up: throwing set (unblocks subscript assignment #225)
+
+   ~Array.get~ throws ~OutOfBounds~, which let the parser desugar
+   ~a[b]~ to ~a.get(b)!~ generically. The write side is still
+   missing: ~Array.set~ (and ~Vec.set~ et al.) ~panic~ on a bad
+   index instead of throwing. To get the symmetric
+   ~a[b] = c -> a.set(b, c)!~ desugaring, ~set~ must first throw
+   ~OutOfBounds~ the same way ~get~ does, so the ~!~ has something
+   to propagate/panic on. That collection-method change belongs
+   with the built-in-error work tracked in
+   [[../open/201.org][#201]]; the parser/desugar + call-site
+   migration that consumes it is [[../open/225.org][#225]].
+
    Surface that works:
    - Single-function throw/catch, with empty struct errors,
      struct-with-field errors (incl. ~err.field~ access in the

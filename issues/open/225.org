@@ -1,0 +1,59 @@
+# priority: low
+** OPEN #225 Subscript assignment a[b] = c -> a.set(b, c)!
+
+   Mirror of the shipped read-side desugaring: the parser now turns
+   ~a[b]~ into ~a.get(b)!~ (generic over any struct/enum whose
+   ~get~ throws). Do the same for the write side so
+
+     a[b] = c
+
+   desugars to
+
+     a.set(b, c)!
+
+   generically -- no type-name special-casing, exactly like
+   ~a + b -> a.add(b)~ and ~a[b] -> a.get(b)!~.
+
+   *** Blocked on: set must throw
+
+   ~Array.set~ / ~Vec.set~ et al. currently ~panic~ on a bad index;
+   they do not throw. The ~!~ in ~a.set(b, c)!~ needs a declared
+   throw (e.g. ~OutOfBounds~) to propagate/panic on, so the
+   collection ~set~ methods must throw ~OutOfBounds~ first. That
+   method-side change is tracked in [[./201.org][#201]] (built-in
+   error types) and noted in [[../fixed/198.org][#198]]. Once ~set~
+   throws, this issue is unblocked.
+
+   *** Parser work
+
+   The read-side lives in ~parse_primary~: postfix ~[index]~ in the
+   field-access chain builds ~e.get(index)!~. For the write side the
+   subscript appears on the LHS of an assignment, which the postfix
+   expression parser does not own -- ~a[b]~ already parses as the
+   rvalue ~a.get(b)!~ (an FCall), so a bare ~a[b] = c~ would try to
+   assign to a call result.
+
+   So the assignment-statement parser must recognise an
+   ~EXPR[INDEX] = RHS~ shape and emit ~EXPR.set(INDEX, RHS)!~
+   instead of routing ~EXPR[INDEX]~ through ~get~. Compound forms
+   (~a[b] += c~ etc.) can be left out of scope for a first cut, or
+   desugared to ~a.set(b, a.get(b)!.add(c))!~ if wanted.
+
+   *** Call-site migration (after the desugaring lands)
+
+   Once ~set~ throws and ~a[b] = c~ works, do the same mechanical
+   migration we did for ~get~: replace ~a.set(b, c)!~ with
+   ~a[b] = c~ across ~src/~, ~examples/~, and ~lib/~. Leave
+   non-throwing ~.set(...)~ calls (no ~!~) alone, and leave ~test/~
+   in the explicit ~.set(b, c)!~ form so the desugaring stays
+   exercised both ways. A context-aware script (skip strings and
+   comments, balance parens for the args) is the right tool -- the
+   read-side migration was 312 call sites across 21 files.
+
+   *** Test
+
+   Add a ~test_array_subscript_assign~ alongside
+   ~test_array_subscript~ in ~test/arrays.til~: literal and computed
+   indices, under both interp and compile, asserting ~a[i] = v~ then
+   ~a[i]~ round-trips. Once ~set~ throws, also cover the OOB-throws
+   path via ~catch~.
