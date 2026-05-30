@@ -1,0 +1,43 @@
+# priority: low
+** OPEN #223 auto-shallow: infer shallow for small value types, forbid explicit shallow where automatic
+
+  Currently ~shallow~ must be written explicitly on args and return values
+  for types that are passed/returned by value (primitives, and small
+  fieldless/payloadless structs/enums). This is boilerplate: the compiler
+  already knows which types are value-sized, so the qualifier could be
+  inferred. This issue tracks making ~shallow~ automatic for those types
+  and then forbidding the now-redundant explicit ~shallow~ with a clear
+  error.
+
+  Steps (do them in order, one commit each):
+
+  1. Treat primitives as shallow without the qualifier.
+     Primitives (I8/I16/I32/I64, U8/U16/U32/U64, F32/F64, Bool, etc.)
+     used as args or return values are passed/returned by value
+     regardless of whether ~shallow~ was written. Make the absence of
+     ~shallow~ behave exactly like its presence for these types.
+
+  2. Forbid explicit ~shallow~ on primitives.
+     Once step 1 makes it automatic, writing ~shallow~ on a primitive
+     arg or return value is redundant. Reject it with an error message
+     explaining that shallow is automatic for primitives and must be
+     removed.
+
+  3. Extend step 1 to small value-shaped compound types.
+     Apply the same auto-shallow inference to structs/enums that have
+     no own fields / no payload and whose ~size()~ is ~lte(UPtr.size())~
+     -- i.e. types that already fit in a machine word and are value-safe
+     to pass by copy. These should be treated as shallow in args/returns
+     without the qualifier.
+
+  4. Forbid explicit ~shallow~ on the step-3 types.
+     As in step 2, once those small fieldless/payloadless types are
+     auto-shallow, reject explicit ~shallow~ on them with the same kind
+     of "shallow is automatic here" error.
+
+  Notes:
+  - See ~doc/qualifiers.org~ for the shallow -> by-value C mapping and
+    ~doc/ffi.org~ for how the binder currently emits ~shallow~ for
+    primitives by default.
+  - The error messages in steps 2 and 4 should point the user to remove
+    the qualifier, not just say "invalid".
