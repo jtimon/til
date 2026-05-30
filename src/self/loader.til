@@ -734,7 +734,8 @@ load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     if mode_str.eq("mode").not() {
         panic(__LOC__, "file '", disp, "' is not a 'mode mode' file")
     }
-for stmt : Expr in ast.children { 
+    for stmt : Expr in ast.children {
+        mut is_valid := false
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
             case NodeType.Decl(decl):
@@ -745,6 +746,7 @@ for stmt : Expr in ast.children {
                         switch callee.node_type {
                         case NodeType.Ident(id):
                             if ident_name(id).eq("Mode") {
+                                is_valid = true
                                 mut m := Mode()
                                 for i in 1..val.children.len() {
                                     ref arg : Expr = val.child(i)
@@ -779,8 +781,12 @@ for stmt : Expr in ast.children {
             case:
             }
         }
+        if is_valid.not() {
+            loc := disp.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
+            panic(loc, ": only Mode(...) declarations are allowed in 'mode mode' files")
+        }
     }
-    
+
     // Store in lp.ctx.imported so it can be typechecked.
     ref mode_mode_def : Mode = mode_resolve(mode_str)
     if is_null(mode_mode_def) {

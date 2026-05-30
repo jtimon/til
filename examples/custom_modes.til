@@ -5,9 +5,3 @@ sender := Mode(auto_import = "lib/custom_modes/sender", decls_only = false)
 publisher := Mode(auto_import = "lib/custom_modes/publisher", decls_only = false)
 subscriber := Mode(auto_import = "lib/custom_modes/subscriber", decls_only = false)
 
-mode_table := array("Str",
-    "publisher",
-    "subscriber",
-    "sender",
-    "receiver",
-)
