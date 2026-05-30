@@ -430,16 +430,16 @@ main := proc() {
                 }
                 // Color radio (Red / Black)
                 if raw_mx >= COLOR_X & raw_mx < COLOR_X + COLOR_BTN_W * 2 {
-                    sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).to_i64()
+                    sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).cast(I64)
                 }
                 // Mode radio (1P / 2P)
                 if raw_mx >= MODE_X & raw_mx < MODE_X + MODE_BTN_W * 2 {
-                    sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).to_i64()
+                    sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).cast(I64)
                 }
                 // Difficulty radio (1..5, only when 1P selected)
                 if sel_2p == 0 {
                     if raw_mx >= DIFF_X & raw_mx < DIFF_X + DIFF_BTN_W * 5 {
-                        sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).to_i64()
+                        sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).cast(I64)
                     }
                 }
             }
@@ -655,7 +655,7 @@ main := proc() {
                     click_r := my / CELL
 
                     if click_r >= 0 & click_r < 8 & click_c >= 0 & click_c < 8 {
-                        click_idx := (click_r * 8 + click_c).to_i64()
+                        click_idx := (click_r * 8 + click_c).cast(I64)
 
                         if multi_jump_idx.gte(0) {
                             // In a multi-jump chain: only the jumping piece can move
@@ -844,7 +844,7 @@ main := proc() {
             mut br := 40
             mut bg := 40
             mut bb := 40
-            if bi.to_i64() == sel_color {
+            if bi.cast(I64) == sel_color {
                 br = 0
                 bg = 150
                 bb = 155
@@ -861,7 +861,7 @@ main := proc() {
             mut mr := 40
             mut mg := 40
             mut mb := 40
-            if bi.to_i64() == sel_2p {
+            if bi.cast(I64) == sel_2p {
                 mr = 0
                 mg = 150
                 mb = 155
@@ -881,13 +881,13 @@ main := proc() {
                 mut dr_btn := 40
                 mut dg_btn := 40
                 mut db_btn := 40
-                if diff_val.to_i64() == sel_difficulty {
+                if diff_val.cast(I64) == sel_difficulty {
                     dr_btn = 0
                     dg_btn = 150
                     db_btn = 155
                 }
                 DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, Color(r = dr_btn.to_u8(), g = dg_btn.to_u8(), b = db_btn.to_u8(), a = 255))
-                DrawText(diff_val.to_i64().to_str().c_str, dx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+                DrawText(diff_val.cast(I64).to_str().c_str, dx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
                 bi = bi + 1
             }
         }
@@ -899,7 +899,7 @@ main := proc() {
             while dc < 8 {
                 px := dc * CELL
                 py := dr * CELL + BOARD_Y
-                idx := (dr * 8 + dc).to_i64()
+                idx := (dr * 8 + dc).cast(I64)
 
                 // Square color
                 mut sq_r := 238

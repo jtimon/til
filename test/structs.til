@@ -361,8 +361,8 @@ AnonPair := ext_struct("") {
 
 test_ext_struct_anon := test() {
     p := AnonPair(a = 3, b = 7)
-    assert_eq(__LOC__, p.a.to_i64(), 3)
-    assert_eq(__LOC__, p.b.to_i64(), 7)
+    assert_eq(__LOC__, p.a.cast(I64), 3)
+    assert_eq(__LOC__, p.b.cast(I64), 7)
 }
 
 // Custom tag ext_struct (like libffi's _ffi_type -> ffi_type)

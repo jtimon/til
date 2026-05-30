@@ -561,7 +561,7 @@ main := proc(args: ..Str) {
     if cli.command.eq("doc") {
         init_and_type_program(lp, false)
         result := cmd_doc(lp)
-        if result.neq(0) { exit(result.to_i64()) }
+        if result.neq(0) { exit(result.cast(I64)) }
         return
     }
 
@@ -595,5 +595,5 @@ main := proc(args: ..Str) {
     }
 
     ffi_cleanup(lp.ctx)
-    if result.neq(0) { exit(result.to_i64()) }
+    if result.neq(0) { exit(result.cast(I64)) }
 }

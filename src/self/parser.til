@@ -922,10 +922,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 else if c2.eq('\\') { byte_val = 92 }
                 else if c2.eq('\'') { byte_val = 39 }
                 else if c2.eq('0') { byte_val = 0 }
-                else { byte_val = c2.to_i64() }
+                else { byte_val = c2.cast(I64) }
             }
         } else {
-            if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
+            if ch.len().gt(0) { byte_val = ch.get(0).cast(I64) }
         }
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
         set_expr_til_type(e, Type.Struct("U8"))

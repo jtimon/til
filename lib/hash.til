@@ -53,7 +53,7 @@ hash_bytes := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = FNV_OFFSET
     for i in 0..n {
         ref b : U8 = ptr_add(data, i)
-        h = h.xor(b.to_u64()).mul(FNV_PRIME)
+        h = h.xor(b.cast(U64)).mul(FNV_PRIME)
     }
     return h
 }

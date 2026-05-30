@@ -1030,7 +1030,7 @@ escape_doc_for_literal_str := func(raw: Str) returns Str {
         } else if c.eq(9) {
             out = out.concat("\\t")
         } else {
-            out = out.concat(Str.from_byte(c.to_i64().and(255).to_u8()))
+            out = out.concat(Str.from_byte(c.cast(I64).and(255).to_u8()))
         }
     }
     return out
@@ -1099,7 +1099,7 @@ append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: OwnTy
 // Append "(p1: T1, name: ..TN)" plus optional " returns [shallow|ref ]T".
 append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     out.push_str("(")
-    var_idx_i64 : I64 = fd.variadic_index.to_i64()
+    var_idx_i64 : I64 = fd.variadic_index.cast(I64)
     for i in 0..fd.params.len() {
         if i.gt(0) { out.push_str(", ") }
         ref p : Declaration = fd.params.get(i)

@@ -146,10 +146,10 @@ test_to_u8 := test() {
 }
 
 test_to_i32 := test() {
-    assert_eq(__LOC__, "42".to_i32().to_i64(), 42)
-    assert_eq(__LOC__, "0".to_i32().to_i64(), 0)
-    assert_eq(__LOC__, "-7".to_i32().to_i64(), -7)
-    assert_eq(__LOC__, "123456".to_i32().to_i64(), 123456)
+    assert_eq(__LOC__, "42".to_i32().cast(I64), 42)
+    assert_eq(__LOC__, "0".to_i32().cast(I64), 0)
+    assert_eq(__LOC__, "-7".to_i32().cast(I64), -7)
+    assert_eq(__LOC__, "123456".to_i32().cast(I64), 123456)
 }
 
 test_to_f32 := test() {

@@ -370,29 +370,29 @@ go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
         board_set_i64(b, i, v)
         i = i.add(1)
     }
-    board_set_i64(b, MAX_CELLS.to_i64(), side)
-    board_set_i64(b, GO_IDX_SIZE.to_i64(), size)
+    board_set_i64(b, MAX_CELLS.cast(I64), side)
+    board_set_i64(b, GO_IDX_SIZE.cast(I64), size)
     mut has_ko_i := 0
     if has_ko { has_ko_i = 1 }
-    board_set_i64(b, GO_IDX_HAS_KO.to_i64(), has_ko_i)
+    board_set_i64(b, GO_IDX_HAS_KO.cast(I64), has_ko_i)
     i = 0
     while i.lt(total) {
         ref v : I64 = ko_board.get(i.to_u32())!
-        board_set_i64(b, (GO_IDX_KO + i.to_i32()).to_i64(), v)
+        board_set_i64(b, (GO_IDX_KO + i.to_i32()).cast(I64), v)
         i = i.add(1)
     }
 }
 
 go_unpack_side := func(b: Board) returns I64 {
-    return board_get_i64(b, MAX_CELLS.to_i64()).clone()
+    return board_get_i64(b, MAX_CELLS.cast(I64)).clone()
 }
 
 go_unpack_size := func(b: Board) returns I64 {
-    return board_get_i64(b, GO_IDX_SIZE.to_i64()).clone()
+    return board_get_i64(b, GO_IDX_SIZE.cast(I64)).clone()
 }
 
 go_unpack_has_ko := func(b: Board) returns Bool {
-    return board_get_i64(b, GO_IDX_HAS_KO.to_i64()).eq(1)
+    return board_get_i64(b, GO_IDX_HAS_KO.cast(I64)).eq(1)
 }
 
 go_heuristic : Heuristic = (b) {
@@ -423,7 +423,7 @@ go_next_boards : NextBoardsFn = (b) {
     mut ci := 0
     while ci.lt(total) {
         cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
-        ko_cells.set(ci.to_u32(), own board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).to_i64()).clone())
+        ko_cells.set(ci.to_u32(), own board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).cast(I64)).clone())
         ci = ci.add(1)
     }
     result := Vec.new(Board)
@@ -657,20 +657,20 @@ main := proc() {
                 }
                 // Color radio (White / Black)
                 if raw_mx >= COLOR_X & raw_mx < COLOR_X + COLOR_BTN_W * 2 {
-                    sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).to_i64()
+                    sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).cast(I64)
                 }
                 // Mode radio (1P / 2P)
                 if raw_mx >= MODE_X & raw_mx < MODE_X + MODE_BTN_W * 2 {
-                    sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).to_i64()
+                    sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).cast(I64)
                 }
                 // Size radio (9x9 / 13x13 / 19x19)
                 if raw_mx >= SIZE_X & raw_mx < SIZE_X + SIZE_BTN_W * 3 {
-                    sel_size = ((raw_mx - SIZE_X) / SIZE_BTN_W).to_i64()
+                    sel_size = ((raw_mx - SIZE_X) / SIZE_BTN_W).cast(I64)
                 }
                 // Difficulty radio (1..5, only when 1P selected)
                 if sel_2p == 0 {
                     if raw_mx >= DIFF_X & raw_mx < DIFF_X + DIFF_BTN_W * 5 {
-                        sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).to_i64()
+                        sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).cast(I64)
                     }
                 }
             }
@@ -776,7 +776,7 @@ main := proc() {
                         col := (mx + half) / cell_size
                         row := (my + half) / cell_size
                         if row >= 0 & row < board_size.to_i32() & col >= 0 & col < board_size.to_i32() {
-                            idx := row.to_i64() * board_size + col.to_i64()
+                            idx := row.cast(I64) * board_size + col.cast(I64)
                             copy_board(tmp_board, board, total)
                             cap := try_place(tmp_board, visited, lib_seen, stk, idx, board_size, turn, ko_board, has_ko)
                             if cap.gte(0) {
@@ -807,7 +807,7 @@ main := proc() {
         // label rows so coordinate text isn't drawn over the dark window bg.
         DrawRectangle(0, board_py - margin,
                        WINDOW_WIDTH, grid_span + margin * 2,
-                       Color(r = BOARD_R.to_i64().to_u8(), g = BOARD_G.to_i64().to_u8(), b = BOARD_B.to_i64().to_u8(), a = 255))
+                       Color(r = BOARD_R.cast(I64).to_u8(), g = BOARD_G.cast(I64).to_u8(), b = BOARD_B.cast(I64).to_u8(), a = 255))
 
         // Grid lines
         mut gi : I32 = 0
@@ -859,7 +859,7 @@ main := proc() {
             lx := board_px + ci * cell_size - 4
             DrawText(cl.c_str, lx, board_py - margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
             DrawText(cl.c_str, lx, board_py + grid_span + margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
-            row_num := (board_size - ci.to_i64()).to_str()
+            row_num := (board_size - ci.cast(I64)).to_str()
             ry := board_py + ci * cell_size - 6
             DrawText(row_num.c_str, board_px - margin / 2 - 10, ry, 14, Color(r = 80, g = 60, b = 30, a = 255))
             DrawText(row_num.c_str, board_px + grid_span + margin / 2 - 4, ry, 14, Color(r = 80, g = 60, b = 30, a = 255))
@@ -884,7 +884,7 @@ main := proc() {
                     DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), Color(r = 255, g = 255, b = 255, a = 120))
                 }
 
-                if si.to_i64() == last_move {
+                if si.cast(I64) == last_move {
                     if sp.eq(1) {
                         DrawCircle(sx, sy, 4.to_f32(), Color(r = 255, g = 255, b = 255, a = 255))
                     } else {
@@ -908,7 +908,7 @@ main := proc() {
                     hcol := (mx + half) / cell_size
                     hrow := (my + half) / cell_size
                     if hrow >= 0 & hrow < board_size.to_i32() & hcol >= 0 & hcol < board_size.to_i32() {
-                        hidx := (hrow * board_size.to_i32() + hcol).to_i64()
+                        hidx := (hrow * board_size.to_i32() + hcol).cast(I64)
                         ref hp : I64 = board.get(hidx.to_u32())!
                         if hp.eq(0) {
                             hx := board_px + hcol * cell_size
@@ -936,7 +936,7 @@ main := proc() {
             mut br := 40
             mut bg := 40
             mut bb := 40
-            if bi.to_i64() == sel_color {
+            if bi.cast(I64) == sel_color {
                 br = 0
                 bg = 150
                 bb = 155
@@ -953,7 +953,7 @@ main := proc() {
             mut mr := 40
             mut mg := 40
             mut mb := 40
-            if bi.to_i64() == sel_2p {
+            if bi.cast(I64) == sel_2p {
                 mr = 0
                 mg = 150
                 mb = 155
@@ -970,7 +970,7 @@ main := proc() {
             mut sr := 40
             mut sg := 40
             mut sb := 40
-            if bi.to_i64() == sel_size {
+            if bi.cast(I64) == sel_size {
                 sr = 0
                 sg = 150
                 sb = 155
@@ -990,13 +990,13 @@ main := proc() {
                 mut dr_btn := 40
                 mut dg_btn := 40
                 mut db_btn := 40
-                if diff_val.to_i64() == sel_difficulty {
+                if diff_val.cast(I64) == sel_difficulty {
                     dr_btn = 0
                     dg_btn = 150
                     db_btn = 155
                 }
                 DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, Color(r = dr_btn.to_u8(), g = dg_btn.to_u8(), b = db_btn.to_u8(), a = 255))
-                DrawText(diff_val.to_i64().to_str().c_str, dx + BTN_PAD_X / 2, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+                DrawText(diff_val.cast(I64).to_str().c_str, dx + BTN_PAD_X / 2, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
                 bi = bi + 1
             }
         }

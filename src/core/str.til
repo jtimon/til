@@ -335,7 +335,7 @@ namespace:
         if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
         for i in start..self.count {
             ref ch : I8 = self.get(i)
-            d := ch.to_i64().sub(48)
+            d := ch.cast(I64).sub(48)
             if d.lt(0).or(d.gt(9)) {
                 panic(__LOC__, "Str.to_i64: invalid char in '", self, "'")
             }

@@ -225,9 +225,9 @@ test_op_increment_decrement := test() {
     // Works on other integer types
     mut x : I32 = 10
     x++
-    assert_eq(__LOC__, x.to_i64(), 11)
+    assert_eq(__LOC__, x.cast(I64), 11)
     x--
-    assert_eq(__LOC__, x.to_i64(), 10)
+    assert_eq(__LOC__, x.cast(I64), 10)
 
     // Works after field access chains
     mut counter := 0

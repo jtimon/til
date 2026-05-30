@@ -775,7 +775,7 @@ node_head_str := func(data: NodeType) returns Str {
 // where Head = NodeType variant name + inline payload (see node_head_str).
 expr_to_str_indent := func(self: Expr, shallow indent: U32) returns Str {
     mut out := ""
-    for _ in 0..indent.to_u64() {
+    for _ in 0..indent.cast(U64) {
         out = out.concat("  ")
     }
     head := node_head_str(self.node_type)
@@ -838,7 +838,7 @@ func_type_name := func(ft: FuncType) returns Str {
 
 // --- ast_print ---
 ast_print := proc(e: Expr, shallow indent: U32) {
-    for _ in 0..indent.to_u64() {
+    for _ in 0..indent.cast(U64) {
         print("  ")
     }
     print("(", node_name(e.node_type))
@@ -867,7 +867,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
         for e_i : Expr in e.children {
             ast_print(e_i, indent.add(1))
         }
-        for _ in 0..indent.to_u64() {
+        for _ in 0..indent.cast(U64) {
             print("  ")
         }
     }
@@ -1006,7 +1006,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        idx := tag.to_i64()
+        idx := tag.cast(I64)
         if edd.payload_types.has(idx) {
             ref pt : Str = edd.payload_types.get(idx)
             return pt.clone()

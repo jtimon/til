@@ -286,7 +286,7 @@ main := proc(args: ..Str) {
             while ch > 0 {
                 if ch >= 32 & ch < 127 {
                     // Insert character at cursor
-                    ch_str := Str.from_byte(ch.to_i64().to_u8())
+                    ch_str := Str.from_byte(ch.cast(I64).to_u8())
                     ref cur_line : Str = lines.get(cursor_y.cast(U32))
                     new_line := cur_line.substr(0, cursor_x.to_usize()).concat(ch_str).concat(
                         cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize())

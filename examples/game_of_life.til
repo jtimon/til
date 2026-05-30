@@ -24,8 +24,8 @@ main := proc() {
     GRAY := Color(r = 80, g = 80, b = 80, a = 255)
     GRID_GRAY := Color(r = 30, g = 30, b = 30, a = 255)
 
-    mut grid : Array = ca_new_grid(COLS.to_i64(), ROWS.to_i64())
-    mut next : Array = ca_new_grid(COLS.to_i64(), ROWS.to_i64())
+    mut grid : Array = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
+    mut next : Array = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
 
     // Conway rules: B3/S23
     born := array("I64", 3)
@@ -46,7 +46,7 @@ main := proc() {
         if IsKeyPressed(67) {
             running = false
             generation = 0
-            ca_clear_grid(grid, TOTAL.to_i64())
+            ca_clear_grid(grid, TOTAL.cast(I64))
         }
 
         // Input: mouse click to toggle cells
@@ -54,7 +54,7 @@ main := proc() {
             mx := GetMouseX() / CELL
             my := (GetMouseY() - BAR_H) / CELL
             if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
-                idx := (my * COLS + mx).to_i64()
+                idx := (my * COLS + mx).cast(I64)
                 idx_u : USize = idx.to_usize()
                 ref val : I64 = grid.get(idx_u)!
                 if val == 0 {
@@ -71,8 +71,8 @@ main := proc() {
             if frame >= speed {
                 frame = 0
                 generation++
-                ca_step(grid, next, COLS.to_i64(), ROWS.to_i64(), born, 1, survive, 2)
-                ca_swap(grid, next, TOTAL.to_i64())
+                ca_step(grid, next, COLS.cast(I64), ROWS.cast(I64), born, 1, survive, 2)
+                ca_swap(grid, next, TOTAL.cast(I64))
             }
         }
 

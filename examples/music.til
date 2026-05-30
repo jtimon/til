@@ -178,13 +178,13 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
     if !na.eq(0) {
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R * 2 }
-        at := acc_text(na.to_i64())
+        at := acc_text(na.cast(I64))
         DrawTextEx(fnt, at.c_str, Vector2(x = (dnx - (FONT + aw)).to_f32(), y = (dny - FONT / 2).to_f32()), FONT.to_f32(), 1.to_f32(), WHITE)
     }
 
     // Note name with inline triad label
     ref nn_base : Str = note_name(nd.to_usize(), sel_notation)
-    nn_acc := acc_text(na.to_i64())
+    nn_acc := acc_text(na.cast(I64))
     mut nn := nn_base.concat(nn_acc)
     if dni.lt(7) {
         ref trt2 : USize = sc_triad.get(dni)!
@@ -406,7 +406,7 @@ main := proc() {
 
         // Playback
         if playing {
-            play_timer = play_timer + dt.to_i64()
+            play_timer = play_timer + dt.cast(I64)
             if play_timer.gte(300) {
                 play_timer = 0
                 if play_idx.lt(8) {

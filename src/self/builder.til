@@ -1366,7 +1366,7 @@ emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                     case NodeType.Literal(Literal.Str(s)):
                         f.write(s)
                         f.write("\", .count = ")
-                        emit_u64(f, c_lit_byte_count(s).to_u64())
+                        emit_u64(f, c_lit_byte_count(s).cast(U64))
                     case:
                     }
                     f.write("ULL, .cap = TIL_CAP_LIT};\n")
@@ -1722,7 +1722,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                 f.write("*").write(aname).write(" = (Str){.c_str = (void *)\"")
                 switch rhs.node_type {
                 case NodeType.Literal(Literal.Str(lit_s)):
-                    f.write(lit_s).write("\", .count = ").emit_u64(c_lit_byte_count(lit_s).to_u64())
+                    f.write(lit_s).write("\", .count = ").emit_u64(c_lit_byte_count(lit_s).cast(U64))
                 case:
                 }
                 f.write("ULL, .cap = TIL_CAP_LIT};\n")
@@ -1756,7 +1756,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                     f.write(aname).write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
                     case NodeType.Literal(Literal.Str(_lit_s)):
-                        f.write(_lit_s).write("\", .count = ").emit_u64(c_lit_byte_count(_lit_s).to_u64())
+                        f.write(_lit_s).write("\", .count = ").emit_u64(c_lit_byte_count(_lit_s).cast(U64))
                     case:
                     }
                     f.write("ULL, .cap = TIL_CAP_LIT}; }\n")
@@ -2056,7 +2056,7 @@ emit_str_lit_expr := proc(f: File, s: Str) {
     f.write("({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
-    emit_u64(f, c_lit_byte_count(s).to_u64())
+    emit_u64(f, c_lit_byte_count(s).cast(U64))
     f.write("ULL, .cap = TIL_CAP_LIT}; _lit; })")
 }
 
@@ -2162,7 +2162,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                     f.write("&(Str){.c_str=(void*)\"")
                     f.write(ms)
                     f.write("\", .count=")
-                    emit_u64(f, ms.len().to_u64())
+                    emit_u64(f, ms.len().cast(U64))
                     f.write("ULL, .cap=TIL_CAP_LIT}")
                 case:
                     emit_as_ptr(f, method_arg, depth, false, ctx)
@@ -2351,7 +2351,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                         f.write("(Str){.c_str = (void *)\"")
                         f.write(slit)
                         f.write("\", .count = ")
-                        emit_u64(f, c_lit_byte_count(slit).to_u64())
+                        emit_u64(f, c_lit_byte_count(slit).cast(U64))
                         f.write("ULL, .cap = TIL_CAP_LIT}.")
                         f.write(field_access_name(fname))
                     case:
@@ -2636,7 +2636,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
             }
         case NodeType.Literal(Literal.Str(s)):
-            f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_u64(c_lit_byte_count(s).to_u64()).write("ULL, .cap=TIL_CAP_LIT}")
+            f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_u64(c_lit_byte_count(s).cast(U64)).write("ULL, .cap=TIL_CAP_LIT}")
         case NodeType.FieldAccess:
             if builder_fa_is_ns(e, ctx).and(expr_til_type(e).is(Type.Enum)) {
                 f.write("(*").emit_expr(e, depth, ctx).write(")")
@@ -2868,7 +2868,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     // Variadic array
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
-                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().to_u64()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
+                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_u64(f, p.explicit_type.len().cast(U64)); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
@@ -5467,8 +5467,8 @@ emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                             }
                             mut suffix := ""
                             if any_shallow { suffix = "_dyn" }
-                            tlen := dd.name.len().to_u64()
-                            mlen := nsd.name.len().to_u64()
+                            tlen := dd.name.len().cast(U64)
+                            mlen := nsd.name.len().cast(U64)
                             f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write("ULL && memcmp(method->c_str, \""); f.write(nsd.name); f.write("\", "); emit_u64(f, mlen); f.write("ULL) == 0) return (void*)"); f.write(dd.name); f.write("_"); f.write(nsd.name); f.write(suffix); f.write(";\n")
                         case:
                         }
@@ -5498,8 +5498,8 @@ emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         }
                         mut suffix := ""
                         if any_shallow { suffix = "_dyn" }
-                        tlen := dd.name.len().to_u64()
-                        mlen := nsd.name.len().to_u64()
+                        tlen := dd.name.len().cast(U64)
+                        mlen := nsd.name.len().cast(U64)
                         f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0 && method->count == "); emit_u64(f, mlen); f.write("ULL && memcmp(method->c_str, \""); f.write(nsd.name); f.write("\", "); emit_u64(f, mlen); f.write("ULL) == 0) return (void*)"); f.write(dd.name); f.write("_"); f.write(nsd.name); f.write(suffix); f.write(";\n")
                     case:
                     }
@@ -5524,7 +5524,7 @@ emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
                 if is_struct_or_enum(stmt).not() { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    tlen := dd.name.len().to_u64()
+                    tlen := dd.name.len().cast(U64)
                     f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return sizeof("); f.write(dd.name); f.write(");\n")
                 case:
                     UNREACHABLE(__LOC__)
@@ -5538,7 +5538,7 @@ emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
             if is_struct_or_enum(stmt).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                tlen := dd.name.len().to_u64()
+                tlen := dd.name.len().cast(U64)
                 f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) return sizeof("); f.write(dd.name); f.write(");\n")
             case:
                 UNREACHABLE(__LOC__)
@@ -5563,14 +5563,14 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
     }
     switch stmt.child(0).node_type {
     case NodeType.StructDef(sd):
-        tlen := sname.len().to_u64()
+        tlen := sname.len().cast(U64)
         f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(sname); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
         if kind.eq(0) {
-            f.write("        return "); emit_u64(f, sd.fields.len().to_u64()); f.write("LL;\n")
+            f.write("        return "); emit_u64(f, sd.fields.len().cast(U64)); f.write("LL;\n")
         } else {
             for i in 0..sd.fields.len() {
                 ref fd : Declaration = sd.fields.get(i)
-                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                f.write("        if (*index == "); emit_u64(f, i.cast(U64)); f.write("LL) return ")
                 if kind.eq(1) {
                     emit_str_lit_expr(f, fd.name)
                 } else if kind.eq(2) {
@@ -5637,10 +5637,10 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
     }
     switch stmt.child(0).node_type {
     case NodeType.EnumDef(ed):
-        tlen := ename.len().to_u64()
+        tlen := ename.len().cast(U64)
         f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(ename); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
         if kind.eq(0) {
-            f.write("        return "); emit_u64(f, ed.variants.len().to_u64()); f.write("LL;\n")
+            f.write("        return "); emit_u64(f, ed.variants.len().cast(U64)); f.write("LL;\n")
         } else {
             for i in 0..ed.variants.len() {
                 idx := i.to_i64()
@@ -5649,7 +5649,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
                     ref pt : Str = ed.payload_types.get(idx)
                     if pt.len().gt(0) { has_pl = true }
                 }
-                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                f.write("        if (*index == "); emit_u64(f, i.cast(U64)); f.write("LL) return ")
                 if kind.eq(1) {
                     ref vn : Str = ed.variants.get(i)
                     emit_str_lit_expr(f, vn)
@@ -5724,18 +5724,18 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32
     }
     switch stmt.child(0).node_type {
     case NodeType.FuncDef(fd):
-        tlen := fname.len().to_u64()
+        tlen := fname.len().cast(U64)
         f.write("    if (type_name->count == "); emit_u64(f, tlen); f.write("ULL && memcmp(type_name->c_str, \""); f.write(fname); f.write("\", "); emit_u64(f, tlen); f.write("ULL) == 0) {\n")
         if kind.eq(0) {
-            f.write("        return "); emit_u64(f, fd.params.len().to_u64()); f.write("LL;\n")
+            f.write("        return "); emit_u64(f, fd.params.len().cast(U64)); f.write("LL;\n")
         } else if kind.eq(2) {
             if fd.return_type.len().gt(0) { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind.eq(4) {
-            f.write("        return "); emit_u64(f, fd.throw_types.len().to_u64()); f.write("LL;\n")
+            f.write("        return "); emit_u64(f, fd.throw_types.len().cast(U64)); f.write("LL;\n")
         } else if kind.eq(1) {
             for i in 0..fd.params.len() {
                 ref pd : Declaration = fd.params.get(i)
-                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                f.write("        if (*index == "); emit_u64(f, i.cast(U64)); f.write("LL) return ")
                 emit_str_lit_expr(f, pd.explicit_type)
                 f.write(";\n")
             }
@@ -5748,7 +5748,7 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32
         } else {
             for i in 0..fd.throw_types.len() {
                 ref tt : Str = fd.throw_types.get(i)
-                f.write("        if (*index == "); emit_u64(f, i.to_u64()); f.write("LL) return ")
+                f.write("        if (*index == "); emit_u64(f, i.cast(U64)); f.write("LL) return ")
                 emit_str_lit_expr(f, tt)
                 f.write(";\n")
             }
@@ -5989,7 +5989,7 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                             if mfd.return_type.len().gt(0) { ret_ct = type_name_to_c_value(mfd.return_type, lp.ctx) }
                         }
                     }
-                    tlen := dd.name.len().to_u64()
+                    tlen := dd.name.len().cast(U64)
                     if info.nargs.eq(2) {
                         if info.has_return {
                             if ret_sh {
@@ -6054,7 +6054,7 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                         if mfd.return_type.len().gt(0) { ret_ct = type_name_to_c_value(mfd.return_type, lp.ctx) }
                     }
                 }
-                tlen := dd.name.len().to_u64()
+                tlen := dd.name.len().cast(U64)
                 if info.nargs.eq(2) {
                     if info.has_return {
                         if ret_sh {
@@ -6172,9 +6172,9 @@ emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                         }
                         if found.not() { continue }
                         if dyn_has_shallow {
-                            f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL) == 0) return 1;\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL) == 0) return 1;\n")
                         } else {
-                            f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
+                            f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
                         }
                     case:
                         UNREACHABLE(__LOC__)
@@ -6197,9 +6197,9 @@ emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                     }
                     if found.not() { continue }
                     if dyn_has_shallow {
-                        f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL) == 0) return 1;\n")
+                        f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL) == 0) return 1;\n")
                     } else {
-                        f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().to_u64()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
+                        f.write("    if (type_name->count == "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL && memcmp(type_name->c_str, \""); f.write(dd.name); f.write("\", "); emit_u64(f, dd.name.len().cast(U64)); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -6227,7 +6227,7 @@ emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
     }
     for ci : CollectionInfo in coll_infos {
         et := ci.type_name
-        et_len := et.len().to_u64()
+        et_len := et.len().cast(U64)
         if ci.is_vec.neq(0) {
             f.write("Vec *vec_of_"); f.write(et); f.write("(int count, ...) {\n")
             f.write("    USize _esz = sizeof("); f.write(et); f.write(");\n")

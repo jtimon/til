@@ -165,7 +165,7 @@ parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
     while j.lt(d.len()) {
         ref b : I8 = d.byte_at(j)
         if is_digit_ch(b).not() { break }
-        val = val.mul(10).add(b.to_i64().sub(48))
+        val = val.mul(10).add(b.cast(I64).sub(48))
         digits = digits.add(1)
         j = j.add(1)
     }
@@ -285,7 +285,7 @@ parse_path_d := func(d: Str, mut segments: Vec) {
             last_cmd = 0
         } else {
             panic(__LOC__, "unsupported SVG path command '",
-                  Str.from_byte(cmd.to_i64().and(255).to_u8()), "'")
+                  Str.from_byte(cmd.cast(I64).and(255).to_u8()), "'")
         }
     }
 }

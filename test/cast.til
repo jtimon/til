@@ -16,7 +16,7 @@ mode test
 test_cast_u8_i8 := test() {
     // 0xFF reinterpreted as I8 is -1.
     a : U8 = 255
-    assert_eq(__LOC__, a.cast(I8).to_i64(), -1)
+    assert_eq(__LOC__, a.cast(I8).cast(I64), -1)
 
     // -1 reinterpreted as U8 is 255 (round trip).
     b : I8 = -1
@@ -24,17 +24,17 @@ test_cast_u8_i8 := test() {
 
     // Small in-range value is unchanged.
     c : U8 = 42
-    assert_eq(__LOC__, c.cast(I8).to_i64(), 42)
+    assert_eq(__LOC__, c.cast(I8).cast(I64), 42)
 
     // High bit set: 0x80 -> I8 minimum.
     d : U8 = 128
-    assert_eq(__LOC__, d.cast(I8).to_i64(), -128)
+    assert_eq(__LOC__, d.cast(I8).cast(I64), -128)
 }
 
 test_cast_u16_i16 := test() {
     // 0xFFFF reinterpreted as I16 is -1.
     a : U16 = 65535
-    assert_eq(__LOC__, a.cast(I16).to_i64(), -1)
+    assert_eq(__LOC__, a.cast(I16).cast(I64), -1)
 
     // -1 reinterpreted as U16 is 65535 (round trip).
     b : I16 = -1
@@ -42,21 +42,21 @@ test_cast_u16_i16 := test() {
 
     // High bit set: 0x8000 -> I16 minimum.
     c : U16 = 32768
-    assert_eq(__LOC__, c.cast(I16).to_i64(), -32768)
+    assert_eq(__LOC__, c.cast(I16).cast(I64), -32768)
 }
 
 test_cast_u32_i32 := test() {
     // 0xFFFFFFFF reinterpreted as I32 is -1.
     a : U32 = 4294967295
-    assert_eq(__LOC__, a.cast(I32).to_i64(), -1)
+    assert_eq(__LOC__, a.cast(I32).cast(I64), -1)
 
     // Small in-range value is unchanged.
     b : U32 = 42
-    assert_eq(__LOC__, b.cast(I32).to_i64(), 42)
+    assert_eq(__LOC__, b.cast(I32).cast(I64), 42)
 
     // High bit set: 0x80000000 -> I32 minimum.
     c : U32 = 2147483648
-    assert_eq(__LOC__, c.cast(I32).to_i64(), -2147483648)
+    assert_eq(__LOC__, c.cast(I32).cast(I64), -2147483648)
 }
 
 test_cast_i32_u32 := test() {
@@ -82,7 +82,7 @@ test_cast_u64_i64 := test() {
 test_cast_plain_call := test() {
     // Non-UFCS spelling works too.
     a : U32 = 4294967295
-    assert_eq(__LOC__, cast(a, I32).to_i64(), -1)
+    assert_eq(__LOC__, cast(a, I32).cast(I64), -1)
 }
 
 test_cast_widen_unsigned := test() {
@@ -104,17 +104,17 @@ test_cast_widen_signed := test() {
     // Signed widening preserves the numeric value: -1 in any signed
     // width is still -1 after widening (sign-extended bits).
     a : I8 = -1
-    assert_eq(__LOC__, a.cast(I16).to_i64(), -1)
-    assert_eq(__LOC__, a.cast(I32).to_i64(), -1)
+    assert_eq(__LOC__, a.cast(I16).cast(I64), -1)
+    assert_eq(__LOC__, a.cast(I32).cast(I64), -1)
     assert_eq(__LOC__, a.cast(I64), -1)
 
     // Negative in-range value also rides through.
     b : I8 = -128
-    assert_eq(__LOC__, b.cast(I32).to_i64(), -128)
+    assert_eq(__LOC__, b.cast(I32).cast(I64), -128)
 
     // Positive value: trivial.
     c : I16 = 30000
-    assert_eq(__LOC__, c.cast(I32).to_i64(), 30000)
+    assert_eq(__LOC__, c.cast(I32).cast(I64), 30000)
     assert_eq(__LOC__, c.cast(I64), 30000)
 
     d : I32 = -123456789

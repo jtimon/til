@@ -225,10 +225,10 @@ main := proc() {
             ref ee : I64 = ev_end.get(idx.to_usize())!
 
             // x positions (time -> x, scrolling left)
-            mut x_right : I32 = WINDOW_WIDTH - ((timer - es) * SCROLL_SPEED.to_i64() / 1000).to_i32()
+            mut x_right : I32 = WINDOW_WIDTH - ((timer - es) * SCROLL_SPEED.cast(I64) / 1000).to_i32()
             mut x_left : I32 = WINDOW_WIDTH
             if ee >= 0 {
-                x_left = WINDOW_WIDTH - ((timer - ee) * SCROLL_SPEED.to_i64() / 1000).to_i32()
+                x_left = WINDOW_WIDTH - ((timer - ee) * SCROLL_SPEED.cast(I64) / 1000).to_i32()
             }
 
             // Skip if fully off-screen

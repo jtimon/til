@@ -82,7 +82,7 @@ namespace:
                         ref mut dst_cap : U32 = ptr_add(dst_data, 12)
                         dst_cap = s.count.clone()
                         // Prevent cloned_str destructor from freeing the new c_str
-                        memset(cloned_str, 0, Str.size().to_u64())
+                        memset(cloned_str, 0, Str.size().cast(U64))
                     }
                 }
             } else if struct_def_shallow_safe(sdef_data) {
@@ -120,7 +120,7 @@ namespace:
                                 // the Str-payload branch above).
                                 ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.to_u64()), 12)
                                 dst_cap = s.count.clone()
-                                memset(cloned_str, 0, Str.size().to_u64())
+                                memset(cloned_str, 0, Str.size().cast(U64))
                             }
                         }
                         continue
@@ -133,8 +133,8 @@ namespace:
                                     if is_null(ei_ref).not() {
                                         ref ei : EnumInstance = ei_ref
                                         mut cloned_ei := ei.clone()
-                                        heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
-                                        move(heap_ei, cloned_ei, EnumInstance.size().to_u64())
+                                        heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+                                        move(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
                                         write_ptr(ptr_add(dst_data, foff.to_u64()), heap_ei)
                                     }
                                 } else {
@@ -482,7 +482,7 @@ elem_size_for_type := func(type_name: Str) returns shallow I32 {
 }
 
 parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Value {
-    if type_name.eq("Str") { return make_str_value(s.c_str, s.count.to_u64(), ctx) }
+    if type_name.eq("Str") { return make_str_value(s.c_str, s.count.cast(U64), ctx) }
     if type_name.eq("I64") { return val_i64(s.to_i64()) }
     if type_name.eq("U8") { return val_u8(s.to_i64()) }
     if type_name.eq("I16") { return val_i16(s.to_i64()) }
@@ -535,13 +535,13 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str)
 eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value {
     switch e.node_type {
     case NodeType.Literal(Literal.Str(raw)):
-        buf : Dynamic = malloc(raw.count.to_u64().add(1))
+        buf : Dynamic = malloc(raw.count.cast(U64).add(1))
         mut j : U64 = 0
         mut i : U64 = 0
-        while i.lt(raw.count.to_u64()) {
+        while i.lt(raw.count.cast(U64)) {
             ref ch : I8 = raw.byte_at(i.to_usize())
             if ch.eq(92) {
-                if i.add(1).lt(raw.count.to_u64()) {
+                if i.add(1).lt(raw.count.cast(U64)) {
                     ref next : I8 = raw.byte_at(i.add(1).to_usize())
                     if next.eq(110) { memset(ptr_add(buf, j), 10, 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(116) { memset(ptr_add(buf, j), 9, 1); j = j.add(1); i = i.add(2); continue }
@@ -615,7 +615,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             if is_null(nsv).not() {
                 switch nsv {
                 case Value.Int(iv):     return val_i64(iv)
-                case Value.Int32(iv):   return val_i32(iv.to_i64())
+                case Value.Int32(iv):   return val_i32(iv.cast(I64))
                 case Value.Func(fptr):
                     if expr_til_type(e).is(Type.Enum) {
                         ref fdef : Expr = deref(fptr)
@@ -629,11 +629,11 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                         ref edef : Expr = deref(eptr)
                                         if edef.node_type.is(NodeType.EnumDef) {
                                             tag := enum_variant_tag(edef, field_access_name(fname))
-                                            if tag.to_i64().gte(0) {
+                                            if tag.cast(I64).gte(0) {
                                                 if enum_has_payloads(edef) {
                                                     return val_enum_flat(sname, tag, NULL, 0)
                                                 } else {
-                                                    return val_i32(tag.to_i64())
+                                                    return val_i32(tag.cast(I64))
                                                 }
                                             }
                                         }
@@ -705,9 +705,9 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
         if type_name.eq("Dynamic") { return shallow_copy_value(val) }
         if type_name.eq("I64") { ref v : I64 = p; return val_i64(v) }
         if type_name.eq("U8") { ref v : U8 = p; return val_u8(v.to_i64()) }
-        if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.to_i64()) }
+        if type_name.eq("I16") { ref v : I16 = p; return val_i16(v.cast(I64)) }
         if type_name.eq("U16") { ref v : U16 = p; return val_u16(v.to_i64()) }
-        if type_name.eq("I32") { ref v : I32 = p; return val_i32(v.to_i64()) }
+        if type_name.eq("I32") { ref v : I32 = p; return val_i32(v.cast(I64)) }
         if type_name.eq("U32") { ref v : U32 = p; return val_u32(v.to_i64()) }
         if type_name.eq("U64") { ref v : U64 = p; return val_u64(v) }
         if type_name.eq("USize") { ref v : U32 = p; return val_u32(v.to_i64()) }
@@ -721,7 +721,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
         if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
         if type_name.eq("Str") {
             ref sp : Str = p
-            return make_str_value_own(sp.c_str, sp.count.to_u64(), ctx)
+            return make_str_value_own(sp.c_str, sp.count.cast(U64), ctx)
         }
         ref tc : Cell = scope_get(scope, type_name)
         if is_null(tc).not() {
@@ -742,7 +742,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                         memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_u64()), 8)
                         return val_enum_flat(type_name, etag, ecopy, 8)
                     }
-                    return val_i32(etag.to_i64())
+                    return val_i32(etag.cast(I64))
                 }
                 if tdef.node_type.is(NodeType.StructDef) {
                     return make_struct_value(type_name, tdef, p, true)
@@ -969,7 +969,7 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                             }
                                         }
                                     }
-                                    if sz.to_i64().gt(0) {
+                                    if sz.cast(I64).gt(0) {
                                         // #221 paired: for Str payloads the old payload's
                                         // c_str may own heap (cap < CAP_VIEW && count > 0);
                                         // free it before overwriting the bytes so the
@@ -1713,17 +1713,17 @@ widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     mut is_unsigned := false
     switch v {
     case Value.Byte(bv):
-        uval = bv.to_u64()
+        uval = bv.cast(U64)
         is_unsigned = true
     case Value.Short(sv):
-        ival = sv.to_i64()
+        ival = sv.cast(I64)
     case Value.Ushort(uv):
-        uval = uv.to_u64()
+        uval = uv.cast(U64)
         is_unsigned = true
     case Value.Int32(iv):
-        ival = iv.to_i64()
+        ival = iv.cast(I64)
     case Value.Uint32(uv):
-        uval = uv.to_u64()
+        uval = uv.cast(U64)
         is_unsigned = true
     case:
         return shallow_copy_value(v)
@@ -1798,28 +1798,28 @@ scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
         memcpy(b.cell.val, val, Value.size())
         return
     }
-    cell : Dynamic = malloc(Cell.size().to_u64())
+    cell : Dynamic = malloc(Cell.size().cast(U64))
     memcpy(cell, val, Value.size())
     // Build Str view key: copy name then set cap to CAP_VIEW
-    k : Dynamic = malloc(Str.size().to_u64())
-    memcpy(k, name, Str.size().to_u64())
-    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().to_u64())
+    k : Dynamic = malloc(Str.size().cast(U64))
+    memcpy(k, name, Str.size().cast(U64))
+    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().cast(U64))
     // Build Binding: {name_ptr, cell_ptr, cell_is_local=1}
-    v : Dynamic = malloc(Binding.size().to_u64())
-    memset(v, 0, Binding.size().to_u64())
+    v : Dynamic = malloc(Binding.size().cast(U64))
+    memset(v, 0, Binding.size().cast(U64))
     write_ptr(v, name)
     write_ptr(ptr_add(v, 8), cell)
     mut local_flag := true
-    memcpy(ptr_add(v, 16), local_flag, Bool.size().to_u64())
+    memcpy(ptr_add(v, 16), local_flag, Bool.size().cast(U64))
     s.bindings.set(own k, own v)
 }
 
 scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
-    k : Dynamic = malloc(Str.size().to_u64())
-    memcpy(k, name, Str.size().to_u64())
-    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().to_u64())
-    v : Dynamic = malloc(Binding.size().to_u64())
-    memset(v, 0, Binding.size().to_u64())
+    k : Dynamic = malloc(Str.size().cast(U64))
+    memcpy(k, name, Str.size().cast(U64))
+    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().cast(U64))
+    v : Dynamic = malloc(Binding.size().cast(U64))
+    memset(v, 0, Binding.size().cast(U64))
     write_ptr(v, name)
     write_ptr(ptr_add(v, 8), cell)
     // cell_is_local = false (already zeroed by memset)
@@ -1840,13 +1840,13 @@ scope_free := func(own s: Scope) {
     // Delete Map contents but not the Map struct (it's inline in Scope)
     own s.bindings.delete(false)
     // Zero out bindings so Scope destructor doesn't double-free
-    memset(s.bindings, 0, Map.size().to_u64())
+    memset(s.bindings, 0, Map.size().cast(U64))
     // #211 follow-up: same treatment for payload_aliases. Was leaking
     // one Map.new(Str, Str) per scope per program (every scope_new()
     // defaulted the field), pushing translate ASAN from 146K to 707K
     // bytes leaked.
     own s.payload_aliases.delete(false)
-    memset(s.payload_aliases, 0, Map.size().to_u64())
+    memset(s.payload_aliases, 0, Map.size().cast(U64))
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // (ELEM_FN) stores raw pointer values; deref + reinterpret-as
@@ -1857,7 +1857,7 @@ scope_free := func(own s: Scope) {
         if is_null(box.p).not() { free(own box.p) }
     }
     own s.box_owned_dynamics.delete(false)
-    memset(s.box_owned_dynamics, 0, Vec.size().to_u64())
+    memset(s.box_owned_dynamics, 0, Vec.size().cast(U64))
     free(own s)
 }
 // Body of interp_fa_is_ns_inner pulled out so both FieldAccess and
@@ -2006,11 +2006,11 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
-    data : Dynamic = calloc(alloc_count.to_u64(), esz.to_u64())
+    data : Dynamic = calloc(alloc_count.cast(U64), esz.to_u64())
     for i in 0..count {
         ref s : Str = argv.get(offset.add(i))
         v := parse_cli_arg(s, elem_type, ctx)
-        value_to_buf(ptr_add(data, i.to_u64().mul(esz.to_u64())), v, elem_type)
+        value_to_buf(ptr_add(data, i.cast(U64).mul(esz.to_u64())), v, elem_type)
     }
     mut sz : I32 = 0
     switch ctx.cached_array_def.node_type {
@@ -2025,7 +2025,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     ref ba_cap_d : Declaration = find_field_decl(ctx.cached_array_def, "cap")
     write_field(inst_data, ba_cap_d, val_u32(count.to_i64()))
     ref ba_esz_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_size")
-    write_field(inst_data, ba_esz_d, val_u32(esz.to_i64()))
+    write_field(inst_data, ba_esz_d, val_u32(esz.cast(I64)))
     ref clone_fn : Value = ns_get(elem_type, "clone", ctx)
     if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
@@ -2112,7 +2112,7 @@ make_str_value := func(data: Dynamic, shallow len: U64, ctx: Context) returns sh
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
-    memcpy(ptr_add(inst_data, 12), count_slot, U32.size().to_u64())
+    memcpy(ptr_add(inst_data, 12), count_slot, U32.size().cast(U64))
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false)
 }
 
@@ -2126,7 +2126,7 @@ make_str_value_view := func(data: Dynamic, shallow len: U64, ctx: Context) retur
     write_ptr(inst_data, data)
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_u32()
-    memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().to_u64())
+    memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().cast(U64))
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false)
 }
 
@@ -2135,7 +2135,7 @@ make_str_value_own := func(data: Dynamic, shallow len: U64, ctx: Context) return
     write_ptr(inst_data, data)
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_u32()
-    memcpy(ptr_add(inst_data, 12), count_slot, U32.size().to_u64())
+    memcpy(ptr_add(inst_data, 12), count_slot, U32.size().cast(U64))
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false)
 }
 str_view := func(shallow v: Value) returns shallow Str {
@@ -2216,10 +2216,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     }
     if ftype.eq("I64") { ref v : I64 = ptr; return val_i64(v) }
     if ftype.eq("U8") { ref v : U8 = ptr; return val_u8(v.to_i64()) }
-    if ftype.eq("I8") { ref v : I8 = ptr; return val_i8(v.to_i64()) }
-    if ftype.eq("I16") { ref v : I16 = ptr; return val_i16(v.to_i64()) }
+    if ftype.eq("I8") { ref v : I8 = ptr; return val_i8(v.cast(I64)) }
+    if ftype.eq("I16") { ref v : I16 = ptr; return val_i16(v.cast(I64)) }
     if ftype.eq("U16") { ref v : U16 = ptr; return val_u16(v.to_i64()) }
-    if ftype.eq("I32") { ref v : I32 = ptr; return val_i32(v.to_i64()) }
+    if ftype.eq("I32") { ref v : I32 = ptr; return val_i32(v.cast(I64)) }
     if ftype.eq("U32") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
     if ftype.eq("U64") { ref v : U64 = ptr; return val_u64(v) }
     if ftype.eq("USize") { ref v : U32 = ptr; return val_u32(v.to_i64()) }
@@ -2251,7 +2251,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
                     ref etag : I32 = etag_ref
                     psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                     mut psz_final := psz
-                    if psz.to_i64().lt(0) { psz_final = 0 }
+                    if psz.cast(I64).lt(0) { psz_final = 0 }
                     return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
                 }
                 ref etag : I32 = ptr
@@ -2261,11 +2261,11 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
                     psz_final = edd.total_enum_size.sub(ENUM_PAYLOAD_OFFSET)
                 case:
                 }
-                if psz_final.to_i64().lt(0) { psz_final = 0 }
+                if psz_final.cast(I64).lt(0) { psz_final = 0 }
                 return val_enum_flat(ftype, etag, ptr_add(ptr, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
             }
             ref itag : I32 = ptr
-            return val_i32(itag.to_i64())
+            return val_i32(itag.cast(I64))
         }
     }
     // Inline struct
@@ -2364,10 +2364,10 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
         }
     case Value.Enum(ei):
         mut total := ei.data_size
-        if total.to_i64().lt(8) { total = 8 }
+        if total.cast(I64).lt(8) { total = 8 }
         if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-            heap_ei : Dynamic = malloc(EnumInstance.size().to_u64())
-            memcpy(heap_ei, ei, EnumInstance.size().to_u64())
+            heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+            memcpy(heap_ei, ei, EnumInstance.size().cast(U64))
             // Deep-copy the data buffer
             new_data : Dynamic = malloc(total.to_u64())
             memcpy(new_data, ei.data, total.to_u64())
@@ -2481,7 +2481,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
     if is_null(user_argv).not() { user_argc = user_argv.len() }
 
     ffi_rc := ffi_init(program, fwd_path, user_c, ext_c, link_flags, lp.ctx)
-    if ffi_rc.to_i64().eq(0).not() { return ffi_rc }
+    if ffi_rc.cast(I64).eq(0).not() { return ffi_rc }
     if is_null(core_program).not() { ffi_init_scan_program(core_program, lp.ctx) }
 
     global := scope_new(NULL)
@@ -2568,8 +2568,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
 
                 if nparam.gt(0) {
                     mut fixed := nparam
-                    if vi.to_i64().gte(0) { fixed = nparam.sub(1) }
-                    if vi.to_i64().gte(0) {
+                    if vi.cast(I64).gte(0) { fixed = nparam.sub(1) }
+                    if vi.cast(I64).gte(0) {
                         if user_argc.lt(fixed) {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
@@ -2591,7 +2591,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                     mut argi : I32 = 0
                     for pi in 0..nparam {
                         ref param : Declaration = fd.params.get(pi)
-                        if pi.to_i64().eq(vi.to_i64()) {
+                        if pi.to_i64().eq(vi.cast(I64)) {
                             va_count := user_argc.sub(fixed)
                             ref va_param : Declaration = fd.params.get(vi.to_usize())
                             arr := build_argv_array(user_argv, argi.cast(U32), va_count, va_param.explicit_type, lp.ctx)
@@ -2644,7 +2644,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     ffi_reset(lp.ctx)
     mut empty := Expr.new(NodeType.Body, 0, 0)
     ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
-    if ffi_rc.to_i64().eq(0).not() { return ffi_rc }
+    if ffi_rc.cast(I64).eq(0).not() { return ffi_rc }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
@@ -2824,8 +2824,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
 
                 if nparam.gt(0) {
                     mut fixed := nparam
-                    if vi.to_i64().gte(0) { fixed = nparam.sub(1) }
-                    if vi.to_i64().gte(0) {
+                    if vi.cast(I64).gte(0) { fixed = nparam.sub(1) }
+                    if vi.cast(I64).gte(0) {
                         if user_argc.lt(fixed) {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
@@ -2847,7 +2847,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                     mut argi : I32 = 0
                     for pi in 0..nparam {
                         ref param : Declaration = fd.params.get(pi)
-                        if pi.to_i64().eq(vi.to_i64()) {
+                        if pi.to_i64().eq(vi.cast(I64)) {
                             va_count := user_argc.sub(fixed)
                             ref va_param : Declaration = fd.params.get(vi.to_usize())
                             arr := build_argv_array(user_argv, argi.cast(U32), va_count, va_param.explicit_type, lp.ctx)

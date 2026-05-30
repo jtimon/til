@@ -94,9 +94,9 @@ is_side_effecting_name := func(name: Str) returns shallow Bool {
 // (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
 priv hex_digit_value := func(b: I8) returns U8 {
     if b.lt(48).or(b.gt(102)) { return 0 }
-    if b.lte(57) { return b.to_i64().sub(48).to_u8() }
-    if b.gte(97) { return b.to_i64().sub(97).add(10).to_u8() }
-    if b.gte(65).and(b.lte(70)) { return b.to_i64().sub(65).add(10).to_u8() }
+    if b.lte(57) { return b.cast(I64).sub(48).to_u8() }
+    if b.gte(97) { return b.cast(I64).sub(97).add(10).to_u8() }
+    if b.gte(65).and(b.lte(70)) { return b.cast(I64).sub(65).add(10).to_u8() }
     return 0
 }
 
@@ -177,13 +177,13 @@ priv str_to_source_form := func(s: Str) returns Str {
             // Convert the byte to unsigned for the nibble math: I8's
             // negative range (high-bit bytes like 0x80..0xFF) splits
             // arithmetic the wrong way around for hex display.
-            ub : U8 = b.to_i64().and(255).to_u8()
+            ub : U8 = b.cast(I64).and(255).to_u8()
             out = out.concat("\\x")
             hi : U8 = ub.div(16)
             lo : U8 = ub.mod(16)
             hex := "0123456789abcdef"
-            out = out.concat(hex.substr(hi.to_u32(), 1))
-            out = out.concat(hex.substr(lo.to_u32(), 1))
+            out = out.concat(hex.substr(hi.cast(U32), 1))
+            out = out.concat(hex.substr(lo.cast(U32), 1))
             out = out.concat("\"\"")
             continue
         }
@@ -221,7 +221,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 switch edef.node_type {
                 case NodeType.EnumDef(edd):
                     if etag.to_usize().lt(edd.variants.len())
-                       .and(edd.payload_types.has(etag.to_i64()).not()) {
+                       .and(edd.payload_types.has(etag.cast(I64)).not()) {
                         ref vname : Str = edd.variants.get(etag.to_usize())
                         // Build the inner variant FieldAccess Color.Green.
                         mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
@@ -271,8 +271,8 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
             switch edef2.node_type {
             case NodeType.EnumDef(edd2):
                 if etag2.to_usize().gte(edd2.variants.len()) { return NULL }
-                if edd2.payload_types.has(etag2.to_i64()).not() { return NULL }
-                ref payload_type_name : Str = edd2.payload_types.get(etag2.to_i64())
+                if edd2.payload_types.has(etag2.cast(I64)).not() { return NULL }
+                ref payload_type_name : Str = edd2.payload_types.get(etag2.cast(I64))
                 // Fabricate a Declaration whose explicit_type matches the
                 // variant's payload type so read_field can decode the bytes
                 // sitting at ei.data + ENUM_PAYLOAD_OFFSET. (The variant's
@@ -318,7 +318,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         set_expr_til_type(e, Type.Struct("U8"))
         return e
     case Value.Sbyte(x):
-        mut e := Expr.new(literal_num_node(x.to_i64().to_str()), src.line, src.col)
+        mut e := Expr.new(literal_num_node(x.cast(I64).to_str()), src.line, src.col)
         set_expr_til_type(e, Type.Struct("I8"))
         return e
     case Value.Short(x):
@@ -712,7 +712,7 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns ref 
     if is_null(_lit) { return NULL }
     mut _lit_clone := _lit.clone()
     set_expr_til_type(_lit_clone, expr_til_type(fcall))
-    _heap : Dynamic = malloc(Expr.size().to_u64())
+    _heap : Dynamic = malloc(Expr.size().cast(U64))
     move(_heap, _lit_clone, Expr.size())
     ref _heap_ref : Expr = to_ptr(_heap)
     return _heap_ref
@@ -821,7 +821,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         ec.add_child(own lit)
                         continue
                     case Value.Sbyte(bv):
-                        mut lit := Expr.new(literal_num_node(bv.to_i64().to_str()), arg.line, arg.col)
+                        mut lit := Expr.new(literal_num_node(bv.cast(I64).to_str()), arg.line, arg.col)
                         set_expr_til_type(lit, Type.Struct("I8"))
                         ec.add_child(own lit)
                         continue
@@ -935,7 +935,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // have been typed as USize/U64/... at typer time. Surrounding code
     // (re-typing, codegen) expects the original til_type.
     set_expr_til_type(lit_local, expr_til_type(fcall))
-    heap : Dynamic = malloc(Expr.size().to_u64())
+    heap : Dynamic = malloc(Expr.size().cast(U64))
     move(heap, lit_local, Expr.size())
     ref heap_lit : Expr = to_ptr(heap)
     return heap_lit
@@ -1050,8 +1050,8 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // `known = snapshot_fd`, which would leak a second deep
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
-            memcpy(ctx.precomp_known, snapshot_fd, Map.size().to_u64())
-            memset(snapshot_fd, 0, Map.size().to_u64())
+            memcpy(ctx.precomp_known, snapshot_fd, Map.size().cast(U64))
+            memset(snapshot_fd, 0, Map.size().cast(U64))
             continue
         }
         fold_subtree(scope, child, ctx)

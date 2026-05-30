@@ -65,10 +65,10 @@ test_implicit_widen := test() {
 
 test_typed_literal_coercion := test() {
     neg_i32 : I32 = -1
-    assert_eq(__LOC__, neg_i32.to_i64(), -1)
+    assert_eq(__LOC__, neg_i32.cast(I64), -1)
 
     neg_chain : I32 = -34.add(-35)
-    assert_eq(__LOC__, neg_chain.to_i64(), -69)
+    assert_eq(__LOC__, neg_chain.cast(I64), -69)
 
     half : F32 = 1 / 2
     assert_eq_str(__LOC__, half.to_str(), "0.5")
@@ -86,17 +86,17 @@ test_i16 := test() {
     // Arithmetic
     a : I16 = 100
     b : I16 = 42
-    assert_eq(__LOC__, a.add(b).to_i64(), 142)
-    assert_eq(__LOC__, a.sub(b).to_i64(), 58)
-    assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
-    assert_eq(__LOC__, a.div(b).to_i64(), 2)
-    assert_eq(__LOC__, a.mod(b).to_i64(), 16)
+    assert_eq(__LOC__, a.add(b).cast(I64), 142)
+    assert_eq(__LOC__, a.sub(b).cast(I64), 58)
+    assert_eq(__LOC__, a.mul(b).cast(I64), 4200)
+    assert_eq(__LOC__, a.div(b).cast(I64), 2)
+    assert_eq(__LOC__, a.mod(b).cast(I64), 16)
 
     // Negative values
     c : I16 = -100
-    assert_eq(__LOC__, c.to_i64(), -100)
-    assert_eq(__LOC__, c.neg().to_i64(), 100)
-    assert_eq(__LOC__, c.add(a).to_i64(), 0)
+    assert_eq(__LOC__, c.cast(I64), -100)
+    assert_eq(__LOC__, c.neg().cast(I64), 100)
+    assert_eq(__LOC__, c.add(a).cast(I64), 0)
 
     // Comparisons
     assert(__LOC__, a.gt(b))
@@ -118,16 +118,16 @@ test_i16 := test() {
 test_i32 := test() {
     a : I32 = 100
     b : I32 = 42
-    assert_eq(__LOC__, a.add(b).to_i64(), 142)
-    assert_eq(__LOC__, a.sub(b).to_i64(), 58)
-    assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
-    assert_eq(__LOC__, a.div(b).to_i64(), 2)
-    assert_eq(__LOC__, a.mod(b).to_i64(), 16)
+    assert_eq(__LOC__, a.add(b).cast(I64), 142)
+    assert_eq(__LOC__, a.sub(b).cast(I64), 58)
+    assert_eq(__LOC__, a.mul(b).cast(I64), 4200)
+    assert_eq(__LOC__, a.div(b).cast(I64), 2)
+    assert_eq(__LOC__, a.mod(b).cast(I64), 16)
 
     // Negative
     c : I32 = -100
-    assert_eq(__LOC__, c.to_i64(), -100)
-    assert_eq(__LOC__, c.neg().to_i64(), 100)
+    assert_eq(__LOC__, c.cast(I64), -100)
+    assert_eq(__LOC__, c.neg().cast(I64), 100)
 
     // Comparisons
     assert(__LOC__, a.gt(b))

@@ -10,8 +10,6 @@ import("u64")
 U16 := struct {
 namespace:
     to_i64 := ext_func(shallow val: U16) returns shallow I64 {}
-    to_u64 := ext_func(shallow val: U16) returns shallow U64 {}
-    to_u32 := ext_func(shallow val: U16) returns shallow U32 {}
     to_f32 := ext_func(shallow val: U16) returns shallow F32 {}
     /// Convert to decimal string representation.
     to_str := func(val: U16) returns Str {
@@ -36,8 +34,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
         ref au : U16 = a
         ref bu : U16 = b
-        if au.lte(bu) { return bu.sub(au).to_u64() }
-        return au.sub(bu).to_u64()
+        if au.lte(bu) { return bu.sub(au).cast(U64) }
+        return au.sub(bu).cast(U64)
     }
     delete := func(own self: U16, call_free: Bool = true) {
         if call_free { free(own self) }

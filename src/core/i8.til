@@ -9,11 +9,10 @@ import("u64")
 /// Signed 8-bit integer.
 I8 := struct {
 namespace:
-    to_i64 := ext_func(shallow val: I8) returns shallow I64 {}
     to_u64 := ext_func(shallow val: I8) returns shallow U64 {}
     /// Convert to decimal string representation.
     to_str := func(val: I8) returns Str {
-        return val.to_i64().to_str()
+        return val.cast(I64).to_str()
     }
     add := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     sub := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
@@ -27,9 +26,9 @@ namespace:
     eq := ext_func(shallow a: I8, shallow b: I8) returns shallow Bool {}
     cmp := ext_func(shallow a: I8, shallow b: I8) returns shallow I64 {}
     /// Negate the value.
-    neg := func(a: I8) returns I8 { return 0.sub(a.to_i64()).to_i8() }
+    neg := func(a: I8) returns I8 { return 0.sub(a.cast(I64)).to_i8() }
     /// Absolute value.
-    abs := func(a: I8) returns I8 { if a.to_i64().lt(0) { return 0.sub(a.to_i64()).to_i8() } return a }
+    abs := func(a: I8) returns I8 { if a.cast(I64).lt(0) { return 0.sub(a.cast(I64)).to_i8() } return a }
     and := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     or := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     xor := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
