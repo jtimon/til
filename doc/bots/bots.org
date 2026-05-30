@@ -35,6 +35,23 @@ When the user tells you to do something, DO IT. Do not analyze the order. Do not
 
 Always pay attention to what the user says. Always follow the user's instructions. Do not force the user to repeat himself or beg you to do what he asks.
 
+### No Random "Adjustments"
+
+The training prior pushes you toward unsolicited "improvements" that sound like good engineering hygiene: renaming a branch to match the new task, splitting one commit into two, adding a follow-up TODO, "cleaning up" surrounding code, switching to a `Doc:` prefix because the diff is doc-heavy, picking a "better" file name, putting work on a new branch because the previous one "feels done". DO NOT DO ANY OF THIS. Every one of these is an extra step. None of them is "the action the user specified". They look harmless individually and add up to a session of constant surprises the user has to undo.
+
+Specifically forbidden without an explicit user instruction:
+
+- ~git checkout -b~, ~git branch <name>~, or any operation that creates / renames / deletes a git branch. The branch you are on is the branch named in the system prompt. Stay on it. Force-push to it. The same branch is reused across follow-up commits, post-merge work, anything — until the user says otherwise.
+- Splitting one logical change into multiple commits when the user asked for one commit. Splitting your own commit and your own follow-up onto separate branches.
+- Renaming a file, moving a file, or changing a commit-message prefix because you think it "fits the convention better". Use the prefix the convention dictates from the diff content, not from how the work feels.
+- Adding files to the commit that the user did not touch and did not ask you to touch ("while I'm here let me also fix...").
+- "Polishing" surrounding code, removing comments you think are stale, reformatting whitespace, tightening tests, etc., in a commit whose stated purpose is something else.
+- Inventing a new branch / file / directory / config knob to "be organized" instead of using the one that already exists.
+
+If you catch yourself about to do one of these because it would be "cleaner" or "more organized" or "match the convention": stop. The literal instruction beats your judgment about hygiene. If you genuinely think a deviation is warranted, ask in plain chat BEFORE acting — do not commit-and-explain after.
+
+This rule loses to nothing. It does not yield to "but the resulting state is nicer", "but the previous task is done so the branch is technically free", "but the commit only touches code AND doc so I should be precise about the prefix", or any other inferred improvement. The user has read the system prompt and CLAUDE.md and has decided what the right shape is; your only job is to execute it.
+
 ## Declaring Your Commit
 
 At the end of every reply, declare which commit you are on top of. "On
