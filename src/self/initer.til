@@ -3248,55 +3248,27 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
 init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
     mut errors : I32 = 0
 
-    // Single AST walk: bucket struct and enum decls for post-walk work,
-    // and bucket func/value decls in case global generation steps added
-    // new ones (size/derived methods) that need to be registered.
-    struct_idxs := Vec.new(U32)
-    enum_idxs := Vec.new(U32)
-    func_idxs := Vec.new(U32)
-    value_idxs := Vec.new(U32)
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.child(i)
+    // All scope-using methodgen (gen_struct_clone_delete,
+    // gen_missing_enum_clone) and layout-dependent methodgen
+    // (gen_*_size_method, gen_cmp/unity_derived) have moved to
+    // type_decls_file (the typer's first sweep) as part of #147
+    // step 3-4 / #174 work. What's left here is the post-init
+    // re-registration of top-level func/value decls -- a single
+    // walk over program.children, no per-kind bucketing.
+    for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.StructDef) {
-            struct_idxs.push(own i)
-        } else if rhs.node_type.is(NodeType.EnumDef) {
-            enum_idxs.push(own i)
-        } else if rhs.node_type.is(NodeType.FuncDef) {
+        if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len().gt(0) {
-                func_idxs.push(own i)
+                register_function_def_for_stmt(ctx, stmt, scope)
             }
-        } else if rhs.node_type.is(NodeType.Ident).not() {
-            value_idxs.push(own i)
+        } else if rhs.node_type.is(NodeType.StructDef).not()
+            .and(rhs.node_type.is(NodeType.EnumDef).not())
+            .and(rhs.node_type.is(NodeType.Ident).not()) {
+            register_top_level_value_for_stmt(ctx, stmt, scope)
         }
     }
 
-    // Scope-using method generation that still lives here pending
-    // the #174 method-body cycle work: clone+delete for structs,
-    // missing-clone for enums. Layout computation, size methodgen
-    // and cmp/unity methodgen all moved to type_decls_file (the
-    // typer's first sweep) as part of #147 step 3-4 / #174 work.
-    for si : U32 in struct_idxs {
-        gen_struct_clone_delete_for_stmt(program.child(si), scope)
-    }
-    for ei : U32 in enum_idxs {
-        gen_missing_enum_clone_for_stmt(program.child(ei), scope)
-    }
-    // Re-register function/value decls -- new ones may have been generated
-    // above (size methods etc) but those go into ns_decls, not program.children.
-    // Still re-register here to mirror the original ordering.
-    for fi : U32 in func_idxs {
-        register_function_def_for_stmt(ctx, program.child(fi), scope)
-    }
-    for vi : U32 in value_idxs {
-        register_top_level_value_for_stmt(ctx, program.child(vi), scope)
-    }
-
-    Vec.delete(own struct_idxs, true)
-    Vec.delete(own enum_idxs, true)
-    Vec.delete(own func_idxs, true)
-    Vec.delete(own value_idxs, true)
     return errors
 }
 

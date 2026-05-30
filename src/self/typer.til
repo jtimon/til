@@ -7166,6 +7166,7 @@ type_decls_file := proc(path: Str, ctx: Context) returns I32 {
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
+            gen_struct_clone_delete_for_stmt(stmt, ctx.scope)
             compute_struct_layout(rhs, ctx.scope)
             switch stmt.node_type {
             case NodeType.Decl(d):
@@ -7174,6 +7175,7 @@ type_decls_file := proc(path: Str, ctx: Context) returns I32 {
             }
             gen_struct_size_method_for_stmt(stmt)
         } else if rhs.node_type.is(NodeType.EnumDef) {
+            gen_missing_enum_clone_for_stmt(stmt, ctx.scope)
             compute_enum_layout(rhs, ctx.scope)
             switch stmt.node_type {
             case NodeType.Decl(d):
