@@ -256,11 +256,11 @@ Context := struct {
     // `Type.method(...)` form.
     lowering_param_types := Map.new(Str, Str)
 
-    // Two typer-scope flags shared with asaper: typer_in_main_func is
-    // set while infer_func_def_expr is checking main(), so the asaper
+    // Two typer-scope flags shared with garbager: typer_in_main_func is
+    // set while infer_func_def_expr is checking main(), so the garbager
     // helpers can give main()'s non-Own params a scope-end delete (no
     // caller frees them); typer_in_shallow_return is set when the
-    // current function returns `shallow T`, so the asaper keeps a
+    // current function returns `shallow T`, so the garbager keeps a
     // would-be-moved struct local Shallow for the codegen.
     typer_in_shallow_return : Bool = false
     typer_in_main_func : Bool = false

@@ -18,7 +18,7 @@ mode lib
 // expr_uses_var, expr_transfers_own, expr_used_in_nested_func,
 // expr_contains_decl, fcall_returns_shallow, rhs_is_clone_fcall,
 // free_expr_slot_in_place) and two typer state flags (typer_in_main_func,
-// typer_in_shallow_return). The loader imports asaper.til right after
+// typer_in_shallow_return). The loader imports garbager.til right after
 // typer.til so those names are in scope.
 
 priv LocalInfo := struct {
@@ -653,7 +653,7 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
 // Asap entry point. The typer's scope-management sites call this
 // once per body after the per-body in-place pass settles, just
 // before they tear down the per-body scope. Issue #204 step 3b
-// tracks lifting the per-site calls into a single asap_destroy(ctx)
+// tracks lifting the per-site calls into a single garbager_destroy(ctx)
 // walk in prepare_program once #158's per-body scope cache is in
 // the Context.
 // Does a branch body unconditionally transfer ownership of `name`? True iff
@@ -768,7 +768,7 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sh
 // TypeScope.delete. Returns true iff body.children changed, so the
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
-asap_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool {
+garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool {
     return insert_free_calls(ctx, body, scope, 1)
 }
 
@@ -785,8 +785,8 @@ asap_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) re
 // TypeScope.delete once infer_body returns. Issue #204 step 3b
 // covers lifting the inline calls into this proc; the blocker is
 // per-body scope ownership, which needs either a scope cache on
-// Context (#158) or an on-the-fly scope rebuild in asaper.
-asap_destroy := proc(mut ctx: Context) {
+// Context (#158) or an on-the-fly scope rebuild in garbager.
+garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
     saved_in_main := ctx.typer_in_main_func
     saved_in_shallow := ctx.typer_in_shallow_return

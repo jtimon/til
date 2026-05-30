@@ -214,7 +214,7 @@ typedef enum {
 } priv___src_self_typer_til__CtorArg_tag;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
-typedef struct priv___src_self_asaper_til__LocalInfo priv___src_self_asaper_til__LocalInfo;
+typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
@@ -581,7 +581,7 @@ typedef struct priv___src_self_typer_til__CoverageNode {
 } priv___src_self_typer_til__CoverageNode;
 
 
-typedef struct priv___src_self_asaper_til__LocalInfo {
+typedef struct priv___src_self_garbager_til__LocalInfo {
     Str *name;
     Type type;
     I32 decl_index;
@@ -589,7 +589,7 @@ typedef struct priv___src_self_asaper_til__LocalInfo {
     I32 own_transfer;
     Bool skip_scope_delete;
     Bool is_heap;
-} priv___src_self_asaper_til__LocalInfo;
+} priv___src_self_garbager_til__LocalInfo;
 
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -1588,9 +1588,9 @@ void narrow_dynamic(Expr * expr, Type * target);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
 Expr * hoist_to_temp(Context * ctx, Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
-priv___src_self_asaper_til__LocalInfo * priv___src_self_asaper_til__LocalInfo_clone(priv___src_self_asaper_til__LocalInfo * self);
-void priv___src_self_asaper_til__LocalInfo_delete(priv___src_self_asaper_til__LocalInfo * self, Bool * call_free);
-U32 priv___src_self_asaper_til__LocalInfo_size(void);
+priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
+void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool * call_free);
+U32 priv___src_self_garbager_til__LocalInfo_size(void);
 Bool alias_used_in_stmts(Vec * stmts, Str * name, Expr * expr);
 void collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
 void extend_ref_local_lifetimes(Expr * body, Vec * locals, TypeScope * scope);
@@ -1601,11 +1601,11 @@ void insert_exit_deletes_into_stmt(Expr * stmt, Vec * body_stmts, Vec * locals, 
 void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new_ch, TypeScope * scope);
 void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Context * ctx, Expr * body, Vec * locals);
-Bool priv___src_self_asaper_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);
-void priv___src_self_asaper_til__sink_conditional_transfer_deletes(Expr * body, Vec * locals, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);
+void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec * locals, TypeScope * scope, Context * ctx);
 Bool insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
-Bool asap_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
-void asap_destroy(Context * ctx);
+Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
+void garbager_destroy(Context * ctx);
 void precomp_clear_known(Context * ctx);
 void precomp_reset_state(Context * ctx);
 Bool precomp_has_macro(Context * ctx, Str * name);

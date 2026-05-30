@@ -43,12 +43,12 @@ Open questions:
 Current uses (by file):
 
   src/self/typer.til:     22 calls
-  src/self/asaper.til:     4 calls
+  src/self/garbager.til:     4 calls
   src/self/precomp.til:    1 call
   src/self/scavenger.til:  3 calls
   src/core/vec.til:        definition
 
-Context: this fell out of #109's asaper deep dive.  The "land just
+Context: this fell out of #109's garbager deep dive.  The "land just
 the one verified call site" approach in that commit (Two-pass:
 ~e.children = new_ch~ rewrite in the UFCS-method ctor branch) does
 save 41B / 7 allocs on `bin/til_asan interpret tmp/tiny.til`, so the
