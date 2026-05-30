@@ -548,13 +548,13 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     switch e.node_type {
     case NodeType.Literal(Literal.Str(raw)):
         buf : Dynamic = malloc(raw.count.add(1))
-        mut j : U64 = 0
-        mut i : U64 = 0
-        while i.lt(raw.count.cast(U64)) {
-            ref ch : I8 = raw.byte_at(i.to_usize())
+        mut j : USize = 0
+        mut i : USize = 0
+        while i.lt(raw.count) {
+            ref ch : I8 = raw.byte_at(i)
             if ch.eq(92) {
-                if i.add(1).lt(raw.count.cast(U64)) {
-                    ref next : I8 = raw.byte_at(i.add(1).to_usize())
+                if i.add(1).lt(raw.count) {
+                    ref next : I8 = raw.byte_at(i.add(1))
                     if next.eq(110) { memset(ptr_add(buf, j), 10, 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(116) { memset(ptr_add(buf, j), 9, 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(92) { memset(ptr_add(buf, j), 92, 1); j = j.add(1); i = i.add(2); continue }

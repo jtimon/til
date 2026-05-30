@@ -1757,7 +1757,7 @@ Str * c_type_name(Type t, Str * struct_name, Context * ctx);
 Str * func_to_c(Str * name);
 Str * type_name_to_c(Str * name, Context * ctx);
 Str * type_name_to_c_value(Str * name, Context * ctx);
-File * emit_u64(File * f, U64 v);
+File * emit_usize(File * f, U32 v);
 File * emit_i32(File * f, I32 v);
 File * priv___src_self_builder_til__emit_indent(File * f, I32 depth);
 U32 * priv___src_self_builder_til__c_lit_byte_count(Str * s);
