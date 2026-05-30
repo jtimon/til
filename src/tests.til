@@ -649,10 +649,21 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "variadic_bool_t", "examples/cli_variadic_bool.til",
                  "true true", 0, format(exp, "variadic_bool_t.out"), til_bin, asan_flag)
 
+    // Every scalar CLI arg type (I8/U8/I16/U16/I32/U32/U64/USize/UPtr), both
+    // backends. Locks in the builder's cli_box_expr and the interpreter's
+    // parse_cli_arg staying in lockstep.
+    File.writefile(format(exp, "cli_scalars.out"),
+                   format("-8 200 -300 600 -70000 90000 12345678901 42 99", NL))
+    add_cli_pair(tests, "cli_scalars", "examples/cli_scalars.til",
+                 "-8 200 -300 600 -70000 90000 12345678901 42 99", 0,
+                 format(exp, "cli_scalars.out"), til_bin, asan_flag)
+
     // Error cases (exit=1, no output check)
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin, asan_flag)
     add_cli_pair(tests, "cli_typed_err2", "examples/cli_typed.til", "a b c", 1, "", til_bin, asan_flag)
     add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin, asan_flag)
+    // Bad Bool value: both backends print the diagnostic and exit(1).
+    add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
 
     // === Run all tests in parallel ===
     run_all_parallel(tests, j, fail)

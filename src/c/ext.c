@@ -226,8 +226,9 @@ static int copy_tree_cstr(const char *src, const char *dst) {
 }
 
 // Internal helper for heap-allocating scalar values. The per-type
-// new_u8/new_i8/.../new_bool helpers were only used by the cli_parse_*
-// family, which now lives in til (src/core/str.til); dropped with them.
+// new_u8/new_i8/.../new_bool helpers were dropped when CLI argument
+// parsing moved into til and got inlined by the builder. new_i64 survives
+// because the process-spawn helpers below still box a pid/handle into I64*.
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
 
 // --- Small libc wrappers ---

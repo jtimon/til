@@ -481,18 +481,30 @@ elem_size_for_type := func(type_name: Str) returns shallow I32 {
     return 8
 }
 
+// Parse a single CLI argument string into a Value of the named type. Kept in
+// lockstep with the builder's cli_box_expr (src/self/builder.til): same type
+// set, same reject-non-true/false Bool handling, and a non-zero exit on a bad
+// value or unsupported type, so `til interpret` and compiled binaries agree.
+// (panic exits 1 like the compiled backend's exit(1); the diagnostic stream
+// differs -- interpreter via panic, compiled via stderr -- but both bail.)
 parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Value {
     if type_name.eq("Str") { return make_str_value(s.c_str, s.count, ctx) }
     if type_name.eq("I64") { return val_i64(s.to_i64()) }
     if type_name.eq("U8") { return val_u8(s.to_i64()) }
+    if type_name.eq("I8") { return val_i8(s.to_i64()) }
     if type_name.eq("I16") { return val_i16(s.to_i64()) }
     if type_name.eq("U16") { return val_u16(s.to_i64()) }
     if type_name.eq("I32") { return val_i32(s.to_i64()) }
     if type_name.eq("U32") { return val_u32(s.to_i64()) }
+    if type_name.eq("U64") { return val_u64(s.to_u64()) }
+    if type_name.eq("USize") { return val_u32(s.to_i64()) }
+    if type_name.eq("UPtr") { return val_u64(s.to_u64()) }
     if type_name.eq("Bool") {
         if s.eq("true") { return val_bool(true) }
         if s.eq("false") { return val_bool(false) }
+        panic(__LOC__, "cannot parse '", s, "' as Bool (expected true/false)")
     }
+    panic(__LOC__, "unsupported CLI argument type '", type_name, "'")
     return val_none()
 }
 
