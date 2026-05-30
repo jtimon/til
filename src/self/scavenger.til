@@ -260,7 +260,7 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
                 scv_nm2 : Dynamic = malloc(scv_nn2)
                 memset(scv_nm2, 0, scv_nn2)
                 for j in 0..scv_nn2 {
-                    ref nsd : Declaration = scv_ns2.get(j)
+                    ref nsd : Declaration = scv_ns2[j]
                     scv_qn2 := qualified_name(sdecl.name, nsd.name)
                     if visited.has(scv_qn2).not() {
                         memset(ptr_add(scv_nm2, j), 1, 1)
@@ -547,7 +547,7 @@ priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns sh
             ref mark : U8 = ptr_add(marks, k)
             if mark.eq(MARK_DELETE) { continue }
             if mark.eq(MARK_REPLACE_RHS) {
-                ref decl_stmt : Expr = old.get(k)
+                ref decl_stmt : Expr = old[k]
                 mut decl_children := Vec.new(Expr)
                 decl_children.move_from(decl_stmt.children)
                 new_ch.push_take(decl_children, 0)

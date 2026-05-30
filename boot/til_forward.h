@@ -978,7 +978,7 @@ void Vec_clear(Vec * self);
 void Vec_push(Vec * self, void * val);
 void Vec_append(Vec * self, Vec * other);
 void Vec_move_from(Vec * self, Vec * other);
-void * Vec_get(Vec * self, U32 * i);
+void * Vec_get(Vec * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
 void * Vec_pop(Vec * self);
 void Vec_set(Vec * self, U32 i, void * val);
 void Vec_replace(Vec * self, U32 i, void * val);
@@ -1516,7 +1516,7 @@ void priv___src_self_typer_til__validate_and_inject_expr_consolidated(Context * 
 Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_type, U32 line, U32 col);
 void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 child_idx, Expr * body, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
 void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
-void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path);
+void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type, OwnType * return_own_type);
 Bool is_compile_directive(Expr * e);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);

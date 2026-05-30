@@ -112,7 +112,7 @@ main := proc(args: ..Str) {
         mut i := start
         while i.lt(lines.len()) {
             if row >= max_lines { break }
-            ref line : Str = lines.get(i)
+            ref line : Str = lines[i]
             DrawText(line.c_str, pad_x, pad_y + row * line_h, 16, Color(r = 220, g = 220, b = 220, a = 255))
             row++
             i++

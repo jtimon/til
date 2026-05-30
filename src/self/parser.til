@@ -24,12 +24,12 @@ priv Parser := struct {
 }
 
 priv peek := func(p: Parser) returns ref Token {
-    ref t : Token = p.tokens.get(p.pos)
+    ref t : Token = p.tokens[p.pos]
     return t
 }
 
 advance := func(mut p: Parser) returns ref Token {
-    ref t : Token = p.tokens.get(p.pos)
+    ref t : Token = p.tokens[p.pos]
     if t.type.is(TokenType.Eof).not() {
         p.pos = p.pos.add(1)
     }
@@ -125,7 +125,7 @@ priv anon_def_key := func(def: Expr) returns Str {
     case NodeType.EnumDef(edd):
         mut k := "enum{"
         for j in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(j)
+            ref vn : Str = edd.variants[j]
             k = k.concat(vn)
             idx := j.to_i64()
             if edd.payload_types.has(idx) {
@@ -218,9 +218,9 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
     mut name := "_Fn"
     for i in 0..ptypes.len() {
         name = name.concat("_")
-        ref m : Bool = pmuts.get(i)
+        ref m : Bool = pmuts[i]
         if m { name = name.concat("mut_") }
-        ref t : Str = ptypes.get(i)
+        ref t : Str = ptypes[i]
         name = name.concat(t)
     }
     if return_type.len().gt(0) {
@@ -237,8 +237,8 @@ priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U
     fd.variadic_index = -1
     fd.kwargs_index = -1
     for i in 0..ptypes.len() {
-        ref t : Str = ptypes.get(i)
-        ref m : Bool = pmuts.get(i)
+        ref t : Str = ptypes[i]
+        ref m : Bool = pmuts[i]
         fd.params.push(own Declaration(name = "", explicit_type = t.clone(), til_type = til_type_from_explicit_type(t), is_mut = m, own_type = OwnType.Ref))
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
@@ -463,7 +463,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
                 }
-                ref pp : Declaration = sfd.params.get(pi)
+                ref pp : Declaration = sfd.params[pi]
                 pp.name = pn.clone()
                 pi = pi.add(1)
                 if check(p, TokenType.Comma) { advance(p) }
@@ -735,7 +735,7 @@ parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shal
         // Named arg: IDENT '=' expr
         if check(p, TokenType.Ident) {
             if p.pos.add(1).lt(p.tokens.len()) {
-                ref next_tok : Token = p.tokens.get(p.pos.add(1))
+                ref next_tok : Token = p.tokens[p.pos.add(1)]
                 if next_tok.type.is(TokenType.Eq) {
                     na_line := peek_line(p)
                     na_col := peek_col(p)
@@ -880,7 +880,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
     // returns); -expr desugars to expr.neg().
     if e_set.not().and(t.type.is(TokenType.Minus)) {
         if p.pos.add(1).lt(p.tokens.len()) {
-            ref next_tok : Token = p.tokens.get(p.pos.add(1))
+            ref next_tok : Token = p.tokens[p.pos.add(1)]
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
@@ -1054,7 +1054,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
     }
 
     // Field access chain: e.field or e.method(args). Subscript a[b]
-    // desugars to a.get(b)! -- generic over any type whose get throws
+    // desugars to a[b] -- generic over any type whose get throws
     // (Array today, Map et al. once their get throws), exactly like
     // a + b desugars to a.add(b).
     while check(p, TokenType.Dot).or(check(p, TokenType.LBracket)) {
@@ -1093,7 +1093,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 // Named arg check
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.tokens.len()) {
-                        ref nt : Token = p.tokens.get(p.pos.add(1))
+                        ref nt : Token = p.tokens[p.pos.add(1)]
                         if nt.type.is(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
@@ -1464,7 +1464,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 // Named arg check
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.tokens.len()) {
-                        ref nt : Token = p.tokens.get(p.pos.add(1))
+                        ref nt : Token = p.tokens[p.pos.add(1)]
                         if nt.type.is(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
@@ -1527,7 +1527,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_t
                 while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                     if check(p, TokenType.Ident) {
                         if p.pos.add(1).lt(p.tokens.len()) {
-                            ref nt2 : Token = p.tokens.get(p.pos.add(1))
+                            ref nt2 : Token = p.tokens[p.pos.add(1)]
                             if nt2.type.is(TokenType.Eq) {
                                 na2_line := peek_line(p)
                                 na2_col := peek_col(p)
@@ -1671,7 +1671,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     }
     if t.type.is(TokenType.KwTest) {
         if p.pos.add(1).lt(p.tokens.len()) {
-            ref nt : Token = p.tokens.get(p.pos.add(1))
+            ref nt : Token = p.tokens[p.pos.add(1)]
             if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon))
             .or(nt.type.is(TokenType.Eq)).or(nt.type.is(TokenType.Dot)) {
                 return parse_statement_ident(p, false, OwnType.Shallow)
@@ -1818,7 +1818,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.KwMut) { advance(p); own_mut = true }
             if check(p, TokenType.Ident) {
                 if p.pos.add(1).lt(p.tokens.len()) {
-                    ref nt : Token = p.tokens.get(p.pos.add(1))
+                    ref nt : Token = p.tokens[p.pos.add(1)]
                     if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, OwnType.Own)
                     }

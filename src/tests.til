@@ -226,7 +226,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
     // Spawn initial batch
     si = 0
     while si.lt(j).and(next.lt(tests.len())) {
-        ref t : Test = tests.get(next)
+        ref t : Test = tests[next]
         cmd := format(t.cmd, " > ", t.outfile, " 2>&1")
         start := clock_ms()
         pid := spawn_cmd(cmd)
@@ -244,7 +244,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
             if slot.pid.gt(0) {
                 status := check_cmd_status(slot.pid)
                 if status.neq(-1) {
-                    ref t : Test = tests.get(slot.test_idx)
+                    ref t : Test = tests[slot.test_idx]
                     runner_out := File.readfile(t.outfile)
 
                     // Find RESULT line
@@ -283,7 +283,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                         runner_lines := runner_out.split(NL)
                         mut li : USize = 0
                         while li.lt(runner_lines.len()) {
-                            ref ln : Str = runner_lines.get(li)
+                            ref ln : Str = runner_lines[li]
                             if ln.starts_with("FAIL").or(ln.starts_with("MISMATCH")) {
                                 println(ln)
                             }
@@ -296,7 +296,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                     slot.pid = 0
 
                     if next.lt(tests.len()) {
-                        ref nt : Test = tests.get(next)
+                        ref nt : Test = tests[next]
                         cmd := format(nt.cmd, " > ", nt.outfile, " 2>&1")
                         start := clock_ms()
                         pid := spawn_cmd(cmd)
@@ -530,7 +530,7 @@ main := proc(args: ..Str) {
               format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 117,
+    add_count(tests, "typer_errors", "typer", "error:", 129,
                format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
@@ -681,7 +681,7 @@ main := proc(args: ..Str) {
     mut mode_total : USize = 0
     mut pi : USize = 0
     while pi.lt(tests.len()) {
-        ref t : Test = tests.get(pi)
+        ref t : Test = tests[pi]
         switch t.kind {
         case TestKind.Mode(md):
             mode_total = mode_total.add(1)
@@ -712,7 +712,7 @@ main := proc(args: ..Str) {
     mut other_total : USize = 0
     pi = 0
     while pi.lt(tests.len()) {
-        ref t : Test = tests.get(pi)
+        ref t : Test = tests[pi]
         if t.kind.is(TestKind.Mode).not() {
             other_total = other_total.add(1)
             if t.ok.eq(1) { other_passed = other_passed.add(1) }
@@ -798,7 +798,7 @@ main := proc(args: ..Str) {
     bench.push_str(NL)
     mut bi : USize = 0
     while bi.lt(tests.len()) {
-        ref bt : Test = tests.get(bi)
+        ref bt : Test = tests[bi]
         switch bt.kind {
         case TestKind.Mode(bmd):
             bench.push_str(format(commit, ",", bt.label, ",",
@@ -832,17 +832,17 @@ main := proc(args: ..Str) {
         lines := existing.split(NL)
         mut last_data_idx := lines.len().sub(1)
         while last_data_idx.gt(0) {
-            ref last_line : Str = lines.get(last_data_idx)
+            ref last_line : Str = lines[last_data_idx]
             if last_line.len().gt(0) { break }
             last_data_idx = last_data_idx.sub(1)
         }
         if last_data_idx.gt(0) {
-            ref last_data : Str = lines.get(last_data_idx)
+            ref last_data : Str = lines[last_data_idx]
             last_commit := last_data.substr(0, last_data.find(",").to_usize())
             if last_commit.eq(commit) {
                 mut li : USize = 0
                 while li.lt(last_data_idx) {
-                    ref ln : Str = lines.get(li)
+                    ref ln : Str = lines[li]
                     totals_content = format(totals_content, ln, NL)
                     li = li.add(1)
                 }

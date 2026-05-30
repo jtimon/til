@@ -136,7 +136,7 @@ main := proc() {
                             // Flood fill reveal
                             stack.push(own idx)
                             while stack.len() > 0 {
-                                ref top_ref : I32 = stack.get(stack.len() - 1)
+                                ref top_ref : I32 = stack[stack.len() - 1]
                                 cur := top_ref
                                 // Pop by reducing count manually
                                 stack.count = stack.count - 1

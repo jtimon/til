@@ -34,7 +34,7 @@ scan_fills := func(svg: Str) returns Vec {
     parts := svg.split("fill=\"")
     mut i : USize = 1
     while i.lt(parts.len()) {
-        ref part : Str = parts.get(i)
+        ref part : Str = parts[i]
         end := part.find("\"")
         if end.gt(0) {
             val := part.substr(0, end.to_usize())
@@ -114,7 +114,7 @@ extract_paths := func(svg: Str) returns Vec {
     parts := svg.split("d=\"")
     mut i : USize = 1
     while i.lt(parts.len()) {
-        ref part : Str = parts.get(i)
+        ref part : Str = parts[i]
         end := part.find("\"")
         if end.gt(0) {
             val := part.substr(0, end.to_usize())

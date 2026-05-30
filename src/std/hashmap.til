@@ -106,14 +106,14 @@ namespace:
     // dense keys/values arrays, or -1 if not found.
     find := func(self: HashMap, key: Dynamic) returns I64 {
         if self.keys.count.eq(0.to_usize()) { return -1 }
-        bi := bucket(self.hash_key(key), self.buckets.count)
-        ref head : I64 = self.buckets.get(bi)
+        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        ref head : I64 = self.buckets[bi]
         mut entry : I64 = head.clone()
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys.get(entry_u)
-            if self.keys_equal(key, k) { return entry }
-            ref nxt : I64 = self.nexts.get(entry_u)
+            ref k : Dynamic = self.keys[entry_u]
+            if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
+            ref nxt : I64 = self.nexts[entry_u]
             entry = nxt.clone()
         }
         return -1
@@ -126,7 +126,7 @@ namespace:
     get := func(self: HashMap, key: Dynamic) returns ref Dynamic {
         idx := self.find(key)
         if idx.lt(0) { panic(__LOC__, "HashMap.get: key not found") }
-        return self.values.get(idx.to_usize())
+        return self.values[idx.to_usize()]
     }
 
     // Insert or overwrite. Both key and value are owned.
@@ -134,32 +134,39 @@ namespace:
     // would transfer ownership of `key` away before we know whether to
     // free it as a duplicate or push it as a new entry).
     set := func(mut self: HashMap, own key: Dynamic, own val: Dynamic) {
-        bi := bucket(self.hash_key(key), self.buckets.count)
-        ref head : I64 = self.buckets.get(bi)
+        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        ref head : I64 = self.buckets[bi]
         mut entry : I64 = head.clone()
         mut existing : I64 = -1
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys.get(entry_u)
-            if self.keys_equal(key, k) {
+            ref k : Dynamic = self.keys[entry_u]
+            if self.keys_equal(to_ptr(key), to_ptr(k)) {
                 existing = entry.clone()
                 break
             }
-            ref nxt : I64 = self.nexts.get(entry_u)
+            ref nxt : I64 = self.nexts[entry_u]
             entry = nxt.clone()
         }
         if existing.gte(0) {
             // Key already present: free the duplicate key, replace value.
             slot_idx : USize = existing.to_usize()
-            ref val_slot : Dynamic = self.values.get(slot_idx)
-            self.values.elem_delete(val_slot, false)
-            memcpy(val_slot, val, self.values.elem_size)
+            // Issue #218: in interpret mode, capturing the slot via
+            // `ref slot : Dynamic` then passing it to memcpy as dst
+            // dangled. Inline the slot pointer computation at each
+            // use (matches Vec.get's success-path body) so we go
+            // straight from Vec.data to the call arg without a
+            // captured ref binding -- and without nesting a Vec.get
+            // bang inside elem_delete / memcpy.
+            slot_off : USize = slot_idx.mul(self.values.elem_size)
+            self.values.elem_delete(ptr_add(self.values.data, slot_off), false)
+            memcpy(ptr_add(self.values.data, slot_off), val, self.values.elem_size)
             self.keys.elem_delete(key, false)
             free(own key)
             free(own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
-            ref head2 : I64 = self.buckets.get(bi)
+            ref head2 : I64 = self.buckets[bi]
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
             self.keys.push(own key)
@@ -184,9 +191,9 @@ namespace:
         // Re-link every entry into its new bucket. Walk keys in index
         // order; insert at the head of the new chain.
         for i in 0..self.keys.count {
-            ref k : Dynamic = self.keys.get(i)
-            bi := bucket(self.hash_key(k), self.buckets.count)
-            ref head : I64 = self.buckets.get(bi)
+            ref k : Dynamic = self.keys[i]
+            bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
+            ref head : I64 = self.buckets[bi]
             head_val : I64 = head.clone()
             self.nexts.set(i, own head_val)
             self.buckets.set(bi, own i.to_i64())
@@ -215,31 +222,35 @@ namespace:
         bi := bucket(self.hash_key(key), self.buckets.count)
 
         // Find the entry and its predecessor in the chain.
-        ref head : I64 = self.buckets.get(bi)
+        ref head : I64 = self.buckets[bi]
         mut prev : I64 = -1
         mut entry : I64 = head.clone()
         mut found := false
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys.get(entry_u)
+            ref k : Dynamic = self.keys[entry_u]
             if self.keys_equal(key, k) {
                 found = true
                 break
             }
             prev = entry.clone()
-            ref nxt : I64 = self.nexts.get(entry_u)
+            ref nxt : I64 = self.nexts[entry_u]
             entry = nxt.clone()
         }
         if found.not() { return }
 
         idx_u : USize = entry.to_usize()
+        keys_off : USize = idx_u.mul(self.keys.elem_size)
+        values_off : USize = idx_u.mul(self.values.elem_size)
 
-        // Drop the entry's owned key/value inner heap.
-        self.keys.elem_delete(self.keys.get(idx_u), false)
-        self.values.elem_delete(self.values.get(idx_u), false)
+        // Drop the entry's owned key/value inner heap. Inline the
+        // slot pointer via ptr_add to avoid the nested-bang-on-Dynamic
+        // hoist (the typer's bang temp can't hold a Dynamic result).
+        self.keys.elem_delete(ptr_add(self.keys.data, keys_off), false)
+        self.values.elem_delete(ptr_add(self.values.data, values_off), false)
 
         // Unlink from the chain.
-        ref nxt_of_idx : I64 = self.nexts.get(idx_u)
+        ref nxt_of_idx : I64 = self.nexts[idx_u]
         nxt_val : I64 = nxt_of_idx.clone()
         if prev.lt(0) {
             self.buckets.set(bi, own nxt_val)
@@ -252,16 +263,16 @@ namespace:
             last_u : USize = last_idx.to_usize()
             // Rewrite whatever pointer in `last_idx`'s chain referenced
             // last_idx; it must now reference idx_u.
-            ref last_key : Dynamic = self.keys.get(last_u)
+            ref last_key : Dynamic = self.keys[last_u]
             last_bi := bucket(self.hash_key(last_key), self.buckets.count)
-            ref last_head : I64 = self.buckets.get(last_bi)
+            ref last_head : I64 = self.buckets[last_bi]
             if last_head.eq(last_idx) {
                 self.buckets.set(last_bi, own entry.clone())
             } else {
                 mut walker : I64 = last_head.clone()
                 while walker.gte(0) {
                     walker_u : USize = walker.to_usize()
-                    ref walker_nxt : I64 = self.nexts.get(walker_u)
+                    ref walker_nxt : I64 = self.nexts[walker_u]
                     if walker_nxt.eq(last_idx) {
                         self.nexts.set(walker_u, own entry.clone())
                         break
@@ -271,9 +282,13 @@ namespace:
             }
 
             // Move bytes for keys, values, and the chain link.
-            memcpy(self.keys.get(idx_u), self.keys.get(last_u), self.keys.elem_size)
-            memcpy(self.values.get(idx_u), self.values.get(last_u), self.values.elem_size)
-            ref last_nxt : I64 = self.nexts.get(last_u)
+            last_keys_off : USize = last_u.mul(self.keys.elem_size)
+            last_values_off : USize = last_u.mul(self.values.elem_size)
+            memcpy(ptr_add(self.keys.data, keys_off),
+                   ptr_add(self.keys.data, last_keys_off), self.keys.elem_size)
+            memcpy(ptr_add(self.values.data, values_off),
+                   ptr_add(self.values.data, last_values_off), self.values.elem_size)
+            ref last_nxt : I64 = self.nexts[last_u]
             self.nexts.set(idx_u, own last_nxt.clone())
         }
 

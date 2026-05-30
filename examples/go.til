@@ -82,7 +82,7 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
     visited.set(idx.to_u32(), own 1)
 
     while stk.len().gt(0) {
-        ref top_ref : I64 = stk.get(stk.len().sub(1))
+        ref top_ref : I64 = stk[stk.len().sub(1)]
         cur := top_ref
         stk.count = stk.count.sub(1)
 
@@ -183,7 +183,7 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
     visited.set(idx.to_u32(), own 1)
 
     while stk.len().gt(0) {
-        ref top_ref : I64 = stk.get(stk.len().sub(1))
+        ref top_ref : I64 = stk[stk.len().sub(1)]
         cur := top_ref
         stk.count = stk.count.sub(1)
 
@@ -482,7 +482,7 @@ score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
             visited.set(i.to_u32(), own 1)
 
             while stk.len().gt(0) {
-                ref top_ref : I64 = stk.get(stk.len().sub(1))
+                ref top_ref : I64 = stk[stk.len().sub(1)]
                 cur := top_ref
                 stk.count = stk.count.sub(1)
 

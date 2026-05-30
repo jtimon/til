@@ -543,7 +543,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     mut visited := Set.new(Str)
     mut cursor : U32 = 0
     while cursor.lt(worklist.len()) {
-        name := Str.clone(worklist.get(cursor))
+        ref worklist_slot : Str = worklist[cursor]
+        name := Str.clone(worklist_slot)
         cursor = cursor.add(1)
         if visited.has(name) { continue }
         visited.add(own name.clone())
@@ -679,7 +680,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
         old_children.move_from(iu.ast.children)
         mut new_children := Vec.new(Expr)
         for idx in 0..old_children.count {
-            ref stmt : Expr = old_children.get(idx)
+            ref stmt : Expr = old_children[idx]
             mut keep := true
             if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
                 switch stmt.child(0).node_type {
@@ -1125,7 +1126,7 @@ append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     var_idx_i64 : I64 = fd.variadic_index.cast(I64)
     for i in 0..fd.params.len() {
         if i.gt(0) { out.push_str(", ") }
-        ref p : Declaration = fd.params.get(i)
+        ref p : Declaration = fd.params[i]
         is_variadic := i.to_i64().eq(var_idx_i64)
         if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
         out.push_str(p.name)
@@ -1292,7 +1293,7 @@ format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     out.push_str(name)
     out.push_str(" {")
     for i in 0..edef.variants.len() {
-        ref v : Str = edef.variants.get(i)
+        ref v : Str = edef.variants[i]
         out.push_str("\n    ")
         out.push_str(v)
         if edef.payload_types.has(i.to_i64()) {
@@ -1319,7 +1320,7 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
         if stmt.children.len().eq(0) {
             return format_var_info(dd.name, dd, scope)
         }
-        ref rhs : Expr = stmt.children.get(0)
+        ref rhs : Expr = stmt.children[0]
         switch rhs.node_type {
         case NodeType.StructDef(sdef): return format_struct_info(dd.name, sdef)
         case NodeType.EnumDef(edef):   return format_enum_info(dd.name, edef)
@@ -1401,7 +1402,7 @@ collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info:
 // "Type.method" entries for each namespace method.
 collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
     for i in 0..edef.variants.len() {
-        ref v : Str = edef.variants.get(i)
+        ref v : Str = edef.variants[i]
         qual := type_name.format(".", v)
         mut variant_info := Str.with_capacity(qual.len().add(64))
         variant_info.push_str("variant ")
@@ -1433,7 +1434,7 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
                 append_packed_entry(docs, dd.name, dd.doc)
             }
             if stmt.children.len().gt(0) {
-                ref rhs : Expr = stmt.children.get(0)
+                ref rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case NodeType.StructDef(sdef):
                     collect_struct_members_packed(dd.name, sdef, info, docs)
@@ -1578,7 +1579,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
     mut imp_idx : U32 = 0
 
     for i in 0..old.len() {
-        ref stmt : Expr = old.get(i)
+        ref stmt : Expr = old[i]
 
         mut is_imp := false
         mut is_decl_rhs := false
@@ -1642,7 +1643,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
             if is_valid_import {
                 mut resolved := ""
                 if imp_idx.lt(iu.imports.len()) {
-                    ref s : Str = iu.imports.get(imp_idx)
+                    ref s : Str = iu.imports[imp_idx]
                     resolved = s.clone()
                 }
                 imp_idx++
@@ -1690,10 +1691,10 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // Init phase (rstil-style): recursive imports per file.
     lp.ctx.scope = TypeScope()
     if lp.skip_core.not() {
-        ref core_root : ProgramUnit = lp.core_units.get(lp.core_units.len().sub(1))
+        ref core_root : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
         init_file(core_root.path, lp.ctx)
     }
-    ref user_root : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+    ref user_root : ProgramUnit = lp.units[lp.units.len().sub(1)]
     init_file(user_root.path, lp.ctx)
     for mode_file : Str in lp.mode_files {
         init_file(mode_file, lp.ctx)
@@ -1721,7 +1722,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
 
     // Ensure ctx.path is set to the user entrypoint by default.
     if lp.units.len().gt(0) {
-        ref last : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+        ref last : ProgramUnit = lp.units[lp.units.len().sub(1)]
         context_enter_file(lp.ctx, last.path)
     }
 
@@ -1733,7 +1734,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // Type checking (rstil-style): recursive imports per file.
     mut type_errors : I32 = 0
     if lp.skip_core.not() {
-        ref core_root2 : ProgramUnit = lp.core_units.get(lp.core_units.len().sub(1))
+        ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
         type_errors = type_errors.add(type_file(core_root2.path, lp.ctx))
     }
     type_errors = type_errors.add(type_file(user_root.path, lp.ctx))

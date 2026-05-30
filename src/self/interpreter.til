@@ -781,7 +781,7 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shal
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) { return false }
-        ref p0 : Declaration = fd.params.get(0)
+        ref p0 : Declaration = fd.params[0]
         if p0.own_type.is(OwnType.Own).not() { return false }
         if e.children.len().lte(1) { return false }
         switch e.child(1).node_type {
@@ -1305,7 +1305,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         switch func_def.node_type {
         case NodeType.FuncDef(fdef_params):
             for pi in 0..fdef_params.params.len() {
-                ref param : Declaration = fdef_params.params.get(pi)
+                ref param : Declaration = fdef_params.params[pi]
                 ref arg_expr : Expr = e.child(pi.add(1))
                 switch arg_expr.node_type {
                 case NodeType.Ident(arg_ident):
@@ -1493,7 +1493,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         switch func_def2.node_type {
         case NodeType.FuncDef(fdef2):
             if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
-                ref first_param : Declaration = fdef2.params.get(0)
+                ref first_param : Declaration = fdef2.params[0]
                 if first_param.own_type.is(OwnType.Own) {
                     ref first_arg : Expr = e.child(1)
                     switch first_arg.node_type {
@@ -1523,7 +1523,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             nparam2 := fdef2.params.len()
             for pi in 0..nparam2 {
                 ref arg_expr : Expr = e.child(pi.add(1))
-                ref param : Declaration = fdef2.params.get(pi)
+                ref param : Declaration = fdef2.params[pi]
                 switch arg_expr.node_type {
                 case NodeType.Ident(arg_ident):
                     ref arg_cell : Cell = scope_get(scope, ident_name(arg_ident))
@@ -2029,7 +2029,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     if alloc_count.eq(0) { alloc_count = 1 }
     data : Dynamic = calloc(alloc_count.cast(U64), esz.to_u64())
     for i in 0..count {
-        ref s : Str = argv.get(offset.add(i))
+        ref s : Str = argv[offset.add(i)]
         v := parse_cli_arg(s, elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz.to_u64())), v, elem_type)
     }
@@ -2633,15 +2633,15 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
                     }
                     mut argi : I32 = 0
                     for pi in 0..nparam {
-                        ref param : Declaration = fd.params.get(pi)
+                        ref param : Declaration = fd.params[pi]
                         if pi.to_i64().eq(vi.cast(I64)) {
                             va_count := user_argc.sub(fixed)
-                            ref va_param : Declaration = fd.params.get(vi.to_usize())
+                            ref va_param : Declaration = fd.params[vi.to_usize()]
                             arr := build_argv_array(user_argv, argi.cast(U32), va_count, va_param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
                             argi = argi.add(va_count.cast(I32))
                         } else {
-                            ref arg_s : Str = user_argv.get(argi.to_usize())
+                            ref arg_s : Str = user_argv[argi.to_usize()]
                             v := parse_cli_arg(arg_s, param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, v)
                             argi = argi.add(1)
@@ -2889,15 +2889,15 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                     }
                     mut argi : I32 = 0
                     for pi in 0..nparam {
-                        ref param : Declaration = fd.params.get(pi)
+                        ref param : Declaration = fd.params[pi]
                         if pi.to_i64().eq(vi.cast(I64)) {
                             va_count := user_argc.sub(fixed)
-                            ref va_param : Declaration = fd.params.get(vi.to_usize())
+                            ref va_param : Declaration = fd.params[vi.to_usize()]
                             arr := build_argv_array(user_argv, argi.cast(U32), va_count, va_param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
                             argi = argi.add(va_count.cast(I32))
                         } else {
-                            ref arg_s : Str = user_argv.get(argi.to_usize())
+                            ref arg_s : Str = user_argv[argi.to_usize()]
                             v := parse_cli_arg(arg_s, param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, v)
                             argi = argi.add(1)

@@ -281,9 +281,12 @@ test_vec_in_struct := test() {
     c.items.push(own 20)
     c.items.push(own 30)
     assert_eq(__LOC__, c.items.len().to_i64(), 3)
-    assert_eq(__LOC__, c.items.get(0), 10)
-    assert_eq(__LOC__, c.items.get(1), 20)
-    assert_eq(__LOC__, c.items.get(2), 30)
+    ref e0 : I64 = c.items[0]
+    ref e1 : I64 = c.items[1]
+    ref e2 : I64 = c.items[2]
+    assert_eq(__LOC__, e0, 10)
+    assert_eq(__LOC__, e1, 20)
+    assert_eq(__LOC__, e2, 30)
 }
 
 test_nested_struct_field_mutation := test() {

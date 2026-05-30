@@ -103,7 +103,7 @@ main := proc(args: ..Str) {
             if IsKeyPressed(265) {
                 if cursor_y > 0 {
                     cursor_y = cursor_y - 1
-                    ref line : Str = lines.get(cursor_y.cast(U32))
+                    ref line : Str = lines[cursor_y.cast(U32)]
                     if cursor_x > line.len().cast(I32) {
                         cursor_x = line.len().cast(I32)
                     }
@@ -114,7 +114,7 @@ main := proc(args: ..Str) {
             // Down
             if cursor_y < lines.len().cast(I32) - 1 {
                 cursor_y = cursor_y + 1
-                ref line : Str = lines.get(cursor_y.cast(U32))
+                ref line : Str = lines[cursor_y.cast(U32)]
                 if cursor_x > line.len().cast(I32) {
                     cursor_x = line.len().cast(I32)
                 }
@@ -127,14 +127,14 @@ main := proc(args: ..Str) {
             } else {
                 if cursor_y > 0 {
                     cursor_y = cursor_y - 1
-                    ref line : Str = lines.get(cursor_y.cast(U32))
+                    ref line : Str = lines[cursor_y.cast(U32)]
                     cursor_x = line.len().cast(I32)
                 }
             }
         }
         if IsKeyPressed(262) {
             // Right
-            ref cur_line : Str = lines.get(cursor_y.cast(U32))
+            ref cur_line : Str = lines[cursor_y.cast(U32)]
             if cursor_x < cur_line.len().cast(I32) {
                 cursor_x = cursor_x + 1
             } else {
@@ -151,14 +151,14 @@ main := proc(args: ..Str) {
         }
         // End
         if IsKeyPressed(269) {
-            ref line : Str = lines.get(cursor_y.cast(U32))
+            ref line : Str = lines[cursor_y.cast(U32)]
             cursor_x = line.len().cast(I32)
         }
 
         // Enter
         if IsKeyPressed(257) {
             if !ctrl {
-                ref cur_line : Str = lines.get(cursor_y.cast(U32))
+                ref cur_line : Str = lines[cursor_y.cast(U32)]
                 // Split line at cursor
                 before := cur_line.substr(0, cursor_x.to_usize()).clone()
                 after := cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize()).clone()
@@ -171,7 +171,7 @@ main := proc(args: ..Str) {
                         new_lines.push(own before.clone())
                         new_lines.push(own after.clone())
                     } else {
-                        ref l : Str = lines.get(i)
+                        ref l : Str = lines[i]
                         new_lines.push(own l.clone())
                     }
                     i++
@@ -186,7 +186,7 @@ main := proc(args: ..Str) {
         // Backspace
         if IsKeyPressed(259) {
             if cursor_x > 0 {
-                ref cur_line : Str = lines.get(cursor_y.cast(U32))
+                ref cur_line : Str = lines[cursor_y.cast(U32)]
                 new_line := cur_line.substr(0, cursor_x.to_usize() - 1).concat(
                     cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize())
                 )
@@ -196,7 +196,7 @@ main := proc(args: ..Str) {
                     if i == cursor_y.cast(U32) {
                         new_lines.push(own new_line.clone())
                     } else {
-                        ref l : Str = lines.get(i)
+                        ref l : Str = lines[i]
                         new_lines.push(own l.clone())
                     }
                     i++
@@ -207,8 +207,8 @@ main := proc(args: ..Str) {
             } else {
                 if cursor_y > 0 {
                     // Merge with previous line
-                    ref prev_line : Str = lines.get((cursor_y - 1).cast(U32))
-                    ref cur_line : Str = lines.get(cursor_y.cast(U32))
+                    ref prev_line : Str = lines[(cursor_y - 1).cast(U32)]
+                    ref cur_line : Str = lines[cursor_y.cast(U32)]
                     new_x := prev_line.len().cast(I32)
                     merged := prev_line.concat(cur_line)
 
@@ -219,7 +219,7 @@ main := proc(args: ..Str) {
                             new_lines.push(own merged.clone())
                         } else {
                             if i != cursor_y.cast(U32) {
-                                ref l : Str = lines.get(i)
+                                ref l : Str = lines[i]
                                 new_lines.push(own l.clone())
                             }
                         }
@@ -235,7 +235,7 @@ main := proc(args: ..Str) {
 
         // Delete key
         if IsKeyPressed(261) {
-            ref cur_line : Str = lines.get(cursor_y.cast(U32))
+            ref cur_line : Str = lines[cursor_y.cast(U32)]
             if cursor_x < cur_line.len().cast(I32) {
                 cursor_x_u := cursor_x.to_usize()
                 next_x_u := cursor_x_u + 1
@@ -248,7 +248,7 @@ main := proc(args: ..Str) {
                     if i == cursor_y.cast(U32) {
                         new_lines.push(own new_line.clone())
                     } else {
-                        ref l : Str = lines.get(i)
+                        ref l : Str = lines[i]
                         new_lines.push(own l.clone())
                     }
                     i++
@@ -258,7 +258,7 @@ main := proc(args: ..Str) {
             } else {
                 if cursor_y < lines.len().cast(I32) - 1 {
                     // Merge with next line
-                    ref next_line : Str = lines.get((cursor_y + 1).cast(U32))
+                    ref next_line : Str = lines[(cursor_y + 1).cast(U32)]
                     merged := cur_line.concat(next_line)
 
                     mut new_lines := Vec.new(Str)
@@ -268,7 +268,7 @@ main := proc(args: ..Str) {
                             new_lines.push(own merged.clone())
                         } else {
                             if i != (cursor_y + 1).cast(U32) {
-                                ref l : Str = lines.get(i)
+                                ref l : Str = lines[i]
                                 new_lines.push(own l.clone())
                             }
                         }
@@ -287,7 +287,7 @@ main := proc(args: ..Str) {
                 if ch >= 32 & ch < 127 {
                     // Insert character at cursor
                     ch_str := Str.from_byte(ch.cast(I64).to_u8())
-                    ref cur_line : Str = lines.get(cursor_y.cast(U32))
+                    ref cur_line : Str = lines[cursor_y.cast(U32)]
                     new_line := cur_line.substr(0, cursor_x.to_usize()).concat(ch_str).concat(
                         cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize())
                     )
@@ -297,7 +297,7 @@ main := proc(args: ..Str) {
                         if i == cursor_y.cast(U32) {
                             new_lines.push(own new_line.clone())
                         } else {
-                            ref l : Str = lines.get(i)
+                            ref l : Str = lines[i]
                             new_lines.push(own l.clone())
                         }
                         i++
@@ -338,7 +338,7 @@ main := proc(args: ..Str) {
                          top_margin + row * line_h, font_size, Color(r = 80, g = 80, b = 100, a = 255))
 
                 // Line text
-                ref line : Str = lines.get(line_idx.cast(U32))
+                ref line : Str = lines[line_idx.cast(U32)]
                 if line.len() > 0 {
                     DrawText(line.c_str, left_margin, top_margin + row * line_h,
                              font_size, Color(r = 200, g = 200, b = 200, a = 255))

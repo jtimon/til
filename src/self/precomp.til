@@ -222,7 +222,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 case NodeType.EnumDef(edd):
                     if etag.to_usize().lt(edd.variants.len())
                        .and(edd.payload_types.has(etag.cast(I64)).not()) {
-                        ref vname : Str = edd.variants.get(etag.to_usize())
+                        ref vname : Str = edd.variants[etag.to_usize()]
                         // Build the inner variant FieldAccess Color.Green.
                         mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
                         set_expr_til_type(recv, Type.Enum(til_type_name(src_t)))
@@ -292,7 +292,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 mut payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
                 ref payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
                 if is_null(payload_expr) { return NULL }
-                ref vname2 : Str = edd2.variants.get(etag2.to_usize())
+                ref vname2 : Str = edd2.variants[etag2.to_usize()]
                 mut variant_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
                 set_expr_til_type(variant_recv, Type.Enum(til_type_name(src_t)))
                 mut variant_callee := Expr.new(field_access_node(vname2), src.line, src.col)

@@ -377,7 +377,7 @@ priv emit_comment_line := func(mut out: Str, line: Str) {
 
 priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
     for i in open.add(1)..close {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines[i]
         n := line.len()
         lead := skip_ws(line, 0)
         if lead.eq(n) { continue }
@@ -468,7 +468,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, shallow
 // --- typedef struct ---------------------------------------------------
 
 priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
-    ref close_line : Str = lines.get(close)
+    ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
     if clead.gte(cn).or(close_line.byte_at(clead).neq('}')) { return start.add(1) }
@@ -501,7 +501,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shal
     mut t_start : USize = 0
     mut t_end : USize = 0
     for i in start..open.add(1) {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines[i]
         n := line.len()
         lead := skip_ws(line, 0)
         mut p := lead
@@ -547,7 +547,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shal
     tag_len := t_end.sub(t_start)
     mut tag_eq_name := tag_len.eq(name_len)
     if tag_eq_name {
-        ref tline : Str = lines.get(tag_line_idx)
+        ref tline : Str = lines[tag_line_idx]
         mut m : USize = 0
         while m.lt(name_len) {
             if tline.byte_at(t_start.add(m)).neq(close_line.byte_at(name_start.add(m))) {
@@ -570,7 +570,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shal
         return close.add(1)
     }
     out.push_str(" := ext_struct(\"")
-    ref tag_line : Str = lines.get(tag_line_idx)
+    ref tag_line : Str = lines[tag_line_idx]
     out.push_str(tag_line.substr(t_start, tag_len))
     if body_ok {
         out.push_str("\") {\n")
@@ -585,7 +585,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shal
 // --- typedef enum -----------------------------------------------------
 
 priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
-    ref close_line : Str = lines.get(close)
+    ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
     if clead.gte(cn).or(close_line.byte_at(clead).neq('}')) { return start.add(1) }
@@ -615,7 +615,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, sh
     mut prev_end := Vec.new(USize)
     mut prev_val := Vec.new(I64)
     for i in open.add(1)..close {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines[i]
         n := line.len()
         lead := skip_ws(line, 0)
         if lead.eq(n) { continue }
@@ -657,11 +657,11 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, sh
                     ref_len := v_end.sub(p)
                     mut k : USize = 0
                     while k.lt(prev_line.len()) {
-                        ref ki : USize = prev_line.get(k)
-                        ref ks : USize = prev_start.get(k)
-                        ref ke : USize = prev_end.get(k)
+                        ref ki : USize = prev_line[k]
+                        ref ks : USize = prev_start[k]
+                        ref ke : USize = prev_end[k]
                         if ke.sub(ks).eq(ref_len) {
-                            ref klin : Str = lines.get(ki)
+                            ref klin : Str = lines[ki]
                             mut m : USize = 0
                             mut eq := true
                             while m.lt(ref_len) {
@@ -672,7 +672,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, sh
                                 m = m.add(1)
                             }
                             if eq {
-                                ref kv : I64 = prev_val.get(k)
+                                ref kv : I64 = prev_val[k]
                                 val = kv.clone()
                                 break
                             }
@@ -841,7 +841,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, shallow st
     // push_str so we never re-bind a function-returning Str to a local.
     mut sig := Str.with_capacity(16384)
     for i in start..end.add(1) {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines[i]
         ln := line.len()
         lead := skip_ws(line, 0)
         right := trim_right(line, lead, ln)
@@ -1145,7 +1145,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
     // as code by the C-decl classifier below.
     mut in_block_comment := false
     while i.lt(n_lines) {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines[i]
         ln := line.len()
         if in_block_comment {
             emit_comment_line(out, line)
@@ -1287,7 +1287,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                 if has_brace.not() {
                     mut j := i.add(1)
                     while j.lt(n_lines) {
-                        ref l2 : Str = lines.get(j)
+                        ref l2 : Str = lines[j]
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
                         if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
@@ -1300,7 +1300,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                 mut j2 := open
                 mut done := false
                 while j2.lt(n_lines).and(done.not()) {
-                    ref l3 : Str = lines.get(j2)
+                    ref l3 : Str = lines[j2]
                     l3n := l3.len()
                     mut k2 : USize = 0
                     while k2.lt(l3n) {
@@ -1330,7 +1330,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                 if has_brace.not() {
                     mut j := i.add(1)
                     while j.lt(n_lines) {
-                        ref l2 : Str = lines.get(j)
+                        ref l2 : Str = lines[j]
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
                         if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
@@ -1343,7 +1343,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                 mut j2 := open
                 mut done := false
                 while j2.lt(n_lines).and(done.not()) {
-                    ref l3 : Str = lines.get(j2)
+                    ref l3 : Str = lines[j2]
                     l3n := l3.len()
                     mut k2 : USize = 0
                     while k2.lt(l3n) {
@@ -1372,7 +1372,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                 mut j2 := i
                 mut done := false
                 while j2.lt(n_lines).and(done.not()) {
-                    ref l3 : Str = lines.get(j2)
+                    ref l3 : Str = lines[j2]
                     l3n := l3.len()
                     mut k2 : USize = 0
                     while k2.lt(l3n) {
@@ -1389,7 +1389,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                 // The close line carries `} NAME;`. Extract NAME and emit
                 // `NAME := Dynamic` so referencing functions still resolve.
                 if done {
-                    ref close_l : Str = lines.get(j2)
+                    ref close_l : Str = lines[j2]
                     cln := close_l.len()
                     cl_lead := skip_ws(close_l, 0)
                     if cl_lead.lt(cln).and(close_l.byte_at(cl_lead).eq('}')) {
@@ -1438,7 +1438,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
         mut paren_depth : I32 = 0
         mut saw_paren := false
         while j.lt(n_lines).and(found_end.not()) {
-            ref l2 : Str = lines.get(j)
+            ref l2 : Str = lines[j]
             l2n := l2.len()
             mut k : USize = 0
             while k.lt(l2n) {
@@ -1585,7 +1585,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
     mut in_block := false
     n_raw := raw.len()
     for ri in 0..n_raw {
-        ref tagged : Str = raw.get(ri)
+        ref tagged : Str = raw[ri]
         tn := tagged.len()
         sys := tn.gt(0).and(tagged.byte_at(0).eq('S'))
         line := tagged.substr(2, tn.sub(2))
@@ -1654,7 +1654,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec {
         // Peek the next line's first non-ws byte.
         mut next_starts_close := false
         if ri.add(1).lt(n_raw) {
-            ref nxt_tagged : Str = raw.get(ri.add(1))
+            ref nxt_tagged : Str = raw[ri.add(1)]
             ntn := nxt_tagged.len()
             if ntn.gt(2) {
                 nxt := nxt_tagged.substr(2, ntn.sub(2))

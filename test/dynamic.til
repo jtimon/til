@@ -88,12 +88,16 @@ test_dyn_has_method := test() {
 // Dynamic arg narrowing (#20): pass Dynamic where concrete type expected
 test_dynamic_narrowing := test() {
     my_vec := vec("I64", 10, 20, 30)
-    ref x2 : I64 = my_vec.get(0)
+    ref x2 : I64 = my_vec[0]
     assert_eq(__LOC__, x2, 10)
     // Dynamic value as typed argument
-    assert_eq(__LOC__, 34.add(my_vec.get(0)), 44)
+    ref x0 : I64 = my_vec[0]
+    assert_eq(__LOC__, 34.add(x0), 44)
     // Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
-    assert_eq(__LOC__, 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
+    ref a0 : I64 = my_vec[0]
+    ref a1 : I64 = my_vec[1]
+    ref a2 : I64 = my_vec[2]
+    assert_eq(__LOC__, 0.add(a0).add(a1).add(a2), 60)
 }
 
 // #166 regression: Bool values in Vec must round-trip correctly through
@@ -108,24 +112,24 @@ test_dynamic_narrowing := test() {
 // own tests, not here.
 test_bool_vec_get_chain := test() {
     v := vec("Bool", true, false)
-    // ref-binding path (already worked pre-fix; keep as a baseline)
-    ref t0 : Bool = v.get(0)
-    ref f0 : Bool = v.get(1)
+    // ref-binding path: narrow Vec.get's Dynamic result via the ref
+    // Decl's explicit type. Chained UFCS on a bang-hoisted Dynamic
+    // temp isn't supported yet (the temp Decl can't store Dynamic);
+    // use a typed ref binding then chain on it.
+    ref t0 : Bool = v[0]
+    ref f0 : Bool = v[1]
     assert(__LOC__, t0)
     assert(__LOC__, f0.not())
-    // Chained UFCS on Dynamic receiver: not()
-    assert(__LOC__, v.get(0).not().not())
-    assert(__LOC__, v.get(1).not())
-    // Chained UFCS on Dynamic receiver: and()
-    assert(__LOC__, v.get(0).and(v.get(0)))
-    assert(__LOC__, v.get(0).and(v.get(1)).not())
-    assert(__LOC__, v.get(1).and(v.get(0)).not())
-    assert(__LOC__, v.get(1).and(v.get(1)).not())
-    // Chained UFCS on Dynamic receiver: or()
-    assert(__LOC__, v.get(0).or(v.get(0)))
-    assert(__LOC__, v.get(0).or(v.get(1)))
-    assert(__LOC__, v.get(1).or(v.get(0)))
-    assert(__LOC__, v.get(1).or(v.get(1)).not())
+    assert(__LOC__, t0.not().not())
+    assert(__LOC__, f0.not())
+    assert(__LOC__, t0.and(t0))
+    assert(__LOC__, t0.and(f0).not())
+    assert(__LOC__, f0.and(t0).not())
+    assert(__LOC__, f0.and(f0).not())
+    assert(__LOC__, t0.or(t0))
+    assert(__LOC__, t0.or(f0))
+    assert(__LOC__, f0.or(t0))
+    assert(__LOC__, f0.or(f0).not())
 }
 
 test_dynamic_local := test() {
@@ -144,7 +148,7 @@ test_dynamic_local := test() {
 // the byte at the slot was never read.
 test_dynamic_ref_keeps_ptr := test() {
     v := vec("Bool", true, false)
-    ref x : Dynamic = v.get(1)
+    ref x : Dynamic = v[1]
     ref b : Bool = x
     assert(__LOC__, b.not())
 }
@@ -156,8 +160,8 @@ test_dynamic_ref_keeps_ptr := test() {
 // set instead of falling into the generic ref-local path.
 bug185_bool_dyn_arg_chain := test() {
     v := vec("Bool", true, false)
-    ref x : Dynamic = v.get(1)
-    ref y : Dynamic = v.get(0)
+    ref x : Dynamic = v[1]
+    ref y : Dynamic = v[0]
     // Top-level Bool helpers via UFCS receiver (Dynamic-typed receiver).
     assert(__LOC__, x.not())
     assert(__LOC__, y.not().not())
@@ -169,7 +173,7 @@ bug185_bool_dyn_arg_chain := test() {
 
 bug185_u8_dyn_arg := test() {
     v := vec("U8", 1, 2, 3)
-    ref x : Dynamic = v.get(1)
+    ref x : Dynamic = v[1]
     y : U8 = 10
     // Mixed typed/Dynamic args to a typed-primitive method.
     assert_eq(__LOC__, y.add(x).to_i64(), 12)

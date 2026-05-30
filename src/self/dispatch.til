@@ -563,7 +563,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
             interp_error(e, "struct_field_name: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields.get(idx.to_usize())
+        ref fd : Declaration = sd.fields[idx.to_usize()]
         r = str_to_owned_value(fd.name, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -581,7 +581,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
             interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields.get(idx.to_usize())
+        ref fd : Declaration = sd.fields[idx.to_usize()]
         if fd.is_mut { r = val_i64(1) } else { r = val_i64(0) }
     case:
         UNREACHABLE(__LOC__)
@@ -599,7 +599,7 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
             interp_error(e, "struct_field_type: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields.get(idx.to_usize())
+        ref fd : Declaration = sd.fields[idx.to_usize()]
         r = str_to_owned_value(fd.explicit_type, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -653,7 +653,7 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
             interp_error(e, "enum_variant_name: index out of bounds", ctx)
             exit(1)
         }
-        ref vn : Str = ed.variants.get(idx.to_usize())
+        ref vn : Str = ed.variants[idx.to_usize()]
         r = str_to_owned_value(vn, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -751,7 +751,7 @@ h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
             interp_error(e, "func_sig_param_type: index out of bounds", ctx)
             exit(1)
         }
-        ref pd : Declaration = fd.params.get(idx.to_usize())
+        ref pd : Declaration = fd.params[idx.to_usize()]
         r = str_to_owned_value(pd.explicit_type, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -810,7 +810,7 @@ h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
             interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
             exit(1)
         }
-        ref tt : Str = fd.throw_types.get(idx.to_usize())
+        ref tt : Str = fd.throw_types[idx.to_usize()]
         r = str_to_owned_value(tt, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -1032,7 +1032,7 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
         nfields := bsf_sdd.fields.len()
         elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size()))
         for i in 0..nfields {
-            ref fd : Declaration = bsf_sdd.fields.get(i)
+            ref fd : Declaration = bsf_sdd.fields[i]
             ref ft : ffi_type = field_ffi_type(fd, ctx)
             memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size())), ft, Dynamic.size())
         }
@@ -1506,7 +1506,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         mut pshallows : Dynamic = 0
         mut has_shallow := false
         for k in 0..np {
-            ref pk : Declaration = fd.params.get(k)
+            ref pk : Declaration = fd.params[k]
             if pk.own_type.is(OwnType.Shallow) {
                 write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
                 has_shallow = true
@@ -1517,7 +1517,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         if has_shallow {
             pshallows = malloc(np.cast(U64))
             for k in 0..np {
-                ref pk : Declaration = fd.params.get(k)
+                ref pk : Declaration = fd.params[k]
                 ref mut slot : Bool = ptr_add(pshallows, k.cast(U64))
                 slot = pk.own_type.is(OwnType.Shallow)
             }

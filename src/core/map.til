@@ -47,14 +47,18 @@ namespace:
         Vec.clear(self.values)
     }
 
-    /// Ref to the key slot at sorted index `i`.
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
     key_ptr := func(self: Map, i: USize) returns ref Dynamic {
-        return self.keys.get(i)
+        return ptr_add(self.keys.data, i.mul(self.keys.elem_size))
     }
 
-    /// Ref to the value slot at sorted index `i`.
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
     val_ptr := func(self: Map, i: USize) returns ref Dynamic {
-        return self.values.get(i)
+        return ptr_add(self.values.data, i.mul(self.values.elem_size))
     }
 
     /// True if a value exists for the given key.

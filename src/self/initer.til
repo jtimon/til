@@ -769,8 +769,8 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                 ctor.add_child(own ctor_name)
 
                 for j in 0..field_names.len() {
-                    ref fname : Str = field_names.get(j)
-                    ref fref : I32 = field_refs.get(j)
+                    ref fname : Str = field_names[j]
+                    ref fref : I32 = field_refs[j]
 
                     mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
                     // NodeType.FieldAccess/NamedArg's constructors Str_clone their
@@ -839,8 +839,8 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
 
             mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             for j in 0..del_field_names.len() {
-                ref fname : Str = del_field_names.get(j)
-                ref fown : Bool = del_field_owns.get(j)
+                ref fname : Str = del_field_names[j]
+                ref fown : Bool = del_field_owns[j]
                 mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
                 mut field_acc := Expr.new(field_access_node(fname), stmt.line, stmt.col)
                 field_acc.add_child(own self_id)
@@ -938,7 +938,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
     case NodeType.EnumDef(edd):
         has_payloads = edd.payload_types.len().gt(0)
         for j in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(j)
+            ref vn : Str = edd.variants[j]
             variant_names.push(own vn.clone())
             idx := j.to_i64()
             if edd.payload_types.has(idx) {
@@ -958,7 +958,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shal
     case NodeType.EnumDef(evc_edd):
         if has_payloads.not() {
             for j in 0..variant_names.len() {
-                ref vname : Str = variant_names.get(j)
+                ref vname : Str = variant_names[j]
                 mut lit := Expr.new(literal_num_node(j.to_str()), line, col)
                 evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = lit))
             }
@@ -968,7 +968,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shal
         for j in 0..variant_names.len() {
             mut func_decl := FunctionDef(auto_generated = true, is_enum_variant_ctor = true)
             func_decl.func_type = FuncType.ExtFunc
-            ref vtype : Str = variant_types.get(j)
+            ref vtype : Str = variant_types[j]
             if vtype.len().gt(0) {
                 mut payload_own_type := OwnType.Own
                 resolved := type_from_name_init(vtype, scope)
@@ -987,7 +987,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shal
             mut func_body := Expr.new(NodeType.Body, line, col)
             func_def.add_child(own func_body)
 
-            ref vname : Str = variant_names.get(j)
+            ref vname : Str = variant_names[j]
             evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = func_def))
         }
     case:
@@ -1033,12 +1033,12 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U
 generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
-        ref vn : Str = variant_names.get(j)
+        ref vn : Str = variant_names[j]
         mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
 
         mut then_body := Expr.new(NodeType.Body, line, col)
 
-        ref vtype : Str = variant_types.get(j)
+        ref vtype : Str = variant_types[j]
         if vtype.len().gt(0) {
             is_funcsig := type_from_name_init(vtype, scope).is(Type.FuncPtr)
 
@@ -1117,8 +1117,8 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
     mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
         for j in 0..variant_names.len() {
-            ref vn : Str = variant_names.get(j)
-            ref vtype : Str = variant_types.get(j)
+            ref vn : Str = variant_names[j]
+            ref vtype : Str = variant_types[j]
             if vtype.len().eq(0) { continue }
             if vtype.eq("Dynamic") { continue }
             if type_from_name_init(vtype, scope).is(Type.FuncPtr) { continue }
@@ -1189,8 +1189,8 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
 generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
-        ref vn : Str = variant_names.get(j)
-        ref vtype : Str = variant_types.get(j)
+        ref vn : Str = variant_names[j]
+        ref vtype : Str = variant_types[j]
 
         if has_payloads {
             mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
@@ -1300,7 +1300,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
     // observable behaviour (the enum is exhaustive).
     guard_every := has_payloads.not()
     for j in 0..variant_names.len() {
-        ref vname : Str = variant_names.get(j)
+        ref vname : Str = variant_names[j]
 
         mut ename_id := Expr.new(ident_node(ename), line, col)
         mut ctor_acc := Expr.new(field_access_node(vname), line, col)
@@ -1309,7 +1309,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
         mut ctor_expr := Expr.new(NodeType.Literal(Literal.Null), line, col)
         mut pd := Expr.new(NodeType.Body, line, col)
         mut has_pd := false
-        ref vtype : Str = variant_types.get(j)
+        ref vtype : Str = variant_types[j]
         if vtype.len().gt(0) {
             pn := format("_clone_payload_", vname, "_", j.to_str())
 
@@ -1377,7 +1377,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
         }
     }
     if guard_every {
-        ref first_vname : Str = variant_names.get(0)
+        ref first_vname : Str = variant_names[0]
         // ~__LOC__~ is a parser-time directive; we're past parse, so
         // emit a synthetic loc string directly.
         loc_text := format(ename, ".clone:", line.to_str(), ":", col.to_str())
@@ -1696,8 +1696,8 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
                                 }
                                 fdef.func_type = sigdef.func_type
                                 for j in 0..sigdef.params.len() {
-                                    ref mut dp : Declaration = fdef.params.get(j)
-                                    ref sp : Declaration = sigdef.params.get(j)
+                                    ref mut dp : Declaration = fdef.params[j]
+                                    ref sp : Declaration = sigdef.params[j]
                                     dp.explicit_type = sp.explicit_type
                                     dp.til_type = sp.til_type.clone()
                                     dp.is_mut = sp.is_mut
@@ -3080,7 +3080,7 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
 count_ast_imports := func(body: Expr) returns shallow USize {
     mut n : USize = 0
     for i in 0..body.children.len() {
-        ref stmt : Expr = body.children.get(i)
+        ref stmt : Expr = body.children[i]
         mut is_imp := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref imp_stmt : Expr = stmt.child(0)
@@ -3125,12 +3125,12 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     ast_count : USize = count_ast_imports(iu.ast)
     auto_count : USize = iu.imports.len().sub(ast_count)
     for i in 0..auto_count {
-        ref dep : Str = iu.imports.get(i)
+        ref dep : Str = iu.imports[i]
         init_file(dep, ctx)
     }
     mut import_idx : USize = auto_count
     for i in 0..iu.ast.children.len() {
-        ref stmt : Expr = iu.ast.children.get(i)
+        ref stmt : Expr = iu.ast.children[i]
         mut is_imp := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref imp_stmt : Expr = stmt.child(0)
@@ -3156,7 +3156,7 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
         }
 
         if is_imp {
-            ref dep : Str = iu.imports.get(import_idx)
+            ref dep : Str = iu.imports[import_idx]
             init_file(dep, ctx)
             import_idx = import_idx.add(1)
         }

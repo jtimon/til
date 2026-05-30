@@ -170,16 +170,16 @@ build_glyph := func(segments: Vec) returns Glyph {
     }
 
     // Bounding box.
-    ref x0 : I64 = xs.get(0)
-    ref y0 : I64 = ys.get(0)
+    ref x0 : I64 = xs[0]
+    ref y0 : I64 = ys[0]
     mut xmn := x0
     mut xmx := x0
     mut ymn := y0
     mut ymx := y0
     mut k : USize = 1
     while k.lt(n) {
-        ref xv : I64 = xs.get(k)
-        ref yv : I64 = ys.get(k)
+        ref xv : I64 = xs[k]
+        ref yv : I64 = ys[k]
         if xv.lt(xmn) { xmn = xv }
         if xv.gt(xmx) { xmx = xv }
         if yv.lt(ymn) { ymn = yv }
@@ -483,8 +483,8 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
 
     num_tables := blobs.len().to_i64()
     p2 := pow2_le(num_tables)
-    ref p2v : I64 = p2.get(0)
-    ref p2l : I64 = p2.get(1)
+    ref p2v : I64 = p2[0]
+    ref p2l : I64 = p2[1]
     search_range := p2v.mul(16)
     entry_selector := p2l
     range_shift := num_tables.mul(16).sub(search_range)
@@ -516,9 +516,9 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     record_checksum_offsets := Vec.new(I64)
     mut ri : USize = 0
     while ri.lt(tags.len()) {
-        ref tag : Str = tags.get(ri)
-        ref off : I64 = offsets.get(ri)
-        ref ln : I64 = lengths.get(ri)
+        ref tag : Str = tags[ri]
+        ref off : I64 = offsets[ri]
+        ref ln : I64 = lengths[ri]
         w_tag(file, tag)
         record_checksum_offsets.push(own file.len().to_i64())
         w_u32(file, 0)                   // checksum (patched below)
@@ -543,10 +543,10 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     // corresponding record in the offset table.
     mut ti : USize = 0
     while ti.lt(tags.len()) {
-        ref off : I64 = offsets.get(ti)
-        ref ln : I64 = lengths.get(ti)
+        ref off : I64 = offsets[ti]
+        ref ln : I64 = lengths[ti]
         cs := sum_u32_be(file, off.to_usize(), padded_len(ln.to_usize()))
-        ref rec_off : I64 = record_checksum_offsets.get(ti)
+        ref rec_off : I64 = record_checksum_offsets[ti]
         patch_u32(file, rec_off.to_usize(), cs)
         ti = ti.add(1)
     }
@@ -556,7 +556,7 @@ build_ttf := func(glyph: Glyph, codepoint: I64, units_per_em: I64) returns Str {
     mut adj : I64 = 2999027578.sub(file_cs)   // 0xB1B0AFBA - file_cs
     if adj.lt(0) { adj = adj.add(4294967296) }
     // head's offset is offsets[2] (cmap, glyf, head is index 2).
-    ref head_off : I64 = offsets.get(2)
+    ref head_off : I64 = offsets[2]
     patch_u32(file, head_off.to_usize().add(8), adj)
 
     return file.clone()

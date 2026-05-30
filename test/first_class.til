@@ -416,11 +416,11 @@ test_struct_field_primitives := test() {
 test_struct_def_of := test() {
     def := struct_def_of("Point56")
     assert_eq(__LOC__, def.fields.len().to_i64(), 2)
-    ref f0 : Declaration = def.fields.get(0.to_usize())
+    ref f0 : Declaration = def.fields[0.to_usize()]
     assert_eq_str(__LOC__, "x", f0.name)
     assert_eq_str(__LOC__, "I64", f0.explicit_type)
     expect(__LOC__, f0.is_mut, "f0 is_mut")
-    ref f1 : Declaration = def.fields.get(1.to_usize())
+    ref f1 : Declaration = def.fields[1.to_usize()]
     assert_eq_str(__LOC__, "y", f1.name)
     assert_eq_str(__LOC__, "I64", f1.explicit_type)
 }
@@ -457,11 +457,11 @@ test_enum_variant_primitives := test() {
 test_enum_def_of := test() {
     def := enum_def_of("Shape56")
     assert_eq(__LOC__, def.variants.len().to_i64(), 3)
-    ref v0 : Str = def.variants.get(0.to_usize())
+    ref v0 : Str = def.variants[0.to_usize()]
     assert_eq_str(__LOC__, "Circle", v0)
-    ref v1 : Str = def.variants.get(1.to_usize())
+    ref v1 : Str = def.variants[1.to_usize()]
     assert_eq_str(__LOC__, "Square", v1)
-    ref v2 : Str = def.variants.get(2.to_usize())
+    ref v2 : Str = def.variants[2.to_usize()]
     assert_eq_str(__LOC__, "Label", v2)
     expect(__LOC__, def.payload_types.has(0), "Circle has payload")
     expect(__LOC__, def.payload_types.has(1).not(), "Square no payload")
@@ -498,9 +498,9 @@ test_func_sig_of := test() {
     assert_eq(__LOC__, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
     sig := func_sig_of("BinaryOp")
     assert_eq(__LOC__, sig.params.len().to_i64(), 2)
-    ref p0 : Declaration = sig.params.get(0.to_usize())
+    ref p0 : Declaration = sig.params[0.to_usize()]
     assert_eq_str(__LOC__, "I64", p0.explicit_type)
-    ref p1 : Declaration = sig.params.get(1.to_usize())
+    ref p1 : Declaration = sig.params[1.to_usize()]
     assert_eq_str(__LOC__, "I64", p1.explicit_type)
     assert_eq_str(__LOC__, "I64", sig.return_type)
     assert_eq(__LOC__, sig.throw_types.len().to_i64(), 0)

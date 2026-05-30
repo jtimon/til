@@ -637,7 +637,7 @@ namespace:
     }
     /// Shortcut to get a ref to the i-th child of `parent`.
     child := func(parent: Expr, i: USize) returns ref Expr {
-        ref c : Expr = parent.children.get(i)
+        ref c : Expr = parent.children[i]
         return c
     }
     /// Create a new Expr with the given node_type and source location.
@@ -923,7 +923,7 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
         mut i : USize = ch.len()
         while i.gt(0) {
             i = i.sub(1)
-            ref c : Expr = ch.get(i)
+            ref c : Expr = ch[i]
             if c.node_type.is(NodeType.NamedArg).not() { break }
             count = count.add(1)
         }
@@ -1026,7 +1026,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(i)
+            ref vn : Str = edd.variants[i]
             if vn.eq(variant_name) { return i.cast(I32) }
         }
     case:
@@ -1057,7 +1057,7 @@ enum_variant_payload_const := func(enum_def: Expr, shallow tag: I32) returns sha
     case NodeType.EnumDef(edd):
         tag_u := tag.cast(U32)
         if tag_u.lt(edd.payload_consts.len()) {
-            ref pc : Bool = edd.payload_consts.get(tag_u)
+            ref pc : Bool = edd.payload_consts[tag_u]
             if pc { return true }
         }
     case:

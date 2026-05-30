@@ -62,16 +62,16 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
     lp.ctx.scope = TypeScope()
 
     if lp.skip_core.not() {
-        ref core_root : ProgramUnit = lp.core_units.get(lp.core_units.len().sub(1))
+        ref core_root : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
         init_file(core_root.path, lp.ctx)
     }
-    ref user_root : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+    ref user_root : ProgramUnit = lp.units[lp.units.len().sub(1)]
     init_file(user_root.path, lp.ctx)
 
     // Global init: methods/layouts later phases assume exist.
     if lp.skip_core.not() {
         for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units.get(i)
+            ref u : ProgramUnit = lp.core_units[i]
             ref iu : ImportUnit = lp.ctx.imported.get(u.path)
             lp.ctx.mode = iu.mode.clone()
             context_enter_file(lp.ctx, u.path)
@@ -79,7 +79,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
         }
     }
     for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units.get(i)
+        ref u : ProgramUnit = lp.units[i]
         ref iu : ImportUnit = lp.ctx.imported.get(u.path)
         lp.ctx.mode = iu.mode.clone()
         context_enter_file(lp.ctx, u.path)
@@ -88,7 +88,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
 
     retarget_loaded_aliases(lp)
     if lp.units.len().gt(0) {
-        ref last : ProgramUnit = lp.units.get(lp.units.len().sub(1))
+        ref last : ProgramUnit = lp.units[lp.units.len().sub(1)]
         context_enter_file(lp.ctx, last.path)
     }
 
@@ -97,7 +97,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
 
     mut errs : I32 = 0
     if lp.skip_core.not() {
-        ref core_root2 : ProgramUnit = lp.core_units.get(lp.core_units.len().sub(1))
+        ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
         errs = errs.add(type_file(core_root2.path, lp.ctx))
     }
     errs = errs.add(type_file(user_root.path, lp.ctx))
@@ -117,7 +117,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
 //     check works uniformly.
 repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     if peek_ast.children.len().eq(0) { return false }
-    ref puser : Expr = peek_ast.children.get(peek_ast.children.len().sub(1))
+    ref puser : Expr = peek_ast.children[peek_ast.children.len().sub(1)]
     switch puser.node_type {
     case NodeType.Decl:        return false
     case NodeType.Assign:      return false
@@ -137,7 +137,7 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     case:
     }
     if typed_ast.children.len().eq(0) { return false }
-    ref tlast : Expr = typed_ast.children.get(typed_ast.children.len().sub(1))
+    ref tlast : Expr = typed_ast.children[typed_ast.children.len().sub(1)]
     tlast_t := expr_til_type(tlast)
     if tlast_t.is(Type.None) { return false }
     if tlast_t.is(Type.Unknown) { return false }
@@ -197,7 +197,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         // entered one, return so the outer driver can restart the session
         // in the new mode (discarding prior declarations).
         source_keep.push(own block.clone())
-        ref kept : Str = source_keep.get(source_keep.len().sub(1))
+        ref kept : Str = source_keep[source_keep.len().sub(1)]
         peek_tokens := tokenize(kept, "<repl>")
         mut peek_mode_out := ""
         peek_ast := parse(peek_tokens, "<repl>", peek_mode_out)

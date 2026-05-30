@@ -145,6 +145,65 @@
   same, but the argument contract changes in a way that old boot output
   cannot consume immediately.
 
+** Breaking changes in standalone scripts (~examples/~, ~tools/~)
+
+  ~make test~ exercises the compiler, the test suite, and every example
+  the suite knows how to build. But standalone scripts that are NOT
+  hooked into the suite (the merge helper at ~examples/merge_commit.til~,
+  ad-hoc scripts under ~examples/~ that nobody runs as part of CI) won't
+  be caught when a commit makes a previously non-throwing function newly
+  throw -- e.g. ~Vec.get throws OutOfBounds~. Bare ~vec.get(i)~ in such a
+  script compiles fine before the change lands, fails after with
+  "missing argument for parameter '_err_kind'".
+
+  The breaking-change commit's ~make test~ passes regardless: every
+  caller the suite covers gets a ~!~ or a ~?~ in the same commit. The
+  standalone script isn't in the suite, so it falls outside that proof.
+
+  *** The merge helper has a special constraint ***
+
+  The local merger runs the helper using ~master's bin/til~, against the
+  candidate commit's tree. So at merge time the helper file taken from
+  the candidate commit is being compiled by the OLD compiler:
+
+  - Bundle the script adaptation INTO the breaking commit -> at merge
+    time, master's ~bin/til~ sees the candidate's adapted script (with
+    new ~!~ markers) and rejects it: "function does not throw, remove
+    the '!'". The merge can't even start.
+  - Keep the candidate's script bare (matching master) -> at merge
+    time, master's ~bin/til~ sees the candidate's bare script and
+    compiles it fine. The merger proceeds, lands the commit. AFTER the
+    commit lands on master, ~bin/til~ regenerates with the new throws
+    behaviour and the bare ~.get(i)~ in the merger source now fails to
+    build. The human has to hand-fix that follow-up before the next
+    merge.
+
+  So the merge helper specifically must stay at master's form in the
+  breaking commit. The script fix is a follow-up commit on master that
+  the human applies by hand (the merger that would normally apply it
+  is itself broken in the window between the two).
+
+  *** Other standalone scripts ***
+
+  For scripts that aren't part of the merge workflow, either approach
+  works:
+
+  - Same-commit bundle: simple, no broken window for users of the
+    script.
+  - Follow-up: keeps the breaking diff narrow. Acceptable if no tool
+    chain depends on the script being compilable from master.
+
+  Patterns when you do adapt:
+
+  - Bare ~.get(i)~ becomes ~v[i]~ for panic-on-OOB (the parser
+    desugars subscript into ~.get(i)!~), or stay with ~.get(i)?~ when
+    you want to catch instead of panic.
+  - Nested ~v[i]~ inside another call (e.g.
+    ~trim_spaces(cells[i]).to_i64()~) hits the Dynamic-hoist limit on
+    the bang temp and needs an explicit ref binding first:
+      ref c : Str = cells[i]
+      trim_spaces(c).to_i64()
+
 ** Commands
 
   - ~make test~ builds + runs all tests (uses xvfb-run). Commit includes boot/.

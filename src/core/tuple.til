@@ -56,27 +56,31 @@ namespace:
         }
         mut offset : USize = 0
         for j in 0..i {
-            ref sz : USize = self.type_sizes.get(j)
+            ref sz : USize = self.type_sizes[j]
             offset = offset.add(sz)
         }
         return ptr_add(self.data, offset)
     }
 
-    /// Type name of the element at index `i`.
+    /// Type name of the element at index `i`. Panics if `i` is past
+    /// the end.
     type_at := func(self: Tuple, i: USize) returns ref Str {
-        return self.type_names.get(i)
+        ref out_name : Str = self.type_names[i]
+        return out_name
     }
 
-    /// Byte size of the element at index `i`.
+    /// Byte size of the element at index `i`. Panics if `i` is past
+    /// the end.
     size_at := func(self: Tuple, i: USize) returns ref USize {
-        return self.type_sizes.get(i)
+        ref out_size : USize = self.type_sizes[i]
+        return out_size
     }
 
     delete := func(own self: Tuple, call_free: Bool = true) {
         mut offset : USize = 0
         for i in 0..self.type_names.len() {
-            ref tn : Str = self.type_names.get(i)
-            ref ts : USize = self.type_sizes.get(i)
+            ref tn : Str = self.type_names[i]
+            ref ts : USize = self.type_sizes[i]
             dyn_call(tn, "delete", 2, ptr_add(self.data, offset), false)
             offset = offset.add(ts)
         }
@@ -92,8 +96,8 @@ namespace:
         new_data : Dynamic = malloc(new_cap)
         mut offset : USize = 0
         for i in 0..self.type_names.len() {
-            ref tn : Str = self.type_names.get(i)
-            ref ts : USize = self.type_sizes.get(i)
+            ref tn : Str = self.type_names[i]
+            ref ts : USize = self.type_sizes[i]
             cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)
             free(own cloned)

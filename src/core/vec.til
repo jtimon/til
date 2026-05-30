@@ -136,11 +136,14 @@ namespace:
         other.count = 0
     }
 
-    /// Return a reference to the element at index `i`. Panics if `i` is
-    /// out of bounds. The reference is valid until the next mutation.
-    get := func(self: Vec, i: USize) returns ref Dynamic {
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    get := func(self: Vec, i: USize) returns ref Dynamic throws OutOfBounds {
         if i.gte(self.count) {
-            panic(__LOC__, "Vec.get: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            throw OutOfBounds(msg = format(__LOC__, ":Vec.get: index ", i.to_str(),
+                  " out of bounds (len ", self.count.to_str(), ")"))
         }
         return ptr_add(self.data, i.mul(self.elem_size))
     }

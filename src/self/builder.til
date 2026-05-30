@@ -229,7 +229,7 @@ priv variant_is_payload_less := func(enum_name: Str, variant_name: Str, ctx: Con
     switch ed.node_type {
     case NodeType.EnumDef(edd):
         for j in 0..edd.variants.len() {
-            ref vn : Str = edd.variants.get(j)
+            ref vn : Str = edd.variants[j]
             if vn.eq(variant_name) {
                 idx := j.to_i64()
                 if edd.payload_types.has(idx).not() { return true }
@@ -529,7 +529,7 @@ delete_call_free_lit := func(type_name: Str, shallow set_free: Bool, ctx: Contex
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().gt(1) {
-            ref p : Declaration = fd.params.get(1)
+            ref p : Declaration = fd.params[1]
             if p.own_type.is(OwnType.Shallow).not() { return format("&", lit) }
         }
         return lit
@@ -545,7 +545,7 @@ callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32, ctx: C
     case NodeType.FuncDef(fd):
         if arg_index.gte(fd.params.len()) { return false }
         if fd.params.len().eq(0) { return false }
-        ref p : Declaration = fd.params.get(arg_index)
+        ref p : Declaration = fd.params[arg_index]
         return p.own_type.is(OwnType.Shallow)
     case:
         return false
@@ -558,7 +558,7 @@ callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32, ctx: Con
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index.gte(fd.params.len()) { return false }
-        ref p : Declaration = fd.params.get(arg_index)
+        ref p : Declaration = fd.params[arg_index]
         return p.explicit_type.eq("USize")
     case:
         return false
@@ -571,7 +571,7 @@ callee_param_is_uptr := func(callee_name: Str, shallow arg_index: U32, ctx: Cont
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index.gte(fd.params.len()) { return false }
-        ref p : Declaration = fd.params.get(arg_index)
+        ref p : Declaration = fd.params[arg_index]
         return p.explicit_type.eq("UPtr")
     case:
         return false
@@ -584,7 +584,7 @@ callee_param_is_own := func(callee_name: Str, shallow arg_index: U32, ctx: Conte
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index.gte(fd.params.len()) { return false }
-        ref p : Declaration = fd.params.get(arg_index)
+        ref p : Declaration = fd.params[arg_index]
         return p.own_type.is(OwnType.Own)
     case:
         return false
@@ -840,7 +840,7 @@ callee_return_ctype := ext_func(callee_name: Str) returns Str {}
 param_ctype := func(fd: FunctionDef, shallow i: USize, ctx: Context) returns Str {
     ii := i.cast(I32)
     if ii.eq(fd.variadic_index) { return "Array *" }
-    ref p : Declaration = fd.params.get(i)
+    ref p : Declaration = fd.params[i]
     if ii.eq(fd.kwargs_index) { return type_name_to_c(p.explicit_type, ctx) }
     if p.own_type.is(OwnType.Shallow) { return type_name_to_c_value(p.explicit_type, ctx) }
     return type_name_to_c(p.explicit_type, ctx)
@@ -862,14 +862,14 @@ emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool, shallow f
                 // wrong). `mut` stays as the escape hatch.
                 mut const_prefix := false
                 if for_ext_decl.and(ii.neq(fd.variadic_index)).and(ii.neq(fd.kwargs_index)) {
-                    ref pp : Declaration = fd.params.get(i)
+                    ref pp : Declaration = fd.params[i]
                     if pp.own_type.is(OwnType.Ref).and(pp.is_mut.not()) {
                         const_prefix = true
                     }
                 }
                 ptype := param_ctype(fd, i, ctx)
                 if with_names {
-                    ref p : Declaration = fd.params.get(i)
+                    ref p : Declaration = fd.params[i]
                     if const_prefix { f.write("const ") }
                     f.write(ptype)
                     f.write(" ")
@@ -1069,7 +1069,7 @@ check_fcall_mut_args := proc(ctx: Context, e: Expr) {
                     for a in 1..e.children.len() {
                         pi := a.sub(1)
                         if pi.lt(fd.params.len()) {
-                            ref p : Declaration = fd.params.get(pi)
+                            ref p : Declaration = fd.params[pi]
                             if p.is_mut {
                                 ref arg : Expr = e.child(a)
                                 switch arg.node_type {
@@ -1238,7 +1238,7 @@ emit_pod_compound_literal := proc(f: File, ctor: Expr, shallow depth: I32, ctx: 
                 if i.gt(1) { f.write(", ") }
                 mut pod_fname := ""
                 if pod_fi.lt(pod_sdd.fields.len()) {
-                    ref pod_fd : Declaration = pod_sdd.fields.get(pod_fi)
+                    ref pod_fd : Declaration = pod_sdd.fields[pod_fi]
                     pod_fname = pod_fd.name
                     pod_fi = pod_fi.add(1)
                 }
@@ -2064,7 +2064,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
             ref arg : Expr = e.child(i)
             mut arg_shallow := false
             if i.sub(1).lt(sfd.params.len()) {
-                ref p : Declaration = sfd.params.get(i.sub(1))
+                ref p : Declaration = sfd.params[i.sub(1)]
                 arg_shallow = p.own_type.is(OwnType.Shallow)
             }
             mut arg_c := "void *"
@@ -2091,7 +2091,7 @@ emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32,
             if i.gt(1) { f.write(", ") }
             mut arg_shallow := false
             if i.sub(1).lt(sfd.params.len()) {
-                ref p : Declaration = sfd.params.get(i.sub(1))
+                ref p : Declaration = sfd.params[i.sub(1)]
                 arg_shallow = p.own_type.is(OwnType.Shallow)
             }
             if arg_shallow { emit_deref(f, e.child(i), depth, ctx) }
@@ -2442,7 +2442,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32, ctx:
             switch ecf_def.node_type {
             case NodeType.StructDef(ecf_sdd):
                 if fi.lt(ecf_sdd.fields.len()) {
-                    ref dd : Declaration = ecf_sdd.fields.get(fi)
+                    ref dd : Declaration = ecf_sdd.fields[fi]
                     fld_own = dd.own_type
                     field_type = dd.til_type
                     fname = dd.name
@@ -2922,7 +2922,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
         if nparam.gt(0) {
             mut argi : I32 = 1
             for i in 0..nparam {
-                ref p : Declaration = fd.params.get(i)
+                ref p : Declaration = fd.params[i]
                 ii := i.cast(I32)
                 if ii.eq(vi) {
                     // Variadic array
@@ -3091,7 +3091,7 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram) {
         } else {
             // Payload enum
             for i in 0..edd.variants.len() {
-                ref vn : Str = edd.variants.get(i)
+                ref vn : Str = edd.variants[i]
                 vt := enum_variant_type(enum_def, i.cast(I32))
                 if vt.len().eq(0) {
                     f.write(name); f.write(" *"); f.write(name); f.write("_"); f.write(vn); f.write("() {\n")
@@ -3137,7 +3137,7 @@ emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context)
         switch enum_def.node_type {
         case NodeType.EnumDef(edd):
             for j in 0..edd.variants.len() {
-                ref vn : Str = edd.variants.get(j)
+                ref vn : Str = edd.variants[j]
                 vt := enum_variant_type(enum_def, j.cast(I32))
                 if vt.len().gt(0) {
                     tnv := type_name_to_c_value(vt, ctx)
@@ -3176,7 +3176,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set, ctx: C
         for ei in 0..indices.len() {
             ref d : Bool = done[ei]
             if d { continue }
-            ref idx : U32 = indices.get(ei)
+            ref idx : U32 = indices[ei]
             ref stmt : Expr = prog.child(idx)
             switch stmt.node_type {
             case NodeType.Decl(sdecl):
@@ -3225,7 +3225,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set, ctx: C
             for ei in 0..indices.len() {
                 ref d : Bool = done[ei]
                 if d { continue }
-                ref idx : U32 = indices.get(ei)
+                ref idx : U32 = indices[ei]
                 ref stmt : Expr = prog.child(idx)
                 switch stmt.node_type {
                 case NodeType.Decl(sdecl):
@@ -3294,7 +3294,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgr
         for ei in 0..items.len() {
             ref d : Bool = done[ei]
             if d { continue }
-            ref ptr : Dynamic = items.get(ei)
+            ref ptr : Dynamic = items[ei]
             ref stmt : Expr = deref(ptr)
             switch stmt.node_type {
             case NodeType.Decl(sdecl):
@@ -3345,7 +3345,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgr
             for ei in 0..items.len() {
                 ref d : Bool = done[ei]
                 if d { continue }
-                ref ptr2 : Dynamic = items.get(ei)
+                ref ptr2 : Dynamic = items[ei]
                 ref stmt : Expr = deref(ptr2)
                 switch stmt.node_type {
                 case NodeType.Decl(sdecl):
@@ -3523,7 +3523,7 @@ emit_header_forward_decls_prog := proc(f: File, prog: Expr) {
             case NodeType.EnumDef(fwd_edd):
                 f.write("typedef enum {\n")
                 for j in 0..fwd_edd.variants.len() {
-                    ref fwd_vn : Str = fwd_edd.variants.get(j)
+                    ref fwd_vn : Str = fwd_edd.variants[j]
                     if j.gt(0) { f.write(",\n") }
                     f.write("    "); f.write(dd.name); f.write("_TAG_"); f.write(fwd_vn)
                 }
@@ -3567,7 +3567,7 @@ emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     case NodeType.EnumDef(fwd_edd):
                         f.write("typedef enum {\n")
                         for j in 0..fwd_edd.variants.len() {
-                            ref fwd_vn : Str = fwd_edd.variants.get(j)
+                            ref fwd_vn : Str = fwd_edd.variants[j]
                             if j.gt(0) { f.write(",\n") }
                             f.write("    "); f.write(dd.name); f.write("_TAG_"); f.write(fwd_vn)
                         }
@@ -3603,7 +3603,7 @@ emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                 case NodeType.EnumDef(fwd_edd):
                     f.write("typedef enum {\n")
                     for j in 0..fwd_edd.variants.len() {
-                        ref fwd_vn : Str = fwd_edd.variants.get(j)
+                        ref fwd_vn : Str = fwd_edd.variants[j]
                         if j.gt(0) { f.write(",\n") }
                         f.write("    "); f.write(dd.name); f.write("_TAG_"); f.write(fwd_vn)
                     }
@@ -3987,7 +3987,7 @@ emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_
     f.write("    "); f.write(fdd_name); f.write(" := "); f.write(kw); f.write("(")
     for p in 0..fd.params.len() {
         if p.gt(0) { f.write(", ") }
-        ref param : Declaration = fd.params.get(p)
+        ref param : Declaration = fd.params[p]
         if param.own_type.is(OwnType.Own) { f.write("own ") }
         f.write(param.name); f.write(": "); f.write(param.explicit_type)
     }
@@ -4065,7 +4065,7 @@ build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) retur
                 f.write(dd.name); f.write(" := "); f.write(kw); f.write("(")
                 for p in 0..fd.params.len() {
                     if p.gt(0) { f.write(", ") }
-                    ref param : Declaration = fd.params.get(p)
+                    ref param : Declaration = fd.params[p]
                     if param.own_type.is(OwnType.Own) { f.write("own ") }
                     pi := p.cast(I32)
                     if pi.eq(fd.variadic_index) { f.write("..") }
@@ -4286,7 +4286,7 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                     f.write(".argtypes = [")
                     for p in 0..fd.params.len() {
                         if p.gt(0) { f.write(", ") }
-                        ref param : Declaration = fd.params.get(p)
+                        ref param : Declaration = fd.params[p]
                         ps := param.own_type.is(OwnType.Shallow)
                         f.write(type_name_to_ctypes_param(param.explicit_type, ps))
                     }
@@ -4317,7 +4317,7 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                     f.write("_lib."); f.write(c_name); f.write(".argtypes = [")
                     for p in 0..fd.params.len() {
                         if p.gt(0) { f.write(", ") }
-                        ref param : Declaration = fd.params.get(p)
+                        ref param : Declaration = fd.params[p]
                         pi := p.cast(I32)
                         if pi.eq(fd.variadic_index) {
                             f.write("ctypes.POINTER(Array)")
@@ -4555,10 +4555,10 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
         fwd_path := c_base.format("_forward.h")
 
         // Split space-separated link_c files and compile each individually
-        files := uc.split(" ")
+        files : Vec = uc.split(" ")
         mut all_objs := ""
         for fi in 0..files.len() {
-            ref file : Str = files.get(fi)
+            ref file : Str = files[fi]
             if file.len().eq(0) { continue }
             user_obj := c_dir.format("/user_", fi.to_str(), ".o")
 
@@ -4792,7 +4792,7 @@ emit_monolithic_header_func_decls_prog := proc(f: File, prog: Expr, mode: Mode, 
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 ref fwd_ns2 : Vec = def_ns_decls(rhs)
                 for j in 0..fwd_ns2.len() {
-                    ref fdd : Declaration = fwd_ns2.get(j)
+                    ref fdd : Declaration = fwd_ns2[j]
                     if is_null(fdd.default_value) { continue }
                     switch fdd.default_value.node_type {
                     case NodeType.FuncDef(fd):
@@ -5415,7 +5415,7 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
     has_return := fd.return_type.len().gt(0)
     mut any_shallow := ret_shallow
     for p in 0..np {
-        ref pp : Declaration = fd.params.get(p)
+        ref pp : Declaration = fd.params[p]
         if pp.own_type.is(OwnType.Shallow) { any_shallow = true }
     }
     if any_shallow.not() { return }
@@ -5443,7 +5443,7 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
     f.write(type_name); f.write("_"); f.write(method_name); f.write("_dyn(")
     for p in 0..np {
         if p.gt(0) { f.write(", ") }
-        ref pp : Declaration = fd.params.get(p)
+        ref pp : Declaration = fd.params[p]
         is_call_free := method_name.eq("delete").and(p.gt(0))
         if pp.own_type.is(OwnType.Shallow).and(is_call_free) {
             f.write(type_name_to_c_value(pp.explicit_type, ctx)); f.write(" _a"); emit_i32(f, p.cast(I32))
@@ -5466,7 +5466,7 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
     f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
     for p in 0..np {
         if p.gt(0) { f.write(", ") }
-        ref pp : Declaration = fd.params.get(p)
+        ref pp : Declaration = fd.params[p]
         is_call_free := method_name.eq("delete").and(p.gt(0))
         if pp.own_type.is(OwnType.Shallow).and(is_call_free.not()) {
             f.write("*("); f.write(type_name_to_c_value(pp.explicit_type, ctx)); f.write(" *)_a"); emit_i32(f, p.cast(I32))
@@ -5651,7 +5651,7 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
             f.write("        return "); emit_usize(f, sd.fields.len()); f.write("LL;\n")
         } else {
             for i in 0..sd.fields.len() {
-                ref fd : Declaration = sd.fields.get(i)
+                ref fd : Declaration = sd.fields[i]
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind.eq(1) {
                     emit_str_lit_expr(f, fd.name)
@@ -5733,7 +5733,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
                 }
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind.eq(1) {
-                    ref vn : Str = ed.variants.get(i)
+                    ref vn : Str = ed.variants[i]
                     emit_str_lit_expr(f, vn)
                 } else if kind.eq(2) {
                     if has_pl { f.write("1") } else { f.write("0") }
@@ -5816,7 +5816,7 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32
             f.write("        return "); emit_usize(f, fd.throw_types.len()); f.write("LL;\n")
         } else if kind.eq(1) {
             for i in 0..fd.params.len() {
-                ref pd : Declaration = fd.params.get(i)
+                ref pd : Declaration = fd.params[i]
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 emit_str_lit_expr(f, pd.explicit_type)
                 f.write(";\n")
@@ -5829,7 +5829,7 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32
             }
         } else {
             for i in 0..fd.throw_types.len() {
-                ref tt : Str = fd.throw_types.get(i)
+                ref tt : Str = fd.throw_types[i]
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 emit_str_lit_expr(f, tt)
                 f.write(";\n")
@@ -5959,8 +5959,8 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         panic(__LOC__, "emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
     }
     for j in 0..variant_names.len() {
-        ref vn : Str = variant_names.get(j)
-        ref vt : Str = variant_types.get(j)
+        ref vn : Str = variant_names[j]
+        ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
             f.write("    case Type_TAG_")
@@ -5987,7 +5987,7 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write(vn)
             f.write(".tag) {\n")
             for k in 0..inner_names.len() {
-                ref ivn : Str = inner_names.get(k)
+                ref ivn : Str = inner_names[k]
                 f.write("        case ")
                 f.write(vt)
                 f.write("_TAG_")
@@ -6052,14 +6052,14 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     case NodeType.FuncDef(mfd):
                     mut arg1 := "val"
                     if mfd.params.len().gt(0) {
-                        ref p0 : Declaration = mfd.params.get(0)
+                        ref p0 : Declaration = mfd.params[0]
                         if p0.own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
                     }
                     mut arg2_s := "arg2"
                     if info.nargs.eq(2) {
                         if mfd.params.len().gt(1) {
                             if mfd.params.len().gt(1) {
-                                ref p1 : Declaration = mfd.params.get(1)
+                                ref p1 : Declaration = mfd.params[1]
                                 // Issue #223 step 1: the second param is not
                                 // always the dispatched type (e.g. delete's
                                 // call_free: Bool). Cast arg2 to the param's
@@ -6121,14 +6121,14 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 case NodeType.FuncDef(mfd):
                 mut arg1 := "val"
                 if mfd.params.len().gt(0) {
-                    ref p0 : Declaration = mfd.params.get(0)
+                    ref p0 : Declaration = mfd.params[0]
                     if p0.own_type.is(OwnType.Shallow) { arg1 = format("*(", dd.name, " *)val") }
                 }
                 mut arg2_s := "arg2"
                 if info.nargs.eq(2) {
                     if mfd.params.len().gt(1) {
                         if mfd.params.len().gt(1) {
-                            ref p1 : Declaration = mfd.params.get(1)
+                            ref p1 : Declaration = mfd.params[1]
                             // Issue #223 step 1: cast arg2 to the param's own
                             // value type (e.g. delete's call_free: Bool), not
                             // the dispatched type dd.name.

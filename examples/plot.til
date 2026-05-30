@@ -55,7 +55,7 @@ parse_csv := func(content: Str) returns Vec {
     lines := content.split(NL)
     mut i : USize = 1 // skip header
     while i.lt(lines.len()) {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines[i]
         if line.is_empty() {
             i = i.add(1)
             continue
@@ -65,34 +65,34 @@ parse_csv := func(content: Str) returns Vec {
             i = i.add(1)
             continue
         }
-        ref c0 : Str = cols.get(0)
-        ref c1 : Str = cols.get(1)
-        ref c2 : Str = cols.get(2)
-        ref c3 : Str = cols.get(3)
-        ref c7 : Str = cols.get(7)
+        ref c0 : Str = cols[0]
+        ref c1 : Str = cols[1]
+        ref c2 : Str = cols[2]
+        ref c3 : Str = cols[3]
+        ref c7 : Str = cols[7]
         mut c10 := "0"
         mut c11 := "0"
         mut c12 := "0"
         mut c13 := "0"
         if cols.len().eq(11) {
             // Older history stored a single memory column; treat it as mem_total.
-            ref c10r : Str = cols.get(10)
+            ref c10r : Str = cols[10]
             c13 = c10r.clone()
         } else {
             if cols.len().gt(10) {
-                ref c10r : Str = cols.get(10)
+                ref c10r : Str = cols[10]
                 c10 = c10r.clone()
             }
             if cols.len().gt(11) {
-                ref c11r : Str = cols.get(11)
+                ref c11r : Str = cols[11]
                 c11 = c11r.clone()
             }
             if cols.len().gt(12) {
-                ref c12r : Str = cols.get(12)
+                ref c12r : Str = cols[12]
                 c12 = c12r.clone()
             }
             if cols.len().gt(13) {
-                ref c13r : Str = cols.get(13)
+                ref c13r : Str = cols[13]
                 c13 = c13r.clone()
             }
         }
@@ -130,7 +130,7 @@ build_points := func(rows: Vec, series: Str, y_max: I64) returns Str {
     mut pts := ""
     mut i : USize = 0
     while i.lt(rows.len()) {
-        ref row : Row = rows.get(i)
+        ref row : Row = rows[i]
         mut val := 0
         if series.eq("interp") { val = row.interp_ms }
         if series.eq("compile") { val = row.compile_ms }
@@ -288,7 +288,7 @@ generate_svg := func(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
         // Dots on data points
         mut i : USize = 0
         while i.lt(rows.len()) {
-            ref row : Row = rows.get(i)
+            ref row : Row = rows[i]
             x := x_px(i.to_i64(), rows.len().to_i64())
             if has_interp { svg = svg.concat(svg_circle(x, y_px(row.interp_ms, y_max), 3, INTERP_COLOR)) }
             if has_compile { svg = svg.concat(svg_circle(x, y_px(row.compile_ms, y_max), 3, COMPILE_COLOR)) }
@@ -305,7 +305,7 @@ generate_svg := func(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
         if show_x_labels {
             i = 0
             while i.lt(rows.len()) {
-                ref row : Row = rows.get(i)
+                ref row : Row = rows[i]
                 x := x_px(i.to_i64(), rows.len().to_i64())
                 mut label := row.commit
                 if label.len().gt(7) { label = label.substr(0, 7) }
@@ -374,7 +374,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
         if all_rows.len().gt(last_n_us) {
             mut i : USize = all_rows.len().sub(last_n_us)
             while i.lt(all_rows.len()) {
-                ref r : Row = all_rows.get(i)
+                ref r : Row = all_rows[i]
                 rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms,
                                   compile_ms = r.compile_ms, run_ms = r.run_ms,
                                   wall_ms = r.wall_ms, mem_inte = r.mem_inte,

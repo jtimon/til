@@ -136,21 +136,43 @@ trim_quotes := func(s: Str) returns Str {
 // Lines like: | interpret | 247188   | 23238    | post scope lookups   |
 parse_asan_org := func(content: Str, mut ib: I64, mut ia: I64, mut tb: I64, mut ta: I64) {
     lines := vec_from_str_lines(content)
-    for li in 0..lines.len() {
-        ref line : Str = lines.get(li)
+    // for-in over a Vec compiles under both master's typer (which
+    // emits a bare Vec.get) and a throwing Vec.get (which the typer
+    // inline-lowers to a panic-on-OOB pattern). Indexed access to
+    // the cells Vec is reached via for-in with a counter for the
+    // same reason -- a bare cells.get(N) breaks under the throwing
+    // version, and a banged cells[N] breaks under the
+    // non-throwing one.
+    for line : Str in lines {
         if line.starts_with("| interpret | ") {
             cells := split_by_pipe(line)
             if cells.len().gte(4) {
-                ib = trim_spaces(cells.get(2)).to_i64()
-                ia = trim_spaces(cells.get(3)).to_i64()
+                mut ci : USize = 0
+                mut c2 := ""
+                mut c3 := ""
+                for c : Str in cells {
+                    if ci.eq(2) { c2 = c.clone() }
+                    if ci.eq(3) { c3 = c.clone() }
+                    ci = ci.add(1)
+                }
+                ib = trim_spaces(c2).to_i64()
+                ia = trim_spaces(c3).to_i64()
             }
             Vec.delete(own cells, false)
         }
         if line.starts_with("| translate | ") {
             cells := split_by_pipe(line)
             if cells.len().gte(4) {
-                tb = trim_spaces(cells.get(2)).to_i64()
-                ta = trim_spaces(cells.get(3)).to_i64()
+                mut ci : USize = 0
+                mut c2 := ""
+                mut c3 := ""
+                for c : Str in cells {
+                    if ci.eq(2) { c2 = c.clone() }
+                    if ci.eq(3) { c3 = c.clone() }
+                    ci = ci.add(1)
+                }
+                tb = trim_spaces(c2).to_i64()
+                ta = trim_spaces(c3).to_i64()
             }
             Vec.delete(own cells, false)
         }
