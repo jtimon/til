@@ -2345,7 +2345,7 @@ void test_enum_fold(void) {
     Str_delete(&hoisted__Str_4640, (Bool){0});
     Bool hoisted__Bool_4642 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_4642;
-    Color_delete(({ Color *_oa = malloc(sizeof(Color)); *_oa = c; _oa; }), 1);
+    Color_delete(&c, 0);
     Str hoisted__Str_4643 = (Str){.c_str = (void *)"test/constfold.til:173:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4643;
     Bool hoisted__Bool_4644 = not(hoisted__Bool_4642);

@@ -50,6 +50,63 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
     return false
 }
 
+// Mirrors builder.til's is_pod_enum_clone_call so collect_scope_locals
+// can mark the destination local as is_heap=false. Two acceptance shapes:
+//   - the whole enum is POD (no variant carries a payload), OR
+//   - the arg is a ns FieldAccess to a payload-less variant of an
+//     otherwise-payload-carrying enum (e.g. Token.Eof in
+//     `enum { Num: I64, Name: Str, Eof }`).
+priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns shallow Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().lt(2) { return false }
+    ref callee : Expr = e.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut is_clone := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(m): is_clone = field_access_name(m).eq("clone")
+    case:
+    }
+    if is_clone.not() { return false }
+    if callee.children.len().eq(0) { return false }
+    ref type_id : Expr = callee.child(0)
+    if type_id.node_type.is(NodeType.Ident).not() { return false }
+    mut tname := ""
+    switch type_id.node_type {
+    case NodeType.Ident(n): tname = ident_name(n)
+    case:
+    }
+    if tname.len().eq(0) { return false }
+    ref edef : Expr = scope.get_struct(tname)
+    if is_null(edef) { return false }
+    if edef.node_type.is(NodeType.EnumDef).not() { return false }
+    if enum_has_payloads(edef).not() { return true }
+    // Enum has payloads -- only accept when the clone arg is a specific
+    // payload-less variant FieldAccess.
+    ref arg : Expr = e.child(1)
+    if arg.node_type.is(NodeType.FieldAccess).not() { return false }
+    if expr_til_type(arg).is(Type.Enum).not() { return false }
+    mut vname := ""
+    switch arg.node_type {
+    case NodeType.FieldAccess(vn): vname = field_access_name(vn)
+    case:
+    }
+    if vname.len().eq(0) { return false }
+    switch edef.node_type {
+    case NodeType.EnumDef(edd):
+        for j in 0..edd.variants.len() {
+            ref vn2 : Str = edd.variants.get(j)
+            if vn2.eq(vname) {
+                idx := j.to_i64()
+                if edd.payload_types.has(idx).not() { return true }
+                ref pt : Str = edd.payload_types.get(idx)
+                return pt.len().eq(0)
+            }
+        }
+    case:
+    }
+    return false
+}
+
 collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
@@ -151,6 +208,21 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow
                 if _li_rhs.node_type.is_literal_str() {
                     li.is_heap = false
                 } else if _li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(_li_rhs, scope).neq(0)) {
+                    li.is_heap = false
+                }
+                if is_pod_enum_clone_wrap(_li_rhs, scope) {
+                    // POD-enum clone wrap (`c := Color.clone(Color.Red)`):
+                    // builder emits a stack value (Color c = (Color){...};)
+                    // and registers the local with stack_locals. The
+                    // destructor must use call_free=false so the trailing
+                    // Color_delete(&c, &(Bool){0}) is a true no-op --
+                    // payload-less enum delete has nothing to free.
+                    // Without this, the asaper emits call_free=true on
+                    // the stack value, which emit_as_ptr then wraps in
+                    // a malloc-copy `({ Color *_oa = malloc(...); *_oa
+                    // = c; _oa; })` to satisfy the own + free contract.
+                    // Matches the same shape builder.til's POD-enum
+                    // shortcut keys off of (is_pod_enum_clone_call).
                     li.is_heap = false
                 }
             }
@@ -612,6 +684,14 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
         if stmt.children.len().gt(0) {
             ref _rhs0 : Expr = stmt.child(0)
             if _rhs0.node_type.is_literal_str() { continue }
+            // Same shape, payload-less enum case: the builder emits a
+            // stack value via the is_pod_enum_clone_call shortcut, so
+            // heap-promotion here would mismatch the destructor (the
+            // delete-arg malloc-copy wrapper that emit_as_ptr emits for
+            // own + stack_local). Keep is_heap=false so make_delete_call
+            // uses call_free=false / arg_is_own=false and the destructor
+            // becomes a true no-op (`Color_delete(&c, &(Bool){0});`).
+            if is_pod_enum_clone_wrap(_rhs0, ctx.scope) { continue }
         }
         switch stmt.node_type {
         case NodeType.Decl(dd):
