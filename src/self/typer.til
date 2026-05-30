@@ -6970,18 +6970,36 @@ type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
         total = total.add(type_decls_file(dep, ctx))
     }
     mut import_idx : USize = auto_count
-    for stmt : Expr in iu.ast.children {
-        if stmt.node_type.is(NodeType.FCall).not() { continue }
-        if stmt.children.len().neq(2) { continue }
-        if stmt.child(1).node_type.is_literal_str().not() { continue }
-        switch stmt.child(0).node_type {
-        case NodeType.Ident(id):
-            if ident_name(id).eq("import").not() { continue }
+    for i in 0..iu.ast.children.len() {
+        ref stmt : Expr = iu.ast.children.get(i)
+        mut is_imp := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            ref imp_stmt : Expr = stmt.child(0)
+            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
+                if imp_stmt.child(1).node_type.is_literal_str() {
+                    switch imp_stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        } else {
+            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
+                if stmt.child(1).node_type.is_literal_str() {
+                    switch stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        }
+
+        if is_imp {
             ref dep : Str = iu.imports.get(import_idx)
             total = total.add(type_decls_file(dep, ctx))
             import_idx = import_idx.add(1)
-        case:
-            continue
         }
     }
 

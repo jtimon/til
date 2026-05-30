@@ -3074,21 +3074,37 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     return errors
 }
 
-// rstil-style init: recursively init imports then this file.
 // Count ~import("...")~ FCalls at the top level of `body`. Used by step 5
 // to distinguish mode auto-imports (prepended to iu.imports by the loader)
 // from explicit imports that appear in the source AST.
 count_ast_imports := func(body: Expr) returns shallow USize {
     mut n : USize = 0
-    for stmt : Expr in body.children {
-        if stmt.node_type.is(NodeType.FCall).not() { continue }
-        if stmt.children.len().neq(2) { continue }
-        if stmt.child(1).node_type.is_literal_str().not() { continue }
-        switch stmt.child(0).node_type {
-        case NodeType.Ident(id):
-            if ident_name(id).eq("import") { n = n.add(1) }
-        case:
+    for i in 0..body.children.len() {
+        ref stmt : Expr = body.children.get(i)
+        mut is_imp := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            ref imp_stmt : Expr = stmt.child(0)
+            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
+                if imp_stmt.child(1).node_type.is_literal_str() {
+                    switch imp_stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        } else {
+            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
+                if stmt.child(1).node_type.is_literal_str() {
+                    switch stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_imp = true }
+                    case:
+                    }
+                }
+            }
         }
+        if is_imp { n = n.add(1) }
     }
     return n
 }
@@ -3113,18 +3129,36 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
         init_file(dep, ctx)
     }
     mut import_idx : USize = auto_count
-    for stmt : Expr in iu.ast.children {
-        if stmt.node_type.is(NodeType.FCall).not() { continue }
-        if stmt.children.len().neq(2) { continue }
-        if stmt.child(1).node_type.is_literal_str().not() { continue }
-        switch stmt.child(0).node_type {
-        case NodeType.Ident(id):
-            if ident_name(id).eq("import").not() { continue }
+    for i in 0..iu.ast.children.len() {
+        ref stmt : Expr = iu.ast.children.get(i)
+        mut is_imp := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            ref imp_stmt : Expr = stmt.child(0)
+            if imp_stmt.node_type.is(NodeType.FCall).and(imp_stmt.children.len().gte(2)) {
+                if imp_stmt.child(1).node_type.is_literal_str() {
+                    switch imp_stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        } else {
+            if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gte(2)) {
+                if stmt.child(1).node_type.is_literal_str() {
+                    switch stmt.child(0).node_type {
+                    case NodeType.Ident(id):
+                        if ident_name(id).eq("import") { is_imp = true }
+                    case:
+                    }
+                }
+            }
+        }
+
+        if is_imp {
             ref dep : Str = iu.imports.get(import_idx)
             init_file(dep, ctx)
             import_idx = import_idx.add(1)
-        case:
-            continue
         }
     }
 
