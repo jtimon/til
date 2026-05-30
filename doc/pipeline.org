@@ -44,7 +44,7 @@ It is intentionally short and code-oriented.
 5. Asap destruction
 
 - `insert_free_calls(body, scope, owns_scope)` (per body)
-- Implemented in til: [[file:../src/self/asaper.til][src/self/asaper.til]]
+- Implemented in til: [[file:../src/self/garbager.til][src/self/garbager.til]]
 - Responsibilities:
   - per-binding live-range analysis (~collect_scope_locals~,
     ~extend_ref_local_lifetimes~)
@@ -57,7 +57,7 @@ It is intentionally short and code-oriented.
   call on every path that leaves its scope.
 - Issue [[file:../issues/open/204.org][#204]] tracks lifting the call
   out of ~infer_body~ into its own AST walk; until then the entry
-  points live in src/self/asaper.til but are still invoked from the
+  points live in src/self/garbager.til but are still invoked from the
   typer once per body.
 
 6. Precomp
@@ -106,7 +106,7 @@ There are two main back ends.
 - Parser builds the AST.
 - Initer registers and synthesizes declarations.
 - Typer resolves and validates.
-- Asaper inserts the automatic destructor calls.
+- Garbager inserts the automatic destructor calls.
 - Precomp folds comptime work.
 - Scavenger removes unused leftovers.
 - Builder/interpreter are the final execution back ends.
@@ -117,7 +117,7 @@ That is the current practical phase order to keep in mind when debugging:
 - parse problem: `src/self/parser.til`
 - missing declaration / auto-generated helper: `src/self/initer.til`
 - name/type resolution or enum switch behavior: `src/self/typer.til`
-- missing/extra `delete`/`free` call, use-after-move: `src/self/asaper.til`
+- missing/extra `delete`/`free` call, use-after-move: `src/self/garbager.til`
 - comptime folding issue: `src/self/precomp.til`
 - generated C / linkage issue: `src/self/builder.til`
 - runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`

@@ -1,9 +1,9 @@
-#+TITLE: src/self/asaper.til
+#+TITLE: src/self/garbager.til
 #+OPTIONS: toc:t
 
-* priv___src_self_asaper_til__LocalInfo
+* priv___src_self_garbager_til__LocalInfo
 #+begin_src til
-struct priv___src_self_asaper_til__LocalInfo {
+struct priv___src_self_garbager_til__LocalInfo {
     ref mut name : Str
     mut type : Type
     mut decl_index : I32
@@ -12,8 +12,8 @@ struct priv___src_self_asaper_til__LocalInfo {
     mut skip_scope_delete : Bool
     mut is_heap : Bool
 namespace:
-    func clone(self: priv___src_self_asaper_til__LocalInfo) returns priv___src_self_asaper_til__LocalInfo
-    func delete(own self: priv___src_self_asaper_til__LocalInfo, call_free: Bool)
+    func clone(self: priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
+    func delete(own self: priv___src_self_garbager_til__LocalInfo, call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -73,13 +73,13 @@ func promote_own_transferred_locals(ctx: Context, mut body: Expr, mut locals: Ve
 proc insert_free_calls(ctx: Context, mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool
 #+end_src
 
-* asap_destroy_body
+* garbager_destroy_body
 #+begin_src til
-proc asap_destroy_body(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
+proc garbager_destroy_body(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
 #+end_src
 
-* asap_destroy
+* garbager_destroy
 #+begin_src til
-proc asap_destroy(mut ctx: Context)
+proc garbager_destroy(mut ctx: Context)
 #+end_src
 

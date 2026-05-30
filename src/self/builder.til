@@ -1715,7 +1715,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             // The default emit_expr for a Literal.Str produces a heap
             // wrapper (`({ Str *_lit = malloc(...); *_lit = (Str){...}; _lit; })`)
             // which `p = ...` would just store in `p`, leaving the enum
-            // payload empty (the asaper-inserted Str_delete already wiped
+            // payload empty (the garbager-inserted Str_delete already wiped
             // it) and leaking the malloc'd Str. Emit a compound-literal
             // direct write instead: `*p = (Str){.c_str = "lit", ...};`.
             if rhs.node_type.is_literal_str() {

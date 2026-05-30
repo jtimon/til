@@ -192,7 +192,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // auto_gen_depth / throw_used_local_names now live on Context.
 // typer_in_shallow_return / typer_in_main_func previously lived as
 // module-level mut here. They moved to Context (see initer.til) since
-// asaper.til reads them and the asaper entry points already thread
+// garbager.til reads them and the garbager entry points already thread
 // ctx. infer_func_def_expr writes ctx.typer_in_* while typing each
 // body; collect_scope_locals / promote_own_transferred_locals read
 // them through ctx.
@@ -209,8 +209,8 @@ BoolName := "Bool"
 
 // Free the heap allocations inside an Expr that lives inline in a Vec
 // buffer. Used before children.set(...) replaces a slot so the prior Expr
-// payload does not leak. Non-priv so the asaper module
-// (src/self/asaper.til) can reuse it from insert_post_stmt_deletes.
+// payload does not leak. Non-priv so the garbager module
+// (src/self/garbager.til) can reuse it from insert_post_stmt_deletes.
 free_expr_slot_in_place := func(mut e: Expr) {
     Type.delete(own expr_til_type(e), true)
     NodeType.delete(own e.node_type, false)
@@ -473,7 +473,7 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
 // Active file path and error counter for diagnostics live on Context
 // (ctx.path / ctx.errors), threaded explicitly through type_error /
 // type_error_at and every caller.
-// Non-priv so the asaper module can report use-after-ownership-transfer
+// Non-priv so the garbager module can report use-after-ownership-transfer
 // against the same diagnostic counter.
 type_error := proc(e: Expr, msg: Str, ctx: Context) {
     e.error(ctx.path, msg)
@@ -2760,7 +2760,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
-        asap_destroy_body(ctx, expr.child(0), func_scope)
+        garbager_destroy_body(ctx, expr.child(0), func_scope)
         ctx.typer_in_shallow_return = saved_in_shallow_ret
         ctx.typer_in_main_func = saved_in_main_func
         ctx.typer_return_type_name = saved_return_type_name
@@ -3022,13 +3022,13 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
     }
     then_scope := TypeScope(parent = scope)
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
-    asap_destroy_body(ctx, stmt.child(1), then_scope)
+    garbager_destroy_body(ctx, stmt.child(1), then_scope)
     check_unused_locals(then_scope, ctx.path, ctx)
     TypeScope.delete(own then_scope)
     if stmt.children.len().gt(2) {
         else_scope := TypeScope(parent = scope)
         infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, ctx)
-        asap_destroy_body(ctx, stmt.child(2), else_scope)
+        garbager_destroy_body(ctx, stmt.child(2), else_scope)
         check_unused_locals(else_scope, ctx.path, ctx)
         TypeScope.delete(own else_scope)
     }
@@ -3271,7 +3271,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
-    asap_destroy_body(ctx, stmt.child(1), while_scope)
+    garbager_destroy_body(ctx, stmt.child(1), while_scope)
     check_unused_locals(while_scope, ctx.path, ctx)
     TypeScope.delete(own while_scope)
     set_expr_til_type(stmt, Type.None)
@@ -6540,7 +6540,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
     case NodeType.Body:
         block_scope := TypeScope(parent = scope)
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
-        asap_destroy_body(ctx, stmt, block_scope)
+        garbager_destroy_body(ctx, stmt, block_scope)
         check_unused_locals(block_scope, ctx.path, ctx)
         TypeScope.delete(own block_scope)
     case NodeType.While:
@@ -6573,7 +6573,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in
             ref body_expr : Expr = stmt.child(2)
             catch_scope := TypeScope(parent = scope)
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
-            asap_destroy_body(ctx, body_expr, catch_scope)
+            garbager_destroy_body(ctx, body_expr, catch_scope)
             check_unused_locals(catch_scope, ctx.path, ctx)
             TypeScope.delete(own catch_scope)
         } else {
@@ -6664,7 +6664,7 @@ reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
 
 // Type-inference walk for a single body. Issue #204 step 3a: this
 // proc no longer runs the asap-destruction pass; the scope-management
-// sites that call infer_body invoke asap_destroy_body(body, scope)
+// sites that call infer_body invoke garbager_destroy_body(body, scope)
 // themselves before tearing the scope down.
 infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
     set_expr_til_type(body, Type.None)
@@ -6874,7 +6874,7 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via
-    // asap_destroy(ctx) once all files are typed -- see issue #204
+    // garbager_destroy(ctx) once all files are typed -- see issue #204
     // step 3b.
     return ctx.errors
 }
@@ -9556,7 +9556,7 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow 
 // insert_exit_deletes / insert_nested_exit_deletes /
 // insert_exit_deletes_into_stmt / insert_post_stmt_deletes /
 // insert_assign_delete, insert_free_calls) moved to
-// src/self/asaper.til. See issue #204 / doc/pipeline.org step 5.
+// src/self/garbager.til. See issue #204 / doc/pipeline.org step 5.
 // expr_til_type derives Type.Struct("Str") and Type.Bool for LiteralStr
 // and LiteralBool directly from node_type, so this function only needs
 // to handle the two variants with non-trivial inference: LiteralNum's
@@ -9730,6 +9730,6 @@ type_check := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallo
     ctx.errors = 0
     infer_body(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via
-    // asap_destroy(ctx); see issue #204 step 3b.
+    // garbager_destroy(ctx); see issue #204 step 3b.
     return ctx.errors
 }

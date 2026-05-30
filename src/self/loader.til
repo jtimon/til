@@ -5,7 +5,7 @@ import("modes")
 import("initer")
 import("targets")
 import("typer")
-import("asaper")
+import("garbager")
 import("precomp")
 import("scavenger")
 
@@ -1774,7 +1774,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {
     // block/catch scopes) still runs inline from the typer's
     // scope-management sites because per-body scopes are stack
     // locals; issue #204 step 3b covers lifting those too.
-    asap_destroy(lp.ctx)
+    garbager_destroy(lp.ctx)
 }
 
 prepare_program := proc(mut lp: LoadedProgram, shallow run_tests: Bool) {

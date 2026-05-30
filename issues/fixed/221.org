@@ -51,7 +51,7 @@ emits a compound-literal direct write:
 *p = (Str){.c_str = (void *)"world", .count = 5ULL, .cap = TIL_CAP_LIT};
 #+end_src
 
-The asaper-inserted ~Str_delete(p, &(Bool){0})~ already wipes the old
+The garbager-inserted ~Str_delete(p, &(Bool){0})~ already wipes the old
 payload at ~*p~ (freeing any owned ~c_str~), so the write-through lands
 cleanly into the enum's payload memory.
 

@@ -117,13 +117,13 @@
   to preserve a source variable.
 
 * TRUE Memory management is fully automatic via ASAP destruction
-  The asaper phase (src/self/asaper.til) inserts Type.delete() calls after
+  The garbager phase (src/self/garbager.til) inserts Type.delete() calls after
   the last use of each local variable, before interpretation or codegen.
   The user never calls free or delete explicitly. Works across all control
   flow: if/else branches, while loops, early returns, break, and continue.
   Auto-generated delete recurses into fields then frees the struct.
   Own-parameter transfer skips ASAP cleanup (callee is responsible). Mut
-  variable reassignment frees the old value: asaper inserts delete before
+  variable reassignment frees the old value: garbager inserts delete before
   compound-type reassignment, interpreter calls free_value for scalars.
 
 * TRUE Every ext_func and ext_proc declaration exactly corresponds to its C header by qualifiers.org rules
@@ -135,5 +135,5 @@
 
 * TRUE The hoisting pass lifts fcall args into temporaries
   Prevents memory leaks from intermediate results and simplifies evaluation
-  order. Runs inside the typer pass (in infer_body), before the asaper phase
-  (src/self/asaper.til).
+  order. Runs inside the typer pass (in infer_body), before the garbager phase
+  (src/self/garbager.til).

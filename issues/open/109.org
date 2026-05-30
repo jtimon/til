@@ -626,7 +626,7 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     - ~interpret~: 64,454 byte leaks / 13,322 allocs. Adds precomp + interpret.
     Delta from ast to doc = 64K bytes / 13K allocs introduced by the
     ~init_and_type_program~ pipeline (init_file, init_declarations_global,
-    type_file, asap_destroy).  precomp + interpret add only ~130 bytes
+    type_file, garbager_destroy).  precomp + interpret add only ~130 bytes
     / -22 allocs net.  The 64K leak isn't precomp/scavenge/codegen --
     it's init/typer.
 
@@ -679,7 +679,7 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     strings.til interp by +729B -- the extra clone of the receiver
     produced garbage that survived to exit.  The move-not-clone version
     above improves all four.  Same Vec.set-bit-overwrite shape is worth
-    auditing at the other ~children.set(...)~ sites (asaper.til:480,
+    auditing at the other ~children.set(...)~ sites (garbager.til:480,
     typer.til:1610/7937/7949/7963/7994/8014, precomp.til:868/881/884,
     initer.til:2600) for follow-up wins.
 
