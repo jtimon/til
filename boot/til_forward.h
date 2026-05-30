@@ -720,8 +720,8 @@ typedef struct {
 
 typedef struct priv___src_self_dispatch_til__ExtStr {
     U8 *data;
-    U64 count;
-    U64 cap;
+    U32 count;
+    U32 cap;
 } priv___src_self_dispatch_til__ExtStr;
 
 
@@ -2008,9 +2008,9 @@ void interpreter_init_ns(Context * ctx, Scope * global, Expr * program);
 Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
 Value * ns_get(Str * sname, Str * fname, Context * ctx);
 void ns_set(Str * sname, Str * fname, Value val, Context * ctx);
-Value make_str_value(void * data, U64 len, Context * ctx);
-Value make_str_value_view(void * data, U64 len, Context * ctx);
-Value make_str_value_own(void * data, U64 len, Context * ctx);
+Value make_str_value(void * data, U32 len, Context * ctx);
+Value make_str_value_view(void * data, U32 len, Context * ctx);
+Value make_str_value_own(void * data, U32 len, Context * ctx);
 Str str_view(Value v);
 Declaration * find_field_decl(Expr * struct_def, Str * fname);
 Value read_field(void * inst_data, Declaration * dd, Context * ctx);

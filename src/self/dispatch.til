@@ -6,8 +6,8 @@ link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 
 priv ExtStr := struct {
     ref data : U8 = NULL
-    count : U64 = 0
-    cap : U64 = 0
+    count : USize = 0
+    cap : USize = 0
 }
 
 FFIEntry := struct {

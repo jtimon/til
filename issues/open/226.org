@@ -1,0 +1,56 @@
+# priority: low
+** OPEN #226 codegen: `ref mut x : U32 = ptr; x = some_USize_var` emits pointer-rebind instead of deref-write
+
+  Codegen for `ref mut x : T = ptr_expr; x = some_var` (where T == USize
+  and some_var has type USize) emits `x = &some_var;` -- it reassigns
+  the local pointer to point at the named variable -- rather than
+  `*x = some_var;` which writes the value through the ref.
+
+  Reproducer from the make_str_value cleanup attempt (Issue #212
+  followup, see commit history):
+
+    ref mut count_slot : U32 = ptr_add(inst_data, 8)
+    count_slot = len           // len : USize == U32, named variable
+
+  Generated C (paraphrased, see gen/til/til.c near
+  make_str_value_own):
+
+    U32 *count_slot = ptr_add(inst_data, 8ULL);
+    count_slot = &len;         // <-- WRONG: pointer rebind, not deref-write
+
+  Wrapping the RHS in a call hides the bug:
+
+    count_slot = len.to_u32()  // works -- codegen does *count_slot = ...
+
+  Workaround used in the meantime: write_u32(ptr_add(inst_data, 8), len)
+  bypasses the ref-binding entirely.
+
+  Likely cause: the deref-write path in builder.til probably looks for
+  certain RHS expression shapes (function calls, casts, arithmetic)
+  and falls through to a pointer-store path. A bare identifier of
+  pointer-compatible type triggers the codegen to emit `&ident`
+  treating it as taking the address of the RHS, then the assignment
+  becomes a pointer-to-pointer copy at type U32* = &U32.
+
+  Why this is dangerous: the bug is silent. The ref-binding contract
+  ("write through the pointer") is violated and the original target
+  bytes are never written, so the caller sees garbage. In the
+  make_str_value case the consequence was an infinite loop /
+  segfault when callers iterated over the garbage Str.count.
+
+  Steps to investigate:
+
+  1. Pin down the exact RHS shapes that trigger the bug. Try:
+     - Bare ident (USize, U32, Bool, Dynamic, struct, enum)
+     - Field access (`s.count`)
+     - Method call (`x.to_u32()`)
+     - Cast (`x.cast(U32)`)
+     - Arithmetic (`x.add(1)`)
+  2. Find the codegen branch in src/self/builder.til that handles
+     assignment via a ref binding and identify the missing case.
+  3. Add a regression test that constructs the same shape and reads
+     back the value to confirm the write reached memory.
+
+  Discovered while retyping make_str_value / make_str_value_own /
+  make_str_value_view's `len` parameter from U64 to USize. The old
+  source had `count_slot = len.to_u32()`, which masked the bug.
