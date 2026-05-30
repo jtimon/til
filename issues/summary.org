@@ -44,6 +44,7 @@
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
 *** [[./open/221.org][#221]] Builder: Str-payload `case V(p): p = new_str` rebinds the local pointer instead of writing through
 *** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
+*** [[./open/223.org][#223]] auto-shallow: infer shallow for small value types, forbid explicit shallow where automatic
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

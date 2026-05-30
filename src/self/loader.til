@@ -283,6 +283,23 @@ precomp_imported := proc(mut lp: LoadedProgram) {
     // (precomp_macros/funcs) were populated upstream by the typer
     // (precomp_classify_stmt) and must survive into this phase.
     precomp_clear_known(lp.ctx)
+    // Issue #109: populate ctx.cached_str/array/vec_def BEFORE
+    // precomp_register_fold_scope, so the is_known -> expr_to_value
+    // -> make_str_value(_view) path inside the fold-scope walk
+    // produces Value.Struct values with struct_name = "Str" instead
+    // of "". With NULL/empty struct_name, cleanup_value_payload's
+    // si.struct_name.eq("Str") check fails and the inner Str
+    // c_str buffer leaks at scope_free(own global) below.
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            populate_cached_aggregate_defs(lp.ctx, iu.ast)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        populate_cached_aggregate_defs(lp.ctx, iu.ast)
+    }
     // Issue #158: one walk per unit builds the runtime fold scope
     // (struct/enum/func defs + literal global constants). Name
     // classification is no longer done here -- it was shared from the

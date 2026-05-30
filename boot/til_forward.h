@@ -1975,6 +1975,7 @@ Cell * field_assign_dyn_move_src(Scope * scope, Expr * val_expr);
 Bool interp_fa_is_ns(Scope * scope, Expr * e);
 void value_to_buf(void * dest, Value * val, Str * type_name);
 Value build_argv_array(Vec * argv, U32 offset, U32 count, Str * elem_type, Context * ctx);
+void populate_cached_aggregate_defs(Context * ctx, Expr * program);
 void interpreter_init_ns(Context * ctx, Scope * global, Expr * program);
 Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
 Value * ns_get(Str * sname, Str * fname, Context * ctx);

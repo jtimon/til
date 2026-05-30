@@ -1403,18 +1403,18 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     switch fcd_ctor.til_type {
                     case Type.Struct(es):
                         if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
-                        else              { inst = make_struct_value(ident_name(name), si_edef, inst_data, false) }
+                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false) }
                     case Type.Enum(es):
                         if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
-                        else              { inst = make_struct_value(ident_name(name), si_edef, inst_data, false) }
+                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false) }
                     case Type.Custom(es):
                         if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
-                        else              { inst = make_struct_value(ident_name(name), si_edef, inst_data, false) }
+                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false) }
                     case:
-                        inst = make_struct_value(ident_name(name), si_edef, inst_data, false)
+                        inst = make_struct_value(name.name, si_edef, inst_data, false)
                     }
                 case:
-                    inst = make_struct_value(ident_name(name), si_edef, inst_data, false)
+                    inst = make_struct_value(name.name, si_edef, inst_data, false)
                 }
                 switch inst {
                 case Value.Struct(si_inst):
@@ -2031,6 +2031,28 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
     if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn)) }
     return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false)
+}
+
+// Cache-only pass: populate ctx.cached_str/array/vec_def/name without
+// running eval_expr on namespace decl default values. Cheap walk that
+// must run BEFORE precomp_register_fold_scope so make_str_value_view /
+// make_str_value calls from is_known(...) -> expr_to_value see a
+// non-NULL cached_str_name -- otherwise cleanup_value_payload's
+// struct_name.eq("Str") check fails for the resulting Values and the
+// inner c_str buffers leak (issue #109).
+populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
+    for stmt : Expr in program.children {
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if stmt.children.len().eq(0) { continue }
+            ref sdef : Expr = stmt.child(0)
+            if sdef.node_type.is(NodeType.StructDef).not() { continue }
+            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
+            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
+            if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+        case:
+        }
+    }
 }
 
 interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) {
