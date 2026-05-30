@@ -624,6 +624,13 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
         b.orig_name = sdecl.orig_name.clone()
+        // Issue #147 step 4: pre-populate ctx.interp_type_defs at init so
+        // precomp eval (which clones Values and looks up nested struct/enum
+        // defs by name) sees a populated registry; interpret_units later
+        // re-registers with the same value, which is idempotent.
+        _tdv : Dynamic = malloc(I64.size())
+        write_ptr(_tdv, stmt.child(0))
+        ctx.interp_type_defs.set(own sname.clone(), own _tdv)
         return 0
     case:
         UNREACHABLE(__LOC__)
@@ -914,6 +921,11 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
         b.orig_name = edecl.orig_name.clone()
+        // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
+        // register_struct_def_for_stmt for rationale).
+        _tdv : Dynamic = malloc(I64.size())
+        write_ptr(_tdv, stmt.child(0))
+        ctx.interp_type_defs.set(own ename.clone(), own _tdv)
         return 0
     case:
         UNREACHABLE(__LOC__)

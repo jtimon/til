@@ -641,6 +641,7 @@ typedef struct priv___src_self_builder_til__BuildPaths {
 typedef struct StructInstance {
     Str *struct_name;
     Expr *struct_def;
+    Context *ctx;
     U8 *data;
     Bool borrowed;
 } StructInstance;
@@ -1970,7 +1971,7 @@ I32 elem_size_for_type(Str * type_name);
 Value parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 void * value_ptr_view(Value * v);
 Bool is_value_ptr(Value * v);
-void priv___src_self_interpreter_til__resolve_ptr_to_struct(Value * obj, Scope * scope, Str * obj_sname);
+void priv___src_self_interpreter_til__resolve_ptr_to_struct(Value * obj, Scope * scope, Str * obj_sname, Context * ctx);
 Value eval_expr(Scope * scope, Expr * e, Context * ctx);
 Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope, Context * ctx);
 Bool guard_own_param_skip(Scope * scope, Expr * e, Expr * func_def);
@@ -1987,7 +1988,7 @@ void free_value_full(Value v);
 Bool needs_widen(Value * val, Str * ptype);
 Value shallow_copy_value(Value * v);
 Value * box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free);
-Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed);
+Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed, Context * ctx);
 Value * widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);

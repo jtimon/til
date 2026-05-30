@@ -1462,7 +1462,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     if is_null(fe.return_type) {
         result = val_none()
     } else if is_null(ret_sdef).not() {
-        result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false)
+        result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false, ctx)
     } else if fe.return_is_shallow {
         if ffi_decode_scalar(fe.return_type, to_ptr(raw), result, ctx).not() {
             result = val_none()
@@ -1479,7 +1479,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
         } else if ctx.ffi_struct_defs.has(fe.return_type) {
             ref sdef_ptr : Dynamic = ctx.ffi_struct_defs.get(fe.return_type)
             ref sdef : Expr = deref(sdef_ptr)
-            result = make_struct_value(fe.return_type, sdef, raw_ptr, false)
+            result = make_struct_value(fe.return_type, sdef, raw_ptr, false, ctx)
         } else {
             result = val_none()
         }

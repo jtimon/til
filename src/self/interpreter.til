@@ -50,6 +50,14 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef) returns shallow Bool 
 StructInstance := struct {
     ref struct_name : Str = NULL
     ref struct_def : Expr = NULL
+    // Issue #147 step 4: reference to the running Context so the
+    // fixed-signature clone path can reach the type-def registry
+    // (lookup_interp_type_def) and struct_layouts for nested-field lookup,
+    // enabling later removal of Declaration.field_struct_def /
+    // field_offset / field_size / StructDef.total_struct_size from the AST.
+    // Populated by make_struct_value and the few direct StructInstance
+    // constructors; left NULL only for empty/sentinel instances.
+    ref ctx : Context = NULL
     own data : U8 = 0
     borrowed := false
 namespace:
@@ -99,7 +107,7 @@ namespace:
                         ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
                         if is_null(src_ptr).not() {
                             if is_null(dd.field_struct_def).not() {
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, data = to_ptr(src_ptr), borrowed = true)
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
                                 write_ptr(ptr_add(dst_data, foff.to_u64()), cloned.data)
@@ -165,7 +173,7 @@ namespace:
                             ref nested : Expr = dd.field_struct_def
                             switch nested.node_type {
                             case NodeType.StructDef(nested_sdef):
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested, ctx = self.ctx, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
                                 memcpy(ptr_add(dst_data, foff.to_u64()), cloned.data, nested_sdef.total_struct_size.to_u64())
@@ -178,7 +186,7 @@ namespace:
                     }
                 }
             }
-            return StructInstance(struct_name = self.struct_name, struct_def = self.struct_def, data = dst_data, borrowed = false)
+            return StructInstance(struct_name = self.struct_name, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
         case:
             UNREACHABLE(__LOC__)
             return StructInstance()
@@ -527,7 +535,7 @@ is_value_ptr := func(v: Value) returns shallow Bool {
 // is Struct/Enum/Custom, look up the type's def in scope and reinterpret
 // the pointer as a struct value so subsequent field-access has a struct
 // to read from.
-priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str) {
+priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str, ctx: Context) {
     if obj_sname.len().eq(0) { return }
     ref tc : Cell = scope_get(scope, obj_sname)
     if is_null(tc) { return }
@@ -537,7 +545,7 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str)
         if tdef.node_type.is(NodeType.StructDef) {
             if is_value_ptr(obj) {
                 ref pv : Dynamic = value_ptr_view(obj)
-                obj = make_struct_value(obj_sname, tdef, deref(pv), true)
+                obj = make_struct_value(obj_sname, tdef, deref(pv), true, ctx)
             }
         }
     case:
@@ -668,11 +676,11 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             obj_t := expr_til_type(obj_expr)
             switch obj_t {
             case Type.Struct(obj_sname):
-                resolve_ptr_to_struct(obj, scope, obj_sname)
+                resolve_ptr_to_struct(obj, scope, obj_sname, ctx)
             case Type.Enum(obj_sname):
-                resolve_ptr_to_struct(obj, scope, obj_sname)
+                resolve_ptr_to_struct(obj, scope, obj_sname, ctx)
             case Type.Custom(obj_sname):
-                resolve_ptr_to_struct(obj, scope, obj_sname)
+                resolve_ptr_to_struct(obj, scope, obj_sname, ctx)
             case:
             }
         }
@@ -757,7 +765,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                     return val_i32(etag.cast(I64))
                 }
                 if tdef.node_type.is(NodeType.StructDef) {
-                    return make_struct_value(type_name, tdef, p, true)
+                    return make_struct_value(type_name, tdef, p, true, ctx)
                 }
             case:
             }
@@ -1414,19 +1422,19 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 case NodeType.FCall(fcd_ctor):
                     switch fcd_ctor.til_type {
                     case Type.Struct(es):
-                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
-                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false) }
+                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
+                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
                     case Type.Enum(es):
-                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
-                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false) }
+                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
+                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
                     case Type.Custom(es):
-                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false) }
-                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false) }
+                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
+                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
                     case:
-                        inst = make_struct_value(name.name, si_edef, inst_data, false)
+                        inst = make_struct_value(name.name, si_edef, inst_data, false, ctx)
                     }
                 case:
-                    inst = make_struct_value(name.name, si_edef, inst_data, false)
+                    inst = make_struct_value(name.name, si_edef, inst_data, false, ctx)
                 }
                 switch inst {
                 case Value.Struct(si_inst):
@@ -1701,7 +1709,7 @@ box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: B
     return r
 }
 
-make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool) returns shallow Value {
+make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool, ctx: Context) returns shallow Value {
     mut r := Value.None
     mut tag : I32 = 10
     memcpy(r, tag, 4)
@@ -1709,6 +1717,7 @@ make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowe
     case Value.Struct(payload):
         payload.struct_name = sname
         payload.struct_def = sdef
+        payload.ctx = ctx
         payload.data = data
         payload.borrowed = borrowed
     case:
@@ -2042,7 +2051,7 @@ build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, ele
     if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn)) }
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
     if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn)) }
-    return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false)
+    return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
 }
 
 // Cache-only pass: populate ctx.cached_str/array/vec_def/name without
@@ -2147,7 +2156,7 @@ make_str_value := func(data: Dynamic, shallow len: U64, ctx: Context) returns sh
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
     memcpy(ptr_add(inst_data, 12), count_slot, U32.size())
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false)
+    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
 // Like make_str_value but builds a Value.Struct(Str) that VIEWS into
@@ -2161,7 +2170,7 @@ make_str_value_view := func(data: Dynamic, shallow len: U64, ctx: Context) retur
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_u32()
     memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size())
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false)
+    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
 make_str_value_own := func(data: Dynamic, shallow len: U64, ctx: Context) returns shallow Value {
@@ -2170,7 +2179,7 @@ make_str_value_own := func(data: Dynamic, shallow len: U64, ctx: Context) return
     ref mut count_slot : U32 = ptr_add(inst_data, 8)
     count_slot = len.to_u32()
     memcpy(ptr_add(inst_data, 12), count_slot, U32.size())
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false)
+    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {
     // Top-level Decl + Return so the typer's
@@ -2231,7 +2240,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
         if is_null(dd.field_struct_def).not() {
             ref owned : Dynamic = deref(ptr)
-            return make_struct_value(ftype, dd.field_struct_def, owned, true)
+            return make_struct_value(ftype, dd.field_struct_def, owned, true, ctx)
         }
         ref owned2 : Dynamic = deref(ptr)
         // Reading an own field yields a borrowed view: the struct still
@@ -2243,7 +2252,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         if is_null(deref(ptr)) { return Value.Ref(NULL) }
         if is_null(dd.field_struct_def).not() {
             ref rp : Dynamic = deref(ptr)
-            return make_struct_value(ftype, dd.field_struct_def, rp, true)
+            return make_struct_value(ftype, dd.field_struct_def, rp, true, ctx)
         }
         ref rp2 : Dynamic = deref(ptr)
         return Value.Ref(rp2)
@@ -2314,9 +2323,9 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
             // lifetime, so its name is a stable long-lived source.
             ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
             if is_null(bnd).not() {
-                return make_struct_value(bnd.name, sdef3, ptr, true)
+                return make_struct_value(bnd.name, sdef3, ptr, true, ctx)
             }
-            return make_struct_value(ftype, sdef3, ptr, true)
+            return make_struct_value(ftype, sdef3, ptr, true, ctx)
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
