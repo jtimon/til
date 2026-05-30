@@ -1,4 +1,4 @@
-mode server
+mode sender
 
 println(format("nng version ", read_cstr(nng_version())))
 

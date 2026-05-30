@@ -515,10 +515,10 @@ main := proc(args: ..Str) {
                       "examples/issues.til"))
 
     // === custom modes build tests ===
-    add_single(tests, "build_server", "build", 0, "",
-               format(til_bin, " build", asan_flag, " -o bin/server --extra-modes=examples/custom_modes.til examples/server.til"))
-    add_single(tests, "build_client", "build", 0, "",
-               format(til_bin, " build", asan_flag, " -o bin/client --extra-modes=examples/custom_modes.til examples/client.til"))
+    add_single(tests, "build_sender", "build", 0, "",
+               format(til_bin, " build", asan_flag, " -o bin/sender --extra-modes=examples/custom_modes.til examples/sender.til"))
+    add_single(tests, "build_receiver", "build", 0, "",
+               format(til_bin, " build", asan_flag, " -o bin/receiver --extra-modes=examples/custom_modes.til examples/receiver.til"))
     add_single(tests, "build_publisher", "build", 0, "",
                format(til_bin, " build", asan_flag, " -o bin/publisher --extra-modes=examples/custom_modes.til examples/publisher.til"))
     add_single(tests, "build_subscriber", "build", 0, "",
