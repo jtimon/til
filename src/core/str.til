@@ -80,7 +80,7 @@ namespace:
 
     /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
     /// The view borrows `s`; the caller keeps ownership of the buffer.
-    from_c_str := func(s: I8) returns Str {
+    from_c_str := func(s: Dynamic) returns Str {
         return Str(c_str = s, count = c_str_len(s), cap = CAP_VIEW)
     }
 
@@ -426,7 +426,7 @@ join := func(parts: Vec, sep: Str) returns Str {
 // handler can reach it; Str.to_f32 delegates here.
 str_parse_f32 := ext_func(s: Str) returns shallow F32 {}
 
-c_str_len := func(s: I8) returns shallow USize {
+c_str_len := func(s: Dynamic) returns shallow USize {
     mut n : USize = 0
     while true {
         ref b : I8 = ptr_add(s, n)

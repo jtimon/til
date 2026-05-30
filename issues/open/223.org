@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #223 auto-shallow: infer shallow for small value types, forbid explicit shallow where automatic
+** WIP #223 auto-shallow: infer shallow for small value types, forbid explicit shallow where automatic
 
   Currently ~shallow~ must be written explicitly on args and return values
   for types that are passed/returned by value (primitives, and small

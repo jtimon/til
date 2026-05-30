@@ -515,6 +515,29 @@ callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns shallow B
     }
 }
 
+// Issue #223 step 1: call_free is passed by value for auto-generated and
+// hand-written til deletes (Bool is a primitive). An ext-declared delete may
+// still take a `Bool *call_free` to match its hand-written C signature, so
+// emit the address-of form only when the callee's delete explicitly keeps
+// call_free non-shallow. Defaults to the by-value form when the delete is not
+// found (the common case).
+delete_call_free_lit := func(type_name: Str, shallow set_free: Bool, ctx: Context) returns Str {
+    mut lit := "(Bool){0}"
+    if set_free { lit = "(Bool){1}" }
+    ref fdef : Expr = find_callee_fdef(type_name.format("_delete"), ctx)
+    if is_null(fdef) { return lit }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.params.len().gt(1) {
+            ref p : Declaration = fd.params.get(1)
+            if p.own_type.is(OwnType.Shallow).not() { return format("&", lit) }
+        }
+        return lit
+    case:
+        return lit
+    }
+}
+
 callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32, ctx: Context) returns shallow Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if is_null(fdef) { return false }
@@ -1785,7 +1808,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                 // wrapper entirely: emit the compound literal directly into
                 // aname after running the old destructor.
                 if rhs.node_type.is_literal_str() {
-                    f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", &(Bool){0}); ")
+                    f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
                     f.write(aname).write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
                     case NodeType.Literal(Literal.Str(_lit_s)):
@@ -1796,12 +1819,12 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                 } else {
                     f.write("{ ").write(ctype).write(" *_new = (").write(ctype).write(" *)")
                     emit_expr(f, rhs, depth, ctx)
-                    f.write("; ").write(ctype).write("_delete(&").write(aname).write(", &(Bool){0}); ").write(aname).write(" = *_new; free(_new); }\n")
+                    f.write("; ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ").write(aname).write(" = *_new; free(_new); }\n")
                 }
             } else {
                 f.write("{ ").write(ctype).write(" *_old = ").write(aname).write("; ").write(aname).write(" = ")
                 emit_expr(f, rhs, depth, ctx)
-                f.write("; ").write(ctype).write("_delete(_old, &(Bool){1}); }\n")
+                f.write("; ").write(ctype).write("_delete(_old, ").write(delete_call_free_lit(ctype, true, ctx)).write("); }\n")
             }
             return
         }
@@ -1814,7 +1837,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             if expr_til_type(e).is(Type.Struct).or(expr_til_type(e).is(Type.Enum)) { is_compound = true }
             if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
                 ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)), ctx)
-                f.write("{ "); f.write(ctype); f.write("_delete("); f.write(aname); f.write(", &(Bool){0}); ")
+                f.write("{ "); f.write(ctype); f.write("_delete("); f.write(aname); f.write(", "); f.write(delete_call_free_lit(ctype, false, ctx)); f.write("); ")
                 f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
                 emit_expr(f, rhs, depth, ctx)
                 f.write("; *"); f.write(aname); f.write(" = *_new; free(_new); }\n")
@@ -1915,9 +1938,9 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
             emit_indent(f, depth)
             f.write(old_ctype) f.write("_delete(")
             if builder_fa_is_ptr(e, ctx) {
-                f.write("_old, &(Bool){1}); }\n")
+                f.write("_old, "); f.write(delete_call_free_lit(old_ctype, true, ctx)); f.write("); }\n")
             } else {
-                f.write("&_old, &(Bool){0}); }\n")
+                f.write("&_old, "); f.write(delete_call_free_lit(old_ctype, false, ctx)); f.write("); }\n")
             }
         }
     case NodeType.FCall:
@@ -1936,7 +1959,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                         // may have generated this delete with arg_is_own=true
                         // and call_free=true because the binding's own_type
                         // was Own pre-precomp. Force the safe shape:
-                        // `Str_delete(&name, &(Bool){0});` (no malloc, no
+                        // `Str_delete(&name, (Bool){0});` (no malloc, no
                         // free on a stack pointer). cap=CAP_LIT means the
                         // c_str data isn't freed either -- delete becomes
                         // a no-op at runtime. Also `(void)` the hoisted
@@ -1953,7 +1976,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                                     case:
                                     }
                                 }
-                                f.write(_del_ct); f.write("_delete(&"); f.write(ident_name(del_arg)); f.write(", &(Bool){0});\n"); return
+                                f.write(_del_ct); f.write("_delete(&"); f.write(ident_name(del_arg)); f.write(", "); f.write(delete_call_free_lit(_del_ct, false, ctx)); f.write(");\n"); return
                             }
                         }
                     case:
@@ -1988,7 +2011,7 @@ priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
                 if tname.len().gt(0) {
                     f.write(tname); f.write("_delete(")
                     emit_expr(f, e, depth, ctx)
-                    f.write(", &(Bool){1});\n")
+                    f.write(", "); f.write(delete_call_free_lit(tname, true, ctx)); f.write(");\n")
                     return
                 } else {
                     f.write("free(")
@@ -2788,7 +2811,7 @@ emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
 // sibling args never clash. Inlines what the old cli_parse_* helpers did.
 priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
     return "({ Str *_cv = Str_from_c_str(".format(arg, "); ", ctype, " _v = ", conv,
-        "; Str_delete(_cv, &(Bool){1}); ", ctype, " *_p = malloc(sizeof(", ctype,
+        "; Str_delete(_cv, (Bool){1}); ", ctype, " *_p = malloc(sizeof(", ctype,
         ")); *_p = _v; _p; })")
 }
 
@@ -2905,12 +2928,12 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     // Variadic array
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
-                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_usize(f, p.explicit_type.len()); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_va_cap});\n")
+                    f.write("    Array *"); f.write(p.name); f.write(" = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(p.explicit_type); f.write("\", .count = "); emit_usize(f, p.explicit_type.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
                     emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg)
-                    f.write("        Array_set("); f.write(p.name); f.write(", &(USize){_idx}, _val);\n")
+                    f.write("        Array_set("); f.write(p.name); f.write(", _idx, _val);\n")
                     f.write("    }\n")
                 } else {
                     emit_cli_parse_arg(f, p.name, p.explicit_type, argi)
@@ -5396,41 +5419,63 @@ emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: Funct
         if pp.own_type.is(OwnType.Shallow) { any_shallow = true }
     }
     if any_shallow.not() { return }
+    // Issue #223 step 1: the dyn_fn funcptr aliases (CloneFn/DeleteFn/CmpFn,
+    // ...) are auto-shallow too, so the wrapper bridges the uniform dyn ABI to
+    // the auto-shallow method ABI:
+    //   - return: clone uniquely produces an owned element stored as an opaque
+    //     void* (CloneFn returns Dynamic), so a shallow clone return is boxed
+    //     onto the heap. Every other shallow return (cmp/eq/hash) passes
+    //     through by value, matching the value-returning alias. Non-shallow
+    //     returns are opaque void* pointers (struct clone returns Type*).
+    //   - params: element-data params (the dispatched type) and pointer params
+    //     arrive as opaque void*; an element-data value param is deref'd to its
+    //     value. The lone auxiliary shallow primitive is delete's call_free
+    //     (param index >= 1 of delete), which the collection passes by value;
+    //     every other param is element data of the dispatched type.
+    box_ret := ret_shallow.and(method_name.eq("clone"))
+    ret_value := ret_shallow.and(box_ret.not())
     if has_return {
-        f.write("void *"); f.write(type_name); f.write("_"); f.write(method_name); f.write("_dyn(")
+        if ret_value { f.write(type_name_to_c_value(fd.return_type, ctx)); f.write(" ") }
+        else { f.write("void *") }
     } else {
-        f.write("void "); f.write(type_name); f.write("_"); f.write(method_name); f.write("_dyn(")
+        f.write("void ")
     }
-    for p in 0..np {
-        if p.gt(0) { f.write(", ") }
-        f.write("void *_a"); emit_i32(f, p.cast(I32))
-    }
-    if np.eq(0) { f.write("void") }
-    f.write(") {\n")
-    if has_return {
-        if ret_shallow {
-            rc := type_name_to_c_value(fd.return_type, ctx)
-            f.write("    "); f.write(rc); f.write(" *_r = malloc(sizeof("); f.write(rc); f.write(")); *_r = "); f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
-        } else {
-            f.write("    return (void *)"); f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
-        }
-    } else {
-        f.write("    "); f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
-    }
+    f.write(type_name); f.write("_"); f.write(method_name); f.write("_dyn(")
     for p in 0..np {
         if p.gt(0) { f.write(", ") }
         ref pp : Declaration = fd.params.get(p)
-        if pp.own_type.is(OwnType.Shallow) {
-            pc := type_name_to_c_value(pp.explicit_type, ctx)
-            f.write("*("); f.write(pc); f.write(" *)_a"); emit_i32(f, p.cast(I32))
+        is_call_free := method_name.eq("delete").and(p.gt(0))
+        if pp.own_type.is(OwnType.Shallow).and(is_call_free) {
+            f.write(type_name_to_c_value(pp.explicit_type, ctx)); f.write(" _a"); emit_i32(f, p.cast(I32))
+        } else {
+            f.write("void *_a"); emit_i32(f, p.cast(I32))
+        }
+    }
+    if np.eq(0) { f.write("void") }
+    f.write(") {\n")
+    if box_ret {
+        rc := type_name_to_c_value(fd.return_type, ctx)
+        f.write("    "); f.write(rc); f.write(" *_r = malloc(sizeof("); f.write(rc); f.write(")); *_r = ")
+    } else {
+        f.write("    ")
+        if has_return {
+            f.write("return ")
+            if ret_value.not() { f.write("(void *)") }
+        }
+    }
+    f.write(type_name); f.write("_"); f.write(method_name); f.write("(")
+    for p in 0..np {
+        if p.gt(0) { f.write(", ") }
+        ref pp : Declaration = fd.params.get(p)
+        is_call_free := method_name.eq("delete").and(p.gt(0))
+        if pp.own_type.is(OwnType.Shallow).and(is_call_free.not()) {
+            f.write("*("); f.write(type_name_to_c_value(pp.explicit_type, ctx)); f.write(" *)_a"); emit_i32(f, p.cast(I32))
         } else {
             f.write("_a"); emit_i32(f, p.cast(I32))
         }
     }
     f.write(");")
-    if has_return {
-        if ret_shallow { f.write(" return _r;") }
-    }
+    if box_ret { f.write(" return _r;") }
     f.write("\n}\n")
 }
 
@@ -6015,7 +6060,11 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                         if mfd.params.len().gt(1) {
                             if mfd.params.len().gt(1) {
                                 ref p1 : Declaration = mfd.params.get(1)
-                                if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", dd.name, " *)arg2") }
+                                // Issue #223 step 1: the second param is not
+                                // always the dispatched type (e.g. delete's
+                                // call_free: Bool). Cast arg2 to the param's
+                                // own value type, not dd.name.
+                                if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
                             }
                         }
                     }
@@ -6080,7 +6129,10 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     if mfd.params.len().gt(1) {
                         if mfd.params.len().gt(1) {
                             ref p1 : Declaration = mfd.params.get(1)
-                            if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", dd.name, " *)arg2") }
+                            // Issue #223 step 1: cast arg2 to the param's own
+                            // value type (e.g. delete's call_free: Bool), not
+                            // the dispatched type dd.name.
+                            if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
                         }
                     }
                 }
@@ -6286,7 +6338,7 @@ emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
         } else {
             f.write("Array *array_of_"); f.write(et); f.write("(int count, ...) {\n")
             f.write("    USize _cap = count;\n")
-            f.write("    Array *_a = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(et); f.write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_cap});\n")
+            f.write("    Array *_a = Array_new_type_name(&(Str){.c_str = (void *)\""); f.write(et); f.write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             f.write("        USize _idx = _i;\n")
@@ -6297,7 +6349,7 @@ emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             } else {
                 f.write("        "); f.write(et); f.write(" *_val = "); f.write(et); f.write("_clone(va_arg(ap, "); f.write(et); f.write(" *));\n")
             }
-            f.write("        Array_set(_a, &(USize){_idx}, _val);\n")
+            f.write("        Array_set(_a, _idx, _val);\n")
             f.write("    }\n")
             f.write("    va_end(ap);\n")
             f.write("    return _a;\n")

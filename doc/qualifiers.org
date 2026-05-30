@@ -78,6 +78,14 @@ redundant and rejected by the typer.
   - a local owned ~Dynamic~ must either transfer ownership to an ~own~ arg/field
     or be explicitly freed with ~free(own buf)~
 - ~shallow~ is for args/returns only, not locals or fields
+- Issue #223 (auto-shallow): primitives (I8/I16/I32/I64, U8/U16/U32/U64,
+  F32/F64, Bool, ...) are treated as ~shallow~ in func/proc args and return
+  values even without the keyword -- a plain ~x: I64~ param and a plain
+  ~returns I64~ are passed/returned by value. The qualifier is inferred for
+  ordinary func/proc and funcptr signatures; it does NOT apply to
+  ~ext_func~/~ext_proc~ (their qualifiers map to a fixed C signature), to
+  ~mut~/~own~ primitive params, or to params of a ~returns ref T~ function
+  (those stay borrowed pointers so the ref can escape)
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~

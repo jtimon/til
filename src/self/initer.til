@@ -860,7 +860,11 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             mut proc_decl := FunctionDef(auto_generated = true)
             proc_decl.func_type = FuncType.Func
             proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+            // Issue #223 step 1: Bool is a primitive, so call_free is
+            // passed by value (shallow). Match the auto-shallow the typer
+            // applies to hand-written deletes, since auto-generated defs
+            // bypass that normalization.
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Shallow, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
             proc_decl.variadic_index = -1
             proc_decl.kwargs_index = -1
 
@@ -1147,7 +1151,9 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Own))
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
+    // Issue #223 step 1: Bool is primitive -> call_free is passed by value
+    // (shallow), matching the typer's auto-shallow for hand-written deletes.
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Shallow, default_value = default_true.clone()))
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
 

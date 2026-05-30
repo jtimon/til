@@ -90,8 +90,10 @@ test_ref_dynamic_from_struct := test() {
 # func bodies. NULL ref-binding init now fails uniformly at module scope,
 # in func/proc bodies, in test() bodies, and in macros.)
 
-accept_null := func(x: I64) {
-    // borrowed param can receive NULL
+accept_null := func(x: RefPoint) {
+    // A borrowed compound param can receive NULL. (Primitives are passed by
+    // value now -- issue #223 auto-shallow -- so an I64 param can no longer
+    // take NULL; the borrowed-pointer case lives on for compound types.)
     assert(__LOC__, is_null(x))
 }
 

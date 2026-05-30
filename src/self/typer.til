@@ -2573,16 +2573,29 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
 infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
+        // Issue #223 step 1: a function-pointer signature must match the
+        // auto-shallow ABI of the ordinary func/proc it will hold, so
+        // normalize primitive params/returns to Shallow here too. Otherwise
+        // the call-through codegen would deref a value return as a pointer.
+        sig_auto_shallow := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
         if fdef.return_type.len().gt(0) {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
             fdef.return_type = resolved_return_type
+            if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Own)) {
+                if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
+                    fdef.return_own_type = OwnType.Shallow
+                }
+            }
         }
         for param : Declaration in fdef.params {
             ptype_name := param.explicit_type.clone()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
             param.explicit_type = resolved_ptype
             param.til_type =til_type_from_explicit_type(resolved_ptype)
+            if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
+                param.own_type = OwnType.Shallow
+            }
         }
     case:
         UNREACHABLE(__LOC__)
@@ -2630,6 +2643,11 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
     case NodeType.FuncDef(fdef):
         is_func := fdef.func_type.is(FuncType.Func)
         is_macro := fdef.func_type.is(FuncType.Macro)
+        // Issue #223 step 1: auto-shallow applies to ordinary til
+        // func/proc definitions only. ext_func/ext_proc qualifiers map
+        // directly to a hand-written C signature (e.g. U64_clone takes a
+        // 'const U64 *'), so their shallow-ness must be preserved exactly.
+        auto_shallow_ok := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
         if fdef.func_type.is(FuncType.Test) {
             // Allowed at root scope, or at the immediate namespace
             // level of a struct/enum (issue #51).  Tests in arbitrary
@@ -2656,6 +2674,15 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
             fdef.return_type = resolved_return_type
             check_priv_type_name(expr, resolved_return_type, scope, ctx)
+            // Issue #223 step 1: primitives are returned by value (shallow)
+            // even without the qualifier. Normalize the default (Own) to
+            // Shallow for primitive return types so every downstream stage
+            // treats them as value types. Explicit 'ref' returns are left
+            // alone (a borrowed pointer is intentional).
+            if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Own)) {
+                rt := type_from_name_at(resolved_return_type, scope, expr, ctx)
+                if is_primitive(rt) { fdef.return_own_type = OwnType.Shallow }
+            }
         }
         for i in 0..fdef.params.len() {
             ref mut param : Declaration = fdef.params.get(i)
@@ -2697,6 +2724,17 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else {
+                // Issue #223 step 1: primitive params are passed by value
+                // (shallow) even without the qualifier. Normalize the plain
+                // borrowed default (Ref, non-mut) to Shallow for primitives so
+                // every downstream stage treats them as value types. 'mut',
+                // 'own', and 'shallow' params are left as the user wrote them.
+                // A ref-returning function may hand a primitive param back by
+                // reference (e.g. min(a, b) returns ref I64), so its params
+                // must stay borrowed pointers -- skip auto-shallow there.
+                if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_primitive(pt)) {
+                    param.own_type = OwnType.Shallow
+                }
                 func_scope.set(param.name, pt, FuncType.None, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
                 ref mut pb : TypeBinding = func_scope.get_binding(param.name)
                 if pt.is(Type.FuncPtr) {
