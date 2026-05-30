@@ -712,7 +712,7 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns ref 
     if is_null(_lit) { return NULL }
     mut _lit_clone := _lit.clone()
     set_expr_til_type(_lit_clone, expr_til_type(fcall))
-    _heap : Dynamic = malloc(Expr.size().cast(U64))
+    _heap : Dynamic = malloc(Expr.size())
     move(_heap, _lit_clone, Expr.size())
     ref _heap_ref : Expr = to_ptr(_heap)
     return _heap_ref
@@ -935,7 +935,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // have been typed as USize/U64/... at typer time. Surrounding code
     // (re-typing, codegen) expects the original til_type.
     set_expr_til_type(lit_local, expr_til_type(fcall))
-    heap : Dynamic = malloc(Expr.size().cast(U64))
+    heap : Dynamic = malloc(Expr.size())
     move(heap, lit_local, Expr.size())
     ref heap_lit : Expr = to_ptr(heap)
     return heap_lit
@@ -1050,8 +1050,8 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // `known = snapshot_fd`, which would leak a second deep
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
-            memcpy(ctx.precomp_known, snapshot_fd, Map.size().cast(U64))
-            memset(snapshot_fd, 0, Map.size().cast(U64))
+            memcpy(ctx.precomp_known, snapshot_fd, Map.size())
+            memset(snapshot_fd, 0, Map.size())
             continue
         }
         fold_subtree(scope, child, ctx)

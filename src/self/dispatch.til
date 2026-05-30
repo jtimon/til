@@ -51,7 +51,7 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
     return to_ptr(ffi_global_symbol(name))
 }
 
-ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().cast(U64)) }
+ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size()) }
 
 ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns shallow Bool {
     if is_null(cif.rtype) { return false }
@@ -509,7 +509,7 @@ h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sha
 // header is copied but the bytes must outlive the AST borrow), so the
 // introspection primitives hand back owned copies. Issue #56/#58.
 priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
-    n := src.count.cast(U64)
+    n := src.count
     buf : Dynamic = malloc(n.add(1))
     memcpy(buf, src.c_str, n)
     ref mut term : U8 = ptr_add(buf, n)
@@ -875,7 +875,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
         }
         if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
             ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
-            r = make_str_value(payload.c_str, payload.count.cast(U64), ctx)
+            r = make_str_value(payload.c_str, payload.count, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "StructDef")) {
@@ -884,7 +884,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
         }
         if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
             ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
-            r = make_str_value(payload2.c_str, payload2.count.cast(U64), ctx)
+            r = make_str_value(payload2.c_str, payload2.count, ctx)
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "EnumDef")) {
@@ -905,7 +905,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
         }
         if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
             ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
-            r = make_str_value(payload3.c_str, payload3.count.cast(U64), ctx)
+            r = make_str_value(payload3.c_str, payload3.count, ctx)
             return true
         }
         panic(__LOC__, "dyn_type_to_str: unknown Type tag")
@@ -1030,14 +1030,14 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
     switch struct_def.node_type {
     case NodeType.StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
-        elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size().cast(U64)))
+        elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size()))
         for i in 0..nfields {
             ref fd : Declaration = bsf_sdd.fields.get(i)
             ref ft : ffi_type = field_ffi_type(fd, ctx)
-            memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size().cast(U64))), ft, Dynamic.size().cast(U64))
+            memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size())), ft, Dynamic.size())
         }
-        memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size().cast(U64))), 0, Dynamic.size().cast(U64))
-        st : Dynamic = malloc(ffi_type.size().cast(U64))
+        memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size())), 0, Dynamic.size())
+        st : Dynamic = malloc(ffi_type.size())
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
         stp.alignment = 0
@@ -1097,7 +1097,7 @@ h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     content := cfile_read_all(deref(hp))
-    r = make_str_value(content.c_str, content.count.cast(U64), ctx)
+    r = make_str_value(content.c_str, content.count, ctx)
     return true
 }
 
@@ -1550,10 +1550,10 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         // either AST-owned strings or locally-allocated ones (e.g. format
         // results) without bespoke ownership dances.
         mut key_str := name.clone()
-        key : Dynamic = malloc(Str.size().cast(U64))
-        move(key, key_str, Str.size().cast(U64))
-        val : Dynamic = malloc(FFIEntry.size().cast(U64))
-        move(val, entry, FFIEntry.size().cast(U64))
+        key : Dynamic = malloc(Str.size())
+        move(key, key_str, Str.size())
+        val : Dynamic = malloc(FFIEntry.size())
+        move(val, entry, FFIEntry.size())
         ctx.ffi_map.set(own key, own val)
     case:
         UNREACHABLE(__LOC__)
