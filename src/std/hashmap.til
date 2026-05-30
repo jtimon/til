@@ -172,4 +172,89 @@ namespace:
         Vec.delete(own self.nexts, false)
         if call_free { free(own self) }
     }
+
+    // Remove `key` if present. No-op when the key is absent. Uses a
+    // swap-remove on the dense vectors: the trailing entry (count-1)
+    // is relocated into the removed slot, then count is decremented.
+    // That keeps the dense vectors compact at O(1) amortized cost,
+    // but means one entry's index changes -- the chain pointer that
+    // referenced the old last_idx (in either the bucket head array
+    // or in another entry's `nexts`) has to be rewritten to point at
+    // the new index. Walk the swapped entry's own bucket chain to
+    // find that pointer.
+    remove := func(mut self: HashMap, key: Dynamic) {
+        if self.keys.count.eq(0) { return }
+        bi := bucket(self.hash_key(key), self.buckets.count)
+
+        // Find the entry and its predecessor in the chain.
+        ref head : I64 = self.buckets.get(bi)
+        mut prev : I64 = -1
+        mut entry : I64 = head.clone()
+        mut found := false
+        while entry.gte(0) {
+            entry_u : USize = entry.to_usize()
+            ref k : Dynamic = self.keys.get(entry_u)
+            if self.keys_equal(key, k) {
+                found = true
+                break
+            }
+            prev = entry.clone()
+            ref nxt : I64 = self.nexts.get(entry_u)
+            entry = nxt.clone()
+        }
+        if found.not() { return }
+
+        idx_u : USize = entry.to_usize()
+
+        // Drop the entry's owned key/value inner heap.
+        self.keys.elem_delete(self.keys.get(idx_u), false)
+        self.values.elem_delete(self.values.get(idx_u), false)
+
+        // Unlink from the chain.
+        ref nxt_of_idx : I64 = self.nexts.get(idx_u)
+        nxt_val : I64 = nxt_of_idx.clone()
+        if prev.lt(0) {
+            self.buckets.set(bi, own nxt_val)
+        } else {
+            self.nexts.set(prev.to_usize(), own nxt_val)
+        }
+
+        last_idx : I64 = self.keys.count.to_i64().sub(1)
+        if entry.eq(last_idx).not() {
+            last_u : USize = last_idx.to_usize()
+            // Rewrite whatever pointer in `last_idx`'s chain referenced
+            // last_idx; it must now reference idx_u.
+            ref last_key : Dynamic = self.keys.get(last_u)
+            last_bi := bucket(self.hash_key(last_key), self.buckets.count)
+            ref last_head : I64 = self.buckets.get(last_bi)
+            if last_head.eq(last_idx) {
+                self.buckets.set(last_bi, own entry.clone())
+            } else {
+                mut walker : I64 = last_head.clone()
+                while walker.gte(0) {
+                    walker_u : USize = walker.to_usize()
+                    ref walker_nxt : I64 = self.nexts.get(walker_u)
+                    if walker_nxt.eq(last_idx) {
+                        self.nexts.set(walker_u, own entry.clone())
+                        break
+                    }
+                    walker = walker_nxt.clone()
+                }
+            }
+
+            // Move bytes for keys, values, and the chain link.
+            memcpy(self.keys.get(idx_u), self.keys.get(last_u), self.keys.elem_size)
+            memcpy(self.values.get(idx_u), self.values.get(last_u), self.values.elem_size)
+            ref last_nxt : I64 = self.nexts.get(last_u)
+            self.nexts.set(idx_u, own last_nxt.clone())
+        }
+
+        // Shrink the dense vectors by one. We touch count directly
+        // rather than going through Vec.pop -- pop mallocs a copy of
+        // the trailing bytes and hands ownership to the caller, which
+        // here would alias the inner heap we just moved into idx_u.
+        self.keys.count = self.keys.count.sub(1.to_usize())
+        self.values.count = self.values.count.sub(1.to_usize())
+        self.nexts.count = self.nexts.count.sub(1.to_usize())
+    }
 }

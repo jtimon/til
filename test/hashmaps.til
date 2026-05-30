@@ -89,3 +89,86 @@ test_hashmap_str_overwrite_releases_old_value := test() {
     ref v : Str = m.get("k")
     assert_eq_str(__LOC__, v, "second")
 }
+
+test_hashmap_remove_missing_is_noop := test() {
+    m := HashMap.new(I64, I64)
+    m.set(own 1, own 10)
+    m.remove(99)
+    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert(__LOC__, m.has(1))
+}
+
+test_hashmap_remove_only_entry := test() {
+    m := HashMap.new(I64, I64)
+    m.set(own 5, own 50)
+    m.remove(5)
+    assert_eq(__LOC__, m.len().to_i64(), 0)
+    assert(__LOC__, m.has(5).not())
+}
+
+test_hashmap_remove_then_reinsert := test() {
+    m := HashMap.new(I64, I64)
+    m.set(own 7, own 70)
+    m.remove(7)
+    m.set(own 7, own 700)
+    assert_eq(__LOC__, m.len().to_i64(), 1)
+    ref v : I64 = m.get(7)
+    assert_eq(__LOC__, v, 700)
+}
+
+test_hashmap_remove_swap_keeps_others_findable := test() {
+    // Insert enough keys to force chains, remove one from the middle of
+    // the dense vectors, and verify everything else is still findable
+    // -- catches a missed chain-pointer rewrite during the swap.
+    m := HashMap.new(I64, I64)
+    for i in 0..50 {
+        m.set(own i.clone(), own i.mul(10))
+    }
+    m.remove(7)
+    m.remove(23)
+    m.remove(42)
+    assert_eq(__LOC__, m.len().to_i64(), 47)
+    for i in 0..50 {
+        if i.eq(7).or(i.eq(23)).or(i.eq(42)) {
+            assert(__LOC__, m.has(i).not())
+        } else {
+            assert(__LOC__, m.has(i))
+            ref v : I64 = m.get(i)
+            assert_eq(__LOC__, v, i.mul(10))
+        }
+    }
+}
+
+test_hashmap_remove_all := test() {
+    // Drain the table one entry at a time, then refill -- exercises
+    // the dense-vector reuse path after remove leaves slots dirty.
+    m := HashMap.new(I64, I64)
+    for i in 0..20 {
+        m.set(own i.clone(), own i.mul(10))
+    }
+    for i in 0..20 {
+        m.remove(i)
+    }
+    assert_eq(__LOC__, m.len().to_i64(), 0)
+    for i in 0..20 {
+        assert(__LOC__, m.has(i).not())
+    }
+    m.set(own 99, own 990)
+    assert_eq(__LOC__, m.len().to_i64(), 1)
+    ref v : I64 = m.get(99)
+    assert_eq(__LOC__, v, 990)
+}
+
+test_hashmap_remove_str_key_frees_c_str := test() {
+    // ASAN-instrumented runs would flag a leak here if the Str key's
+    // c_str buffer were dropped without being freed.
+    m := HashMap.new(Str, I64)
+    m.set(own "apple", own 1)
+    m.set(own "banana", own 2)
+    m.remove("apple")
+    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert(__LOC__, m.has("apple").not())
+    assert(__LOC__, m.has("banana"))
+    ref v : I64 = m.get("banana")
+    assert_eq(__LOC__, v, 2)
+}
