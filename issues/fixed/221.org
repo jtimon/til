@@ -1,5 +1,5 @@
 # priority: low
-** #221 Builder: Str-payload `case V(p): p = new_str` rebinds the local pointer instead of writing through
+** FIXED #221 Builder: Str-payload `case V(p): p = new_str` rebinds the local pointer instead of writing through
 
 *** Repro
 
@@ -41,26 +41,19 @@ because the AST interpreter mirrors the Assign into ~ei.data +
 ENUM_PAYLOAD_OFFSET~ (see #211 follow-up); the compile path needs the
 analogous fix in the builder.
 
-*** Fix
+*** Suggested fix
 
-In ~src/self/builder.til~, the ~NodeType.Assign~ emit path's
-~is_ref_local(aname)~ block now special-cases a Literal.Str RHS and
-emits a compound-literal direct write:
+In ~src/self/builder.til~, the assignment lowering for ~p = <rhs>~ when ~p~ is
+a ~ref mut~ binding to ~get_payload(...)~ with a compound type should emit
+either ~*p = <rhs>~ directly (for non-owning struct values) or
+~Str_delete(p, false); *p = *new; free(new);~ for owned ~Str~. The current
+emit treats this like a normal owned-local reassignment, which is wrong
+for a ~ref mut~ alias.
 
-#+begin_src c
-*p = (Str){.c_str = (void *)"world", .count = 5ULL, .cap = TIL_CAP_LIT};
-#+end_src
-
-The garbager-inserted ~Str_delete(p, &(Bool){0})~ already wipes the old
-payload at ~*p~ (freeing any owned ~c_str~), so the write-through lands
-cleanly into the enum's payload memory.
-
-Paired interp fix: the AST interpreter's payload writeback now also
-calls the ~Str~-style cleanup (free ~old.c_str~ when
-~old.cap < CAP_VIEW && old.count > 0~) before ~memcpy~'ing the new
-~Str~ bytes, so owned ~Str~ payloads no longer leak under
-~til interpret~. Regression test:
-~test_mut_str_payload_binding~ in ~test/enums.til~.
+A parallel exists in ~build_til_binding~ / the field-assign path -- the
+existing pattern for assigning a struct value to a field via ~mut self~
+already does ~*ptr = <new bytes>~. Replicate that here for payload
+bindings, gated on ~own_type == Ref~ + rhs being a constructor / literal.
 
 *** Notes
 
