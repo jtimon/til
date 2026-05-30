@@ -580,6 +580,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
                 push_qn(worklist, name, "cmp")
+                push_qn(worklist, name, "hash")
             } else {
                 collect_refs(decl.child(0), worklist)
             }
@@ -615,6 +616,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 push_qn(worklist, name, "clone")
                 push_qn(worklist, name, "size")
                 push_qn(worklist, name, "cmp")
+                push_qn(worklist, name, "hash")
             } else {
                 collect_refs(decl.child(0), worklist)
             }

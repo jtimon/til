@@ -55,11 +55,21 @@ DeleteFn := func(Dynamic, Bool)
 CmpFn := func(Dynamic, Dynamic) returns I64
 IncFn := func(Dynamic)
 DistanceFn := func(Dynamic, Dynamic) returns USize
+// Byte-level hash: given a buffer and a length, fold to U64.
+// Hash containers store one of these (e.g. lib/hash.til's hash_bytes,
+// or a future murmur / xxhash) and pass it to per-type `hash` methods.
+HashFn := func(Dynamic, USize) returns U64
+// Per-type hash dispatch shape. Every type's `hash(self, hasher)`
+// method matches this when called through a function-pointer field --
+// the type-specific self argument arrives as a Dynamic, and the type
+// is responsible for feeding the right bytes to the supplied hasher.
+TypeHashFn := func(Dynamic, HashFn) returns U64
 default_clone : CloneFn = (v) { return v }
 default_delete : DeleteFn = (_v, _cf) { }
 default_cmp : CmpFn = (_a, _b) { return 0 }
 default_inc : IncFn = (_v) { }
 default_distance : DistanceFn = (_a, _b) { return 0 }
+default_type_hash : TypeHashFn = (_v, _h) { return 0 }
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 
 // Element kind for Vec. Replaces the old `elem_type : Str` discriminator so

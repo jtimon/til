@@ -78,6 +78,12 @@ namespace:
     or := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     xor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     clone := ext_func(val: I64) returns shallow I64 {}
+    /// Hash via the caller-supplied byte hasher over the 8 bytes of self.
+    /// Used by HashMap and similar containers: the type owns the
+    /// "which bytes count" decision, the hasher owns the algorithm.
+    hash := func(self: I64, hasher: HashFn) returns U64 {
+        return hasher(self, 8.to_usize())
+    }
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
         ref au : I64 = a

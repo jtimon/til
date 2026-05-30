@@ -282,19 +282,14 @@ namespace:
         return self.substr(i, 1)
     }
 
-    /// FNV-1a 64-bit hash of the string content. Used by HashMap as the
-    /// override for Str keys, since the in-memory Str struct
-    /// {c_str, count, cap} carries a heap pointer and so a bytewise
-    /// hash of the struct would key on pointer identity, not content.
-    hash := func(self: Str) returns shallow U64 {
-        FNV_OFFSET : U64 = 0.sub(3750763034362895579)
-        FNV_PRIME  : U64 = 1099511628211
-        mut h : U64 = FNV_OFFSET
-        for i in 0..self.count {
-            ref b : I8 = ptr_add(self.c_str, i)
-            h = h.xor(b.to_u64()).mul(FNV_PRIME)
-        }
-        return h
+    /// Hash via the caller-supplied byte hasher, feeding it the
+    /// string CONTENT bytes (c_str + count). The default bytewise
+    /// fallback would hash the {c_str, count, cap} struct itself --
+    /// i.e. the heap pointer's address -- which is identity, not
+    /// equality. The container chooses the algorithm; this method
+    /// chooses the right bytes for a Str.
+    hash := func(self: Str, hasher: HashFn) returns U64 {
+        return hasher(self.c_str, self.count)
     }
 
     /// If self starts with `prefix`, return the rest; otherwise clone.
