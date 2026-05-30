@@ -2748,60 +2748,64 @@ emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
     f.write("UPTR_REF(").emit_deref(e, depth, ctx).write(")")
 }
 
-// C expression converting the Str view `cv` into a value of til type `ttype`.
-// Mirrors the old cli_parse_* bodies (Str.from_c_str(s).to_*()). i8/i16/u16
-// route through to_i64 then I64.to_* like the .til source did. Returns "" for
-// types with no direct conversion (Str and Bool are handled specially by
-// emit_cli_parse_value); a "" result for any other type means "unsupported".
-priv cli_conv_expr := func(ttype: Str, cv: Str) returns Str {
-    if ttype.eq("I64") { return "Str_to_i64(".format(cv, ")") }
-    if ttype.eq("U8") { return "Str_to_u8(".format(cv, ")") }
-    if ttype.eq("I8") { return "I64_to_i8(Str_to_i64(".format(cv, "))") }
-    if ttype.eq("I16") { return "I64_to_i16(Str_to_i64(".format(cv, "))") }
-    if ttype.eq("U16") { return "I64_to_u16(Str_to_i64(".format(cv, "))") }
-    if ttype.eq("I32") { return "Str_to_i32(".format(cv, ")") }
-    if ttype.eq("U32") { return "Str_to_u32(".format(cv, ")") }
-    if ttype.eq("U64") { return "Str_to_u64(".format(cv, ")") }
-    if ttype.eq("USize") { return "Str_to_u64(".format(cv, ")") }
-    if ttype.eq("UPtr") { return "Str_to_u64(".format(cv, ")") }
+// C statement-expression that parses the argv c-string `arg` into a value of
+// C type `ctype` via the Str.from_c_str view, then heap-boxes it. `conv` is
+// the C expression producing the value, written in terms of the view `_cv`
+// (e.g. "Str_to_i64(_cv)"). The `({ ... })` block scopes its own temps, so
+// sibling args never clash. Inlines what the old cli_parse_* helpers did.
+priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
+    return "({ Str *_cv = Str_from_c_str(".format(arg, "); ", ctype, " _v = ", conv,
+        "; Str_delete(_cv, &(Bool){1}); ", ctype, " *_p = malloc(sizeof(", ctype,
+        ")); *_p = _v; _p; })")
+}
+
+// C expression evaluating to a freshly heap-allocated `<ttype> *` parsed from
+// the argv c-string `arg`, for every CLI arg type. Returns "" for unsupported
+// types. Str is the one outlier: it owns a deep copy of the bytes (Str_clone)
+// rather than parsing a borrowed view, so it can't share the from_c_str
+// pipeline. Bool's conversion is an inline ternary that bails via exit(1) on a
+// non-true/false value (consistent with the other CLI validation in main()).
+priv cli_box_expr := func(ttype: Str, arg: Str) returns Str {
+    if ttype.eq("Str") {
+        return "Str_clone(&(Str){.c_str = (void *)".format(arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
+    }
+    if ttype.eq("I64") { return cli_view_box("I64", "Str_to_i64(_cv)", arg) }
+    if ttype.eq("U8") { return cli_view_box("U8", "Str_to_u8(_cv)", arg) }
+    if ttype.eq("I8") { return cli_view_box("I8", "I64_to_i8(Str_to_i64(_cv))", arg) }
+    if ttype.eq("I16") { return cli_view_box("I16", "I64_to_i16(Str_to_i64(_cv))", arg) }
+    if ttype.eq("U16") { return cli_view_box("U16", "I64_to_u16(Str_to_i64(_cv))", arg) }
+    if ttype.eq("I32") { return cli_view_box("I32", "Str_to_i32(_cv)", arg) }
+    if ttype.eq("U32") { return cli_view_box("U32", "Str_to_u32(_cv)", arg) }
+    if ttype.eq("U64") { return cli_view_box("U64", "Str_to_u64(_cv)", arg) }
+    if ttype.eq("USize") { return cli_view_box("USize", "Str_to_u64(_cv)", arg) }
+    if ttype.eq("UPtr") { return cli_view_box("UPtr", "Str_to_u64(_cv)", arg) }
+    if ttype.eq("Bool") {
+        true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
+        false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"
+        conv := "Str_cmp(_cv, ".format(true_lit, ") == 0 ? 1 : (Str_cmp(_cv, ", false_lit,
+            ") == 0 ? 0 : (fprintf(stderr, \"error: cannot parse '%s' as Bool (expected true/false)\\n\", ",
+            arg, "), exit(1), 0))")
+        return cli_view_box("Bool", conv, arg)
+    }
     return ""
 }
 
-// Emit C statements (indented by `ind`) that parse the argv c-string
-// expression `arg` into a heap-allocated boxed value of til type `ttype`,
-// bound to C variable `var`. `cv` names the temporary Str view. Single
-// dispatch over `ttype` for both fixed and variadic CLI args:
-//   Str     -> Str_clone (owns its bytes; no view, no conversion)
-//   scalars -> Str.from_c_str view + Str.to_* / I64.to_* conversion, boxed,
-//              then Str_delete of the view (inlines the old cli_parse_*)
-//   Bool    -> compare-and-box, error out on a non-true/false value
-//   default -> unsupported type: emit the diagnostic and bail from main()
-priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, cv: Str) {
-    if ttype.eq("Str") {
-        f.write(ind); f.write("Str *"); f.write(var); f.write(" = Str_clone(&(Str){.c_str = (void *)"); f.write(arg); f.write(", .count = strlen("); f.write(arg); f.write("), .cap = TIL_CAP_LIT});\n")
-        return
-    }
-    conv := cli_conv_expr(ttype, cv)
-    if ttype.eq("Bool").not().and(conv.eq("")) {
+// Emit the indented C declaration that binds CLI argument `var` of til type
+// `ttype`, parsed from the argv c-string expression `arg`. Used by both the
+// fixed-arg and variadic-arg paths in main()'s generated entry wrapper.
+priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str) {
+    expr := cli_box_expr(ttype, arg)
+    if expr.eq("") {
         f.write(ind); f.write("// unsupported CLI arg type: "); f.write(ttype); f.write("\n")
         f.write(ind); f.write("fprintf(stderr, \"error: unsupported CLI argument type '"); f.write(ttype); f.write("'\\n\"); return 1;\n")
         return
     }
-    f.write(ind); f.write("Str *"); f.write(cv); f.write(" = Str_from_c_str("); f.write(arg); f.write(");\n")
-    f.write(ind); f.write(ttype); f.write(" *"); f.write(var); f.write(" = malloc(sizeof("); f.write(ttype); f.write("));\n")
-    if ttype.eq("Bool") {
-        f.write(ind); f.write("if (Str_cmp("); f.write(cv); f.write(", &(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}) == 0) { *"); f.write(var); f.write(" = 1; }\n")
-        f.write(ind); f.write("else if (Str_cmp("); f.write(cv); f.write(", &(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}) == 0) { *"); f.write(var); f.write(" = 0; }\n")
-        f.write(ind); f.write("else { fprintf(stderr, \"error: cannot parse '%s' as Bool (expected true/false)\\n\", "); f.write(arg); f.write("); return 1; }\n")
-    } else {
-        f.write(ind); f.write("*"); f.write(var); f.write(" = "); f.write(conv); f.write(";\n")
-    }
-    f.write(ind); f.write("Str_delete("); f.write(cv); f.write(", &(Bool){1});\n")
+    f.write(ind); f.write(ttype); f.write(" *"); f.write(var); f.write(" = "); f.write(expr); f.write(";\n")
 }
 
 emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
     arg := "argv[".format(argi.to_str(), "]")
-    emit_cli_parse_value(f, "    ", ptype, pname, arg, "_cv_".concat(pname))
+    emit_cli_parse_value(f, "    ", ptype, pname, arg)
 }
 
 emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is_static: Bool, lp: LoadedProgram) {
@@ -2872,7 +2876,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
-                    emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg, "_cv")
+                    emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg)
                     f.write("        Array_set("); f.write(p.name); f.write(", &(USize){_idx}, _val);\n")
                     f.write("    }\n")
                 } else {
