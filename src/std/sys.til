@@ -31,7 +31,7 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     mut cmd := ""
     mut i : USize = 0
     while i.lt(args.len()) {
-        ref arg: Str = args.get(i)!
+        ref arg: Str = args[i]
         if i.gt(0) {
             cmd = cmd.format(" '", arg, "'")
         } else {

@@ -240,7 +240,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
     while active.gt(0) {
         mut i : USize = 0
         while i.lt(j) {
-            ref slot : Slot = slots.get(i)!
+            ref slot : Slot = slots[i]
             if slot.pid.gt(0) {
                 status := check_cmd_status(slot.pid)
                 if status.neq(-1) {
@@ -328,7 +328,7 @@ main := proc(args: ..Str) {
     mut asan := 0
     mut i : USize = 0
     while i.lt(args.len()) {
-        ref arg : Str = args.get(i)!
+        ref arg : Str = args[i]
         if arg.starts_with("-j") {
             j = arg.substr(2, arg.len().sub(2)).to_usize()
             if j.lt(1) { j = 1 }
@@ -338,7 +338,7 @@ main := proc(args: ..Str) {
         if arg.eq("--no-gui") { en_gui = 0 }
         if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
             i = i.add(1)
-            ref val : Str = args.get(i)!
+            ref val : Str = args[i]
             til_bin = val.clone()
         }
         if arg.eq("--asan") { asan = 1 }

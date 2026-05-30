@@ -178,7 +178,7 @@ split_by_pipe := func(s: Str) returns Vec {
 main := proc(args: ..Str) {
     mut hash := "HEAD"
     if args.len().gte(1) {
-        ref arg0 : Str = args.get(0)!
+        ref arg0 : Str = args[0]
         hash = arg0.clone()
     }
 

@@ -56,7 +56,7 @@ main := proc() {
             if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
                 idx := (my * COLS + mx).cast(I64)
                 idx_u : USize = idx.to_usize()
-                ref val : I64 = grid.get(idx_u)!
+                ref val : I64 = grid[idx_u]
                 if val == 0 {
                     grid.set(idx_u, own 1)
                 } else {
@@ -99,7 +99,7 @@ main := proc() {
             py := dy * CELL + BAR_H
 
             di_u : USize = di.to_usize()
-            ref dv : I64 = grid.get(di_u)!
+            ref dv : I64 = grid[di_u]
             if dv == 1 {
                 DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GREEN)
             } else {

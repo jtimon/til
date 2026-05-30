@@ -72,7 +72,7 @@ main := proc(args: ..Str) {
         exit(1)
     }
 
-    ref subcmd : Str = args.get(0)!
+    ref subcmd : Str = args[0]
 
     // mode subcommand
     if subcmd.eq("mode") {
@@ -81,13 +81,13 @@ main := proc(args: ..Str) {
             exit(1)
         }
 
-        ref file : Str = args.get(1)!
+        ref file : Str = args[1]
         mut en_interp := 1
         mut en_run := 1
         mut en_match := 1
         mut asan_flag := ""
         for i in 2..args.len() {
-            ref arg : Str = args.get(i)!
+            ref arg : Str = args[i]
             if arg.eq("-no-interp") { en_interp = 0 }
             if arg.eq("-no-run") { en_run = 0 }
             if arg.eq("-no-match") { en_match = 0 }
@@ -196,14 +196,14 @@ main := proc(args: ..Str) {
             exit(1)
         }
 
-        ref label : Str = args.get(1)!
-        ref exit_str : Str = args.get(2)!
+        ref label : Str = args[1]
+        ref exit_str : Str = args[2]
         expected_exit := exit_str.to_i64()
 
         // Find "--" starting from index 3
         mut dd : USize = 3
         while dd.lt(args.len()) {
-            ref a : Str = args.get(dd)!
+            ref a : Str = args[dd]
             if a.eq("--") { break }
             dd = dd.add(1)
         }
@@ -212,7 +212,7 @@ main := proc(args: ..Str) {
         mut expected_out_file := ""
         mut has_expected := 0
         if dd.gt(3) {
-            ref eof : Str = args.get(3)!
+            ref eof : Str = args[3]
             expected_out_file = eof.clone()
             has_expected = 1
         }
@@ -221,7 +221,7 @@ main := proc(args: ..Str) {
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
             if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
-            ref carg : Str = args.get(ci)!
+            ref carg : Str = args[ci]
             cmd = cmd.concat(carg)
         }
 
@@ -263,15 +263,15 @@ main := proc(args: ..Str) {
             exit(1)
         }
 
-        ref label : Str = args.get(1)!
-        ref needle : Str = args.get(2)!
-        ref count_str : Str = args.get(3)!
+        ref label : Str = args[1]
+        ref needle : Str = args[2]
+        ref count_str : Str = args[3]
         expected_count := count_str.to_i64()
 
         // Find "--" starting from index 4
         mut dd : USize = 4
         while dd.lt(args.len()) {
-            ref a : Str = args.get(dd)!
+            ref a : Str = args[dd]
             if a.eq("--") { break }
             dd = dd.add(1)
         }
@@ -280,7 +280,7 @@ main := proc(args: ..Str) {
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
             if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
-            ref carg : Str = args.get(ci)!
+            ref carg : Str = args[ci]
             cmd = cmd.concat(carg)
         }
 

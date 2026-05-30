@@ -80,7 +80,7 @@ piece_type := func(piece: I64) returns I64 {
 copy_board := func(mut dst: Array, mut src: Array) {
     mut i := 0
     while i.lt(64) {
-        ref v : I64 = src.get(i.to_u32())!
+        ref v : I64 = src[i.to_u32()]
         dst.set(i.to_u32(), own v.clone())
         i = i.add(1)
     }
@@ -93,12 +93,12 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     KN_DR := array("I64", -2, -2, -1, -1, 1, 1, 2, 2)
     KN_DC := array("I64", -1, 1, -2, 2, -2, 2, -1, 1)
     while ki.lt(8) {
-        ref dr : I64 = KN_DR.get(ki.to_u32())!
-        ref dc : I64 = KN_DC.get(ki.to_u32())!
+        ref dr : I64 = KN_DR[ki.to_u32()]
+        ref dc : I64 = KN_DC[ki.to_u32()]
         nr := r.add(dr)
         nc := c.add(dc)
         if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
-            ref p : I64 = board.get(nr.mul(8).add(nc).to_u32())!
+            ref p : I64 = board[nr.mul(8).add(nc).to_u32()]
             knight_piece := by_side.mul(6).add(2)
             if p.eq(knight_piece) { return true }
         }
@@ -114,7 +114,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
                 nr := r.add(kki)
                 nc := c.add(kkj)
                 if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
-                    ref p : I64 = board.get(nr.mul(8).add(nc).to_u32())!
+                    ref p : I64 = board[nr.mul(8).add(nc).to_u32()]
                     king_piece := by_side.mul(6).add(6)
                     if p.eq(king_piece) { return true }
                 }
@@ -133,11 +133,11 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     if by_side.eq(1) { pawn_src_r = r.sub(1) }
     if pawn_src_r.gte(0).and(pawn_src_r.lt(8)) {
         if c.sub(1).gte(0) {
-            ref pl : I64 = board.get(pawn_src_r.mul(8).add(c.sub(1)).to_u32())!
+            ref pl : I64 = board[pawn_src_r.mul(8).add(c.sub(1)).to_u32()]
             if pl.eq(pawn_piece) { return true }
         }
         if c.add(1).lt(8) {
-            ref pr2 : I64 = board.get(pawn_src_r.mul(8).add(c.add(1)).to_u32())!
+            ref pr2 : I64 = board[pawn_src_r.mul(8).add(c.add(1)).to_u32()]
             if pr2.eq(pawn_piece) { return true }
         }
     }
@@ -147,12 +147,12 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     DIRS_C := array("I64", 0, 0, -1, 1)
     mut di := 0
     while di.lt(4) {
-        ref sdr : I64 = DIRS_R.get(di.to_u32())!
-        ref sdc : I64 = DIRS_C.get(di.to_u32())!
+        ref sdr : I64 = DIRS_R[di.to_u32()]
+        ref sdc : I64 = DIRS_C[di.to_u32()]
         mut sr := r.add(sdr)
         mut sc := c.add(sdc)
         while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
-            ref sp : I64 = board.get(sr.mul(8).add(sc).to_u32())!
+            ref sp : I64 = board[sr.mul(8).add(sc).to_u32()]
             if sp.neq(0) {
                 spt := piece_type(sp)
                 if is_side(sp, by_side).and(spt.eq(4).or(spt.eq(5))) {
@@ -174,12 +174,12 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     DIAG_C := array("I64", -1, 1, -1, 1)
     mut bi := 0
     while bi.lt(4) {
-        ref bdr : I64 = DIAG_R.get(bi.to_u32())!
-        ref bdc : I64 = DIAG_C.get(bi.to_u32())!
+        ref bdr : I64 = DIAG_R[bi.to_u32()]
+        ref bdc : I64 = DIAG_C[bi.to_u32()]
         mut br := r.add(bdr)
         mut bc := c.add(bdc)
         while br.gte(0).and(br.lt(8)).and(bc.gte(0)).and(bc.lt(8)) {
-            ref bp : I64 = board.get(br.mul(8).add(bc).to_u32())!
+            ref bp : I64 = board[br.mul(8).add(bc).to_u32()]
             if bp.neq(0) {
                 bpt := piece_type(bp)
                 if is_side(bp, by_side).and(bpt.eq(3).or(bpt.eq(5))) {
@@ -203,7 +203,7 @@ find_king := func(mut board: Array, side: I64) returns I64 {
     king_piece := side.mul(6).add(6)
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = board.get(i.to_u32())!
+        ref p : I64 = board[i.to_u32()]
         if p.eq(king_piece) { return i }
         i = i.add(1)
     }
@@ -224,7 +224,7 @@ in_check := func(mut board: Array, side: I64) returns Bool {
 // Returns true if the move leaves the player in check (illegal)
 move_leaves_in_check := func(mut board: Array, mut tmp: Array, from: I64, to: I64, side: I64) returns Bool {
     copy_board(tmp, board)
-    ref p : I64 = tmp.get(from.to_u32())!
+    ref p : I64 = tmp[from.to_u32()]
     pv := p.clone()
     pt := piece_type(pv)
     tmp.set(to.to_u32(), own pv)
@@ -234,7 +234,7 @@ move_leaves_in_check := func(mut board: Array, mut tmp: Array, from: I64, to: I6
     if pt.eq(1) {
         from_c := from.mod(8)
         to_c := to.mod(8)
-        ref dest : I64 = board.get(to.to_u32())!
+        ref dest : I64 = board[to.to_u32()]
         if dest.eq(0).and(from_c.neq(to_c)) {
             // En passant: remove captured pawn
             cap_r := from.div(8)
@@ -250,7 +250,7 @@ move_leaves_in_check := func(mut board: Array, mut tmp: Array, from: I64, to: I6
 gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                    mut moves: Array, ep_col: I64,
                    mut castle_flags: Array) returns I64 {
-    ref piece : I64 = board.get(idx.to_u32())!
+    ref piece : I64 = board[idx.to_u32()]
     pt := piece_type(piece)
     r := idx.div(8)
     c := idx.mod(8)
@@ -268,7 +268,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
         // Forward one
         nr := r.add(dir)
         if nr.gte(0).and(nr.lt(8)) {
-            ref fp : I64 = board.get(nr.mul(8).add(c).to_u32())!
+            ref fp : I64 = board[nr.mul(8).add(c).to_u32()]
             if fp.eq(0) {
                 if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(c), side) {
                     moves.set(count.to_u32(), own nr.mul(8).add(c))
@@ -277,7 +277,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                 // Forward two from start
                 if r.eq(start_row) {
                     nr2 := r.add(dir.mul(2))
-                    ref fp2 : I64 = board.get(nr2.mul(8).add(c).to_u32())!
+                    ref fp2 : I64 = board[nr2.mul(8).add(c).to_u32()]
                     if fp2.eq(0) {
                         if !move_leaves_in_check(board, tmp, idx, nr2.mul(8).add(c), side) {
                             moves.set(count.to_u32(), own nr2.mul(8).add(c))
@@ -294,7 +294,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             while cap_dc.lte(1) {
                 nc := c.add(cap_dc)
                 if nc.gte(0).and(nc.lt(8)).and(cap_dc.neq(0)) {
-                    ref cp : I64 = board.get(nr.mul(8).add(nc).to_u32())!
+                    ref cp : I64 = board[nr.mul(8).add(nc).to_u32()]
                     opp := 1.sub(side)
                     can_capture := is_side(cp, opp)
                     // En passant
@@ -312,7 +312,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                             mut ok := true
                             if is_ep {
                                 copy_board(tmp, board)
-                                ref pv : I64 = tmp.get(idx.to_u32())!
+                                ref pv : I64 = tmp[idx.to_u32()]
                                 pvv := pv.clone()
                                 tmp.set(nr.mul(8).add(nc).to_u32(), own pvv)
                                 tmp.set(idx.to_u32(), own 0)
@@ -339,12 +339,12 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
         KN_DC := array("I64", -1, 1, -2, 2, -2, 2, -1, 1)
         mut ki := 0
         while ki.lt(8) {
-            ref dr : I64 = KN_DR.get(ki.to_u32())!
-            ref dc : I64 = KN_DC.get(ki.to_u32())!
+            ref dr : I64 = KN_DR[ki.to_u32()]
+            ref dc : I64 = KN_DC[ki.to_u32()]
             nr := r.add(dr)
             nc := c.add(dc)
             if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
-                ref dp : I64 = board.get(nr.mul(8).add(nc).to_u32())!
+                ref dp : I64 = board[nr.mul(8).add(nc).to_u32()]
                 if !is_side(dp, side) {
                     if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
                         moves.set(count.to_u32(), own nr.mul(8).add(nc))
@@ -362,12 +362,12 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
         DIAG_C := array("I64", -1, 1, -1, 1)
         mut di := 0
         while di.lt(4) {
-            ref sdr : I64 = DIAG_R.get(di.to_u32())!
-            ref sdc : I64 = DIAG_C.get(di.to_u32())!
+            ref sdr : I64 = DIAG_R[di.to_u32()]
+            ref sdc : I64 = DIAG_C[di.to_u32()]
             mut sr := r.add(sdr)
             mut sc := c.add(sdc)
             while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
-                ref sp : I64 = board.get(sr.mul(8).add(sc).to_u32())!
+                ref sp : I64 = board[sr.mul(8).add(sc).to_u32()]
                 if sp.eq(0) {
                     if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
                         moves.set(count.to_u32(), own sr.mul(8).add(sc))
@@ -399,12 +399,12 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
         DIRS_C := array("I64", 0, 0, -1, 1)
         mut di := 0
         while di.lt(4) {
-            ref sdr : I64 = DIRS_R.get(di.to_u32())!
-            ref sdc : I64 = DIRS_C.get(di.to_u32())!
+            ref sdr : I64 = DIRS_R[di.to_u32()]
+            ref sdc : I64 = DIRS_C[di.to_u32()]
             mut sr := r.add(sdr)
             mut sc := c.add(sdc)
             while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
-                ref sp : I64 = board.get(sr.mul(8).add(sc).to_u32())!
+                ref sp : I64 = board[sr.mul(8).add(sc).to_u32()]
                 if sp.eq(0) {
                     if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
                         moves.set(count.to_u32(), own sr.mul(8).add(sc))
@@ -439,7 +439,7 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                     nr := r.add(kki)
                     nc := c.add(kkj)
                     if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
-                        ref dp : I64 = board.get(nr.mul(8).add(nc).to_u32())!
+                        ref dp : I64 = board[nr.mul(8).add(nc).to_u32()]
                         if !is_side(dp, side) {
                             if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
                                 moves.set(count.to_u32(), own nr.mul(8).add(nc))
@@ -463,17 +463,17 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
             king_row = 0
         }
         if r.eq(king_row).and(c.eq(4)) {
-            ref km : I64 = castle_flags.get(cf_offset.to_u32())!
+            ref km : I64 = castle_flags[cf_offset.to_u32()]
             if km.eq(0) {
                 opp := 1.sub(side)
                 // Not currently in check
                 if !is_attacked(board, r, 4, opp) {
                     // Kingside castling (O-O)
-                    ref rk_h : I64 = castle_flags.get(cf_offset.add(2).to_u32())!
+                    ref rk_h : I64 = castle_flags[cf_offset.add(2).to_u32()]
                     if rk_h.eq(0) {
-                        ref sq5 : I64 = board.get(r.mul(8).add(5).to_u32())!
-                        ref sq6 : I64 = board.get(r.mul(8).add(6).to_u32())!
-                        ref sq7 : I64 = board.get(r.mul(8).add(7).to_u32())!
+                        ref sq5 : I64 = board[r.mul(8).add(5).to_u32()]
+                        ref sq6 : I64 = board[r.mul(8).add(6).to_u32()]
+                        ref sq7 : I64 = board[r.mul(8).add(7).to_u32()]
                         rook_piece := side.mul(6).add(4)
                         if sq5.eq(0).and(sq6.eq(0)).and(sq7.eq(rook_piece)) {
                             if (!is_attacked(board, r, 5, opp)).and(!is_attacked(board, r, 6, opp)) {
@@ -483,12 +483,12 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         }
                     }
                     // Queenside castling (O-O-O)
-                    ref rk_a : I64 = castle_flags.get(cf_offset.add(1).to_u32())!
+                    ref rk_a : I64 = castle_flags[cf_offset.add(1).to_u32()]
                     if rk_a.eq(0) {
-                        ref sq3 : I64 = board.get(r.mul(8).add(3).to_u32())!
-                        ref sq2 : I64 = board.get(r.mul(8).add(2).to_u32())!
-                        ref sq1 : I64 = board.get(r.mul(8).add(1).to_u32())!
-                        ref sq0 : I64 = board.get(r.mul(8).to_u32())!
+                        ref sq3 : I64 = board[r.mul(8).add(3).to_u32()]
+                        ref sq2 : I64 = board[r.mul(8).add(2).to_u32()]
+                        ref sq1 : I64 = board[r.mul(8).add(1).to_u32()]
+                        ref sq0 : I64 = board[r.mul(8).to_u32()]
                         rook_piece := side.mul(6).add(4)
                         if sq3.eq(0).and(sq2.eq(0)).and(sq1.eq(0)).and(sq0.eq(rook_piece)) {
                             if (!is_attacked(board, r, 3, opp)).and(!is_attacked(board, r, 2, opp)) {
@@ -511,7 +511,7 @@ has_legal_moves := func(mut board: Array, mut tmp: Array, side: I64,
                          mut castle_flags: Array) returns Bool {
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = board.get(i.to_u32())!
+        ref p : I64 = board[i.to_u32()]
         if is_side(p, side) {
             mc := gen_moves(board, tmp, i, side, moves, ep_col, castle_flags)
             if mc.gt(0) { return true }
@@ -524,7 +524,7 @@ has_legal_moves := func(mut board: Array, mut tmp: Array, side: I64,
 // Execute a move on the board, update castle flags, return new ep_col
 execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
                       mut castle_flags: Array) returns I64 {
-    ref mp : I64 = board.get(from.to_u32())!
+    ref mp : I64 = board[from.to_u32()]
     mpv := mp.clone()
     mpt := piece_type(mpv)
     from_r := from.div(8)
@@ -537,13 +537,13 @@ execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
     if mpt.eq(6) {
         castle_flags.set(cf_off.to_u32(), own 1)
         if from_c.eq(4).and(to_c.eq(6)) {
-            ref rp : I64 = board.get(from_r.mul(8).add(7).to_u32())!
+            ref rp : I64 = board[from_r.mul(8).add(7).to_u32()]
             rpv := rp.clone()
             board.set(from_r.mul(8).add(5).to_u32(), own rpv)
             board.set(from_r.mul(8).add(7).to_u32(), own 0)
         }
         if from_c.eq(4).and(to_c.eq(2)) {
-            ref rp : I64 = board.get(from_r.mul(8).to_u32())!
+            ref rp : I64 = board[from_r.mul(8).to_u32()]
             rpv := rp.clone()
             board.set(from_r.mul(8).add(3).to_u32(), own rpv)
             board.set(from_r.mul(8).to_u32(), own 0)
@@ -561,7 +561,7 @@ execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
 
     // En passant capture
     if mpt.eq(1).and(from_c.neq(to_c)) {
-        ref dest_p : I64 = board.get(to.to_u32())!
+        ref dest_p : I64 = board[to.to_u32()]
         if dest_p.eq(0) {
             board.set(from_r.mul(8).add(to_c).to_u32(), own 0)
         }
@@ -591,7 +591,7 @@ execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
 copy_cf := func(mut dst: Array, mut src: Array) {
     mut i := 0
     while i.lt(6) {
-        ref v : I64 = src.get(i.to_u32())!
+        ref v : I64 = src[i.to_u32()]
         dst.set(i.to_u32(), own v.clone())
         i = i.add(1)
     }
@@ -616,7 +616,7 @@ CHESS_IDX_CF := 66
 chess_pack := func(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut cf: Array) {
     mut i := 0
     while i.lt(64) {
-        ref v : I64 = cells.get(i.to_u32())!
+        ref v : I64 = cells[i.to_u32()]
         board_set_i64(b, i, v)
         i = i.add(1)
     }
@@ -624,7 +624,7 @@ chess_pack := func(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut c
     board_set_i64(b, CHESS_IDX_EP, ep_col)
     i = 0
     while i.lt(6) {
-        ref v : I64 = cf.get(i.to_u32())!
+        ref v : I64 = cf[i.to_u32()]
         board_set_i64(b, CHESS_IDX_CF.add(i), v)
         i = i.add(1)
     }
@@ -658,11 +658,11 @@ chess_heuristic : Heuristic = (b) {
     while i.lt(64) {
         ref p : I64 = board_get_i64(cb, i)
         if p.gt(0).and(p.lte(6)) {
-            ref w : I64 = WEIGHTS.get(p.to_u32())!
+            ref w : I64 = WEIGHTS[p.to_u32()]
             score = score.add(w)
         }
         if p.gt(6).and(p.lte(12)) {
-            ref w : I64 = WEIGHTS.get(p.sub(6).to_u32())!
+            ref w : I64 = WEIGHTS[p.sub(6).to_u32()]
             score = score.sub(w)
         }
         i = i.add(1)
@@ -688,12 +688,12 @@ chess_next_boards : NextBoardsFn = (b) {
     mut moves := Array.new(I64, 64)
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = cells.get(i.to_u32())!
+        ref p : I64 = cells[i.to_u32()]
         if is_side(p, side) {
             mc := gen_moves(cells, tmp, i, side, moves, ep_col, cf)
             mut j := 0
             while j.lt(mc) {
-                ref dest : I64 = moves.get(j.to_u32())!
+                ref dest : I64 = moves[j.to_u32()]
                 mut child_cells := Array.new(I64, 64)
                 copy_board(child_cells, cells)
                 mut child_cf := Array.new(I64, 6)
@@ -751,7 +751,7 @@ main := proc() {
     // Initialize board with defaults
     mut i := 0
     while i.lt(64) {
-        ref init_p : I64 = INIT_BOARD.get(i.to_u32())!
+        ref init_p : I64 = INIT_BOARD[i.to_u32()]
         board.set(i.to_u32(), own init_p.clone())
         i = i.add(1)
     }
@@ -775,7 +775,7 @@ main := proc() {
                     ai.depth = sel_difficulty
                     mut ri := 0
                     while ri < 64 {
-                        ref init_p : I64 = INIT_BOARD.get(ri.to_u32())!
+                        ref init_p : I64 = INIT_BOARD[ri.to_u32()]
                         board.set(ri.to_u32(), own init_p.clone())
                         ri = ri + 1
                     }
@@ -821,12 +821,12 @@ main := proc() {
 
                 mut sq := 0
                 while sq.lt(64) {
-                    ref ap : I64 = board.get(sq.to_u32())!
+                    ref ap : I64 = board[sq.to_u32()]
                     if is_side(ap, ai_side) {
                         mc := gen_moves(board, tmp_board, sq, ai_side, ai_moves, ep_col, castle_flags)
                         mut mj := 0
                         while mj.lt(mc) {
-                            ref md : I64 = ai_moves.get(mj.to_u32())!
+                            ref md : I64 = ai_moves[mj.to_u32()]
                             ai_pieces.set(ai_total.to_u32(), own sq.clone())
                             ai_dests.set(ai_total.to_u32(), own md.clone())
                             ai_total = ai_total.add(1)
@@ -842,8 +842,8 @@ main := proc() {
 
                     mut mi := 0
                     while mi.lt(ai_total) {
-                        ref from_sq : I64 = ai_pieces.get(mi.to_u32())!
-                        ref to_sq : I64 = ai_dests.get(mi.to_u32())!
+                        ref from_sq : I64 = ai_pieces[mi.to_u32()]
+                        ref to_sq : I64 = ai_dests[mi.to_u32()]
                         from_val := from_sq.clone()
                         to_val := to_sq.clone()
 
@@ -866,8 +866,8 @@ main := proc() {
                     }
 
                     // Play the best move
-                    ref best_from : I64 = ai_pieces.get(best_idx.to_u32())!
-                    ref best_to : I64 = ai_dests.get(best_idx.to_u32())!
+                    ref best_from : I64 = ai_pieces[best_idx.to_u32()]
+                    ref best_to : I64 = ai_dests[best_idx.to_u32()]
                     from_val := best_from.clone()
                     to_val := best_to.clone()
 
@@ -914,7 +914,7 @@ main := proc() {
                             mut is_valid := false
                             mut vi := 0
                             while vi.lt(valid_count) {
-                                ref vm : I64 = valid_moves.get(vi.to_u32())!
+                                ref vm : I64 = valid_moves[vi.to_u32()]
                                 if vm.eq(click_idx) {
                                     is_valid = true
                                 }
@@ -923,7 +923,7 @@ main := proc() {
 
                             if is_valid {
                                 // Execute move
-                                ref mp : I64 = board.get(selected.to_u32())!
+                                ref mp : I64 = board[selected.to_u32()]
                                 mpv := mp.clone()
                                 mpt := piece_type(mpv)
                                 from_r := selected.div(8)
@@ -937,13 +937,13 @@ main := proc() {
                                     castle_flags.set(cf_off.to_u32(), own 1)
                                     // Castling move
                                     if from_c.eq(4).and(to_c.eq(6)) {
-                                        ref rp : I64 = board.get(from_r.mul(8).add(7).to_u32())!
+                                        ref rp : I64 = board[from_r.mul(8).add(7).to_u32()]
                                         rpv := rp.clone()
                                         board.set(from_r.mul(8).add(5).to_u32(), own rpv)
                                         board.set(from_r.mul(8).add(7).to_u32(), own 0)
                                     }
                                     if from_c.eq(4).and(to_c.eq(2)) {
-                                        ref rp : I64 = board.get(from_r.mul(8).to_u32())!
+                                        ref rp : I64 = board[from_r.mul(8).to_u32()]
                                         rpv := rp.clone()
                                         board.set(from_r.mul(8).add(3).to_u32(), own rpv)
                                         board.set(from_r.mul(8).to_u32(), own 0)
@@ -961,7 +961,7 @@ main := proc() {
 
                                 // En passant capture
                                 if mpt.eq(1).and(from_c.neq(to_c)) {
-                                    ref dest_p : I64 = board.get(click_idx.to_u32())!
+                                    ref dest_p : I64 = board[click_idx.to_u32()]
                                     if dest_p.eq(0) {
                                         board.set(from_r.mul(8).add(to_c).to_u32(), own 0)
                                     }
@@ -1005,7 +1005,7 @@ main := proc() {
                                 }
                             } else {
                                 // Click on own piece = reselect, otherwise deselect
-                                ref cp : I64 = board.get(click_idx.to_u32())!
+                                ref cp : I64 = board[click_idx.to_u32()]
                                 if is_side(cp, turn) {
                                     selected = click_idx
                                     valid_count = gen_moves(board, tmp_board, click_idx, turn, valid_moves, ep_col, castle_flags)
@@ -1016,7 +1016,7 @@ main := proc() {
                             }
                         } else {
                             // No piece selected yet - select own piece
-                            ref cp : I64 = board.get(click_idx.to_u32())!
+                            ref cp : I64 = board[click_idx.to_u32()]
                             if is_side(cp, turn) {
                                 selected = click_idx
                                 valid_count = gen_moves(board, tmp_board, click_idx, turn, valid_moves, ep_col, castle_flags)
@@ -1071,7 +1071,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            ref clabel : Str = COLOR_LABELS.get(bi.cast(U32))!
+            ref clabel : Str = COLOR_LABELS[bi.cast(U32)]
             DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -1088,7 +1088,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            ref mlabel : Str = MODE_LABELS.get(bi.cast(U32))!
+            ref mlabel : Str = MODE_LABELS[bi.cast(U32)]
             DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
@@ -1144,9 +1144,9 @@ main := proc() {
                 // Draw valid move indicators
                 mut vi := 0
                 while vi.lt(valid_count) {
-                    ref vm : I64 = valid_moves.get(vi.to_u32())!
+                    ref vm : I64 = valid_moves[vi.to_u32()]
                     if vm.eq(idx) {
-                        ref dp : I64 = board.get(idx.to_u32())!
+                        ref dp : I64 = board[idx.to_u32()]
                         if dp.eq(0) {
                             // Empty square: small dot
                             DrawCircle(px + CELL / 2, py + CELL / 2, 8.to_f32(), Color(r = 100, g = 100, b = 100, a = 128))
@@ -1162,9 +1162,9 @@ main := proc() {
                 }
 
                 // Draw piece
-                ref piece : I64 = board.get(idx.to_u32())!
+                ref piece : I64 = board[idx.to_u32()]
                 if piece.neq(0) {
-                    ref pname : Str = PIECE_NAMES.get(piece.to_u32())!
+                    ref pname : Str = PIECE_NAMES[piece.to_u32()]
                     // White pieces: white text, black pieces: dark text
                     mut pr := 40
                     mut pg := 40
@@ -1195,7 +1195,7 @@ main := proc() {
         FILE_LABELS := array("Str", "a", "b", "c", "d", "e", "f", "g", "h")
         mut fi : I32 = 0
         while fi < 8 {
-            ref fl : Str = FILE_LABELS.get(fi.cast(U32))!
+            ref fl : Str = FILE_LABELS[fi.cast(U32)]
             DrawText(fl.c_str, fi * CELL + CELL / 2 - 4, BOARD_Y + CELL * 8 + 5, 16, Color(r = 100, g = 100, b = 100, a = 255))
             fi = fi + 1
         }

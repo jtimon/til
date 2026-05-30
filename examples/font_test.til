@@ -34,7 +34,7 @@ main := proc() {
     // Load all fonts
     mut fonts := Array.new(Font, NUM_FONTS)
     for i in 0..NUM_FONTS {
-        ref path : Str = FONTS.get(i)!
+        ref path : Str = FONTS[i]
         f := LoadFontEx(path.c_str, 48, NULL, 0)
         fonts.set(i, own f)
     }
@@ -67,8 +67,8 @@ main := proc() {
         // Show all fonts, each rendering its own name
         mut y : I32 = 50
         for i in 0..NUM_FONTS {
-            ref path : Str = FONTS.get(i)!
-            ref font : Font = fonts.get(i)!
+            ref path : Str = FONTS[i]
+            ref font : Font = fonts[i]
             if i == sel {
                 DrawRectangle(0, y - 2, 1200, 30, BG_BAR)
                 DrawTextEx(font, path.c_str, Vector2(x = 30.to_f32(), y = y.to_f32()), 24, 1.to_f32(), YELLOW)
@@ -79,7 +79,7 @@ main := proc() {
         }
 
         // Selected font large preview
-        ref cur_font : Font = fonts.get(sel)!
+        ref cur_font : Font = fonts[sel]
         DrawRectangle(0, y + 10, 1200, 100, BG_PREVIEW)
         DrawTextEx(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890".c_str, Vector2(x = 30.to_f32(), y = (y + 20).to_f32()), 36, 1.to_f32(), WHITE)
         DrawTextEx(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim".c_str, Vector2(x = 30.to_f32(), y = (y + 62).to_f32()), 28, 1.to_f32(), OFF_WHITE)
@@ -88,7 +88,7 @@ main := proc() {
     }
 
     for i in 0..NUM_FONTS {
-        ref uf : Font = fonts.get(i)!
+        ref uf : Font = fonts[i]
         UnloadFont(uf)
     }
     CloseWindow()

@@ -11,7 +11,7 @@ main := proc(args: ..Str) {
     // Parse filename from args
     mut filename := ""
     if args.len() > 0 {
-        ref a : Str = args.get(0)!
+        ref a : Str = args[0]
         filename = a.clone()
     }
 

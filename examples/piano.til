@@ -85,7 +85,7 @@ main := proc() {
     // Pre-generate all 36 sounds for polyphony
     mut sounds := Array.new(Sound, NUM_KEYS)
     for i in 0..NUM_KEYS {
-        ref freq : I64 = FREQS.get(i)!
+        ref freq : I64 = FREQS[i]
         s := make_tone(freq, 10000, 1.to_f32().div(10))
         sounds.set(i, own s)
     }
@@ -110,7 +110,7 @@ main := proc() {
 
         // -- Input: reset key_down, then set from keyboard + mouse --
         for i in 0..NUM_KEYS {
-            ref kc : I32 = KEYCODES.get(i)!
+            ref kc : I32 = KEYCODES[i]
             if IsKeyDown(kc) {
                 key_down.set(i, own 1)
             } else {
@@ -128,8 +128,8 @@ main := proc() {
                 if my < PIANO_Y + BLACK_H {
                     for oct : USize in 0..3 {
                         for j : USize in 0..5 {
-                            ref bpos : I32 = BLACK_KEY_POS.get(j)!
-                            ref bchrom_off : I32 = BLACK_CHROMS.get(j)!
+                            ref bpos : I32 = BLACK_KEY_POS[j]
+                            ref bchrom_off : I32 = BLACK_CHROMS[j]
                             chrom := bchrom_off + oct.cast(I32) * 12
                             bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
                             if chrom.to_usize() < NUM_KEYS & mx >= bx & mx < bx + BLACK_W {
@@ -143,7 +143,7 @@ main := proc() {
                     wk := mx / WHITE_W
                     if wk >= 0 & wk < 21 {
                         oct := wk / 7
-                        ref nat : I32 = NATURALS.get(wk.mod(7).to_usize())!
+                        ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
                         mouse_note = nat + oct * 12
                     }
                 }
@@ -155,11 +155,11 @@ main := proc() {
 
         // Detect press/release by comparing with prev_down
         for i in 0..NUM_KEYS {
-            ref kd : I32 = key_down.get(i)!
-            ref pd : I32 = prev_down.get(i)!
+            ref kd : I32 = key_down[i]
+            ref pd : I32 = prev_down[i]
             // Newly pressed
             if kd == 1 & pd == 0 {
-                ref s : Sound = sounds.get(i)!
+                ref s : Sound = sounds[i]
                 PlaySound(s)
                 // Add note event
                 ev_note.set(ev_head.to_usize(), own i.cast(I32))
@@ -173,13 +173,13 @@ main := proc() {
             }
             // Just released
             if kd == 0 & pd == 1 {
-                ref s : Sound = sounds.get(i)!
+                ref s : Sound = sounds[i]
                 StopSound(s)
                 // Close the note event
                 for j in 0..ev_count.to_u32() {
                     idx := (ev_head - 1 - j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
-                    ref en : I32 = ev_note.get(idx.to_usize())!
-                    ref ee : I64 = ev_end.get(idx.to_usize())!
+                    ref en : I32 = ev_note[idx.to_usize()]
+                    ref ee : I64 = ev_end[idx.to_usize()]
                     if en == i.cast(I32) & ee == -1 {
                         t_val := timer
                         ev_end.set(idx.to_usize(), own t_val)
@@ -191,7 +191,7 @@ main := proc() {
 
         // Copy current state to prev
         for i in 0..NUM_KEYS {
-            ref kd : I32 = key_down.get(i)!
+            ref kd : I32 = key_down[i]
             kd_val := kd
             prev_down.set(i, own kd_val)
         }
@@ -207,7 +207,7 @@ main := proc() {
         note_h := ROLL_H / NUM_KEYS.cast(I32)
         for i in 0..NUM_KEYS {
             ny := i.cast(I32) * note_h
-            ref ib : I32 = IS_BLACK.get(i.mod(12))!
+            ref ib : I32 = IS_BLACK[i.mod(12)]
             if ib == 1 {
                 DrawRectangle(0, ny, WINDOW_WIDTH, note_h, GRID_BLACK)
             }
@@ -220,9 +220,9 @@ main := proc() {
         // Draw note events
         for j in 0..ev_count.to_u32() {
             idx := (ev_head - ev_count + j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
-            ref en : I32 = ev_note.get(idx.to_usize())!
-            ref es : I64 = ev_start.get(idx.to_usize())!
-            ref ee : I64 = ev_end.get(idx.to_usize())!
+            ref en : I32 = ev_note[idx.to_usize()]
+            ref es : I64 = ev_start[idx.to_usize()]
+            ref ee : I64 = ev_end[idx.to_usize()]
 
             // x positions (time -> x, scrolling left)
             mut x_right : I32 = WINDOW_WIDTH - ((timer - es) * SCROLL_SPEED.cast(I64) / 1000).to_i32()
@@ -253,7 +253,7 @@ main := proc() {
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
             ny := ROLL_H - (i.cast(I32) + 1) * note_h
-            ref nn : Str = NOTE_NAMES.get(i.mod(12))!
+            ref nn : Str = NOTE_NAMES[i.mod(12)]
             oct_label := nn.concat((i / 12 + 3).to_str())
             DrawTextEx(fnt, oct_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
         }
@@ -263,12 +263,12 @@ main := proc() {
         for i : USize in 0..21 {
             kx := i.cast(I32) * WHITE_W
             oct := i / 7
-            ref nat : I32 = NATURALS.get(i.mod(7))!
+            ref nat : I32 = NATURALS[i.mod(7)]
             chrom := nat + oct.cast(I32) * 12
 
             mut k_color := KEY_WHITE
             if chrom.to_usize() < NUM_KEYS {
-                ref kd : I32 = key_down.get(chrom.to_usize())!
+                ref kd : I32 = key_down[chrom.to_usize()]
                 if kd == 1 {
                     k_color = KEY_WHITE_PRESSED
                 }
@@ -277,7 +277,7 @@ main := proc() {
 
             // Key label
             if chrom.to_usize() < NUM_KEYS {
-                ref lbl : Str = KEY_LABELS.get(chrom.to_usize())!
+                ref lbl : Str = KEY_LABELS[chrom.to_usize()]
                 DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
             }
         }
@@ -285,14 +285,14 @@ main := proc() {
         // Draw 15 black keys (5 per octave, 3 octaves)
         for oct : USize in 0..3 {
             for j : USize in 0..5 {
-                ref bpos : I32 = BLACK_KEY_POS.get(j)!
-                ref bchrom_off : I32 = BLACK_CHROMS.get(j)!
+                ref bpos : I32 = BLACK_KEY_POS[j]
+                ref bchrom_off : I32 = BLACK_CHROMS[j]
                 chrom := bchrom_off + oct.cast(I32) * 12
                 bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
 
                 mut kb_color := KEY_BLACK
                 if chrom.to_usize() < NUM_KEYS {
-                    ref kd : I32 = key_down.get(chrom.to_usize())!
+                    ref kd : I32 = key_down[chrom.to_usize()]
                     if kd == 1 {
                         kb_color = KEY_BLACK_PRESSED
                     }
@@ -301,7 +301,7 @@ main := proc() {
 
                 // Key label
                 if chrom.to_usize() < NUM_KEYS {
-                    ref lbl : Str = KEY_LABELS.get(chrom.to_usize())!
+                    ref lbl : Str = KEY_LABELS[chrom.to_usize()]
                     DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
                 }
             }

@@ -398,13 +398,13 @@ main := proc(args: ..Str) {
         println("usage: plot <csv_path> <svg_output_path> [last_n] [--no-x-labels]")
         exit(1)
     }
-    ref csv_path : Str = args.get(0)!
-    ref svg_path : Str = args.get(1)!
+    ref csv_path : Str = args[0]
+    ref svg_path : Str = args[1]
     mut last_n := 0
     mut show_x := true
     mut i : USize = 2
     while i.lt(args.len()) {
-        ref a : Str = args.get(i)!
+        ref a : Str = args[i]
         if a.eq("--no-x-labels") {
             show_x = false
         } else {

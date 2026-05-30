@@ -3174,7 +3174,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set, ctx: C
     while remaining.gt(0) {
         mut progress := false
         for ei in 0..indices.len() {
-            ref d : Bool = done.get(ei)!
+            ref d : Bool = done[ei]
             if d { continue }
             ref idx : U32 = indices.get(ei)
             ref stmt : Expr = prog.child(idx)
@@ -3223,7 +3223,7 @@ topo_emit_struct_enum_defs := proc(f: File, prog: Expr, mut emitted: Set, ctx: C
         }
         if progress.not() {
             for ei in 0..indices.len() {
-                ref d : Bool = done.get(ei)!
+                ref d : Bool = done[ei]
                 if d { continue }
                 ref idx : U32 = indices.get(ei)
                 ref stmt : Expr = prog.child(idx)
@@ -3292,7 +3292,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgr
     while remaining.gt(0) {
         mut progress := false
         for ei in 0..items.len() {
-            ref d : Bool = done.get(ei)!
+            ref d : Bool = done[ei]
             if d { continue }
             ref ptr : Dynamic = items.get(ei)
             ref stmt : Expr = deref(ptr)
@@ -3343,7 +3343,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgr
         if progress.not() {
             // Fallback: emit remaining in scan order.
             for ei in 0..items.len() {
-                ref d : Bool = done.get(ei)!
+                ref d : Bool = done[ei]
                 if d { continue }
                 ref ptr2 : Dynamic = items.get(ei)
                 ref stmt : Expr = deref(ptr2)

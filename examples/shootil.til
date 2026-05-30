@@ -382,7 +382,7 @@ main := proc() {
                     if !hit {
                         mut i : USize = 0
                         while i < aabbs.len() {
-                            ref bb : BoundingBox = aabbs.get(i)!
+                            ref bb : BoundingBox = aabbs[i]
                             if CheckCollisionBoxSphere(bb, camera.position, cam_radius) {
                                 if camera.position.y >= bb.max.y - cam_radius {
                                     snap := bb.max.y + cam_radius - camera.position.y

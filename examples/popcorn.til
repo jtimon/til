@@ -51,7 +51,7 @@ main := proc(args: ..Str) {
             if timer >= gap {
                 timer = 0
                 if note_idx < num_notes {
-                    ref freq : I64 = notes.get(note_idx.to_usize())!
+                    ref freq : I64 = notes[note_idx.to_usize()]
                     if freq > 0 {
                         play_tone(freq, note_dur)
                     }
@@ -71,7 +71,7 @@ main := proc(args: ..Str) {
 
         // Visualizer: bouncing bars for current note
         if note_idx > 0 & note_idx <= num_notes {
-            ref cur_freq : I64 = notes.get((note_idx - 1).to_usize())!
+            ref cur_freq : I64 = notes[(note_idx - 1).to_usize()]
             if cur_freq > 0 {
                 // Bar height proportional to frequency
                 bar_h : I32 = (cur_freq / 4).to_i32()
