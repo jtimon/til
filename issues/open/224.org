@@ -1,0 +1,81 @@
+# priority: low
+** OPEN #224 implicit integer widening at call sites is too permissive; restrict to literals
+
+  Today the typer's ~validate_fcall_arg~ (src/self/typer.til:1330)
+  retypes any argument expression -- not just numeric literals -- via
+  ~can_implicit_widen~ (src/self/typer.til:7354) when the from/to pair
+  is an allowed widening (U8/U16/U32 -> wider unsigned or matching-or-
+  wider signed; I8/I16/I32 -> wider signed; etc.). So writing
+  ~malloc(s.count)~ where ~s.count : USize~ (U32) and ~malloc~ takes
+  ~UPtr~ (U64 on 64-bit) silently widens at the call site.
+
+  This is the C/Java rule and it has well-known downsides:
+
+  - Hides where a conversion actually happens. Reading code, you can't
+    tell that ~f(x)~ is doing an int promotion; you have to know ~f~'s
+    signature and ~x~'s type.
+  - Fragile under refactoring. If a callee's parameter narrows
+    (e.g. U64 -> USize) or a caller's variable widens, the call still
+    typechecks but the semantics quietly change.
+  - Asymmetric with narrowing. Narrowing is rejected, widening is
+    silent -- but both change the value's interpretation when bits
+    matter.
+  - Encourages people to drop explicit casts that were documenting
+    intent, the way #212's bulk-removal did. The cast that remains
+    in the source is then the one the compiler couldn't infer, which
+    is not the right rule for "where should a cast go".
+
+  Modern languages mostly restrict implicit widening to typed-literal
+  contexts; runtime values must be cast explicitly:
+
+  - Rust: no implicit numeric coercion at all, even widening. ~u8 ->
+    u64~ needs ~as u64~. Integer literals are typed by inference and
+    fit-checked.
+  - Go: no implicit conversion between numeric types. Untyped
+    constants (literals) can take on a context type if they fit.
+  - Swift: no implicit numeric conversion; ~Int64(x)~ at the call
+    site. Integer literals have type ~IntegerLiteralConvertible~ and
+    take their context type.
+  - Zig: ~@as(T, x)~ for runtime widening; ~comptime_int~ literals
+    coerce to any int they fit in.
+  - Kotlin: no implicit widening between primitive numeric types.
+  - C#, Java: implicit widening for primitives (the C rule til
+    currently follows).
+
+  Proposal for til: drop ~can_implicit_widen~ from
+  ~validate_fcall_arg~. Keep the literal branch (range-check +
+  retype on ~NodeType.Literal(Literal.Num)~) at typer.til:1338 --
+  that is the "untyped numeric constant fits and adopts the
+  context type" rule and is uncontroversial. Any non-literal
+  widening then requires ~.cast(T)~ at the call site.
+
+  Same change needs to apply at typer.til:1947 (variadic-arg
+  rewrite), where ~can_implicit_widen~ is the second caller.
+
+  Migration shape (compiler-guided, the same pattern #212 used):
+
+  1. Add a deprecation diagnostic on non-literal implicit widens at
+     call sites: error out, point at the arg, suggest ~x.cast(T)~.
+  2. Run the build; fix every offender in src/, lib/, examples/,
+     test/. Expect a lot of ~.cast(UPtr)~ at malloc/memcpy/memset
+     call sites, ~.cast(U64)~ at ~emit_u64~ sites, etc.
+  3. Once green, remove the ~can_implicit_widen~ branch entirely.
+
+  Open questions to pin down first:
+
+  - Should ~Int.add(other)~ on primitives also reject widening of
+    ~other~? (Method-call argument coercion goes through a different
+    path; see #212 followup notes.) Probably yes, for consistency.
+  - Does the literal branch handle compile-time-known constant
+    expressions (e.g. ~SIZE.add(1)~ where ~SIZE~ is a folded
+    constant)? If yes, those should keep working; if not, decide
+    whether to extend it or require an explicit cast.
+  - Bootstrap impact: prep-then-use staging probably necessary
+    because the change ripples into ~boot/til.c~ regeneration; the
+    prep commit lands the diagnostic, the use commit removes the
+    rule, and source fixes happen in between.
+
+  Related: issue #212 (cast builtin, replaces same-size and same-
+  signedness ~.to_*()~ conversions) added the cast spelling that
+  makes explicit widening ergonomic. With #212 shipped, requiring
+  ~.cast(T)~ at call sites is no longer a usability regression.
