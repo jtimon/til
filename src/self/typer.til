@@ -6889,14 +6889,13 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
 // per sweep, and the per-file ordering "imports first, then this
 // file" within each sweep matches today's single-sweep behaviour.
 //
-// type_decls_file currently owns the scope-free derived-method
-// generation that was previously called twice in init's pre-typer
-// passes (gen_cmp_derived_for_stmt / gen_unity_derived_for_stmt).
-// Both helpers are idempotent so moving them is safe even before the
-// initer call sites disappear -- but the initer sites are removed in
-// the same commit so each piece moves cleanly. Subsequent commits
-// relocate the layout computation and scope-using methodgen
-// (gen_struct_clone_delete, gen_*_size_method, etc.) the same way.
+// type_decls_file currently owns layout computation
+// (compute_struct_layout / compute_enum_layout), the layout-dependent
+// size methodgen (gen_*_size_method_for_stmt), and the scope-free
+// cmp/unity derived-method helpers. Subsequent commits relocate the
+// scope-using methodgen (gen_struct_clone_delete,
+// gen_missing_enum_clone) the same way and eventually retire
+// init_declarations_global's heavy parts entirely.
 type_file := proc(path: Str, ctx: Context) returns shallow I32 {
     mut total : I32 = 0
     total = total.add(type_decls_file(path, ctx))
@@ -6905,12 +6904,19 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
 }
 
 // First of two typer sweeps: per file, recurse on imports first
-// (matching the existing rstil-style ordering), then run the
-// scope-free derived-method generators for each top-level
-// struct/enum decl. The cycle that #174 catalogues is in the
-// scope-using generators + layout work; the cmp/unity helpers only
-// inspect a single decl's own ns_decls, so they're cycle-free and
-// can move first without any other infrastructure change.
+// (matching the existing rstil-style ordering), then walk top-level
+// decls and do struct/enum layout computation, layout-dependent size
+// methodgen, and the scope-free cmp/unity derived-method helpers.
+// Layout's nested-type lookups follow scope.get_struct /
+// get_binding; the topo-ordered import recursion above guarantees
+// every import's layouts are already done before the parent file's
+// layouts run, and within a file compute_*_layout recurses on
+// nested defs for local forward references. The remaining
+// scope-using methodgen (gen_struct_clone_delete,
+// gen_missing_enum_clone) and the post-init re-registration loops
+// stay in init_declarations_global for now -- they hit the #174
+// method-body cycle and will migrate once the second sweep takes
+// over function bodies.
 type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
     if ctx.imports_typer_decls_done.has(path) {
         return 0
@@ -6941,18 +6947,33 @@ type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
         }
     }
 
-    // Scope-free per-decl methodgen: walk top-level stmts and run
-    // gen_cmp_derived_for_stmt / gen_unity_derived_for_stmt on each
-    // struct or enum decl. Both helpers internally check
-    // is_struct_or_enum, so the dispatch could be unconditional, but
-    // the explicit check keeps the loop body cheap for non-decl
-    // statements.
+    // Per-decl work in source order: compute struct/enum layouts,
+    // synthesize the layout-dependent size method, and run the
+    // scope-free cmp/unity derived-method helpers. Layout has to run
+    // before gen_*_size_method_for_stmt (which reads
+    // total_struct_size / total_enum_size) and before the cmp/unity
+    // helpers (which inspect the same ns_decls that size methodgen
+    // may have just populated). All three steps are safe in this
+    // sweep because compute_*_layout's nested-type lookups follow
+    // the same scope.get_struct / scope.get_binding path that
+    // init_declarations_global used today; the rstil-style
+    // topo-ordered recursion above guarantees every import's
+    // layouts are already done by the time we get here. Within a
+    // file, compute_struct_layout / compute_enum_layout internally
+    // recurse on nested defs to handle local forward references.
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.StructDef).not()
-            .and(rhs.node_type.is(NodeType.EnumDef).not()) { continue }
+        if rhs.node_type.is(NodeType.StructDef) {
+            compute_struct_layout(rhs, ctx.scope)
+            gen_struct_size_method_for_stmt(stmt)
+        } else if rhs.node_type.is(NodeType.EnumDef) {
+            compute_enum_layout(rhs, ctx.scope)
+            gen_enum_size_method_for_stmt(stmt, ctx.scope)
+        } else {
+            continue
+        }
         gen_cmp_derived_for_stmt(stmt)
         gen_unity_derived_for_stmt(stmt)
     }

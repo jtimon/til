@@ -2553,22 +2553,10 @@ init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns
         ref stmt : Expr = program.child(ai)
         register_type_alias_for_stmt(ctx, stmt, scope)
     }
-    for si : U32 in struct_idxs {
-        ref stmt : Expr = program.child(si)
-        compute_struct_layout(stmt.child(0), scope)
-    }
-    for ei : U32 in enum_idxs {
-        ref stmt : Expr = program.child(ei)
-        compute_enum_layout(stmt.child(0), scope)
-    }
-    for si : U32 in struct_idxs {
-        ref stmt : Expr = program.child(si)
-        gen_struct_size_method_for_stmt(stmt)
-    }
-    for ei : U32 in enum_idxs {
-        ref stmt : Expr = program.child(ei)
-        gen_enum_size_method_for_stmt(stmt, scope)
-    }
+    // compute_struct_layout / compute_enum_layout and the layout-
+    // dependent gen_*_size_method_for_stmt helpers moved into
+    // type_decls_file (the typer's first sweep) as part of #147 step
+    // 3-4 / #174 work.
     for fi : U32 in func_idxs {
         ref stmt : Expr = program.child(fi)
         register_function_def_for_stmt(ctx, stmt, scope)
@@ -2979,7 +2967,7 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
 }
 
 // Run the global init steps that require a full program view.
-init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
+init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
 
     // Single AST walk: bucket struct and enum decls for post-walk work,
@@ -3006,31 +2994,16 @@ init_declarations_global := proc(ctx: Context, program: Expr, scope: TypeScope) 
         }
     }
 
-    // Method generation: clone+delete for structs, clone for enums.
-    // Enum non-clone methods already ran per-unit.
+    // Scope-using method generation that still lives here pending
+    // the #174 method-body cycle work: clone+delete for structs,
+    // missing-clone for enums. Layout computation, size methodgen
+    // and cmp/unity methodgen all moved to type_decls_file (the
+    // typer's first sweep) as part of #147 step 3-4 / #174 work.
     for si : U32 in struct_idxs {
         gen_struct_clone_delete_for_stmt(program.child(si), scope)
     }
     for ei : U32 in enum_idxs {
         gen_missing_enum_clone_for_stmt(program.child(ei), scope)
-    }
-    // Layouts.
-    for si : U32 in struct_idxs {
-        compute_struct_layout(program.child(si).child(0), scope)
-    }
-    for ei : U32 in enum_idxs {
-        compute_enum_layout(program.child(ei).child(0), scope)
-    }
-    // Size derived methods. cmp/unity derived methods moved into
-    // type_decls_file (the typer's first sweep) as part of #147
-    // step 3-4 / #174 work.
-    for si : U32 in struct_idxs {
-        ref stmt : Expr = program.child(si)
-        gen_struct_size_method_for_stmt(stmt)
-    }
-    for ei : U32 in enum_idxs {
-        ref stmt : Expr = program.child(ei)
-        gen_enum_size_method_for_stmt(stmt, scope)
     }
     // Re-register function/value decls -- new ones may have been generated
     // above (size methods etc) but those go into ns_decls, not program.children.
