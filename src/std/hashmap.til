@@ -14,12 +14,19 @@ import("../../lib/hash")
 
 HASHMAP_INIT_BUCKETS : USize = 16
 
+// Hash dispatch kinds. Pre-computed at construction so hash_key /
+// keys_equal can switch on an integer instead of comparing the
+// elem_type Str on every call.
+HK_BYTES : I64 = 0  // fallback: FNV-1a over self.keys.elem_size bytes
+HK_STR   : I64 = 1  // Str: dispatch to Str.hash + Str.cmp on content
+HK_I64   : I64 = 2  // 8-byte scalar: one Knuth multiplicative hash
+
 HashMap := struct {
     keys : Vec = Vec.new(Dynamic)
     values : Vec = Vec.new(Dynamic)
     buckets : Vec = Vec.new(I64)  // bucket head entry index, -1 if empty
     nexts : Vec = Vec.new(I64)    // per-entry next-in-chain index, -1 if end
-    key_is_str : Bool = false
+    hash_kind : I64 = 0
 
 namespace:
     new_type_names := func(key_type: Str, val_type: Str) returns HashMap {
@@ -34,7 +41,12 @@ namespace:
         m.values = Vec.new_type_name(val_type)
         m.buckets = Vec.new(I64)
         m.nexts = Vec.new(I64)
-        m.key_is_str = key_type.eq("Str")
+        m.hash_kind = HK_BYTES
+        if key_type.eq("Str") { m.hash_kind = HK_STR }
+        // The 8-byte scalar group -- the multiplicative hash on the
+        // raw I64 value is ~6x faster than hash_bytes' per-byte loop
+        // (measured 25ms vs 4ms per 100k keys on the I64 microbench).
+        if key_type.eq("I64").or(key_type.eq("U64")) { m.hash_kind = HK_I64 }
         for _ in 0..HASHMAP_INIT_BUCKETS {
             m.buckets.push(own -1)
         }
@@ -50,21 +62,37 @@ namespace:
     len := func(self: HashMap) returns USize { return self.keys.count }
 
     // Hash dispatch: Str keys go through Str.hash (content-aware);
-    // everything else hashes the raw bytes of the key, which IS the
-    // value for primitives, POD structs, and enums.
+    // I64 / U64 use the single-multiply Knuth hash; everything else
+    // hashes the raw bytes of the key, which IS the value for the
+    // remaining primitives, POD structs, and enums.
     hash_key := func(self: HashMap, key: Dynamic) returns U64 {
-        if self.key_is_str {
+        if self.hash_kind.eq(HK_STR) {
             ref s : Str = key
             return s.hash()
+        }
+        if self.hash_kind.eq(HK_I64) {
+            // `ref x : I64 = key` would just borrow key's cell, leaving
+            // hash_i64 to hash the heap pointer address instead of the
+            // I64 value. Going through ptr_add forces the ref decl's
+            // explicit-type reinterpret path (read the I64 at *key).
+            ref ip : I64 = ptr_add(key, 0.to_usize())
+            return hash_i64(ip)
         }
         return hash_bytes(key, self.keys.elem_size)
     }
 
     keys_equal := func(self: HashMap, a: Dynamic, b: Dynamic) returns Bool {
-        if self.key_is_str {
+        if self.hash_kind.eq(HK_STR) {
             ref sa : Str = a
             ref sb : Str = b
             return Str.cmp(sa, sb).eq(0)
+        }
+        if self.hash_kind.eq(HK_I64) {
+            // Same trick as hash_key above -- force reinterpret so
+            // we compare the I64 values, not the pointers.
+            ref xa : I64 = ptr_add(a, 0.to_usize())
+            ref xb : I64 = ptr_add(b, 0.to_usize())
+            return xa.eq(xb)
         }
         for i in 0..self.keys.elem_size {
             ref ba : U8 = ptr_add(a, i)
