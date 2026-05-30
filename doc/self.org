@@ -157,52 +157,89 @@
   "missing argument for parameter '_err_kind'".
 
   The breaking-change commit's ~make test~ passes regardless: every
-  caller the suite covers gets a ~!~ or a ~?~ in the same commit. The
-  standalone script isn't in the suite, so it falls outside that proof.
+  caller the suite covers gets a ~!~ or a ~?~ (or a ~v[i]~ subscript) in
+  the same commit. The standalone script isn't in the suite, so it falls
+  outside that proof.
 
   *** The merge helper has a special constraint ***
 
-  The local merger runs the helper using ~master's bin/til~, against the
-  candidate commit's tree. So at merge time the helper file taken from
-  the candidate commit is being compiled by the OLD compiler:
+  The local merger runs ~examples/merge_commit.til~ using ~master's
+  bin/til~, but compiles the helper source taken from ~the candidate
+  commit's tree~. So at merge time the helper file from the candidate
+  is being compiled by the OLD compiler:
 
-  - Bundle the script adaptation INTO the breaking commit -> at merge
-    time, master's ~bin/til~ sees the candidate's adapted script (with
-    new ~!~ markers) and rejects it: "function does not throw, remove
-    the '!'". The merge can't even start.
-  - Keep the candidate's script bare (matching master) -> at merge
-    time, master's ~bin/til~ sees the candidate's bare script and
-    compiles it fine. The merger proceeds, lands the commit. AFTER the
-    commit lands on master, ~bin/til~ regenerates with the new throws
-    behaviour and the bare ~.get(i)~ in the merger source now fails to
-    build. The human has to hand-fix that follow-up before the next
-    merge.
+  - Naively bundle the script adaptation INTO the breaking commit
+    (e.g. switch ~vec.get(i)~ to ~vec[i]~) -> at merge time, master's
+    ~bin/til~ sees the candidate's adapted script. The subscript
+    desugars to ~vec.get(i)!~ and the bang triggers "function does not
+    throw, remove the '!'" because master's Vec.get isn't throwing
+    yet. The merge can't even start.
+  - Keep the candidate's helper at master's form (untouched) -> the
+    merger proceeds and lands the commit, but AFTER it lands, the
+    next merge's ~bin/til~ rebuilds from the new source and the
+    helper's bare ~vec.get(i)~ now fails to compile. The human has to
+    hand-fix it before the next merge.
+  - Write the candidate's helper in a form that compiles under BOTH
+    typers, then bundle that into the breaking commit. The merge
+    works, and so does every subsequent merge. THIS is what to aim
+    for; the follow-up commit then cleans the workaround up to the
+    natural post-merge form.
 
-  So the merge helper specifically must stay at master's form in the
-  breaking commit. The script fix is a follow-up commit on master that
-  the human applies by hand (the merger that would normally apply it
-  is itself broken in the window between the two).
+  *** Cross-typer-compatible patterns ***
+
+  ~for x : T in vec~ desugars in the parser to a loop that calls
+  Vec.get. Master's typer emits a bare call (Vec.get non-throwing);
+  the new typer inline-lowers the call to a panic-on-OOB shape.
+  Source-identical, accepted by both. Use this for sequential
+  iteration.
+
+  For random indexed access there is no for-in shape, but the same
+  effect is reachable via an iteration counter:
+
+    mut idx : USize = 0
+    mut c2 := ""
+    mut c3 := ""
+    for c : Str in cells {
+        if idx.eq(2) { c2 = c.clone() }
+        if idx.eq(3) { c3 = c.clone() }
+        idx = idx.add(1)
+    }
+
+  Ugly, but it compiles under both typers. Bundle this shape into
+  the breaking commit. The very next commit (a hand-applied follow-up
+  on master) can simplify to ~ref c2 : Str = cells[2]~, which only
+  compiles under the new typer.
 
   *** Other standalone scripts ***
 
-  For scripts that aren't part of the merge workflow, either approach
-  works:
-
-  - Same-commit bundle: simple, no broken window for users of the
-    script.
-  - Follow-up: keeps the breaking diff narrow. Acceptable if no tool
-    chain depends on the script being compilable from master.
-
-  Patterns when you do adapt:
+  For scripts that aren't part of the merge workflow, follow-up is
+  fine: bundling means a same-commit fix, follow-up keeps the diff
+  narrow. Either way the patterns are:
 
   - Bare ~.get(i)~ becomes ~v[i]~ for panic-on-OOB (the parser
-    desugars subscript into ~.get(i)!~), or stay with ~.get(i)?~ when
-    you want to catch instead of panic.
+    desugars subscript into ~.get(i)!~), or stay with ~.get(i)?~
+    when you want to catch instead of panic.
   - Nested ~v[i]~ inside another call (e.g.
     ~trim_spaces(cells[i]).to_i64()~) hits the Dynamic-hoist limit on
     the bang temp and needs an explicit ref binding first:
       ref c : Str = cells[i]
       trim_spaces(c).to_i64()
+
+  *** Always test the merger end-to-end ***
+
+  Before pushing a breaking commit that touches the merge helper,
+  build the candidate commit in a master-state worktree and run the
+  helper there:
+
+    git worktree add /tmp/pre-merge origin/master
+    cd /tmp/pre-merge && make
+    cp bin/til /tmp/master-til
+    cd /path/to/your/branch
+    /tmp/master-til build examples/merge_commit.til
+
+  If that exits non-zero, the merger will reject the candidate. The
+  in-suite ~make test~ won't catch this because the helper isn't part
+  of the suite.
 
 ** Commands
 
