@@ -384,6 +384,38 @@ namespace:
     to_str := func(_self: EnumDef) returns Str { return "EnumDef" }
 }
 
+// Issue #147 step 3: per-field and whole-type memory layout. Destined to
+// live in Context.struct_layouts keyed by type name, replacing the layout
+// facts currently stored on AST nodes (Declaration.field_offset /
+// field_size / field_struct_def, StructDef.total_struct_size,
+// EnumDef.total_enum_size). This commit populates the map alongside those
+// fields; readers migrate to the map in step 4, after which the AST fields
+// can be removed. struct_name is the field's struct/enum type name (""
+// for primitives / Dynamic / FuncPtr) so lookups go by name rather than a
+// dangling ref into the parse tree.
+FieldLayout := struct {
+    offset : I32 = 0
+    size : I32 = 0
+    struct_name := ""
+namespace:
+    eq := func(a: FieldLayout, b: FieldLayout) returns Bool {
+        return a.offset.eq(b.offset).and(a.size.eq(b.size)).and(a.struct_name.eq(b.struct_name))
+    }
+    to_str := func(self: FieldLayout) returns Str { return self.offset.to_str() }
+}
+
+// Whole-type layout. For enums only total_size is meaningful (fields stays
+// empty); the per-variant payload sizing lives in EnumDef.payload_types.
+StructLayout := struct {
+    total_size : I32 = 0
+    fields := Vec.new(FieldLayout)
+namespace:
+    eq := func(a: StructLayout, b: StructLayout) returns Bool {
+        return a.total_size.eq(b.total_size)
+    }
+    to_str := func(self: StructLayout) returns Str { return self.total_size.to_str() }
+}
+
 // Issue #56/#58: assemble a StructDef value for a registered struct type
 // by querying the loaded program through the struct_field_* introspection
 // primitives (src/core/dyn.til). Each field becomes a Declaration carrying

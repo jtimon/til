@@ -7005,9 +7005,19 @@ type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.StructDef) {
             compute_struct_layout(rhs, ctx.scope)
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                record_struct_layout(ctx, d.name, rhs)
+            case:
+            }
             gen_struct_size_method_for_stmt(stmt)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             compute_enum_layout(rhs, ctx.scope)
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                record_enum_layout(ctx, d.name, rhs)
+            case:
+            }
             gen_enum_size_method_for_stmt(stmt, ctx.scope)
         } else {
             continue

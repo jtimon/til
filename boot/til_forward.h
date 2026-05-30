@@ -58,6 +58,8 @@ typedef struct IdentData IdentData;
 typedef struct FieldAccessData FieldAccessData;
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
+typedef struct FieldLayout FieldLayout;
+typedef struct StructLayout StructLayout;
 typedef struct AssignData AssignData;
 typedef struct FieldAssignData FieldAssignData;
 typedef struct ForInData ForInData;
@@ -403,6 +405,19 @@ typedef struct EnumDef {
     I32 total_enum_size;
     Vec payload_consts;
 } EnumDef;
+
+
+typedef struct FieldLayout {
+    I32 offset;
+    I32 size;
+    Str struct_name;
+} FieldLayout;
+
+
+typedef struct StructLayout {
+    I32 total_size;
+    Vec fields;
+} StructLayout;
 
 
 typedef struct AssignData {
@@ -822,6 +837,7 @@ typedef struct Context {
     Set imports_eval_done;
     TypeScope scope;
     Bool is_repl;
+    Map struct_layouts;
     Set precomp_macros;
     Set precomp_funcs;
     Map precomp_known;
@@ -1100,6 +1116,12 @@ U32 StructDef_size(void);
 EnumDef * EnumDef_clone(EnumDef * self);
 void EnumDef_delete(EnumDef * self, Bool call_free);
 U32 EnumDef_size(void);
+FieldLayout * FieldLayout_clone(FieldLayout * self);
+void FieldLayout_delete(FieldLayout * self, Bool call_free);
+U32 FieldLayout_size(void);
+StructLayout * StructLayout_clone(StructLayout * self);
+void StructLayout_delete(StructLayout * self, Bool call_free);
+U32 StructLayout_size(void);
 AssignData * AssignData_clone(AssignData * self);
 void AssignData_delete(AssignData * self, Bool call_free);
 U32 AssignData_size(void);
@@ -1301,6 +1323,8 @@ void gen_cmp_derived_for_stmt(Expr * stmt);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void type_size_align(Str * ftype, TypeScope * scope, I32 * sz, I32 * al);
 I32 compute_enum_layout(Expr * enum_def, TypeScope * scope);
+void record_struct_layout(Context * ctx, Str * name, Expr * sdef);
+void record_enum_layout(Context * ctx, Str * name, Expr * edef);
 void resolve_field_struct_defs(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
 Bool priv___src_self_initer_til__init_is_lift_target(Expr * stmt);

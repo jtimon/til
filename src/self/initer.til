@@ -187,6 +187,12 @@ Context := struct {
     scope := TypeScope()
     is_repl := false
 
+    // Issue #147 step 3: struct/enum layouts keyed by type name. Populated
+    // by record_struct_layout / record_enum_layout after compute_*_layout
+    // fills the AST fields. Readers still use the AST fields for now; they
+    // migrate to this map in step 4.
+    struct_layouts := Map.new(Str, StructLayout)
+
     // Precomp state moved off module globals. The same Context crosses
     // imported files and later phases, so these three tables live here
     // directly rather than as a separate module-global side store.
@@ -2372,6 +2378,34 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I3
     case:
         UNREACHABLE(__LOC__)
         return 0
+    }
+}
+
+// Issue #147 step 3: snapshot a struct's just-computed layout (AST fields
+// already filled by compute_struct_layout) into ctx.struct_layouts. Field
+// type names come from explicit_type; a field is a struct/enum field iff
+// compute_struct_layout resolved a field_struct_def for it.
+record_struct_layout := func(ctx: Context, name: Str, sdef: Expr) {
+    switch sdef.node_type {
+    case NodeType.StructDef(sm):
+        mut sl := StructLayout(total_size = sm.total_struct_size)
+        for fd : Declaration in sm.fields {
+            mut flx := FieldLayout(offset = fd.field_offset, size = fd.field_size)
+            if is_null(fd.field_struct_def).not() {
+                flx.struct_name = fd.explicit_type.clone()
+            }
+            sl.fields.push(own flx)
+        }
+        ctx.struct_layouts.set(own name.clone(), own sl)
+    case:
+    }
+}
+
+record_enum_layout := func(ctx: Context, name: Str, edef: Expr) {
+    switch edef.node_type {
+    case NodeType.EnumDef(em):
+        ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = em.total_enum_size))
+    case:
     }
 }
 
