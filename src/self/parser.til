@@ -1053,8 +1053,31 @@ parse_primary := proc(mut p: Parser) returns Expr {
             ": unexpected token '", t.text, "'")
     }
 
-    // Field access chain: e.field or e.method(args)
-    while check(p, TokenType.Dot) {
+    // Field access chain: e.field or e.method(args). Subscript a[b]
+    // desugars to a.get(b)! -- generic over any type whose get throws
+    // (Array today, Map et al. once their get throws), exactly like
+    // a + b desugars to a.add(b).
+    while check(p, TokenType.Dot).or(check(p, TokenType.LBracket)) {
+        if check(p, TokenType.LBracket) {
+            b_line := peek_line(p)
+            b_col := peek_col(p)
+            advance(p) // consume '['
+            mut index := parse_expression(p)
+            expect_token(p, TokenType.RBracket)
+            mut get_callee := Expr.new(field_access_node("get"), b_line, b_col)
+            get_callee.add_child(own e.clone())
+            mut get_call := Expr.new(NodeType.FCall(FCallData()), b_line, b_col)
+            get_call.add_child(own get_callee)
+            get_call.add_child(own index)
+            switch get_call.node_type {
+            case NodeType.FCall(gcd):
+                gcd.is_bang = true
+            case:
+                UNREACHABLE(__LOC__)
+            }
+            e = get_call
+            continue
+        }
         advance(p) // consume '.'
         f_line := peek_line(p)
         f_col := peek_col(p)
