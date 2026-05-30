@@ -394,6 +394,26 @@ test_anon_struct_as_type_arg := test() {
     }), 2)
 }
 
+// --- Anonymous defs as macro Type-arg (issue #57) ---
+// Same shape as the func(T: Type) introspection pattern, but the callee
+// is a macro -- it evaluates at compile time. Both named and anonymous
+// types resolve through the Type metatype param.
+
+count_variants_macro := macro(T: Type) returns I64 {
+    return enum_variant_count(til_type_name(T))
+}
+
+NamedColor3M := enum { Red, Green, Blue }
+
+test_named_enum_as_macro_arg := test() {
+    assert_eq(__LOC__, count_variants_macro(NamedColor3M), 3)
+}
+
+test_anon_enum_as_macro_arg := test() {
+    assert_eq(__LOC__, count_variants_macro(enum { Red, Green, Blue }), 3)
+    assert_eq(__LOC__, count_variants_macro(enum { A, B, C, D }), 4)
+}
+
 // --- Struct introspection primitives (issue #56/#58) ---
 // struct_field_* query a registered struct type's fields by name. The
 // queried type must be live in the program (an unused type is DCE'd

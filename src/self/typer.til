@@ -530,6 +530,18 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns shallow Bool {
         return true
     case NodeType.FCall:
         if e.children.len().eq(0) { return false }
+        // Issue #57: a `Type.<Variant>(...)` constructor call returns a Type
+        // metatype value -- pure and comptime when its arg(s) are. The typer
+        // rewrites a Type-typed ident (e.g. `mymacro(NamedEnum)` or anon-lifted
+        // `enum { ... }`) into this form via make_til_type_expr, so recognise
+        // it before the binding lookup below (there is no `Type_Enum` binding
+        // for the receiver-qualified method name).
+        if expr_til_type(e).is(Type.Enum("Type")) {
+            for ai in 1..e.children.len() {
+                if expr_is_comptime(e.child(ai), scope).not() { return false }
+            }
+            return true
+        }
         ref callee : Expr = e.child(0)
         mut callee_name := ""
         switch callee.node_type {
@@ -8857,6 +8869,13 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
         hoist_expr(ctx, e_i, hoisted, scope)
     }
     if expr.node_type.is(NodeType.FCall).not() { return }
+    // Issue #57: don't hoist args of macro calls. Macro args are
+    // substituted into the macro body at compile time by precomp's
+    // try_eval_call; hoisting an arg into a body-local temp burys its
+    // value behind a name that the macro eval's sub-scope can't resolve.
+    // Match rstil's pattern: macros take args verbatim (precomp.rs 821-847
+    // builds the call with Identifier args, not via the hoister).
+    if is_macro_call(expr, ctx) { return }
 
     expr_sname := til_type_name(expr_til_type(expr))
     mut is_dyn_call := false

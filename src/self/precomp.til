@@ -859,6 +859,41 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                 }
             case:
             }
+            // Issue #57: a Type-typed arg (`mymacro(NamedEnum)` or anon-lifted
+            // `enum { ... }`) comes through here in one of two shapes after
+            // the typer / hoister:
+            //   * `Type.<Variant>(...)` FCall (from rewrite_til_type_arg +
+            //     make_til_type_expr) -- pure constructor, evaluatable. Pass
+            //     it through to the interpreter as-is.
+            //   * A bare type-ident whose narrowed til_type is Type.Enum("Type")
+            //     -- build the equivalent `Type.Custom("<TypeName>")` ctor on
+            //     the fly so the macro eval sees a literal expression. Both
+            //     Type.Custom and Type.Struct/Type.Enum compare equal on payload
+            //     name (ast.til Type.eq), so til_type_name picks up the right
+            //     name regardless of which variant is constructed.
+            if expr_til_type(arg).is(Type.Enum("Type")) {
+                switch arg.node_type {
+                case NodeType.FCall:
+                    ec.add_child(own arg.clone())
+                    continue
+                case NodeType.Ident(_atok_id):
+                    _atok_name := ident_name(_atok_id)
+                    if _atok_name.len().gt(0).and(_atok_name.eq("Type").not()) {
+                        mut _atok_recv := Expr.new(ident_node("Type"), arg.line, arg.col)
+                        set_expr_til_type(_atok_recv, Type.Enum("Type"))
+                        mut _atok_fa := Expr.new(field_access_node("Custom"), arg.line, arg.col)
+                        _atok_fa.add_child(own _atok_recv)
+                        mut _atok_strlit := Expr.new(NodeType.Literal(Literal.Str(_atok_name)), arg.line, arg.col)
+                        mut _atok_ctor := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
+                        _atok_ctor.add_child(own _atok_fa)
+                        _atok_ctor.add_child(own _atok_strlit)
+                        set_expr_til_type(_atok_ctor, Type.Enum("Type"))
+                        ec.add_child(own _atok_ctor)
+                        continue
+                    }
+                case:
+                }
+            }
             if require_known {
                 panic(
                     __LOC__,
