@@ -1510,9 +1510,9 @@ Type * Type_clone(Type * self) {
     Primitive *_clone_payload_Primitive_18 = get_payload(self);
     (void)_clone_payload_Primitive_18;
     (void)_clone_payload_Primitive_18;
-    Primitive *hoisted__Primitive_1979 = Primitive_clone(_clone_payload_Primitive_18);
+    Primitive hoisted__Primitive_1979 = DEREF(_clone_payload_Primitive_18);
     (void)hoisted__Primitive_1979;
-    Type *hoisted__Type_1980 = Type_Primitive(hoisted__Primitive_1979);
+    Type *hoisted__Type_1980 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = hoisted__Primitive_1979; _oa; }));
     (void)hoisted__Type_1980;
     return hoisted__Type_1980;
 }
@@ -2349,16 +2349,16 @@ U32 Color_size(void) {
 
 
 void test_enum_fold(void) {
-    Color *c = Color_clone(&(Color){.tag = Color_TAG_Red});
+    Color c = (Color){.tag = Color_TAG_Red};
     Str hoisted__Str_4625 = (Str){.c_str = (void *)"test/constfold.til:172:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4625;
-    Bool hoisted__Bool_4626 = Color_eq(c, &(Color){.tag = Color_TAG_Red});
+    Bool hoisted__Bool_4626 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     (void)hoisted__Bool_4626;
     Bool_delete(assert(&hoisted__Str_4625, &hoisted__Bool_4626), &(Bool){1});
     Str_delete(&hoisted__Str_4625, &(Bool){0});
-    Bool hoisted__Bool_4628 = Color_eq(c, &(Color){.tag = Color_TAG_Green});
+    Bool hoisted__Bool_4628 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_4628;
-    Color_delete(c, &(Bool){1});
+    Color_delete(({ Color *_oa = malloc(sizeof(Color)); *_oa = c; _oa; }), &(Bool){1});
     Str hoisted__Str_4629 = (Str){.c_str = (void *)"test/constfold.til:173:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4629;
     Bool hoisted__Bool_4630 = not(hoisted__Bool_4628);
@@ -2473,16 +2473,16 @@ void test_enum_payload_fold(void) {
 }
 
 void test_enum_return_fold(void) {
-    Color *c = Color_clone(&(Color){.tag = Color_TAG_Green});
+    Color c = (Color){.tag = Color_TAG_Green};
     Str hoisted__Str_4691 = (Str){.c_str = (void *)"test/constfold.til:191:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4691;
-    Bool hoisted__Bool_4692 = Color_eq(c, &(Color){.tag = Color_TAG_Green});
+    Bool hoisted__Bool_4692 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_4692;
     Bool_delete(assert(&hoisted__Str_4691, &hoisted__Bool_4692), &(Bool){1});
     Str_delete(&hoisted__Str_4691, &(Bool){0});
-    Bool hoisted__Bool_4694 = Color_eq(c, &(Color){.tag = Color_TAG_Red});
+    Bool hoisted__Bool_4694 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     (void)hoisted__Bool_4694;
-    Color_delete(c, &(Bool){1});
+    Color_delete(({ Color *_oa = malloc(sizeof(Color)); *_oa = c; _oa; }), &(Bool){1});
     Str hoisted__Str_4695 = (Str){.c_str = (void *)"test/constfold.til:192:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4695;
     Bool hoisted__Bool_4696 = not(hoisted__Bool_4694);
