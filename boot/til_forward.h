@@ -1377,6 +1377,7 @@ void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_pre
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
+Str * priv___src_self_initer_til__init_subst_ident_name(Map * subs, Str * name);
 void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map * subs);
 void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map * subs);
 void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map * subs);

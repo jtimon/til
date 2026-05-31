@@ -2896,30 +2896,53 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
     }
 }
 
-// Issue #57: macros returning `StructDef` / `EnumDef` act as type
-// generators -- `Pair := make_pair(I64)` should be equivalent to
-// `Pair := struct { first: I64 = 0, second: I64 = 0 }`. Mirrors rstil's
-// macro-returns-StructDef path (precomp.rs ~309): scan top-level decls
-// whose RHS is a call to a top-level macro returning a type-def, inline
-// the macro body's return literal with the type-parameters substituted
-// out for the call args, and replace the Decl's RHS with the resulting
-// struct/enum literal. The rest of the registration walk then treats the
-// Decl like any other named struct/enum.
+// Issue #57: macros returning `StructDef` / `EnumDef` / `FuncDef` act
+// as generators -- `Pair := make_pair(I64)` should be equivalent to
+// `Pair := struct { first: I64 = 0, second: I64 = 0 }`, and
+// `add5 := make_adder(5)` to
+// `add5 := func(x: I64) returns I64 { return x.add(5) }`. Mirrors
+// rstil's macro-returns-StructDef path (precomp.rs ~309): scan top-level
+// decls whose RHS is a call to a top-level macro returning a type-def or
+// func-def, inline the macro body's return literal with the macro's
+// parameters substituted out for the call-site args, and replace the
+// Decl's RHS with the resulting struct/enum/func literal. The rest of
+// the registration walk then treats the Decl like any other named def.
 //
-// Macro bodies are required to be a single `return <struct|enum literal>`
-// statement; anything more complex isn't expanded here (a diagnostic is
-// emitted later by the normal typer). Type-param idents matching one of
-// the macro's params get rewritten to the matching call arg's ident name
-// throughout field types, payload types, default-value Exprs, and ns_decl
-// method bodies.
+// Macro bodies are required to be a single `return <struct|enum|func
+// literal>` statement; anything more complex isn't expanded here (a
+// diagnostic is emitted later by the normal typer).
+//
+// The substitution map is param-name -> arg-expression (whole Expr).
+// For a `T: Type` param the arg is an Ident (e.g. `I64`); for value
+// params like `N: I64` the arg can be any expression (literal, ident,
+// fcall). `init_substitute_idents` replaces the whole Expr when an Ident
+// matches a substituted name, so an `Ident(N)` becomes a clone of the
+// arg expression (e.g. `LiteralNum 5`). The explicit-type helpers only
+// fire when the substitution is Ident-shaped (i.e. a type-param) -- a
+// value-param substitution leaves explicit_type strings unchanged.
+priv init_subst_ident_name := func(subs: Map, name: Str) returns Str {
+    if subs.has(name).not() { return "" }
+    ref repl : Expr = subs[name]
+    switch repl.node_type {
+    case NodeType.Ident(idn):
+        return ident_name(idn).clone()
+    case:
+        return ""
+    }
+}
+
 priv init_substitute_idents := func(mut e: Expr, subs: Map) {
     if is_null(e) { return }
     switch e.node_type {
     case NodeType.Ident(idn):
         nm := ident_name(idn)
         if subs.has(nm) {
-            ref repl : Str = subs[nm]
-            e.node_type = ident_node(repl)
+            ref repl_expr : Expr = subs[nm]
+            mut cloned := repl_expr.clone()
+            move(e, cloned, Expr.size())
+            // The replacement now occupies `e`; children of the original
+            // Ident were none, so no further recursion at this node.
+            return
         }
     case:
     }
@@ -2934,9 +2957,9 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
 // throws-inference mixing OutOfBounds (Vec) into KeyNotFound (Map).
 priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map) {
     for mut fd : Declaration in sdef.fields {
-        if subs.has(fd.explicit_type) {
-            ref repl : Str = subs[fd.explicit_type]
-            fd.explicit_type = repl.clone()
+        new_type := init_subst_ident_name(subs, fd.explicit_type)
+        if new_type.len().gt(0) {
+            fd.explicit_type = new_type.clone()
             fd.til_type = til_type_from_explicit_type(fd.explicit_type)
         }
         if is_null(fd.default_value).not() {
@@ -2944,9 +2967,9 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map) {
         }
     }
     for mut nd : Declaration in sdef.ns_decls {
-        if subs.has(nd.explicit_type) {
-            ref repl : Str = subs[nd.explicit_type]
-            nd.explicit_type = repl.clone()
+        new_type := init_subst_ident_name(subs, nd.explicit_type)
+        if new_type.len().gt(0) {
+            nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
         if is_null(nd.default_value).not() {
@@ -2959,16 +2982,16 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
     for k in 0..edef.variants.len() {
         if edef.payload_types.has(k.to_i64()) {
             ref pt : Str = edef.payload_types[k.to_i64()]
-            if subs.has(pt) {
-                ref new_pt : Str = subs[pt]
+            new_pt := init_subst_ident_name(subs, pt)
+            if new_pt.len().gt(0) {
                 edef.payload_types.set(own k.to_i64(), own new_pt.clone())
             }
         }
     }
     for mut nd : Declaration in edef.ns_decls {
-        if subs.has(nd.explicit_type) {
-            ref repl : Str = subs[nd.explicit_type]
-            nd.explicit_type = repl.clone()
+        new_type := init_subst_ident_name(subs, nd.explicit_type)
+        if new_type.len().gt(0) {
+            nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
         if is_null(nd.default_value).not() {
@@ -2979,18 +3002,18 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
 
 priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map) {
     for mut pd : Declaration in fdd.params {
-        if subs.has(pd.explicit_type) {
-            ref repl : Str = subs[pd.explicit_type]
-            pd.explicit_type = repl.clone()
+        new_type := init_subst_ident_name(subs, pd.explicit_type)
+        if new_type.len().gt(0) {
+            pd.explicit_type = new_type.clone()
             pd.til_type = til_type_from_explicit_type(pd.explicit_type)
         }
         if is_null(pd.default_value).not() {
             init_substitute_idents(pd.default_value, subs)
         }
     }
-    if subs.has(fdd.return_type) {
-        ref repl : Str = subs[fdd.return_type]
-        fdd.return_type = repl.clone()
+    new_ret := init_subst_ident_name(subs, fdd.return_type)
+    if new_ret.len().gt(0) {
+        fdd.return_type = new_ret.clone()
     }
 }
 
@@ -3071,20 +3094,21 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
             .or(ret_val.node_type.is(NodeType.FuncDef))
         if ret_val_ok.not() { continue }
 
-        // Build param-name -> arg-ident-name substitution.
-        mut subs := Map.new(Str, Str)
+        // Build param-name -> arg-expression substitution. Type-param args
+        // are Idents (e.g. `I64`) and value-param args are arbitrary
+        // expressions (literals, idents, fcalls); store the whole Expr so
+        // init_substitute_idents can replace `Ident(N)` with the cloned
+        // arg expression for value params, while
+        // init_subst_ident_name still extracts the receiving type name for
+        // explicit-type strings when the substitution is Ident-shaped.
+        mut subs := Map.new(Str, Expr)
         switch macro_fdef.node_type {
         case NodeType.FuncDef(mfd):
             for j in 0..mfd.params.len() {
                 if j.add(1.to_usize()).gte(rhs.children.len()) { break }
                 ref param : Declaration = mfd.params[j]
                 ref arg : Expr = rhs.child(j.add(1.to_usize()))
-                if arg.node_type.is(NodeType.Ident).not() { continue }
-                switch arg.node_type {
-                case NodeType.Ident(an):
-                    subs.set(own param.name.clone(), own ident_name(an).clone())
-                case:
-                }
+                subs.set(own param.name.clone(), own arg.clone())
             }
         case:
         }

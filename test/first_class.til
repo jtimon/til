@@ -485,6 +485,43 @@ test_macro_func_gen_str := test() {
     assert_eq_str(__LOC__, id_str("hi"), "hi")
 }
 
+// --- Function generators with value-typed params (issue #57) ---
+// A macro param like `N: I64` is a regular value, not a type; the
+// inliner substitutes Ident(N) inside the function body's expressions
+// with a clone of the call-site arg, so `make_adder(5)` bakes the
+// literal 5 into the generated function. Type-name explicit_type
+// strings (`x: T`) still substitute the receiver's ident name; value
+// args leave those strings unchanged.
+
+make_adder := macro(N: I64) returns FuncDef {
+    return func(x: I64) returns I64 { return x.add(N) }
+}
+add5 := make_adder(5)
+add100 := make_adder(100)
+
+test_macro_func_gen_value_param := test() {
+    assert_eq(__LOC__, add5(3), 8)
+    assert_eq(__LOC__, add100(1), 101)
+}
+
+make_typed_adder := macro(T: Type, N: I64) returns FuncDef {
+    return func(x: T) returns T { return x.add(N) }
+}
+add_i64_5 := make_typed_adder(I64, 5)
+
+test_macro_func_gen_mixed_params := test() {
+    assert_eq(__LOC__, add_i64_5(7), 12)
+}
+
+make_greeter := macro(name: Str) returns FuncDef {
+    return func() returns Str { return name }
+}
+greeter_hi := make_greeter("hello")
+
+test_macro_func_gen_str_param := test() {
+    assert_eq_str(__LOC__, greeter_hi(), "hello")
+}
+
 // --- Variant access on enum instance ---
 // `v.SomeVariant` where v is an enum instance produces the variant
 // constructor / tag value, same as `Opt.Some`. Previously errored in
