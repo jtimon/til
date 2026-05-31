@@ -547,6 +547,9 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_const_param_error", "parser",
               "on parameter: parameters are immutable by default", 1,
               format(til_bin, " interpret test/qualifier_const_param_error.til"))
+    add_count(tests, "qualifier_mut_payload_error", "parser",
+              "on variant payload: payloads are mutable by default", 1,
+              format(til_bin, " interpret test/qualifier_mut_payload_error.til"))
     add_count(tests, "const_payload_error", "typer",
               "cannot assign to immutable variable", 1,
               format(til_bin, " interpret test/const_payload_error.til"))

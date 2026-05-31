@@ -1,0 +1,3 @@
+mode script
+
+Tok := enum { mut Num: I64, Eof }

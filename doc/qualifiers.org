@@ -65,13 +65,16 @@ redundant and rejected by the typer.
 - Locals, parameters, and namespace declarations are immutable by
   default; ~const~ is redundant in those positions and the parser
   rejects it ("redundant 'const' on local/parameter/namespace
-  declaration ... drop it"). ~const~ is meaningful only on struct fields
-  (and, in a future change, on enum variant payloads)
+  declaration ... drop it"). ~const~ is meaningful only on struct
+  fields and on enum variant payloads
 - Enum variant payloads are mutable by default (same rule as struct
   fields); the payload binding in a ~switch~ case inherits the matched
   value's mutability (~ref mut~ when the enum value is ~mut~, ~ref~
-  otherwise). There is no ~mut~/~const~ keyword on a variant
-  declaration. See doc/enums.org "Payload mutability"
+  otherwise). ~const Variant: Type~ opts a payload out (writes to the
+  case binding are then rejected even on a mut enum); a redundant
+  ~mut~ on a variant declaration is rejected with the symmetric
+  "redundant 'mut' on variant payload ... drop it" message. See
+  doc/enums.org "Payload mutability"
 - ~Dynamic~ is the raw owned-pointer exception:
   - use ~buf : Dynamic = malloc(...)~ for owned allocations
   - use ~ref elem : T = buf~ or ~ref elem : T = ptr_add(buf, i)~ for typed access

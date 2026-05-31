@@ -695,6 +695,16 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 advance(p)
                 v_payload_const = true
             }
+            // #211 polish: a leading `mut` on a variant is the redundant
+            // counterpart of `mut` on a struct field -- payloads are
+            // mutable by default, so the keyword adds nothing. Reject
+            // with the symmetric "redundant 'mut'" parser diagnostic
+            // instead of falling through to the generic
+            // "expected 'identifier', found 'mut'" panic from expect_text.
+            if check(p, TokenType.KwMut) {
+                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                    ": redundant 'mut' on variant payload: payloads are mutable by default; drop it (use 'const' to make the payload immutable)")
+            }
             vname := expect_text(p, TokenType.Ident)
             mut vtype := ""
             if check(p, TokenType.Colon) {

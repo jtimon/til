@@ -48,6 +48,7 @@
 *** [[./open/227.org][#227]] interpreter: ref mut primitive Assign doesn't deref-write
 *** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
+*** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
@@ -69,6 +70,5 @@
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 ** Medium
 ** Low
-*** [[./open/205.org][#205]] Collapse Primitive enum + per-primitive Type variants into Type.Struct(name)
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
 *** [[./open/223.org][#223]] auto-shallow: infer shallow for small value types, forbid explicit shallow where automatic
