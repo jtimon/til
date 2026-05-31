@@ -901,8 +901,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
         if has_hash.not() {
             mut autogen_hash := true
             for d_j : Declaration in sdd.fields {
-                ref fd : Declaration = d_j
-                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
+                if d_j.own_type.is(OwnType.Own).or(d_j.own_type.is(OwnType.Ref)) {
                     autogen_hash = false
                 }
             }

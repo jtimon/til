@@ -14,14 +14,6 @@ import("../../lib/hash")
 
 HASHMAP_INIT_BUCKETS : USize = 16
 
-// Byte-hashing algorithm every HashMap forwards to per-key. Hardcoded
-// for now; making it swappable per process is intended but a
-// file-level `mut HASHMAP_HASHER : HashFn = hash_bytes` decl currently
-// trips a typer/builder bug -- the rhs is emitted as a local
-// shadowing the global and -Werror=unused-variable rejects the C.
-// Until that's untangled, callers wanting a different algorithm
-// edit this constant directly.
-
 HashMap := struct {
     keys : Vec = Vec.new(Dynamic)
     values : Vec = Vec.new(Dynamic)
@@ -71,8 +63,13 @@ namespace:
     len := func(self: HashMap) returns USize { return self.keys.count }
 
     // Hash via the type's `hash(self, hasher)` method. The container
-    // picks the algorithm (hash_bytes today, see HASHMAP_HASHER
-    // comment above); the type picks which bytes to feed it.
+    // picks the algorithm (hash_bytes today; making HASHMAP_HASHER /
+    // HashMap.hasher swappable is intended but currently trips a
+    // builder bug -- a namespace-data decl of HashFn is codegen'd
+    // with an extra address-of at the call site, and even with the
+    // codegen fixed the typer's lookup for `Type.field` data decls
+    // doesn't propagate the funcptr value to interp_init_ns reliably).
+    // The type picks which bytes to feed it.
     hash_key := func(self: HashMap, key: Dynamic) returns U64 {
         return self.key_hash(key, hash_bytes)
     }
