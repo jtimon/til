@@ -27,7 +27,7 @@ interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 // because the interpreter stores enum-with-payloads fields as heap
 // pointers (EnumInstance.data), so even a "POD enum" needs the
 // per-field deep clone here.
-priv struct_def_shallow_safe := func(sdef_data: StructDef) returns shallow Bool {
+priv struct_def_shallow_safe := func(sdef_data: StructDef) returns Bool {
     for dd : Declaration in sdef_data.fields {
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
@@ -61,7 +61,7 @@ StructInstance := struct {
     own data : U8 = 0
     borrowed := false
 namespace:
-    eq := func(a: StructInstance, b: StructInstance) returns shallow Bool {
+    eq := func(a: StructInstance, b: StructInstance) returns Bool {
         return a.struct_name.eq(b.struct_name)
     }
     to_str := func(self: StructInstance) returns Str {
@@ -221,7 +221,7 @@ EnumInstance := struct {
     data_size : I32 = 0
     borrowed := false
 namespace:
-    eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
+    eq := func(a: EnumInstance, b: EnumInstance) returns Bool {
         return a.is(b)
     }
     to_str := func(self: EnumInstance) returns Str {
@@ -427,40 +427,40 @@ lookup_interp_type_def := func(name: Str, ctx: Context) returns ref Expr {
 val_none := func() returns shallow Value {
     return Value.None
 }
-val_i64 := func(shallow v: I64) returns shallow Value {
+val_i64 := func(v: I64) returns shallow Value {
     return Value.Int(v)
 }
-val_u8 := func(shallow v: I64) returns shallow Value {
+val_u8 := func(v: I64) returns shallow Value {
     return Value.Byte(v.to_u8())
 }
-val_i8 := func(shallow v: I64) returns shallow Value {
+val_i8 := func(v: I64) returns shallow Value {
     return Value.Sbyte(v.to_i8())
 }
-val_i16 := func(shallow v: I64) returns shallow Value {
+val_i16 := func(v: I64) returns shallow Value {
     return Value.Short(v.to_i16())
 }
-val_u16 := func(shallow v: I64) returns shallow Value {
+val_u16 := func(v: I64) returns shallow Value {
     return Value.Ushort(v.to_u16())
 }
-val_i32 := func(shallow v: I64) returns shallow Value {
+val_i32 := func(v: I64) returns shallow Value {
     return Value.Int32(v.to_i32())
 }
-val_u32 := func(shallow v: I64) returns shallow Value {
+val_u32 := func(v: I64) returns shallow Value {
     return Value.Uint32(v.to_u32())
 }
-val_u64 := func(shallow v: U64) returns shallow Value {
+val_u64 := func(v: U64) returns shallow Value {
     return Value.Uint64(v)
 }
-val_f32 := func(shallow v: F32) returns shallow Value {
+val_f32 := func(v: F32) returns shallow Value {
     return Value.Float(v)
 }
-val_bool := func(shallow v: Bool) returns shallow Value {
+val_bool := func(v: Bool) returns shallow Value {
     return Value.Boolean(v)
 }
 
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
-val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32, shallow total_enum_size: I32) returns shallow Value {
+val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: I32, total_enum_size: I32) returns shallow Value {
     mut alloc_size := total_enum_size
     if alloc_size.lt(8) {
         alloc_size = 8
@@ -475,11 +475,11 @@ val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, 
     return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
 }
 
-val_enum_simple := func(enum_name: Str, shallow etag: I32, shallow total_enum_size: I32) returns shallow Value {
+val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: I32) returns shallow Value {
     return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size)
 }
 
-elem_size_for_type := func(type_name: Str) returns shallow I32 {
+elem_size_for_type := func(type_name: Str) returns I32 {
     if type_name.eq("I64") { return I64.size().cast(I32) }
     if type_name.eq("U8") { return U8.size().cast(I32) }
     if type_name.eq("I16") { return I16.size().cast(I32) }
@@ -529,7 +529,7 @@ value_ptr_view := func(v: Value) returns ref Dynamic {
     }
 }
 
-is_value_ptr := func(v: Value) returns shallow Bool {
+is_value_ptr := func(v: Value) returns Bool {
     return v.is(Value.Ref).or(v.is(Value.Dynamic))
 }
 
@@ -801,7 +801,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
 
 // Check if call should be skipped because first own param is None/borrowed/pointer-like.
 // Returns true if call should be skipped (caller returns val_none).
-guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool {
+guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns Bool {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) { return false }
@@ -1665,7 +1665,7 @@ free_value_full := func(shallow v: Value) {
     }
 }
 
-needs_widen := func(val: Value, ptype: Str) returns shallow Bool {
+needs_widen := func(val: Value, ptype: Str) returns Bool {
     if is_null(ptype) { return false }
     if ptype.len().eq(0) { return false }
     if val.is(Value.Byte) {
@@ -1733,7 +1733,7 @@ box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: B
     return r
 }
 
-make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool, ctx: Context) returns shallow Value {
+make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool, ctx: Context) returns shallow Value {
     mut r := Value.None
     mut tag : I32 = 10
     memcpy(r, tag, 4)
@@ -1908,7 +1908,7 @@ scope_free := func(own s: Scope) {
 // Body of interp_fa_is_ns_inner pulled out so both FieldAccess and
 // FieldAssign cases (which share an Str payload) can switch-destructure
 // `e.node_type` without duplicating ~50 lines of logic.
-priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns shallow Bool {
+priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns Bool {
     mut has_ns := false
     mut has_inst := false
     ref ins_ns : Vec = def_ns_decls(sdef)
@@ -1962,7 +1962,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     return false
 }
 
-interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns shallow Bool {
+interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
     ref obj_expr : Expr = e.child(0)
     ref tc : Cell = scope_get(scope, sname)
     if is_null(tc) { return false }
@@ -1998,7 +1998,7 @@ field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref 
     }
 }
 
-interp_fa_is_ns := func(scope: Scope, e: Expr) returns shallow Bool {
+interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
     ref obj_expr : Expr = e.child(0)
     sname := til_type_name(expr_til_type(obj_expr))
     if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
@@ -2047,7 +2047,7 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     }
 }
 
-build_argv_array := func(argv: Vec, shallow offset: U32, shallow count: U32, elem_type: Str, ctx: Context) returns shallow Value {
+build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx: Context) returns shallow Value {
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
@@ -2168,7 +2168,7 @@ ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context) {
     c.ns_fields.set(own qn, own vcopy)
 }
 
-make_str_value := func(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value {
+make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size())
     copy : Dynamic = malloc(len.add(1))
     memcpy(copy, data, len)
@@ -2187,7 +2187,7 @@ make_str_value := func(data: Dynamic, shallow len: USize, ctx: Context) returns 
 // MUST guarantee `data` outlives every consumer of the returned Value.
 // Used by precomp to track LiteralStr Decls without copying the buffer:
 // the LiteralStr's c_str is stable for the entire precomp lifetime.
-make_str_value_view := func(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value {
+make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size())
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
@@ -2195,7 +2195,7 @@ make_str_value_view := func(data: Dynamic, shallow len: USize, ctx: Context) ret
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
-make_str_value_own := func(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value {
+make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size())
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
@@ -2529,7 +2529,7 @@ interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
     }
 }
 
-interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+interpret := proc(core_program: Expr, program: Expr, mode: Mode, run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns I32 {
     mut lp := LoadedProgram()
     ref mut c : Context = lp.ctx
     context_enter_file(lp.ctx, path)
@@ -2686,7 +2686,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, shallow run_tes
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
 // ASTs stored in lp.ctx.imported, but preserves the original overall
 // registration/eval ordering.
-priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32 {
+priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns I32 {
     // Ensure codegen_lp() is available throughout interpretation so
     // interpreter helpers can read shared Context fields (#177/#178).
     ref mut c : Context = lp.ctx
@@ -2939,7 +2939,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     return 0
 }
 
-cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec) returns shallow I32 {
+cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec) returns I32 {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     if lp.link_c_paths.len().gt(0) {

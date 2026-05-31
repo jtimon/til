@@ -13,7 +13,7 @@ namespace:
     to_usize := ext_func(shallow val: U64) returns shallow USize {}
     to_f32 := ext_func(shallow val: U64) returns shallow F32 {}
     /// Convert to decimal string representation.
-    to_str := func(shallow val: U64) returns Str {
+    to_str := func(val: U64) returns Str {
         U64_to_str_ext := ext_func(shallow val: U64) returns Str {}
         return U64_to_str_ext(val)
     }
@@ -37,7 +37,7 @@ namespace:
         return hasher(self, 8.to_usize())
     }
     /// Absolute difference between two values, useful for Range iteration.
-    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+    distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : U64 = a
         ref bu : U64 = b
         if au.lte(bu) { return bu.sub(au) }

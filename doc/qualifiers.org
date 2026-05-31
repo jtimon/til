@@ -86,6 +86,16 @@ redundant and rejected by the typer.
   ~ext_func~/~ext_proc~ (their qualifiers map to a fixed C signature), to
   ~mut~/~own~ primitive params, or to params of a ~returns ref T~ function
   (those stay borrowed pointers so the ref can escape)
+- Issue #223 step 2: because the qualifier is now inferred, an explicit
+  ~shallow~ on a primitive where auto-shallow applies (ordinary
+  func/proc/funcptr, not ~returns ref~) is redundant. All such qualifiers
+  have been removed from the codebase. A typer rule that rejects them
+  ("redundant 'shallow' on primitive ...; drop it") is implemented in
+  ~src/self/typer.til~ but kept COMMENTED OUT during rollout: enabling it
+  makes the compiler reject any source still carrying the old qualifiers, so
+  it can only go live once every in-flight branch is clean too. ~shallow~
+  remains required on ~ext_func~/~ext_proc~ (it describes the fixed C
+  signature) and on a ~returns ref T~ function's primitive params.
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~

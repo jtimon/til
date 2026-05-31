@@ -23,7 +23,7 @@ mut sound_enabled := true
 
 // Build a Sound with a sine wave at `freq` for `duration_ms` ms, with
 // linear attack+release envelopes. `amp` is the peak amplitude (0..1).
-make_tone := proc(freq: I64, duration_ms: I64, shallow amp: F32) returns Sound {
+make_tone := proc(freq: I64, duration_ms: I64, amp: F32) returns Sound {
     sr := 44100
     mut n := sr * duration_ms / 1000
     if n < 1 { n = 1 }

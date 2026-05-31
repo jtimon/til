@@ -31,7 +31,7 @@ priv LocalInfo := struct {
     is_heap := false
 }
 
-alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow Bool {
+alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns Bool {
     for d : Expr in stmts {
         switch d.node_type {
         case NodeType.Decl(dd):
@@ -56,7 +56,7 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns shallow B
 //   - the arg is a ns FieldAccess to a payload-less variant of an
 //     otherwise-payload-carrying enum (e.g. Token.Eof in
 //     `enum { Num: I64, Name: Str, Eof }`).
-priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns shallow Bool {
+priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
     ref callee : Expr = e.child(0)
@@ -108,7 +108,7 @@ priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns shallow B
     return false
 }
 
-collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
+collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
         // main()'s non-Own params are heap-allocated by the builder's CLI
@@ -375,7 +375,7 @@ check_use_after_own_transfer := proc(body: Expr, mut locals: Vec, ctx: Context) 
     }
 }
 
-insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: Bool) {
+insert_exit_deletes := proc(mut body: Expr, mut live: Vec, return_only: Bool) {
     // Quick check: any returns/breaks/continues or nested if/while/body?
     mut needs_scan := false
     for s : Expr in body.children {
@@ -443,7 +443,7 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, shallow return_only: 
     body.children.move_from(new_ch)
 }
 
-insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32) {
+insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, stmt_idx: U32) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() { return }
@@ -474,7 +474,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, shallow stmt_idx
     }
 }
 
-insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec) {
+insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: Vec, stmt_idx: U32, mut new_ch: Vec) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -504,7 +504,7 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
     }
 }
 
-insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope) {
+insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut new_ch: Vec, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -743,7 +743,7 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals:
 // a direct (top-level) statement of the branch transfers it -- a transfer
 // nested inside another if/while/switch is itself conditional and doesn't
 // count, so we stay conservative.
-priv branch_unconditionally_transfers := func(branch: Expr, name: Str, scope: TypeScope, ctx: Context) returns shallow Bool {
+priv branch_unconditionally_transfers := func(branch: Expr, name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if is_null(branch) { return false }
     if branch.node_type.is(NodeType.Body).not() { return false }
     for c : Expr in branch.children {
@@ -812,7 +812,7 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, mut locals: Vec, 
     }
 }
 
-insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) returns shallow Bool {
+insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
     if scope_exit.eq(0) { return false }
     is_program_scope := is_null(scope.parent)
 
@@ -851,7 +851,7 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sh
 // TypeScope.delete. Returns true iff body.children changed, so the
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
-garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool {
+garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
     return insert_free_calls(ctx, body, scope, 1)
 }
 

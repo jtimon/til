@@ -62,7 +62,7 @@ namespace:
     }
 
     /// True if a value exists for the given key.
-    has := func(self: Map, key: Dynamic) returns shallow Bool {
+    has := func(self: Map, key: Dynamic) returns Bool {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo.lt(hi) {

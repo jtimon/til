@@ -85,7 +85,7 @@ namespace:
         return hasher(self, 8.to_usize())
     }
     /// Absolute difference between two values, useful for Range iteration.
-    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+    distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I64 = a
         ref bu : I64 = b
         if au.lte(bu) { return bu.sub(au).cast(U64) }

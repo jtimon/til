@@ -37,7 +37,7 @@ namespace:
     clone := ext_func(val: I16) returns shallow I16 {}
     hash := func(self: I16, hasher: HashFn) returns U64 { return hasher(self, 2.to_usize()) }
     /// Absolute difference between two values, useful for Range iteration.
-    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+    distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I16 = a
         ref bu : I16 = b
         if au.lte(bu) { return bu.sub(au).to_u64() }

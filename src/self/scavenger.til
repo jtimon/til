@@ -2,7 +2,7 @@ mode lib
 
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.
-priv scav_fa_is_ns := func(e: Expr) returns shallow Bool {
+priv scav_fa_is_ns := func(e: Expr) returns Bool {
     if e.children.len().eq(0) { return false }
     ref obj : Expr = e.child(0)
     switch obj.node_type {
@@ -28,7 +28,7 @@ vec_push_str := func(mut v: Vec, s: Str) {
 
 // Compact+delete: mark dropped indices in a bool buffer, delete them,
 // then compact kept elements forward.
-priv children_filter := func(mut v: Vec, marks: Dynamic, shallow n: USize) {
+priv children_filter := func(mut v: Vec, marks: Dynamic, n: USize) {
     // Delete marked elements and zero their bytes
     mut i : USize = 0
     while i.lt(n) {
@@ -288,7 +288,7 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
 // `dyn_call_ret(self, "method", nargs, arg1, ..., argN, extra...)` only
 // "really uses" args up to index 4+nargs-1; later children are weak
 // refs that should not pin a hoisted temp.
-priv dyn_call_real_arg_count := func(e: Expr) returns shallow USize {
+priv dyn_call_real_arg_count := func(e: Expr) returns USize {
     if e.node_type.is(NodeType.FCall).not() { return e.children.len() }
     if e.children.len().lt(4) { return e.children.len() }
     ref callee : Expr = e.child(0)
@@ -392,7 +392,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
 // literals (no malloc), and the paired Str.delete uses call_free=false
 // (no-op view cleanup) -- so dropping the Decl + its trivial delete
 // has no observable effect.
-priv rhs_is_pure_byvalue := func(e: Expr) returns shallow Bool {
+priv rhs_is_pure_byvalue := func(e: Expr) returns Bool {
     if is_null(e) { return false }
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
@@ -444,7 +444,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
 // to compiler-internal `hoisted__*` names so we never drop a
 // user-named global -- those may be exported and referenced from
 // outside this body's view.
-priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns shallow Bool {
+priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     n := body.children.len()
     if n.eq(0) { return false }
 
@@ -578,7 +578,7 @@ priv dce_one_body := proc(mut body: Expr, shallow at_top_level: Bool) returns sh
 // constraining the bool value. Used by the stale-Own LiteralStr
 // fixup to find a Decl's paired cleanup when the cleanup's
 // call_free flag may still carry the typer's pre-precomp `true`.
-priv match_named_delete := func(stmt: Expr, name: Str) returns shallow Bool {
+priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     if stmt.node_type.is(NodeType.FCall).not() { return false }
     if stmt.children.len().neq(3) { return false }
     ref callee : Expr = stmt.child(0)
@@ -644,7 +644,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // outer Decl drop too. `at_top_level` is true only for the program-root
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
-priv body_dce_walk := proc(mut e: Expr, shallow at_top_level: Bool) {
+priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
     if is_null(e) { return }
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())

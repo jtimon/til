@@ -48,7 +48,7 @@ namespace:
         return Vec.new_type_name(elem_type)
     }
 
-    len := func(self: Vec) returns shallow USize { return self.count }
+    len := func(self: Vec) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -216,7 +216,7 @@ namespace:
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
-    push_take := func(mut self: Vec, mut src: Vec, shallow i: USize) {
+    push_take := func(mut self: Vec, mut src: Vec, i: USize) {
         if i.gte(src.count) {
             panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }

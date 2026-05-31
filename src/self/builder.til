@@ -24,7 +24,7 @@ priv DynCallInfo := struct {
 
 // --- Leaf functions ---
 
-priv is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns shallow Bool {
+priv is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns Bool {
     if name.eq("dyn_call") { has_ret = false; return true }
     if name.eq("dyn_call_ret") { has_ret = true; return true }
     return false
@@ -126,11 +126,11 @@ fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
     }
 }
 
-priv is_stack_local := func(name: Str, ctx: Context) returns shallow Bool {
+priv is_stack_local := func(name: Str, ctx: Context) returns Bool {
     return ctx.stack_locals.has(name)
 }
 
-priv is_current_func_param := func(name: Str, ctx: Context) returns shallow Bool {
+priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
     ref cf : Expr = ctx.current_fdef
     if is_null(cf) { return false }
     switch cf.node_type {
@@ -144,7 +144,7 @@ priv is_current_func_param := func(name: Str, ctx: Context) returns shallow Bool
     }
 }
 
-priv is_value_global := func(name: Str, ctx: Context) returns shallow Bool {
+priv is_value_global := func(name: Str, ctx: Context) returns Bool {
     if is_current_func_param(name, ctx) { return false }
     // A local (loop var, decl) inside the current function shadows a
     // script global of the same name. Without this guard a library
@@ -158,7 +158,7 @@ priv is_value_global := func(name: Str, ctx: Context) returns shallow Bool {
     return ctx.script_globals.has(name)
 }
 
-is_ref_global := func(name: Str, ctx: Context) returns shallow Bool {
+is_ref_global := func(name: Str, ctx: Context) returns Bool {
     if is_current_func_param(name, ctx) { return false }
     // Same shadowing rule as is_value_global: a current-function local
     // beats a script-level ref global of the same name.
@@ -168,12 +168,12 @@ is_ref_global := func(name: Str, ctx: Context) returns shallow Bool {
     return ctx.ref_globals.has(name)
 }
 
-is_ref_local := func(name: Str, ctx: Context) returns shallow Bool {
+is_ref_local := func(name: Str, ctx: Context) returns Bool {
     if ctx.ref_locals.has(name) { return true }
     return is_ref_global(name, ctx)
 }
 
-use_dot_access := func(obj: Expr, ctx: Context) returns shallow Bool {
+use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FieldAccess) {
         if builder_fa_is_ptr(obj, ctx).not() { return true }
     }
@@ -186,7 +186,7 @@ use_dot_access := func(obj: Expr, ctx: Context) returns shallow Bool {
     return false
 }
 
-is_primitive_type := func(name: Str) returns shallow Bool {
+is_primitive_type := func(name: Str) returns Bool {
     if name.eq("I64") { return true }
     if name.eq("U8") { return true }
     if name.eq("I8") { return true }
@@ -208,7 +208,7 @@ is_primitive_type := func(name: Str) returns shallow Bool {
 // semantics, but for POD enums the wrap is a wasteful round-trip
 // (malloc + deref + free of a stack compound literal).  The Decl
 // emission path recognises the wrap and emits the value directly.
-is_pod_enum := func(enum_name: Str, ctx: Context) returns shallow Bool {
+is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     if enum_name.len().eq(0) { return false }
     ref ed : Expr = find_struct_def(enum_name, ctx)
     if is_null(ed) { return false }
@@ -221,7 +221,7 @@ is_pod_enum := func(enum_name: Str, ctx: Context) returns shallow Bool {
 // (the variant carries only a tag, no inner data).  Used by the
 // POD-enum clone-wrap shortcut to permit value-copy even when the
 // enum has *other* variants with payloads.
-priv variant_is_payload_less := func(enum_name: Str, variant_name: Str, ctx: Context) returns shallow Bool {
+priv variant_is_payload_less := func(enum_name: Str, variant_name: Str, ctx: Context) returns Bool {
     if enum_name.len().eq(0) { return false }
     if variant_name.len().eq(0) { return false }
     ref ed : Expr = find_struct_def(enum_name, ctx)
@@ -252,7 +252,7 @@ priv variant_is_payload_less := func(enum_name: Str, variant_name: Str, ctx: Con
 //     of an otherwise-payload-carrying enum (e.g. `Token.Eof` where
 //     Token also has `Num: I64` and `Name: Str`).
 // Callers can then emit `(Enum){.tag = ENUM_TAG_Variant}` directly.
-priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns shallow Bool {
+priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
     ref callee : Expr = e.child(0)
@@ -295,7 +295,7 @@ priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns shallow Bool 
 // POD field set from a ctor FCall.  Callers must still pair this with
 // a non-freeing delete at scope end (call_free=false) so the cleanup
 // doesn't try to free a stack pointer.
-is_pod_struct := func(struct_name: Str, ctx: Context) returns shallow Bool {
+is_pod_struct := func(struct_name: Str, ctx: Context) returns Bool {
     if struct_name.len().eq(0) { return false }
     if is_primitive_type(struct_name) { return false }
     ref sdef : Expr = find_struct_def(struct_name, ctx)
@@ -316,11 +316,11 @@ is_pod_struct := func(struct_name: Str, ctx: Context) returns shallow Bool {
     return false
 }
 
-is_funcsig_type := func(name: Str, ctx: Context) returns shallow Bool {
+is_funcsig_type := func(name: Str, ctx: Context) returns Bool {
     return ctx.funcsig_names.has(name)
 }
 
-is_ext_h_type := func(name: Str) returns shallow Bool {
+is_ext_h_type := func(name: Str) returns Bool {
     if name.eq("U8") { return true }
     if name.eq("I8") { return true }
     if name.eq("I16") { return true }
@@ -337,13 +337,13 @@ is_ext_h_type := func(name: Str) returns shallow Bool {
 // print_single / print_flush have hand-written prototypes emitted as
 // part of the standard prelude (see emit_header_defs_and_funcs_lp);
 // suppressing the ext_proc-side emission avoids a duplicate decl.
-is_skip_ext_decl := func(name: Str) returns shallow Bool {
+is_skip_ext_decl := func(name: Str) returns Bool {
     if name.eq("print_single") { return true }
     if name.eq("print_flush") { return true }
     return false
 }
 
-is_scalar_method_type := func(name: Str) returns shallow Bool {
+is_scalar_method_type := func(name: Str) returns Bool {
     if name.eq("U8") { return true }
     if name.eq("I8") { return true }
     if name.eq("I16") { return true }
@@ -357,7 +357,7 @@ is_scalar_method_type := func(name: Str) returns shallow Bool {
     return false
 }
 
-is_exported_top_level_global := func(stmt: Expr) returns shallow Bool {
+is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FuncDef) { return false }
@@ -402,7 +402,7 @@ fa_struct_name := func(e: Expr) returns Str {
     return obj_sname
 }
 
-priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) returns shallow Bool {
+priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) returns Bool {
     ref fap_def : Expr = find_struct_def(sname, ctx)
     if is_null(fap_def) { return false }
     switch fap_def.node_type {
@@ -419,7 +419,7 @@ priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) 
 }
 
 // Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
-builder_fa_is_ptr := func(e: Expr, ctx: Context) returns shallow Bool {
+builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
     sname := fa_struct_name(e)
     switch e.node_type {
     case NodeType.FieldAccess(fname):
@@ -431,7 +431,7 @@ builder_fa_is_ptr := func(e: Expr, ctx: Context) returns shallow Bool {
     }
 }
 
-priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: Context) returns shallow Bool {
+priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: Context) returns Bool {
     ref bfn_def : Expr = find_struct_def(sname, ctx)
     if is_null(bfn_def) { return false }
     mut has_ns := false
@@ -463,7 +463,7 @@ priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: C
     return false
 }
 
-builder_fa_is_ns := func(e: Expr, ctx: Context) returns shallow Bool {
+builder_fa_is_ns := func(e: Expr, ctx: Context) returns Bool {
     sname := fa_struct_name(e)
     switch e.node_type {
     case NodeType.FieldAccess(fname):
@@ -475,7 +475,7 @@ builder_fa_is_ns := func(e: Expr, ctx: Context) returns shallow Bool {
     }
 }
 
-is_shallow_param := func(name: Str, ctx: Context) returns shallow Bool {
+is_shallow_param := func(name: Str, ctx: Context) returns Bool {
     ref cf : Expr = ctx.current_fdef
     if is_null(cf) { return false }
     switch cf.node_type {
@@ -492,7 +492,7 @@ is_shallow_param := func(name: Str, ctx: Context) returns shallow Bool {
     }
 }
 
-callee_returns_shallow := func(callee_name: Str, ctx: Context) returns shallow Bool {
+callee_returns_shallow := func(callee_name: Str, ctx: Context) returns Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if is_null(fdef) { return false }
     switch fdef.node_type {
@@ -503,7 +503,7 @@ callee_returns_shallow := func(callee_name: Str, ctx: Context) returns shallow B
     }
 }
 
-callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns shallow Bool {
+callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool {
     if callee_name.eq("malloc") { return true }
     if callee_name.eq("calloc") { return true }
     if callee_name.eq("realloc") { return true }
@@ -525,7 +525,7 @@ callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns shallow B
 // emit the address-of form only when the callee's delete explicitly keeps
 // call_free non-shallow. Defaults to the by-value form when the delete is not
 // found (the common case).
-delete_call_free_lit := func(type_name: Str, shallow set_free: Bool, ctx: Context) returns Str {
+delete_call_free_lit := func(type_name: Str, set_free: Bool, ctx: Context) returns Str {
     mut lit := "(Bool){0}"
     if set_free { lit = "(Bool){1}" }
     ref fdef : Expr = find_callee_fdef(type_name.format("_delete"), ctx)
@@ -542,7 +542,7 @@ delete_call_free_lit := func(type_name: Str, shallow set_free: Bool, ctx: Contex
     }
 }
 
-callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32, ctx: Context) returns shallow Bool {
+callee_param_is_shallow := func(callee_name: Str, arg_index: U32, ctx: Context) returns Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if is_null(fdef) { return false }
     switch fdef.node_type {
@@ -556,7 +556,7 @@ callee_param_is_shallow := func(callee_name: Str, shallow arg_index: U32, ctx: C
     }
 }
 
-callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32, ctx: Context) returns shallow Bool {
+callee_param_is_usize := func(callee_name: Str, arg_index: U32, ctx: Context) returns Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if is_null(fdef) { return false }
     switch fdef.node_type {
@@ -569,7 +569,7 @@ callee_param_is_usize := func(callee_name: Str, shallow arg_index: U32, ctx: Con
     }
 }
 
-callee_param_is_uptr := func(callee_name: Str, shallow arg_index: U32, ctx: Context) returns shallow Bool {
+callee_param_is_uptr := func(callee_name: Str, arg_index: U32, ctx: Context) returns Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if is_null(fdef) { return false }
     switch fdef.node_type {
@@ -582,7 +582,7 @@ callee_param_is_uptr := func(callee_name: Str, shallow arg_index: U32, ctx: Cont
     }
 }
 
-callee_param_is_own := func(callee_name: Str, shallow arg_index: U32, ctx: Context) returns shallow Bool {
+callee_param_is_own := func(callee_name: Str, arg_index: U32, ctx: Context) returns Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if is_null(fdef) { return false }
     switch fdef.node_type {
@@ -595,7 +595,7 @@ callee_param_is_own := func(callee_name: Str, shallow arg_index: U32, ctx: Conte
     }
 }
 
-priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns shallow Bool {
+priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
@@ -619,7 +619,7 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns shallow 
     return false
 }
 
-fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns shallow Bool {
+fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     // Same override-aware short-circuit as fcall_is_shallow_return:
     // cast(e, T) is declared `returns shallow Dynamic` but the typer
@@ -841,7 +841,7 @@ callee_return_ctype := ext_func(callee_name: Str) returns Str {}
 // Resolve the C parameter type for fd.params[i]. Avoids the
 // `mut ptype := ""` pre-init pattern in emit_param_list, whose empty
 // Str leaked once per parameter on each call.
-param_ctype := func(fd: FunctionDef, shallow i: USize, ctx: Context) returns Str {
+param_ctype := func(fd: FunctionDef, i: USize, ctx: Context) returns Str {
     ii := i.cast(I32)
     if ii.eq(fd.variadic_index) { return "Array *" }
     ref p : Declaration = fd.params[i]
@@ -850,7 +850,7 @@ param_ctype := func(fd: FunctionDef, shallow i: USize, ctx: Context) returns Str
     return type_name_to_c(p.explicit_type, ctx)
 }
 
-emit_param_list := proc(f: File, fdef: Expr, shallow with_names: Bool, shallow for_ext_decl: Bool, ctx: Context) {
+emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl: Bool, ctx: Context) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) {
@@ -1193,7 +1193,7 @@ collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
 // to decide whether the FCall's children are positional field
 // initializers (ctor) vs an arbitrary call (which would type-clash
 // inside a `.field = ...` initializer).
-priv fcall_is_struct_ctor := func(e: Expr) returns shallow Bool {
+priv fcall_is_struct_ctor := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     sname := til_type_name(expr_til_type(e))
@@ -1210,7 +1210,7 @@ priv fcall_is_struct_ctor := func(e: Expr) returns shallow Bool {
 // requires this -- a non-ctor FCall arg (e.g. Point.clone(...)) would
 // either type-clash with the positional field assumption or return a
 // pointer that can't be assigned into a value field.
-priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns shallow Bool {
+priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns Bool {
     for i in 1..ctor.children.len() {
         ref arg : Expr = ctor.child(i)
         if arg.node_type.is(NodeType.FCall).not() { continue }
@@ -1229,7 +1229,7 @@ priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns shallow Bo
 // pod_ctor_args_are_safe(ctor, ctx). Caller is responsible for trailing
 // punctuation -- this emits the `(...){...}` expression with no
 // semicolon.
-emit_pod_compound_literal := proc(f: File, ctor: Expr, shallow depth: I32, ctx: Context) {
+emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Context) {
     ctor_sname := til_type_name(expr_til_type(ctor))
     ctype := c_type_name(expr_til_type(ctor), ctor_sname, ctx)
     f.write("("); f.write(ctype); f.write("){")
@@ -1261,7 +1261,7 @@ emit_pod_compound_literal := proc(f: File, ctor: Expr, shallow depth: I32, ctx: 
 }
 
 // Emit layer
-emit_stmt_decl := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if e.children.len().eq(0) { return }
     switch e.node_type {
     case NodeType.Decl(dd):
@@ -1556,7 +1556,7 @@ emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
     return c_type_name(expr_til_type(rv), til_type_name(expr_til_type(rv)), ctx)
 }
 
-emit_return_box := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     ref rv : Expr = e.child(0)
     ctype := emit_return_ctype(rv, ctx)
     f.write("{ "); f.write(ctype); f.write(" *_r = malloc(sizeof("); f.write(ctype); f.write(")); *_r = ")
@@ -1570,7 +1570,7 @@ emit_return_box := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
     f.write("return _r; }\n")
 }
 
-emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if e.children.len().eq(0) {
         if ctx.in_main_func { f.write("return 0;\n") }
         else { f.write("return;\n") }
@@ -1737,7 +1737,7 @@ emit_stmt_return := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
 // work to do. The builder previously suppressed the call body but still
 // wrote indent+";", littering generated C with lonely semicolons. Detect
 // the shape here so emit_stmt can skip the indent too.
-priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns shallow Bool {
+priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
     ref c0 : Expr = e.child(0)
@@ -1759,7 +1759,7 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns shallow Bool {
     }
 }
 
-priv emit_stmt := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if is_noop_delete_stmt(e, ctx) { return }
     emit_indent(f, depth)
     switch e.node_type {
@@ -2088,7 +2088,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
     }
 }
 
-emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, shallow depth: I32, ctx: Context) {
+emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ctx: Context) {
     switch sig.node_type {
     case NodeType.FuncDef(sfd):
         for i in 1..e.children.len() {
@@ -2430,12 +2430,12 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
     return f
 }
 
-priv emit_body := proc(f: File, body: Expr, shallow depth: I32, ctx: Context) {
+priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
     for e_i : Expr in body.children {
         emit_stmt(f, e_i, depth, ctx)
     }
 }
-emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32, ctx: Context) {
+emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context) {
     ref ecf_def : Expr = find_struct_def(til_type_name(expr_til_type(ctor)), ctx)
     mut fi : U32 = 0
     for i in 1..ctor.children.len() {
@@ -2595,7 +2595,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, shallow depth: I32, ctx:
     }
 }
 
-emit_ns_inits := proc(f: File, shallow depth: I32, lp: LoadedProgram) {
+emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -2656,7 +2656,7 @@ emit_ns_inits := proc(f: File, shallow depth: I32, lp: LoadedProgram) {
     }
 }
 
-emit_body_scoped := proc(f: File, body: Expr, shallow depth: I32, ctx: Context) {
+emit_body_scoped := proc(f: File, body: Expr, depth: I32, ctx: Context) {
     saved_sl := ctx.stack_locals.clone()
     saved_rl := ctx.ref_locals.clone()
     saved_rdl := ctx.ref_dyn_locals.clone()
@@ -2800,11 +2800,11 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, 
     return f
 }
 
-emit_usize_ref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+emit_usize_ref := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     f.write("USIZE_REF(").emit_deref(e, depth, ctx).write(")")
 }
 
-emit_uptr_ref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) {
+emit_uptr_ref := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     f.write("UPTR_REF(").emit_deref(e, depth, ctx).write(")")
 }
 
@@ -2863,12 +2863,12 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
     f.write(ind); f.write(ttype); f.write(" *"); f.write(var); f.write(" = "); f.write(expr); f.write(";\n")
 }
 
-emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, shallow argi: I32) {
+emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, argi: I32) {
     arg := "argv[".format(argi.to_str(), "]")
     emit_cli_parse_value(f, "    ", ptype, pname, arg)
 }
 
-emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, shallow is_static: Bool, lp: LoadedProgram) {
+emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
     ref body : Expr = func_def.child(0)
@@ -3383,7 +3383,7 @@ func_return_ctype := func(fd: FunctionDef, ctx: Context) returns Str {
     return type_name_to_c(fd.return_type, ctx)
 }
 
-priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, shallow top_level: Bool, ctx: Context) {
+priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: Bool, ctx: Context) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         // Issue #176: top-level ext_func / ext_proc prototypes are emitted by
@@ -3623,7 +3623,7 @@ emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
     f.write("\n")
 }
 
-emit_header_func_fwds_prog := proc(f: File, prog: Expr, shallow is_core_pass: Bool, ctx: Context) {
+emit_header_func_fwds_prog := proc(f: File, prog: Expr, is_core_pass: Bool, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
@@ -3933,7 +3933,7 @@ emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     f.write("\n")
 }
 
-build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, ctx: Context) returns shallow I32 {
+build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, ctx: Context) returns I32 {
     build_register_funcsig_names(core_program, program, ctx)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -3945,7 +3945,7 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, c
     return 0
 }
 
-build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns shallow I32 {
+build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -3957,7 +3957,7 @@ build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns shallo
     return 0
 }
 
-build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Context) returns shallow I32 {
+build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Context) returns I32 {
     build_register_funcsig_names(core_program, program, ctx)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -3970,7 +3970,7 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Contex
     return 0
 }
 
-build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns shallow I32 {
+build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n#include \"ext.h\"\n\n")
@@ -3983,7 +3983,7 @@ build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns shallow I32 {
     return 0
 }
 
-emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns shallow Bool {
+emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns Bool {
     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { return has_ns }
     if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
     mut kw := "ext_func"
@@ -4019,7 +4019,7 @@ emit_binding_ns_methods := proc(f: File, def: Expr) {
     }
 }
 
-build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) returns shallow I32 {
+build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) returns I32 {
     f := File.new(til_path, true)
     f.write("// Auto-generated FFI binding for "); f.write(lib_name); f.write("\n")
     f.write("link(\""); f.write(lib_name); f.write("\")\n\n")
@@ -4114,19 +4114,19 @@ type_name_to_ctypes := func(name: Str) returns Str {
     return name
 }
 
-type_name_to_ctypes_param := func(name: Str, shallow is_shallow: Bool) returns Str {
+type_name_to_ctypes_param := func(name: Str, is_shallow: Bool) returns Str {
     base := type_name_to_ctypes(name)
     if is_shallow { return base }
     return format("ctypes.POINTER(", base, ")")
 }
 
-type_name_to_ctypes_return := func(name: Str, shallow is_shallow: Bool) returns Str {
+type_name_to_ctypes_return := func(name: Str, is_shallow: Bool) returns Str {
     base := type_name_to_ctypes(name)
     if is_shallow { return base }
     return format("ctypes.POINTER(", base, ")")
 }
 
-build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns shallow I32 {
+build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {
     f := File.new(py_path, true)
     f.write("# Auto-generated Python binding for "); f.write(lib_name); f.write("\n")
     f.write("import ctypes\n")
@@ -4435,7 +4435,7 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
     return 0
 }
 
-compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
+compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -4521,7 +4521,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     return 0
 }
 
-compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool) returns shallow I32 {
+compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -5638,7 +5638,7 @@ emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
 
 // Issue #56/#58: emit one struct's branch for a struct_field_* function.
 // kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type.
-priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32) {
+priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len().eq(0) { return }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
@@ -5672,7 +5672,7 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
     }
 }
 
-priv emit_struct_field_branches := proc(f: File, shallow kind: I32, lp: LoadedProgram) {
+priv emit_struct_field_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5712,7 +5712,7 @@ emit_struct_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 
 // Issue #57/#58: emit one enum's branch for an enum_variant_* function.
 // kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type.
-priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32) {
+priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len().eq(0) { return }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
@@ -5758,7 +5758,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind
     }
 }
 
-priv emit_enum_variant_branches := proc(f: File, shallow kind: I32, lp: LoadedProgram) {
+priv emit_enum_variant_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5799,7 +5799,7 @@ emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 // FuncSig is a bodyless func/proc decl. kind 0 = param_count,
 // 1 = param_type, 2 = return_count, 3 = return_type, 4 = throw_count,
 // 5 = throw_type.
-priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32) {
+priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len().eq(0) { return }
     if stmt.child(0).node_type.is(NodeType.FuncDef).not() { return }
@@ -5845,7 +5845,7 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, shallow kind: I32
     }
 }
 
-priv emit_funcsig_branches := proc(f: File, shallow kind: I32, lp: LoadedProgram) {
+priv emit_funcsig_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5912,7 +5912,7 @@ priv dyn_type_str_display := func(vn: Str) returns Str {
 // Locate the variants of an enum definition by name in the loaded
 // program. Returns true iff found. The first hit wins; out-vecs are
 // only written on a hit.
-priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec, mut variant_types: Vec, lp: LoadedProgram) returns shallow Bool {
+priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec, mut variant_types: Vec, lp: LoadedProgram) returns Bool {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6620,7 +6620,7 @@ emit_lib_init := proc(f: File, lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
-build := proc(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns shallow I32 {
+build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns I32 {
     mut is_lib := false
     if is_null(mode).not() { is_lib = mode.is_library }
 
@@ -6805,7 +6805,7 @@ make_build_dirs := func(paths: BuildPaths) {
     }
 }
 
-priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns shallow I32 {
+priv translate_ast := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     mut result := build_forward_header_lp(paths.fwd_path, lp)
     if result.eq(0) {
         result = build(lp.cur_mode, lp.run_tests, paths.c_path, lp)
@@ -6832,14 +6832,14 @@ print_translate_success := proc(paths: BuildPaths) {
     }
 }
 
-compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
+compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool) returns I32 {
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan)
     }
     return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan)
 }
 
-cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns shallow I32 {
+cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
     paths := derive_build_paths(lp, "", custom_c, target)
     make_build_dirs(paths)
     result := translate_ast(lp, paths)
@@ -6847,7 +6847,7 @@ cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns 
     return result
 }
 
-cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
+cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
@@ -6867,7 +6867,7 @@ default_install_prefix := func() returns Str {
     return "/usr/local"
 }
 
-check_install_rc := proc(rc: I32, what: Str) returns shallow I32 {
+check_install_rc := proc(rc: I32, what: Str) returns I32 {
     if rc.neq(0) {
         println(format("error: failed to ", what))
         return 1
@@ -6883,21 +6883,21 @@ support_root := func(prefix: Str) returns Str {
     return prefix.concat("/lib/til")
 }
 
-install_file := proc(src: Str, dst: Str, what: Str) returns shallow I32 {
+install_file := proc(src: Str, dst: Str, what: Str) returns I32 {
     return check_install_rc(copy_file(src, dst), what)
 }
 
-install_tree := proc(src: Str, dst: Str, what: Str) returns shallow I32 {
+install_tree := proc(src: Str, dst: Str, what: Str) returns I32 {
     return check_install_rc(copy_tree(src, dst), what)
 }
 
-is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns shallow Bool {
+is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns Bool {
     if paths.name.eq("til").not() { return false }
     if lp.path.eq("src/til.til").or(lp.path.eq("./src/til.til")) { return true }
     return lp.path.ends_with("/src/til.til")
 }
 
-install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns shallow I32 {
+install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I32 {
     root := builder_compiler_root(lp)
     dst_root := support_root(prefix)
     mut rc := install_tree(root.concat("/src/core"), dst_root.concat("/src/core"), "install compiler core sources")
@@ -6919,7 +6919,7 @@ print_install_success := proc(path: Str) {
     println(format("Installed: ", path))
 }
 
-cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
+cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
     mut install_prefix := install_prefix_in
     if install_prefix.len().eq(0) {
         install_prefix = default_install_prefix()
@@ -6978,7 +6978,7 @@ asan_child_prefix := func(asan: Bool) returns Str {
     return ""
 }
 
-cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
+cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, asan: Bool) returns I32 {
     if lp.cur_mode.is_library {
         panic(__LOC__, "cannot run a library -- use translate or build")
     }
@@ -6999,7 +6999,7 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
 // Compile and run a test binary. Forces do_lib=false so library-mode
 // files still produce an executable -- emit_test_main is gated on
 // lp.run_tests, so the C output has a real main().
-cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool) returns shallow I32 {
+cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
     mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
     paths.do_lib = false
     make_build_dirs(paths)
@@ -7093,7 +7093,7 @@ emit_unit_doc := proc(u: ProgramUnit, ctx: Context) {
     println(format("Generated: ", out))
 }
 
-cmd_doc := proc(lp: LoadedProgram) returns shallow I32 {
+cmd_doc := proc(lp: LoadedProgram) returns I32 {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units { emit_unit_doc(u, lp.ctx) }
     }

@@ -241,7 +241,7 @@ take_own := proc(own _x: I64) {}
 take_own(own NULL)
 
 // NULL: cannot pass to 'shallow' parameter
-take_shallow := proc(shallow _x: I64) {}
+take_shallow := proc(_x: I64) {}
 take_shallow(NULL)
 
 // #99: struct with new() -- literal outside namespace is an error

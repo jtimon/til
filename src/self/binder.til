@@ -28,13 +28,13 @@ import("../std/sys")
 // here rather than redefining. Whitespace detection is binder-local --
 // the lexer skips raw whitespace inline and has no is_ws helper to share.
 
-priv bind_is_ws := func(c: I8) returns shallow Bool {
+priv bind_is_ws := func(c: I8) returns Bool {
     return c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n'))
 }
 
 // --- view helpers (no allocation) --------------------------------------
 
-priv skip_ws := func(s: Str, shallow from: USize) returns USize {
+priv skip_ws := func(s: Str, from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
         if bind_is_ws(s.byte_at(i)).not() { break }
@@ -45,7 +45,7 @@ priv skip_ws := func(s: Str, shallow from: USize) returns USize {
 
 // Index of the first non-identifier byte (ws, punctuation, paren, comma...)
 // in `s` at or after `from`, or s.len() if none.
-priv skip_word := func(s: Str, shallow from: USize) returns USize {
+priv skip_word := func(s: Str, from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
         if is_alnum(s.byte_at(i)).not() { break }
@@ -54,7 +54,7 @@ priv skip_word := func(s: Str, shallow from: USize) returns USize {
     return i
 }
 
-priv trim_right := func(s: Str, shallow from: USize, shallow to: USize) returns USize {
+priv trim_right := func(s: Str, from: USize, to: USize) returns USize {
     mut end := to
     while end.gt(from) {
         if bind_is_ws(s.byte_at(end.sub(1))).not() { break }
@@ -63,7 +63,7 @@ priv trim_right := func(s: Str, shallow from: USize, shallow to: USize) returns 
     return end
 }
 
-priv range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit: Str) returns shallow Bool {
+priv range_eq_lit := func(s: Str, start: USize, end: USize, lit: Str) returns Bool {
     if start.gt(s.len()) { return false }
     if end.gt(s.len()) { return false }
     if end.sub(start).neq(lit.len()) { return false }
@@ -80,7 +80,7 @@ priv range_eq_lit := func(s: Str, shallow start: USize, shallow end: USize, lit:
 // suffix. `success` is set to false on shapes we don't recognise so callers
 // can fall back without panicking. Index-only, no string-clone path that
 // would risk the corruption pattern.
-priv parse_c_int_literal := func(s: Str, shallow from: USize, shallow to: USize, mut success: Bool) returns I64 {
+priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bool) returns I64 {
     success = true
     mut p := from
     mut negate := false
@@ -198,11 +198,11 @@ priv register_dynamic_alias := func(mut bs: BinderState, name: Str) {
     bs.alias_to_dynamic = format(bs.alias_to_dynamic, name, "|")
 }
 
-priv is_alias_to_primitive := func(bs: BinderState, name: Str) returns shallow Bool {
+priv is_alias_to_primitive := func(bs: BinderState, name: Str) returns Bool {
     return bs.alias_to_primitive.contains(format("|", name, "|"))
 }
 
-priv is_alias_to_dynamic := func(bs: BinderState, name: Str) returns shallow Bool {
+priv is_alias_to_dynamic := func(bs: BinderState, name: Str) returns Bool {
     return bs.alias_to_dynamic.contains(format("|", name, "|"))
 }
 
@@ -375,7 +375,7 @@ priv emit_comment_line := func(mut out: Str, line: Str) {
 
 // --- struct body ------------------------------------------------------
 
-priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, shallow open: USize, shallow close: USize) returns Bool {
+priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, open: USize, close: USize) returns Bool {
     for i in open.add(1)..close {
         ref line : Str = lines[i]
         n := line.len()
@@ -467,7 +467,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, shallow
 
 // --- typedef struct ---------------------------------------------------
 
-priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
+priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, start: USize, open: USize, close: USize) returns USize {
     ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -584,7 +584,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, shal
 
 // --- typedef enum -----------------------------------------------------
 
-priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow open: USize, shallow close: USize) returns USize {
+priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, start: USize, open: USize, close: USize) returns USize {
     ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -835,7 +835,7 @@ priv emit_define := func(mut out: Str, line: Str) returns Bool {
 
 // --- function declaration ---------------------------------------------
 
-priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, shallow start: USize, shallow end: USize) returns Bool {
+priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USize, end: USize) returns Bool {
     // Join [start, end] into one signature, dropping line comments. End-of-
     // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
     // push_str so we never re-bind a function-returning Str to a local.
@@ -1474,7 +1474,7 @@ priv header_dir_of := func(path: Str) returns Str {
 // `incdir/`). Used to filter cc -E line markers so we keep declarations
 // from the input header and any header it #includes from the same
 // directory, and drop content from system headers.
-priv path_in_dir := func(marker_path: Str, incdir: Str) returns shallow Bool {
+priv path_in_dir := func(marker_path: Str, incdir: Str) returns Bool {
     if incdir.eq(".") {
         // Everything passes -- caller didn't restrict.
         return true
@@ -1492,7 +1492,7 @@ priv path_in_dir := func(marker_path: Str, incdir: Str) returns shallow Bool {
 // system header expands inside a user header (e.g. raylib's `bool hit;` ->
 // `_Bool`-on-its-own-line, `hit;`-on-the-next). The fragment is short, has
 // no terminator (`;{}`), and is just identifiers/`*`/whitespace.
-priv looks_like_macro_fragment := func(line: Str) returns shallow Bool {
+priv looks_like_macro_fragment := func(line: Str) returns Bool {
     n := line.len()
     mut i : USize = 0
     mut had_word := false

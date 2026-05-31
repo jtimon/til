@@ -1,7 +1,7 @@
 mode lib
 
 // Check if a FieldAccess/FieldAssign Expr accesses a namespace field.
-fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
+fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
     if e.children.len().eq(0) { return false }
     if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) { return false }
     ref obj : Expr = e.child(0)
@@ -33,7 +33,7 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns shallow Bool {
     return false
 }
 
-type_binding_is_type_token := func(b: TypeBinding) returns shallow Bool {
+type_binding_is_type_token := func(b: TypeBinding) returns Bool {
     if is_null(b) { return false }
     if b.is_type_alias { return true }
     if b.is_builtin { return true }
@@ -109,7 +109,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     return call
 }
 
-rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, shallow in_func: I32, ctx: Context) {
+rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_func: I32, ctx: Context) {
     if ptype.is(Type.Enum("Type")).not() { return }
     switch arg.node_type {
     case NodeType.Ident(arg_name):
@@ -249,7 +249,7 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
     }
 }
 
-priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns shallow I32 {
+priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns I32 {
     for csi in 0..coverage.sub_names.len() {
         ref n : Str = coverage.sub_names[csi]
         if n.eq(variant_name) { return csi.cast(I32) }
@@ -263,7 +263,7 @@ priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) retur
 // Patterns the trie doesn't statically describe (value literals, struct
 // patterns, non-enum subjects) return false so a more permissive checker
 // or guard-protected arm doesn't get a false positive.
-priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expected_type_name: Str, pattern: Expr) returns shallow Bool {
+priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expected_type_name: Str, pattern: Expr) returns Bool {
     if expected_type_name.len().eq(0) { return false }
     ref enum_def : Expr = scope.get_struct(expected_type_name)
     if is_null(enum_def) { return false }
@@ -480,7 +480,7 @@ type_error := proc(e: Expr, msg: Str, ctx: Context) {
     ctx.errors++
 }
 
-type_error_at := proc(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx: Context) {
+type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, ctx: Context) {
     println(path, ":", line.to_str(), ":", col.to_str(), ": error: ", msg)
     ctx.errors++
 }
@@ -516,7 +516,7 @@ find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns r
 // validate macro arguments and by precomp to decide func folding.
 // Conservative: only accepts shapes that are definitely known at
 // compile time.
-expr_is_comptime := func(e: Expr, scope: TypeScope) returns shallow Bool {
+expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):    return true
     case NodeType.Literal(Literal.Str):    return true
@@ -584,7 +584,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns shallow Bool {
 // Issue #179 step 5: locate a namespace member's Declaration so the
 // caller can read its is_priv flag (find_namespace_func only returns
 // the default_value FuncDef Expr).
-namespace_member_is_priv := func(sdef: Expr, method: Str) returns shallow Bool {
+namespace_member_is_priv := func(sdef: Expr, method: Str) returns Bool {
     if is_null(sdef) { return false }
     ref ns : Vec = def_ns_decls(sdef)
     for fd : Declaration in ns {
@@ -596,7 +596,7 @@ namespace_member_is_priv := func(sdef: Expr, method: Str) returns shallow Bool {
 // #187 step 3: mark a namespace member as used. Skipped while
 // auto_gen_depth > 0 so auto-emitted clone/delete/size don't mask
 // genuinely-unused priv namespace methods.
-mark_ns_member_used := func(sdef: Expr, method: Str) returns shallow Bool {
+mark_ns_member_used := func(sdef: Expr, method: Str) returns Bool {
     if is_null(sdef) { return false }
     ref ns : Vec = def_ns_decls(sdef)
     for fd : Declaration in ns {
@@ -605,7 +605,7 @@ mark_ns_member_used := func(sdef: Expr, method: Str) returns shallow Bool {
     return false
 }
 
-try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns shallow Bool {
+try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns Bool {
     // Top-level `priv` free functions are file-mangled to
     // `priv__<path>__<name>`, and init_rewrite_refs only rewrites Ident
     // references -- not the method name on a UFCS FieldAccess. So
@@ -745,7 +745,7 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
 //   - Ident("foo")     -> scope binding's func_def.return_own_type
 //   - Type.method(...) -> namespace lookup on the type's def
 //   - obj.method(...)  -> namespace lookup on the receiver's type def
-fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns shallow Bool {
+fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     if fcall.children.len().eq(0) { return false }
     ref callee : Expr = fcall.child(0)
@@ -871,7 +871,7 @@ check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
     }
 }
 
-infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
+infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, in_func: I32, ctx: Context) returns Bool {
     if is_null(sdef).or(expr_til_type(obj).is(Type.Struct).not().and(expr_til_type(obj).is(Type.Enum).not())) { return false }
     switch sdef.node_type {
     case NodeType.StructDef(fpf_sdd):
@@ -918,7 +918,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
 // True when `e` is a `.clone()` method call (either UFCS form
 // `x.clone()` or the desugared namespace form `Type.clone(x)`): an FCall
 // whose callee is a FieldAccess named "clone".
-is_clone_fcall := func(e: Expr) returns shallow Bool {
+is_clone_fcall := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
@@ -1016,13 +1016,13 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
     }
 }
 
-infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
+infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_func: I32, ctx: Context) returns Bool {
     ref sdef : Expr = scope.get_struct(name)
     if is_null(sdef) { return false }
     return infer_struct_constructor_fcall_impl(scope, sdef, e, name, in_func, ctx)
 }
 
-infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool {
+infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, in_func: I32, ctx: Context) returns Bool {
     // #187 step 1: mark the struct binding as used so a priv struct
     // that is only ever instantiated (no namespace method calls) is
     // not misreported as dead. Skip when current_type_name matches
@@ -1286,7 +1286,7 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
 // holds). Out-of-range cases stay legal because the conversion is then
 // doing real work: -1.to_usize() (wraparound to the max sentinel) and
 // 300.to_u8() (truncation) both return false here.
-redundant_literal_conversion := func(e: Expr, expected: Type) returns shallow Bool {
+redundant_literal_conversion := func(e: Expr, expected: Type) returns Bool {
     if is_numeric_type(expected).not() { return false }
     if e.node_type.is(NodeType.FCall).not() { return false }
     if is_numeric_type(expr_til_type(e)).not() { return false }
@@ -1389,7 +1389,7 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
     }
 }
 
-infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32, ctx: Context) {
+infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, in_func: I32, ctx: Context) {
     for i in 1..e.children.len() {
         infer_expr(scope, e.child(i), in_func, ctx)
     }
@@ -1514,7 +1514,7 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
     }
 }
 
-resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, shallow in_func: I32, ctx: Context) {
+resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, in_func: I32, ctx: Context) {
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.children.len().gte(3) {
             ref method_arg : Expr = e.child(2)
@@ -1645,7 +1645,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
 // generic "no method 'to_u32' for type 'U32'". The check is purely on
 // the call shape: core defines no identity converters (no `to_u32` on
 // U32, no `to_str` on Str), so this only ever fires on a mistake.
-is_self_conversion_method := func(method: Str, type_name: Str) returns shallow Bool {
+is_self_conversion_method := func(method: Str, type_name: Str) returns Bool {
     if method.starts_with("to_").not() { return false }
     if type_name.len().eq(0) { return false }
     suffix_len := method.len().sub(3)
@@ -1677,7 +1677,7 @@ obj_method_type_name := func(obj: Expr) returns Str {
     return ""
 }
 
-infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) returns shallow Bool {
+infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
     ref mut fa : Expr = e.child(0)
     ref mut obj : Expr = fa.child(0)
     mut method := ""
@@ -2204,7 +2204,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // in both the codegen and interpreter value model are returned (4 and 8);
 // 1-byte (I8 has no interpreter Value variant) and 2-byte (no U16) are
 // intentionally left at 0 for now.
-cast_int_size := func(t: Type) returns shallow I32 {
+cast_int_size := func(t: Type) returns I32 {
     tn := til_type_name_c(t)
     if tn.eq("I8").or(tn.eq("U8"))   { return 1 }
     if tn.eq("I16").or(tn.eq("U16")) { return 2 }
@@ -2218,7 +2218,7 @@ cast_int_size := func(t: Type) returns shallow I32 {
 // signedness widening (e.g. I8 -> U16) is deferred for now because it
 // changes the value's signed interpretation -- the operand and result
 // no longer agree on what the bits mean.
-cast_is_signed := func(t: Type) returns shallow Bool {
+cast_is_signed := func(t: Type) returns Bool {
     tn := til_type_name_c(t)
     if tn.eq("I8").or(tn.eq("I16")).or(tn.eq("I32")).or(tn.eq("I64")) {
         return true
@@ -2231,7 +2231,7 @@ cast_is_signed := func(t: Type) returns shallow Bool {
 // OR same-signedness widening (src.size < target.size, both signed
 // or both unsigned). Narrowing and cross-signedness widening are
 // intentionally rejected.
-cast_pair_ok := func(src: Type, target: Type) returns shallow Bool {
+cast_pair_ok := func(src: Type, target: Type) returns Bool {
     src_size := cast_int_size(src)
     target_size := cast_int_size(target)
     if src_size.eq(0).or(target_size.eq(0)) { return false }
@@ -2247,7 +2247,7 @@ cast_pair_ok := func(src: Type, target: Type) returns shallow Bool {
 // a Type value (so downstream passes see a well-formed Type, as with
 // Vec.new(I32)), and sets the call's result type to T -- the typer's
 // stand-in for the not-yet-expressible `returns T`.
-infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
+infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
     if e.children.len().neq(3) {
         type_error(e, "cast expects (value, Type), e.g. x.cast(I32)", ctx)
         set_expr_til_type(e, Type.Unknown)
@@ -2288,7 +2288,7 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     set_expr_til_type(e, target_type)
 }
 
-infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) {
+infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
     if e.child(0).node_type.is(NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
     }
@@ -2359,7 +2359,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     return
 }
 
-priv infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
+priv infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     switch expr.node_type {
     case NodeType.Literal(Literal.Num):  infer_literal_expr(expr)
     case NodeType.Literal(Literal.Null): infer_literal_expr(expr)
@@ -2411,19 +2411,19 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     }
 }
 
-infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
+infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     if expr.children.len().gt(0) {
         infer_expr(scope, expr.child(0), in_func, ctx)
     }
 }
 
-infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
+infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     for e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
 }
 
-infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
+infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     for e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
@@ -2437,7 +2437,7 @@ infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
 // allocation the field's `own` qualifier announced is leaked at every
 // destruction site (Map.delete, Vec.delete, scope_free, the
 // auto-generated Value.delete chain, etc.).
-priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns shallow Bool {
+priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
     if is_null(e) { return false }
     switch e.node_type {
     case NodeType.FieldAccess(_fa_name):
@@ -2616,6 +2616,15 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
             fdef.return_type = resolved_return_type
+            // Issue #223 step 2: forbid redundant 'shallow' on a primitive
+            // funcptr return. COMMENTED OUT during rollout (see infer_func_def_expr).
+            // NOTE: infer_func_sig_expr is a func with no ctx, so enabling this
+            // needs the diagnostic raised from a proc context.
+            // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Shallow)) {
+            //     if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
+            //         <raise: redundant 'shallow' on primitive return type ... drop it>
+            //     }
+            // }
             if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Own)) {
                 if is_primitive(til_type_from_explicit_type(resolved_return_type)) {
                     fdef.return_own_type = OwnType.Shallow
@@ -2627,6 +2636,11 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
             param.explicit_type = resolved_ptype
             param.til_type =til_type_from_explicit_type(resolved_ptype)
+            // Issue #223 step 2: forbid redundant 'shallow' on a primitive
+            // funcptr parameter. COMMENTED OUT during rollout (see infer_func_def_expr).
+            // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
+            //     <raise: redundant 'shallow' on primitive parameter ... drop it>
+            // }
             if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
                 param.own_type = OwnType.Shallow
             }
@@ -2708,6 +2722,17 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
             fdef.return_type = resolved_return_type
             check_priv_type_name(expr, resolved_return_type, scope, ctx)
+            // Issue #223 step 2: an explicit 'shallow' on a primitive return is
+            // redundant (auto-shallow handles it). The rule is implemented but
+            // COMMENTED OUT during rollout: once active, the compiler rejects any
+            // source still carrying the old qualifiers, so the seed boot/til.c and
+            // any in-flight branch would fail to bootstrap. This codebase is
+            // already clean; uncomment once the whole merge queue is.
+            // if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Shallow)) {
+            //     if is_primitive(type_from_name_at(resolved_return_type, scope, expr, ctx)) {
+            //         type_error(expr, "redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
+            //     }
+            // }
             // Issue #223 step 1: primitives are returned by value (shallow)
             // even without the qualifier. Normalize the default (Own) to
             // Shallow for primitive return types so every downstream stage
@@ -2740,6 +2765,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 if pown {
                     type_error(expr, "parameter cannot be both 'shallow' and 'own'", ctx)
                 }
+                // Issue #223 step 2: an explicit 'shallow' on a primitive
+                // parameter is redundant where auto-shallow applies (ordinary
+                // func/proc not returning ref). COMMENTED OUT during rollout
+                // (see the return check in this proc for the bootstrap reason).
+                // if is_scalar.and(auto_shallow_ok).and(fdef.return_own_type.is(OwnType.Ref).not()) {
+                //     type_error(expr, "redundant 'shallow' on primitive parameter '".concat(param.name).concat("': primitives are passed by value automatically (issue #223); drop it"), ctx)
+                // }
             }
             if i.cast(I32).eq(fdef.variadic_index) {
                 // Regular til funcs get a callee-side auto-cleanup
@@ -2906,7 +2938,7 @@ check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
 // possibly reach it. Flag and suggest removing 'priv' to expose it.
 // Returns the number of errors emitted so the loader can fold the
 // count into its overall type_errors total.
-check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns shallow I32 {
+check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 {
     mut found : I32 = 0
     for bi in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
@@ -2961,7 +2993,7 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns shal
 // auto_gen_depth == 0 so boilerplate clone/delete don't mask
 // unused decls). After type_check, walk every struct/enum decl in
 // each ImportUnit and flag the leftovers.
-check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Context) returns shallow I32 {
+check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Context) returns I32 {
     mut found : I32 = 0
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -3049,7 +3081,7 @@ narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
     }
 }
 
-infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
+infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     if stmt.children.len().gt(0) {
         infer_expr(scope, stmt.child(0), in_func, ctx)
         narrow_return_literal(scope, stmt.child(0), ctx)
@@ -3087,7 +3119,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     }
 }
 
-infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context) {
+infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     if expr_til_type(stmt.child(0)).is(Type.Bool).not().and(expr_til_type(stmt.child(0)).is(Type.Unknown).not()) {
         type_error(stmt, "if condition must be Bool", ctx)
@@ -3107,7 +3139,7 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
     set_expr_til_type(stmt, Type.None)
 }
 
-infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context) {
+infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, expr.child(0), in_func, ctx)
     ref obj : Expr = expr.child(0)
     obj_sname := til_type_name(expr_til_type(obj))
@@ -3173,7 +3205,7 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_fun
     }
 }
 
-infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context) {
+infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     infer_expr(scope, stmt.child(1), in_func, ctx)
     ref obj : Expr = stmt.child(0)
@@ -3288,7 +3320,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_fun
     }
 }
 
-infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context) {
+infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     if expr_til_type(stmt.child(0)).is(Type.Bool).not().and(expr_til_type(stmt.child(0)).is(Type.Unknown).not()) {
         type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(expr_til_type(stmt.child(0)))), ctx)
@@ -3349,7 +3381,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
     set_expr_til_type(stmt, Type.None)
 }
 
-infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) returns shallow Bool {
+infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) returns Bool {
     if is_struct_or_enum(stmt).not() { return false }
     is_enum := stmt.child(0).node_type.is(NodeType.EnumDef)
     switch stmt.node_type {
@@ -3412,7 +3444,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
     }
 }
 
-infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) returns shallow Bool {
+infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) returns Bool {
     if is_func_decl(stmt).not() { return false }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
@@ -3458,7 +3490,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
     }
 }
 
-infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
+infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr) returns Bool {
     if stmt.child(0).node_type.is(NodeType.Ident).not() { return false }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
@@ -3603,7 +3635,7 @@ infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     }
 }
 
-finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32, ctx: Context) {
+finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I32, ctx: Context) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         ref mut rhs : Expr = stmt.child(0)
@@ -3715,7 +3747,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_
     }
 }
 
-infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_type_body: I32, ctx: Context) {
+infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, ctx: Context) {
     if stmt.children.len().eq(0) { return }
     if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
         switch stmt.node_type {
@@ -3774,7 +3806,7 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
     finalize_decl_binding(scope, stmt, in_type_body, ctx)
 }
 
-is_simple_lvalue_expr := func(e: Expr) returns shallow Bool {
+is_simple_lvalue_expr := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.Ident) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
         if e.children.len().eq(1) {
@@ -3787,7 +3819,7 @@ is_simple_lvalue_expr := func(e: Expr) returns shallow Bool {
 // Fold a Vec of conditions into a left-associative `.and()` chain.
 // Empty -> LiteralBool(true). Otherwise read by clone (the Vec is left
 // untouched for the caller to drop normally).
-priv fold_and_chain := func(conds: Vec, shallow line: U32, shallow col: U32) returns Expr {
+priv fold_and_chain := func(conds: Vec, line: U32, col: U32) returns Expr {
     if conds.len().eq(0) {
         return Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
     }
@@ -3805,7 +3837,7 @@ priv fold_and_chain := func(conds: Vec, shallow line: U32, shallow col: U32) ret
     return acc.clone()
 }
 
-make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr {
+make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, sw_line: U32, sw_col: U32) returns Expr {
     mut condition := Expr.new(NodeType.Body, sw_line, sw_col)
     mut has_condition := false
     if match_expr.node_type.is(NodeType.FCall) {
@@ -4150,7 +4182,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     return condition
 }
 
-replace_switch_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
+replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
     ref slot_sw : Expr = body.children[stmt_idx]
     free_expr_slot_in_place(slot_sw)
     move(slot_sw, block, Expr.size())
@@ -4233,7 +4265,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
     }
 }
 
-infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context) {
+infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut sw_expr : Expr = stmt.child(0)
     sw_line := stmt.line
@@ -4461,13 +4493,13 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
     replace_switch_stmt_with_block(body, stmt_idx, block)
 }
 
-replace_body_stmt_with_block := func(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
+replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
     ref slot_bd : Expr = body.children[stmt_idx]
     free_expr_slot_in_place(slot_bd)
     move(slot_bd, block, Expr.size())
 }
 
-make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr {
+make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {
     mut wb := Expr.new(NodeType.Body, line, col)
 
     mut vd := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), is_mut = var_is_mut)), line, col)
@@ -4484,7 +4516,7 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
     return wb
 }
 
-desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context) returns shallow Bool {
+desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut iter : Expr = stmt.child(0)
     if iter.node_type.is(NodeType.FCall).not() { return false }
@@ -4595,7 +4627,7 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt
     return true
 }
 
-desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context) returns shallow Bool {
+desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.child(stmt_idx)
     ref mut iter : Expr = stmt.child(0)
 
@@ -4910,7 +4942,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
     return ""
 }
 
-priv guess_prior_local_type_in_vec := func(stmts: Vec, shallow upto: USize, var_name: Str) returns Str {
+priv guess_prior_local_type_in_vec := func(stmts: Vec, upto: USize, var_name: Str) returns Str {
     if stmts.len().eq(0) { return "" }
     mut limit := upto
     if limit.gte(stmts.len()) {
@@ -4955,7 +4987,7 @@ priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
     }
 }
 
-priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, shallow before_line: U32) returns shallow Bool {
+priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, before_line: U32) returns Bool {
     if e.line.lt(before_line).and(e.node_type.is(NodeType.Throw)).and(e.children.len().eq(1)) {
         mut thrown_name := type_to_name(expr_til_type(e))
         if thrown_name.len().eq(0) {
@@ -4984,7 +5016,7 @@ priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, shal
     return false
 }
 
-priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) returns shallow Bool {
+priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) returns Bool {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
         mut thrown_name := ""
         switch e.child(0).node_type {
@@ -5011,7 +5043,7 @@ priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) re
     return false
 }
 
-priv has_prior_throw_type_in_vec := proc(stmts: Vec, root_body: Expr, shallow upto: USize, type_name: Str) returns shallow Bool {
+priv has_prior_throw_type_in_vec := proc(stmts: Vec, root_body: Expr, upto: USize, type_name: Str) returns Bool {
     if stmts.len().eq(0).or(upto.eq(0)) { return false }
     mut limit := upto
     if limit.gt(stmts.len()) { limit = stmts.len() }
@@ -5046,7 +5078,7 @@ priv throw_type_name_for_with_body := func(e: Expr, body: Expr) returns Str {
 }
 
 
-priv subtree_has_throw_catch := func(e: Expr) returns shallow Bool {
+priv subtree_has_throw_catch := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.Throw).or(e.node_type.is(NodeType.Catch)) {
         return true
     }
@@ -5074,7 +5106,7 @@ priv subtree_has_throw_catch := func(e: Expr) returns shallow Bool {
 // guard against (unlike a bare throw or a propagating `?`-call). A
 // bang nested in a while/if body would otherwise spuriously wrap the
 // statements after the loop in `if _err_kind == 0`.
-priv subtree_has_pending_throw := func(e: Expr) returns shallow Bool {
+priv subtree_has_pending_throw := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.Throw).or(e.node_type.is(NodeType.Catch)) {
         return true
     }
@@ -5092,7 +5124,7 @@ priv subtree_has_pending_throw := func(e: Expr) returns shallow Bool {
 }
 
 // Issue #202: any subtree FCall with is_bang flag set?
-priv subtree_has_bang := func(e: Expr) returns shallow Bool {
+priv subtree_has_bang := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall) {
         switch e.node_type {
         case NodeType.FCall(fcd_b):
@@ -5218,11 +5250,11 @@ priv err_slot_name := func(t: Str) returns Str {
     return "_err_".concat(t)
 }
 
-priv make_int_lit := func(shallow n: I64, shallow line: U32, shallow col: U32) returns Expr {
+priv make_int_lit := func(n: I64, line: U32, col: U32) returns Expr {
     return Expr.new(literal_num_node(n.to_str()), line, col)
 }
 
-priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, shallow line: U32, shallow col: U32) returns Expr {
+priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, line: U32, col: U32) returns Expr {
     mut dd := Declaration(
         name = name.clone(),
         explicit_type = type_name.clone(),
@@ -5234,13 +5266,13 @@ priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, shallow 
     return decl
 }
 
-priv make_assign_stmt := func(name: Str, rhs: Expr, shallow line: U32, shallow col: U32) returns Expr {
+priv make_assign_stmt := func(name: Str, rhs: Expr, line: U32, col: U32) returns Expr {
     mut a := Expr.new(NodeType.Assign(AssignData(name = name.clone())), line, col)
     a.add_child(own rhs.clone())
     return a
 }
 
-priv make_default_value_expr := func(type_name: Str, shallow line: U32, shallow col: U32) returns Expr {
+priv make_default_value_expr := func(type_name: Str, line: U32, col: U32) returns Expr {
     if type_name.eq("Str") { return Expr.new(NodeType.Literal(Literal.Str("")), line, col) }
     if type_name.eq("Bool") { return Expr.new(NodeType.Literal(Literal.Bool(false)), line, col) }
     if type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("I8")).or(type_name.eq("I16"))
@@ -5279,7 +5311,7 @@ priv register_throw_type := func(mut ctx: Context, name: Str) {
     ctx.throw_type_registry.push(own name.clone())
 }
 
-priv make_if_kind_eq_zero_wrap := func(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr {
+priv make_if_kind_eq_zero_wrap := func(stmt: Expr, line: U32, col: U32) returns Expr {
     mut wrap_body := Expr.new(NodeType.Body, line, col)
     wrap_body.add_child(own stmt.clone())
     mut kind_id := Expr.new(ident_node("_err_kind"), line, col)
@@ -5803,7 +5835,7 @@ priv find_callee_throws_idx := func(ctx: Context, fcall: Expr, body: Expr) retur
 
 // Matches rstil: a single catch consumes EVERY pending entry of
 // that type, not just one. Returns true if at least one was found.
-priv pending_remove_all_matching := func(mut pending: Vec, type_name: Str) returns shallow Bool {
+priv pending_remove_all_matching := func(mut pending: Vec, type_name: Str) returns Bool {
     mut found := false
     // Rebuild pending in place, dropping matches.
     mut write : USize = 0
@@ -5822,7 +5854,7 @@ priv pending_remove_all_matching := func(mut pending: Vec, type_name: Str) retur
     return found
 }
 
-priv vec_str_contains := func(v: Vec, name: Str) returns shallow Bool {
+priv vec_str_contains := func(v: Vec, name: Str) returns Bool {
     for i in 0..v.len() {
         ref n : Str = v[i]
         if n.eq(name) { return true }
@@ -5976,7 +6008,7 @@ priv validate_and_inject_expr_consolidated := proc(
 // avoids an intermediate NodeType.Catch that would need a separate
 // lowering pass to convert. Emits:
 //   if I64.eq(_err_kind, <tag>) { _err_kind = 0; panic("<loc>", "<T>") }
-priv build_bang_lowered := func(ctx: Context, error_type: Str, shallow line: U32, shallow col: U32) returns Expr {
+priv build_bang_lowered := func(ctx: Context, error_type: Str, line: U32, col: U32) returns Expr {
     tag := tag_for_type(ctx, error_type, Vec.new(Str))
     loc_str := format(ctx.path, ":", line.to_str(), ":", col.to_str())
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -6624,7 +6656,7 @@ process_throw_catch_in_func_body := proc(
     Vec.delete(own old, true)
 }
 
-is_compile_directive := func(e: Expr) returns shallow Bool {
+is_compile_directive := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(1) { return false }
     switch e.child(0).node_type {
@@ -6636,7 +6668,7 @@ is_compile_directive := func(e: Expr) returns shallow Bool {
     }
 }
 
-infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
+infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     ref mut stmt : Expr = body.child(i)
     if is_compile_directive(stmt) { set_expr_til_type(stmt, Type.None); return }
     switch stmt.node_type {
@@ -6791,7 +6823,7 @@ reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
 // proc no longer runs the asap-destruction pass; the scope-management
 // sites that call infer_body invoke garbager_destroy_body(body, scope)
 // themselves before tearing the scope down.
-infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
+infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     set_expr_til_type(body, Type.None)
     mut i : U32 = 0
     while i.lt(body.children.len()) {
@@ -6806,7 +6838,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shall
     }
 }
 
-infer_body_unit := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context) {
+infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     set_expr_til_type(body, Type.None)
     mut i : U32 = 0
     while i.lt(body.children.len()) {
@@ -6872,7 +6904,7 @@ normalize_scope_bindings := func(scope: TypeScope) {
 // Moved into the typer module so the parser stays dumb and the lift
 // happens during the typer phase rather than as its own #158 pass.
 
-priv typer_is_lambda_target := func(e: Expr) returns shallow Bool {
+priv typer_is_lambda_target := func(e: Expr) returns Bool {
     if is_null(e) { return false }
     if e.node_type.is(NodeType.FuncDef).not() { return false }
     if e.children.len().eq(0) { return false }
@@ -6983,7 +7015,7 @@ priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Conte
     }
 }
 
-type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
+type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     ctx.errors = 0
     context_enter_file(ctx, path)
     // Lift anonymous func literals out of expression positions to
@@ -7021,7 +7053,7 @@ type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context
 // scope-using methodgen (gen_struct_clone_delete,
 // gen_missing_enum_clone) the same way and eventually retire
 // init_declarations_global's heavy parts entirely.
-type_file := proc(path: Str, ctx: Context) returns shallow I32 {
+type_file := proc(path: Str, ctx: Context) returns I32 {
     mut total : I32 = 0
     total = total.add(type_decls_file(path, ctx))
     total = total.add(type_bodies_file(path, ctx))
@@ -7042,7 +7074,7 @@ type_file := proc(path: Str, ctx: Context) returns shallow I32 {
 // stay in init_declarations_global for now -- they hit the #174
 // method-body cycle and will migrate once the second sweep takes
 // over function bodies.
-type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
+type_decls_file := proc(path: Str, ctx: Context) returns I32 {
     if ctx.imports_typer_decls_done.has(path) {
         return 0
     }
@@ -7137,7 +7169,7 @@ type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
 // here is the same shape as the current single-sweep type_file: walk
 // imports in source order, then type_check_unit. Renamed from
 // type_file to make the two-sweep split explicit.
-type_bodies_file := proc(path: Str, ctx: Context) returns shallow I32 {
+type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
     if ctx.imports_typer_bodies_done.has(path) {
         return 0
     }
@@ -7214,7 +7246,7 @@ type_bodies_file := proc(path: Str, ctx: Context) returns shallow I32 {
     return total.add(type_check_unit(path, iu.ast, ctx.scope, ctx))
 }
 
-infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context) {
+infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     ref mut rhs : Expr = stmt.child(0)
     set_expr_til_type(stmt, expr_til_type(rhs))
@@ -7353,7 +7385,7 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32
     }
 }
 
-rhs_is_clone_fcall := func(rhs: Expr) returns shallow Bool {
+rhs_is_clone_fcall := func(rhs: Expr) returns Bool {
     if rhs.node_type.is(NodeType.FCall).not() { return false }
     if rhs.children.len().lt(1) { return false }
     ref callee : Expr = rhs.child(0)
@@ -7366,7 +7398,7 @@ rhs_is_clone_fcall := func(rhs: Expr) returns shallow Bool {
     }
 }
 
-assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns shallow Bool {
+assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns Bool {
     ref mut s : TypeScope = scope
     while is_null(s).not() {
         if is_null(s.parent).not().and(s.bindings.has(name)) { return true }
@@ -7375,7 +7407,7 @@ assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns sha
     return false
 }
 
-is_numeric_type := func(t: Type) returns shallow Bool {
+is_numeric_type := func(t: Type) returns Bool {
     switch t {
     case Type.I64: return true
     case Type.U8:  return true
@@ -7395,7 +7427,7 @@ is_numeric_type := func(t: Type) returns shallow Bool {
     }
 }
 
-is_integral_numeric_type := func(t: Type) returns shallow Bool {
+is_integral_numeric_type := func(t: Type) returns Bool {
     switch t {
     case Type.I64: return true
     case Type.U8:  return true
@@ -7414,7 +7446,7 @@ is_integral_numeric_type := func(t: Type) returns shallow Bool {
     }
 }
 
-type_ctor_consumes := func(t: Type) returns shallow Bool {
+type_ctor_consumes := func(t: Type) returns Bool {
     // Issue #205: primitives modelled as Type.Struct("I32") / Type.Struct("U8")
     // are value types -- a ctor field default of `0` with explicit type I32
     // shouldn't trigger "own" semantics. Without this short-circuit, the
@@ -7433,15 +7465,15 @@ type_ctor_consumes := func(t: Type) returns shallow Bool {
     }
 }
 
-is_usize_name := func(name: Str) returns shallow Bool {
+is_usize_name := func(name: Str) returns Bool {
     return name.eq("USize")
 }
 
-is_uptr_name := func(name: Str) returns shallow Bool {
+is_uptr_name := func(name: Str) returns Bool {
     return name.eq("UPtr")
 }
 
-can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns shallow Bool {
+can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns Bool {
     if is_usize_name(to_name) {
         switch to {
         case Type.U32:
@@ -7461,7 +7493,7 @@ can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns sh
     return false
 }
 
-literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
+literal_in_range := func(val_str: Str, target: Type) returns Bool {
     switch target {
     case Type.I64: return true
     case Type.F32: return true
@@ -7504,7 +7536,7 @@ literal_in_range := func(val_str: Str, target: Type) returns shallow Bool {
     }
 }
 
-can_implicit_widen := func(from: Type, to: Type) returns shallow Bool {
+can_implicit_widen := func(from: Type, to: Type) returns Bool {
     if from.eq(to) { return false }
     // Issue #205: a primitive may arrive as Type.Struct("<name>") or as
     // Type.<Name> during the staged migration; both must widen to I64
@@ -7660,7 +7692,7 @@ usize_type := func(scope: TypeScope, ctx: Context) returns Type {
     return type_from_name(usize_name(scope), scope, ctx)
 }
 
-type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
+type_has_cmp := func(scope: TypeScope, type_name: Str) returns Bool {
     ref sdef : Expr = scope.get_struct(type_name)
     if is_null(sdef) { return false }
     ref cmp_ns : Vec = def_ns_decls(sdef)
@@ -7670,7 +7702,7 @@ type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
     return false
 }
 
-type_has_to_str := func(scope: TypeScope, type_name: Str) returns shallow Bool {
+type_has_to_str := func(scope: TypeScope, type_name: Str) returns Bool {
     ref sdef : Expr = scope.get_struct(type_name)
     if is_null(sdef) { return false }
     ref ts_ns : Vec = def_ns_decls(sdef)
@@ -7680,7 +7712,7 @@ type_has_to_str := func(scope: TypeScope, type_name: Str) returns shallow Bool {
     return false
 }
 
-expr_contains_fcall := func(e: Expr) returns shallow Bool {
+expr_contains_fcall := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall) { return true }
     for e_i : Expr in e.children {
         if expr_contains_fcall(e_i) { return true }
@@ -7688,7 +7720,7 @@ expr_contains_fcall := func(e: Expr) returns shallow Bool {
     return false
 }
 
-expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
+expr_uses_var := func(e: Expr, name: Str) returns Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     switch e.node_type {
     case NodeType.Ident(_id):
@@ -7703,7 +7735,7 @@ expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
     return false
 }
 
-expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
+expr_contains_decl := func(e: Expr, name: Str) returns Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     switch e.node_type {
     case NodeType.Decl(_dd):
@@ -7716,7 +7748,7 @@ expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
     return false
 }
 
-expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
+expr_used_in_nested_func := func(e: Expr, name: Str) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef(fdef):
         for p : Declaration in fdef.params {
@@ -7887,7 +7919,7 @@ make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) r
     return call
 }
 
-make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, call_free: Bool, src: Expr) returns Expr {
     tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }
 
@@ -7923,7 +7955,7 @@ make_delete_call := func(var_name: Str, shallow type: Type, shallow arg_is_own: 
 // This is the exact shape we want `make_free_call` to follow up. Other
 // transfer shapes -- own arg to a function, struct constructor with an Own
 // or Ref field -- already consume the wrapper, so we must NOT emit a free.
-transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
+transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns Bool {
     if is_null(e) { return false }
     if e.node_type.is(NodeType.FuncDef) { return false }
     if e.node_type.is(NodeType.FCall) {
@@ -8157,7 +8189,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     return set_call
 }
 
-build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32, ctx: Context) returns Expr {
+build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: U32, ctx: Context) returns Expr {
     mut new_call := make_ns_call("Array", "new", Type.Struct("Array"), fcall)
 
     mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope, ctx))
@@ -8181,7 +8213,7 @@ build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str,
     return va_decl
 }
 
-build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32, ctx: Context) returns Expr {
+build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, vi: I32, j: U32, ctx: Context) returns Expr {
     mut set_call := make_ns_call("Array", "set", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(va_name), fcall.line, fcall.col)
@@ -8227,7 +8259,7 @@ build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, ve
     return vec_decl
 }
 
-build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str, shallow j: U32) returns Expr {
+build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str, j: U32) returns Expr {
     mut push_call := make_ns_call("Vec", "push", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(vec_name), fcall.line, fcall.col)
@@ -8257,7 +8289,7 @@ rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_
     set_expr_til_type(fcall, coll_type)
 }
 
-desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool {
+desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec, mut scope: TypeScope) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall:
         if fcall.children.len().lt(2) { return false }
@@ -8306,7 +8338,7 @@ desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: V
     }
 }
 
-desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool {
+desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { return false }
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FCall).not() { return false }
@@ -8373,7 +8405,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
 
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
-desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool {
+desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns Bool {
     ref set_lit : Expr = stmt.child(0)
     mut var_name := ""
     switch stmt.node_type {
@@ -8442,7 +8474,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
-desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool {
+desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns Bool {
     ref map_lit : Expr = stmt.child(0)
     mut var_name := ""
     switch stmt.node_type {
@@ -8557,7 +8589,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
 // EnumDef / Body) so a body-level walk doesn't dive into a nested
 // function definition or nested block, which the outer body_pre_passes
 // pass will reach separately.
-process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_array_vec: Bool, shallow has_variadic: Bool, shallow has_kwargs: Bool) {
+process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool) {
     if is_null(e) { return }
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
@@ -8652,7 +8684,7 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
 // Compile directives (link / link_c / import) flow through untouched:
 // the call-desugar walk is a no-op on them, the hoist switch's default
 // case skips them, and field_delete is FieldAssign-only.
-priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32) returns shallow Bool {
+priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, owns_scope: I32) returns Bool {
     mut has_set_lit := false
     mut has_map_lit := false
     mut has_array_vec := false
@@ -8780,7 +8812,7 @@ apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, m
 // must be hoisted into a temp Decl so the builder takes its address).
 // To match the original two-pass flow, every desugar-emitted stmt is
 // routed through hoist before being pushed.
-apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_array_vec: Bool, shallow has_variadic: Bool, shallow has_kwargs: Bool, shallow do_hoist: Bool, shallow needs_delete: Bool) {
+apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool) {
     if is_compile_directive(stmt) { return }
     if has_array_vec.or(has_variadic).or(has_kwargs) {
         mut emitted := Vec.new(Expr)
@@ -8851,7 +8883,7 @@ hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: V
 // Used by the hoist pass to mark the hoisted-temp arg Own independently
 // of the per-call own_arg bit (which the auto-own pass may not have
 // reached on a synthesized/hoisted call).
-fcall_variant_ctor_arg_is_own := func(expr: Expr, shallow i: U32, scope: TypeScope) returns shallow Bool {
+fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope) returns Bool {
     if expr.node_type.is(NodeType.FCall).not() { return false }
     if expr.children.len().lt(2) { return false }
     ref callee : Expr = expr.child(0)
@@ -9098,7 +9130,7 @@ hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut
     stmt = popped
 }
 
-rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, shallow vi: I32, shallow vc: USize) {
+rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32, vc: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcall_data):
         old_own := fcall_data.own_args
@@ -9438,7 +9470,7 @@ resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref St
 
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
-desugar_pure_splat_variadic_call := func(mut fcall: Expr, shallow vi: I32, shallow vc: USize) returns shallow Bool {
+desugar_pure_splat_variadic_call := func(mut fcall: Expr, vi: I32, vc: USize) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         if vc.eq(1).not() { return false }
@@ -9471,7 +9503,7 @@ desugar_pure_splat_variadic_call := func(mut fcall: Expr, shallow vi: I32, shall
     }
 }
 
-rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, shallow ki: I32) {
+rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         kc := fcall_kwargs_count(fcall)
@@ -9531,7 +9563,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, shallow ki: I32
     }
 }
 
-check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
+check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns Bool {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) { return false }
@@ -9553,7 +9585,7 @@ check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow B
     }
 }
 
-fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns shallow Bool {
+fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     if fcall.children.len().lt(2) { return false }
     // Struct constructor
@@ -9622,7 +9654,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
     return false
 }
 
-expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool {
+expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     if fcall_has_own_arg(e, var_name, scope) { return true }
     // FieldAssign is a transfer only when the receiving field is Own --
@@ -9647,7 +9679,7 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
     return false
 }
 
-expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
+expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
     if is_null(e) { return false }
     if e.node_type.is_literal_null() { return true }
     if e.node_type.is(NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
@@ -9670,7 +9702,7 @@ expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
     return false
 }
 
-expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Bool {
+expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
     if is_null(e) { return false }
     if expr_is_borrow_source(e, scope) { return true }
     switch e.node_type {
@@ -9693,7 +9725,7 @@ expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Boo
     return false
 }
 
-expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
+expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
     if is_null(e) { return false }
     if expr_is_borrow_source(e, scope) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
@@ -9703,7 +9735,7 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
     return false
 }
 
-field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns shallow Bool {
+field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
     if fa_own_type(stmt, scope).is(OwnType.Ref) { return false }
     if fa_own_type(stmt, scope).is(OwnType.Shallow).not() { return true }
     ft := expr_til_type(stmt.child(1))
@@ -9744,7 +9776,7 @@ narrow_dynamic := func(mut expr: Expr, target: Type) {
     set_expr_til_type(expr, target)
 }
 
-fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
+fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
     if fcall.node_type.is(NodeType.FCall).not() { return 0 }
     if fcall.children.len().eq(0) { return 0 }
     ref callee : Expr = fcall.child(0)
@@ -9792,7 +9824,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
 // the typer-emitted cleanup's call_free bool consistent with the
 // builder's shallow-return stack-alloc path (no malloc, so freeing
 // would touch a stack pointer).
-fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
+fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns I32 {
     if fcall.node_type.is(NodeType.FCall).not() { return 0 }
     if fcall.children.len().eq(0) { return 0 }
     ref callee : Expr = fcall.child(0)
@@ -9835,7 +9867,7 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns shallow I32
     return 0
 }
 
-hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr {
+hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: TypeScope, is_own: Bool) returns Expr {
     tp := type_prefix(expr_til_type(val))
     // Non-underscore prefix so the builder's `_x`-deliberately-unused
     // exemption doesn't free-pass these compiler temps. If a hoisted
@@ -9887,7 +9919,7 @@ hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: 
     return ident
 }
 
-type_check := proc(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
+type_check := proc(program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     ctx.errors = 0
     infer_body(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via

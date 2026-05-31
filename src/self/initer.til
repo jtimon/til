@@ -26,7 +26,7 @@ TypeBinding := struct {
     // name + enclosing parent) rather than as a synthetic mangled name.
     orig_name := ""
 namespace:
-    eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
+    eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name.eq(b.name)
     }
     to_str := func(self: TypeBinding) returns Str {
@@ -123,16 +123,16 @@ namespace:
         }
         return NULL
     }
-    is_mut := func(self: TypeScope, name: Str) returns shallow Bool {
+    is_mut := func(self: TypeScope, name: Str) returns Bool {
         ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() { return b.is_mut }
         return false
     }
     set := func(mut self: TypeScope, name: Str, type: Type,
-        shallow func_type: FuncType, shallow is_mut: Bool,
+        shallow func_type: FuncType, is_mut: Bool,
         path: Str,
-        shallow line: U32, shallow col: U32,
-        shallow is_param: Bool, shallow own_type: OwnType) {
+        line: U32, col: U32,
+        is_param: Bool, shallow own_type: OwnType) {
             if self.bindings.has(name) {
                 ref mut b : TypeBinding = self.bindings[name]
                 b.type = type
@@ -395,7 +395,7 @@ Context := struct {
     ffi_type_cache_inited := false
 }
 
-priv align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
+priv align_up := func(offset: I32, align: I32) returns I32 {
     return offset.add(align).sub(1).and(align.sub(1).xor(-1))
 }
 
@@ -466,7 +466,7 @@ precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
 // Build a UFCS-style method call FCall ~recv.method(args...)~. Returns
 // the FCall with the FieldAccess(method) callee installed; the caller
 // pushes any argument children with ~call.add_child(own arg)~.
-make_method_call_fcall := func(own recv: Expr, method: Str, shallow line: U32, shallow col: U32) returns Expr {
+make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32) returns Expr {
     mut acc := Expr.new(field_access_node(method), line, col)
     acc.add_child(own recv)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -479,7 +479,7 @@ make_method_call_fcall := func(own recv: Expr, method: Str, shallow line: U32, s
 // case desugar. The til_type is set so infer_fcall_expr's
 // user-code rejection in typer.til recognises this as
 // typer-emitted rather than user-written.
-make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, shallow line: U32, shallow col: U32) returns Expr {
+make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32) returns Expr {
     mut gp := Expr.new(ident_node("get_payload"), line, col)
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
     gc.add_child(own gp)
@@ -491,7 +491,7 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, shallo
 // Build the tag-check FCall ~is(arg, EnumName.Variant)~ used to gate
 // each per-variant arm in the auto-generated enum eq, delete, to_str
 // and clone method bodies.
-make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, shallow line: U32, shallow col: U32) returns Expr {
+make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, line: U32, col: U32) returns Expr {
     mut iv := Expr.new(ident_node("is"), line, col)
     mut arg_id := Expr.new(ident_node(arg_name), line, col)
     mut et := Expr.new(ident_node(ename), line, col)
@@ -512,7 +512,7 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, shallow l
 // Both the FCall and the Decl need an owned Type for til_type; resolve
 // vtype twice so each consumer gets a fresh Type.Custom("Name") payload
 // instead of an aliased one (which would double-free at scope exit).
-make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool) returns Expr {
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Expr {
     mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
     mut decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref, is_mut = is_mut)), line, col)
     decl.add_child(own gc)
@@ -579,7 +579,7 @@ init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     return til_type_from_explicit_type(resolved)
 }
 
-register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
     if stmt.node_type.is(NodeType.Decl).not() { return 0 }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0 }
 
@@ -673,7 +673,7 @@ priv field_inferred_type_name := func(fd: Declaration) returns Str {
 // non-owning pointer bytes -- value-copying them is correct (the
 // auto-gen clone's Ref branch already does exactly that), so they
 // don't disqualify the containing struct.
-priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns shallow Bool {
+priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if type_name.len().eq(0) { return false }
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
@@ -898,7 +898,7 @@ generate_missing_struct_clones_and_deletes := func(program: Expr, scope: TypeSco
     }
 }
 
-register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
     switch stmt.node_type {
     case NodeType.Decl(edecl):
         ename := edecl.name
@@ -955,7 +955,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
     switch enum_def.node_type {
     case NodeType.EnumDef(evc_edd):
         if has_payloads.not() {
@@ -997,7 +997,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, shal
     }
 }
 
-priv generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32) {
+priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut is_id := Expr.new(ident_node("is"), line, col)
     mut self_id := Expr.new(ident_node("self"), line, col)
@@ -1032,7 +1032,7 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, shallow line: U
     }
 }
 
-generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
@@ -1115,7 +1115,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, shallow line: U32, s
     }
 }
 
-generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
         for j in 0..variant_names.len() {
@@ -1188,7 +1188,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, shallow line: U3
     }
 }
 
-generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
@@ -1290,7 +1290,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, shallow line: U3
     }
 }
 
-generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     // Tag-only enums (no variant carries a payload) need an if-guard
     // for every variant so the auto-gen body always reads ~self~ at
@@ -1416,7 +1416,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, shallow line: U32
     }
 }
 
-register_enum_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_enum_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
     if stmt.node_type.is(NodeType.Decl).not() { return 0 }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return 0 }
     return register_enum_definition(ctx, stmt, scope)
@@ -1477,14 +1477,14 @@ gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     Vec.delete(own variant_types, true)
 }
 
-register_enum_and_gen_nonclone_methods_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32 {
+register_enum_and_gen_nonclone_methods_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
     reg_errors := register_enum_def_for_stmt(ctx, stmt, scope)
     if reg_errors.gt(0) { return reg_errors }
     gen_enum_nonclone_methods_for_stmt(stmt, scope)
     return 0
 }
 
-register_enums_and_generate_nonclone_methods := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
+register_enums_and_generate_nonclone_methods := proc(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
     mut errors : I32 = 0
     for stmt : Expr in program.children {
         errors = errors.add(register_enum_and_gen_nonclone_methods_for_stmt(ctx, stmt, scope))
@@ -2363,7 +2363,7 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     }
 }
 
-compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns shallow I32 {
+compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         if edd.total_enum_size.gt(0) { return edd.total_enum_size }
@@ -2470,7 +2470,7 @@ resolve_field_struct_defs := func(program: Expr, scope: TypeScope) {
     }
 }
 
-infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Type) returns shallow Bool {
+infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Type) returns Bool {
     ref rhs : Expr = stmt.child(0)
     out_type = Type.Unknown
 
@@ -2555,7 +2555,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
     }
 }
 
-init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
+init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
     mut errors : I32 = 0
 
     // Single AST walk: register every type name in scope and bucket each Decl
@@ -2650,7 +2650,7 @@ init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns
 // ext_func / ext_proc forward declarations stay in place (they refer
 // to externally-linked C symbols).
 
-priv init_is_lift_target := func(stmt: Expr) returns shallow Bool {
+priv init_is_lift_target := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len().eq(0) { return false }
     ref rhs : Expr = stmt.child(0)
@@ -2880,7 +2880,7 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 
 // rstil-style unit initializer: index declarations for one file, but do not
 // run global layout/method generation that must see the whole program.
-init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32 {
+init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
 
@@ -3022,7 +3022,7 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
 }
 
 // Run the global init steps that require a full program view.
-init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32 {
+init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
     mut errors : I32 = 0
 
     // Single AST walk: bucket struct and enum decls for post-walk work,
@@ -3080,7 +3080,7 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
 // Count ~import("...")~ FCalls at the top level of `body`. Used by step 5
 // to distinguish mode auto-imports (prepended to iu.imports by the loader)
 // from explicit imports that appear in the source AST.
-count_ast_imports := func(body: Expr) returns shallow USize {
+count_ast_imports := func(body: Expr) returns USize {
     mut n : USize = 0
     for i in 0..body.children.len() {
         ref stmt : Expr = body.children[i]
@@ -3112,7 +3112,7 @@ count_ast_imports := func(body: Expr) returns shallow USize {
     return n
 }
 
-init_file := proc(path: Str, ctx: Context) returns shallow I32 {
+init_file := proc(path: Str, ctx: Context) returns I32 {
     if ctx.imports_init_done.has(path) {
         return 0
     }

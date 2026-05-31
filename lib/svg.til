@@ -140,7 +140,7 @@ is_cmd_ch := func(b: I8) returns Bool {
     return b.gte('A').and(b.lte('Z')).or(b.gte('a').and(b.lte('z')))
 }
 
-skip_ws := func(d: Str, shallow i: USize) returns USize {
+skip_ws := func(d: Str, i: USize) returns USize {
     mut j := i
     while j.lt(d.len()) {
         ref b : I8 = d.byte_at(j)
@@ -152,7 +152,7 @@ skip_ws := func(d: Str, shallow i: USize) returns USize {
 
 // Parse one signed integer starting at or after position `i`. The new index
 // is written back through `out_idx`. Panics if no digits are found.
-parse_int := func(d: Str, shallow i: USize, mut out_idx: USize) returns I64 {
+parse_int := func(d: Str, i: USize, mut out_idx: USize) returns I64 {
     mut j := skip_ws(d, i)
     mut neg := false
     if j.lt(d.len()) {

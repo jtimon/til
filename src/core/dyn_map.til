@@ -21,7 +21,7 @@ namespace:
     }
 
     /// True if `key` exists in the map.
-    has := func(self: DynMap, key: Str) returns shallow Bool {
+    has := func(self: DynMap, key: Str) returns Bool {
         return self.items.has(key)
     }
 

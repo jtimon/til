@@ -15,11 +15,11 @@ precomp_reset_state := func(mut ctx: Context) {
     Set.clear(ctx.precomp_funcs)
 }
 
-precomp_has_macro := func(ctx: Context, name: Str) returns shallow Bool {
+precomp_has_macro := func(ctx: Context, name: Str) returns Bool {
     return ctx.precomp_macros.has(name)
 }
 
-precomp_has_func := func(ctx: Context, name: Str) returns shallow Bool {
+precomp_has_func := func(ctx: Context, name: Str) returns Bool {
     return ctx.precomp_funcs.has(name)
 }
 
@@ -27,7 +27,7 @@ precomp_has_func := func(ctx: Context, name: Str) returns shallow Bool {
 // Side-effecting names that mustn't be invoked at compile time.
 // Mirrors rstil's hardcoded exit/malloc list, plus the I/O / FFI /
 // environment-dependent ext_funcs that til core ships.
-is_side_effecting_name := func(name: Str) returns shallow Bool {
+is_side_effecting_name := func(name: Str) returns Bool {
     if name.eq("exit")        { return true }
     if name.eq("panic")       { return true }
     if name.eq("TODO")        { return true }
@@ -142,7 +142,7 @@ priv from_source_form := func(s: Str) returns Str {
 
 // Cheap pre-scan: if every byte is a printable ASCII char that doesn't
 // need an escape, str_to_source_form would clone byte-for-byte.
-priv needs_source_escape := func(s: Str) returns shallow Bool {
+priv needs_source_escape := func(s: Str) returns Bool {
     n := s.len()
     for i in 0..n {
         ref b : I8 = s.byte_at(i)
@@ -457,7 +457,7 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
     }
 }
 
-is_known := func(ctx: Context, e: Expr, mut out: Value) returns shallow Bool {
+is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):
         out = expr_to_value(e, ctx)
@@ -483,7 +483,7 @@ is_known := func(ctx: Context, e: Expr, mut out: Value) returns shallow Bool {
 // Cheap is_known check that doesn't allocate or fill an out-Value.
 // Use when callers only need the boolean and would otherwise leak the
 // throwaway temporary they pass to is_known.
-is_known_check := func(ctx: Context, e: Expr) returns shallow Bool {
+is_known_check := func(ctx: Context, e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Str):  return true
@@ -496,7 +496,7 @@ is_known_check := func(ctx: Context, e: Expr) returns shallow Bool {
 // Walk `body` looking for a local Decl named `name`. Used to recognise
 // typer-hoisted temps and other body-locals so func_uses_unknown_globals
 // can skip flagging them as unknown globals.
-body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
+body_has_local := proc(body: Expr, name: Str) returns Bool {
     switch body.node_type {
     case NodeType.Decl(dd):
         if dd.name.eq(name) { return true }
@@ -516,7 +516,7 @@ body_has_local := proc(body: Expr, name: Str) returns shallow Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set, ctx: Context) returns shallow Bool {
+func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set, ctx: Context) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
@@ -1021,7 +1021,7 @@ track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     cleanup_value_payload(v)
 }
 
-is_macro_call := func(e: Expr, ctx: Context) returns shallow Bool {
+is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
@@ -1038,7 +1038,7 @@ is_macro_call := func(e: Expr, ctx: Context) returns shallow Bool {
     }
 }
 
-is_func_call := func(e: Expr, ctx: Context) returns shallow Bool {
+is_func_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
@@ -1134,7 +1134,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     }
 }
 
-process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool) {
+process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // Walk statement-by-statement so top-level non-mut Decls get bound
     // in the precomp interpreter scope as soon as their RHS folds to a
     // literal. This mirrors rstil's EvalHeap::insert_primitive flow and
@@ -1211,7 +1211,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, shallow at_global: 
     body.children.move_from(keep)
 }
 
-priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns shallow Bool {
+priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
     if is_null(e) { return false }
     switch e.node_type {
     case NodeType.Ident(eid):

@@ -53,7 +53,7 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
 
 ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size()) }
 
-ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns shallow Bool {
+ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
     if is_null(cif.rtype) { return false }
     ref rt : ffi_type = cif.rtype
     return rt.type.eq(FFI_TYPE_STRUCT.to_i16())
@@ -104,7 +104,7 @@ ffi_init_link_libs := func(link_flags: Str) {
     }
 }
 
-ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns shallow I32 {
+ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
     if is_null(user_c_path) { return 0 }
     if user_c_path.len().eq(0) { return 0 }
@@ -251,27 +251,27 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
     }
 }
 
-h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.child(1), ctx)
     bv := narrow_bool_arg(s, e.child(2), ctx)
     r = val_bool(and(av, bv))
     return true
 }
 
-h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.child(1), ctx)
     bv := narrow_bool_arg(s, e.child(2), ctx)
     r = val_bool(or(av, bv))
     return true
 }
 
-h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     bv := narrow_bool_arg(s, e.child(1), ctx)
     r = val_bool(not(bv))
     return true
 }
 
-h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -283,7 +283,7 @@ h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sha
     }
 }
 
-h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -295,7 +295,7 @@ h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
     }
 }
 
-h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -307,7 +307,7 @@ h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
     }
 }
 
-h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -319,7 +319,7 @@ h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
     }
 }
 
-h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -331,7 +331,7 @@ h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
     }
 }
 
-h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -347,7 +347,7 @@ h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sh
 // FCall's til_type to the target type T; reinterpret the operand's bits
 // into the matching Value variant. value_to_u64 gives the raw bits; the
 // val_* constructors mask/sign-interpret to the target width.
-h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     mut v := eval_expr(s, e.child(1), ctx)
     // For non-scalar operand variants (Value.Ref from `ref c : I8 =
     // ...`, Value.Struct carrying a primitive's bits via
@@ -402,20 +402,20 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bo
     return false
 }
 
-priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     arg := eval_expr(s, e.child(1), ctx)
     print_single(str_view(arg))
     r = val_none()
     return true
 }
 
-h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns shallow Bool {
+h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns Bool {
     print_flush()
     r = val_none()
     return true
 }
 
-h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     a := eval_expr(s, e.child(1), ctx)
     switch a {
     case Value.Int(code):
@@ -427,14 +427,14 @@ h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bo
     return true
 }
 
-h_readfile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_readfile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
     content := File.readfile(str_view(path))
     r = make_str_value(content.c_str, content.count, ctx)
     return true
 }
 
-h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
     content := eval_expr(s, e.child(2), ctx)
     File.writefile(str_view(path), str_view(content))
@@ -442,7 +442,7 @@ h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shall
     return true
 }
 
-h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     cmd := eval_expr(s, e.child(1), ctx)
     r = val_i64(spawn_cmd(str_view(cmd)))
     return true
@@ -470,7 +470,7 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
     }
 }
 
-h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name_val := eval_expr(s, e.child(1), ctx)
     method_val := eval_expr(s, e.child(2), ctx)
     type_name := str_view(type_name_val)
@@ -479,7 +479,7 @@ h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     return true
 }
 
-h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name_val := eval_expr(s, e.child(1), ctx)
     method_val := eval_expr(s, e.child(2), ctx)
     type_name := str_view(type_name_val)
@@ -495,7 +495,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow 
     return true
 }
 
-h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name_val := eval_expr(s, e.child(1), ctx)
     type_name := str_view(type_name_val)
     sz := get_elem_size(s, type_name, e, ctx)
@@ -541,7 +541,7 @@ interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: C
     }
 }
 
-h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     switch node.node_type {
@@ -553,7 +553,7 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
     return true
 }
 
-h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
@@ -571,7 +571,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     return true
 }
 
-h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
@@ -589,7 +589,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     return true
 }
 
-h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
@@ -631,7 +631,7 @@ interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Con
     }
 }
 
-h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     switch node.node_type {
@@ -643,7 +643,7 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
     return true
 }
 
-h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
@@ -661,7 +661,7 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     return true
 }
 
-h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
@@ -684,7 +684,7 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     return true
 }
 
-h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
@@ -731,7 +731,7 @@ interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: 
     }
 }
 
-h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     switch node.node_type {
@@ -743,7 +743,7 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     return true
 }
 
-h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
@@ -761,7 +761,7 @@ h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     return true
 }
 
-h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     switch node.node_type {
@@ -773,7 +773,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
     return true
 }
 
-h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
@@ -790,7 +790,7 @@ h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     return true
 }
 
-h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     switch node.node_type {
@@ -802,7 +802,7 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     return true
 }
 
-h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(eval_expr(s, e.child(1), ctx))
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
@@ -820,7 +820,7 @@ h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     return true
 }
 
-h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_val := eval_expr(s, e.child(1), ctx)
     switch type_val {
     case Value.Enum(ei):
@@ -919,7 +919,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
     }
 }
 
-h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     pidv := eval_expr(s, e.child(1), ctx)
     switch pidv {
     case Value.Int(pid):
@@ -931,7 +931,7 @@ h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
     }
 }
 
-h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     msv := eval_expr(s, e.child(1), ctx)
     switch msv {
     case Value.Int(ms):
@@ -944,29 +944,29 @@ h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow B
     }
 }
 
-h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
     r = val_i64(file_mtime(str_view(path)))
     return true
 }
 
-h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     arg := eval_expr(s, e.child(1), ctx)
     r = val_f32(str_parse_f32(str_view(arg)))
     return true
 }
 
-h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
+h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
     r = val_i64(clock_ms())
     return true
 }
 
-h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool {
+h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
     r = val_i64(get_thread_count())
     return true
 }
 
-h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path_v := eval_expr(s, e.child(1), ctx)
     is_write_v := eval_expr(s, e.child(2), ctx)
     path := str_view(path_v)
@@ -1054,7 +1054,7 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
     }
 }
 
-h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     switch e.child(1).node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(s, ident_name(ident))
@@ -1068,7 +1068,7 @@ h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bo
     return true
 }
 
-h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_close(deref(hp))
@@ -1076,7 +1076,7 @@ h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns sha
     return true
 }
 
-h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     str_v := eval_expr(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1086,7 +1086,7 @@ h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
     return true
 }
 
-h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     buf := eval_expr(s, e.child(1), ctx)
     offset := eval_expr(s, e.child(2), ctx)
     ref base : Dynamic = val_to_ptr(buf)
@@ -1095,7 +1095,7 @@ h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow
     return true
 }
 
-h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     content := cfile_read_all(deref(hp))
@@ -1103,7 +1103,7 @@ h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     return true
 }
 
-DispatchFn := proc(Scope, Expr, mut Value, Context) returns shallow Bool
+DispatchFn := proc(Scope, Expr, mut Value, Context) returns Bool
 
 reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
     v : Dynamic = malloc(8)
@@ -1170,7 +1170,7 @@ dispatch_init := func(ctx: Context) {
     ctx.dispatch_inited = true
 }
 
-ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
+ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     ref dm : Map = ctx.dispatch_map
     if dm.has(name) {
         ref slot : Dynamic = dm[name]
@@ -1180,7 +1180,7 @@ ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value
     return false
 }
 
-h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool {
+h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name_val := eval_expr(s, e.child(1), ctx)
     type_name := str_view(type_name_val)
     method_val := eval_expr(s, e.child(2), ctx)
@@ -1212,7 +1212,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallo
     return true
 }
 
-get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns shallow I32 {
+get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns I32 {
     ref size_fn : Value = ns_get(type_name, "size", ctx)
     if is_null(size_fn) {
         interp_error(src, type_name.concat(" has no size() method"), ctx)
@@ -1233,7 +1233,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns
     return value_to_u64(result).to_i32()
 }
 
-enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
+enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if enum_has_payloads(enum_def) {
         ctor_tag := enum_variant_tag(enum_def, method)
         if ctor_tag.cast(I64).gte(0) {
@@ -1301,7 +1301,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
-ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns shallow Bool {
+ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns Bool {
     if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
     else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
     else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.cast(I64));   return true }
@@ -1344,7 +1344,7 @@ ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
 // false for ffi_types that don't correspond to a primitive shallow
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
-priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool {
+priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns Bool {
     if ptr_eq(atype, ffi_type_ref("ffi_type_sint64")) { type_name = "I64"; size = 8; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_uint8"))  { type_name = "U8";  size = 1; return true }
     if ptr_eq(atype, ffi_type_ref("ffi_type_sint8"))  { type_name = "I8";  size = 1; return true }
@@ -1370,7 +1370,7 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
 // numeric conversion) or value_to_u64 (all integer-shaped ffi_types,
 // truncated by memcpy'ing only `size` bytes -- equivalent to the old
 // to_i16/to_u8/etc. casts on x86-64 little-endian).
-priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic, ctx: Context) returns shallow Bool {
+priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic, ctx: Context) returns Bool {
     mut tn := ""
     mut sz : I32 = 0
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
@@ -1388,7 +1388,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     return true
 }
 
-ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
+ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if ctx.ffi_loaded.not() { return false }
     if ctx.ffi_map.has(name).not() { return false }
 
@@ -1512,7 +1512,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     return true
 }
 
-ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
+ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if ctx.dispatch_inited.not() { dispatch_init(ctx) }
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
@@ -1669,7 +1669,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
     }
 }
 
-ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, ctx: Context) returns shallow I32 {
+ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, ctx: Context) returns I32 {
     if ctx.ffi_loaded {
         ffi_cleanup(ctx)
         ctx.ffi_map_inited = false

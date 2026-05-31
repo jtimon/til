@@ -62,13 +62,13 @@ __doc_lookup__ := func(blob: Str, name: Str) returns Str {
 }
 
 /// True iff the named declaration has a /// doc comment registered.
-__til_has_doc__ := func(name: Str) returns shallow Bool {
+__til_has_doc__ := func(name: Str) returns Bool {
     return __doc_lookup__(__til_docs_blob__, name).is_empty().not()
 }
 
 /// True iff the named declaration is registered with a kind/signature
 /// info string.
-__til_has_info__ := func(name: Str) returns shallow Bool {
+__til_has_info__ := func(name: Str) returns Bool {
     return __doc_lookup__(__til_info_blob__, name).is_empty().not()
 }
 

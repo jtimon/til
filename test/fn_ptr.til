@@ -260,11 +260,11 @@ test_enum_funcsig_idle := test() {
 
 // --- FuncSig with returns shallow ---
 
-BoolFn := func(I64) returns shallow Bool
+BoolFn := func(I64) returns Bool
 
-is_positive := func(n: I64) returns shallow Bool { return n.gt(0) }
+is_positive := func(n: I64) returns Bool { return n.gt(0) }
 
-call_bool_fn := func(f: BoolFn, x: I64) returns shallow Bool { return f(x) }
+call_bool_fn := func(f: BoolFn, x: I64) returns Bool { return f(x) }
 
 test_funcsig_shallow_return := test() {
     expect(__LOC__, call_bool_fn(is_positive, 5), "5 is positive")

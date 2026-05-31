@@ -10,7 +10,7 @@ Range := struct {
 
 namespace:
     /// Create a Range from `start` (inclusive) to `end` (exclusive).
-    new := func(shallow start: U64, shallow end: U64) returns Range {
+    new := func(start: U64, end: U64) returns Range {
         return Range(start = start, end = end)
     }
 
@@ -20,7 +20,7 @@ namespace:
     }
 
     /// The i-th value in the range (start+i or start-i for reverse).
-    get := func(self: Range, shallow i: U64) returns U64 {
+    get := func(self: Range, i: U64) returns U64 {
         if self.start.lte(self.end) {
             return self.start.add(i)
         }

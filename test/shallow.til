@@ -1,7 +1,7 @@
 mode test
 
 // Test shallow params on regular func
-add_shallow := func(shallow a: I64, shallow b: I64) returns I64 {
+add_shallow := func(a: I64, b: I64) returns I64 {
     return a.add(b)
 }
 
@@ -10,7 +10,7 @@ test_shallow_basic := test() {
 }
 
 // Test shallow with non-shallow mix
-mixed := func(shallow a: I64, b: I64) returns I64 {
+mixed := func(a: I64, b: I64) returns I64 {
     return a.add(b)
 }
 
@@ -19,7 +19,7 @@ test_shallow_mixed := test() {
 }
 
 // Test shallow Bool
-both_true := func(shallow a: Bool, shallow b: Bool) returns Bool {
+both_true := func(a: Bool, b: Bool) returns Bool {
     return a.and(b)
 }
 
@@ -29,11 +29,11 @@ test_shallow_bool := test() {
 }
 
 // Test shallow param passed to another function
-double_it := func(shallow x: I64) returns I64 {
+double_it := func(x: I64) returns I64 {
     return x.mul(2)
 }
 
-chain := func(shallow a: I64) returns I64 {
+chain := func(a: I64) returns I64 {
     return double_it(a)
 }
 
@@ -42,7 +42,7 @@ test_shallow_chain := test() {
 }
 
 // Test shallow param used in expressions
-expr_test := func(shallow a: I64, shallow b: I64) returns I64 {
+expr_test := func(a: I64, b: I64) returns I64 {
     c := a.add(b)
     d := c.mul(2)
     return d

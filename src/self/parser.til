@@ -36,7 +36,7 @@ advance := func(mut p: Parser) returns ref Token {
     return t
 }
 
-check := func(p: Parser, type: TokenType) returns shallow Bool {
+check := func(p: Parser, type: TokenType) returns Bool {
     return peek(p).type.eq(type)
 }
 
@@ -62,8 +62,8 @@ expect_text := func(mut p: Parser, type: TokenType) returns Str {
 }
 
 // Save line/col before advancing
-peek_line := func(p: Parser) returns shallow U32 { return peek(p).line }
-peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
+peek_line := func(p: Parser) returns U32 { return peek(p).line }
+peek_col := func(p: Parser) returns U32 { return peek(p).col }
 
 // Resolve an explicit type name from the source into a Type. Fixed-name
 // primitives are returned directly. Empty name -> Unknown. Anything else
@@ -149,7 +149,7 @@ priv anon_def_key := func(def: Expr) returns Str {
 // and return its generated type name. Structurally-identical literals in
 // the same file (anon_cache hit) reuse the name without emitting a second
 // decl. Consumes `def`.
-priv anon_lift := func(mut p: Parser, own def: Expr, shallow line: U32, shallow col: U32) returns Str {
+priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) returns Str {
     mut kind := "AnonStruct"
     if def.node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
     key := anon_def_key(def)
@@ -185,7 +185,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
 // Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
 // bodyless FuncDef Decl, stores it in p.fn_sig_decls, and returns the name.
 // Returns "" if not followed by '(' (bare "Fn" type).
-priv parse_fn_signature := func(mut p: Parser, shallow line: U32, shallow col: U32) returns Str {
+priv parse_fn_signature := func(mut p: Parser, line: U32, col: U32) returns Str {
     if check(p, TokenType.LParen).not() {
         return ""
     }
@@ -725,7 +725,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
 // parse_call: callee Expr already built, current token is '('. The callee
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
-parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shallow call_col: U32) returns Expr {
+parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U32) returns Expr {
     advance(p) // consume '('
 
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
@@ -849,7 +849,7 @@ parse_call := proc(mut p: Parser, own callee: Expr, shallow call_line: U32, shal
 }
 
 // make_binop_call: helper to desugar a OP b -> a.method(b)
-make_binop_call := func(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, rhs: Expr) returns Expr {
+make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, rhs: Expr) returns Expr {
     mut callee := Expr.new(field_access_node(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
@@ -1317,7 +1317,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
 }
 
 // parse_statement_ident: identifier is current token
-parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow own_type: OwnType) returns Expr {
+parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: OwnType) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     mut name := ""

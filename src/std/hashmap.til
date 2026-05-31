@@ -90,7 +90,7 @@ namespace:
         return -1
     }
 
-    has := func(self: HashMap, key: Dynamic) returns shallow Bool {
+    has := func(self: HashMap, key: Dynamic) returns Bool {
         return self.find(key).gte(0)
     }
 

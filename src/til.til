@@ -54,7 +54,7 @@ repl_read_line := proc(mode_name: Str) returns Str {
 // Run init+typecheck on a REPL-loaded program. Returns the type-error
 // count instead of panicking, so the REPL can decide what to do.
 // Mirrors the first half of `prepare_program` (loader.til).
-repl_typecheck := proc(mut lp: LoadedProgram) returns shallow I32 {
+repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
     // Mirrors prepare_program's init+type pipeline (loader.til) so the
     // REPL sees the same scope and types as a regular `til interpret`
     // run, but returns the type-error count instead of exit(1)-ing so
@@ -495,7 +495,7 @@ parse_args := proc(args: Array) returns CliArgs {
 
 // Split trailing args (after the source path) into -l flags (appended to
 // lp.link_flags) and user argv (returned).
-collect_user_argv := func(mut lp: LoadedProgram, args: Array, shallow start_idx: USize) returns Vec {
+collect_user_argv := func(mut lp: LoadedProgram, args: Array, start_idx: USize) returns Vec {
     mut user_argv := Vec.new(Str)
     mut ai := start_idx
     while ai.lt(args.len()) {

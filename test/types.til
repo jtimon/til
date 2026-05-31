@@ -49,8 +49,8 @@ test_explicit_types := test() {
     assert_eq(__LOC__, types_double(5), 10)
 }
 
-takes_u64 := func(shallow n: U64) returns shallow U64 { return n }
-takes_i64 := func(shallow n: I64) returns shallow I64 { return n }
+takes_u64 := func(n: U64) returns U64 { return n }
+takes_i64 := func(n: I64) returns I64 { return n }
 
 test_implicit_widen := test() {
     // U32 → U64 widening

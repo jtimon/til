@@ -42,7 +42,7 @@ namespace:
     writefile := ext_proc(path: Str, content: Str) {}
 
     /// Open a file at `path` for reading or writing.
-    new := func(path: Str, shallow is_write: Bool) returns File {
+    new := func(path: Str, is_write: Bool) returns File {
         ref h : Dynamic = cfile_open(path, is_write)
         return File(handle = h, is_write = is_write)
     }

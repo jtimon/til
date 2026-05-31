@@ -46,7 +46,7 @@ namespace:
     }
 
     /// True if the set contains an element equal to `val`.
-    has := func(self: Set, val: Dynamic) returns shallow Bool {
+    has := func(self: Set, val: Dynamic) returns Bool {
         mut lo : USize = 0
         mut hi := self.count
         while lo.lt(hi) {

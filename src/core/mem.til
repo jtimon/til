@@ -34,11 +34,11 @@ ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 // is_null used to live in ext.c; it's now a one-liner over ptr_eq so
 // the C-side primitive surface shrinks by one symbol.  Reached via
 // UFCS as `aaa.is_null()` on any Dynamic-typed value.
-is_null := func(p: Dynamic) returns shallow Bool { return ptr_eq(p, NULL) }
+is_null := func(p: Dynamic) returns Bool { return ptr_eq(p, NULL) }
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
-swap := func(a: Dynamic, b: Dynamic, shallow size: UPtr) {
+swap := func(a: Dynamic, b: Dynamic, size: UPtr) {
     tmp : Dynamic = malloc(size)
     memcpy(tmp, a, size)
     memcpy(a, b, size)
@@ -46,7 +46,7 @@ swap := func(a: Dynamic, b: Dynamic, shallow size: UPtr) {
     free(own tmp)
 }
 
-move := func(dest: Dynamic, src: Dynamic, shallow size: UPtr) {
+move := func(dest: Dynamic, src: Dynamic, size: UPtr) {
     memcpy(dest, src, size)
     memset(src, 0, size)
 }

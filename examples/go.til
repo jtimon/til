@@ -357,7 +357,7 @@ board_get_i64 := func(b: Board, i: I64) returns ref I64 {
     return v
 }
 
-board_set_i64 := func(mut b: Board, i: I64, shallow val: I64) {
+board_set_i64 := func(mut b: Board, i: I64, val: I64) {
     memcpy(ptr_add(b.data.data, i.mul(8).cast(U64)), val, 8)
 }
 

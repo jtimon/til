@@ -94,7 +94,7 @@ count_char := func(s: Str, ch: I8) returns I64 {
     return n
 }
 
-extract_body_lines := func(lines: Vec, shallow start_line: U32) returns Vec {
+extract_body_lines := func(lines: Vec, start_line: U32) returns Vec {
     mut out := Vec.new(Str)
     mut started := false
     mut stop_collect := false
