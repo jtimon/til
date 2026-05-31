@@ -755,6 +755,61 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     attribute at default ctx to match merge_commit.til, and only drop
     to ctx=64 to disambiguate which distinct site a cluster belongs to.
 
+  - **Interpreter Value-discard frees: two more rejected, plus the rule
+    that explains which are safe** (2026-05, after the bare-FCall /
+    enum-payload fixes landed). With those two fixes merged
+    (interpret -3.0% / translate -2.3% per asan.org), re-attributed on
+    the new master (interpret 123548 / translate 120261, default ctx).
+    The remaining top interpreter clusters are ~make_str_value~ Str
+    values reached via ~eval_body~ / ~eval_call~ / ~try_eval_call~.
+    Tried two more frees, both REVERTED:
+
+    1. ~scope_free~ deep-free. ~scope_free~ (interpreter.til) only frees
+       ~Value.Enum~ data per local binding; ~Value.Struct~ (incl. Str
+       with its c_str) is skipped, so every owned struct/Str at any
+       freed scope -- most visibly the top-level decls in the ~global~
+       scope freed at ~interpret_units~' end (~3.3KB) -- leaks.
+       (~cleanup_value_payload~'s own doc comment even claims it is
+       "Used by scope_free", but scope_free uses an inline Enum-only
+       switch.) Swapping in ~cleanup_value_payload(b.cell.val)~ ->
+       SEGFAULT during self-compile; the milder ~free_value(b.cell.val)~
+       (frees the struct wrapper but not c_str) -> ~malloc_consolidate():
+       unaligned fastbin chunk~ heap corruption. Cause below.
+
+    2. Free the ~str_view~ source temporaries in ~h_dyn_fn~ /
+       ~h_dyn_size_of~ (dispatch.til). These do
+       ~tnv := eval_expr(...); name := str_view(tnv)~ and never free
+       ~tnv~ (~256B+ / 16 objs). Adding ~cleanup_value_payload(tnv)~
+       after the last use -> PANIC "dyn_fn: unknown .clone" during
+       self-compile (a *later* call read an empty/freed type_name).
+
+    Root cause (the #127 core): ~shallow_copy_value~ -- used by
+    ~eval_expr~ for *every* Ident (~return shallow_copy_value(cell.val)~)
+    and by scope binding -- is a raw ~memcpy(r, v, Value.size())~. It
+    copies the ~Value~ struct, i.e. the ~si.data~ POINTER, so copies
+    SHARE the heap payload with the source cell. The ~borrowed~ flag is
+    not set on these shares. Freeing any ~eval_expr~ result (or any
+    scope-bound struct) therefore frees data still owned by the
+    originating variable -> UAF / double-free / corruption.
+
+    Why the two LANDED fixes are nonetheless safe, and these are not:
+    they free only where the TYPER GUARANTEES an ownership transfer to
+    that position. A bare call-statement's discarded return is owned
+    (or borrowed-flagged, which cleanup_value_payload skips). An enum
+    payload built from a variable is a typer-enforced MOVE -- verified:
+    ~b := Box.Tagged(s); print(s)~ is rejected with "use of 's' after
+    ownership transfer", so the source is provably dead and the enum is
+    the sole owner. ~h_dyn_fn~'s ~str_view~ args and ~scope_free~'s
+    bindings have NO such transfer -- they are borrowed/shared -- so
+    freeing them corrupts the owner. RULE: only free an interpreter
+    Value at a site where the typer marked the feeding expression
+    ~own~ / transferred; never free a bare ~eval_expr~ result or a
+    scope binding's struct payload until #127 gives Values real
+    ownership (deep-copy in ~shallow_copy_value~, or a reliable
+    per-Value ~owns_data~ flag distinct from ~borrowed~). That #127
+    change is the unblock for the entire interpreter-side cluster
+    (scope structs/Strs, FFI args, dispatch temps).
+
   *** Lessons learned
 
   - **Leak attribution = allocation site, not ownership-loss site.**
