@@ -626,10 +626,10 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
         // A "Type.member" qualified name on the worklist can resolve to
         // a FuncDef (namespace method) or to a plain Ident / FCall /
         // other Expr (namespace data decl like `HashMap.HASHER : HashFn
-        // = hash_bytes`). Walk whatever the default_value is so the
-        // free identifiers it references stay reachable -- otherwise
-        // `hash_bytes` gets pruned and the init `HashMap_HASHER = (void
-        // *)hash_bytes` in main() references an undeclared symbol.
+        // = fnv1a`). Walk whatever the default_value is so the free
+        // identifiers it references stay reachable -- otherwise
+        // `fnv1a` gets pruned and the init `HashMap_HASHER = (void
+        // *)fnv1a` in main() references an undeclared symbol.
         ref ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, top, name)
         if is_null(ns_fdef).not() {
             collect_refs(ns_fdef, worklist)

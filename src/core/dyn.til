@@ -56,7 +56,7 @@ CmpFn := func(Dynamic, Dynamic) returns I64
 IncFn := func(Dynamic)
 DistanceFn := func(Dynamic, Dynamic) returns USize
 // Byte-level hash: given a buffer and a length, fold to U64.
-// Hash containers store one of these (e.g. lib/hash.til's hash_bytes,
+// Hash containers store one of these (e.g. lib/hash.til's fnv1a,
 // or a future murmur / xxhash) and pass it to per-type `hash` methods.
 HashFn := func(Dynamic, USize) returns U64
 // Per-type hash dispatch shape. Every type's `hash(self, hasher)`

@@ -49,7 +49,7 @@ hash_str := func(s: Str) returns U64 {
 // hash for any HashMap key whose in-memory bytes ARE the value
 // (primitives, POD structs, enums) -- everything that doesn't carry a
 // heap pointer the way Str does.
-hash_bytes := func(data: Dynamic, n: USize) returns U64 {
+fnv1a := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = FNV_OFFSET
     for i in 0..n {
         ref b : U8 = ptr_add(data, i)

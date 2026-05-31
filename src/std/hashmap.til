@@ -28,10 +28,10 @@ HashMap := struct {
     key_cmp  : CmpFn      = default_cmp
 
 namespace:
-    // Byte-hashing algorithm every HashMap forwards to per-key. Swap
-    // this before constructing any HashMap if you want a different
-    // algorithm process-wide; the change is global.
-    mut HASHER : HashFn = hash_bytes
+    /// Byte-hashing algorithm every HashMap forwards to per-key. Swap
+    /// this before constructing any HashMap if you want a different
+    /// algorithm process-wide; the change is global.
+    mut HASHER : HashFn = fnv1a
 
     new_type_names := func(key_type: Str, val_type: Str) returns HashMap {
         if key_type.is_empty() {
@@ -68,7 +68,7 @@ namespace:
     len := func(self: HashMap) returns USize { return self.keys.count }
 
     // Hash via the type's `hash(self, hasher)` method. The container
-    // picks the algorithm (HashMap.HASHER, hash_bytes by default);
+    // picks the algorithm (HashMap.HASHER, fnv1a by default);
     // the type picks which bytes to feed it.
     hash_key := func(self: HashMap, key: Dynamic) returns U64 {
         return self.key_hash(key, HashMap.HASHER)
