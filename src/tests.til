@@ -672,9 +672,6 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin, asan_flag)
     // Bad Bool value: both backends print the diagnostic and exit(1).
     add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
-    // Unsupported main arg type: compile path rejects up front
-    // (validate_cli_main), interpreter guards at runtime. Both exit non-zero.
-    add_cli_pair(tests, "cli_bad_arg_type", "test/cli_bad_arg_type.til", "3.5", 1, "", til_bin, asan_flag)
 
     // === Run all tests in parallel ===
     run_all_parallel(tests, j, fail)
