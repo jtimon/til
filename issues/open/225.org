@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #225 Subscript assignment a[b] = c -> a.set(b, c)!
+** OPEN #225 Subscript assignment a[b] = c -> a.set(b, own c)!
 
    Mirror of the shipped read-side desugaring: the parser now turns
    ~a[b]~ into ~a.get(b)!~ (generic over any struct/enum whose
@@ -9,20 +9,24 @@
 
    desugars to
 
-     a.set(b, c)!
+     a.set(b, own c)!
 
    generically -- no type-name special-casing, exactly like
-   ~a + b -> a.add(b)~ and ~a[b] -> a.get(b)!~.
+   ~a + b -> a.add(b)~ and ~a[b] -> a.get(b)!~. The ~own~ on the
+   third arg matches ~Vec.set~'s and ~Map.set~'s ~own val~
+   parameter, so the desugar transfers the RHS into the container
+   the same way an explicit hand-written ~a.set(b, own c)!~ would.
 
    *** Blocked on: set must throw
 
-   ~Array.set~ / ~Vec.set~ et al. currently ~panic~ on a bad index;
-   they do not throw. The ~!~ in ~a.set(b, c)!~ needs a declared
-   throw (e.g. ~OutOfBounds~) to propagate/panic on, so the
-   collection ~set~ methods must throw ~OutOfBounds~ first. That
-   method-side change is tracked in [[./201.org][#201]] (built-in
-   error types) and noted in [[../fixed/198.org][#198]]. Once ~set~
-   throws, this issue is unblocked.
+   ~Array.set~ / ~Vec.set~ / ~Map.set~ currently ~panic~ on a bad
+   index/key; they do not throw. The ~!~ in ~a.set(b, own c)!~
+   needs a declared throw (e.g. ~OutOfBounds~ / ~KeyNotFound~,
+   matching what ~get~ throws on the same container) to
+   propagate/panic on, so the collection ~set~ methods must throw
+   first. That method-side change is tracked in [[./201.org][#201]]
+   (built-in error types) and noted in [[../fixed/198.org][#198]].
+   Once ~set~ throws, this issue is unblocked.
 
    *** Parser work
 
@@ -57,3 +61,13 @@
    indices, under both interp and compile, asserting ~a[i] = v~ then
    ~a[i]~ round-trips. Once ~set~ throws, also cover the OOB-throws
    path via ~catch~.
+
+   *** Recipe
+
+   The throwing-method side of the work (making ~Vec.set~ throw) is
+   a copy of the worked example in [[../../doc/throws.org][doc/throws.org]]
+   "Adding a new throwing container method" -- same shape as
+   ~Vec.get~. The parser-side desugar mirrors ~a[b] -> a.get(b)!~
+   from ~parse_primary~; the assignment branch is the new code
+   path that needs to recognise an ~EXPR[INDEX] = RHS~ shape
+   before routing through the rvalue rule.

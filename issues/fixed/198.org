@@ -5,6 +5,10 @@
    both ~bin/til interpret~ and ~bin/til build~ (13 tests, all pass).
    ~make test~ stays green at 116/116.
 
+   Reference: [[file:../../doc/throws.org][doc/throws.org]] covers the user-facing surface,
+   the implementation map, and step-by-step recipes for adding more
+   throwing methods / error types.
+
    *** Follow-up: throwing set (unblocks subscript assignment #225)
 
    ~Array.get~ throws ~OutOfBounds~, which let the parser desugar

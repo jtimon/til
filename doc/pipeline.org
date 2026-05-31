@@ -39,6 +39,9 @@ It is intentionally short and code-oriented.
   - resolve names and types
   - infer expression types
   - lower/check some constructs during typing
+  - lower throw/catch to plain til (mut locals + if-guards) so
+    downstream stages don't need new node kinds; see
+    [[file:./throws.org][doc/throws.org]] for the surface and recipes
   - reject invalid programs
 
 5. Asap destruction

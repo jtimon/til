@@ -4,8 +4,13 @@
    Follow-up to [[../fixed/198.org][#198]]: extend the catalogue of
    built-in error types and the safe_* method variants that throw
    them. [[../fixed/198.org][#198]] shipped only ~DivideByZero~ +
-   ~I64.safe_div~ as a proof of concept; everything else is left
-   to this issue.
+   ~I64.safe_div~ as a proof of concept. Two further error types
+   have landed since on the container side: ~Vec.get~ throws
+   ~OutOfBounds~ (empty struct, drives the ~a[b]~ subscript
+   desugar), and ~Map.get~ throws ~KeyNotFound~ (likewise). Both
+   are name-only types -- the rstil-style ~msg: Str~ form noted
+   below was not adopted for them; the file:line:col is recovered
+   from the bang's panic shim instead.
 
    Wanted (mirror rstil's ~src/core/~):
 
@@ -19,13 +24,15 @@
      so ~I8.safe_add~ et al. drop in alongside the rest.
    - ~F32.safe_div~ throwing ~DivideByZero~ (reuse the existing
      type).
-   - ~Array.get(self, index: I64) returns Ptr throws IndexOutOfBoundsError~
-     and the matching ~Vec.get~ / ~Str.get_byte_safe~. Currently
-     ~Array.get~ panics on OOB; the catch-friendly variant lets
-     callers handle it. The error type ~IndexOutOfBoundsError~
-     should carry a ~msg: Str~ with the formatted
-     ~"file:line:col:Array.get: index out of bounds"~ shape that
-     ~test/errors.til~'s rstil twin expects.
+   - ~Array.get(self, index: I64) returns Ptr throws OutOfBounds~
+     -- ~Vec.get~ and ~Map.get~ already throw; ~Array.get~ and
+     ~Str.get_byte_safe~ are the remaining containers. Either reuse
+     the empty ~OutOfBounds~ (consistent with ~Vec~) or introduce
+     the rstil-style ~IndexOutOfBoundsError~ with a ~msg: Str~
+     ~"file:line:col:Array.get: index out of bounds"~ -- decide on
+     one shape across Array/Vec/Str (the trend so far is empty).
+   - ~Vec.set~ / ~Array.set~ throwing ~OutOfBounds~. Needed to
+     unblock [[./225.org][#225]] (subscript assignment).
    - Optional: ~Str.parse_i64~ throwing ~ParseError~ for the
      fallible-parse pattern.
 
@@ -49,4 +56,12 @@
    semantics for any new error type -- adding one is a roughly
    ten-line change per built-in. The lift here is in agreeing on
    the names / shapes and writing the tests, not the lowering.
+
+   *** Recipe
+
+   [[../../doc/throws.org][doc/throws.org]] has a worked example
+   ("Adding a new built-in error type") that walks through the
+   ~DivideByZero~ / ~I64.safe_div~ pattern. Each new safe_* in this
+   issue is a copy of that recipe with a different error type and
+   arithmetic body.
 

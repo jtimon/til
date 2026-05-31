@@ -1,0 +1,246 @@
+* Throw / catch
+
+Reference for the throw/catch error-handling subsystem ported from
+rstil, originally shipped in issue [[file:../issues/fixed/198.org][#198]].
+This doc covers the user-facing surface, where the implementation
+lives, and step-by-step recipes for adding more throwing methods.
+
+** User-facing surface
+
+   - ~throws T1, T2, ...~ on a func/proc/macro signature declares the
+     set of error types it can raise. ~T~ is a type name (typically an
+     empty struct, e.g. ~DivideByZero~, or a struct with fields, e.g.
+     ~rstil's ~MyError { msg: Str }~).
+   - ~throw E~ raises an error of type ~typeof(E)~. The raised type
+     must either be in the enclosing function's ~throws~ set, or be
+     caught locally by a subsequent ~catch~ block.
+   - Postfix ~?~ on an FCall (~f(x)?~ or ~obj.method(x)?~) is the
+     mandatory annotation on a call to a throwing function. ~?~ does
+     not by itself decide whether to propagate or catch -- it just
+     marks the call as throwing-aware. Whether the error propagates
+     up or is consumed is decided by the presence of a matching
+     ~catch~ block after the call.
+   - Postfix ~!~ on an FCall is the "panic on throw" sugar. The
+     compiler synthesises a single-arm catch that calls ~panic~ on
+     any thrown variant, so the caller does not need to declare or
+     handle the throw.
+   - ~catch (err: T) { body }~ matches the most recent pending throw
+     of type ~T~ in the enclosing body and binds ~err~ as a const
+     local of type ~T~ inside ~body~. For struct ~T~, ~err.field~
+     resolves to the struct's fields.
+   - Subscript ~a[b]~ desugars to ~a.get(b)!~ at the parser. Any
+     struct/enum whose ~get~ method throws is therefore subscriptable
+     -- no per-type special case in the parser. The desugar is
+     generic in exactly the same way ~a + b -> a.add(b)~ is.
+
+   Worked example:
+
+   #+begin_src til
+   safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+       if b.eq(0) { throw DivideByZero() }
+       return a.div(b)
+   }
+
+   caller := proc() {
+       result := safe_div(10, 0)?
+       catch (err: DivideByZero) { println("zero divisor") }
+   }
+   #+end_src
+
+** Implementation map
+
+   *** Parser ([[file:../src/self/parser.til][src/self/parser.til]])
+   - Lexes ~throws~, ~throw~, ~catch~, ~?~, ~!~ as their own tokens.
+   - Func/proc signature parser stores the ~throws~ list as
+     ~FunctionDef.throw_types : Vec[Str]~.
+   - ~NodeType.Throw~ (1 child = thrown expr) and ~NodeType.Catch~
+     (3 children: Ident var, Ident type, Body).
+   - FCall postfix: ~?~ sets ~FCallData.does_throw~; ~!~ sets
+     ~FCallData.is_bang~.
+   - ~a[b]~ in postfix position desugars to ~a.get(b)!~ with
+     ~is_bang=true~ on the synthesised FCall.
+
+   *** Typer ([[file:../src/self/typer.til][src/self/typer.til]])
+   This is where most of the work lives. The throw/catch lowering
+   runs *before* ~infer_body~ so downstream stages (precomp, asap,
+   interpreter, builder) never see ~Throw~ or ~Catch~ nodes.
+
+   - ~throws_names_global~ / ~throw_type_registry~ on ~Context~:
+     accumulated lists of error type names. Per-type tags are stable
+     across functions, so the same ~T~ gets the same numeric tag in
+     every function that throws or catches it.
+   - ~extend_throwing_func_sigs~: rewrites every ~throws T1, T2, ...~
+     function signature to add synthetic out-params
+     ~mut _err_kind: I64~ and one ~mut _err_<T>: T~ per declared
+     throw type. Mirror call sites pick up the same params via
+     ~inject_throw_args_in_body~.
+   - ~process_throw_catch_in_func_body~: per-function lowering pass.
+     - ~throw E~ becomes ~_err_<T> = E; _err_kind = <tag>~.
+     - ~catch (err: T) { body }~ becomes
+       ~if I64.eq(_err_kind, <tag>) { err := _err_<T>; _err_kind = 0; body }~.
+     - Statements after a throwing call are wrapped in
+       ~if I64.eq(_err_kind, 0) { ... }~ guards (the lowered form of
+       rstil's Bug #34 fix).
+     - ~!~ on a call synthesises an immediate panic-on-any-tag catch
+       just after the call.
+   - ~resolve_value_type~: best-effort pre-typer type resolver used
+     by the throws-registry lookup to figure out the owning type of a
+     receiver in ~recv.method(...)~. It checks
+     ~ctx.lowering_param_types~ first (params + switch-case bindings,
+     see below), then ~guess_local_type~ on the function body, then
+     ~scope.get_binding~ for the FCall-return-type case.
+   - ~registry_exact_idx~: O(N) scan of ~throws_names_global~ for an
+     exact ~"Type.method"~ key. On miss with a ~?~ or ~!~ marked
+     call, falls back to suffix-matching ~".method"~ -- a one-shot
+     match wins; an ambiguous match is a typer error pointing at the
+     ambiguous candidates.
+
+   *** Tag layout
+
+   - ~_err_kind = 0~ means "no error". Each declared throw type gets
+     a positive tag, assigned by ~throw_type_registry~ in first-seen
+     order. Tags are file-global so a caller and callee that both
+     throw ~Foo~ agree on the tag without an explicit ABI.
+   - The ~_err_kind~ and ~_err_<T>~ params are appended to the
+     callee's parameter list in tag order, after the user-declared
+     params. The caller passes its own slots by reference; on the
+     callee side they look like ordinary ~mut ref~ params.
+
+** Adding a new built-in error type (worked example: DivideByZero)
+
+   Reference implementation: [[file:../src/core/i64.til][src/core/i64.til]] around
+   ~DivideByZero~ and ~safe_div~.
+
+   1. Declare the error type as an ordinary struct at top level in
+      the relevant ~src/core/~ file. Empty struct is fine when the
+      tag carries enough information; add fields when callers need
+      structured detail in ~catch~ bodies.
+
+      #+begin_src til
+      /// Error thrown by I64.safe_div when dividing by zero.
+      DivideByZero := struct {}
+      #+end_src
+
+   2. Write the throwing method on the relevant type's namespace.
+      The signature gets a ~throws T~ clause; the body uses
+      ~throw T(...)~ on the error path.
+
+      #+begin_src til
+      I64 : StructDef = struct {
+      namespace:
+          safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+              if b.eq(0) { throw DivideByZero() }
+              return a.div(b)
+          }
+      }
+      #+end_src
+
+   3. Add a regression in [[file:../test/errors.til][test/errors.til]]
+      that exercises both the success and the throw path. ~test_unsafe_div~
+      and the surrounding cases there are the canonical shape; copy
+      a nearby block.
+
+   4. Run ~make test~ and ~make test_asan~. The asap pass handles
+      ~_err_<T>~ slot cleanup automatically, but if ~T~ owns heap
+      storage (a ~Str~ field, for example) ~make test_asan~ is what
+      catches a regression in the cleanup path.
+
+** Adding a new throwing container method (worked example: Vec.get)
+
+   Reference implementation: [[file:../src/core/vec.til][src/core/vec.til]]'s ~Vec.get~ and the
+   parser's subscript desugar.
+
+   1. Add the error type (empty struct is conventional for container
+      OOB-style errors -- the call site already knows the container
+      and the index from the surrounding code).
+
+      #+begin_src til
+      OutOfBounds := struct {}
+      #+end_src
+
+   2. Change the method signature to add ~throws OutOfBounds~ and
+      replace the existing ~panic~ with ~throw OutOfBounds()~.
+
+      #+begin_src til
+      get := func(self: Vec, i: USize) returns ref Dynamic throws OutOfBounds {
+          if i.gte(self.count) { throw OutOfBounds() }
+          return Dynamic_at(self.data, i.mul(self.elem_size))
+      }
+      #+end_src
+
+   3. Every existing ~vec.get(i)~ call site fails to compile because
+      ~get~ now throws. Migrate:
+      - ~vec.get(i)~ that wanted a panic on OOB -> ~vec[i]~. The
+        subscript desugars to ~vec.get(i)!~ for free.
+      - ~vec.get(i)~ that wanted to handle the error ->
+        ~vec.get(i)? + catch (err: OutOfBounds) { ... }~.
+
+   4. The merge helper [[file:../examples/merge_commit.til][examples/merge_commit.til]] has a special
+      constraint here: it is compiled by master's ~bin/til~ at merge
+      time but its source comes from the candidate commit. Bundling
+      the subscript migration into the breaking commit is fine as
+      long as the helper's bare ~vec.get(i)~ calls are rewritten to
+      cross-typer-compatible shapes (for-in iteration, explicit ref
+      bindings for nested subscripts). See
+      [[file:./self.org][doc/self.org]] "Breaking changes in standalone
+      scripts" for the full procedure.
+
+** Pitfalls
+
+   *** ~.and()~ is not short-circuit
+
+   ~Bool.and~ is an ~ext_func~, not a short-circuit operator -- both
+   sides evaluate before the call. A null check followed by a field
+   read in the same ~.and()~ derefs through the null pointer:
+
+   #+begin_src til
+   // WRONG: dereferences fb.func_def when fb is null
+   if is_null(fb).not().and(is_null(fb.func_def).not()) { ... }
+
+   // RIGHT: split into nested ~if~
+   if is_null(fb).not() {
+       if is_null(fb.func_def).not() { ... }
+   }
+   #+end_src
+
+   *** Case-binding payload types and the FCall-return-type extension
+
+   The throws lookup needs to know the type of a receiver in
+   ~recv.method(...)!~ at lowering time so it can pick the right
+   throw variant for the bang. Two shapes that don't go through the
+   usual Decl scan need explicit help in ~resolve_value_type~:
+
+   - ~case E.V(x):~ pattern bindings. The case-body Decl for ~x~ is
+     emitted later by ~make_switch_case_condition~, so a body that
+     does ~x.foo[k]!~ during lowering would see ~x~ as untyped.
+     ~collect_switch_case_bindings~ walks the function body before
+     ~process_throw_catch_in_func_body~ runs and seeds
+     ~ctx.lowering_param_types~ with ~x -> <payload type>~.
+   - ~mut x := some_func(args)~ locals. ~guess_local_type~ on its
+     own returns the callee's Ident name (~"some_func"~), which
+     isn't a struct. ~resolve_value_type~ now falls back to
+     ~scope.get_binding(name)~ and reads ~FunctionDef.return_type~
+     when the name resolves to a function binding.
+
+   When you add a new shape that introduces a local of an inferable
+   type before ~process_throw_catch_in_func_body~ runs, these two
+   call sites are the place to extend.
+
+   *** Throws-registry suffix matching
+
+   ~registry_exact_idx~ is keyed on ~"Type.method"~. When the typer
+   can't resolve the receiver's owning type for a ~?~ or ~!~ call,
+   it falls back to suffix-matching ~".method"~ against the
+   registry. If multiple registered types declare ~.get~ that
+   throws (e.g. ~Vec.get : OutOfBounds~ and ~Map.get : KeyNotFound~)
+   and the typer can't tell which one applies, the fallback picks
+   one nondeterministically. The fix is to make ~resolve_value_type~
+   resolve the receiver (see previous pitfall), not to special-case
+   the suffix table.
+
+** Related issues
+
+   - [[file:../issues/fixed/198.org][#198]] -- the original throw/catch port (shipped).
+   - [[file:../issues/open/201.org][#201]] -- more built-in error types and safe_* methods.
+   - [[file:../issues/open/225.org][#225]] -- subscript assignment ~a[b] = c -> a.set(b, own c)!~,
+     blocked on ~Vec.set~ throwing.
