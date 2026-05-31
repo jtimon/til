@@ -1792,7 +1792,17 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             switch rhs.node_type {
             case NodeType.FieldAccess: do_rebind = true
             case NodeType.Ident(rhs_ident):
-                if is_stack_local(ident_name(rhs_ident), ctx).not() { do_rebind = true }
+                // Issue #226: function parameters live on the stack frame
+                // like stack-local decls, but is_stack_local returns false
+                // for them so the rebind branch was emitting `aname =
+                // &param;` (pointer rebind to the param's storage) when
+                // the user wrote `aname = param` intending a deref-write.
+                // For primitive params especially this left the original
+                // target uninitialized. Treat params like stack locals
+                // here so the deref-write path runs.
+                rname := ident_name(rhs_ident)
+                if is_stack_local(rname, ctx).not()
+                    .and(is_current_func_param(rname, ctx).not()) { do_rebind = true }
             case:
             }
             if do_rebind {

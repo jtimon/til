@@ -1,0 +1,72 @@
+# priority: low
+** OPEN #227 interpreter: ref mut primitive Assign doesn't deref-write
+
+  In the AST interpreter, an assignment through a ref-binding to a
+  primitive scalar replaces the cell's Value (the Value.Ref) wholesale
+  instead of writing the new value through the borrowed pointer. The
+  underlying storage stays untouched.
+
+  Reproducer:
+
+    main := proc() {
+        buf : Dynamic = malloc(8)
+        write_u32(buf, 100)
+        ref mut slot : U32 = ptr_add(buf, 0)
+        val : U32 = 42
+        slot = val
+        out : U32 = 0
+        memcpy(out, buf, 4)
+        println(out.to_str())     // prints 0, expected 42
+        free(own buf)
+    }
+
+  `bin/til interpret` prints 0; `bin/til run` (compile path) prints 42.
+  Source of the bug is src/self/interpreter.til's NodeType.Assign
+  handler (~line 909): the fallback path runs
+
+      new_val := eval_expr(scope, rhs, ctx)
+      memcpy(cell.val, new_val, Value.size())
+
+  which overwrites cell.val (a Value.Ref(ptr)) with new_val (a
+  Value.Uint32(42)), so the original ptr_add target never sees the
+  write. The compiler-side equivalent of this bug was fixed under
+  issue #226 in src/self/builder.til (the `do_rebind` branch).
+
+  Why this hasn't bitten yet: the existing in-tree callers of
+  `ref mut x : Primitive = ...; x = ...` all run through the
+  compiled `bin/til`, not the interpreter, so codegen handles them.
+  Discovered when writing a #226 regression test that exercises the
+  pattern in `mode test` (which test_runner executes under both
+  interp and compile).
+
+  Fix sketch:
+
+  1. In the Assign handler, detect when cell.val is a Value.Ref /
+     Value.Dynamic (i.e. the binding is a ref-binding) and the
+     target's static type is a primitive scalar.
+  2. Instead of `memcpy(cell.val, new_val, Value.size())`, dispatch
+     through the matching `write_*` primitive based on the new_val's
+     Value variant (Value.Byte -> write_u8, Value.Uint32 -> write_u32,
+     ...) writing into the borrowed pointer.
+  3. For aggregate (Str/struct/enum) ref-mut targets the existing
+     payload_alias mirroring at lines 938-1024 handles the writeback
+     -- only the primitive scalar case is broken.
+
+  Regression test (test/ref.til, after fix):
+
+    ref227_param_rhs := func(shallow len: USize) returns shallow U32 {
+        buf : Dynamic = malloc(8)
+        write_u32(buf, 0)
+        ref mut slot : U32 = ptr_add(buf, 0)
+        slot = len
+        out : U32 = 0
+        memcpy(out, slot, 4)
+        free(own buf)
+        return out
+    }
+
+    test_ref_mut_primitive_assign := test() {
+        assert_eq(__LOC__, ref227_param_rhs(42).to_i64(), 42)
+    }
+
+  Should pass under both ~interpret~ and ~run~ once this is fixed.
