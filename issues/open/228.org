@@ -1,0 +1,91 @@
+# priority: low
+** OPEN #228 Browser target: run mode gui programs in the browser via WASM
+
+:DEPENDENCIES: [[./151.org][#151]] [[./25.org][#25]]
+
+  Make ~mode gui~ til programs (flagship: [[file:../../examples/shootil.til][examples/shootil.til]]) run in a
+  web browser. The compiler emits C, compiles to WASM32 via gcc, and
+  produces an HTML page that loads and runs the result.
+
+  Depends on #151: wasm32 uses 32-bit pointers, so the builder.til
+  audit for 64-bit pointer assumptions must be complete first.
+
+*** Current state
+
+  - ~Target.Wasm32~ exists in [[file:../../src/self/targets.til][src/self/targets.til]] with bare-metal clang
+    flags (~-nostdlib -Wl,--no-entry -Wl,--export-all~). No browser
+    toolchain path exists.
+  - Raylib already has full emscripten support:
+    [[file:../../vendor/raylib/src/platforms/rcore_web_emscripten.c][vendor/raylib/src/platforms/rcore_web_emscripten.c]] and
+    [[file:../../vendor/raylib/src/shell.html][vendor/raylib/src/shell.html]] (HTML shell template).
+  - #81 (UPtr) is fixed, so 32-bit pointer codegen is sound. #151
+    (bare wasm32 audit) is not yet done but is a prerequisite.
+  - [[file:../../src/c/ext.c][src/c/ext.c]] uses POSIX APIs (fork, exec, dlopen, dlsym, file I/O)
+    that don't exist in browsers. Emscripten stubs some of these but
+    not all.
+  - Generated C ~main()~ is a blocking function. Browsers need
+    ~emscripten_set_main_loop()~ to drive the frame loop.
+
+*** Plan
+
+  1. *Finish #151 first.* Audit [[file:../../src/self/builder.til][src/self/builder.til]] for places
+     that assume 64-bit pointer arithmetic and replace with ~UPtr~.
+     This unblocks emitting valid C for wasm32.
+
+  2. *Browser toolchain.* Use gcc with wasm32 target support.
+     Extension: ~.wasm~. Linker flags for browser environment.
+
+  3. *Build raylib for wasm32.* Compile [[file:../../vendor/raylib/src][vendor/raylib/src]] with
+     ~-DPLATFORM_WEB~ to produce ~libraylib-web.a~. Wire it into
+     ~target_gui_libs~ for the wasm32 target. Tinyfiledialogs
+     doesn't work on web; stub it out or skip it.
+
+  4. *Main loop transformation.* For ~mode gui~ on wasm32, the builder
+     must restructure the generated C ~main()~:
+     - Extract the ~while !WindowShouldClose()~ body into a
+       ~void frame(void)~ callback.
+     - Replace the loop with ~emscripten_set_main_loop(frame, 0, 1)~
+       or equivalent browser event loop integration.
+     - Hoist locals that must survive across frames to file-scope
+       statics (the current ~main()~ locals already live for the
+       whole loop, so most survive; ~mut~ locals modified inside
+       the loop need to become static).
+     Raylib's own ~WindowShouldClose()~ on emscripten already
+     integrates with ~emscripten_set_main_loop~, so the frame
+     callback just needs to return instead of looping.
+
+  5. *ext.c browser stubs.* Provide a ~src/c/ext_web.c~ (or
+     ~#ifdef __EMSCRIPTEN__~ blocks in ext.c) that stubs or
+     replaces:
+     - ~spawn_cmd~ / ~spawn_cmd~: return error (no subprocess in
+       browser).
+     - ~dlopen~ / ~dlsym~: return NULL (no dynamic loading in
+       WASM).
+     - ~readfile~ / file I/O: use browser virtual filesystem
+       (MEMFS) or ~FETCH~ API for network loads.
+     - ~system_cmd~: return error.
+
+  6. *HTML shell.* Use [[file:../../vendor/raylib/src/shell.html][vendor/raylib/src/shell.html]] as a starting
+     point or generate a minimal HTML wrapper. The builder emits
+     ~program.html~ that can be served by any static file server.
+
+  7. *Builder wiring.* In [[file:../../src/self/builder.til][src/self/builder.til]]:
+     - ~link_c~ selects gcc with wasm32 flags for the browser
+       target.
+     - ~target_system_libs~ returns empty (browser provides
+       everything).
+     - ~target_gui_libs~ returns the wasm32-built raylib +
+       browser linker flags.
+     - Output is ~program.html~ (user opens in browser).
+
+  8. *CI / testing.* Cross-compile shootil.til for wasm32 in CI,
+     verify the .html + .wasm are produced and the .wasm is
+     valid (~wasm-validate~ from wabt). Full browser testing needs
+     a headless browser (puppeteer or similar) -- defer to later.
+
+*** Out of scope
+
+  - ~mode server~ on WASM (no networking in browser sandbox).
+  - ~mode script~ on WASM (no subprocess, limited filesystem).
+  - Running the til compiler itself in the browser (self-hosting
+    WASM is a separate, much larger effort).
