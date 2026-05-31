@@ -2928,11 +2928,184 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
     }
 }
 
+// Issue #57: macros returning `StructDef` / `EnumDef` act as type
+// generators -- `Pair := make_pair(I64)` should be equivalent to
+// `Pair := struct { first: I64 = 0, second: I64 = 0 }`. Mirrors rstil's
+// macro-returns-StructDef path (precomp.rs ~309): scan top-level decls
+// whose RHS is a call to a top-level macro returning a type-def, inline
+// the macro body's return literal with the type-parameters substituted
+// out for the call args, and replace the Decl's RHS with the resulting
+// struct/enum literal. The rest of the registration walk then treats the
+// Decl like any other named struct/enum.
+//
+// Macro bodies are required to be a single `return <struct|enum literal>`
+// statement; anything more complex isn't expanded here (a diagnostic is
+// emitted later by the normal typer). Type-param idents matching one of
+// the macro's params get rewritten to the matching call arg's ident name
+// throughout field types, payload types, default-value Exprs, and ns_decl
+// method bodies.
+priv init_substitute_idents := func(mut e: Expr, subs: Map) {
+    if is_null(e) { return }
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        nm := ident_name(idn)
+        if subs.has(nm) {
+            ref repl : Str = subs[nm]
+            e.node_type = ident_node(repl)
+        }
+    case:
+    }
+    for mut c : Expr in e.children {
+        init_substitute_idents(c, subs)
+    }
+}
+
+// Helpers that take the StructDef / EnumDef directly (not via the
+// switch-case destructure binding) so the typer carries the Map<I64,Str>
+// type info into the payload-types subscript without the
+// throws-inference mixing OutOfBounds (Vec) into KeyNotFound (Map).
+priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map) {
+    for mut fd : Declaration in sdef.fields {
+        if subs.has(fd.explicit_type) {
+            ref repl : Str = subs[fd.explicit_type]
+            fd.explicit_type = repl.clone()
+            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+        }
+        if is_null(fd.default_value).not() {
+            init_substitute_idents(fd.default_value, subs)
+        }
+    }
+    for mut nd : Declaration in sdef.ns_decls {
+        if subs.has(nd.explicit_type) {
+            ref repl : Str = subs[nd.explicit_type]
+            nd.explicit_type = repl.clone()
+            nd.til_type = til_type_from_explicit_type(nd.explicit_type)
+        }
+        if is_null(nd.default_value).not() {
+            init_substitute_idents(nd.default_value, subs)
+        }
+    }
+}
+
+priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
+    for k in 0..edef.variants.len() {
+        if edef.payload_types.has(k.to_i64()) {
+            ref pt : Str = edef.payload_types[k.to_i64()]
+            if subs.has(pt) {
+                ref new_pt : Str = subs[pt]
+                edef.payload_types.set(own k.to_i64(), own new_pt.clone())
+            }
+        }
+    }
+    for mut nd : Declaration in edef.ns_decls {
+        if subs.has(nd.explicit_type) {
+            ref repl : Str = subs[nd.explicit_type]
+            nd.explicit_type = repl.clone()
+            nd.til_type = til_type_from_explicit_type(nd.explicit_type)
+        }
+        if is_null(nd.default_value).not() {
+            init_substitute_idents(nd.default_value, subs)
+        }
+    }
+}
+
+priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
+    switch def.node_type {
+    case NodeType.StructDef(sdd):
+        init_subst_struct_params(sdd, subs)
+    case NodeType.EnumDef(edd):
+        init_subst_enum_params(edd, subs)
+    case:
+    }
+}
+
+priv init_expand_type_gen_macros := func(mut program: Expr) {
+    // Build map of top-level macro defs returning StructDef/EnumDef.
+    mut macros := Map.new(Str, Expr)
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.FuncDef).not() { continue }
+        switch rhs.node_type {
+        case NodeType.FuncDef(fd):
+            if fd.func_type.is(FuncType.Macro).not() { continue }
+            ret_ok := fd.return_type.eq("StructDef").or(fd.return_type.eq("EnumDef"))
+            if ret_ok.not() { continue }
+            switch stmt.node_type {
+            case NodeType.Decl(dd):
+                macros.set(own dd.name.clone(), own rhs.clone())
+            case:
+            }
+        case:
+        }
+    }
+    if macros.len().eq(0) { return }
+
+    // Walk top-level decls, expand each `X := macroname(args)`.
+    for i in 0..program.children.len() {
+        ref mut stmt : Expr = program.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.FCall).not() { continue }
+        if rhs.children.len().lt(1.to_usize()) { continue }
+        ref callee : Expr = rhs.child(0)
+        if callee.node_type.is(NodeType.Ident).not() { continue }
+        mut callee_name := ""
+        switch callee.node_type {
+        case NodeType.Ident(cn): callee_name = ident_name(cn)
+        case:
+        }
+        if macros.has(callee_name).not() { continue }
+        ref macro_fdef : Expr = macros[callee_name]
+        if macro_fdef.children.len().eq(0) { continue }
+        ref body : Expr = macro_fdef.child(0)
+        if body.node_type.is(NodeType.Body).not() { continue }
+        if body.children.len().neq(1.to_usize()) { continue }
+        ref ret_stmt : Expr = body.child(0)
+        if ret_stmt.node_type.is(NodeType.Return).not() { continue }
+        if ret_stmt.children.len().eq(0) { continue }
+        ref ret_val : Expr = ret_stmt.child(0)
+        ret_val_ok := ret_val.node_type.is(NodeType.StructDef).or(ret_val.node_type.is(NodeType.EnumDef))
+        if ret_val_ok.not() { continue }
+
+        // Build param-name -> arg-ident-name substitution.
+        mut subs := Map.new(Str, Str)
+        switch macro_fdef.node_type {
+        case NodeType.FuncDef(mfd):
+            for j in 0..mfd.params.len() {
+                if j.add(1.to_usize()).gte(rhs.children.len()) { break }
+                ref param : Declaration = mfd.params[j]
+                ref arg : Expr = rhs.child(j.add(1.to_usize()))
+                if arg.node_type.is(NodeType.Ident).not() { continue }
+                switch arg.node_type {
+                case NodeType.Ident(an):
+                    subs.set(own param.name.clone(), own ident_name(an).clone())
+                case:
+                }
+            }
+        case:
+        }
+
+        // Clone the return literal, substitute, replace Decl's RHS.
+        mut cloned := ret_val.clone()
+        init_substitute_type_params(cloned, subs)
+        stmt.children.set(0.to_usize(), own cloned)
+    }
+}
+
 // rstil-style unit initializer: index declarations for one file, but do not
 // run global layout/method generation that must see the whole program.
 init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
+
+    // Issue #57: expand `X := macroname(args)` where macroname is a
+    // top-level macro returning StructDef/EnumDef -- inline the macro
+    // body's return literal with type-params substituted, so X becomes a
+    // normal named struct/enum decl for the registration walk below.
+    init_expand_type_gen_macros(program)
 
     // Single AST walk: register every type name in scope (struct, enum,
     // funcsig) and bucket each remaining Decl's index for post-walk work.

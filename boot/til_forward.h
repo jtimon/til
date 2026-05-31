@@ -1379,6 +1379,11 @@ void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_pre
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
+void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map * subs);
+void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map * subs);
+void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map * subs);
+void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map * subs);
+void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);
@@ -1482,6 +1487,7 @@ void infer_map_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * c
 void infer_set_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__expr_uses_self_field(Expr * e, Str * field_name);
 void priv___src_self_typer_til__check_user_delete_frees_own_fields(Str * struct_name, Expr * sdef, Context * ctx);
+void priv___src_self_typer_til__typer_resolve_enum_payload_types(EnumDef * edef, TypeScope * scope, Context * ctx);
 void infer_type_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void infer_func_sig_expr(TypeScope * scope, Expr * expr);
 void check_ref_function_returns(TypeScope * func_scope, Expr * expr, Context * ctx);
