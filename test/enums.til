@@ -662,3 +662,28 @@ test_mut_struct_payload_binding := test() {
     case: assert_eq_str(__LOC__, "wrong variant", "")
     }
 }
+
+// #211 follow-up: nested-enum payloads (Variant: SomeOtherEnum) also
+// propagate now. The interp writeback handles `Value.Enum` by deep-
+// copying into a fresh heap EnumInstance and storing its pointer at the
+// outer payload slot, mirroring write_field's Ref-typed enum shape.
+// (Compile already worked via the existing is_payload_alias compound
+// branch.)
+NestedInner := enum { A: I64, B }
+NestedOuter := enum { Wrap: NestedInner, Bare }
+
+test_mut_nested_enum_payload_binding := test() {
+    mut o := NestedOuter.Wrap(NestedInner.A(7))
+    switch o {
+    case NestedOuter.Wrap(p): p = NestedInner.A(99)
+    case:
+    }
+    switch o {
+    case NestedOuter.Wrap(q):
+        switch q {
+        case NestedInner.A(n): assert_eq(__LOC__, n, 99)
+        case: assert_eq_str(__LOC__, "wrong inner variant", "")
+        }
+    case: assert_eq_str(__LOC__, "wrong outer variant", "")
+    }
+}

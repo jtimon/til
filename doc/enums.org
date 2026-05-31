@@ -129,9 +129,15 @@ target (the rejection that flagged "ref target cannot be assigned an
 owned value" is gated by ~is_payload_alias~), the builder lowers it to
 ~{ Type_delete(p, &(Bool){0}); Type *_new = (Type *)Type(...); *p =
 *_new; free(_new); }~, and the interp writeback memcpys the struct
-bytes via the existing ~Value.Struct~ path. The remaining open piece is
-nested-enum payloads (~Variant: SomeOtherEnum~): writes don't yet
-propagate when the payload is itself an enum.
+bytes via the existing ~Value.Struct~ path. Nested-enum payloads
+(~Variant: SomeOtherEnum~) also propagate: the interp writeback's
+~Value.Enum~ branch deep-copies the new inner enum into a fresh heap
+~EnumInstance~ and stores its pointer at the outer payload slot
+(mirroring ~write_field~'s Ref-typed enum shape; the compile path
+already worked via the same ~is_payload_alias~ compound branch). The
+remaining piece is freeing the OLD inner ~EnumInstance~ at the slot
+before overwriting -- a bounded per-write leak under interp; flagged
+as a follow-up.
 
 * Current tests to extend
 

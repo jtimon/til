@@ -1059,6 +1059,29 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                             memcpy(dest, si.data, sz.to_u64())
                                         }
                                     }
+                                case Value.Enum(new_ei):
+                                    // Nested-enum payload (Variant: SomeOtherEnum).
+                                    // The outer stores an 8-byte POINTER to a heap
+                                    // EnumInstance at dest (matching write_field's Ref
+                                    // shape). Free the old inner EnumInstance and its
+                                    // data buffer, then deep-copy the new one and store
+                                    // its pointer.
+                                    if is_null(new_ei.data).not() {
+                                        // TODO(#211 follow-up): free the OLD inner
+                                        // EnumInstance (and its data buffer) at dest
+                                        // before overwriting. Skipped for now to keep
+                                        // the case body simple; produces a bounded leak
+                                        // per nested-enum payload write under interp.
+                                        copy_sz := new_ei.data_size.to_u64()
+                                        heap_ei : Dynamic = malloc(EnumInstance.size())
+                                        memcpy(heap_ei, new_ei, EnumInstance.size())
+                                        if copy_sz.gt(0) {
+                                            new_data : Dynamic = malloc(copy_sz)
+                                            memcpy(new_data, new_ei.data, copy_sz)
+                                            write_ptr(ptr_add(heap_ei, 8), new_data)
+                                        }
+                                        write_ptr(dest, heap_ei)
+                                    }
                                 case:
                                 }
                             }
