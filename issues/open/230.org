@@ -1,0 +1,121 @@
+# priority: medium
+** OPEN #230 Consolidate per-primitive Type variants into Type.Primitive(Primitive)
+
+   Final-form decision after the cancelled #205 prototype:
+   primitives live in ~Type.Primitive(Primitive)~ rather than
+   in ~Type.Struct(name: Str)~. Reasoning archived in
+   ~issues/cancelled/205.org~ -- in short, the
+   ~Type.Primitive~ shape gives:
+
+   - a one-line ~is_primitive(t) := t.is(Type.Primitive)~
+     (vs a 10-line ~Str.eq~ chain),
+   - no permanent ~is_aggregate~ helper (~Type.Struct~ only
+     means user struct, so ~is(Type.Struct).or(is(Type.Enum))~
+     is the natural compound-aggregate test),
+   - exhaustive nested ~switch~ over the ~Primitive~ enum at
+     every dispatch site (compiler tells you if a new
+     primitive isn't handled).
+
+   Goal end state:
+
+   #+begin_src til
+   Primitive := enum {
+       I64, U8, I8, I16, U16, I32, U32, U64, F32, Bool,
+   }
+
+   Type := enum {
+       Unknown, None,
+       Primitive: Primitive,
+       Struct: Str, StructDef,
+       Enum: Str, EnumDef,
+       FuncDef, FuncPtr, Dynamic,
+       Custom: Str,
+   }
+
+   is_primitive := func(t: Type) returns Bool { return t.is(Type.Primitive) }
+
+   // is_aggregate disappears -- callers go back to plain
+   // ~is(Type.Struct).or(is(Type.Enum))~.
+
+   til_type_name_c := func(t: Type) returns Str {
+       switch t {
+       case Type.Unknown:   return "unknown"
+       case Type.None:      return "None"
+       case Type.Primitive(p):
+           switch p {
+           case Primitive.I64:  return "I64"
+           case Primitive.U8:   return "U8"
+           case Primitive.I8:   return "I8"
+           case Primitive.I16:  return "I16"
+           case Primitive.U16:  return "U16"
+           case Primitive.I32:  return "I32"
+           case Primitive.U32:  return "U32"
+           case Primitive.U64:  return "U64"
+           case Primitive.F32:  return "F32"
+           case Primitive.Bool: return "Bool"
+           }
+       case Type.Struct:    return "Struct"
+       case Type.StructDef: return "StructDef"
+       case Type.Enum:      return "Enum"
+       case Type.EnumDef:   return "EnumDef"
+       case Type.FuncDef:   return "FunctionDef"
+       case Type.FuncPtr:   return "Fn"
+       case Type.Dynamic:   return "Dynamic"
+       case Type.Custom(name): return name.clone()
+       }
+   }
+   #+end_src
+
+   *** Starting state (master afd45d8b)
+
+   - ~Primitive := enum { I16, U16 }~. Only I16 / U16 live in
+     ~Type.Primitive~.
+   - ~Type~ still has dedicated ~I64 / U8 / I32 / U32 / U64 /
+     F32 / Bool / I8~ variants alongside ~Primitive~.
+   - ~Type.Struct("I32") / Type.Struct("U8") / Type.Struct("I8")~
+     are *also* produced because of the cancelled #205
+     migrations that landed before the design was
+     reconsidered. ~is_primitive~ accepts both shapes for I32 /
+     U8 / I8 today (this is the temporary scar).
+   - ~is_aggregate~ exists in ~src/core/ast.til~ and is used
+     across asaper / typer / builder to mean "compound
+     non-primitive named type".
+
+   *** Plan
+
+   - [ ] Step 1: rollback the three Struct-name primitive
+     migrations on master (~Type.Struct("I32") / ("U8") /
+     ("I8")~). Producers go back to ~Type.I32 / Type.U8 /
+     Type.I8~; consumers drop their ~case Type.Struct(s):
+     if s.eq("I32") ...~ arms. This restores the
+     ~is_primitive~ helper to the pre-migration shape
+     (per-variant OR chain on ~Type.X~ + ~Type.Primitive~).
+
+   - [ ] Step 2 (atomic per primitive, or batched): move
+     ~Type.I32~ / ~Type.U8~ / ~Type.I8~ / ~Type.I64~ /
+     ~Type.U32~ / ~Type.U64~ / ~Type.F32~ / ~Type.Bool~ from
+     standalone ~Type~ variants into the ~Primitive~ enum
+     -- so they become ~Type.Primitive(Primitive.I32)~ etc.
+     The bootstrap constraint that pushed ~Primitive~ to the
+     end of ~Type~ in the past stays: tag values of existing
+     ~Type~ variants must not shift while master's
+     ~til_boot~ is still decoding them. Two-pass per
+     boundary -- the new self-applied output is what removes
+     the dead variants.
+
+   - [ ] Step 3 (Two-pass): drop the now-dead per-primitive
+     ~Type.X~ variants from the enum. Drop ~is_aggregate~
+     (callers go back to ~is(Type.Struct).or(is(Type.Enum))~).
+     Drop the ~to_is_*~ / ~from_is_*~ boolean caches in
+     ~can_implicit_widen~ that were added to bridge the
+     dual representation. Collapse every dispatch site to
+     the exhaustive nested switch shown in the goal sketch.
+
+   *** Why medium priority
+
+   Pure simplification + a small steady-state perf win
+   (every typer pass replaces N string compares with N tag
+   compares). Mostly mechanical; the architectural call has
+   already been made, so what's left is patient sweep work
+   plus a Two-pass commit at the end. No external behaviour
+   change.

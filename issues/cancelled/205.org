@@ -1,0 +1,46 @@
+# priority: low
+** CANCELLED #205 Collapse Primitive enum + per-primitive Type variants into Type.Struct(name)
+
+   *Cancelled* in favour of the opposite direction tracked in
+   #230: keep ~Type.Primitive(Primitive)~ as the canonical
+   home for primitive types and move the remaining
+   per-primitive ~Type.X~ variants /into/ it, rather than out
+   to ~Type.Struct(name)~.
+
+   The original plan in this issue would have eliminated the
+   ~Primitive~ enum entirely and represented every primitive
+   as ~Type.Struct("<name>")~. Three of the migrations
+   already landed on master that way (~Type.I32~,
+   ~Type.U8~, ~Type.I8~ -> ~Type.Struct("I32")~ /
+   ~Type.Struct("U8")~ / ~Type.Struct("I8")~). After working
+   through the U32 / U64 / F32 / Bool migration on a bot
+   branch, the final-form code came out worse than the
+   ~Type.Primitive~ alternative in three concrete ways:
+
+   - ~is_primitive(t)~ becomes a permanent 10-line string-set
+     check (~if s.eq("I64") ... if s.eq("U8") ...~) instead of
+     a one-line ~t.is(Type.Primitive)~. Every typer pass runs
+     this thousands of times per build; the tag check is one
+     byte compare, the string check is at minimum two derefs
+     and a length compare.
+
+   - ~is_aggregate~ exists permanently to mean "compound
+     non-primitive struct" -- ie ~is(Type.Struct).or(is(Type
+     .Enum)).and(is_primitive(t).not())~. With
+     ~Type.Primitive~ this helper disappears entirely:
+     ~Type.Struct~ /only/ means user struct, so the natural
+     ~is(Type.Struct).or(is(Type.Enum))~ shape is already
+     correct.
+
+   - ~case Type.Struct(s):~ stops being exhaustive. Every
+     primitive-aware switch becomes an if-chain on ~s~ that
+     the compiler cannot tell you forgot ~U64~. With
+     ~Type.Primitive(p)~ the nested switch on the Primitive
+     variant is exhaustive at compile time -- adding a new
+     primitive forces a walk of every site.
+
+   See #230 for the new plan (move remaining per-primitive
+   ~Type.X~ variants into ~Primitive~, then drop the dead
+   ~Type.X~ variants in a single Two-pass commit) and for
+   the rollback of the three Struct-name migrations that
+   already landed.
