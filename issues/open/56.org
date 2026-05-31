@@ -80,3 +80,65 @@
    | Zig        | ~.{ .x = 10, .y = 20 }~  | Yes (anonymous structs)         |
    | TIL        | ~Point(x=10, y=20)~      | Yes: ~struct{mut x := 0}(x=10)~ |
 
+*** Progress (rstil-parity arc, 2026-05)
+
+   What works today:
+
+   - [X] Anonymous struct instantiation: ~struct { ... }(args)~ -- init
+     lifts to a top-level ~AnonStructN~ decl shared per-file with the
+     dedup cache (anon_def_key folds in field/variant names, types,
+     mut/own, default-value trees, and namespace-method bodies).
+   - [X] Anonymous struct in type positions: ~func(p: struct { ... })~,
+     ~returns struct { ... }~, ~mut p: struct { ... } = ...~, and
+     ~field: struct { ... } = ...~. Cross-position unification: a type-
+     position literal and a structurally identical value-position one
+     resolve to the same generated type, so the value flows in.
+   - [X] Bare anonymous struct as a value:
+     ~defs.push(own struct { ... })~ produces a runtime ~StructDef~
+     value (the parser emits ~struct_def_of("AnonStructN")~ for the
+     ~own~-prefixed case). The non-own arg path stays as a type ref
+     so ~count_variants(struct { ... })~-style introspection still
+     works.
+   - [X] Anonymous struct as a ~func(T: Type)~ / ~macro(T: Type)~ arg
+     (introspection style). Macros taking ~Type~ now bypass the typer's
+     comptime-arg gate via expr_is_comptime's ~Type.<Variant>(...)~ case
+     plus the precomp arg-loop's type-ident handling. The scavenger
+     follows ~Type.Struct("X")~ / ~Type.Custom("X")~ so the underlying
+     decl isn't pruned.
+   - [X] Macros as struct-type generators:
+     ~Pair := make_pair(I64)~ where ~make_pair := macro(T: Type) returns StructDef~
+     desugars to a plain ~struct { ... }~ decl at the call site
+     (init_expand_type_gen_macros in initer.til; mirrors rstil
+     precomp.rs ~309 + substitute_type_params_in_struct). Multi-param
+     supported.
+   - [X] ~Vec.new(StructDef)~ + ~struct_def_of("Name")~ round-trip,
+     including ~defs.push(own struct { ... })~ producing a runtime
+     value.
+   - [X] Returning a ~Struct~ instance from an anonymous-struct return
+     type (see test_anon_return_type in test/first_class.til).
+
+   Still missing for rstil parity:
+
+   - [ ] Struct-type macros merging a body-supplied ~namespace:~ block
+     with the auto-generated ~delete~ / ~clone~ / ~to_str~ methods
+     (rstil precomp.rs ~349-385). Today macro_pair := macro(T: Type)
+     returns StructDef can only return a fields-only literal.
+   - [ ] INFER_TYPE resolution: a struct member with no explicit type
+     but a default value pulled from the macro body (rstil ~328-336).
+   - [ ] Precomp of default-value expressions inside an expanded struct
+     (rstil ~342-348). Today the substituted literal carries the
+     parser-shaped defaults unchanged.
+   - [ ] Calling a struct *type* as a generic constructor:
+     ~make_default := func(T: Type) returns T { return T() }~. The
+     typer doesn't yet rewrite ~T()~ to a constructor call at the
+     param's instance type.
+
+   Beyond rstil parity (not in scope for #56 alone):
+
+   - [ ] ~func<T>(...)~ sugar that desugars to a macro call (see #58).
+   - [ ] Conditional macro bodies (not just ~return <literal>~) for
+     generic types whose shape depends on macro args.
+   - [ ] Anonymous struct literals in niche positions: ~cast(e, struct { ... })~,
+     ext_func param/return types.
+
+

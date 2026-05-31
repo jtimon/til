@@ -79,3 +79,53 @@
    | Zig        | ~const E = union(enum) { }~            | No                           |
    | TIL        | ~enum { Circle: I64 }~                 | Yes (inline args)            |
 
+*** Progress (rstil-parity arc, 2026-05)
+
+   What works today:
+
+   - [X] Anonymous enum variant access: ~enum { ... }.Variant~ and
+     ~enum { ... }.Variant(payload)~. init lifts the literal to
+     ~AnonEnumN~ shared per-file via anon_def_key (same dedup cache
+     as anonymous structs).
+   - [X] Structurally-identical anon enum literals unify, so a value
+     built from one literal matches a ~switch~ case built from another
+     (payload extraction included).
+   - [X] Anonymous enum in type positions: ~func(c: enum { ... })~ as
+     a parameter type. Returning a bare tag-only enum variant
+     (~return enum { ... }.Variant~) also works in compile mode
+     (was blocked by a separate codegen bug, since fixed in #70).
+   - [X] Bare anonymous enum as a value:
+     ~enums.push(own enum { ... })~ produces a runtime ~EnumDef~
+     value via parser-emitted ~enum_def_of("AnonEnumN")~.
+   - [X] Anonymous enum as a ~func(T: Type)~ / ~macro(T: Type)~ arg --
+     the scavenger now follows ~Type.Enum("X")~ rewrites and
+     ~enum_def_of("X")~ so the underlying decl isn't pruned.
+   - [X] Macros as enum-type generators:
+     ~Opt := make_opt(I64)~ where ~make_opt := macro(T: Type) returns EnumDef~
+     desugars to a plain ~enum { ... }~ at the call site (initer
+     pre-pass; mirrors rstil precomp.rs ~309).
+   - [X] ~Vec.new(EnumDef)~ + ~enum_def_of("Name")~ round-trip.
+   - [X] Variant access on an enum *instance*: ~v.Some~ in interpret
+     mode resolves like ~Opt.Some~ (matches compile-mode typer).
+
+   Still missing for rstil parity:
+
+   - [ ] Enum-type macros merging a body-supplied ~namespace:~ block
+     with auto-generated ~eq~ / ~to_str~ / ~delete~ methods. Today
+     the macro must return a variants-only literal.
+   - [ ] Variant payload-type substitution that follows references
+     through nested anonymous types (today substitutes the top-level
+     payload-type string only).
+   - [ ] Reflection helper to iterate variants of an arbitrary enum
+     value: ~print_variants := func(E: enum) { ... }~ (open question
+     in the issue text).
+
+   Beyond rstil parity:
+
+   - [ ] ~func<T>(...)~ sugar (see #58).
+   - [ ] Conditional macro bodies (not just ~return <literal>~) for
+     variant generation based on macro args.
+   - [ ] Anonymous enum literals in niche positions
+     (~cast(e, enum { ... })~, ext_func types).
+
+

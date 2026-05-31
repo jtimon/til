@@ -195,3 +195,81 @@
    | Struct     | ~S : struct { ... }~           | (struct decl IS the definition)        |
    | Enum       | ~E : enum { ... }~             | (enum decl IS the definition)          |
 
+*** Progress (rstil-parity arc, 2026-05)
+
+   The first-class-everything machinery feeding #56 (structs) and #57
+   (enums) lands a chunk of #58 along the way. Tracking the metatype
+   side here:
+
+   What works today:
+
+   - [X] Type hierarchy: ~Type.StructDef~, ~Type.EnumDef~,
+     ~Type.FuncDef~, ~Type.FuncPtr~ all round-trip through
+     ~dyn_type_to_str~ and accept the bare metatype name in type-
+     annotation position (~triple : FuncDef = func(...)~).
+   - [X] Type inference rules: ~Point := struct { ... }~ infers
+     ~StructDef~, ~Color := enum { ... }~ infers ~EnumDef~,
+     ~BinaryOp := func(I64) returns I64~ (bodyless) infers ~FuncPtr~
+     ("Fn"), ~add := func(a: I64) returns I64 { ... }~ infers ~FuncDef~.
+   - [X] Explicit-type metatype annotation forms (~: StructDef =~,
+     ~: EnumDef =~, ~: FuncDef =~, ~: FunctionDef =~) all type-check.
+   - [X] Parameters always require explicit types (enforced).
+   - [X] FuncSig form: ~add : BinaryOp = (a, b) { return ... }~ and
+     ~func(I64) returns I64 = (a, b) { ... }~ both produce the same
+     ~FuncDef~ value.
+   - [X] Collections of types: ~Vec.new(BinaryOp)~ (Fn-typed slot),
+     ~Vec.new(StructDef)~, ~Vec.new(EnumDef)~, ~Vec.new(FuncDef)~
+     all create + push (Vec stores ~struct_def_of("X")~ /
+     ~enum_def_of("X")~ values; for FuncDef, function-pointer
+     slots).
+   - [X] Introspection helpers ~func_sig_of~, ~struct_def_of~,
+     ~enum_def_of~ assemble FuncSig / StructDef / EnumDef values from
+     the loaded program.
+   - [X] Type-parameter macros (~Phase now~): ~func(T: Type)~ and
+     ~macro(T: Type)~. Macros taking ~Type~ get a comptime-arg gate
+     extension for the ~Type.<Variant>(...)~ constructor form; the
+     typer-side rewrite is skipped for macro args so the original
+     ident reaches precomp's arg loop, which builds the equivalent
+     ~Type.Custom("X")~ ctor.
+   - [X] Macros as struct-type generators
+     (~Pair := make_pair(I64)~ -> struct decl); see #56.
+   - [X] Macros as enum-type generators (~Opt := make_opt(I64)~ ->
+     enum decl); see #57.
+   - [X] Macros as function generators (~id_i64 := make_id(I64)~ where
+     ~make_id := macro(T: Type) returns FuncDef { return func(x: T) returns T { return x } }~).
+     initer's pre-pass substitutes type-params in the func literal's
+     param types, return type, and body; the rest of the pipeline
+     types the expanded decl as an ordinary named function. The
+     typer's lambda-lift, throws lowering, body-walk, and unused
+     checks all skip *template* macros (returning StructDef / EnumDef
+     / FuncDef, or with a ~Type~ parameter); mirrors rstil
+     typer.rs:1090-1097.
+   - [X] Bodyless ~func(I64, I64) returns I64~ as a Type alias for
+     ~Type.FuncPtr~ (the existing "Fn" round-trip).
+
+   Still missing for rstil parity:
+
+   - [ ] Calling a function-pointer retrieved from a typed Vec:
+     ~cast(BinaryOp, ops.get(0))(3, 4)~. The slot stores the pointer
+     correctly today; the receiver side still needs to round-trip
+     through ~Type.FuncPtr~ to make the call legal. (Existing TODO
+     in this issue under "Collections of types".)
+   - [ ] Macro body cases beyond ~return <single-literal>~: an
+     ~if T.is(...) { return struct {...} } else { return struct {...} }~
+     macro doesn't expand today (init's pre-pass only matches single-
+     literal returns).
+   - [ ] Value-param substitution in function generators:
+     ~make_adder := macro(N: I64) returns FuncDef { return func(x: I64) returns I64 { return x.add(N) } }~
+     currently substitutes only type-name idents; an ~Ident(N)~ that
+     should become a literal ~5~ stays unresolved.
+   - [ ] User namespace methods inside type-generator macros merged
+     with auto-generated ones (rstil precomp.rs ~349-385).
+
+   Beyond rstil parity:
+
+   - [ ] ~func<T>(...)~ sugar (~Phase later~ in this issue) -- desugar
+     to a ~macro(T: Type)~ call with inference at the call site.
+   - [ ] First-class ~Body~ values (Issue #181 cross-references).
+   - [ ] Generic-arg inference for macros / value-level deduction (an
+     analog of Rust/Haskell type-inference).
+
