@@ -13,7 +13,7 @@ namespace:
     TIL
     func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
-    func delete(own self: Lang, call_free: Bool)
+    func delete(own self: Lang, shallow call_free: Bool)
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
     func size() returns shallow U32
@@ -47,7 +47,7 @@ namespace:
     TempleosX86
     func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
-    func delete(own self: Target, call_free: Bool)
+    func delete(own self: Target, shallow call_free: Bool)
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
     func size() returns shallow U32
@@ -66,7 +66,7 @@ func priv___src_self_targets_til__target_to_str(target: Target) returns Str
 
 * priv___src_self_targets_til__target_is_32bit
 #+begin_src til
-func priv___src_self_targets_til__target_is_32bit(target: Target) returns Bool
+func priv___src_self_targets_til__target_is_32bit(target: Target) returns shallow Bool
 #+end_src
 
 * target_uptr_name
@@ -86,7 +86,7 @@ func default_lang_for_target(target: Target) returns Lang
 
 * is_lang_supported_for_target
 #+begin_src til
-func is_lang_supported_for_target(lang: Lang, target: Target) returns Bool
+func is_lang_supported_for_target(lang: Lang, target: Target) returns shallow Bool
 #+end_src
 
 * validate_lang_for_target
@@ -96,7 +96,7 @@ func validate_lang_for_target(lang: Lang, target: Target)
 
 * is_clang
 #+begin_src til
-func is_clang(cmd: Str) returns Bool
+func is_clang(cmd: Str) returns shallow Bool
 #+end_src
 
 * toolchain_command

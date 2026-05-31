@@ -14,19 +14,29 @@ namespace:
     /// key_type must implement `cmp`.
     func new_type_names(key_type: Str, val_type: Str) returns Map
     func new(K: Type, V: Type) returns Map
-    func len(self: Map) returns U32
-    /// Ref to the key slot at sorted index `i`.
+    func len(self: Map) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage and
+    /// comparator/type metadata so the Map can be reused.
+    func clear(mut self: Map)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
     func key_ptr(self: Map, i: U32) returns ref Dynamic
-    /// Ref to the value slot at sorted index `i`.
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
     func val_ptr(self: Map, i: U32) returns ref Dynamic
     /// True if a value exists for the given key.
     func has(self: Map, key: Dynamic) returns shallow Bool
-    /// Return a ref to the value for `key`. Panics if not found.
-    func get(self: Map, key: Dynamic) returns ref Dynamic
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map, key: Dynamic, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Dynamic
     /// Insert or overwrite the value for `key`. Both key and val are owned.
     func set(mut self: Map, own key: Dynamic, own val: Dynamic)
-    func delete(own self: Map, call_free: Bool)
+    func delete(own self: Map, shallow call_free: Bool)
     func clone(self: Map) returns Map
+    func hash(self: Map, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src

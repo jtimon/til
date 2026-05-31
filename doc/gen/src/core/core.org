@@ -1,3 +1,8 @@
 #+TITLE: src/core/core.til
 #+OPTIONS: toc:t
 
+* noop_proc
+#+begin_src til
+ext_proc noop_proc()
+#+end_src
+

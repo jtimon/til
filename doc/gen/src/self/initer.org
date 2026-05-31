@@ -26,7 +26,7 @@ namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns shallow Bool
     func to_str(self: TypeBinding) returns Str
     func clone(self: TypeBinding) returns TypeBinding
-    func delete(own self: TypeBinding, call_free: Bool)
+    func delete(own self: TypeBinding, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -43,10 +43,10 @@ enum ScopeFind {
     Found: TypeBinding
 namespace:
     ext_func NotFound() returns ScopeFind
-    ext_func Found(val: TypeBinding) returns ScopeFind
+    ext_func Found(own val: TypeBinding) returns ScopeFind
     func is(self: ScopeFind, other: ScopeFind) returns shallow Bool
     func eq(self: ScopeFind, other: ScopeFind) returns shallow Bool
-    func delete(own self: ScopeFind, call_free: Bool)
+    func delete(own self: ScopeFind, shallow call_free: Bool)
     func to_str(self: ScopeFind) returns Str
     func clone(self: ScopeFind) returns ScopeFind
     func size() returns shallow U32
@@ -67,7 +67,7 @@ namespace:
     func is_mut(self: TypeScope, name: Str) returns shallow Bool
     func set(mut self: TypeScope, name: Str, type: Type, shallow func_type: FuncType, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
     func clone(self: TypeScope) returns TypeScope
-    func delete(own self: TypeScope, call_free: Bool)
+    func delete(own self: TypeScope, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -75,12 +75,13 @@ namespace:
 * ImportUnit
 #+begin_src til
 struct ImportUnit {
+    mut mode_str : Str
     mut mode : Mode
     own mut ast
     mut imports : Vec
 namespace:
     func clone(self: ImportUnit) returns ImportUnit
-    func delete(own self: ImportUnit, call_free: Bool)
+    func delete(own self: ImportUnit, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -93,11 +94,23 @@ struct Context {
     mut path_modes : Map
     mut imported : Map
     mut imports_init_done : Set
-    mut imports_typer_done : Set
+    mut imports_typer_decls_done : Set
+    mut imports_typer_bodies_done : Set
     mut imports_precomp_done : Set
     mut imports_eval_done : Set
     mut scope : TypeScope
     mut is_repl : Bool
+    mut struct_layouts : Map
+    mut precomp_macros : Set
+    mut precomp_funcs : Set
+    mut precomp_known : Map
+    mut has_return : Bool
+    mut has_break : Bool
+    mut has_continue : Bool
+    mut return_value : Value
+    mut ns_fields : Map
+    mut ns_keys : Vec
+    mut ns_inited : Bool
     mut typing_namespace_member : Bool
     mut local_fn_sigs : Map
     mut func_defs : Map
@@ -109,8 +122,10 @@ struct Context {
     mut throws_names_global : Vec
     mut throws_per_global : Vec
     mut bang_counter : I64
+    mut lowering_param_types : Map
     mut typer_in_shallow_return : Bool
     mut typer_in_main_func : Bool
+    mut typer_return_type_name : Str
     mut ctor_seq : I32
     mut in_func_def : Bool
     mut in_main_func : Bool
@@ -120,10 +135,16 @@ struct Context {
     mut va_counter : I32
     mut kw_counter : I32
     mut coll_counter : I32
+    mut errors : I32
+    mut current_type_name : Str
+    mut current_top_func_name : Str
+    mut auto_gen_depth : I32
+    mut throw_used_local_names : Set
     mut stack_locals : Set
     mut stack_local_types : Map
     mut unsafe_to_hoist : Set
     mut ref_locals : Set
+    mut ptr_locals : Set
     mut ref_dyn_locals : Set
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
@@ -132,9 +153,18 @@ struct Context {
     ref mut cached_array_name : Str
     ref mut cached_vec_def : Expr
     ref mut cached_vec_name : Str
+    mut interp_type_defs : Map
+    mut dispatch_map : Map
+    mut dispatch_inited : Bool
+    mut ffi_map : Map
+    mut ffi_map_inited : Bool
+    mut ffi_loaded : Bool
+    mut ffi_struct_defs : Map
+    mut ffi_type_cache : Vec
+    mut ffi_type_cache_inited : Bool
 namespace:
     func clone(self: Context) returns Context
-    func delete(own self: Context, call_free: Bool)
+    func delete(own self: Context, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -142,6 +172,11 @@ namespace:
 * priv___src_self_initer_til__align_up
 #+begin_src til
 func priv___src_self_initer_til__align_up(shallow offset: I32, shallow align: I32) returns shallow I32
+#+end_src
+
+* precomp_classify_stmt
+#+begin_src til
+func precomp_classify_stmt(stmt: Expr, ctx: Context)
 #+end_src
 
 * make_method_call_fcall
@@ -161,7 +196,7 @@ func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow line
 
 * make_payload_ref_decl
 #+begin_src til
-func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool) returns Expr
 #+end_src
 
 * type_from_name_init
@@ -211,7 +246,7 @@ func collect_enum_variants(enum_def: Expr, mut variant_names: Vec, mut variant_t
 
 * priv___src_self_initer_til__generate_enum_variant_constructors
 #+begin_src til
-func priv___src_self_initer_til__generate_enum_variant_constructors(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool)
+func priv___src_self_initer_til__generate_enum_variant_constructors(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope)
 #+end_src
 
 * priv___src_self_initer_til__generate_enum_is_method
@@ -236,7 +271,7 @@ func generate_enum_to_str_method(enum_def: Expr, ename: Str, shallow line: U32, 
 
 * generate_enum_clone_method
 #+begin_src til
-func generate_enum_clone_method(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool)
+func generate_enum_clone_method(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope)
 #+end_src
 
 * register_enum_def_for_stmt
@@ -261,12 +296,12 @@ proc register_enums_and_generate_nonclone_methods(ctx: Context, program: Expr, s
 
 * gen_missing_enum_clone_for_stmt
 #+begin_src til
-func gen_missing_enum_clone_for_stmt(stmt: Expr)
+func gen_missing_enum_clone_for_stmt(stmt: Expr, scope: TypeScope)
 #+end_src
 
 * generate_missing_enum_clones
 #+begin_src til
-func generate_missing_enum_clones(program: Expr)
+func generate_missing_enum_clones(program: Expr, scope: TypeScope)
 #+end_src
 
 * register_funcsig_alias_for_stmt
@@ -359,14 +394,24 @@ proc type_size_align(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32)
 proc compute_enum_layout(enum_def: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
+* ctx_total_size
+#+begin_src til
+func ctx_total_size(name: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* record_struct_layout
+#+begin_src til
+func record_struct_layout(ctx: Context, name: Str, sdef: Expr)
+#+end_src
+
+* record_enum_layout
+#+begin_src til
+func record_enum_layout(ctx: Context, name: Str, edef: Expr)
+#+end_src
+
 * compute_all_struct_layouts
 #+begin_src til
 proc compute_all_struct_layouts(program: Expr, scope: TypeScope)
-#+end_src
-
-* resolve_field_struct_defs
-#+begin_src til
-func resolve_field_struct_defs(program: Expr, scope: TypeScope)
 #+end_src
 
 * infer_top_level_decl_type
@@ -424,6 +469,41 @@ proc priv___src_self_initer_til__init_recurse_into_subbodies(mut body: Expr, par
 proc priv___src_self_initer_til__init_recurse_into_expr(mut e: Expr, parent_prefix: Str, mut top_level: Vec)
 #+end_src
 
+* priv___src_self_initer_til__init_subst_ident_name
+#+begin_src til
+func priv___src_self_initer_til__init_subst_ident_name(subs: Map, name: Str) returns Str
+#+end_src
+
+* priv___src_self_initer_til__init_substitute_idents
+#+begin_src til
+func priv___src_self_initer_til__init_substitute_idents(mut e: Expr, subs: Map)
+#+end_src
+
+* priv___src_self_initer_til__init_subst_struct_params
+#+begin_src til
+func priv___src_self_initer_til__init_subst_struct_params(mut sdef: StructDef, subs: Map)
+#+end_src
+
+* priv___src_self_initer_til__init_subst_enum_params
+#+begin_src til
+func priv___src_self_initer_til__init_subst_enum_params(mut edef: EnumDef, subs: Map)
+#+end_src
+
+* priv___src_self_initer_til__init_subst_func_params
+#+begin_src til
+func priv___src_self_initer_til__init_subst_func_params(mut fdd: FunctionDef, subs: Map)
+#+end_src
+
+* priv___src_self_initer_til__init_substitute_type_params
+#+begin_src til
+func priv___src_self_initer_til__init_substitute_type_params(mut def: Expr, subs: Map)
+#+end_src
+
+* priv___src_self_initer_til__init_expand_type_gen_macros
+#+begin_src til
+func priv___src_self_initer_til__init_expand_type_gen_macros(mut program: Expr)
+#+end_src
+
 * init_declarations_unit
 #+begin_src til
 proc init_declarations_unit(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32
@@ -431,7 +511,7 @@ proc init_declarations_unit(path: Str, program: Expr, scope: TypeScope, ctx: Con
 
 * init_declarations_global
 #+begin_src til
-proc init_declarations_global(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
+func init_declarations_global(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * count_ast_imports

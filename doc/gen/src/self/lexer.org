@@ -42,6 +42,7 @@ enum TokenType {
     Char
     DocComment
     KwMut
+    KwConst
     KwOwn
     KwRef
     KwShallow
@@ -116,6 +117,7 @@ namespace:
     Char
     DocComment
     KwMut
+    KwConst
     KwOwn
     KwRef
     KwShallow
@@ -153,7 +155,7 @@ namespace:
     Error
     func is(self: TokenType, other: TokenType) returns shallow Bool
     func eq(self: TokenType, other: TokenType) returns shallow Bool
-    func delete(own self: TokenType, call_free: Bool)
+    func delete(own self: TokenType, shallow call_free: Bool)
     func to_str(self: TokenType) returns Str
     func clone(self: TokenType) returns TokenType
     func size() returns shallow U32
@@ -169,24 +171,25 @@ struct Token {
     col : U32
 namespace:
     func clone(self: Token) returns Token
-    func delete(own self: Token, call_free: Bool)
+    func delete(own self: Token, shallow call_free: Bool)
+    func hash(self: Token, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
 
 * is_digit
 #+begin_src til
-func is_digit(c: I8) returns Bool
+func is_digit(shallow c: I8) returns shallow Bool
 #+end_src
 
 * is_alpha
 #+begin_src til
-func is_alpha(c: I8) returns Bool
+func is_alpha(shallow c: I8) returns shallow Bool
 #+end_src
 
 * is_alnum
 #+begin_src til
-func is_alnum(c: I8) returns Bool
+func is_alnum(shallow c: I8) returns shallow Bool
 #+end_src
 
 * tok_name
@@ -196,12 +199,12 @@ func tok_name(type: TokenType) returns Str
 
 * priv___src_self_lexer_til__lookup_single_char
 #+begin_src til
-func priv___src_self_lexer_til__lookup_single_char(c: I8) returns shallow TokenType
+func priv___src_self_lexer_til__lookup_single_char(shallow c: I8) returns shallow TokenType
 #+end_src
 
 * lookup_two_char
 #+begin_src til
-func lookup_two_char(c: I8, c2: I8) returns shallow TokenType
+func lookup_two_char(shallow c: I8, shallow c2: I8) returns shallow TokenType
 #+end_src
 
 * priv___src_self_lexer_til__lookup_keyword

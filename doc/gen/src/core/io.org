@@ -76,7 +76,7 @@ namespace:
     /// Close the file handle. Sets handle to NULL afterwards.
     proc close(mut self: File)
     func clone(self: File) returns File
-    func delete(own self: File, call_free: Bool)
+    func delete(own self: File, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src

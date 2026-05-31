@@ -3,22 +3,22 @@
 
 * priv___src_self_binder_til__bind_is_ws
 #+begin_src til
-func priv___src_self_binder_til__bind_is_ws(c: I8) returns shallow Bool
+func priv___src_self_binder_til__bind_is_ws(shallow c: I8) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__skip_ws
 #+begin_src til
-func priv___src_self_binder_til__skip_ws(s: Str, shallow from: U32) returns U32
+func priv___src_self_binder_til__skip_ws(s: Str, shallow from: U32) returns shallow U32
 #+end_src
 
 * priv___src_self_binder_til__skip_word
 #+begin_src til
-func priv___src_self_binder_til__skip_word(s: Str, shallow from: U32) returns U32
+func priv___src_self_binder_til__skip_word(s: Str, shallow from: U32) returns shallow U32
 #+end_src
 
 * priv___src_self_binder_til__trim_right
 #+begin_src til
-func priv___src_self_binder_til__trim_right(s: Str, shallow from: U32, shallow to: U32) returns U32
+func priv___src_self_binder_til__trim_right(s: Str, shallow from: U32, shallow to: U32) returns shallow U32
 #+end_src
 
 * priv___src_self_binder_til__range_eq_lit
@@ -28,52 +28,55 @@ func priv___src_self_binder_til__range_eq_lit(s: Str, shallow start: U32, shallo
 
 * priv___src_self_binder_til__parse_c_int_literal
 #+begin_src til
-func priv___src_self_binder_til__parse_c_int_literal(s: Str, shallow from: U32, shallow to: U32, mut success: Bool) returns I64
+func priv___src_self_binder_til__parse_c_int_literal(s: Str, shallow from: U32, shallow to: U32, mut success: Bool) returns shallow I64
 #+end_src
 
 * priv___src_self_binder_til__push_til_base
 #+begin_src til
-func priv___src_self_binder_til__push_til_base(mut out: Str, c: Str) returns Bool
+func priv___src_self_binder_til__push_til_base(mut out: Str, c: Str) returns shallow Bool
 #+end_src
 
-* alias_to_primitive
+* priv___src_self_binder_til__BinderState
 #+begin_src til
-alias_to_primitive is a Str
-#+end_src
-
-* alias_to_dynamic
-#+begin_src til
-alias_to_dynamic is a Str
+struct priv___src_self_binder_til__BinderState {
+    mut alias_to_primitive : Str
+    mut alias_to_dynamic : Str
+namespace:
+    func clone(self: priv___src_self_binder_til__BinderState) returns priv___src_self_binder_til__BinderState
+    func delete(own self: priv___src_self_binder_til__BinderState, shallow call_free: Bool)
+    func hash(self: priv___src_self_binder_til__BinderState, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
 #+end_src
 
 * priv___src_self_binder_til__register_alias
 #+begin_src til
-func priv___src_self_binder_til__register_alias(name: Str)
+func priv___src_self_binder_til__register_alias(mut bs: priv___src_self_binder_til__BinderState, name: Str)
 #+end_src
 
 * priv___src_self_binder_til__register_dynamic_alias
 #+begin_src til
-func priv___src_self_binder_til__register_dynamic_alias(name: Str)
+func priv___src_self_binder_til__register_dynamic_alias(mut bs: priv___src_self_binder_til__BinderState, name: Str)
 #+end_src
 
 * priv___src_self_binder_til__is_alias_to_primitive
 #+begin_src til
-func priv___src_self_binder_til__is_alias_to_primitive(name: Str) returns shallow Bool
+func priv___src_self_binder_til__is_alias_to_primitive(bs: priv___src_self_binder_til__BinderState, name: Str) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__is_alias_to_dynamic
 #+begin_src til
-func priv___src_self_binder_til__is_alias_to_dynamic(name: Str) returns shallow Bool
+func priv___src_self_binder_til__is_alias_to_dynamic(bs: priv___src_self_binder_til__BinderState, name: Str) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__push_til_default
 #+begin_src til
-func priv___src_self_binder_til__push_til_default(mut out: Str, c: Str)
+func priv___src_self_binder_til__push_til_default(bs: priv___src_self_binder_til__BinderState, mut out: Str, c: Str)
 #+end_src
 
 * priv___src_self_binder_til__bind_emit_field
 #+begin_src til
-func priv___src_self_binder_til__bind_emit_field(mut out: Str, line: Str, comment: Str) returns Bool
+func priv___src_self_binder_til__bind_emit_field(bs: priv___src_self_binder_til__BinderState, mut out: Str, line: Str, comment: Str) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__emit_comment_line
@@ -83,42 +86,42 @@ func priv___src_self_binder_til__emit_comment_line(mut out: Str, line: Str)
 
 * priv___src_self_binder_til__emit_struct_body
 #+begin_src til
-func priv___src_self_binder_til__emit_struct_body(mut out: Str, lines: Vec, shallow open: U32, shallow close: U32) returns Bool
+func priv___src_self_binder_til__emit_struct_body(bs: priv___src_self_binder_til__BinderState, mut out: Str, lines: Vec, shallow open: U32, shallow close: U32) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__emit_typedef_struct
 #+begin_src til
-func priv___src_self_binder_til__emit_typedef_struct(mut out: Str, lines: Vec, shallow start: U32, shallow open: U32, shallow close: U32) returns U32
+func priv___src_self_binder_til__emit_typedef_struct(bs: priv___src_self_binder_til__BinderState, mut out: Str, lines: Vec, shallow start: U32, shallow open: U32, shallow close: U32) returns shallow U32
 #+end_src
 
 * priv___src_self_binder_til__emit_typedef_enum
 #+begin_src til
-func priv___src_self_binder_til__emit_typedef_enum(mut out: Str, lines: Vec, shallow start: U32, shallow open: U32, shallow close: U32) returns U32
+func priv___src_self_binder_til__emit_typedef_enum(mut bs: priv___src_self_binder_til__BinderState, mut out: Str, lines: Vec, shallow start: U32, shallow open: U32, shallow close: U32) returns shallow U32
 #+end_src
 
 * priv___src_self_binder_til__emit_typedef_alias
 #+begin_src til
-func priv___src_self_binder_til__emit_typedef_alias(mut out: Str, line: Str) returns Bool
+func priv___src_self_binder_til__emit_typedef_alias(mut bs: priv___src_self_binder_til__BinderState, mut out: Str, line: Str) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__emit_typedef_fnptr
 #+begin_src til
-func priv___src_self_binder_til__emit_typedef_fnptr(mut out: Str, line: Str) returns Bool
+func priv___src_self_binder_til__emit_typedef_fnptr(mut bs: priv___src_self_binder_til__BinderState, mut out: Str, line: Str) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__emit_define
 #+begin_src til
-func priv___src_self_binder_til__emit_define(mut out: Str, line: Str) returns Bool
+func priv___src_self_binder_til__emit_define(mut out: Str, line: Str) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__emit_function
 #+begin_src til
-func priv___src_self_binder_til__emit_function(mut out: Str, lines: Vec, shallow start: U32, shallow end: U32) returns Bool
+func priv___src_self_binder_til__emit_function(bs: priv___src_self_binder_til__BinderState, mut out: Str, lines: Vec, shallow start: U32, shallow end: U32) returns shallow Bool
 #+end_src
 
 * priv___src_self_binder_til__walk_header
 #+begin_src til
-func priv___src_self_binder_til__walk_header(mut out: Str, lines: Vec)
+func priv___src_self_binder_til__walk_header(mut bs: priv___src_self_binder_til__BinderState, mut out: Str, lines: Vec)
 #+end_src
 
 * priv___src_self_binder_til__header_dir_of

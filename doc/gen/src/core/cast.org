@@ -1,0 +1,8 @@
+#+TITLE: src/core/cast.til
+#+OPTIONS: toc:t
+
+* cast
+#+begin_src til
+ext_func cast(e: Dynamic, T: Type) returns shallow Dynamic
+#+end_src
+

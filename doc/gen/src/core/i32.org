@@ -7,13 +7,11 @@ Signed 32-bit integer.
 #+begin_src til
 struct I32 {
 namespace:
-    ext_func to_i64(shallow val: I32) returns shallow I64
-    ext_func to_u32(shallow val: I32) returns shallow U32
     ext_func to_u64(shallow val: I32) returns shallow U64
     ext_func to_usize(shallow val: I32) returns shallow U32
     ext_func to_f32(shallow val: I32) returns shallow F32
     /// Convert to decimal string representation.
-    func to_str(val: I32) returns Str
+    func to_str(shallow val: I32) returns Str
     ext_func add(shallow a: I32, shallow b: I32) returns shallow I32
     ext_func sub(shallow a: I32, shallow b: I32) returns shallow I32
     ext_func mul(shallow a: I32, shallow b: I32) returns shallow I32
@@ -22,26 +20,36 @@ namespace:
     func inc(mut self: I32)
     func dec(mut self: I32)
     /// Return the multiplicative identity (1) for this type.
-    func unity(_self: I32) returns I32
+    func unity(shallow _self: I32) returns shallow I32
     ext_func eq(shallow a: I32, shallow b: I32) returns shallow Bool
     ext_func cmp(shallow a: I32, shallow b: I32) returns shallow I64
     /// Negate the value.
-    func neg(a: I32) returns I32
+    func neg(shallow a: I32) returns shallow I32
     /// Absolute value.
-    func abs(a: I32) returns I32
+    func abs(shallow a: I32) returns shallow I32
     ext_func and(shallow a: I32, shallow b: I32) returns shallow I32
     ext_func or(shallow a: I32, shallow b: I32) returns shallow I32
     ext_func xor(shallow a: I32, shallow b: I32) returns shallow I32
     ext_func clone(val: I32) returns shallow I32
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: I32, call_free: Bool)
-    func size() returns U32
-    func lt(a: I32, b: I32) returns shallow Bool
-    func gt(a: I32, b: I32) returns shallow Bool
-    func neq(a: I32, b: I32) returns shallow Bool
-    func lte(a: I32, b: I32) returns shallow Bool
-    func gte(a: I32, b: I32) returns shallow Bool
+    func delete(own self: I32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I32.add for the wrapping variant.
+    func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow I32
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I32.sub for the wrapping variant.
+    func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow I32
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I32.mul for the wrapping variant.
+    func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow I32
+    func hash(shallow self: I32, hasher: HashFn) returns shallow U64
+    func lt(shallow a: I32, shallow b: I32) returns shallow Bool
+    func gt(shallow a: I32, shallow b: I32) returns shallow Bool
+    func neq(shallow a: I32, shallow b: I32) returns shallow Bool
+    func lte(shallow a: I32, shallow b: I32) returns shallow Bool
+    func gte(shallow a: I32, shallow b: I32) returns shallow Bool
 }
 #+end_src
 

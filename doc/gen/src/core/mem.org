@@ -36,6 +36,56 @@ ext_func deref(slot: Dynamic) returns ref Dynamic
 ext_func write_ptr(dest: Dynamic, val: Dynamic)
 #+end_src
 
+* write_i64
+#+begin_src til
+ext_func write_i64(dest: Dynamic, shallow val: I64)
+#+end_src
+
+* write_u8
+#+begin_src til
+ext_func write_u8(dest: Dynamic, shallow val: U8)
+#+end_src
+
+* write_i8
+#+begin_src til
+ext_func write_i8(dest: Dynamic, shallow val: I8)
+#+end_src
+
+* write_i16
+#+begin_src til
+ext_func write_i16(dest: Dynamic, shallow val: I16)
+#+end_src
+
+* write_u16
+#+begin_src til
+ext_func write_u16(dest: Dynamic, shallow val: U16)
+#+end_src
+
+* write_i32
+#+begin_src til
+ext_func write_i32(dest: Dynamic, shallow val: I32)
+#+end_src
+
+* write_u32
+#+begin_src til
+ext_func write_u32(dest: Dynamic, shallow val: U32)
+#+end_src
+
+* write_u64
+#+begin_src til
+ext_func write_u64(dest: Dynamic, shallow val: U64)
+#+end_src
+
+* write_f32
+#+begin_src til
+ext_func write_f32(dest: Dynamic, shallow val: F32)
+#+end_src
+
+* write_bool
+#+begin_src til
+ext_func write_bool(dest: Dynamic, shallow val: Bool)
+#+end_src
+
 * memcpy
 #+begin_src til
 ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)

@@ -15,7 +15,7 @@ struct Vec {
     mut count : U32
     mut cap : U32
     elem_size : U32
-    elem_type : Str
+    elem_kind : U32
     elem_clone : CloneFn
     elem_delete : DeleteFn
 namespace:
@@ -23,6 +23,9 @@ namespace:
     func new_type_name(elem_type: Str) returns Vec
     func new(T: Type) returns Vec
     func len(self: Vec) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec)
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec, own val: Dynamic)
@@ -36,33 +39,35 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec, mut other: Vec)
-    /// Return a reference to the element at index `i`. Panics if `i` is
-    /// out of bounds. The reference is valid until the next mutation.
-    func get(self: Vec, i: U32) returns ref Dynamic
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Dynamic
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec) returns Dynamic
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec, n: U32) returns Vec
+    func take_prefix(mut self: Vec, shallow n: U32) returns Vec
     /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
     /// is out of bounds. Does NOT drop the previous slot's contents -- use
     /// Vec.replace for that (callers like the compiler typer rely on plain
     /// bit-overwrite semantics when the prior slot was already moved out).
-    func set(mut self: Vec, i: U32, own val: Dynamic)
+    func set(mut self: Vec, shallow i: U32, own val: Dynamic)
     /// Drop the existing element at index `i` via elem_delete, then store
     /// `val` (owned) in its place. Use this when the slot holds a live
     /// element whose inner heap data must be freed before being overwritten
     /// (e.g. replacing a Str slot whose c_str would otherwise leak). Panics
     /// if `i` is out of bounds.
-    func replace(mut self: Vec, i: U32, own val: Dynamic)
+    func replace(mut self: Vec, shallow i: U32, own val: Dynamic)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
     func push_take(mut self: Vec, mut src: Vec, shallow i: U32)
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
-    func delete(own self: Vec, call_free: Bool)
+    func delete(own self: Vec, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec) returns Vec
     func size() returns shallow U32

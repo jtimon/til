@@ -5,7 +5,7 @@
 #+begin_src til
 struct Dynamic {
 namespace:
-    func size() returns U32
+    func size() returns shallow U32
 }
 #+end_src
 
@@ -39,6 +39,76 @@ ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
 ext_func dyn_size_of(type_name: Str) returns shallow U32
 #+end_src
 
+* struct_field_count
+#+begin_src til
+ext_func struct_field_count(type_name: Str) returns shallow I64
+#+end_src
+
+* struct_field_name
+#+begin_src til
+ext_func struct_field_name(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* struct_field_is_mut
+#+begin_src til
+ext_func struct_field_is_mut(type_name: Str, shallow index: I64) returns shallow I64
+#+end_src
+
+* struct_field_type
+#+begin_src til
+ext_func struct_field_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* enum_variant_count
+#+begin_src til
+ext_func enum_variant_count(type_name: Str) returns shallow I64
+#+end_src
+
+* enum_variant_name
+#+begin_src til
+ext_func enum_variant_name(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* enum_variant_has_payload
+#+begin_src til
+ext_func enum_variant_has_payload(type_name: Str, shallow index: I64) returns shallow I64
+#+end_src
+
+* enum_variant_payload_type
+#+begin_src til
+ext_func enum_variant_payload_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* func_sig_param_count
+#+begin_src til
+ext_func func_sig_param_count(type_name: Str) returns shallow I64
+#+end_src
+
+* func_sig_param_type
+#+begin_src til
+ext_func func_sig_param_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* func_sig_return_count
+#+begin_src til
+ext_func func_sig_return_count(type_name: Str) returns shallow I64
+#+end_src
+
+* func_sig_return_type
+#+begin_src til
+ext_func func_sig_return_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
+* func_sig_throw_count
+#+begin_src til
+ext_func func_sig_throw_count(type_name: Str) returns shallow I64
+#+end_src
+
+* func_sig_throw_type
+#+begin_src til
+ext_func func_sig_throw_type(type_name: Str, shallow index: I64) returns Str
+#+end_src
+
 * CloneFn
 #+begin_src til
 func CloneFn(: Dynamic) returns Dynamic
@@ -46,12 +116,12 @@ func CloneFn(: Dynamic) returns Dynamic
 
 * DeleteFn
 #+begin_src til
-func DeleteFn(: Dynamic, : Bool)
+func DeleteFn(: Dynamic, shallow : Bool)
 #+end_src
 
 * CmpFn
 #+begin_src til
-func CmpFn(: Dynamic, : Dynamic) returns I64
+func CmpFn(: Dynamic, : Dynamic) returns shallow I64
 #+end_src
 
 * IncFn
@@ -61,7 +131,17 @@ func IncFn(: Dynamic)
 
 * DistanceFn
 #+begin_src til
-func DistanceFn(: Dynamic, : Dynamic) returns U32
+func DistanceFn(: Dynamic, : Dynamic) returns shallow U32
+#+end_src
+
+* HashFn
+#+begin_src til
+func HashFn(: Dynamic, shallow : U32) returns shallow U64
+#+end_src
+
+* TypeHashFn
+#+begin_src til
+func TypeHashFn(: Dynamic, : HashFn) returns shallow U64
 #+end_src
 
 * default_clone
@@ -71,12 +151,12 @@ func default_clone(v: Dynamic) returns Dynamic
 
 * default_delete
 #+begin_src til
-func default_delete(_v: Dynamic, _cf: Bool)
+func default_delete(_v: Dynamic, shallow _cf: Bool)
 #+end_src
 
 * default_cmp
 #+begin_src til
-func default_cmp(_a: Dynamic, _b: Dynamic) returns I64
+func default_cmp(_a: Dynamic, _b: Dynamic) returns shallow I64
 #+end_src
 
 * default_inc
@@ -86,11 +166,31 @@ func default_inc(_v: Dynamic)
 
 * default_distance
 #+begin_src til
-func default_distance(_a: Dynamic, _b: Dynamic) returns U32
+func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U32
+#+end_src
+
+* default_type_hash
+#+begin_src til
+func default_type_hash(_v: Dynamic, _h: HashFn) returns shallow U64
 #+end_src
 
 * dyn_has_method
 #+begin_src til
 ext_func dyn_has_method(type_name: Str, method: Str) returns shallow Bool
+#+end_src
+
+* ELEM_POD
+#+begin_src til
+ELEM_POD is a U32
+#+end_src
+
+* ELEM_BOXED
+#+begin_src til
+ELEM_BOXED is a U32
+#+end_src
+
+* ELEM_FN
+#+begin_src til
+ELEM_FN is a U32
 #+end_src
 

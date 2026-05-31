@@ -5,18 +5,18 @@
 #+begin_src til
 struct priv___src_self_dispatch_til__ExtStr {
     ref mut data : U8
-    mut count : U64
-    mut cap : U64
+    mut count : U32
+    mut cap : U32
 namespace:
     func clone(self: priv___src_self_dispatch_til__ExtStr) returns priv___src_self_dispatch_til__ExtStr
-    func delete(own self: priv___src_self_dispatch_til__ExtStr, call_free: Bool)
+    func delete(own self: priv___src_self_dispatch_til__ExtStr, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
 
-* priv___src_self_dispatch_til__FFIEntry
+* FFIEntry
 #+begin_src til
-struct priv___src_self_dispatch_til__FFIEntry {
+struct FFIEntry {
     ref mut fn : U8
     ref mut return_type : Str
     mut nparam : I32
@@ -25,8 +25,8 @@ struct priv___src_self_dispatch_til__FFIEntry {
     ref mut cif : ffi_cif
     ref mut arg_types : Dynamic
 namespace:
-    func clone(self: priv___src_self_dispatch_til__FFIEntry) returns priv___src_self_dispatch_til__FFIEntry
-    func delete(own self: priv___src_self_dispatch_til__FFIEntry, call_free: Bool)
+    func clone(self: FFIEntry) returns FFIEntry
+    func delete(own self: FFIEntry, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -37,160 +37,30 @@ struct ExprPtrBox {
     ref mut ptr : Expr
 namespace:
     func clone(self: ExprPtrBox) returns ExprPtrBox
-    func delete(own self: ExprPtrBox, call_free: Bool)
+    func delete(own self: ExprPtrBox, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
 
-* priv___src_self_dispatch_til__FFITypePtrBox
+* FFITypePtrBox
 #+begin_src til
-struct priv___src_self_dispatch_til__FFITypePtrBox {
+struct FFITypePtrBox {
     ref mut ptr : ffi_type
 namespace:
-    func clone(self: priv___src_self_dispatch_til__FFITypePtrBox) returns priv___src_self_dispatch_til__FFITypePtrBox
-    func delete(own self: priv___src_self_dispatch_til__FFITypePtrBox, call_free: Bool)
+    func clone(self: FFITypePtrBox) returns FFITypePtrBox
+    func delete(own self: FFITypePtrBox, shallow call_free: Bool)
     func size() returns shallow U32
 }
-#+end_src
-
-* hoisted__Str_37487
-#+begin_src til
-hoisted__Str_37487 is a Str
-#+end_src
-
-* hoisted__Type_37488
-#+begin_src til
-hoisted__Type_37488 is a Type
-#+end_src
-
-* dispatch_map
-#+begin_src til
-dispatch_map is a Map
-#+end_src
-
-* dispatch_inited
-#+begin_src til
-dispatch_inited is a Bool
-#+end_src
-
-* hoisted__Str_37489
-#+begin_src til
-hoisted__Str_37489 is a Str
-#+end_src
-
-* hoisted__Str_37490
-#+begin_src til
-hoisted__Str_37490 is a Str
-#+end_src
-
-* hoisted__Type_37491
-#+begin_src til
-hoisted__Type_37491 is a Type
-#+end_src
-
-* hoisted__Type_37492
-#+begin_src til
-hoisted__Type_37492 is a Type
-#+end_src
-
-* ffi_map
-#+begin_src til
-ffi_map is a Map
-#+end_src
-
-* hoisted__Str_37493
-#+begin_src til
-hoisted__Str_37493 is a Str
-#+end_src
-
-* hoisted__Type_37494
-#+begin_src til
-hoisted__Type_37494 is a Type
-#+end_src
-
-* ffi_struct_defs
-#+begin_src til
-ffi_struct_defs is a Map
-#+end_src
-
-* ffi_loaded
-#+begin_src til
-ffi_loaded is a Bool
-#+end_src
-
-* hoisted__Str_37495
-#+begin_src til
-hoisted__Str_37495 is a Str
-#+end_src
-
-* hoisted__Type_37496
-#+begin_src til
-hoisted__Type_37496 is a Type
-#+end_src
-
-* ffi_type_cache
-#+begin_src til
-ffi_type_cache is a Vec
-#+end_src
-
-* ffi_type_cache_inited
-#+begin_src til
-ffi_type_cache_inited is a Bool
 #+end_src
 
 * ffi_reset
 #+begin_src til
-proc ffi_reset()
+proc ffi_reset(ctx: Context)
 #+end_src
 
-* priv___src_self_dispatch_til__ffi_type_pointer_ref
+* priv___src_self_dispatch_til__ffi_type_ref
 #+begin_src til
-func priv___src_self_dispatch_til__ffi_type_pointer_ref() returns ref ffi_type
-#+end_src
-
-* priv___src_self_dispatch_til__ffi_type_sint64_ref
-#+begin_src til
-func priv___src_self_dispatch_til__ffi_type_sint64_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_uint8_ref
-#+begin_src til
-func ffi_type_uint8_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_sint8_ref
-#+begin_src til
-func ffi_type_sint8_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_sint16_ref
-#+begin_src til
-func ffi_type_sint16_ref() returns ref ffi_type
-#+end_src
-
-* priv___src_self_dispatch_til__ffi_type_sint32_ref
-#+begin_src til
-func priv___src_self_dispatch_til__ffi_type_sint32_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_uint32_ref
-#+begin_src til
-func ffi_type_uint32_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_uint64_ref
-#+begin_src til
-func ffi_type_uint64_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_float_ref
-#+begin_src til
-func ffi_type_float_ref() returns ref ffi_type
-#+end_src
-
-* ffi_type_void_ref
-#+begin_src til
-func ffi_type_void_ref() returns ref ffi_type
+func priv___src_self_dispatch_til__ffi_type_ref(name: Str) returns ref ffi_type
 #+end_src
 
 * ffi_alloc_cif
@@ -270,32 +140,32 @@ func ffi_init_user_so(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_fla
 
 * ffi_init_struct_defs
 #+begin_src til
-func ffi_init_struct_defs(program: Expr)
+func ffi_init_struct_defs(program: Expr, ctx: Context)
 #+end_src
 
 * ffi_init_struct_defs_append
 #+begin_src til
-func ffi_init_struct_defs_append(program: Expr)
+func ffi_init_struct_defs_append(program: Expr, ctx: Context)
 #+end_src
 
 * value_to_u64
 #+begin_src til
-func value_to_u64(v: Value) returns U64
+func value_to_u64(v: Value) returns shallow U64
 #+end_src
 
 * uptr_ffi_type
 #+begin_src til
-func uptr_ffi_type() returns ref ffi_type
+func uptr_ffi_type(ctx: Context) returns ref ffi_type
 #+end_src
 
 * usize_ffi_type
 #+begin_src til
-func usize_ffi_type() returns ref ffi_type
+func usize_ffi_type(ctx: Context) returns ref ffi_type
 #+end_src
 
 * priv___src_self_dispatch_til__value_to_f32
 #+begin_src til
-func priv___src_self_dispatch_til__value_to_f32(v: Value) returns F32
+func priv___src_self_dispatch_til__value_to_f32(v: Value) returns shallow F32
 #+end_src
 
 * priv___src_self_dispatch_til__value_variant_name
@@ -305,77 +175,87 @@ func priv___src_self_dispatch_til__value_variant_name(v: Value) returns Str
 
 * priv___src_self_dispatch_til__narrow_bool_arg
 #+begin_src til
-proc priv___src_self_dispatch_til__narrow_bool_arg(s: Scope, e: Expr) returns Bool
+proc priv___src_self_dispatch_til__narrow_bool_arg(s: Scope, e: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_Bool_and
 #+begin_src til
-proc h_Bool_and(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_Bool_and(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_Bool_or
 #+begin_src til
-proc h_Bool_or(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_Bool_or(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_Bool_not
 #+begin_src til
-proc h_Bool_not(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_Bool_not(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_U8_from_i64
 #+begin_src til
-proc h_U8_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_U8_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_I16_from_i64
 #+begin_src til
-proc h_I16_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_I16_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_U16_from_i64
+#+begin_src til
+proc h_U16_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_I32_from_i64
 #+begin_src til
-proc h_I32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_I32_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_F32_from_i64
 #+begin_src til
-proc h_F32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_F32_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_U32_from_i64
 #+begin_src til
-proc h_U32_from_i64(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_U32_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_cast
+#+begin_src til
+proc h_cast(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * priv___src_self_dispatch_til__h_print_single
 #+begin_src til
-proc priv___src_self_dispatch_til__h_print_single(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc priv___src_self_dispatch_til__h_print_single(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_print_flush
 #+begin_src til
-proc h_print_flush(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
+proc h_print_flush(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns shallow Bool
 #+end_src
 
 * h_exit
 #+begin_src til
-proc h_exit(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_exit(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_readfile
 #+begin_src til
-proc h_readfile(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_readfile(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_writefile
 #+begin_src til
-proc h_writefile(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_writefile(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_spawn_cmd
 #+begin_src til
-proc h_spawn_cmd(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_spawn_cmd(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * val_to_ptr
@@ -385,37 +265,132 @@ func val_to_ptr(v: Value) returns ref Dynamic
 
 * h_dyn_has_method
 #+begin_src til
-proc h_dyn_has_method(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_dyn_has_method(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_dyn_fn
 #+begin_src til
-proc h_dyn_fn(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_dyn_fn(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_dyn_size_of
 #+begin_src til
-proc h_dyn_size_of(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_dyn_size_of(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* priv___src_self_dispatch_til__str_to_owned_value
+#+begin_src til
+func priv___src_self_dispatch_til__str_to_owned_value(src: Str, ctx: Context) returns shallow Value
+#+end_src
+
+* interp_lookup_struct
+#+begin_src til
+proc interp_lookup_struct(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr
+#+end_src
+
+* h_struct_field_count
+#+begin_src til
+proc h_struct_field_count(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_struct_field_name
+#+begin_src til
+proc h_struct_field_name(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_struct_field_is_mut
+#+begin_src til
+proc h_struct_field_is_mut(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_struct_field_type
+#+begin_src til
+proc h_struct_field_type(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* interp_lookup_enum
+#+begin_src til
+proc interp_lookup_enum(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr
+#+end_src
+
+* h_enum_variant_count
+#+begin_src til
+proc h_enum_variant_count(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_enum_variant_name
+#+begin_src til
+proc h_enum_variant_name(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_enum_variant_has_payload
+#+begin_src til
+proc h_enum_variant_has_payload(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_enum_variant_payload_type
+#+begin_src til
+proc h_enum_variant_payload_type(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* interp_lookup_funcsig
+#+begin_src til
+proc interp_lookup_funcsig(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr
+#+end_src
+
+* h_func_sig_param_count
+#+begin_src til
+proc h_func_sig_param_count(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_func_sig_param_type
+#+begin_src til
+proc h_func_sig_param_type(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_func_sig_return_count
+#+begin_src til
+proc h_func_sig_return_count(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_func_sig_return_type
+#+begin_src til
+proc h_func_sig_return_type(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_func_sig_throw_count
+#+begin_src til
+proc h_func_sig_throw_count(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_func_sig_throw_type
+#+begin_src til
+proc h_func_sig_throw_type(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_dyn_type_to_str
 #+begin_src til
-proc h_dyn_type_to_str(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_dyn_type_to_str(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_check_cmd_status
 #+begin_src til
-proc h_check_cmd_status(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_check_cmd_status(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_sleep
 #+begin_src til
-proc h_sleep(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_sleep(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_file_mtime
 #+begin_src til
-proc h_file_mtime(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_file_mtime(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* h_str_parse_f32
+#+begin_src til
+proc h_str_parse_f32(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_clock_ms
@@ -430,92 +405,97 @@ func h_get_thread_count(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
 
 * h_cfile_open
 #+begin_src til
-proc h_cfile_open(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_cfile_open(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
+#+end_src
+
+* priv___src_self_dispatch_til__known_ffi_type
+#+begin_src til
+func priv___src_self_dispatch_til__known_ffi_type(type_name: Str, ctx: Context) returns ref ffi_type
 #+end_src
 
 * priv___src_self_dispatch_til__shallow_ffi_type
 #+begin_src til
-func priv___src_self_dispatch_til__shallow_ffi_type(type_name: Str) returns ref ffi_type
+func priv___src_self_dispatch_til__shallow_ffi_type(type_name: Str, ctx: Context) returns ref ffi_type
 #+end_src
 
 * field_ffi_type
 #+begin_src til
-func field_ffi_type(dd: Declaration) returns ref ffi_type
+func field_ffi_type(dd: Declaration, ctx: Context) returns ref ffi_type
 #+end_src
 
 * build_struct_ffi_type
 #+begin_src til
-func build_struct_ffi_type(struct_def: Expr) returns ref ffi_type
+func build_struct_ffi_type(struct_def: Expr, ctx: Context) returns ref ffi_type
 #+end_src
 
 * h_free
 #+begin_src til
-proc h_free(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_free(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_cfile_close
 #+begin_src til
-proc h_cfile_close(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_cfile_close(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_cfile_write_str
 #+begin_src til
-proc h_cfile_write_str(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_cfile_write_str(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_ptr_add
 #+begin_src til
-proc h_ptr_add(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_ptr_add(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_cfile_read_all
 #+begin_src til
-proc h_cfile_read_all(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_cfile_read_all(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * DispatchFn
 #+begin_src til
-proc DispatchFn(: Scope, : Expr, mut : Value) returns shallow Bool
+proc DispatchFn(: Scope, : Expr, mut : Value, : Context) returns shallow Bool
 #+end_src
 
 * reg_dispatch
 #+begin_src til
-func reg_dispatch(name: Str, handler: DispatchFn)
+func reg_dispatch(name: Str, handler: DispatchFn, ctx: Context)
 #+end_src
 
 * dispatch_init
 #+begin_src til
-func dispatch_init()
+func dispatch_init(ctx: Context)
 #+end_src
 
 * ext_dispatch_builtin
 #+begin_src til
-func ext_dispatch_builtin(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool
+func ext_dispatch_builtin(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * h_dyn_call
 #+begin_src til
-proc h_dyn_call(s: Scope, e: Expr, mut r: Value) returns shallow Bool
+proc h_dyn_call(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * get_elem_size
 #+begin_src til
-proc get_elem_size(s: Scope, type_name: Str, src: Expr) returns shallow I32
+proc get_elem_size(s: Scope, type_name: Str, src: Expr, ctx: Context) returns shallow I32
 #+end_src
 
 * enum_method_dispatch
 #+begin_src til
-proc enum_method_dispatch(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value) returns shallow Bool
+proc enum_method_dispatch(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * ffi_decode_scalar
 #+begin_src til
-func ffi_decode_scalar(rtype: Str, p: Dynamic, mut result: Value) returns shallow Bool
+func ffi_decode_scalar(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * ffi_call_ret_struct_def
 #+begin_src til
-func ffi_call_ret_struct_def(fe: priv___src_self_dispatch_til__FFIEntry) returns ref Expr
+func ffi_call_ret_struct_def(fe: FFIEntry, ctx: Context) returns ref Expr
 #+end_src
 
 * priv___src_self_dispatch_til__ffi_shallow_type_info
@@ -525,41 +505,36 @@ func priv___src_self_dispatch_til__ffi_shallow_type_info(atype: Dynamic, mut typ
 
 * priv___src_self_dispatch_til__ffi_write_shallow_arg
 #+begin_src til
-func priv___src_self_dispatch_til__ffi_write_shallow_arg(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic) returns shallow Bool
+func priv___src_self_dispatch_til__ffi_write_shallow_arg(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic, ctx: Context) returns shallow Bool
 #+end_src
 
 * ext_dispatch_ffi
 #+begin_src til
-proc ext_dispatch_ffi(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool
+proc ext_dispatch_ffi(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * ext_function_dispatch
 #+begin_src til
-proc ext_function_dispatch(name: Str, scope: Scope, e: Expr, mut result: Value) returns shallow Bool
+proc ext_function_dispatch(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool
 #+end_src
 
 * ffi_register
 #+begin_src til
-proc ffi_register(name: Str, fn: Dynamic, fdef: Expr)
+proc ffi_register(name: Str, fn: Dynamic, fdef: Expr, ctx: Context)
 #+end_src
 
 * ffi_init_scan_program
 #+begin_src til
-proc ffi_init_scan_program(program: Expr)
-#+end_src
-
-* ffi_map_inited
-#+begin_src til
-ffi_map_inited is a Bool
+proc ffi_init_scan_program(program: Expr, ctx: Context)
 #+end_src
 
 * ffi_init
 #+begin_src til
-proc ffi_init(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32
+proc ffi_init(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * ffi_cleanup
 #+begin_src til
-proc ffi_cleanup()
+proc ffi_cleanup(ctx: Context)
 #+end_src
 

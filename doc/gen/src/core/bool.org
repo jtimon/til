@@ -23,18 +23,19 @@ Boolean value: true or false.
 struct Bool {
 namespace:
     /// Return "true" or "false".
-    func to_str(b: Bool) returns Str
+    func to_str(shallow b: Bool) returns Str
     ext_func eq(shallow a: Bool, shallow b: Bool) returns shallow Bool
     /// Comparison: false < true. Returns 0, -1, or 1.
-    func cmp(a: Bool, b: Bool) returns I64
+    func cmp(shallow a: Bool, shallow b: Bool) returns shallow I64
     ext_func clone(val: Bool) returns shallow Bool
-    func delete(own self: Bool, call_free: Bool)
-    func size() returns U32
-    func lt(a: Bool, b: Bool) returns shallow Bool
-    func gt(a: Bool, b: Bool) returns shallow Bool
-    func neq(a: Bool, b: Bool) returns shallow Bool
-    func lte(a: Bool, b: Bool) returns shallow Bool
-    func gte(a: Bool, b: Bool) returns shallow Bool
+    func delete(own self: Bool, shallow call_free: Bool)
+    func size() returns shallow U32
+    func hash(shallow self: Bool, hasher: HashFn) returns shallow U64
+    func lt(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func gt(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func neq(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func lte(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func gte(shallow a: Bool, shallow b: Bool) returns shallow Bool
 }
 #+end_src
 

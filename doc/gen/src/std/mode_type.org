@@ -1,0 +1,21 @@
+#+TITLE: src/std/mode_type.til
+#+OPTIONS: toc:t
+
+* Mode
+#+begin_src til
+struct Mode {
+    mut needs_main : Bool
+    mut decls_only : Bool
+    mut auto_import : Str
+    mut is_library : Bool
+    mut is_pure : Bool
+    mut run_tests : Bool
+    mut debug_prints : Bool
+namespace:
+    func clone(self: Mode) returns Mode
+    func delete(own self: Mode, shallow call_free: Bool)
+    func hash(self: Mode, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+

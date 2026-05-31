@@ -14,18 +14,20 @@ struct Tuple {
 namespace:
     /// Create an empty Tuple.
     func new() returns Tuple
-    func len(self: Tuple) returns U32
+    func len(self: Tuple) returns shallow U32
     /// Internal helper that keeps tuple metadata as string type names.
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
     /// Append a value of the given type. `val` is owned.
     func push(mut self: Tuple, T: Type, own val: Dynamic)
     /// Ref to element at index `i`. Panics if out of bounds.
     func get(self: Tuple, i: U32) returns ref Dynamic
-    /// Type name of the element at index `i`.
+    /// Type name of the element at index `i`. Panics if `i` is past
+    /// the end.
     func type_at(self: Tuple, i: U32) returns ref Str
-    /// Byte size of the element at index `i`.
+    /// Byte size of the element at index `i`. Panics if `i` is past
+    /// the end.
     func size_at(self: Tuple, i: U32) returns ref U32
-    func delete(own self: Tuple, call_free: Bool)
+    func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
     func size() returns shallow U32
 }

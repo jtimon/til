@@ -38,17 +38,17 @@ proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 
 * repl_should_wrap
 #+begin_src til
-func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns Bool
+func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns shallow Bool
 #+end_src
 
 * run_repl_session
 #+begin_src til
-proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str)
+proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec)
 #+end_src
 
 * run_repl
 #+begin_src til
-proc run_repl(initial_mode: Str)
+proc run_repl(initial_mode: Str, extra_modes: Vec)
 #+end_src
 
 * usage
@@ -69,9 +69,10 @@ struct CliArgs {
     mut path_idx : U32
     mut early_return : Bool
     mut asan : Bool
+    own mut extra_modes
 namespace:
     func clone(self: CliArgs) returns CliArgs
-    func delete(own self: CliArgs, call_free: Bool)
+    func delete(own self: CliArgs, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src

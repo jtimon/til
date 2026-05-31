@@ -26,41 +26,6 @@ proc rewrite_til_type_arg(scope: TypeScope, mut arg: Expr, ptype: Type, shallow 
 func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
 #+end_src
 
-* errors
-#+begin_src til
-errors is a I32
-#+end_src
-
-* current_type_name
-#+begin_src til
-current_type_name is a Str
-#+end_src
-
-* current_top_func_name
-#+begin_src til
-current_top_func_name is a Str
-#+end_src
-
-* auto_gen_depth
-#+begin_src til
-auto_gen_depth is a I32
-#+end_src
-
-* hoisted__Str_19841
-#+begin_src til
-hoisted__Str_19841 is a Str
-#+end_src
-
-* hoisted__Type_19842
-#+begin_src til
-hoisted__Type_19842 is a Type
-#+end_src
-
-* throw_used_local_names
-#+begin_src til
-throw_used_local_names is a Set
-#+end_src
-
 * I64Name
 #+begin_src til
 I64Name is a Str
@@ -79,6 +44,11 @@ I8Name is a Str
 * I16Name
 #+begin_src til
 I16Name is a Str
+#+end_src
+
+* U16Name
+#+begin_src til
+U16Name is a Str
 #+end_src
 
 * I32Name
@@ -118,10 +88,10 @@ enum priv___src_self_typer_til__CtorArg {
     Filled: Expr
 namespace:
     ext_func Unfilled() returns priv___src_self_typer_til__CtorArg
-    ext_func Filled(val: Expr) returns priv___src_self_typer_til__CtorArg
+    ext_func Filled(own val: Expr) returns priv___src_self_typer_til__CtorArg
     func is(self: priv___src_self_typer_til__CtorArg, other: priv___src_self_typer_til__CtorArg) returns shallow Bool
     func eq(self: priv___src_self_typer_til__CtorArg, other: priv___src_self_typer_til__CtorArg) returns shallow Bool
-    func delete(own self: priv___src_self_typer_til__CtorArg, call_free: Bool)
+    func delete(own self: priv___src_self_typer_til__CtorArg, shallow call_free: Bool)
     func to_str(self: priv___src_self_typer_til__CtorArg) returns Str
     func clone(self: priv___src_self_typer_til__CtorArg) returns priv___src_self_typer_til__CtorArg
     func size() returns shallow U32
@@ -136,7 +106,8 @@ struct priv___src_self_typer_til__CoverageNode {
     mut sub_nodes : Vec
 namespace:
     func clone(self: priv___src_self_typer_til__CoverageNode) returns priv___src_self_typer_til__CoverageNode
-    func delete(own self: priv___src_self_typer_til__CoverageNode, call_free: Bool)
+    func delete(own self: priv___src_self_typer_til__CoverageNode, shallow call_free: Bool)
+    func hash(self: priv___src_self_typer_til__CoverageNode, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
@@ -163,27 +134,22 @@ func priv___src_self_typer_til__mark_pattern_coverage(scope: TypeScope, mut cove
 
 * priv___src_self_typer_til__collect_missing_paths
 #+begin_src til
-func priv___src_self_typer_til__collect_missing_paths(scope: TypeScope, coverage: priv___src_self_typer_til__CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec)
-#+end_src
-
-* typer_path
-#+begin_src til
-typer_path is a Str
+func priv___src_self_typer_til__collect_missing_paths(scope: TypeScope, coverage: priv___src_self_typer_til__CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec, ctx: Context)
 #+end_src
 
 * type_error
 #+begin_src til
-proc type_error(e: Expr, msg: Str)
+proc type_error(e: Expr, msg: Str, ctx: Context)
 #+end_src
 
 * type_error_at
 #+begin_src til
-proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str)
+proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx: Context)
 #+end_src
 
 * find_namespace_func
 #+begin_src til
-func find_namespace_func(sdef: Expr, method: Str) returns ref Expr
+func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr
 #+end_src
 
 * expr_is_comptime
@@ -203,12 +169,17 @@ func mark_ns_member_used(sdef: Expr, method: Str) returns shallow Bool
 
 * try_ufcs_rewrite
 #+begin_src til
-func try_ufcs_rewrite(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str) returns shallow Bool
+func try_ufcs_rewrite(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns shallow Bool
 #+end_src
 
 * resolve_fn_sig
 #+begin_src til
 func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns ref Expr
+#+end_src
+
+* fdef_returns_unborrowable
+#+begin_src til
+func fdef_returns_unborrowable(fd: FunctionDef, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * fcall_returns_own
@@ -218,22 +189,22 @@ func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
 
 * check_ref_decl_owned_init
 #+begin_src til
-proc check_ref_decl_owned_init(stmt: Expr, scope: TypeScope)
+proc check_ref_decl_owned_init(stmt: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * check_ref_field_owned_default
 #+begin_src til
-proc check_ref_field_owned_default(fd: Declaration, scope: TypeScope)
+proc check_ref_field_owned_default(fd: Declaration, scope: TypeScope, ctx: Context)
 #+end_src
 
 * check_ref_assign_owned_rhs
 #+begin_src til
-proc check_ref_assign_owned_rhs(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope)
+proc check_ref_assign_owned_rhs(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * check_ref_local_null_init
 #+begin_src til
-proc check_ref_local_null_init(stmt: Expr)
+proc check_ref_local_null_init(stmt: Expr, ctx: Context)
 #+end_src
 
 * infer_func_ptr_field_call
@@ -241,9 +212,14 @@ proc check_ref_local_null_init(stmt: Expr)
 proc infer_func_ptr_field_call(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, ctx: Context) returns shallow Bool
 #+end_src
 
+* is_clone_fcall
+#+begin_src til
+func is_clone_fcall(e: Expr) returns shallow Bool
+#+end_src
+
 * validate_fcall_own_args
 #+begin_src til
-proc validate_fcall_own_args(scope: TypeScope, e: Expr, callee_bind: TypeBinding)
+proc validate_fcall_own_args(scope: TypeScope, e: Expr, callee_bind: TypeBinding, ctx: Context)
 #+end_src
 
 * infer_struct_constructor_fcall
@@ -251,14 +227,29 @@ proc validate_fcall_own_args(scope: TypeScope, e: Expr, callee_bind: TypeBinding
 proc infer_struct_constructor_fcall(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool
 #+end_src
 
+* infer_struct_constructor_fcall_impl
+#+begin_src til
+proc infer_struct_constructor_fcall_impl(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool
+#+end_src
+
 * desugar_user_func_fcall_args
 #+begin_src til
-proc desugar_user_func_fcall_args(mut e: Expr, name: Str, callee_bind: TypeBinding)
+proc desugar_user_func_fcall_args(mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context)
+#+end_src
+
+* redundant_literal_conversion
+#+begin_src til
+func redundant_literal_conversion(e: Expr, expected: Type) returns shallow Bool
+#+end_src
+
+* redundant_conversion_error
+#+begin_src til
+proc redundant_conversion_error(at: Expr, expected: Type, ctx: Context)
 #+end_src
 
 * validate_fcall_arg
 #+begin_src til
-proc validate_fcall_arg(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str)
+proc validate_fcall_arg(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context)
 #+end_src
 
 * infer_and_validate_fcall_args
@@ -288,17 +279,42 @@ proc infer_field_access_fcall(scope: TypeScope, mut e: Expr, shallow in_func: I3
 
 * priv___src_self_typer_til__check_priv_access
 #+begin_src til
-proc priv___src_self_typer_til__check_priv_access(mut e: Expr, name: Str, mut b: TypeBinding)
+proc priv___src_self_typer_til__check_priv_access(mut e: Expr, name: Str, mut b: TypeBinding, ctx: Context)
 #+end_src
 
 * priv___src_self_typer_til__check_priv_type_name
 #+begin_src til
-proc priv___src_self_typer_til__check_priv_type_name(mut e: Expr, name: Str, scope: TypeScope)
+proc priv___src_self_typer_til__check_priv_type_name(mut e: Expr, name: Str, scope: TypeScope, ctx: Context)
 #+end_src
 
 * check_member_priv
 #+begin_src til
-proc check_member_priv(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool)
+proc check_member_priv(mut e: Expr, owner_name: Str, member_name: Str, shallow member_is_priv: Bool, ctx: Context)
+#+end_src
+
+* priv___src_self_typer_til__check_free_managed_local
+#+begin_src til
+proc priv___src_self_typer_til__check_free_managed_local(scope: TypeScope, e: Expr, ctx: Context)
+#+end_src
+
+* cast_int_size
+#+begin_src til
+func cast_int_size(t: Type) returns shallow I32
+#+end_src
+
+* cast_is_signed
+#+begin_src til
+func cast_is_signed(t: Type) returns shallow Bool
+#+end_src
+
+* cast_pair_ok
+#+begin_src til
+func cast_pair_ok(src: Type, target: Type) returns shallow Bool
+#+end_src
+
+* infer_cast_fcall
+#+begin_src til
+proc infer_cast_fcall(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
 * infer_fcall_expr
@@ -313,7 +329,7 @@ proc priv___src_self_typer_til__infer_expr(scope: TypeScope, mut expr: Expr, sha
 
 * infer_ident_expr
 #+begin_src til
-proc infer_ident_expr(scope: TypeScope, mut expr: Expr)
+proc infer_ident_expr(scope: TypeScope, mut expr: Expr, ctx: Context)
 #+end_src
 
 * infer_named_arg_expr
@@ -338,12 +354,32 @@ proc priv___src_self_typer_til__expr_uses_self_field(e: Expr, field_name: Str) r
 
 * priv___src_self_typer_til__check_user_delete_frees_own_fields
 #+begin_src til
-proc priv___src_self_typer_til__check_user_delete_frees_own_fields(struct_name: Str, sdef: Expr)
+proc priv___src_self_typer_til__check_user_delete_frees_own_fields(struct_name: Str, sdef: Expr, ctx: Context)
+#+end_src
+
+* priv___src_self_typer_til__typer_resolve_enum_payload_types
+#+begin_src til
+func priv___src_self_typer_til__typer_resolve_enum_payload_types(edef: EnumDef, scope: TypeScope, ctx: Context)
 #+end_src
 
 * infer_type_def_expr
 #+begin_src til
 proc infer_type_def_expr(scope: TypeScope, mut expr: Expr, ctx: Context)
+#+end_src
+
+* PTR_SIZE_BYTES
+#+begin_src til
+PTR_SIZE_BYTES is a I32
+#+end_src
+
+* is_shallow_struct
+#+begin_src til
+func is_shallow_struct(type_name: Str, scope: TypeScope) returns shallow Bool
+#+end_src
+
+* is_auto_shallow_type
+#+begin_src til
+func is_auto_shallow_type(t: Type, type_name: Str, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * infer_func_sig_expr
@@ -353,7 +389,17 @@ func infer_func_sig_expr(scope: TypeScope, mut expr: Expr)
 
 * check_ref_function_returns
 #+begin_src til
-proc check_ref_function_returns(func_scope: TypeScope, expr: Expr)
+proc check_ref_function_returns(func_scope: TypeScope, expr: Expr, ctx: Context)
+#+end_src
+
+* priv___src_self_typer_til__lookup_variant_payload_type
+#+begin_src til
+func priv___src_self_typer_til__lookup_variant_payload_type(scope: TypeScope, enum_name: Str, variant_name: Str) returns Str
+#+end_src
+
+* priv___src_self_typer_til__collect_switch_case_bindings
+#+begin_src til
+proc priv___src_self_typer_til__collect_switch_case_bindings(mut ctx: Context, e: Expr)
 #+end_src
 
 * infer_func_def_expr
@@ -363,22 +409,27 @@ proc infer_func_def_expr(scope: TypeScope, mut expr: Expr, mut ctx: Context)
 
 * check_unused_params
 #+begin_src til
-proc check_unused_params(func_scope: TypeScope, expr: Expr)
+proc check_unused_params(func_scope: TypeScope, expr: Expr, ctx: Context)
 #+end_src
 
 * check_unused_locals
 #+begin_src til
-proc check_unused_locals(scope: TypeScope, path: Str)
+proc check_unused_locals(scope: TypeScope, path: Str, ctx: Context)
 #+end_src
 
 * check_unused_priv_top_level
 #+begin_src til
-proc check_unused_priv_top_level(scope: TypeScope) returns shallow I32
+proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow I32
 #+end_src
 
 * check_unused_priv_members_in_program
 #+begin_src til
-proc check_unused_priv_members_in_program(program: Expr, path: Str) returns shallow I32
+proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* narrow_return_literal
+#+begin_src til
+proc narrow_return_literal(scope: TypeScope, mut rv: Expr, ctx: Context)
 #+end_src
 
 * infer_return_stmt
@@ -408,12 +459,12 @@ proc infer_while_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
 
 * infer_decl_type_def
 #+begin_src til
-proc infer_decl_type_def(scope: TypeScope, mut stmt: Expr) returns shallow Bool
+proc infer_decl_type_def(scope: TypeScope, mut stmt: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * infer_decl_func_def
 #+begin_src til
-proc infer_decl_func_def(scope: TypeScope, mut stmt: Expr) returns shallow Bool
+proc infer_decl_func_def(scope: TypeScope, mut stmt: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * infer_decl_type_alias_passthrough
@@ -423,7 +474,7 @@ func infer_decl_type_alias_passthrough(scope: TypeScope, mut stmt: Expr) returns
 
 * declared_type_for_decl
 #+begin_src til
-func declared_type_for_decl(scope: TypeScope, stmt: Expr) returns Type
+func declared_type_for_decl(scope: TypeScope, stmt: Expr, ctx: Context) returns Type
 #+end_src
 
 * pre_coerce_decl_numeric_literals
@@ -433,17 +484,17 @@ proc pre_coerce_decl_numeric_literals(mut expr: Expr, target: Type)
 
 * infer_decl_typed_value
 #+begin_src til
-proc infer_decl_typed_value(scope: TypeScope, mut stmt: Expr)
+proc infer_decl_typed_value(scope: TypeScope, mut stmt: Expr, ctx: Context)
 #+end_src
 
 * infer_decl_untyped_value
 #+begin_src til
-proc infer_decl_untyped_value(mut stmt: Expr)
+proc infer_decl_untyped_value(mut stmt: Expr, ctx: Context)
 #+end_src
 
 * finalize_decl_binding
 #+begin_src til
-proc finalize_decl_binding(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32)
+proc finalize_decl_binding(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32, ctx: Context)
 #+end_src
 
 * infer_decl_stmt
@@ -483,7 +534,7 @@ proc attach_switch_default_body(mut root_if: Expr, default_body: Expr)
 
 * priv___src_self_typer_til__validate_struct_pattern_rest
 #+begin_src til
-proc priv___src_self_typer_til__validate_struct_pattern_rest(scope: TypeScope, pattern: Expr)
+proc priv___src_self_typer_til__validate_struct_pattern_rest(scope: TypeScope, pattern: Expr, ctx: Context)
 #+end_src
 
 * infer_switch_stmt
@@ -513,12 +564,12 @@ proc desugar_for_in_collection_stmt(scope: TypeScope, mut body: Expr, shallow st
 
 * priv___src_self_typer_til__guess_local_type
 #+begin_src til
-proc priv___src_self_typer_til__guess_local_type(e: Expr, var_name: Str) returns Str
+func priv___src_self_typer_til__guess_local_type(e: Expr, var_name: Str) returns Str
 #+end_src
 
 * priv___src_self_typer_til__guess_prior_local_type_in_vec
 #+begin_src til
-proc priv___src_self_typer_til__guess_prior_local_type_in_vec(stmts: Vec, shallow upto: U32, var_name: Str) returns Str
+func priv___src_self_typer_til__guess_prior_local_type_in_vec(stmts: Vec, shallow upto: U32, var_name: Str) returns Str
 #+end_src
 
 * priv___src_self_typer_til__collect_throw_ident_names
@@ -548,12 +599,17 @@ proc priv___src_self_typer_til__has_prior_throw_type_in_vec(stmts: Vec, root_bod
 
 * priv___src_self_typer_til__throw_type_name_for_with_body
 #+begin_src til
-proc priv___src_self_typer_til__throw_type_name_for_with_body(e: Expr, body: Expr) returns Str
+func priv___src_self_typer_til__throw_type_name_for_with_body(e: Expr, body: Expr) returns Str
 #+end_src
 
 * priv___src_self_typer_til__subtree_has_throw_catch
 #+begin_src til
 func priv___src_self_typer_til__subtree_has_throw_catch(e: Expr) returns shallow Bool
+#+end_src
+
+* priv___src_self_typer_til__subtree_has_pending_throw
+#+begin_src til
+func priv___src_self_typer_til__subtree_has_pending_throw(e: Expr) returns shallow Bool
 #+end_src
 
 * priv___src_self_typer_til__subtree_has_bang
@@ -598,7 +654,7 @@ func priv___src_self_typer_til__make_default_value_expr(type_name: Str, shallow 
 
 * priv___src_self_typer_til__tag_for_type
 #+begin_src til
-func priv___src_self_typer_til__tag_for_type(ctx: Context, type_name: Str, _type_to_tag_names: Vec) returns I64
+func priv___src_self_typer_til__tag_for_type(ctx: Context, type_name: Str, _type_to_tag_names: Vec) returns shallow I64
 #+end_src
 
 * priv___src_self_typer_til__register_throw_type
@@ -641,9 +697,44 @@ proc priv___src_self_typer_til__clear_bang_flag(mut e: Expr)
 func priv___src_self_typer_til__find_bang_callee_name(e: Expr) returns Str
 #+end_src
 
+* priv___src_self_typer_til__find_bang_fcall
+#+begin_src til
+func priv___src_self_typer_til__find_bang_fcall(e: Expr) returns ref Expr
+#+end_src
+
+* priv___src_self_typer_til__normalize_ctor_type
+#+begin_src til
+func priv___src_self_typer_til__normalize_ctor_type(tn: Str) returns Str
+#+end_src
+
+* priv___src_self_typer_til__struct_field_type
+#+begin_src til
+func priv___src_self_typer_til__struct_field_type(ctx: Context, type_name: Str, field_name: Str) returns Str
+#+end_src
+
+* priv___src_self_typer_til__resolve_value_type
+#+begin_src til
+func priv___src_self_typer_til__resolve_value_type(ctx: Context, e: Expr, body: Expr) returns Str
+#+end_src
+
+* priv___src_self_typer_til__callee_owning_type
+#+begin_src til
+func priv___src_self_typer_til__callee_owning_type(ctx: Context, fcall: Expr, body: Expr) returns Str
+#+end_src
+
+* priv___src_self_typer_til__registry_exact_idx
+#+begin_src til
+func priv___src_self_typer_til__registry_exact_idx(ctx: Context, key: Str) returns shallow I64
+#+end_src
+
+* priv___src_self_typer_til__registry_suffix_idx
+#+begin_src til
+func priv___src_self_typer_til__registry_suffix_idx(ctx: Context, method: Str) returns shallow I64
+#+end_src
+
 * priv___src_self_typer_til__find_callee_throws_idx
 #+begin_src til
-func priv___src_self_typer_til__find_callee_throws_idx(ctx: Context, fcall: Expr) returns I64
+func priv___src_self_typer_til__find_callee_throws_idx(ctx: Context, fcall: Expr, body: Expr) returns shallow I64
 #+end_src
 
 * priv___src_self_typer_til__pending_remove_all_matching
@@ -663,17 +754,17 @@ func priv___src_self_typer_til__vec_str_push_uniq(mut v: Vec, name: Str)
 
 * priv___src_self_typer_til__validate_one_fcall_consolidated
 #+begin_src til
-proc priv___src_self_typer_til__validate_one_fcall_consolidated(ctx: Context, mut e: Expr, mut pending: Vec, mut seen: Vec, mut types_to_declare: Vec, path: Str)
+proc priv___src_self_typer_til__validate_one_fcall_consolidated(ctx: Context, mut e: Expr, body: Expr, mut pending: Vec, mut seen: Vec, mut types_to_declare: Vec, path: Str)
 #+end_src
 
 * priv___src_self_typer_til__inject_err_args_on_one_fcall_consolidated
 #+begin_src til
-func priv___src_self_typer_til__inject_err_args_on_one_fcall_consolidated(ctx: Context, mut e: Expr)
+func priv___src_self_typer_til__inject_err_args_on_one_fcall_consolidated(ctx: Context, mut e: Expr, body: Expr)
 #+end_src
 
 * priv___src_self_typer_til__validate_and_inject_expr_consolidated
 #+begin_src til
-proc priv___src_self_typer_til__validate_and_inject_expr_consolidated(ctx: Context, mut e: Expr, mut pending: Vec, mut seen: Vec, mut types_to_declare: Vec, path: Str)
+proc priv___src_self_typer_til__validate_and_inject_expr_consolidated(ctx: Context, mut e: Expr, body: Expr, mut pending: Vec, mut seen: Vec, mut types_to_declare: Vec, path: Str)
 #+end_src
 
 * priv___src_self_typer_til__build_bang_lowered
@@ -683,22 +774,22 @@ func priv___src_self_typer_til__build_bang_lowered(ctx: Context, error_type: Str
 
 * priv___src_self_typer_til__hoist_walk_consolidated
 #+begin_src til
-proc priv___src_self_typer_til__hoist_walk_consolidated(mut ctx: Context, mut parent: Expr, child_idx: U32, mut pre_stmts: Vec, mut types_to_declare: Vec, mut seen: Vec)
+proc priv___src_self_typer_til__hoist_walk_consolidated(mut ctx: Context, mut parent: Expr, shallow child_idx: U32, body: Expr, mut pre_stmts: Vec, mut types_to_declare: Vec, mut seen: Vec)
 #+end_src
 
 * priv___src_self_typer_til__hoist_nested_bangs_consolidated
 #+begin_src til
-proc priv___src_self_typer_til__hoist_nested_bangs_consolidated(mut ctx: Context, mut stmt: Expr, mut pre_stmts: Vec, mut types_to_declare: Vec, mut seen: Vec)
+proc priv___src_self_typer_til__hoist_nested_bangs_consolidated(mut ctx: Context, mut stmt: Expr, body: Expr, mut pre_stmts: Vec, mut types_to_declare: Vec, mut seen: Vec)
 #+end_src
 
 * priv___src_self_typer_til__process_throw_catch_in_body
 #+begin_src til
-proc priv___src_self_typer_til__process_throw_catch_in_body(mut ctx: Context, mut body: Expr, root_body: Expr, fdef_throws: Vec, mut pending: Vec, mut seen: Vec, mut types_to_declare: Vec, path: Str)
+proc priv___src_self_typer_til__process_throw_catch_in_body(mut ctx: Context, mut body: Expr, root_body: Expr, fdef_throws: Vec, mut pending: Vec, mut seen: Vec, mut types_to_declare: Vec, path: Str, return_type: Str, return_own_type: OwnType)
 #+end_src
 
 * process_throw_catch_in_func_body
 #+begin_src til
-proc process_throw_catch_in_func_body(mut ctx: Context, mut body: Expr, fdef_throws: Vec, return_type: Str)
+proc process_throw_catch_in_func_body(mut ctx: Context, mut body: Expr, fdef_throws: Vec, return_type: Str, return_own_type: OwnType)
 #+end_src
 
 * is_compile_directive
@@ -714,11 +805,6 @@ proc infer_body_stmt(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_fu
 * reregister_scope_defs
 #+begin_src til
 func reregister_scope_defs(body: Expr, scope: TypeScope)
-#+end_src
-
-* reregister_field_struct_defs
-#+begin_src til
-func reregister_field_struct_defs(body: Expr, scope: TypeScope)
 #+end_src
 
 * infer_body
@@ -743,22 +829,22 @@ func priv___src_self_typer_til__typer_is_lambda_target(e: Expr) returns shallow 
 
 * priv___src_self_typer_til__typer_lift_one_default_value
 #+begin_src til
-proc priv___src_self_typer_til__typer_lift_one_default_value(mut dd: Declaration, mut top_level: Vec, mut counter: I64) returns I64
+proc priv___src_self_typer_til__typer_lift_one_default_value(mut dd: Declaration, mut top_level: Vec, mut counter: I64) returns shallow I64
 #+end_src
 
 * priv___src_self_typer_til__typer_lift_lambdas_in_expr
 #+begin_src til
-proc priv___src_self_typer_til__typer_lift_lambdas_in_expr(mut e: Expr, mut top_level: Vec, mut counter: I64) returns I64
+proc priv___src_self_typer_til__typer_lift_lambdas_in_expr(mut e: Expr, mut top_level: Vec, mut counter: I64) returns shallow I64
 #+end_src
 
 * priv___src_self_typer_til__typer_register_lifted_lambda
 #+begin_src til
-func priv___src_self_typer_til__typer_register_lifted_lambda(mut scope: TypeScope, lifted: Expr)
+func priv___src_self_typer_til__typer_register_lifted_lambda(mut scope: TypeScope, lifted: Expr, ctx: Context)
 #+end_src
 
 * priv___src_self_typer_til__typer_lift_lambdas
 #+begin_src til
-proc priv___src_self_typer_til__typer_lift_lambdas(mut scope: TypeScope, mut prog: Expr)
+proc priv___src_self_typer_til__typer_lift_lambdas(mut scope: TypeScope, mut prog: Expr, ctx: Context)
 #+end_src
 
 * type_check_unit
@@ -769,6 +855,16 @@ proc type_check_unit(path: Str, program: Expr, scope: TypeScope, ctx: Context) r
 * type_file
 #+begin_src til
 proc type_file(path: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* type_decls_file
+#+begin_src til
+proc type_decls_file(path: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* type_bodies_file
+#+begin_src til
+proc type_bodies_file(path: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * infer_assign_stmt
@@ -828,12 +924,12 @@ func can_implicit_widen(from: Type, to: Type) returns shallow Bool
 
 * type_from_name_at
 #+begin_src til
-proc type_from_name_at(name: Str, scope: TypeScope, mut e: Expr) returns Type
+proc type_from_name_at(name: Str, scope: TypeScope, mut e: Expr, ctx: Context) returns Type
 #+end_src
 
 * type_from_name
 #+begin_src til
-func type_from_name(name: Str, scope: TypeScope) returns Type
+func type_from_name(name: Str, scope: TypeScope, ctx: Context) returns Type
 #+end_src
 
 * resolve_type_alias
@@ -848,7 +944,7 @@ func usize_name(scope: TypeScope) returns Str
 
 * usize_type
 #+begin_src til
-func usize_type(scope: TypeScope) returns Type
+func usize_type(scope: TypeScope, ctx: Context) returns Type
 #+end_src
 
 * type_has_cmp
@@ -883,12 +979,12 @@ func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
 
 * priv___src_self_typer_til__find_variadic_fcall
 #+begin_src til
-func priv___src_self_typer_til__find_variadic_fcall(e: Expr) returns ref Expr
+func priv___src_self_typer_til__find_variadic_fcall(e: Expr, scope: TypeScope) returns ref Expr
 #+end_src
 
 * find_kwargs_fcall
 #+begin_src til
-func find_kwargs_fcall(e: Expr) returns ref Expr
+func find_kwargs_fcall(e: Expr, scope: TypeScope) returns ref Expr
 #+end_src
 
 * find_array_vec_fcall
@@ -953,22 +1049,22 @@ func build_kwargs_dynmap_decl(fcall: Expr, kw_name: Str) returns Expr
 
 * build_kwargs_dynmap_set
 #+begin_src til
-func build_kwargs_dynmap_set(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr
+func build_kwargs_dynmap_set(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr, ctx: Context) returns Expr
 #+end_src
 
 * build_variadic_array_decl
 #+begin_src til
-func build_variadic_array_decl(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr
+func build_variadic_array_decl(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32, ctx: Context) returns Expr
 #+end_src
 
 * build_variadic_array_set
 #+begin_src til
-func build_variadic_array_set(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr
+func build_variadic_array_set(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32, ctx: Context) returns Expr
 #+end_src
 
 * build_builtin_vec_decl
 #+begin_src til
-func build_builtin_vec_decl(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str) returns Expr
+func build_builtin_vec_decl(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, ctx: Context) returns Expr
 #+end_src
 
 * build_builtin_vec_push
@@ -988,17 +1084,17 @@ func desugar_array_vec_fcall(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec,
 
 * desugar_array_vec_decl
 #+begin_src til
-func desugar_array_vec_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
+func desugar_array_vec_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
 * desugar_set_literal_decl
 #+begin_src til
-proc desugar_set_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
+proc desugar_set_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
 * desugar_map_literal_decl
 #+begin_src til
-proc desugar_map_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
+proc desugar_map_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
 * process_call_desugars
@@ -1024,6 +1120,11 @@ proc apply_call_hoist_delete(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, 
 * hoist_param_swap_assign
 #+begin_src til
 func hoist_param_swap_assign(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
+#+end_src
+
+* fcall_variant_ctor_arg_is_own
+#+begin_src til
+func fcall_variant_ctor_arg_is_own(expr: Expr, shallow i: U32, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * hoist_expr
@@ -1063,7 +1164,32 @@ proc hoist_stmt_fcall(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut sc
 
 * rewrite_variadic_fcall_args
 #+begin_src til
-func rewrite_variadic_fcall_args(mut fcall: Expr, va_name: Str)
+func rewrite_variadic_fcall_args(mut fcall: Expr, va_name: Str, shallow vi: I32, shallow vc: U32)
+#+end_src
+
+* fcall_variadic_count_via_scope
+#+begin_src til
+func fcall_variadic_count_via_scope(fcall: Expr, scope: TypeScope) returns shallow U32
+#+end_src
+
+* fcall_callee_has_variadic_via_scope
+#+begin_src til
+func fcall_callee_has_variadic_via_scope(fcall: Expr, scope: TypeScope) returns shallow Bool
+#+end_src
+
+* fcall_variadic_index_via_scope
+#+begin_src til
+func fcall_variadic_index_via_scope(fcall: Expr, scope: TypeScope) returns shallow I32
+#+end_src
+
+* fcall_kwargs_index_via_scope
+#+begin_src til
+func fcall_kwargs_index_via_scope(fcall: Expr, scope: TypeScope) returns shallow I32
+#+end_src
+
+* priv___src_self_typer_til__derive_fcall_kwargs_index
+#+begin_src til
+func priv___src_self_typer_til__derive_fcall_kwargs_index(_fcall: Expr, fdef_data: FunctionDef) returns shallow I32
 #+end_src
 
 * resolve_variadic_elem_type
@@ -1073,12 +1199,12 @@ func resolve_variadic_elem_type(fcall: Expr, scope: TypeScope) returns ref Str
 
 * desugar_pure_splat_variadic_call
 #+begin_src til
-func desugar_pure_splat_variadic_call(mut fcall: Expr) returns shallow Bool
+func desugar_pure_splat_variadic_call(mut fcall: Expr, shallow vi: I32, shallow vc: U32) returns shallow Bool
 #+end_src
 
 * rewrite_kwargs_fcall_args
 #+begin_src til
-func rewrite_kwargs_fcall_args(mut fcall: Expr, kw_name: Str)
+func rewrite_kwargs_fcall_args(mut fcall: Expr, kw_name: Str, shallow ki: I32)
 #+end_src
 
 * check_own_args
@@ -1093,7 +1219,7 @@ func fcall_has_own_arg(fcall: Expr, var_name: Str, scope: TypeScope) returns sha
 
 * expr_transfers_own
 #+begin_src til
-func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
+func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
 * expr_is_borrow_source

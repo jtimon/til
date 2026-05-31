@@ -8,10 +8,13 @@ struct priv___src_self_parser_til__Parser {
     mut pos : U32
     mut path : Str
     mut fn_sig_decls : Vec
+    mut anon_decls : Vec
+    mut anon_cache : Map
     mut pending_doc : Str
 namespace:
     func clone(self: priv___src_self_parser_til__Parser) returns priv___src_self_parser_til__Parser
-    func delete(own self: priv___src_self_parser_til__Parser, call_free: Bool)
+    func delete(own self: priv___src_self_parser_til__Parser, shallow call_free: Bool)
+    func hash(self: priv___src_self_parser_til__Parser, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
@@ -56,6 +59,31 @@ func peek_col(p: priv___src_self_parser_til__Parser) returns shallow U32
 func til_type_from_explicit_type(name: Str) returns Type
 #+end_src
 
+* anon_struct_counter
+#+begin_src til
+anon_struct_counter is a I64
+#+end_src
+
+* priv___src_self_parser_til__anon_decl_key
+#+begin_src til
+func priv___src_self_parser_til__anon_decl_key(d: Declaration) returns Str
+#+end_src
+
+* priv___src_self_parser_til__anon_def_key
+#+begin_src til
+func priv___src_self_parser_til__anon_def_key(def: Expr) returns Str
+#+end_src
+
+* priv___src_self_parser_til__anon_lift
+#+begin_src til
+func priv___src_self_parser_til__anon_lift(mut p: priv___src_self_parser_til__Parser, own def: Expr, shallow line: U32, shallow col: U32) returns Str
+#+end_src
+
+* priv___src_self_parser_til__parse_type_ref
+#+begin_src til
+proc priv___src_self_parser_til__parse_type_ref(mut p: priv___src_self_parser_til__Parser) returns Str
+#+end_src
+
 * priv___src_self_parser_til__parse_fn_signature
 #+begin_src til
 func priv___src_self_parser_til__parse_fn_signature(mut p: priv___src_self_parser_til__Parser, shallow line: U32, shallow col: U32) returns Str
@@ -83,7 +111,7 @@ proc parse_enum_def(mut p: priv___src_self_parser_til__Parser) returns Expr
 
 * parse_call
 #+begin_src til
-proc parse_call(mut p: priv___src_self_parser_til__Parser, name: Str, shallow call_line: U32, shallow call_col: U32) returns Expr
+proc parse_call(mut p: priv___src_self_parser_til__Parser, own callee: Expr, shallow call_line: U32, shallow call_col: U32) returns Expr
 #+end_src
 
 * make_binop_call

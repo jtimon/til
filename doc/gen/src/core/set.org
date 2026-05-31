@@ -10,20 +10,22 @@ struct Set {
     mut count : U32
     mut cap : U32
     elem_size : U32
-    elem_type : Str
     elem_clone : CloneFn
     elem_delete : DeleteFn
     elem_cmp : CmpFn
 namespace:
     /// Create an empty Set. elem_type must implement `cmp`.
     func new(T: Type) returns Set
-    func len(self: Set) returns U32
+    func len(self: Set) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Set can be reused.
+    func clear(mut self: Set)
     /// True if the set contains an element equal to `val`.
     func has(self: Set, val: Dynamic) returns shallow Bool
     /// Insert `val` into the set (sorted order). If an equal element
     /// already exists, `val` is dropped. `val` is owned.
     func add(mut self: Set, own val: Dynamic)
-    func delete(own self: Set, call_free: Bool)
+    func delete(own self: Set, shallow call_free: Bool)
     func clone(self: Set) returns Set
     func size() returns shallow U32
 }

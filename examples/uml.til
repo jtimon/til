@@ -102,7 +102,7 @@ extract_body_lines := func(lines: Vec, start_line: U32) returns Vec {
     mut i := start_line.to_i64().sub(1).to_usize()
 
     while i.lt(lines.len()) {
-        ref raw : Str = lines.get(i)
+        ref raw : Str = lines.get(i)!
 
         if !started {
             brace_pos := raw.find("{")
@@ -148,7 +148,7 @@ join_lines := func(lines: Vec) returns Str {
     mut out := ""
     mut i : USize = 0
     while i.lt(lines.len()) {
-        ref line : Str = lines.get(i)
+        ref line : Str = lines.get(i)!
         if i.gt(0) {
             out = out.concat(" ")
         }
@@ -223,7 +223,7 @@ parse_file := proc(path: Str) returns Expr {
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    return parse(tokens, path.clone(), mode_str)
+    return parse(tokens, path, mode_str)
 }
 
 extract_types_from_file := proc(path: Str) returns Vec {
@@ -266,11 +266,11 @@ collect_types := proc(paths: Vec) returns Vec {
     mut out := Vec.new(UmlType)
     mut i : USize = 0
     while i.lt(paths.len()) {
-        ref path : Str = paths.get(i)
+        ref path : Str = paths.get(i)!
         file_types := extract_types_from_file(path)
         mut j : USize = 0
         while j.lt(file_types.len()) {
-            ref t : UmlType = file_types.get(j)
+            ref t : UmlType = file_types.get(j)!
             out.push(own t.clone())
             j = j.add(1)
         }
@@ -283,12 +283,12 @@ collect_panels := func(paths: Vec, types: Vec) returns Vec {
     mut out := Vec.new(UmlPanel)
     mut i : USize = 0
     while i.lt(paths.len()) {
-        ref path : Str = paths.get(i)
+        ref path : Str = paths.get(i)!
         label := file_label(path)
         mut panel := UmlPanel(file = label.clone())
         mut j : USize = 0
         while j.lt(types.len()) {
-            ref t : UmlType = types.get(j)
+            ref t : UmlType = types.get(j)!
             if t.file.eq(label) {
                 panel.types.push(own t.clone())
             }
@@ -304,17 +304,17 @@ generate_org := func(paths: Vec, types: Vec) returns Str {
     mut out := ""
     mut i : USize = 0
     while i.lt(paths.len()) {
-        ref path : Str = paths.get(i)
+        ref path : Str = paths.get(i)!
         label := file_label(path)
         out = out.format("* ", label, NL)
         mut j : USize = 0
         while j.lt(types.len()) {
-            ref t : UmlType = types.get(j)
+            ref t : UmlType = types.get(j)!
             if t.file.eq(label) {
                 out = out.format("** ", t.name, ": ", t.kind, NL)
                 mut k : USize = 0
                 while k.lt(t.lines.len()) {
-                    ref line : Str = t.lines.get(k)
+                    ref line : Str = t.lines.get(k)!
                     out = out.format("*** ", line, NL)
                     k = k.add(1)
                 }
@@ -360,7 +360,7 @@ xml_escape := func(s: Str) returns Str {
         } else if c.eq(Q.byte_at(0)) {
             out = out.concat("&quot;")
         } else {
-            out = out.concat(Str.from_byte(c.to_i64().and(255).to_u8()))
+            out = out.concat(Str.from_byte(c.cast(I64).and(255).to_u8()))
         }
     }
     return out
@@ -402,7 +402,7 @@ panel_h := func(p: UmlPanel) returns I64 {
     }
     mut i : USize = 0
     while i.lt(p.types.len()) {
-        ref t : UmlType = p.types.get(i)
+        ref t : UmlType = p.types.get(i)!
         if i.gt(0) {
             h = h.add(BOX_GAP_Y)
         }
@@ -417,7 +417,7 @@ generate_svg := func(panels: Vec) returns Str {
     mut max_h := 0
     mut i : USize = 0
     while i.lt(panels.len()) {
-        ref p : UmlPanel = panels.get(i)
+        ref p : UmlPanel = panels.get(i)!
         w := panel_w(p)
         h := panel_h(p)
         total_w = total_w.add(w)
@@ -457,7 +457,7 @@ generate_svg := func(panels: Vec) returns Str {
     mut panel_x := PAGE_PAD_X
     i = 0
     while i.lt(panels.len()) {
-        ref p : UmlPanel = panels.get(i)
+        ref p : UmlPanel = panels.get(i)!
         pw := panel_w(p)
         ph := panel_h(p)
         panel_y := PAGE_PAD_Y
@@ -474,7 +474,7 @@ generate_svg := func(panels: Vec) returns Str {
         mut box_y := panel_y.add(PANEL_PAD_Y).add(PANEL_LABEL_H).add(PANEL_PAD_Y)
         mut j : USize = 0
         while j.lt(p.types.len()) {
-            ref t : UmlType = p.types.get(j)
+            ref t : UmlType = p.types.get(j)!
             w := box_w(t)
             h := box_h(t)
             box_x := panel_x.add(PANEL_PAD_X)
@@ -483,7 +483,7 @@ generate_svg := func(panels: Vec) returns Str {
             svg = svg.format("  ", svg_text(box_x.add(BOX_PAD_X), box_y.add(BOX_PAD_Y).add(HEADER_H), "title", header))
             mut k : USize = 0
             while k.lt(t.lines.len()) {
-                ref line : Str = t.lines.get(k)
+                ref line : Str = t.lines.get(k)!
                 line_y := box_y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(k.to_i64().mul(ROW_H))
                 svg = svg.format("  ", svg_text(box_x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
                 k = k.add(1)

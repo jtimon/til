@@ -38,6 +38,7 @@
 *** Char
 *** DocComment
 *** KwMut
+*** KwConst
 *** KwOwn
 *** KwRef
 *** KwShallow
@@ -74,13 +75,14 @@
 *** KwPriv
 *** Error
 ** Token: StructDef
-*** type := TokenType.Eof
-*** text := ""
-*** line : U32 = 0
-*** col : U32 = 0
+*** const type := TokenType.Eof
+*** const text := ""
+*** const line : U32 = 0
+*** const col : U32 = 0
 * ast
 ** Primitive: EnumDef
 *** I16
+*** U16
 ** Type: EnumDef
 *** Unknown
 *** None
@@ -114,64 +116,73 @@
 *** Ref
 *** Shallow
 ** Declaration: StructDef
-*** mut name := ""
-*** mut doc := ""
-*** mut explicit_type := ""
-*** mut is_mut := false
-*** mut is_priv := false
-*** mut used := false
-*** mut own_type := OwnType.Shallow
-*** mut til_type := Type.Unknown
-*** mut field_offset : I32 = 0
-*** mut field_size : I32 = 0
-*** ref mut field_struct_def : Expr = NULL
-*** own mut default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
-*** mut orig_name := ""
+*** name := ""
+*** doc := ""
+*** explicit_type := ""
+*** is_mut := false
+*** redundant_mut := false
+*** is_priv := false
+*** used := false
+*** own_type := OwnType.Shallow
+*** til_type := Type.Unknown
+*** field_offset : I32 = 0
+*** field_size : I32 = 0
+*** own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
+*** orig_name := ""
 ** FunctionDef: StructDef
-*** mut func_type := FuncType.Func
-*** mut params := Vec.new(Declaration)
-*** mut return_type := ""
-*** mut throw_types := Vec.new(Str)
-*** mut variadic_index : I32 = -1.to_i32()
-*** mut kwargs_index : I32 = -1.to_i32()
-*** mut return_own_type := OwnType.Own
-*** mut auto_generated := false
+*** func_type := FuncType.Func
+*** params := Vec.new(Declaration)
+*** return_type := ""
+*** throw_types := Vec.new(Str)
+*** variadic_index : I32 = -1
+*** kwargs_index : I32 = -1
+*** return_own_type := OwnType.Own
+*** auto_generated := false
+*** is_enum_variant_ctor := false
 ** FCallData: StructDef
-*** mut variadic_index : I32 = -1.to_i32()
-*** mut variadic_count : USize = 0
-*** mut kwargs_index : I32 = -1.to_i32()
-*** mut kwargs_count : USize = 0
-*** mut is_splat := false
-*** mut does_throw := false
-*** mut is_bang := false
-*** mut own_args : U64 = 0
-*** mut til_type := Type.Unknown
+*** is_splat := false
+*** does_throw := false
+*** is_bang := false
+*** own_args : U64 = 0
+*** til_type := Type.Unknown
 ** LiteralNumData: StructDef
-*** mut text := ""
-*** mut til_type := Type.Unknown
+*** text := ""
+*** til_type := Type.Unknown
 ** IdentData: StructDef
-*** mut name := ""
-*** mut til_type := Type.Unknown
+*** name := ""
+*** til_type := Type.Unknown
 ** FieldAccessData: StructDef
-*** mut name := ""
-*** mut til_type := Type.Unknown
+*** name := ""
+*** til_type := Type.Unknown
 ** StructDef: StructDef
-*** mut total_struct_size : I32 = 0
-*** mut fields := Vec.new(Declaration)
-*** mut ns_decls := Vec.new(Declaration)
-*** mut c_tag := ""
+*** total_struct_size : I32 = 0
+*** fields := Vec.new(Declaration)
+*** ns_decls := Vec.new(Declaration)
+*** c_tag := ""
 ** EnumDef: StructDef
-*** mut ns_decls := Vec.new(Declaration)
-*** mut variants := Vec.new(Str)
-*** mut payload_types := Map.new(I64, Str)
-*** mut total_enum_size : I32 = 0
+*** ns_decls := Vec.new(Declaration)
+*** variants := Vec.new(Str)
+*** payload_types : Map = Map.new(I64, Str)
+*** total_enum_size : I32 = 0
+*** payload_consts := Vec.new(Bool)
+** FieldLayout: StructDef
+*** offset : I32 = 0
+*** size : I32 = 0
+*** struct_name := ""
+** StructLayout: StructDef
+*** total_size : I32 = 0
+*** fields := Vec.new(FieldLayout)
 ** AssignData: StructDef
-*** mut name := ""
-*** mut save_old_delete := false
+*** name := ""
+*** save_old_delete := false
+*** is_payload_alias := false
+** FieldAssignData: StructDef
+*** name := ""
+*** save_old_delete := false
 ** ForInData: StructDef
-*** mut name := ""
-*** mut is_mut := false
-*** mut til_type := Type.Unknown
+*** name := ""
+*** is_mut := false
+*** til_type := Type.Unknown
 ** Literal: EnumDef
 *** Str:Str
 *** Num:LiteralNumData
@@ -188,7 +199,7 @@
 *** StructDef:StructDef
 *** EnumDef:EnumDef
 *** FieldAccess:FieldAccessData
-*** FieldAssign:Str
+*** FieldAssign:FieldAssignData
 *** Return
 *** If
 *** While
@@ -205,147 +216,180 @@
 *** Catch
 *** RestPattern
 ** Expr: StructDef
-*** mut node_type := NodeType.Body
-*** mut children := Vec.new(Expr)
-*** mut line : U32 = 0
-*** mut col : U32 = 0
+*** node_type := NodeType.Body
+*** children := Vec.new(Expr)
+*** line : U32 = 0
+*** col : U32 = 0
 * parser
 ** Parser: StructDef
-*** mut tokens := Vec.new(Token)
-*** mut pos : USize = 0
-*** mut path := ""
-*** mut fn_sig_decls := Vec.new(Expr)
-*** mut pending_doc := ""
+*** tokens := Vec.new(Token)
+*** pos : USize = 0
+*** path := ""
+*** fn_sig_decls := Vec.new(Expr)
+*** anon_decls := Vec.new(Expr)
+*** anon_cache := Map.new(Str, Str)
+*** pending_doc := ""
 * initer
 ** TypeBinding: StructDef
-*** mut name := ""
-*** mut type := Type.Unknown
-*** mut func_type := FuncType.None
-*** mut is_mut := false
-*** mut is_priv := false
-*** mut path := ""
-*** mut line : U32 = 0
-*** mut col : U32 = 0
-*** mut is_param := false
-*** mut own_type := OwnType.Shallow
-*** mut is_alias := false
-*** mut is_type_alias := false
-*** mut alias_target := ""
-*** ref mut struct_def : Expr = NULL
-*** ref mut func_def : Expr = NULL
-*** mut is_builtin := false
-*** mut used := false
-*** mut orig_name := ""
+*** name := ""
+*** type := Type.Unknown
+*** func_type := FuncType.None
+*** is_mut := false
+*** is_priv := false
+*** path := ""
+*** line : U32 = 0
+*** col : U32 = 0
+*** is_param := false
+*** own_type := OwnType.Shallow
+*** is_alias := false
+*** is_type_alias := false
+*** alias_target := ""
+*** ref struct_def : Expr = NULL
+*** ref func_def : Expr = NULL
+*** is_builtin := false
+*** used := false
+*** orig_name := ""
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
 ** TypeScope: StructDef
-*** mut bindings := Map.new(Str, TypeBinding)
-*** ref mut parent : TypeScope = NULL
+*** bindings := Map.new(Str, TypeBinding)
+*** ref parent : TypeScope = NULL
 ** ImportUnit: StructDef
-*** mut mode := Mode()
-*** own mut ast := Expr.new(NodeType.Body, 0, 0)
-*** mut imports := Vec.new(Str)
+*** mode_str := ""
+*** mode := Mode()
+*** own ast := Expr.new(NodeType.Body, 0, 0)
+*** imports := Vec.new(Str)
 ** Context: StructDef
-*** mut mode := Mode()
-*** mut path := ""
-*** mut path_modes := Map.new(Str, Mode)
-*** mut imported := Map.new(Str, ImportUnit)
-*** mut imports_init_done := Set.new(Str)
-*** mut imports_typer_done := Set.new(Str)
-*** mut imports_precomp_done := Set.new(Str)
-*** mut imports_eval_done := Set.new(Str)
-*** mut scope := TypeScope()
-*** mut is_repl := false
-*** mut typing_namespace_member := false
-*** mut local_fn_sigs := Map.new(Str, Dynamic)
-*** mut func_defs := Map.new(Str, Dynamic)
-*** mut struct_def_exprs := Map.new(Str, Dynamic)
-*** mut funcsig_names := Set.new(Str)
-*** mut script_globals := Set.new(Str)
-*** mut ref_globals := Set.new(Str)
-*** mut throw_type_registry := Vec.new(Str)
-*** mut throws_names_global := Vec.new(Str)
-*** mut throws_per_global := Vec.new(Vec)
-*** mut bang_counter : I64 = 0
-*** mut typer_in_shallow_return : Bool = false
-*** mut typer_in_main_func : Bool = false
-*** mut ctor_seq : I32 = 0
-*** mut in_func_def : Bool = false
-*** mut in_main_func : Bool = false
-*** mut proc_calls_count : I32 = 0
-*** mut proc_def_depth : I32 = 0
-*** mut hoist_counter : I32 = 0
-*** mut va_counter : I32 = 0
-*** mut kw_counter : I32 = 0
-*** mut coll_counter : I32 = 0
-*** mut stack_locals := Set.new(Str)
-*** mut stack_local_types := Map.new(Str, Str)
-*** mut unsafe_to_hoist := Set.new(Str)
-*** mut ref_locals := Set.new(Str)
-*** mut ref_dyn_locals := Set.new(Str)
-*** ref mut current_fdef : Expr = NULL
-*** ref mut cached_str_def : Expr = NULL
-*** ref mut cached_str_name : Str = NULL
-*** ref mut cached_array_def : Expr = NULL
-*** ref mut cached_array_name : Str = NULL
-*** ref mut cached_vec_def : Expr = NULL
-*** ref mut cached_vec_name : Str = NULL
+*** mode := Mode()
+*** path := ""
+*** path_modes := Map.new(Str, Mode)
+*** imported := Map.new(Str, ImportUnit)
+*** imports_init_done := Set.new(Str)
+*** imports_typer_decls_done := Set.new(Str)
+*** imports_typer_bodies_done := Set.new(Str)
+*** imports_precomp_done := Set.new(Str)
+*** imports_eval_done := Set.new(Str)
+*** scope := TypeScope()
+*** is_repl := false
+*** struct_layouts := Map.new(Str, StructLayout)
+*** precomp_macros := Set.new(Str)
+*** precomp_funcs := Set.new(Str)
+*** precomp_known := Map.new(Str, Value)
+*** has_return := false
+*** has_break := false
+*** has_continue := false
+*** return_value := Value.None
+*** ns_fields := Map.new(Str, Value)
+*** ns_keys := Vec.new(Dynamic)
+*** ns_inited := false
+*** typing_namespace_member := false
+*** local_fn_sigs := Map.new(Str, Dynamic)
+*** func_defs := Map.new(Str, Dynamic)
+*** struct_def_exprs := Map.new(Str, Dynamic)
+*** funcsig_names := Set.new(Str)
+*** script_globals := Set.new(Str)
+*** ref_globals := Set.new(Str)
+*** throw_type_registry := Vec.new(Str)
+*** throws_names_global := Vec.new(Str)
+*** throws_per_global := Vec.new(Vec)
+*** bang_counter : I64 = 0
+*** lowering_param_types := Map.new(Str, Str)
+*** typer_in_shallow_return : Bool = false
+*** typer_in_main_func : Bool = false
+*** typer_return_type_name : Str = ""
+*** ctor_seq : I32 = 0
+*** in_func_def : Bool = false
+*** in_main_func : Bool = false
+*** proc_calls_count : I32 = 0
+*** proc_def_depth : I32 = 0
+*** hoist_counter : I32 = 0
+*** va_counter : I32 = 0
+*** kw_counter : I32 = 0
+*** coll_counter : I32 = 0
+*** errors : I32 = 0
+*** current_type_name := ""
+*** current_top_func_name := ""
+*** auto_gen_depth : I32 = 0
+*** throw_used_local_names := Set.new(Str)
+*** stack_locals := Set.new(Str)
+*** stack_local_types := Map.new(Str, Str)
+*** unsafe_to_hoist := Set.new(Str)
+*** ref_locals := Set.new(Str)
+*** ptr_locals := Set.new(Str)
+*** ref_dyn_locals := Set.new(Str)
+*** ref current_fdef : Expr = NULL
+*** ref cached_str_def : Expr = NULL
+*** ref cached_str_name : Str = NULL
+*** ref cached_array_def : Expr = NULL
+*** ref cached_array_name : Str = NULL
+*** ref cached_vec_def : Expr = NULL
+*** ref cached_vec_name : Str = NULL
+*** interp_type_defs := Map.new(Str, Dynamic)
+*** dispatch_map := Map.new(Str, Dynamic)
+*** dispatch_inited := false
+*** ffi_map := Map.new(Str, FFIEntry)
+*** ffi_map_inited := false
+*** ffi_loaded := false
+*** ffi_struct_defs := Map.new(Str, Dynamic)
+*** ffi_type_cache := Vec.new(FFITypePtrBox)
+*** ffi_type_cache_inited := false
 * typer
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr
 ** CoverageNode: StructDef
-*** mut fully_covered := false
-*** mut sub_names := Vec.new(Str)
-*** mut sub_nodes := Vec.new(CoverageNode)
+*** fully_covered := false
+*** sub_names := Vec.new(Str)
+*** sub_nodes := Vec.new(CoverageNode)
 * precomp
 * scavenger
 * builder
 ** CollectionInfo: StructDef
-*** ref mut type_name : Str = NULL
-*** mut is_vec : I32 = 0
+*** ref type_name : Str = NULL
+*** is_vec : I32 = 0
 ** DynCallInfo: StructDef
-*** ref mut method : Str = NULL
-*** mut nargs : I32 = 1
-*** mut has_return := false
+*** ref method : Str = NULL
+*** nargs : I32 = 1
+*** has_return := false
 ** BuildPaths: StructDef
-*** mut name := ""
-*** mut c_path := ""
-*** mut bin_path := ""
-*** mut fwd_path := ""
-*** mut h_path := ""
-*** mut til_path := ""
-*** mut py_path := ""
-*** mut do_lib := false
+*** name := ""
+*** c_path := ""
+*** bin_path := ""
+*** fwd_path := ""
+*** h_path := ""
+*** til_path := ""
+*** py_path := ""
+*** do_lib := false
 * dispatch
 ** ExtStr: StructDef
-*** ref mut data : U8 = NULL
-*** mut count : U64 = 0
-*** mut cap : U64 = 0
+*** ref data : U8 = NULL
+*** count : USize = 0
+*** cap : USize = 0
 ** FFIEntry: StructDef
-*** ref mut fn : U8 = NULL
-*** ref mut return_type : Str = NULL
-*** mut nparam : I32 = 0
-*** ref mut param_shallows : U8 = NULL
-*** mut return_is_shallow := false
-*** ref mut cif : ffi_cif = NULL
-*** ref mut arg_types : Dynamic = NULL
+*** ref fn : U8 = NULL
+*** ref return_type : Str = NULL
+*** nparam : I32 = 0
+*** ref param_shallows : U8 = NULL
+*** return_is_shallow := false
+*** ref cif : ffi_cif = NULL
+*** ref arg_types : Dynamic = NULL
 ** ExprPtrBox: StructDef
-*** ref mut ptr : Expr = NULL
+*** ref ptr : Expr = NULL
 ** FFITypePtrBox: StructDef
-*** ref mut ptr : ffi_type = NULL
+*** ref ptr : ffi_type = NULL
 * interpreter
 ** StructInstance: StructDef
-*** ref mut struct_name : Str = NULL
-*** ref mut struct_def : Expr = NULL
-*** own mut data : U8 = 0
-*** mut borrowed := false
+*** ref struct_name : Str = NULL
+*** ref struct_def : Expr = NULL
+*** ref ctx : Context = NULL
+*** own data : U8 = 0
+*** borrowed := false
 ** EnumInstance: StructDef
-*** ref mut enum_name : Str = NULL
-*** ref mut enum_def : Expr = NULL
-*** own mut data : U8 = 0
-*** mut data_size : I32 = 0
+*** ref enum_name : Str = NULL
+*** own data : U8 = 0
+*** data_size : I32 = 0
+*** borrowed := false
 ** Value: EnumDef
 *** None
 *** Int:I64
@@ -359,22 +403,21 @@
 *** Func:Dynamic
 *** Struct:StructInstance
 *** Enum:EnumInstance
-*** Ptr:Dynamic
+*** Ref:Dynamic
+*** Dynamic:Dynamic
+*** Sbyte:I8
+*** Ushort:U16
 ** Cell: StructDef
-*** mut val := Value.None
+*** val := Value.None
 ** Binding: StructDef
-*** ref mut name : Str = NULL
-*** ref mut cell : Cell = NULL
-*** mut cell_is_local := false
+*** ref name : Str = NULL
+*** ref cell : Cell = NULL
+*** cell_is_local := false
 ** Scope: StructDef
-*** mut bindings := Map.new(Str, Binding)
-*** ref mut parent : Scope = NULL
+*** bindings := Map.new(Str, Binding)
+*** ref parent : Scope = NULL
+*** payload_aliases := Map.new(Str, Str)
+*** box_owned_dynamics := Vec.new_type_name("Fn")
+** DynPtrBox: StructDef
+*** own p : U8 = 0
 * modes
-** Mode: StructDef
-*** mut needs_main := false
-*** mut decls_only := true
-*** mut auto_import := ""
-*** mut is_library := false
-*** mut is_pure := false
-*** mut run_tests := false
-*** mut debug_prints := false

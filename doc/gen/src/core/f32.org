@@ -9,8 +9,10 @@ struct F32 {
 namespace:
     ext_func to_i64(shallow val: F32) returns shallow I64
     ext_func to_str(shallow val: F32) returns Str
+    /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
+    ext_func to_repr(shallow val: F32) returns Str
     /// Convert from I64 to F32.
-    func from_i64(val: I64) returns F32
+    func from_i64(shallow val: I64) returns shallow F32
     ext_func add(shallow a: F32, shallow b: F32) returns shallow F32
     ext_func sub(shallow a: F32, shallow b: F32) returns shallow F32
     ext_func mul(shallow a: F32, shallow b: F32) returns shallow F32
@@ -18,13 +20,18 @@ namespace:
     ext_func eq(shallow a: F32, shallow b: F32) returns shallow Bool
     ext_func cmp(shallow a: F32, shallow b: F32) returns shallow I64
     ext_func clone(val: F32) returns shallow F32
-    func delete(own self: F32, call_free: Bool)
-    func size() returns U32
-    func lt(a: F32, b: F32) returns shallow Bool
-    func gt(a: F32, b: F32) returns shallow Bool
-    func neq(a: F32, b: F32) returns shallow Bool
-    func lte(a: F32, b: F32) returns shallow Bool
-    func gte(a: F32, b: F32) returns shallow Bool
+    func delete(own self: F32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Division that throws DivideByZero when dividing by zero.
+    /// Reuses the DivideByZero type from src/core/i64.til.
+    /// Use F32.div for the silent (NaN/Inf) variant.
+    func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero) returns shallow F32
+    func hash(shallow self: F32, hasher: HashFn) returns shallow U64
+    func lt(shallow a: F32, shallow b: F32) returns shallow Bool
+    func gt(shallow a: F32, shallow b: F32) returns shallow Bool
+    func neq(shallow a: F32, shallow b: F32) returns shallow Bool
+    func lte(shallow a: F32, shallow b: F32) returns shallow Bool
+    func gte(shallow a: F32, shallow b: F32) returns shallow Bool
 }
 #+end_src
 

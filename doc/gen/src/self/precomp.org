@@ -1,69 +1,24 @@
 #+TITLE: src/self/precomp.til
 #+OPTIONS: toc:t
 
-* hoisted__Str_22271
+* precomp_clear_known
 #+begin_src til
-hoisted__Str_22271 is a Str
+func precomp_clear_known(mut ctx: Context)
 #+end_src
 
-* hoisted__Type_22272
+* precomp_reset_state
 #+begin_src til
-hoisted__Type_22272 is a Type
-#+end_src
-
-* macros
-#+begin_src til
-macros is a Set
-#+end_src
-
-* hoisted__Str_22273
-#+begin_src til
-hoisted__Str_22273 is a Str
-#+end_src
-
-* hoisted__Type_22274
-#+begin_src til
-hoisted__Type_22274 is a Type
-#+end_src
-
-* funcs
-#+begin_src til
-funcs is a Set
-#+end_src
-
-* hoisted__Str_22275
-#+begin_src til
-hoisted__Str_22275 is a Str
-#+end_src
-
-* hoisted__Str_22276
-#+begin_src til
-hoisted__Str_22276 is a Str
-#+end_src
-
-* hoisted__Type_22277
-#+begin_src til
-hoisted__Type_22277 is a Type
-#+end_src
-
-* hoisted__Type_22278
-#+begin_src til
-hoisted__Type_22278 is a Type
-#+end_src
-
-* known
-#+begin_src til
-known is a Map
+func precomp_reset_state(mut ctx: Context)
 #+end_src
 
 * precomp_has_macro
 #+begin_src til
-func precomp_has_macro(name: Str) returns shallow Bool
+func precomp_has_macro(ctx: Context, name: Str) returns shallow Bool
 #+end_src
 
 * precomp_has_func
 #+begin_src til
-func precomp_has_func(name: Str) returns shallow Bool
+func precomp_has_func(ctx: Context, name: Str) returns shallow Bool
 #+end_src
 
 * is_side_effecting_name
@@ -73,7 +28,7 @@ func is_side_effecting_name(name: Str) returns shallow Bool
 
 * priv___src_self_precomp_til__hex_digit_value
 #+begin_src til
-func priv___src_self_precomp_til__hex_digit_value(b: I8) returns U8
+func priv___src_self_precomp_til__hex_digit_value(shallow b: I8) returns shallow U8
 #+end_src
 
 * priv___src_self_precomp_til__from_source_form
@@ -93,22 +48,22 @@ func priv___src_self_precomp_til__str_to_source_form(s: Str) returns Str
 
 * value_to_expr
 #+begin_src til
-func value_to_expr(shallow val: Value, src: Expr) returns ref Expr
+func value_to_expr(shallow val: Value, src: Expr, ctx: Context) returns ref Expr
 #+end_src
 
 * expr_to_value
 #+begin_src til
-func expr_to_value(e: Expr) returns shallow Value
+func expr_to_value(e: Expr, ctx: Context) returns shallow Value
 #+end_src
 
 * is_known
 #+begin_src til
-func is_known(e: Expr, mut out: Value) returns shallow Bool
+func is_known(ctx: Context, e: Expr, mut out: Value) returns shallow Bool
 #+end_src
 
 * is_known_check
 #+begin_src til
-func is_known_check(e: Expr) returns shallow Bool
+func is_known_check(ctx: Context, e: Expr) returns shallow Bool
 #+end_src
 
 * body_has_local
@@ -118,7 +73,7 @@ proc body_has_local(body: Expr, name: Str) returns shallow Bool
 
 * func_uses_unknown_globals
 #+begin_src til
-proc func_uses_unknown_globals(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set) returns shallow Bool
+proc func_uses_unknown_globals(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set, ctx: Context) returns shallow Bool
 #+end_src
 
 * priv___src_self_precomp_til__extract_trivial_literal_return
@@ -128,17 +83,17 @@ func priv___src_self_precomp_til__extract_trivial_literal_return(fdef: Expr) ret
 
 * ns_lookup_flat
 #+begin_src til
-func ns_lookup_flat(name: Str) returns shallow Dynamic
+func ns_lookup_flat(name: Str, ctx: Context) returns shallow Dynamic
 #+end_src
 
 * fa_recv_type_name
 #+begin_src til
-func fa_recv_type_name(callee: Expr) returns Str
+func fa_recv_type_name(callee: Expr, ctx: Context) returns Str
 #+end_src
 
 * try_fast_fold_call
 #+begin_src til
-func try_fast_fold_call(scope: Scope, fcall: Expr) returns ref Expr
+func try_fast_fold_call(scope: Scope, fcall: Expr, ctx: Context) returns ref Expr
 #+end_src
 
 * try_eval_call
@@ -148,22 +103,22 @@ proc try_eval_call(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: 
 
 * track_literal
 #+begin_src til
-func track_literal(scope: Scope, name: Str, rhs: Expr)
+func track_literal(scope: Scope, name: Str, rhs: Expr, ctx: Context)
 #+end_src
 
 * track_literal_known_only
 #+begin_src til
-func track_literal_known_only(name: Str, rhs: Expr)
+func track_literal_known_only(name: Str, rhs: Expr, ctx: Context)
 #+end_src
 
 * is_macro_call
 #+begin_src til
-func is_macro_call(e: Expr) returns shallow Bool
+func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * is_func_call
 #+begin_src til
-func is_func_call(e: Expr) returns shallow Bool
+func is_func_call(e: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * fold_subtree
@@ -178,26 +133,16 @@ proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Boo
 
 * priv___src_self_precomp_til__expr_uses_var_p
 #+begin_src til
-func priv___src_self_precomp_til__expr_uses_var_p(e: Expr, name: Str) returns shallow Bool
+func priv___src_self_precomp_til__expr_uses_var_p(e: Expr, name: Str, ctx: Context) returns shallow Bool
 #+end_src
 
-* precomp_scan_names
+* precomp_register_fold_scope
 #+begin_src til
-func precomp_scan_names(prog: Expr)
+func precomp_register_fold_scope(mut global: Scope, prog: Expr, ctx: Context)
 #+end_src
 
-* precomp_register_defs
+* precomp_register_core_constants
 #+begin_src til
-func precomp_register_defs(mut global: Scope, prog: Expr)
-#+end_src
-
-* precomp_register_globals
-#+begin_src til
-func precomp_register_globals(mut global: Scope, prog: Expr)
-#+end_src
-
-* precomp
-#+begin_src til
-proc precomp(core_program: Expr, program: Expr, ctx: Context)
+func precomp_register_core_constants(mut global: Scope)
 #+end_src
 

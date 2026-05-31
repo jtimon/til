@@ -23,17 +23,17 @@ func UNREACHABLE(loc_str: Str)
 
 * assert
 #+begin_src til
-func assert(loc_str: Str, cond: Bool) returns Bool
+func assert(loc_str: Str, shallow cond: Bool) returns shallow Bool
 #+end_src
 
 * expect
 #+begin_src til
-func expect(loc_str: Str, cond: Bool, parts: ..Str)
+func expect(loc_str: Str, shallow cond: Bool, parts: ..Str)
 #+end_src
 
 * assert_eq
 #+begin_src til
-func assert_eq(loc_str: Str, a: I64, b: I64)
+func assert_eq(loc_str: Str, shallow a: I64, shallow b: I64)
 #+end_src
 
 * assert_eq_str

@@ -7,15 +7,12 @@ Unsigned 64-bit integer.
 #+begin_src til
 struct U64 {
 namespace:
-    ext_func to_i64(shallow val: U64) returns shallow I64
     ext_func to_u32(shallow val: U64) returns shallow U32
     ext_func to_i32(shallow val: U64) returns shallow I32
     ext_func to_usize(shallow val: U64) returns shallow U32
     ext_func to_f32(shallow val: U64) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: U64) returns Str
-    /// Convert from I64. Panics if negative.
-    func from_i64(val: I64) returns U64
     ext_func add(shallow a: U64, shallow b: U64) returns shallow U64
     ext_func sub(shallow a: U64, shallow b: U64) returns shallow U64
     ext_func mul(shallow a: U64, shallow b: U64) returns shallow U64
@@ -24,7 +21,7 @@ namespace:
     func inc(mut self: U64)
     func dec(mut self: U64)
     /// Return the multiplicative identity (1) for this type.
-    func unity(_self: U64) returns U64
+    func unity(shallow _self: U64) returns shallow U64
     ext_func eq(shallow a: U64, shallow b: U64) returns shallow Bool
     ext_func cmp(shallow a: U64, shallow b: U64) returns shallow I64
     ext_func and(shallow a: U64, shallow b: U64) returns shallow U64
@@ -33,13 +30,23 @@ namespace:
     ext_func clone(val: U64) returns shallow U64
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: U64, call_free: Bool)
-    func size() returns U32
-    func lt(a: U64, b: U64) returns shallow Bool
-    func gt(a: U64, b: U64) returns shallow Bool
-    func neq(a: U64, b: U64) returns shallow Bool
-    func lte(a: U64, b: U64) returns shallow Bool
-    func gte(a: U64, b: U64) returns shallow Bool
+    func delete(own self: U64, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U64.add for the wrapping variant.
+    func safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow U64
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U64.sub for the wrapping variant.
+    func safe_sub(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow U64
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U64.mul for the wrapping variant.
+    func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow U64
+    func hash(shallow self: U64, hasher: HashFn) returns shallow U64
+    func lt(shallow a: U64, shallow b: U64) returns shallow Bool
+    func gt(shallow a: U64, shallow b: U64) returns shallow Bool
+    func neq(shallow a: U64, shallow b: U64) returns shallow Bool
+    func lte(shallow a: U64, shallow b: U64) returns shallow Bool
+    func gte(shallow a: U64, shallow b: U64) returns shallow Bool
 }
 #+end_src
 

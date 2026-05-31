@@ -8,7 +8,7 @@ ext_func realpath_str(path: Str) returns Str
 
 * priv___src_self_loader_til__str_left
 #+begin_src til
-func priv___src_self_loader_til__str_left(s: Str, n: U32) returns Str
+func priv___src_self_loader_til__str_left(s: Str, shallow n: U32) returns Str
 #+end_src
 
 * priv___src_self_loader_til__normalize_mode_name
@@ -54,7 +54,8 @@ struct ProgramUnit {
     mut imports : Vec
 namespace:
     func clone(self: ProgramUnit) returns ProgramUnit
-    func delete(own self: ProgramUnit, call_free: Bool)
+    func delete(own self: ProgramUnit, shallow call_free: Bool)
+    func hash(self: ProgramUnit, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
@@ -64,6 +65,11 @@ namespace:
 func resolve_import_disps(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec
 #+end_src
 
+* priv___src_self_loader_til__extract_one_import
+#+begin_src til
+func priv___src_self_loader_til__extract_one_import(mut imp_stmt: Expr, path: Str, mut paths: Vec)
+#+end_src
+
 * extract_imports
 #+begin_src til
 func extract_imports(body: Expr, path: Str) returns Vec
@@ -71,7 +77,7 @@ func extract_imports(body: Expr, path: Str) returns Vec
 
 * resolve_imports
 #+begin_src til
-proc resolve_imports(import_paths: Vec, base_dir: Str, mut resolved_set: Set, mut stack: Vec, mut units: Vec, lib_dir: Str, mut ctx: Context, default_mode: Str, cwd: Str) returns I32
+proc resolve_imports(import_paths: Vec, base_dir: Str, mut resolved_set: Set, mut stack: Vec, mut units: Vec, lib_dir: Str, mut ctx: Context, default_mode: Str, cwd: Str) returns shallow I32
 #+end_src
 
 * LoadedProgram
@@ -79,6 +85,7 @@ proc resolve_imports(import_paths: Vec, base_dir: Str, mut resolved_set: Set, mu
 struct LoadedProgram {
     own mut core_units
     own mut units
+    mut mode_files : Vec
     mut target : Target
     mut cur_mode : Mode
     mut ctx : Context
@@ -92,7 +99,7 @@ struct LoadedProgram {
     mut run_tests : Bool
 namespace:
     func clone(self: LoadedProgram) returns LoadedProgram
-    func delete(own self: LoadedProgram, call_free: Bool)
+    func delete(own self: LoadedProgram, shallow call_free: Bool)
     func size() returns shallow U32
 }
 #+end_src
@@ -119,7 +126,8 @@ struct priv___src_self_loader_til__DeclRef {
     mut idx : U32
 namespace:
     func clone(self: priv___src_self_loader_til__DeclRef) returns priv___src_self_loader_til__DeclRef
-    func delete(own self: priv___src_self_loader_til__DeclRef, call_free: Bool)
+    func delete(own self: priv___src_self_loader_til__DeclRef, shallow call_free: Bool)
+    func hash(self: priv___src_self_loader_til__DeclRef, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
@@ -134,6 +142,16 @@ func find_ns_decl_fdef_imported(ctx: Context, top: Map, name: Str) returns ref E
 func scavenge_visited_imported(lp: LoadedProgram) returns Set
 #+end_src
 
+* priv___src_self_loader_til__cli_arg_type_supported
+#+begin_src til
+func priv___src_self_loader_til__cli_arg_type_supported(name: Str) returns shallow Bool
+#+end_src
+
+* validate_cli_main
+#+begin_src til
+func validate_cli_main(lp: LoadedProgram)
+#+end_src
+
 * scavenge_imported
 #+begin_src til
 proc scavenge_imported(mut lp: LoadedProgram)
@@ -144,9 +162,14 @@ proc scavenge_imported(mut lp: LoadedProgram)
 func extract_link_info(mut lp: LoadedProgram)
 #+end_src
 
+* load_mode_file
+#+begin_src til
+proc load_mode_file(mut lp: LoadedProgram, path: Str, cwd: Str)
+#+end_src
+
 * load_program
 #+begin_src til
-proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str) returns LoadedProgram
+proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec) returns LoadedProgram
 #+end_src
 
 * escape_doc_for_literal_str
@@ -252,6 +275,16 @@ func doc_init_src_line(core_ast: Expr, user_ast: Expr, scope: TypeScope) returns
 * loaded_add_lflag
 #+begin_src til
 func loaded_add_lflag(mut lp: LoadedProgram, lib: Str)
+#+end_src
+
+* priv___src_self_loader_til__desugar_one_import
+#+begin_src til
+func priv___src_self_loader_til__desugar_one_import(mut imp_stmt: Expr, mut new_ch: Vec, shallow is_decl_rhs: Bool, decl_name: Str, shallow is_mut: Bool, shallow decl_line: U32, shallow decl_col: U32, ctx: Context, resolved_path: Str) returns shallow Bool
+#+end_src
+
+* priv___src_self_loader_til__desugar_namespace_imports
+#+begin_src til
+func priv___src_self_loader_til__desugar_namespace_imports(mut iu: ImportUnit, ctx: Context)
 #+end_src
 
 * init_and_type_program

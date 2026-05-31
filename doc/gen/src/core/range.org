@@ -11,11 +11,12 @@ struct Range {
 namespace:
     /// Create a Range from `start` (inclusive) to `end` (exclusive).
     func new(shallow start: U64, shallow end: U64) returns Range
-    func len(self: Range) returns U64
+    func len(self: Range) returns shallow U64
     /// The i-th value in the range (start+i or start-i for reverse).
-    func get(self: Range, shallow i: U64) returns U64
+    func get(self: Range, shallow i: U64) returns shallow U64
     func clone(val: Range) returns Range
-    func delete(own self: Range, call_free: Bool)
+    func delete(own self: Range, shallow call_free: Bool)
+    func hash(self: Range, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
