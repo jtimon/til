@@ -2791,6 +2791,27 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
     case NodeType.FuncDef(fdef):
         is_func := fdef.func_type.is(FuncType.Func)
         is_macro := fdef.func_type.is(FuncType.Macro)
+        // Issue #57: macros that are pure templates (returning
+        // StructDef / EnumDef / FuncDef, or with a `Type` parameter) are
+        // expanded at each call site by initer's pre-pass. Detect the
+        // condition up front so every subsequent body-walk and param-
+        // resolution skip cleanly -- references to the type-params can't
+        // be resolved until expansion. Mirrors rstil typer.rs:1090-1097.
+        mut macro_is_template := false
+        if is_macro {
+            mtg_ret := fdef.return_type.eq("StructDef")
+                .or(fdef.return_type.eq("EnumDef"))
+                .or(fdef.return_type.eq("FuncDef"))
+                .or(fdef.return_type.eq("FunctionDef"))
+            if mtg_ret { macro_is_template = true }
+            if macro_is_template.not() {
+                for tmp_param : Declaration in fdef.params {
+                    if tmp_param.explicit_type.eq("Type") {
+                        macro_is_template = true
+                    }
+                }
+            }
+        }
         // Issue #223 step 1: auto-shallow applies to ordinary til
         // func/proc definitions only. ext_func/ext_proc qualifiers map
         // directly to a hand-written C signature (e.g. U64_clone takes a
@@ -2849,7 +2870,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             param.til_type =til_type_from_explicit_type(resolved_ptype)
             ref ptn : Str = param.explicit_type
             pt := type_from_name_at(ptn, scope, expr, ctx)
-            if pt.is(Type.Unknown) {
+            // Issue #57: skip the undefined-type diagnostic for template
+            // macros -- a param like `T` is a stand-in resolved at
+            // expansion time, not a real type.
+            if pt.is(Type.Unknown).and(macro_is_template.not()) {
                 type_error(expr, "undefined type '".concat(ptn).concat("'"), ctx)
             }
             pmut := param.is_mut
@@ -2942,7 +2966,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         // FieldAccess(method) callee at this stage; the inject
         // matches by method name so the appended args end up at
         // the end of the eventual rewritten FCall.
-        if fdef.auto_generated.not() {
+        if fdef.auto_generated.not().and(macro_is_template.not()) {
             // Issue #158-aligned: single per-body walk for all
             // throw/catch processing (replaces the previous chain
             // of desugar_bang + validate + lower + inject + fallback
@@ -2966,8 +2990,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             collect_switch_case_bindings(ctx, expr.child(0))
             process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
-        infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
-        garbager_destroy_body(ctx, expr.child(0), func_scope)
+        if macro_is_template.not() {
+            infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
+            garbager_destroy_body(ctx, expr.child(0), func_scope)
+        }
         ctx.typer_in_shallow_return = saved_in_shallow_ret
         ctx.typer_in_main_func = saved_in_main_func
         ctx.typer_return_type_name = saved_return_type_name
@@ -2984,9 +3010,11 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         if is_macro.and(fdef.return_type.len().eq(0)) {
             type_error(expr, "macro must declare a return type", ctx)
         }
-        check_ref_function_returns(func_scope, expr, ctx)
-        check_unused_params(func_scope, expr, ctx)
-        check_unused_locals(func_scope, ctx.path, ctx)
+        if macro_is_template.not() {
+            check_ref_function_returns(func_scope, expr, ctx)
+            check_unused_params(func_scope, expr, ctx)
+            check_unused_locals(func_scope, ctx.path, ctx)
+        }
         TypeScope.delete(own func_scope)
     case:
         UNREACHABLE(__LOC__)
@@ -7034,6 +7062,30 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
 
 priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut counter: I64) returns I64 {
     if is_null(e) { return counter }
+    // Issue #57: don't descend into template macro bodies -- a func literal
+    // inside `macro(T: Type) returns FuncDef { return func(x: T) ... }` is
+    // a template that initer's pre-pass substitutes and lifts at each call
+    // site, not a lambda to extract here (the type-param references would
+    // immediately fail under the lifted lambda's normal-typing path).
+    switch e.node_type {
+    case NodeType.FuncDef(lift_fd_check):
+        if lift_fd_check.func_type.is(FuncType.Macro) {
+            mtg_ret_lift := lift_fd_check.return_type.eq("StructDef")
+                .or(lift_fd_check.return_type.eq("EnumDef"))
+                .or(lift_fd_check.return_type.eq("FuncDef"))
+                .or(lift_fd_check.return_type.eq("FunctionDef"))
+            mut is_template_lift := mtg_ret_lift
+            if is_template_lift.not() {
+                for tmp_param_lift : Declaration in lift_fd_check.params {
+                    if tmp_param_lift.explicit_type.eq("Type") {
+                        is_template_lift = true
+                    }
+                }
+            }
+            if is_template_lift { return counter }
+        }
+    case:
+    }
     // Visit default_value slots that live inside Declaration metadata.
     // Struct field defaults and FuncDef param defaults can carry a
     // lambda literal (`mut on_click : BinaryOp = func(...){...}`) the

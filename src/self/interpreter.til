@@ -635,6 +635,16 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             switch obj {
             case Value.Struct(si):
                 sname = si.struct_name
+            case Value.Enum(ei):
+                // Issue: variant access on an enum instance (`v.Some`)
+                // resolves through the enum's type name, not the variable
+                // name. Prefer the typer-set til_type (always reliable);
+                // fall back to the EnumInstance's own enum_name if for
+                // some reason the obj_expr is type-stripped.
+                sname = til_type_name(expr_til_type(e.child(0)))
+                if sname.len().eq(0) {
+                    sname = ei.enum_name
+                }
             case:
                 switch e.child(0).node_type {
                 case NodeType.Ident(ident):
@@ -1942,6 +1952,17 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
             if vn.eq(fname) { has_inst = true }
         }
     case:
+    }
+    // Issue: variant access on an enum *instance* (e.g. `v.Some` where v
+    // is an Opt value, Some is a variant of Opt) is a namespace-style
+    // access -- it produces the variant constructor / tag value, matching
+    // what `Opt.Some` does and what the typer accepts in compile mode.
+    // The existing uppercase-receiver heuristic below only catches type-
+    // name receivers (`Opt.Some`); add the enum-instance case here.
+    if has_inst {
+        if sdef.node_type.is(NodeType.EnumDef) {
+            return true
+        }
     }
     if has_ns {
         if has_inst.not() { return true }

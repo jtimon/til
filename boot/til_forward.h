@@ -1382,6 +1382,7 @@ void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_p
 void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map * subs);
 void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map * subs);
 void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map * subs);
+void priv___src_self_initer_til__init_subst_func_params(FunctionDef * fdd, Map * subs);
 void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map * subs);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);

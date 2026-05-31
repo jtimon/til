@@ -3009,18 +3009,46 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
     }
 }
 
+priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map) {
+    for mut pd : Declaration in fdd.params {
+        if subs.has(pd.explicit_type) {
+            ref repl : Str = subs[pd.explicit_type]
+            pd.explicit_type = repl.clone()
+            pd.til_type = til_type_from_explicit_type(pd.explicit_type)
+        }
+        if is_null(pd.default_value).not() {
+            init_substitute_idents(pd.default_value, subs)
+        }
+    }
+    if subs.has(fdd.return_type) {
+        ref repl : Str = subs[fdd.return_type]
+        fdd.return_type = repl.clone()
+    }
+}
+
 priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
     switch def.node_type {
     case NodeType.StructDef(sdd):
         init_subst_struct_params(sdd, subs)
     case NodeType.EnumDef(edd):
         init_subst_enum_params(edd, subs)
+    case NodeType.FuncDef(fdd):
+        init_subst_func_params(fdd, subs)
+        // Walk the function body too, substituting Ident references to
+        // type-params (e.g. T used inside expressions, struct/enum
+        // literals nested in the body).
+        if def.children.len().gt(0) {
+            ref mut fnbody : Expr = def.child(0)
+            init_substitute_idents(fnbody, subs)
+        }
     case:
     }
 }
 
 priv init_expand_type_gen_macros := func(mut program: Expr) {
-    // Build map of top-level macro defs returning StructDef/EnumDef.
+    // Build map of top-level macro defs returning a type-def metatype
+    // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
+    // generator: rstil's macro-returns-FuncDef equivalent).
     mut macros := Map.new(Str, Expr)
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -3030,7 +3058,10 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         switch rhs.node_type {
         case NodeType.FuncDef(fd):
             if fd.func_type.is(FuncType.Macro).not() { continue }
-            ret_ok := fd.return_type.eq("StructDef").or(fd.return_type.eq("EnumDef"))
+            ret_ok := fd.return_type.eq("StructDef")
+                .or(fd.return_type.eq("EnumDef"))
+                .or(fd.return_type.eq("FuncDef"))
+                .or(fd.return_type.eq("FunctionDef"))
             if ret_ok.not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
@@ -3067,7 +3098,9 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         if ret_stmt.node_type.is(NodeType.Return).not() { continue }
         if ret_stmt.children.len().eq(0) { continue }
         ref ret_val : Expr = ret_stmt.child(0)
-        ret_val_ok := ret_val.node_type.is(NodeType.StructDef).or(ret_val.node_type.is(NodeType.EnumDef))
+        ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
+            .or(ret_val.node_type.is(NodeType.EnumDef))
+            .or(ret_val.node_type.is(NodeType.FuncDef))
         if ret_val_ok.not() { continue }
 
         // Build param-name -> arg-ident-name substitution.

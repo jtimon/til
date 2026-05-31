@@ -463,6 +463,41 @@ test_macro_enum_gen := test() {
     assert_eq_str(__LOC__, o.to_str(), "Some(99)")
 }
 
+// --- Function generators (issue #57) ---
+// A macro returning FuncDef is the symmetric analog of macros returning
+// StructDef / EnumDef: `id_i64 := make_id(I64)` expands to
+// `id_i64 := func(x: I64) returns I64 { return x }`. init's pre-pass
+// substitutes type-params in the function literal's signature and body,
+// then the rest of the pipeline registers the decl as a normal func.
+
+make_id := macro(T: Type) returns FuncDef {
+    return func(x: T) returns T { return x }
+}
+
+id_i64 := make_id(I64)
+id_str := make_id(Str)
+
+test_macro_func_gen_i64 := test() {
+    assert_eq(__LOC__, id_i64(42), 42)
+}
+
+test_macro_func_gen_str := test() {
+    assert_eq_str(__LOC__, id_str("hi"), "hi")
+}
+
+// --- Variant access on enum instance ---
+// `v.SomeVariant` where v is an enum instance produces the variant
+// constructor / tag value, same as `Opt.Some`. Previously errored in
+// interpret mode with "field access on non-struct"; the typer accepted
+// it for compile mode via the ns_decls lookup.
+
+OptVAI := enum { None, Some: I64 }
+
+test_enum_instance_variant_access := test() {
+    v := OptVAI.Some(42)
+    assert(__LOC__, v.is(v.Some))
+}
+
 // --- Struct introspection primitives (issue #56/#58) ---
 // struct_field_* query a registered struct type's fields by name. The
 // queried type must be live in the program (an unused type is DCE'd
