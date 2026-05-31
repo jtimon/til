@@ -351,7 +351,6 @@ typedef struct Declaration {
     Type til_type;
     I32 field_offset;
     I32 field_size;
-    Expr *field_struct_def;
     Expr *default_value;
     Str orig_name;
 } Declaration;
@@ -1368,7 +1367,6 @@ void type_size_align(Str * ftype, TypeScope * scope, I32 * sz, I32 * al);
 I32 compute_enum_layout(Expr * enum_def, TypeScope * scope);
 void record_struct_layout(Context * ctx, Str * name, Expr * sdef);
 void record_enum_layout(Context * ctx, Str * name, Expr * edef);
-void resolve_field_struct_defs(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
 Bool priv___src_self_initer_til__init_is_lift_target(Expr * stmt);
 Str * priv___src_self_initer_til__init_lookup_name(Map * renamings, Str * name);
@@ -1576,7 +1574,6 @@ void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_thr
 Bool is_compile_directive(Expr * e);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void reregister_scope_defs(Expr * body, TypeScope * scope);
-void reregister_field_struct_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void infer_body_unit(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void normalize_scope_bindings(TypeScope * scope);

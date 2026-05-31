@@ -2270,14 +2270,6 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     }
                 }
 
-                if ftype.len().gt(0) {
-                    if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I8").not()).and(ftype.eq("I16").not()).and(ftype.eq("U16").not()).and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
-                        ref nested_def : Expr = scope.get_struct(ftype)
-                        if is_null(nested_def).not() {
-                            fd.field_struct_def = nested_def
-                        }
-                    }
-                }
             } else {
                 mut ftype := fd.explicit_type
                 if ftype.len().eq(0) {
@@ -2348,7 +2340,6 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
                         fsz = compute_enum_layout(nested_def, scope)
                         if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
-                        fd.field_struct_def = nested_def
                     } else if is_null(nested_def).not() {
                         compute_struct_layout(nested_def, scope)
                         switch nested_def.node_type {
@@ -2358,7 +2349,6 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                             UNREACHABLE(__LOC__)
                         }
                         falign = 8
-                        fd.field_struct_def = nested_def
                     } else {
                         fsz = 8
                         falign = 8
@@ -2446,17 +2436,20 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
 }
 
 // Issue #147 step 3: snapshot a struct's just-computed layout (AST fields
-// already filled by compute_struct_layout) into ctx.struct_layouts. Field
-// type names come from explicit_type; a field is a struct/enum field iff
-// compute_struct_layout resolved a field_struct_def for it.
+// already filled by compute_struct_layout) into ctx.struct_layouts.
+// struct_name is set for fields whose type resolves to a non-primitive
+// struct/enum via ctx.interp_type_defs, matching the population rule the
+// removed Declaration.field_struct_def used.
 record_struct_layout := func(ctx: Context, name: Str, sdef: Expr) {
     switch sdef.node_type {
     case NodeType.StructDef(sm):
         mut sl := StructLayout(total_size = sm.total_struct_size)
         for fd : Declaration in sm.fields {
             mut flx := FieldLayout(offset = fd.field_offset, size = fd.field_size)
-            if is_null(fd.field_struct_def).not() {
-                flx.struct_name = fd.explicit_type.clone()
+            if is_primitive(fd.til_type).not() {
+                if is_null(lookup_interp_type_def(fd.explicit_type, ctx)).not() {
+                    flx.struct_name = fd.explicit_type.clone()
+                }
             }
             sl.fields.push(own flx)
         }
@@ -2492,31 +2485,6 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
         compute_enum_layout(stmt.child(0), scope)
-    }
-}
-
-// Re-resolve field_struct_def pointers after hoisting (cloning) invalidates them.
-resolve_field_struct_defs := func(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
-        switch stmt.child(0).node_type {
-        case NodeType.StructDef(sdd):
-            for mut fd : Declaration in sdd.fields {
-                if fd.explicit_type.len().gt(0) {
-                    ftype := fd.explicit_type
-                    if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I8").not()).and(ftype.eq("I16").not())
-                    .and(ftype.eq("U16").not()).and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
-                        ref nested_def : Expr = scope.get_struct(ftype)
-                        if is_null(nested_def).not() {
-                            fd.field_struct_def = nested_def
-                        }
-                    }
-                }
-            }
-        case:
-            UNREACHABLE(__LOC__)
-        }
     }
 }
 

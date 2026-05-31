@@ -1814,18 +1814,6 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
         exit(1)
     }
 
-    // Re-resolve field_struct_def after hoisting invalidates pointers.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            resolve_field_struct_defs(iu.ast, lp.ctx.scope)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        resolve_field_struct_defs(iu.ast, lp.ctx.scope)
-    }
-
     // Asap-destruction phase. Walks every imported file's program
     // body and inserts the Type.delete() / free() calls for owned
     // globals. Sub-body asap (function bodies + nested if/while/

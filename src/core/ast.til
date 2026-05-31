@@ -200,7 +200,6 @@ Declaration := struct {
     til_type := Type.Unknown
     field_offset : I32 = 0
     field_size : I32 = 0
-    ref field_struct_def : Expr = NULL
     own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
     // Issue #93: when init_declarations_unit hoists a nested struct/enum/
     // func from inside a function body to file scope, it stores the

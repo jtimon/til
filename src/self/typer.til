@@ -6985,30 +6985,6 @@ reregister_scope_defs := func(body: Expr, scope: TypeScope) {
         case:
         }
     }
-    reregister_field_struct_defs(body, scope)
-}
-
-reregister_field_struct_defs := func(body: Expr, scope: TypeScope) {
-    for rstmt : Expr in body.children {
-        if rstmt.node_type.is(NodeType.Decl).and(rstmt.children.len().gt(0)) {
-            ref sdef : Expr = rstmt.child(0)
-            switch sdef.node_type {
-            case NodeType.StructDef(sdd):
-                for fd : Declaration in sdd.fields {
-                    if is_null(fd.field_struct_def).not() {
-                        ref ftype_name : Str = fd.explicit_type
-                        if ftype_name.len().gt(0) {
-                            ref new_fsd : Expr = scope.get_struct(ftype_name)
-                            if is_null(new_fsd).not() {
-                                fd.field_struct_def = new_fsd
-                            }
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    }
 }
 
 // Type-inference walk for a single body. Issue #204 step 3a: this
