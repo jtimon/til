@@ -56,3 +56,55 @@ test_shallow_expr := test() {
 test_shallow_forward := test() {
     assert_eq(__LOC__, mixed(chain(3), 1), 7)
 }
+
+// === Issue #223 step 3: auto-shallow for small value-shaped structs ===
+
+// SmallPair is 8 bytes (2 x I32), no own/ref fields, all-primitive fields
+// -> auto-shallow: passed/returned by value WITHOUT the keyword.
+SmallPair := struct {
+    a : I32 = 0
+    b : I32 = 0
+}
+
+add_pair := func(p: SmallPair) returns I64 {
+    return p.a.cast(I64).add(p.b.cast(I64))
+}
+
+make_pair := func(x: I32, y: I32) returns SmallPair {
+    return SmallPair(a = x, b = y)
+}
+
+test_auto_shallow_small_struct := test() {
+    p := make_pair(10, 32)
+    assert_eq(__LOC__, add_pair(p), 42)
+}
+
+// === Issue #223 step 4: explicit `shallow` on a struct is force/override ===
+
+// Explicit `shallow` on a struct that ALSO auto-qualifies: honored, NOT
+// rejected as redundant (unlike a primitive, which would be).
+add_pair_explicit := func(shallow p: SmallPair) returns I64 {
+    return p.a.cast(I64).add(p.b.cast(I64))
+}
+
+test_explicit_shallow_small_struct := test() {
+    assert_eq(__LOC__, add_pair_explicit(SmallPair(a = 1, b = 4)), 5)
+}
+
+// BigQuad is 4 words (4 x I64) -> does NOT auto-qualify for step 3. An
+// explicit `shallow` forces by-value passing anyway (the user opts in).
+BigQuad := struct {
+    a := 0
+    b := 0
+    c := 0
+    d := 0
+namespace:
+    sum := func(shallow self: BigQuad) returns I64 {
+        return self.a.add(self.b).add(self.c).add(self.d)
+    }
+}
+
+test_shallow_forced_on_big_struct := test() {
+    q := BigQuad(a = 1, b = 2, c = 3, d = 4)
+    assert_eq(__LOC__, BigQuad.sum(q), 10)
+}

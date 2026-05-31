@@ -1,0 +1,123 @@
+# priority: low
+** FIXED #223 auto-shallow: infer shallow for small value types; explicit shallow redundant on primitives, force-override on structs
+
+  Originally ~shallow~ had to be written explicitly on args and return values
+  for every type passed/returned by value. That is boilerplate -- the
+  compiler already knows which types are value-sized -- so this issue made
+  ~shallow~ automatic for those types and settled what an explicit ~shallow~
+  means once it is no longer required.
+
+  Steps (done in order, one commit each):
+
+  1. [DONE] Treat primitives as shallow without the qualifier.
+     Primitives (I8/I16/I32/I64, U8/U16/U32/U64, F32/F64, Bool, etc.) used
+     as args or return values are passed/returned by value whether or not
+     ~shallow~ was written. The typer normalizes primitive params/returns to
+     Shallow in infer_func_def_expr / infer_func_sig_expr (ordinary
+     func/proc and funcptr sigs; NOT ext_func/ext_proc, mut/own params, or a
+     ~returns ref~ function's params).
+
+  2. [DONE] Forbid explicit ~shallow~ on primitives.
+     - Removed every now-redundant explicit ~shallow~ on a primitive across
+       src/, test/, examples/, lib/.
+     - The typer REJECTS a redundant explicit ~shallow~ on a primitive in an
+       ordinary func/proc: "redundant 'shallow' on primitive ...; drop it".
+       Auto-generated methods (initer) emit primitive params/returns without
+       ~shallow~ so they flow through step-1 normalization and never trip the
+       rule. The funcptr-sig variant of the check is sketched but inactive
+       (infer_func_sig_expr is a func with no ctx to raise the diagnostic
+       from); funcptr sigs were cleaned, so nothing relies on it yet.
+
+  3. [DONE] Extend step 1 to small value-shaped structs.
+     A struct is "shallow" -- safe to copy byte-for-byte -- when ALL of:
+       - ~MyStruct.size().lte(UPtr.size())~ (fits in a machine word; 8 on
+         the current target), AND
+       - it has no ~own~ fields (an ~own~ field is an owned heap pointer;
+         copying the bytes would alias/double-free it -> "deep"), AND
+       - it has no ~ref~ fields (disqualified for now; revisitable later), AND
+       - every field's TYPE is itself shallow-eligible (a primitive, or an
+         already-shallow struct). This transitive check closes the hole where
+         a size-8 struct embeds a deep struct inline.
+     Such structs are treated as shallow in args/returns without the
+     qualifier, exactly like primitives in step 1. (Enums: revisit
+     separately; this step is structs.)
+     Implemented as typer predicate is_shallow_struct + the unifying
+     is_auto_shallow_type, wired into the step-1 param/return normalization.
+     Builder fixes for value structs: use_dot_access / emit_field treat
+     shallow params like stack locals ('.' not '->'); the mut-reassign +
+     payload-alias paths assign a shallow-returning call's value directly
+     instead of the pointer dance; emit_deref derefs a ref local before the
+     shallow-param shortcut (a same-named shallow param of another func no
+     longer false-positives). The #168 ref-init check (fcall_returns_own ->
+     fdef_returns_unborrowable) also rejects binding a ref to a shallow
+     STRUCT return, since it is a fresh by-value result.
+
+  4. [DONE] Explicit ~shallow~ on a custom struct = force/override (NOT forbidden).
+     Decision (revised from the original "forbid" plan): for custom structs
+     we do NOT reject a redundant explicit ~shallow~. Instead:
+       - if ~shallow~ is absent, the step-3 rule decides (auto-shallow when
+         the struct qualifies, pointer-passed otherwise), AND
+       - if ~shallow~ is present, honor it: force by-value passing and SKIP
+         the step-3 eligibility check entirely -- so even a struct too large
+         or otherwise ineligible (e.g. with ~own~ fields) is passed by value.
+     Rationale: a user who writes ~shallow~ on a struct is explicitly opting
+     into value semantics; we take them at their word rather than second-
+     guessing with the size/field heuristic. (Memory safety of value-copying
+     a struct that owns heap data is then the user's responsibility, as in
+     C.) This differs from primitives (step 2, explicit ~shallow~ rejected as
+     redundant), because a primitive is unconditionally value-typed.
+     Outcome: NO compiler change was needed -- the behavior already fell out
+     of how steps 1-3 were built:
+       - The step-1/3 normalization only PROMOTES the Ref/Own default to
+         Shallow; an explicit ~Shallow~ written by the user is left untouched
+         and honored as-is (force by-value).
+       - is_auto_shallow_type / is_shallow_struct is only consulted on that
+         default-promotion path, so an explicit ~shallow~ never triggers it --
+         the eligibility check is skipped exactly as the spec wants.
+       - The redundant-shallow rejection (step 2) is gated on ~is_primitive~,
+         so it never fires for a struct/enum.
+     Verified empirically: explicit ~shallow~ on a small (auto-qualifying)
+     struct, on a large struct that would NOT auto-qualify, on a struct with
+     an ~own~ field, and on a struct RETURN, all compile and run by value.
+     Locked in with regression tests in test/shallow.til and documented in
+     doc/qualifiers.org.
+
+  === Post-mortem ===
+
+  Final shape of auto-shallow (issue #223):
+  - Primitives and small value-shaped structs are passed/returned BY VALUE
+    automatically, no ~shallow~ keyword required (steps 1, 3).
+  - On a primitive, an explicit ~shallow~ is redundant and the typer rejects
+    it (step 2). On a struct/enum, an explicit ~shallow~ is a force/override:
+    always honored, never rejected, and it bypasses the eligibility heuristic
+    (step 4).
+  - Exclusions throughout: ~ext_func~/~ext_proc~ (qualifier maps to a fixed C
+    ABI), ~mut~/~own~ params, and ~returns ref T~ params (must stay borrowed).
+
+  What was harder than expected:
+  - Steps 1 (primitives) and 3 (structs) each surfaced a cluster of latent
+    codegen assumptions that "value type == primitive" or "compound ==
+    pointer". The value-struct work (step 3) was the bulk: field access
+    (. vs ->), mut-reassignment of a value-returning call, ref-local deref
+    ordering vs a same-named shallow param in another function, and the #168
+    ref-init diagnostic (which keyed off Own and had to learn that a Shallow
+    struct return is also a non-borrowable value).
+  - Determining the exact lost diagnostics in step 3 required diffing the
+    typer's error output against a freshly built master worktree.
+  - Step 4 turned out to need no code at all; the value came from confirming
+    that and writing it down rather than implementing a (wrong) rejection.
+
+  Follow-ups left open (intentionally out of scope here):
+  - Auto-shallow for ENUMS (payloadless / all-payloads-shallow, size <= 8).
+    Every step above said "structs; enums revisit separately."
+  - The funcptr-signature variant of the step-2 redundant-shallow rejection
+    is sketched but inactive (infer_func_sig_expr is a ~func~ with no ~ctx~
+    to raise a diagnostic from). Funcptr sigs are clean, so nothing relies
+    on it; activating it needs a small refactor to thread ctx in.
+  - The "no ~ref~ fields" disqualifier in step 3 is conservative and was
+    explicitly flagged as revisitable.
+
+  Notes:
+  - See ~doc/qualifiers.org~ for the shallow -> by-value C mapping and the
+    per-step rules; ~doc/ffi.org~ for how the binder emits ~shallow~ on ext
+    bindings.

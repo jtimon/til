@@ -71,4 +71,3 @@
 ** Medium
 ** Low
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
-*** [[./open/223.org][#223]] auto-shallow: infer shallow for small value types, forbid explicit shallow where automatic

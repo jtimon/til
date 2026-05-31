@@ -97,6 +97,23 @@ redundant and rejected by the typer.
   ~returns ref T~ function's primitive params. (The funcptr-signature
   variant of the rule is sketched but not yet active -- ~infer_func_sig_expr~
   is a ~func~ with no ~ctx~ to raise the diagnostic from.)
+- Issue #223 step 3: a STRUCT is auto-shallow (treated as ~shallow~ in
+  args/returns without the keyword) when it is safe to copy byte-for-byte:
+  ~MyStruct.size().lte(UPtr.size())~ (<= 8 bytes), no ~own~ fields, no
+  ~ref~ fields, and every field's type is itself auto-shallow (a primitive
+  or another auto-shallow struct). Otherwise it stays pointer-passed. The
+  transitive field check closes the hole where a size-8 struct embeds a
+  deep struct inline. (Enums are not auto-shallow yet -- a separate task.)
+- Issue #223 step 4: on a STRUCT (or enum), an explicit ~shallow~ is a
+  force/override, NOT an error. Unlike a primitive (step 2, rejected as
+  redundant), a struct ~shallow~ is always honored: it forces by-value
+  passing and bypasses the step-3 eligibility check, so even a struct too
+  large or otherwise ineligible for auto-shallow is passed by value when the
+  user writes ~shallow~ (memory safety of value-copying a struct with ~own~
+  fields is then the user's responsibility, as in C). Needs no special case:
+  the step-1/3 normalization only promotes the Ref/Own default to Shallow, so
+  an already-~Shallow~ qualifier is left untouched; and the redundant-shallow
+  rejection is gated on ~is_primitive~, so it never fires for a struct/enum.
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
