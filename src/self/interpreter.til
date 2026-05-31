@@ -1140,7 +1140,13 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                 }
             }
         case NodeType.FCall:
-            eval_call(scope, stmt, ctx)
+            // Issue #109: a bare call-statement discards its result Value.
+            // When the callee returns an owned heap payload (e.g. a Str),
+            // dropping it on the floor leaked the payload once per call.
+            // cleanup_value_payload is a no-op for borrowed/aliased results
+            // (it checks the StructInstance/EnumInstance `borrowed` flag).
+            discarded := eval_call(scope, stmt, ctx)
+            cleanup_value_payload(discarded)
         case NodeType.Body:
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt, ctx)

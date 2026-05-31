@@ -1264,6 +1264,15 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                         }
                     }
                     pdata = to_ptr(si.data)
+                    // Issue #109: val_enum_flat memcpy-copies psz bytes out
+                    // of si.data into the enum's own buffer (any nested heap
+                    // pointers, e.g. a Str payload's c_str, are shared into
+                    // the enum and outlive this free). The payload Value is a
+                    // temporary from eval_expr that nothing else frees, so
+                    // its top-level wrapper leaked once per enum-ctor call.
+                    // Skip borrowed payloads -- their data belongs to a live
+                    // variable.
+                    if si.borrowed.not() { must_free_pdata = true }
                 case Value.Enum(ei):
                     mut cloned_ei := ei.clone()
                     pdata = to_ptr(cloned_ei.data)
