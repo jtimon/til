@@ -683,6 +683,78 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     typer.til:1610/7937/7949/7963/7994/8014, precomp.til:868/881/884,
     initer.til:2600) for follow-up wins.
 
+  - **Why 5f89ae8 ("Vec.get throws OutOfBounds; callers use vec[i]")
+    moved the baseline -- and three follow-up fixes it inspired that
+    did NOT** (2026-05). 5f89ae8 cut the tracked baseline (interpret
+    test/strings.til, default ctx) 128544/22764 -> 120092/21791
+    (~-8.5KB). Investigated by building 5f89ae8~1 in a worktree and
+    diffing per-allocation-site leak totals (group ASAN records by the
+    first non-malloc frame; then by the caller-of-Str_clone). The win
+    is broadly spread across the AST-clone heritage (bucket 4):
+    Type_clone 38.8K->.., IdentData_clone, FieldAccessData_clone all
+    shrank, concentrated in the chain ~set_expr_til_type <-
+    infer_ident_expr~. Crucially it was NOT the resolve_value_type /
+    guess_local_type typer change in the same commit: reverting ONLY
+    that hunk and rebuilding left the total unchanged (77854 vs 77864
+    @ ctx64). The win is a SECOND-ORDER effect of the mechanical
+    ~.get(i)~ -> ~[i]~ migration plus Map.key_ptr/val_ptr switching to
+    inline ~ptr_add~ (map.til) -- these shifted the typer's
+    clone/own-transfer decisions so fewer Type/Ident clones get
+    orphaned. "Leak attribution = allocation site, not loss site"
+    applies: 5f89ae8 reduced leaks AT set_expr_til_type without
+    touching it.
+
+    Three fixes this lesson suggested, all rejected by measurement:
+    1. Free the old payload in ~set_expr_til_type~ before the
+       ~id.til_type = t~ overwrite (the obvious bucket-1 fix, since
+       IdentData_delete proves til_type is owned). REPRO of the
+       hazard: ~bin/til_new build --asan~ ABORTS with "free():
+       double free detected in tcache 2" while self-compiling. Some
+       ~set_expr_til_type~ call sites store a borrowed/shared Type
+       (not a fresh clone), so freeing the old value double-frees a
+       payload still owned elsewhere. Confirms bucket 1's "naive
+       free-old-on-overwrite" warning with a concrete crash.
+    2. Restructure ~infer_ident_expr~ to call set_expr_til_type
+       exactly once (compute final FuncPtr/Custom/base type up front
+       so the unused base ~type~ clone from ~scope.get_type~ -- which
+       is ~b.type.clone()~, always fresh -- is never stored and gets
+       auto-freed at scope end). NET-NEUTRAL/SLIGHT REGRESSION:
+       120092 -> 120149 (+57B). The unstored local clone is NOT
+       auto-freed; the typer's own-transfer bookkeeping neutralises
+       it. Same shape as the documented "obvious fix is net-zero"
+       pattern.
+    3. ~free_expr_slot_in_place(child)~ before the three
+       ~e.children.set(i, own lit.clone())~ fold-overwrites in
+       ~fold_subtree~ (precomp.til ~1063/1076/1079) -- the orphaned
+       FCall subtree IS a real leak, same shape as the try_ufcs_rewrite
+       win. REGRESSED: interpret 120092 -> 135889 (+15.8KB), translate
+       121871 -> 130740 (+8.9KB). The folded ~lit~ aliases payloads of
+       ~child~'s subtree, so freeing ~child~ forces the typer to insert
+       defensive re-clones -- exactly the sibling-regression already
+       recorded for ~replace_body_stmt_with_block~. A move-not-clone
+       version (push_take the eval result instead of lit.clone()) is
+       the only shape with a chance, mirroring try_ufcs_rewrite, but
+       lit is a tracked/borrowed result, not a take-able owned slot.
+
+  - **malloc_context_size changes the REPORTED leak TOTAL by ~38% on
+    the identical binary + input** (2026-05). Same ~bin/til_asan
+    interpret test/strings.til~: default ctx (30 frames) reports
+    120092 bytes / 21791 allocs; ~malloc_context_size=64~ reports
+    77864 / 14424 -- reproducibly. LSAN's reachability scan is
+    conservative (any pointer-like word into a block marks it
+    reachable), and the larger per-chunk context metadata changes heap
+    layout enough to flip ~40KB of Str_clone leaks between
+    "reachable" and "leaked". Consequence: the tracked baseline
+    (examples/merge_commit.til runs DEFAULT ctx) and this file's
+    advice to "always attribute with malloc_context_size=64" measure
+    materially different leak SETS. The top alloc SITES are the same
+    under both (Type_clone / IdentData_clone / FieldAccessData_clone),
+    only the magnitude differs, so attribution direction is still
+    valid -- but a fix's delta MUST be checked at the same ctx the
+    baseline uses (default) or the feedback loop lies. Recommend:
+    attribute at default ctx to match merge_commit.til, and only drop
+    to ctx=64 to disambiguate which distinct site a cluster belongs to.
+
   *** Lessons learned
 
   - **Leak attribution = allocation site, not ownership-loss site.**
