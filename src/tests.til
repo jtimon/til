@@ -568,6 +568,14 @@ main := proc(args: ..Str) {
     add_count(tests, "enum_switch_missing_case_build", "typer",
               "non-exhaustive switch on enum", 4,
               format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"))
+    // A main() param whose type can't be parsed from a CLI argument is
+    // rejected up front (validate_cli_main) on both backends.
+    add_count(tests, "cli_unsupported_main_interp", "typer",
+              "cannot be parsed from a CLI argument", 1,
+              format(til_bin, " interpret test/cli_unsupported_main.til"))
+    add_count(tests, "cli_unsupported_main_build", "typer",
+              "cannot be parsed from a CLI argument", 1,
+              format(til_bin, " build", asan_flag, " test/cli_unsupported_main.til"))
 
     // === CLI tests ===
     exp := "gen/out/expected/"
@@ -664,6 +672,9 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin, asan_flag)
     // Bad Bool value: both backends print the diagnostic and exit(1).
     add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
+    // Unsupported main arg type: compile path rejects up front
+    // (validate_cli_main), interpreter guards at runtime. Both exit non-zero.
+    add_cli_pair(tests, "cli_bad_arg_type", "test/cli_bad_arg_type.til", "3.5", 1, "", til_bin, asan_flag)
 
     // === Run all tests in parallel ===
     run_all_parallel(tests, j, fail)

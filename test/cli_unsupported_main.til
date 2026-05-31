@@ -1,0 +1,8 @@
+mode cli
+
+// validate_cli_main (src/self/loader.til) must reject a main() whose
+// parameter type can't be parsed from a CLI argument, with a clear message,
+// rather than letting the builder emit C that fails to compile.
+main := proc(x: F32) {
+    println(x.to_str())
+}

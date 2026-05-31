@@ -1751,6 +1751,8 @@ U64 priv___src_self_loader_til__DeclRef_hash(priv___src_self_loader_til__DeclRef
 U32 priv___src_self_loader_til__DeclRef_size(void);
 Expr * find_ns_decl_fdef_imported(Context * ctx, Map * top, Str * name);
 Set * scavenge_visited_imported(LoadedProgram * lp);
+Bool priv___src_self_loader_til__cli_arg_type_supported(Str * name);
+void validate_cli_main(LoadedProgram * lp);
 void scavenge_imported(LoadedProgram * lp);
 void extract_link_info(LoadedProgram * lp);
 void load_mode_file(LoadedProgram * lp, Str * path, Str * cwd);

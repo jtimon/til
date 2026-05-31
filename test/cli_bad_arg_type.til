@@ -1,0 +1,9 @@
+mode cli
+
+// Negative test: F32 is a real type but cannot be parsed from a CLI
+// argument. The compile path rejects this up front in validate_cli_main
+// (src/self/loader.til); the interpreter guards at runtime in parse_cli_arg.
+// Both exit non-zero. See the cli_bad_arg_type test in src/tests.til.
+main := proc(x: F32) {
+    println(x.to_str())
+}

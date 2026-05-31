@@ -640,7 +640,54 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     return visited
 }
 
+// Types that a CLI argument can be parsed into. Must match the builder's
+// cli_box_expr (codegen) and the interpreter's parse_cli_arg -- keep the
+// three in sync when adding a type.
+priv cli_arg_type_supported := func(name: Str) returns Bool {
+    return name.eq("Str").or(name.eq("I64")).or(name.eq("U8")).or(name.eq("I8"))
+        .or(name.eq("I16")).or(name.eq("U16")).or(name.eq("I32")).or(name.eq("U32"))
+        .or(name.eq("U64")).or(name.eq("USize")).or(name.eq("UPtr")).or(name.eq("Bool"))
+}
+
+// Reject a main() whose parameters can't be parsed from CLI arguments, with a
+// clear up-front error. Without this the builder emits C that references an
+// undeclared param (a cryptic -Werror=unused-parameter failure) instead of a
+// usable message. The variadic param is checked by its element type, which is
+// what the builder parses. Runs on the compile path (scavenge_imported); the
+// interpreter additionally guards at runtime in parse_cli_arg.
+validate_cli_main := func(lp: LoadedProgram) {
+    if is_null(lp.cur_mode) { return }
+    if lp.cur_mode.needs_main.not() { return }
+    if lp.run_tests { return }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len().eq(0) { continue }
+            mut is_main_decl := false
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                if d.name.eq("main") { is_main_decl = true }
+            case:
+            }
+            if is_main_decl.not() { continue }
+            switch stmt.child(0).node_type {
+            case NodeType.FuncDef(fdef):
+                for p : Declaration in fdef.params {
+                    if cli_arg_type_supported(p.explicit_type).not() {
+                        loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
+                        panic(loc, "main parameter '", p.name, "': type '", p.explicit_type,
+                            "' cannot be parsed from a CLI argument (supported: Str, Bool, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)")
+                    }
+                }
+            case:
+            }
+        }
+    }
+}
+
 scavenge_imported := proc(mut lp: LoadedProgram) {
+    validate_cli_main(lp)
     visited := scavenge_visited_imported(lp)
 
     if lp.skip_core.not() {
