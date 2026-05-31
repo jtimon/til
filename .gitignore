@@ -9,6 +9,7 @@ vendor/libffi/.built
 vendor/libffi/*-*-*/
 vendor/libffi/Makefile
 vendor/libffi/doc/libffi.info
+vendor/libffi/autom4te.cache/
 vendor/tinyfiledialogs/tinyfiledialogs.o
 vendor/tinyfiledialogs/libtinyfd.a
 vendor/tinyfiledialogs/libtinyfd-win64.a

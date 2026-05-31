@@ -28,6 +28,11 @@ HashMap := struct {
     key_cmp  : CmpFn      = default_cmp
 
 namespace:
+    // Byte-hashing algorithm every HashMap forwards to per-key. Swap
+    // this before constructing any HashMap if you want a different
+    // algorithm process-wide; the change is global.
+    mut HASHER : HashFn = hash_bytes
+
     new_type_names := func(key_type: Str, val_type: Str) returns HashMap {
         if key_type.is_empty() {
             panic(__LOC__, "HashMap.new: key_type required")
@@ -63,15 +68,10 @@ namespace:
     len := func(self: HashMap) returns USize { return self.keys.count }
 
     // Hash via the type's `hash(self, hasher)` method. The container
-    // picks the algorithm (hash_bytes today; making HASHMAP_HASHER /
-    // HashMap.hasher swappable is intended but currently trips a
-    // builder bug -- a namespace-data decl of HashFn is codegen'd
-    // with an extra address-of at the call site, and even with the
-    // codegen fixed the typer's lookup for `Type.field` data decls
-    // doesn't propagate the funcptr value to interp_init_ns reliably).
-    // The type picks which bytes to feed it.
+    // picks the algorithm (HashMap.HASHER, hash_bytes by default);
+    // the type picks which bytes to feed it.
     hash_key := func(self: HashMap, key: Dynamic) returns U64 {
-        return self.key_hash(key, hash_bytes)
+        return self.key_hash(key, HashMap.HASHER)
     }
 
     keys_equal := func(self: HashMap, a: Dynamic, b: Dynamic) returns Bool {

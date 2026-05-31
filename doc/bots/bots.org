@@ -325,7 +325,10 @@ those files don't enter rebase conflicts.
 
 The base procedure is:
 
-1. `git fetch origin master`
+1. `git fetch origin master` -- always. Earlier commits from this same
+   feature branch may have already been merged into master between
+   turns; the fetch keeps origin/master honest so the rebase drops
+   them instead of replaying them.
 2. `git rebase origin/master`
 3. If the rebase completes cleanly: done. Remote session: push to your own
    assigned feature branch. Local session: stop there; a human handles the push.

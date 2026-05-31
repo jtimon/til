@@ -2732,6 +2732,21 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
                 param.own_type = OwnType.Shallow
             }
+            // A FuncPtr param is an 8-byte pointer; the C ABI passes it
+            // by value just like a primitive, so the funcptr-sig has to
+            // match auto-shallow too. Otherwise emit_fcall_funcptr_cast
+            // generates `(void * *)` for the param and the arg emit
+            // takes its address, both wrong for a callee that expects
+            // the function pointer by value. param.til_type at this
+            // point is Type.Custom(name) -- the FuncPtr-ness lives in
+            // the scope binding for the alias name, not in the inline
+            // Type, so look it up.
+            if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
+                ref pbind : TypeBinding = scope.get_binding(resolved_ptype)
+                if is_null(pbind).not().and(pbind.type.is(Type.FuncPtr)) {
+                    param.own_type = OwnType.Shallow
+                }
+            }
         }
     case:
         UNREACHABLE(__LOC__)
