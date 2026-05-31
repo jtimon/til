@@ -725,10 +725,12 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
     case NodeType.StructDef(sdd):
         mut has_clone := false
         mut has_delete := false
+        mut has_hash := false
         for d_j : Declaration in sdd.ns_decls {
             ref fd : Declaration = d_j
             if fd.name.eq("clone") { has_clone = true }
             if fd.name.eq("delete") { has_delete = true }
+            if fd.name.eq("hash") { has_hash = true }
         }
 
         if has_clone.not() {
@@ -886,6 +888,63 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             proc_def.add_child(own proc_body)
 
             sdd.ns_decls.push(own Declaration(name = "delete", default_value = proc_def))
+        }
+
+        // Issue #214 follow-up: auto-generate `hash(self, hasher)` ONLY
+        // when every field is shallow (no own / no ref). Any field that
+        // owns or borrows heap data means the in-struct bytes lie about
+        // identity -- a bytewise hash of the struct would key on
+        // pointer addresses rather than content -- so we leave the
+        // method out and let the type's author write a content-aware
+        // one (Str.hash is the canonical example). HashMap.new will
+        // then panic on dyn_has_method when the type is used as a key.
+        if has_hash.not() {
+            mut autogen_hash := true
+            for d_j : Declaration in sdd.fields {
+                ref fd : Declaration = d_j
+                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
+                    autogen_hash = false
+                }
+            }
+            if autogen_hash {
+                // Body: return hasher(self, <total_struct_size>)
+                // Emit the size as a literal because <sname>.size()
+                // would resolve through the namespace and the call's
+                // return type can come back as U64 instead of USize
+                // when the size method isn't visible yet at this
+                // initer pass; and self.size() trips UFCS into trying
+                // to pass self where the no-arg size() expects none.
+                // sdd.total_struct_size is already set by the earlier
+                // layout-computation pass.
+                sz_text := sdd.total_struct_size.to_str()
+
+                mut hash_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+                mut size_lit := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
+
+                mut hasher_id := Expr.new(ident_node("hasher"), stmt.line, stmt.col)
+                mut self_arg := Expr.new(ident_node("self"), stmt.line, stmt.col)
+                mut hasher_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                hasher_call.add_child(own hasher_id)
+                hasher_call.add_child(own self_arg)
+                hasher_call.add_child(own size_lit)
+
+                mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+                ret.add_child(own hasher_call)
+                hash_body.add_child(own ret)
+
+                mut hash_decl := FunctionDef(auto_generated = true)
+                hash_decl.func_type = FuncType.Func
+                hash_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref))
+                hash_decl.params.push(own Declaration(name = "hasher", explicit_type = "HashFn", til_type = Type.FuncPtr, own_type = OwnType.Ref))
+                hash_decl.return_type = "U64"
+                hash_decl.variadic_index = -1
+                hash_decl.kwargs_index = -1
+
+                mut hash_def := Expr.new(NodeType.FuncDef(hash_decl), stmt.line, stmt.col)
+                hash_def.add_child(own hash_body)
+
+                sdd.ns_decls.push(own Declaration(name = "hash", default_value = hash_def))
+            }
         }
     case:
         UNREACHABLE(__LOC__)

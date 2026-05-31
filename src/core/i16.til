@@ -35,7 +35,6 @@ namespace:
     or := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     clone := ext_func(val: I16) returns shallow I16 {}
-    hash := func(self: I16, hasher: HashFn) returns U64 { return hasher(self, 2.to_usize()) }
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I16 = a

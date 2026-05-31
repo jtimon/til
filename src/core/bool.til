@@ -22,7 +22,6 @@ namespace:
         return 1
     }
     clone := ext_func(val: Bool) returns shallow Bool {}
-    hash := func(self: Bool, hasher: HashFn) returns U64 { return hasher(self, 1.to_usize()) }
     delete := func(own self: Bool, call_free: Bool = true) {
         if call_free { free(own self) }
     }
