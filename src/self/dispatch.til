@@ -1239,6 +1239,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 payload := eval_expr(scope, e.child(1), ctx)
                 mut pdata : Dynamic = 0
                 mut psz : I32 = 0
+                mut must_free_pdata := false
                 switch payload {
                 case Value.Int(x):     pdata = to_ptr(x); psz = 8
                 case Value.Byte(x):    pdata = to_ptr(x); psz = 1
@@ -1260,17 +1261,34 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                     }
                     pdata = to_ptr(si.data)
                 case Value.Enum(ei):
-                    psz = ei.data_size
-                    pdata = to_ptr(ei.data)
+                    mut cloned_ei := ei.clone()
+                    pdata = to_ptr(cloned_ei.data)
+                    psz = cloned_ei.data_size
+                    must_free_pdata = true
                 case Value.Ref(p):     pdata = to_ptr(p); psz = 8
                 case Value.Dynamic(p): pdata = to_ptr(p); psz = 8
                 case Value.Func(f):    pdata = to_ptr(f); psz = 8
                 case:
                 }
-                mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz)
+                mut total_size : I32 = 0
+                switch enum_def.node_type {
+                case NodeType.EnumDef(ed):
+                    total_size = ed.total_enum_size
+                case:
+                }
+                mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
                 move(result, tmp, Value.size())
+                if must_free_pdata {
+                    free(own pdata)
+                }
             } else {
-                mut tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0)
+                mut total_size : I32 = 0
+                switch enum_def.node_type {
+                case NodeType.EnumDef(ed):
+                    total_size = ed.total_enum_size
+                case:
+                }
+                mut tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
                 move(result, tmp, Value.size())
             }
             return true

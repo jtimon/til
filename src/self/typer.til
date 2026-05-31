@@ -1265,7 +1265,12 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                 }
             }
         }
+        mut old := e.children
         e.children = new_ch
+        Vec.delete(own old, true)
+        Vec.delete(own va_args, true)
+        Vec.delete(own kw_args, true)
+        Vec.delete(own new_args, true)
     case:
         UNREACHABLE(__LOC__)
     }

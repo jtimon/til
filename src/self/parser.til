@@ -1086,7 +1086,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
             // Method call: e.method(args)
             advance(p) // consume '('
             mut callee := Expr.new(field_access_node(fname), f_line, f_col)
-            callee.add_child(own e.clone())
+            mut old_e := e
+            e.node_type = NodeType.Body
+            e.children = Vec.new(Expr)
+            callee.add_child(own old_e)
             mut mcall := Expr.new(NodeType.FCall(FCallData()), f_line, f_col)
             mcall.add_child(own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
@@ -1160,7 +1163,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e = mcall
         } else {
             mut access := Expr.new(field_access_node(fname), f_line, f_col)
-            access.add_child(own e.clone())
+            mut old_e := e
+            e.node_type = NodeType.Body
+            e.children = Vec.new(Expr)
+            access.add_child(own old_e)
             e = access
         }
     }
@@ -1170,7 +1176,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
         pp_col := peek_col(p)
         advance(p)
         mut inc_access := Expr.new(field_access_node("inc"), pp_line, pp_col)
-        inc_access.add_child(own e.clone())
+        mut old_e := e
+        e.node_type = NodeType.Body
+        e.children = Vec.new(Expr)
+        inc_access.add_child(own old_e)
         mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         inc_call.add_child(own inc_access)
         e = inc_call
@@ -1180,7 +1189,10 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mm_col := peek_col(p)
         advance(p)
         mut dec_access := Expr.new(field_access_node("dec"), mm_line, mm_col)
-        dec_access.add_child(own e.clone())
+        mut old_e := e
+        e.node_type = NodeType.Body
+        e.children = Vec.new(Expr)
+        dec_access.add_child(own old_e)
         mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col)
         dec_call.add_child(own dec_access)
         e = dec_call
@@ -1293,7 +1305,10 @@ parse_expression := proc(mut p: Parser) returns Expr {
         new_access.add_child(own range_ident)
         mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
         rcall.add_child(own new_access)
-        rcall.add_child(own e.clone())
+        mut old_e := e
+        e.node_type = NodeType.Body
+        e.children = Vec.new(Expr)
+        rcall.add_child(own old_e)
         rcall.add_child(own rhs)
         e = rcall
     }

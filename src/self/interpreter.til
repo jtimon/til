@@ -159,7 +159,9 @@ namespace:
                                     }
                                     switch val {
                                     case Value.Enum(cei):
-                                        free(own cei.data)
+                                        if cei.borrowed.not() {
+                                            free(own cei.data)
+                                        }
                                         cei.data = NULL
                                     case:
                                     }
@@ -217,6 +219,7 @@ EnumInstance := struct {
     ref enum_name : Str = NULL
     own data : U8 = 0
     data_size : I32 = 0
+    borrowed := false
 namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
         return a.is(b)
@@ -228,14 +231,12 @@ namespace:
     clone := func(self: EnumInstance) returns EnumInstance {
         if is_null(self.data) {
             return EnumInstance(enum_name = self.enum_name,
-                data = NULL,
-                data_size = self.data_size)
+                                data = NULL, data_size = self.data_size, borrowed = false)
         }
-        buf : Dynamic = malloc(self.data_size.to_usize())
-        memcpy(buf, self.data, self.data_size.to_usize())
+        mut pdata : Dynamic = malloc(self.data_size.to_usize())
+        memcpy(pdata, self.data, self.data_size.to_usize())
         return EnumInstance(enum_name = self.enum_name,
-            data = buf,
-            data_size = self.data_size)
+                            data = pdata, data_size = self.data_size, borrowed = false)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
         // TODO: this delete leaks `own self.data`. Making it deep
@@ -458,23 +459,23 @@ val_bool := func(shallow v: Bool) returns shallow Value {
 
 ENUM_PAYLOAD_OFFSET : I32 = 8
 
-val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {
-    mut total := ENUM_PAYLOAD_OFFSET.add(payload_size)
-    if total.lt(8) {
-        total = 8
+val_enum_flat := func(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32, shallow total_enum_size: I32) returns shallow Value {
+    mut alloc_size := total_enum_size
+    if alloc_size.lt(8) {
+        alloc_size = 8
     }
-    mut data : U8 = calloc(1, total.to_u64())
+    mut data : U8 = calloc(1, alloc_size.to_u64())
     memcpy(data, etag, 4)
     if is_null(payload_data).not() {
         if payload_size.gt(0) {
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_u64()), payload_data, payload_size.to_u64())
         }
     }
-    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = total))
+    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
 }
 
-val_enum_simple := func(enum_name: Str, shallow etag: I32) returns shallow Value {
-    return val_enum_flat(enum_name, etag, NULL, 0)
+val_enum_simple := func(enum_name: Str, shallow etag: I32, shallow total_enum_size: I32) returns shallow Value {
+    return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size)
 }
 
 elem_size_for_type := func(type_name: Str) returns shallow I32 {
@@ -648,10 +649,15 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                     case Value.Func(eptr):
                                         ref edef : Expr = deref(eptr)
                                         if edef.node_type.is(NodeType.EnumDef) {
+                                            mut total_size : I32 = 0
+                                            switch edef.node_type {
+                                            case NodeType.EnumDef(edd): total_size = edd.total_enum_size
+                                            case:
+                                            }
                                             tag := enum_variant_tag(edef, field_access_name(fname))
                                             if tag.cast(I64).gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, tag, NULL, 0)
+                                                    return val_enum_flat(sname, tag, NULL, 0, total_size)
                                                 } else {
                                                     return val_i32(tag.cast(I64))
                                                 }
@@ -707,6 +713,18 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     }
 }
 
+priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) returns ref Expr {
+    ref tc : Cell = scope_get(scope, type_name)
+    if is_null(tc).not() {
+        switch tc.val {
+        case Value.Func(fptr):
+            return deref(fptr)
+        case:
+        }
+    }
+    return lookup_interp_type_def(type_name, ctx)
+}
+
 // Reinterpret a pointer-like Value (Value.Ref / Value.Dynamic) to the
 // appropriate scalar/struct/enum Value based on a type name. Used by
 // eval_call (param binding) and eval_body (ref decl).
@@ -743,31 +761,36 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
             ref sp : Str = p
             return make_str_value_own(sp.c_str, sp.count, ctx)
         }
-        ref tc : Cell = scope_get(scope, type_name)
-        if is_null(tc).not() {
-            switch tc.val {
-            case Value.Func(fptr):
-                ref tdef : Expr = deref(fptr)
-                if tdef.node_type.is(NodeType.FuncDef) {
-                    if tdef.children.len().eq(0) {
-                        // FuncSig: dereference to get function pointer
-                        ref fp : Dynamic = deref(p)
-                        return Value.Func(fp)
+        ref tdef : Expr = lookup_type_def_helper(type_name, scope, ctx)
+        if is_null(tdef).not() {
+            if tdef.node_type.is(NodeType.FuncDef) {
+                if tdef.children.len().eq(0) {
+                    // FuncSig: dereference to get function pointer
+                    ref fp : Dynamic = deref(p)
+                    return Value.Func(fp)
+                }
+            }
+            if tdef.node_type.is(NodeType.EnumDef) {
+                if enum_has_payloads(tdef) {
+                    mut total_size : I32 = 0
+                    switch tdef.node_type {
+                    case NodeType.EnumDef(edd): total_size = edd.total_enum_size
+                    case:
                     }
+                    ref ei : EnumInstance = deref(p)
+                    if is_null(ei) { return val_enum_simple(type_name, 0, total_size) }
+                    ref etag_ref : Dynamic = ei.data
+                    ref etag : I32 = etag_ref
+                    psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
+                    mut psz_final := psz
+                    if psz.cast(I64).lt(0) { psz_final = 0 }
+                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final, total_size)
                 }
-                if tdef.node_type.is(NodeType.EnumDef) {
-                    ref etag : I32 = p
-                    if enum_has_payloads(tdef) {
-                        ecopy : Dynamic = malloc(8)
-                        memcpy(ecopy, ptr_add(p, ENUM_PAYLOAD_OFFSET.to_u64()), 8)
-                        return val_enum_flat(type_name, etag, ecopy, 8)
-                    }
-                    return val_i32(etag.cast(I64))
-                }
-                if tdef.node_type.is(NodeType.StructDef) {
-                    return make_struct_value(type_name, tdef, p, true, ctx)
-                }
-            case:
+                ref etag : I32 = p
+                return val_i32(etag.cast(I64))
+            }
+            if tdef.node_type.is(NodeType.StructDef) {
+                return make_struct_value(type_name, tdef, p, true, ctx)
             }
         }
         return shallow_copy_value(val)
@@ -1585,7 +1608,7 @@ free_value := func(shallow v: Value) {
             if is_null(si.data).not() { free(own si.data) }
         }
     case Value.Enum(ei):
-        if is_null(ei.data).not() { free(own ei.data) }
+        if is_null(ei.data).not().and(ei.borrowed.not()) { free(own ei.data) }
     case:
     }
 }
@@ -1611,7 +1634,7 @@ cleanup_value_payload := func(shallow v: Value) {
             }
         }
     case Value.Enum(ei):
-        if is_null(ei.data).not() { free(own ei.data) }
+        if is_null(ei.data).not().and(ei.borrowed.not()) { free(own ei.data) }
     case:
     }
 }
@@ -1852,7 +1875,7 @@ scope_free := func(own s: Scope) {
         if b.cell_is_local {
             switch b.cell.val {
             case Value.Enum(ei):
-                if is_null(ei.data).not() { free(own ei.data) }
+                if is_null(ei.data).not().and(ei.borrowed.not()) { free(own ei.data) }
             case:
             }
             free(own b.cell)
@@ -2284,25 +2307,17 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         if edef_lookup.node_type.is(NodeType.EnumDef) {
             ref edef : Expr = edef_lookup
             if enum_has_payloads(edef) {
-                if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-                    ref ei : EnumInstance = deref(ptr)
-                    if is_null(ei) { return val_enum_simple(ftype, 0) }
-                    ref etag_ref : Dynamic = ei.data
-                    ref etag : I32 = etag_ref
-                    psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
-                    mut psz_final := psz
-                    if psz.cast(I64).lt(0) { psz_final = 0 }
-                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
-                }
-                ref etag : I32 = ptr
-                mut psz_final : I32 = 0
+                mut total_size : I32 = 0
                 switch edef.node_type {
-                case NodeType.EnumDef(edd):
-                    psz_final = edd.total_enum_size.sub(ENUM_PAYLOAD_OFFSET)
+                case NodeType.EnumDef(edd): total_size = edd.total_enum_size
                 case:
                 }
-                if psz_final.cast(I64).lt(0) { psz_final = 0 }
-                return val_enum_flat(ftype, etag, ptr_add(ptr, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final)
+                if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+                    ref ei : EnumInstance = deref(ptr)
+                    if is_null(ei) { return val_enum_simple(ftype, 0, total_size) }
+                    return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size, borrowed = true))
+                }
+                return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size, borrowed = true))
             }
             ref itag : I32 = ptr
             return val_i32(itag.cast(I64))
