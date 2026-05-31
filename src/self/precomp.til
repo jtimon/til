@@ -271,9 +271,8 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
             switch edef2.node_type {
             case NodeType.EnumDef(edd2):
                 if etag2.to_usize().gte(edd2.variants.len()) { return NULL }
-                ref edd2_pts : Map = edd2.payload_types
-                if edd2_pts.has(etag2.cast(I64)).not() { return NULL }
-                ref payload_type_name : Str = edd2_pts[etag2.cast(I64)]
+                if edd2.payload_types.has(etag2.cast(I64)).not() { return NULL }
+                ref payload_type_name : Str = edd2.payload_types[etag2.cast(I64)]
                 // Fabricate a Declaration whose explicit_type matches the
                 // variant's payload type so read_field can decode the bytes
                 // sitting at ei.data + ENUM_PAYLOAD_OFFSET. (The variant's

@@ -236,9 +236,8 @@ priv variant_is_payload_less := func(enum_name: Str, variant_name: Str, ctx: Con
             ref vn : Str = edd.variants[j]
             if vn.eq(variant_name) {
                 idx := j.to_i64()
-                ref edd_pts : Map = edd.payload_types
-                if edd_pts.has(idx).not() { return true }
-                ref pt : Str = edd_pts[idx]
+                if edd.payload_types.has(idx).not() { return true }
+                ref pt : Str = edd.payload_types[idx]
                 return pt.len().eq(0)
             }
         }
@@ -5776,12 +5775,11 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
         if kind.eq(0) {
             f.write("        return "); emit_usize(f, ed.variants.len()); f.write("LL;\n")
         } else {
-            ref ed_pts : Map = ed.payload_types
             for i in 0..ed.variants.len() {
                 idx := i.to_i64()
                 mut has_pl := false
-                if ed_pts.has(idx) {
-                    ref pt : Str = ed_pts[idx]
+                if ed.payload_types.has(idx) {
+                    ref pt : Str = ed.payload_types[idx]
                     if pt.len().gt(0) { has_pl = true }
                 }
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
@@ -5792,7 +5790,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
                     if has_pl { f.write("1") } else { f.write("0") }
                 } else {
                     if has_pl {
-                        ref pt2 : Str = ed_pts[idx]
+                        ref pt2 : Str = ed.payload_types[idx]
                         emit_str_lit_expr(f, pt2)
                     } else {
                         emit_str_lit_expr(f, "")

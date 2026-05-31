@@ -97,9 +97,8 @@ priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
             ref vn2 : Str = edd.variants[j]
             if vn2.eq(vname) {
                 idx := j.to_i64()
-                ref edd_pts : Map = edd.payload_types
-                if edd_pts.has(idx).not() { return true }
-                ref pt : Str = edd_pts[idx]
+                if edd.payload_types.has(idx).not() { return true }
+                ref pt : Str = edd.payload_types[idx]
                 return pt.len().eq(0)
             }
         }

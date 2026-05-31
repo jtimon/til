@@ -694,9 +694,8 @@ priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Boo
     case NodeType.EnumDef(edd):
         for j in 0..edd.variants.len() {
             idx := j.to_i64()
-            ref edd_pts_a : Map = edd.payload_types
-            if edd_pts_a.has(idx) {
-                ref pt : Str = edd_pts_a[idx]
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types[idx]
                 if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
             }
         }
@@ -1000,9 +999,8 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
             ref vn : Str = edd.variants[j]
             variant_names.push(own vn.clone())
             idx := j.to_i64()
-            ref edd_pts_b : Map = edd.payload_types
-            if edd_pts_b.has(idx) {
-                ref pt : Str = edd_pts_b[idx]
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types[idx]
                 variant_types.push(own pt.clone())
             } else {
                 variant_types.push(own "")
@@ -2780,9 +2778,8 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
     case NodeType.EnumDef(edd):
         for vi in 0..edd.variants.len() {
             vidx := vi.to_i64()
-            ref edd_pts : Map = edd.payload_types
-            if edd_pts.has(vidx).not() { continue }
-            ref pt_old : Str = edd_pts[vidx]
+            if edd.payload_types.has(vidx).not() { continue }
+            ref pt_old : Str = edd.payload_types[vidx]
             new_pt := init_lookup_name(renamings, pt_old)
             if new_pt.len().gt(0) {
                 edd.payload_types.set(own vidx.clone(), own new_pt.clone())

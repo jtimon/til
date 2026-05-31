@@ -671,9 +671,8 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
             interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
             exit(1)
         }
-        ref ed_pts : Map = ed.payload_types
-        if ed_pts.has(idx) {
-            ref pt : Str = ed_pts[idx]
+        if ed.payload_types.has(idx) {
+            ref pt : Str = ed.payload_types[idx]
             if pt.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
         } else {
             r = val_i64(0)
@@ -694,9 +693,8 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
             interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
             exit(1)
         }
-        ref ed_pts : Map = ed.payload_types
-        if ed_pts.has(idx) {
-            ref pt : Str = ed_pts[idx]
+        if ed.payload_types.has(idx) {
+            ref pt : Str = ed.payload_types[idx]
             r = str_to_owned_value(pt, ctx)
         } else {
             r = str_to_owned_value("", ctx)

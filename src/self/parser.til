@@ -128,9 +128,8 @@ priv anon_def_key := func(def: Expr) returns Str {
             ref vn : Str = edd.variants[j]
             k = k.concat(vn)
             idx := j.to_i64()
-            ref edd_pts : Map = edd.payload_types
-            if edd_pts.has(idx) {
-                ref pt : Str = edd_pts[idx]
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types[idx]
                 k = k.concat(":").concat(pt)
             }
             k = k.concat(";")

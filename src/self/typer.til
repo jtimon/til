@@ -2775,13 +2775,12 @@ priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, varia
     if is_null(edef) { return "" }
     switch edef.node_type {
     case NodeType.EnumDef(edd):
-        ref edd_pts : Map = edd.payload_types
         for vi in 0..edd.variants.len() {
             ref vn : Str = edd.variants[vi]
             if vn.eq(variant_name) {
                 vtag : I64 = vi.to_i64()
-                if edd_pts.has(vtag) {
-                    ref pt : Str = edd_pts[vtag]
+                if edd.payload_types.has(vtag) {
+                    ref pt : Str = edd.payload_types[vtag]
                     return pt.clone()
                 }
                 return ""
@@ -5930,6 +5929,21 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
             // type. Only commit to ng if it names a known struct; let the
             // caller fall back to the suffix-match path otherwise.
             if is_null(ctx.scope.get_struct(ng)).not() { return ng }
+            // FCall form `mut x := some_func(...)` lands here with
+            // ng == "some_func". If the name resolves to a function in
+            // scope, return its declared return_type instead.
+            ref fb : TypeBinding = ctx.scope.get_binding(ng)
+            if is_null(fb).not() {
+                if is_null(fb.func_def).not() {
+                    switch fb.func_def.node_type {
+                    case NodeType.FuncDef(fdef):
+                        if fdef.return_type.len().gt(0) {
+                            return normalize_ctor_type(fdef.return_type)
+                        }
+                    case:
+                    }
+                }
+            }
             return ""
         }
         return ""

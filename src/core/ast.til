@@ -1038,9 +1038,8 @@ enum_variant_type := func(enum_def: Expr, tag: I32) returns Str {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         idx := tag.cast(I64)
-        ref edd_pts : Map = edd.payload_types
-        if edd_pts.has(idx) {
-            ref pt : Str = edd_pts[idx]
+        if edd.payload_types.has(idx) {
+            ref pt : Str = edd.payload_types[idx]
             return pt.clone()
         }
     case:

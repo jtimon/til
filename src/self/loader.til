@@ -569,9 +569,8 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 case NodeType.EnumDef(bfs_edd):
                     for j in 0..bfs_edd.variants.len() {
                         idx_e := j.to_i64()
-                        ref bfs_edd_pts : Map = bfs_edd.payload_types
-                        if bfs_edd_pts.has(idx_e) {
-                            ref pt_e : Str = bfs_edd_pts[idx_e]
+                        if bfs_edd.payload_types.has(idx_e) {
+                            ref pt_e : Str = bfs_edd.payload_types[idx_e]
                             vec_push_str(worklist, pt_e)
                         }
                     }
@@ -604,11 +603,10 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                         }
                     }
                 case NodeType.EnumDef(bfs_edd2):
-                    ref bfs_edd2_pts : Map = bfs_edd2.payload_types
                     for j in 0..bfs_edd2.variants.len() {
                         idx_e2 := j.to_i64()
-                        if bfs_edd2_pts.has(idx_e2) {
-                            ref pt_e2 : Str = bfs_edd2_pts[idx_e2]
+                        if bfs_edd2.payload_types.has(idx_e2) {
+                            ref pt_e2 : Str = bfs_edd2.payload_types[idx_e2]
                             vec_push_str(worklist, pt_e2)
                         }
                     }
