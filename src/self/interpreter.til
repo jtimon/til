@@ -27,19 +27,30 @@ interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
 // because the interpreter stores enum-with-payloads fields as heap
 // pointers (EnumInstance.data), so even a "POD enum" needs the
 // per-field deep clone here.
-priv struct_def_shallow_safe := func(sdef_data: StructDef) returns Bool {
+// Issue #147 step 4: replaces dd.field_struct_def reads. Returns the
+// nested struct/enum def Expr for a field, or NULL when the field's
+// type is a primitive (primitives are registered as ~Type := struct {}~
+// in core, so a bare lookup_interp_type_def would return the primitive's
+// struct shell and downstream callers would try to clone its bytes
+// as a nested struct).
+priv field_nested_def := func(dd: Declaration, ctx: Context) returns ref Expr {
+    if is_primitive(dd.til_type) { return NULL }
+    return lookup_interp_type_def(dd.explicit_type, ctx)
+}
+
+priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns Bool {
     for dd : Declaration in sdef_data.fields {
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
         ref ftype : Str = dd.explicit_type
         if ftype.eq("Str") { return false }
-        if is_null(dd.field_struct_def).not() {
-            ref fsd : Expr = dd.field_struct_def
+        ref fsd : Expr = field_nested_def(dd, ctx)
+        if is_null(fsd).not() {
             switch fsd.node_type {
             case NodeType.EnumDef:
                 if enum_has_payloads(fsd) { return false }
             case NodeType.StructDef(nested_sdef):
-                if struct_def_shallow_safe(nested_sdef).not() { return false }
+                if struct_def_shallow_safe(nested_sdef, ctx).not() { return false }
             case:
             }
         }
@@ -93,7 +104,7 @@ namespace:
                         memset(cloned_str, 0, Str.size())
                     }
                 }
-            } else if struct_def_shallow_safe(sdef_data) {
+            } else if struct_def_shallow_safe(sdef_data, self.ctx) {
                 // POD shortcut: every field is either a primitive,
                 // a ref (skipped anyway), or a nested shallow-safe
                 // struct stored inline.  The outer memcpy already
@@ -103,11 +114,12 @@ namespace:
                 for dd : Declaration in sdef_data.fields {
                     foff := dd.field_offset
                     ref ftype : Str = dd.explicit_type
+                    ref nested_def : Expr = field_nested_def(dd, self.ctx)
                     if dd.own_type.is(OwnType.Own) {
                         ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
                         if is_null(src_ptr).not() {
-                            if is_null(dd.field_struct_def).not() {
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = dd.field_struct_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
+                            if is_null(nested_def).not() {
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
                                 write_ptr(ptr_add(dst_data, foff.to_u64()), cloned.data)
@@ -133,9 +145,9 @@ namespace:
                         }
                         continue
                     }
-                    if is_null(dd.field_struct_def).not() {
-                        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
-                            if enum_has_payloads(dd.field_struct_def) {
+                    if is_null(nested_def).not() {
+                        if nested_def.node_type.is(NodeType.EnumDef) {
+                            if enum_has_payloads(nested_def) {
                                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                                     ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
                                     if is_null(ei_ref).not() {
@@ -170,12 +182,11 @@ namespace:
                             }
                         }
                     }
-                    if is_null(dd.field_struct_def).not() {
-                        if dd.field_struct_def.node_type.is(NodeType.EnumDef).not() {
-                            ref nested : Expr = dd.field_struct_def
-                            switch nested.node_type {
+                    if is_null(nested_def).not() {
+                        if nested_def.node_type.is(NodeType.EnumDef).not() {
+                            switch nested_def.node_type {
                             case NodeType.StructDef(nested_sdef):
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested, ctx = self.ctx, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
                                 memcpy(ptr_add(dst_data, foff.to_u64()), cloned.data, nested_sdef.total_struct_size.to_u64())
