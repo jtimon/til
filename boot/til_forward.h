@@ -1365,6 +1365,7 @@ void gen_cmp_derived_for_stmt(Expr * stmt);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void type_size_align(Str * ftype, TypeScope * scope, I32 * sz, I32 * al);
 I32 compute_enum_layout(Expr * enum_def, TypeScope * scope);
+I32 ctx_total_size(Str * name, Context * ctx);
 void record_struct_layout(Context * ctx, Str * name, Expr * sdef);
 void record_enum_layout(Context * ctx, Str * name, Expr * edef);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);

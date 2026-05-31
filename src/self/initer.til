@@ -2440,6 +2440,16 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
 // struct_name is set for fields whose type resolves to a non-primitive
 // struct/enum via ctx.interp_type_defs, matching the population rule the
 // removed Declaration.field_struct_def used.
+// Issue #147 step 4: lookup helper for the struct/enum total size out of
+// ctx.struct_layouts. Returns 0 when the name is unregistered (which
+// downstream code already handles as "unknown size / fall back").
+ctx_total_size := func(name: Str, ctx: Context) returns I32 {
+    if name.len().eq(0) { return 0 }
+    if ctx.struct_layouts.has(name).not() { return 0 }
+    ref sl : StructLayout = ctx.struct_layouts[name]
+    return sl.total_size
+}
+
 record_struct_layout := func(ctx: Context, name: Str, sdef: Expr) {
     switch sdef.node_type {
     case NodeType.StructDef(sm):

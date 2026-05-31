@@ -83,7 +83,7 @@ namespace:
         ref src_sdef : Expr = self.struct_def
         switch src_sdef.node_type {
         case NodeType.StructDef(sdef_data):
-            sz := sdef_data.total_struct_size
+            sz := ctx_total_size(self.struct_name, self.ctx)
             dst_data : Dynamic = malloc(sz.to_u64())
             memcpy(dst_data, self.data, sz.to_u64())
             if self.struct_name.eq("Str") {
@@ -185,11 +185,11 @@ namespace:
                     if is_null(nested_def).not() {
                         if nested_def.node_type.is(NodeType.EnumDef).not() {
                             switch nested_def.node_type {
-                            case NodeType.StructDef(nested_sdef):
+                            case NodeType.StructDef:
                                 mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                memcpy(ptr_add(dst_data, foff.to_u64()), cloned.data, nested_sdef.total_struct_size.to_u64())
+                                memcpy(ptr_add(dst_data, foff.to_u64()), cloned.data, ctx_total_size(ftype, self.ctx).to_u64())
                                 free(own cloned.data)
                                 cloned.data = NULL
                             case:
@@ -1028,8 +1028,8 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                         ref tdef : Expr = lookup_interp_type_def(type_name, ctx)
                                         if is_null(tdef).not() {
                                             switch tdef.node_type {
-                                            case NodeType.StructDef(payload_sdd):
-                                                sz = payload_sdd.total_struct_size
+                                            case NodeType.StructDef:
+                                                sz = ctx_total_size(type_name, ctx)
                                             case:
                                             }
                                         }
@@ -2088,8 +2088,8 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     case Value.Boolean(v): if type_name.eq("Bool") { memcpy(dest, v, 1); return }
     case Value.Struct(si):
         switch si.struct_def.node_type {
-        case NodeType.StructDef(sd):
-            sz := sd.total_struct_size
+        case NodeType.StructDef:
+            sz := ctx_total_size(si.struct_name, si.ctx)
             if si.borrowed {
                 mut cloned := val.clone()
                 switch cloned {
@@ -2118,13 +2118,7 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
         v := parse_cli_arg(s, elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz.to_u64())), v, elem_type)
     }
-    mut sz : I32 = 0
-    switch ctx.cached_array_def.node_type {
-    case NodeType.StructDef(asd):
-        sz = asd.total_struct_size
-    case:
-        UNREACHABLE(__LOC__)
-    }
+    sz := ctx_total_size(ctx.cached_array_name, ctx)
     inst_data : Dynamic = calloc(1, sz.to_u64())
     ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
     write_field(inst_data, ba_data_d, Value.Ref(data), ctx)
