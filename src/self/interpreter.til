@@ -2174,11 +2174,12 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
     memcpy(copy, data, len)
     memset(ptr_add(copy, len), 0, 1)
     write_ptr(inst_data, copy)
-    write_u32(ptr_add(inst_data, 8), len)
+    ref mut count_slot : U32 = ptr_add(inst_data, 8)
+    count_slot = len
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
-    write_u32(ptr_add(inst_data, 12), len)
+    memcpy(ptr_add(inst_data, 12), count_slot, U32.size())
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
@@ -2198,8 +2199,9 @@ make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns sha
 make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size())
     write_ptr(inst_data, data)
-    write_u32(ptr_add(inst_data, 8), len)
-    write_u32(ptr_add(inst_data, 12), len)
+    ref mut count_slot : U32 = ptr_add(inst_data, 8)
+    count_slot = len
+    memcpy(ptr_add(inst_data, 12), count_slot, U32.size())
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {
