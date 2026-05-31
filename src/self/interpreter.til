@@ -160,7 +160,7 @@ namespace:
                                 } else {
                                     mut temp_decl := dd
                                     temp_decl.own_type = OwnType.Shallow
-                                    val := read_field(self.data, temp_decl, Context())
+                                    val := read_field(self.data, temp_decl, self.ctx)
                                     mut cloned_val := val.clone()
                                     switch cloned_val {
                                     case Value.Enum(cei):
@@ -1112,7 +1112,7 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                             } else {
                                                 base = ptr_add(base, fd.field_offset.to_u64())
                                             }
-                                            cur_sdef = fd.field_struct_def
+                                            cur_sdef = field_nested_def(fd, ctx)
                                         }
                                     case:
                                     }
@@ -1132,7 +1132,7 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                     exit(1)
                 }
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname)
-                write_field(base, fdecl, val)
+                write_field(base, fdecl, val, ctx)
                 if is_null(move_src).not() {
                     if move_src.val.is(Value.Func).not() {
                         memcpy(move_src.val, val_none(), Value.size())
@@ -1507,7 +1507,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         case:
                             val = eval_expr(scope, arg, ctx)
                         }
-                        write_field(si_inst.data, fdd, val)
+                        write_field(si_inst.data, fdd, val, ctx)
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -2083,15 +2083,15 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     }
     inst_data : Dynamic = calloc(1, sz.to_u64())
     ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
-    write_field(inst_data, ba_data_d, Value.Ref(data))
+    write_field(inst_data, ba_data_d, Value.Ref(data), ctx)
     ref ba_cap_d : Declaration = find_field_decl(ctx.cached_array_def, "cap")
-    write_field(inst_data, ba_cap_d, val_u32(count.to_i64()))
+    write_field(inst_data, ba_cap_d, val_u32(count.to_i64()), ctx)
     ref ba_esz_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_size")
-    write_field(inst_data, ba_esz_d, val_u32(esz.cast(I64)))
+    write_field(inst_data, ba_esz_d, val_u32(esz.cast(I64)), ctx)
     ref clone_fn : Value = ns_get(elem_type, "clone", ctx)
-    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn)) }
+    if is_null(clone_fn).not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn), ctx) }
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
-    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn)) }
+    if is_null(delete_fn).not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn), ctx) }
     return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
 }
 
@@ -2271,16 +2271,18 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         }
     }
     mut is_enum_field := false
-    if is_null(dd.field_struct_def).not() {
-        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
+    ref nd_for_enum_check : Expr = field_nested_def(dd, ctx)
+    if is_null(nd_for_enum_check).not() {
+        if nd_for_enum_check.node_type.is(NodeType.EnumDef) {
             is_enum_field = true
         }
     }
     if dd.til_type.is(Type.Enum) { is_enum_field = true }
     if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
-        if is_null(dd.field_struct_def).not() {
+        ref nd_own : Expr = field_nested_def(dd, ctx)
+        if is_null(nd_own).not() {
             ref owned : Dynamic = deref(ptr)
-            return make_struct_value(ftype, dd.field_struct_def, owned, true, ctx)
+            return make_struct_value(ftype, nd_own, owned, true, ctx)
         }
         ref owned2 : Dynamic = deref(ptr)
         // Reading an own field yields a borrowed view: the struct still
@@ -2290,9 +2292,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     }
     if dd.own_type.is(OwnType.Ref).and(is_enum_field.not()) {
         if is_null(deref(ptr)) { return Value.Ref(NULL) }
-        if is_null(dd.field_struct_def).not() {
+        ref nd_ref : Expr = field_nested_def(dd, ctx)
+        if is_null(nd_ref).not() {
             ref rp : Dynamic = deref(ptr)
-            return make_struct_value(ftype, dd.field_struct_def, rp, true, ctx)
+            return make_struct_value(ftype, nd_ref, rp, true, ctx)
         }
         ref rp2 : Dynamic = deref(ptr)
         return Value.Ref(rp2)
@@ -2315,14 +2318,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     if ftype.eq("F32") { ref v : F32 = ptr; return val_f32(v) }
     if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
     // Enum field
-    ref mut edef_lookup : Expr = lookup_interp_type_def(ftype, ctx)
-    if is_null(edef_lookup) {
-        if is_null(dd.field_struct_def).not() {
-            if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
-                edef_lookup = dd.field_struct_def
-            }
-        }
-    }
+    ref edef_lookup : Expr = lookup_interp_type_def(ftype, ctx)
     if is_null(edef_lookup).not() {
         if edef_lookup.node_type.is(NodeType.EnumDef) {
             ref edef : Expr = edef_lookup
@@ -2372,14 +2368,15 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     return val_i64(fi)
 }
 
-write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value) {
+write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value, ctx: Context) {
     ref ptr : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
     fsz := dd.field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
     // of own_type; let the unified switch below allocate the heap instance.
     mut is_enum_field := false
-    if is_null(dd.field_struct_def).not() {
-        if dd.field_struct_def.node_type.is(NodeType.EnumDef) {
+    ref wf_nested : Expr = field_nested_def(dd, ctx)
+    if is_null(wf_nested).not() {
+        if wf_nested.node_type.is(NodeType.EnumDef) {
             is_enum_field = true
         }
     }

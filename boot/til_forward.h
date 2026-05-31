@@ -2071,7 +2071,7 @@ Value make_str_value_own(void * data, U32 len, Context * ctx);
 Str str_view(Value v);
 Declaration * find_field_decl(Expr * struct_def, Str * fname);
 Value read_field(void * inst_data, Declaration * dd, Context * ctx);
-void write_field(void * inst_data, Declaration * dd, Value * val);
+void write_field(void * inst_data, Declaration * dd, Value * val, Context * ctx);
 void interpret_register_defs(Scope * global, Expr * prog);
 void interpret_register_aliases(Scope * global, Expr * prog);
 void interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
