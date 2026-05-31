@@ -581,3 +581,14 @@ terr_catch_not_thrown()
 terr_uncaught_undeclared_throw()
 terr_declared_never_thrown()
 terr_bang_on_non_throwing()
+
+// Issue #223 step 2: redundant 'shallow' on a primitive parameter --
+// primitives are passed by value automatically, so the qualifier is rejected.
+terr_redundant_shallow_param := func(shallow x: I64) returns I64 {
+    return x
+}
+
+// Issue #223 step 2: redundant 'shallow' on a primitive return type.
+terr_redundant_shallow_return := func() returns shallow I64 {
+    return 0
+}
