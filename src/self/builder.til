@@ -1751,8 +1751,16 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
     switch c1.node_type {
     case NodeType.Ident(del_arg):
         if is_stack_local(ident_name(del_arg), ctx).not() { return false }
+        if expr_til_type(c1).is(Type.Enum) {
+            // POD enum (no variant payload): destructor is just
+            // `if (call_free) free(self);`. With the local on the
+            // stack and the value reclaimed at block exit, the call
+            // is pure overhead.
+            tname := til_type_name(expr_til_type(c1))
+            if is_pod_enum(tname, ctx) { return true }
+            return false
+        }
         if expr_til_type(c1).is(Type.Struct) { return false }
-        if expr_til_type(c1).is(Type.Enum) { return false }
         return true
     case:
         return false
