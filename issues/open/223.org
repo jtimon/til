@@ -11,17 +11,28 @@
 
   Steps (do them in order, one commit each):
 
-  1. Treat primitives as shallow without the qualifier.
+  1. [DONE] Treat primitives as shallow without the qualifier.
      Primitives (I8/I16/I32/I64, U8/U16/U32/U64, F32/F64, Bool, etc.)
      used as args or return values are passed/returned by value
      regardless of whether ~shallow~ was written. Make the absence of
      ~shallow~ behave exactly like its presence for these types.
+     Done: the typer normalizes primitive params/returns to Shallow in
+     infer_func_def_expr / infer_func_sig_expr (ordinary func/proc and
+     funcptr sigs; NOT ext_func/ext_proc, mut/own params, or a
+     `returns ref` function's params).
 
-  2. Forbid explicit ~shallow~ on primitives.
-     Once step 1 makes it automatic, writing ~shallow~ on a primitive
-     arg or return value is redundant. Reject it with an error message
-     explaining that shallow is automatic for primitives and must be
-     removed.
+  2. [DONE] Forbid explicit ~shallow~ on primitives.
+     Done in two parts:
+     - Removed every now-redundant explicit ~shallow~ on a primitive
+       across src/, test/, examples/, lib/.
+     - The typer now REJECTS a redundant explicit ~shallow~ on a
+       primitive in an ordinary func/proc: "redundant 'shallow' on
+       primitive ...; drop it". Auto-generated methods (initer) emit
+       primitive params/returns without ~shallow~ so they flow through
+       step-1 normalization and never trip the rule. The funcptr-sig
+       variant of the check is sketched but not active (infer_func_sig_expr
+       is a func with no ctx to raise the diagnostic from); funcptr sigs
+       were cleaned, so nothing relies on it yet.
 
   3. Extend step 1 to small value-shaped compound types.
      Apply the same auto-shallow inference to structs/enums that have

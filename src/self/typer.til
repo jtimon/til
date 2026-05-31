@@ -2723,16 +2723,14 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             fdef.return_type = resolved_return_type
             check_priv_type_name(expr, resolved_return_type, scope, ctx)
             // Issue #223 step 2: an explicit 'shallow' on a primitive return is
-            // redundant (auto-shallow handles it). The rule is implemented but
-            // COMMENTED OUT during rollout: once active, the compiler rejects any
-            // source still carrying the old qualifiers, so the seed boot/til.c and
-            // any in-flight branch would fail to bootstrap. This codebase is
-            // already clean; uncomment once the whole merge queue is.
-            // if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Shallow)) {
-            //     if is_primitive(type_from_name_at(resolved_return_type, scope, expr, ctx)) {
-            //         type_error(expr, "redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
-            //     }
-            // }
+            // redundant (auto-shallow handles it). Reject it. Checked before the
+            // step-1 normalization below, which would otherwise erase the
+            // distinction between an explicit and an inferred shallow.
+            if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Shallow)) {
+                if is_primitive(type_from_name_at(resolved_return_type, scope, expr, ctx)) {
+                    type_error(expr, "redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
+                }
+            }
             // Issue #223 step 1: primitives are returned by value (shallow)
             // even without the qualifier. Normalize the default (Own) to
             // Shallow for primitive return types so every downstream stage
@@ -2767,11 +2765,10 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 }
                 // Issue #223 step 2: an explicit 'shallow' on a primitive
                 // parameter is redundant where auto-shallow applies (ordinary
-                // func/proc not returning ref). COMMENTED OUT during rollout
-                // (see the return check in this proc for the bootstrap reason).
-                // if is_scalar.and(auto_shallow_ok).and(fdef.return_own_type.is(OwnType.Ref).not()) {
-                //     type_error(expr, "redundant 'shallow' on primitive parameter '".concat(param.name).concat("': primitives are passed by value automatically (issue #223); drop it"), ctx)
-                // }
+                // func/proc not returning ref). Reject it.
+                if is_scalar.and(auto_shallow_ok).and(fdef.return_own_type.is(OwnType.Ref).not()) {
+                    type_error(expr, "redundant 'shallow' on primitive parameter '".concat(param.name).concat("': primitives are passed by value automatically (issue #223); drop it"), ctx)
+                }
             }
             if i.cast(I32).eq(fdef.variadic_index) {
                 // Regular til funcs get a callee-side auto-cleanup

@@ -874,11 +874,11 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
             mut proc_decl := FunctionDef(auto_generated = true)
             proc_decl.func_type = FuncType.Func
             proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
-            // Issue #223 step 1: Bool is a primitive, so call_free is
-            // passed by value (shallow). Match the auto-shallow the typer
-            // applies to hand-written deletes, since auto-generated defs
-            // bypass that normalization.
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Shallow, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+            // Issue #223: call_free is a primitive (Bool), so emit it as a
+            // plain borrowed param (Ref) and let step-1 auto-shallow normalize
+            // it to value -- same as a hand-written delete. (An explicit Shallow
+            // here would trip the step-2 redundant-shallow check.)
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
             proc_decl.variadic_index = -1
             proc_decl.kwargs_index = -1
 
@@ -1017,7 +1017,6 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
-    func_decl.return_own_type = OwnType.Shallow
     func_decl.variadic_index = -1
     func_decl.kwargs_index = -1
 
@@ -1100,7 +1099,6 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32,
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.params.push(own Declaration(name = "other", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
-    fdecl.return_own_type = OwnType.Shallow
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
 
@@ -1171,9 +1169,10 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Own))
-    // Issue #223 step 1: Bool is primitive -> call_free is passed by value
-    // (shallow), matching the typer's auto-shallow for hand-written deletes.
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Shallow, default_value = default_true.clone()))
+    // Issue #223: call_free is a primitive (Bool) -> emit a plain borrowed
+    // param (Ref) and let step-1 auto-shallow normalize it to value, matching
+    // a hand-written delete. (An explicit Shallow trips the step-2 check.)
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
 
@@ -1787,7 +1786,6 @@ gen_struct_size_method_for_stmt := func(stmt: Expr) {
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
         func_decl.return_type = "USize"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
 
@@ -1842,7 +1840,6 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     mut func_decl := FunctionDef(auto_generated = true)
     func_decl.func_type = FuncType.Func
     func_decl.return_type = "USize"
-    func_decl.return_own_type = OwnType.Shallow
     func_decl.variadic_index = -1
     func_decl.kwargs_index = -1
 
@@ -2000,7 +1997,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
@@ -2037,7 +2033,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
@@ -2071,7 +2066,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
@@ -2103,7 +2097,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
@@ -2135,7 +2128,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
@@ -2167,7 +2159,6 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
-        func_decl.return_own_type = OwnType.Shallow
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
