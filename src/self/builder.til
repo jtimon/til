@@ -36,8 +36,8 @@ priv is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns Bool {
 // emit_func_def boundaries to scope it per emission.
 priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns ref Expr {
     ref m : Map = ctx.local_fn_sigs
-    if m.has(name).not() { return NULL }
-    ref slot : Dynamic = m[name]
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
 
@@ -378,15 +378,15 @@ is_exported_top_level_global := func(stmt: Expr) returns Bool {
 
 priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
     ref m : Map = ctx.struct_def_exprs
-    if m.has(name).not() { return NULL }
-    ref slot : Dynamic = m[name]
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
 
 priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
     ref m : Map = ctx.func_defs
-    if m.has(name).not() { return NULL }
-    ref slot : Dynamic = m[name]
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
 

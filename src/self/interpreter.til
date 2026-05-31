@@ -419,8 +419,8 @@ Scope := struct {
 // before any eval runs.
 lookup_interp_type_def := func(name: Str, ctx: Context) returns ref Expr {
     ref m : Map = ctx.interp_type_defs
-    if m.has(name).not() { return NULL }
-    ref slot : Dynamic = m[name]
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
 

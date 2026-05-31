@@ -33,9 +33,7 @@ mode_register := func(name: Str, mode_def: Mode) {
 
 mode_resolve := func(name: Str) returns ref Mode {
     ref mr : Map = mode_registry
-    if mr.has(name).not() {
-        return NULL
-    }
-    ref m : Mode = mr[name]
+    ref m : Mode = mr.get(name)?
+    catch (e: KeyNotFound) { return NULL }
     return m
 }
