@@ -2,7 +2,14 @@ mode cli
 
 // validate_cli_main (src/self/loader.til) must reject a main() whose
 // parameter type can't be parsed from a CLI argument, with a clear message,
-// rather than letting the builder emit C that fails to compile.
-main := proc(x: F32) {
-    println(x.to_str())
+// rather than letting the builder emit C that fails to compile. A user struct
+// is unparseable (F32 and the scalar/Bool types ARE supported -- see #229 for
+// extending this to enums/structs).
+Point := struct {
+    x : I64 = 0
+    y : I64 = 0
+}
+
+main := proc(p: Point) {
+    println(p.x.to_str())
 }

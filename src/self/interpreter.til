@@ -520,6 +520,7 @@ parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Valu
     if type_name.eq("U64") { return val_u64(s.to_u64()) }
     if type_name.eq("USize") { return val_u32(s.to_i64()) }
     if type_name.eq("UPtr") { return val_u64(s.to_u64()) }
+    if type_name.eq("F32") { return val_f32(s.to_f32()) }
     if type_name.eq("Bool") {
         if s.eq("true") { return val_bool(true) }
         if s.eq("false") { return val_bool(false) }

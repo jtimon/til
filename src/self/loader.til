@@ -465,6 +465,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
         push_qn(worklist, "Str", "to_i32")
         push_qn(worklist, "Str", "to_u32")
         push_qn(worklist, "Str", "to_u64")
+        push_qn(worklist, "Str", "to_f32")
         push_qn(worklist, "Str", "cmp")
         push_qn(worklist, "Str", "delete")
         push_qn(worklist, "I64", "to_i8")
@@ -647,6 +648,7 @@ priv cli_arg_type_supported := func(name: Str) returns Bool {
     return name.eq("Str").or(name.eq("I64")).or(name.eq("U8")).or(name.eq("I8"))
         .or(name.eq("I16")).or(name.eq("U16")).or(name.eq("I32")).or(name.eq("U32"))
         .or(name.eq("U64")).or(name.eq("USize")).or(name.eq("UPtr")).or(name.eq("Bool"))
+        .or(name.eq("F32"))
 }
 
 // Reject a main() whose parameters can't be parsed from CLI arguments, with a
@@ -677,7 +679,7 @@ validate_cli_main := func(lp: LoadedProgram) {
                     if cli_arg_type_supported(p.explicit_type).not() {
                         loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
                         panic(loc, "main parameter '", p.name, "': type '", p.explicit_type,
-                            "' cannot be parsed from a CLI argument (supported: Str, Bool, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)")
+                            "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)")
                     }
                 }
             case:

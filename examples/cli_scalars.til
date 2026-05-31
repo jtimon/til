@@ -2,7 +2,7 @@ mode cli
 
 // Exercises every scalar CLI argument type the builder inlines (see
 // cli_box_expr in src/self/builder.til) and the interpreter's parse_cli_arg.
-main := proc(a: I8, b: U8, c: I16, d: U16, e: I32, f: U32, g: U64, h: USize, k: UPtr) {
+main := proc(a: I8, b: U8, c: I16, d: U16, e: I32, f: U32, g: U64, h: USize, k: UPtr, m: F32) {
     println(a.to_str(), " ", b.to_str(), " ", c.to_str(), " ", d.to_str(), " ",
-            e.to_str(), " ", f.to_str(), " ", g.to_str(), " ", h.to_str(), " ", k.to_str())
+            e.to_str(), " ", f.to_str(), " ", g.to_str(), " ", h.to_str(), " ", k.to_str(), " ", m.to_str())
 }

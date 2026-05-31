@@ -2886,6 +2886,7 @@ priv cli_box_expr := func(ttype: Str, arg: Str) returns Str {
     if ttype.eq("U64") { return cli_view_box("U64", "Str_to_u64(_cv)", arg) }
     if ttype.eq("USize") { return cli_view_box("USize", "Str_to_u64(_cv)", arg) }
     if ttype.eq("UPtr") { return cli_view_box("UPtr", "Str_to_u64(_cv)", arg) }
+    if ttype.eq("F32") { return cli_view_box("F32", "Str_to_f32(_cv)", arg) }
     if ttype.eq("Bool") {
         true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
         false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"

@@ -660,13 +660,13 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "variadic_bool_t", "examples/cli_variadic_bool.til",
                  "true true", 0, format(exp, "variadic_bool_t.out"), til_bin, asan_flag)
 
-    // Every scalar CLI arg type (I8/U8/I16/U16/I32/U32/U64/USize/UPtr), both
-    // backends. Locks in the builder's cli_box_expr and the interpreter's
+    // Every scalar CLI arg type (I8/U8/I16/U16/I32/U32/U64/USize/UPtr/F32),
+    // both backends. Locks in the builder's cli_box_expr and the interpreter's
     // parse_cli_arg staying in lockstep.
     File.writefile(format(exp, "cli_scalars.out"),
-                   format("-8 200 -300 600 -70000 90000 12345678901 42 99", NL))
+                   format("-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", NL))
     add_cli_pair(tests, "cli_scalars", "examples/cli_scalars.til",
-                 "-8 200 -300 600 -70000 90000 12345678901 42 99", 0,
+                 "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", 0,
                  format(exp, "cli_scalars.out"), til_bin, asan_flag)
 
     // Error cases (exit=1, no output check)
