@@ -34,17 +34,48 @@
        is a func with no ctx to raise the diagnostic from); funcptr sigs
        were cleaned, so nothing relies on it yet.
 
-  3. Extend step 1 to small value-shaped compound types.
-     Apply the same auto-shallow inference to structs/enums that have
-     no own fields / no payload and whose ~size()~ is ~lte(UPtr.size())~
-     -- i.e. types that already fit in a machine word and are value-safe
-     to pass by copy. These should be treated as shallow in args/returns
-     without the qualifier.
+  3. [DONE] Extend step 1 to small value-shaped structs.
+     A struct is "shallow" -- safe to copy byte-for-byte -- when ALL of:
+       - ~MyStruct.size().lte(UPtr.size())~ (fits in a machine word; 8 on
+         the current target), AND
+       - it has no ~own~ fields (an ~own~ field is an owned heap pointer;
+         copying the bytes would alias/double-free it -> "deep"), AND
+       - it has no ~ref~ fields (disqualified for now; revisitable later), AND
+       - every field's TYPE is itself shallow-eligible (a primitive, or an
+         already-shallow struct). This transitive check closes the hole
+         where a size-8 struct embeds a deep struct inline (e.g. a struct
+         whose single field is itself a struct holding an ~own~ pointer).
+     Such structs are treated as shallow in args/returns without the
+     qualifier, exactly like primitives in step 1. (Enums: revisit
+     separately; this step is structs.)
+     Done: typer predicate is_shallow_struct + the unifying
+     is_auto_shallow_type, wired into the step-1 param/return normalization in
+     infer_func_def_expr. Builder fixes for value structs: use_dot_access /
+     emit_field treat shallow params like stack locals ('.' not '->'); the
+     mut-reassign + payload-alias paths assign a shallow-returning call's value
+     directly instead of the pointer dance; emit_deref derefs a ref local
+     before the shallow-param shortcut (a same-named shallow param of another
+     func no longer false-positives). The #168 ref-init check
+     (fcall_returns_own -> fdef_returns_unborrowable) now also rejects binding a
+     ref to a shallow STRUCT return, since it is a fresh by-value result.
 
-  4. Forbid explicit ~shallow~ on the step-3 types.
-     As in step 2, once those small fieldless/payloadless types are
-     auto-shallow, reject explicit ~shallow~ on them with the same kind
-     of "shallow is automatic here" error.
+  4. Explicit ~shallow~ on a custom struct = force/override (NOT forbidden).
+     Decision (revised from the original "forbid" plan): for custom
+     structs we do NOT reject a redundant explicit ~shallow~. Instead:
+       - if ~shallow~ is absent, the step-3 rule decides (auto-shallow when
+         the struct qualifies, pointer-passed otherwise), AND
+       - if ~shallow~ is present, honor it: force by-value passing and SKIP
+         the auto-shallow eligibility check entirely.
+     Rationale: a user who writes ~shallow~ on a struct is explicitly opting
+     into value semantics; we take them at their word rather than second-
+     guessing with the size/field heuristic. (This differs from primitives,
+     where explicit ~shallow~ stays redundant-and-rejected per step 2,
+     because a primitive is unconditionally value-typed.)
+     Status: NOT STARTED. Need to confirm the typer already honors an
+     explicit ~shallow~ struct param/return (it predates this issue -- e.g.
+     ~shallow v: Value~), and that the step-3 normalization leaves an
+     already-Shallow qualifier untouched (it only promotes the Ref/Own
+     default). No redundant-shallow rejection for structs.
 
   Notes:
   - See ~doc/qualifiers.org~ for the shallow -> by-value C mapping and

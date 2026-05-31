@@ -747,12 +747,29 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
     }
 }
 
-// #168 step 2: resolve an FCall's callee to its declared `return_own_type`,
-// or NULL if not resolvable. Mirrors the shape of `fcall_returns_ref` for
-// the OwnType.Own predicate. Recognised callee shapes:
+// #168 step 2: true when an FCall yields a by-value result that a `ref`
+// cannot borrow -- i.e. the callee returns Own (heap value the caller owns)
+// OR Shallow (a stack value: a primitive, or an issue #223 auto-shallow
+// struct). Only a `returns ref T` callee yields a borrowable pointer, so the
+// predicate is "return_own_type is not Ref". A struct/enum constructor always
+// produces a fresh owned value. Recognised callee shapes:
 //   - Ident("foo")     -> scope binding's func_def.return_own_type
 //   - Type.method(...) -> namespace lookup on the type's def
 //   - obj.method(...)  -> namespace lookup on the receiver's type def
+// A callee whose return is a fresh by-value result a `ref` cannot borrow:
+// either an Own return, or (issue #223) a Shallow-returning callee whose
+// return type is a STRUCT/ENUM. A Shallow primitive return (I64, ...) is
+// left out: `ref x : I64 = f()` predates auto-shallow and other code relies
+// on the existing classification; only the struct case is newly value-typed.
+fdef_returns_unborrowable := func(fd: FunctionDef, scope: TypeScope) returns Bool {
+    if fd.return_own_type.is(OwnType.Own) { return true }
+    if fd.return_own_type.is(OwnType.Shallow) {
+        rt := type_from_name_init(fd.return_type, scope)
+        if rt.is(Type.Struct).or(rt.is(Type.Enum)) { return is_primitive(rt).not() }
+    }
+    return false
+}
+
 fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     if fcall.children.len().eq(0) { return false }
@@ -768,7 +785,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
         if is_null(cb.func_def) { return false }
         switch cb.func_def.node_type {
         case NodeType.FuncDef(_cfd):
-            return _cfd.return_own_type.is(OwnType.Own)
+            return fdef_returns_unborrowable(_cfd, scope)
         case:
         }
         return false
@@ -782,7 +799,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
                 if is_null(method) { return false }
                 switch method.node_type {
                 case NodeType.FuncDef(_ffd):
-                    return _ffd.return_own_type.is(OwnType.Own)
+                    return fdef_returns_unborrowable(_ffd, scope)
                 case:
                 }
                 return false
@@ -799,7 +816,7 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
             if is_null(method) { return false }
             switch method.node_type {
             case NodeType.FuncDef(_ffd):
-                return _ffd.return_own_type.is(OwnType.Own)
+                return fdef_returns_unborrowable(_ffd, scope)
             case:
             }
         }
@@ -2632,6 +2649,49 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     TypeScope.delete(own inner)
 }
 
+// Issue #223 step 3: a struct is auto-shallow (safe to pass/return by a
+// byte copy, like a primitive) when ALL of:
+//   - its size fits in a machine word (total_struct_size <= 8 = UPtr.size()),
+//   - it has no `own` fields (an owned heap pointer would be aliased /
+//     double-freed by a byte copy -> the struct is "deep"),
+//   - it has no `ref` fields (disqualified for now; revisitable later), AND
+//   - every field's TYPE is itself auto-shallow (a primitive or another
+//     auto-shallow struct). The transitive check closes the hole where a
+//     size-8 struct embeds a deep struct inline.
+// Enums are not covered here (revisit separately). Mirrors builder's
+// is_pod_struct field rules, plus the size gate.
+PTR_SIZE_BYTES : I32 = 8
+is_shallow_struct := func(type_name: Str, scope: TypeScope) returns Bool {
+    if type_name.len().eq(0) { return false }
+    if is_null(scope) { return false }
+    ref sdef : Expr = scope.get_struct(type_name)
+    if is_null(sdef) { return false }
+    switch sdef.node_type {
+    case NodeType.StructDef(sdd):
+        if sdd.total_struct_size.gt(PTR_SIZE_BYTES) { return false }
+        if sdd.fields.len().eq(0) { return false }
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Own) { return false }
+            if fd.own_type.is(OwnType.Ref) { return false }
+            ref ftn : Str = fd.explicit_type
+            if ftn.len().eq(0) { return false }
+            if is_primitive(til_type_from_explicit_type(ftn)) { continue }
+            if is_shallow_struct(ftn, scope) { continue }
+            return false
+        }
+        return true
+    case:
+    }
+    return false
+}
+
+// A param/return type qualifies for auto-shallow if it is a primitive
+// (step 1) or a small value-shaped struct (step 3).
+is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope) returns Bool {
+    if is_primitive(t) { return true }
+    return is_shallow_struct(type_name, scope)
+}
+
 infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
@@ -2852,14 +2912,14 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                     type_error(expr, "redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
                 }
             }
-            // Issue #223 step 1: primitives are returned by value (shallow)
-            // even without the qualifier. Normalize the default (Own) to
-            // Shallow for primitive return types so every downstream stage
-            // treats them as value types. Explicit 'ref' returns are left
-            // alone (a borrowed pointer is intentional).
+            // Issue #223 step 1/3: a primitive (step 1) or a small value-shaped
+            // struct (step 3) is returned by value (shallow) even without the
+            // qualifier. Normalize the default (Own) to Shallow for those types
+            // so every downstream stage treats them as value types. Explicit
+            // 'ref' returns are left alone (a borrowed pointer is intentional).
             if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Own)) {
                 rt := type_from_name_at(resolved_return_type, scope, expr, ctx)
-                if is_primitive(rt) { fdef.return_own_type = OwnType.Shallow }
+                if is_auto_shallow_type(rt, resolved_return_type, scope) { fdef.return_own_type = OwnType.Shallow }
             }
         }
         for i in 0..fdef.params.len() {
@@ -2911,15 +2971,16 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else {
-                // Issue #223 step 1: primitive params are passed by value
-                // (shallow) even without the qualifier. Normalize the plain
-                // borrowed default (Ref, non-mut) to Shallow for primitives so
-                // every downstream stage treats them as value types. 'mut',
-                // 'own', and 'shallow' params are left as the user wrote them.
-                // A ref-returning function may hand a primitive param back by
-                // reference (e.g. min(a, b) returns ref I64), so its params
-                // must stay borrowed pointers -- skip auto-shallow there.
-                if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_primitive(pt)) {
+                // Issue #223 step 1/3: a primitive (step 1) or small value-shaped
+                // struct (step 3) param is passed by value (shallow) even without
+                // the qualifier. Normalize the plain borrowed default (Ref,
+                // non-mut) to Shallow for those types so every downstream stage
+                // treats them as value types. 'mut', 'own', and 'shallow' params
+                // are left as the user wrote them. A ref-returning function may
+                // hand a param back by reference (e.g. min(a, b) returns ref I64),
+                // so its params must stay borrowed pointers -- skip auto-shallow
+                // there.
+                if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope)) {
                     param.own_type = OwnType.Shallow
                 }
                 func_scope.set(param.name, pt, FuncType.None, pmut, ctx.path, expr.line, expr.col, true, param.own_type)

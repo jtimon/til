@@ -181,6 +181,9 @@ use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
     case NodeType.Ident(ident):
         if is_stack_local(ident_name(ident), ctx) { return true }
         if is_value_global(ident_name(ident), ctx) { return true }
+        // Issue #223 step 3: a shallow (value) param -- e.g. an auto-shallow
+        // small struct passed by value -- is accessed with '.' not '->'.
+        if is_shallow_param(ident_name(ident), ctx) { return true }
     case:
     }
     return false
@@ -984,7 +987,9 @@ collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
 
 emit_field := proc(f: File, var: Str, field: Str, ctx: Context) {
     f.write(var)
-    if is_stack_local(var, ctx).or(is_value_global(var, ctx)) {
+    // Issue #223 step 3: shallow (value) params join stack locals / value
+    // globals on the dot-access path.
+    if is_stack_local(var, ctx).or(is_value_global(var, ctx)).or(is_shallow_param(var, ctx)) {
         f.write(".")
     } else {
         f.write("->")
@@ -1838,6 +1843,14 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     case:
                     }
                     f.write("ULL, .cap = TIL_CAP_LIT}; }\n")
+                } else if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
+                    // Issue #223 step 3: a shallow-returning call yields a value,
+                    // not a heap pointer -- run the old destructor, then assign
+                    // the value directly (no `*_new` pointer dance / free).
+                    f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
+                    f.write(aname).write(" = ")
+                    emit_expr(f, rhs, depth, ctx)
+                    f.write("; }\n")
                 } else {
                     f.write("{ ").write(ctype).write(" *_new = (").write(ctype).write(" *)")
                     emit_expr(f, rhs, depth, ctx)
@@ -1857,7 +1870,15 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if ad.is_payload_alias {
             mut is_compound := false
             if expr_til_type(e).is(Type.Struct).or(expr_til_type(e).is(Type.Enum)) { is_compound = true }
-            if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
+            if is_compound.and(rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx))) {
+                // Issue #223 step 3: shallow-returning call yields a value;
+                // delete the old payload, then deref-assign the value directly.
+                ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)), ctx)
+                f.write("{ "); f.write(ctype); f.write("_delete("); f.write(aname); f.write(", "); f.write(delete_call_free_lit(ctype, false, ctx)); f.write("); ")
+                f.write("*"); f.write(aname); f.write(" = ")
+                emit_expr(f, rhs, depth, ctx)
+                f.write("; }\n")
+            } else if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
                 ctype := c_type_name(expr_til_type(e), til_type_name(expr_til_type(e)), ctx)
                 f.write("{ "); f.write(ctype); f.write("_delete("); f.write(aname); f.write(", "); f.write(delete_call_free_lit(ctype, false, ctx)); f.write("); ")
                 f.write(ctype); f.write(" *_new = ("); f.write(ctype); f.write(" *)")
@@ -2701,15 +2722,23 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
     } else {
         switch e.node_type {
         case NodeType.Ident(ident):
-            if is_shallow_param(ident_name(ident), ctx).or(is_stack_local(ident_name(ident), ctx)).or(is_value_global(ident_name(ident), ctx)) {
-                emit_expr(f, e, depth, ctx)
-            } else if ctx.ref_dyn_locals.has(ident.clone()) {
+            // Issue #223 step 3: a ref local is unambiguously a borrowed
+            // pointer and must be DEREF'd, even if its name happens to
+            // collide with a shallow parameter of another function (the
+            // is_shallow_param check below matches by name and can false-
+            // positive across funcs). Check ref-local before that shortcut,
+            // but after the ref-Dynamic case (#185), which needs a typed cast.
+            if ctx.ref_dyn_locals.has(ident.clone()) {
                 // #185: ident is a ref-Dynamic local but the typer's
                 // narrow_dynamic has retyped this use to a concrete
                 // primitive. Emit a typed cast so DEREF doesn't try to
                 // dereference a `void *` (which is invalid C).
                 ctype := til_type_to_c(expr_til_type(e))
                 f.write("DEREF((").write(ctype).write(" *)").emit_expr(e, depth, ctx).write(")")
+            } else if is_ref_local(ident_name(ident), ctx) {
+                f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
+            } else if is_shallow_param(ident_name(ident), ctx).or(is_stack_local(ident_name(ident), ctx)).or(is_value_global(ident_name(ident), ctx)) {
+                emit_expr(f, e, depth, ctx)
             } else {
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
             }
