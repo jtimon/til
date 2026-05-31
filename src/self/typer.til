@@ -2705,6 +2705,78 @@ check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: Conte
     }
 }
 
+// Look up the payload type for a variant of a named enum, by enum
+// name and variant name. Returns "" if either is unknown. Used by
+// collect_switch_case_bindings to translate a `case E.V(x):` pattern
+// into the type that binding `x` will carry once the case-body
+// payload Decl is emitted.
+priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, variant_name: Str) returns Str {
+    ref edef : Expr = scope.get_struct(enum_name)
+    if is_null(edef) { return "" }
+    switch edef.node_type {
+    case NodeType.EnumDef(edd):
+        ref edd_pts : Map = edd.payload_types
+        for vi in 0..edd.variants.len() {
+            ref vn : Str = edd.variants[vi]
+            if vn.eq(variant_name) {
+                vtag : I64 = vi.to_i64()
+                if edd_pts.has(vtag) {
+                    ref pt : Str = edd_pts[vtag]
+                    return pt.clone()
+                }
+                return ""
+            }
+        }
+    case:
+    }
+    return ""
+}
+
+// Walk a function body and seed ctx.lowering_param_types with the
+// names + payload types bound by switch-case patterns. The
+// throw/catch lowering pass runs before infer_body emits the
+// case-body payload Decls (via make_switch_case_condition), so the
+// body-Decl scan in resolve_value_type can't see them yet.
+// Without this seeding, a `case NodeType.EnumDef(ed):` body that
+// does `ed.payload_types[idx]!` resolves `ed`'s type as "" and the
+// throws lookup falls back to suffix-matching ".get", picking the
+// wrong throw type (Array.get's OutOfBounds instead of Map.get's
+// KeyNotFound).
+priv collect_switch_case_bindings := proc(mut ctx: Context, e: Expr) {
+    if e.node_type.is(NodeType.Case).and(e.children.len().gte(1)) {
+        ref pat : Expr = e.child(0)
+        // Pattern shape: FCall(<EnumName>.<Variant>, <binding_ident>)
+        if pat.node_type.is(NodeType.FCall).and(pat.children.len().eq(2)) {
+            ref callee : Expr = pat.child(0)
+            ref bind : Expr = pat.child(1)
+            if callee.node_type.is(NodeType.FieldAccess).and(callee.children.len().gt(0))
+              .and(bind.node_type.is(NodeType.Ident)) {
+                ref enum_recv : Expr = callee.child(0)
+                switch enum_recv.node_type {
+                case NodeType.Ident(en_id):
+                    switch callee.node_type {
+                    case NodeType.FieldAccess(fa):
+                        switch bind.node_type {
+                        case NodeType.Ident(b_id):
+                            payload_type := lookup_variant_payload_type(ctx.scope, ident_name(en_id), field_access_name(fa))
+                            if payload_type.len().gt(0) {
+                                ctx.lowering_param_types.set(own ident_name(b_id), own payload_type)
+                            }
+                        case:
+                        }
+                    case:
+                    }
+                case:
+                }
+            }
+        }
+    }
+    for ci in 0..e.children.len() {
+        ref c : Expr = e.child(ci)
+        collect_switch_case_bindings(ctx, c)
+    }
+}
+
 infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     if expr.children.len().eq(0) {
         infer_func_sig_expr(scope, expr)
@@ -2886,6 +2958,12 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 if lpi.cast(I32).eq(fdef.kwargs_index) { lptn = "DynMap" }
                 if lptn.len().gt(0) { ctx.lowering_param_types.set(own lpp.name.clone(), own lptn) }
             }
+            // Also seed switch-case payload bindings: `case E.V(x):` binds
+            // `x` to the variant's payload type. The case-body Decls don't
+            // exist yet at this stage (they are emitted inside infer_body
+            // by make_switch_case_condition), so the throw/catch walk
+            // can't see their explicit_type via the body-Decl scan.
+            collect_switch_case_bindings(ctx, expr.child(0))
             process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)

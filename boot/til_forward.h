@@ -1491,6 +1491,8 @@ void priv___src_self_typer_til__typer_resolve_enum_payload_types(EnumDef * edef,
 void infer_type_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void infer_func_sig_expr(TypeScope * scope, Expr * expr);
 void check_ref_function_returns(TypeScope * func_scope, Expr * expr, Context * ctx);
+Str * priv___src_self_typer_til__lookup_variant_payload_type(TypeScope * scope, Str * enum_name, Str * variant_name);
+void priv___src_self_typer_til__collect_switch_case_bindings(Context * ctx, Expr * e);
 void infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void check_unused_params(TypeScope * func_scope, Expr * expr, Context * ctx);
 void check_unused_locals(TypeScope * scope, Str * path, Context * ctx);
