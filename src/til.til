@@ -228,9 +228,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             // Core decls don't change between turns, so we walk once.
             if have_core_cache.not().and(typed_lp.skip_core.not()) {
                 mut core_merged := Expr.new(NodeType.Body, 0, 0)
-                ref typed_imported_a : Map = typed_lp.ctx.imported
                 for u : ProgramUnit in typed_lp.core_units {
-                    ref iu : ImportUnit = typed_imported_a[u.path]
+                    ref iu : ImportUnit = typed_lp.ctx.imported[u.path]
                     for stmt : Expr in iu.ast.children { core_merged.add_child(own stmt.clone()) }
                 }
                 mut tmp_core_info := Str.with_capacity(262144)
@@ -244,9 +243,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             // Build user-only packed blobs every turn (cheap -- only the
             // user's accumulated decls).
             mut user_merged := Expr.new(NodeType.Body, 0, 0)
-            ref typed_imported_b : Map = typed_lp.ctx.imported
             for u : ProgramUnit in typed_lp.units {
-                ref iu : ImportUnit = typed_imported_b[u.path]
+                ref iu : ImportUnit = typed_lp.ctx.imported[u.path]
                 for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
             }
             mut user_info := Str.with_capacity(65536)
