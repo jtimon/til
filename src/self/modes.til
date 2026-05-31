@@ -12,7 +12,7 @@ context_set_mode_from_path := func(mut ctx: Context, path: Str) {
     if ctx.path_modes.has(path).not() {
         panic(__LOC__, "missing mode for path '", path, "'")
     }
-    ref path_mode : Mode = ctx.path_modes.get(path)
+    ref path_mode : Mode = ctx.path_modes[path]
     ctx.mode = path_mode.clone()
 }
 
@@ -32,9 +32,10 @@ mode_register := func(name: Str, mode_def: Mode) {
 }
 
 mode_resolve := func(name: Str) returns ref Mode {
-    if mode_registry.has(name).not() {
+    ref mr : Map = mode_registry
+    if mr.has(name).not() {
         return NULL
     }
-    ref m : Mode = mode_registry.get(name)
+    ref m : Mode = mr[name]
     return m
 }

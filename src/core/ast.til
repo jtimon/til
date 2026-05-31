@@ -371,7 +371,7 @@ namespace:
 EnumDef : StructDef = struct {
     ns_decls := Vec.new(Declaration)
     variants := Vec.new(Str)
-    payload_types := Map.new(I64, Str)
+    payload_types : Map = Map.new(I64, Str)
     total_enum_size : I32 = 0
     // #211: per-variant flag (indexed by variant tag) marking variants
     // whose payload was declared `const Type`. Appended at the end of
@@ -1039,8 +1039,9 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         idx := tag.cast(I64)
-        if edd.payload_types.has(idx) {
-            ref pt : Str = edd.payload_types.get(idx)
+        ref edd_pts : Map = edd.payload_types
+        if edd_pts.has(idx) {
+            ref pt : Str = edd_pts[idx]
             return pt.clone()
         }
     case:

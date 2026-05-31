@@ -128,8 +128,9 @@ priv anon_def_key := func(def: Expr) returns Str {
             ref vn : Str = edd.variants[j]
             k = k.concat(vn)
             idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                ref pt : Str = edd.payload_types.get(idx)
+            ref edd_pts : Map = edd.payload_types
+            if edd_pts.has(idx) {
+                ref pt : Str = edd_pts[idx]
                 k = k.concat(":").concat(pt)
             }
             k = k.concat(";")
@@ -153,7 +154,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, shallow line: U32, shallow 
     if def.node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
     key := anon_def_key(def)
     if p.anon_cache.has(key) {
-        ref hit : Str = p.anon_cache.get(key)
+        ref hit : Str = p.anon_cache[key]
         return hit.clone()
     }
     name := kind.concat(anon_struct_counter.to_str())

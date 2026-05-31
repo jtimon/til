@@ -483,11 +483,12 @@ test_enum_def_of := test() {
     assert_eq_str(__LOC__, "Square", v1)
     ref v2 : Str = def.variants[2.to_usize()]
     assert_eq_str(__LOC__, "Label", v2)
-    expect(__LOC__, def.payload_types.has(0), "Circle has payload")
-    expect(__LOC__, def.payload_types.has(1).not(), "Square no payload")
-    ref p0 : Str = def.payload_types.get(0)
+    ref def_pts : Map = def.payload_types
+    expect(__LOC__, def_pts.has(0), "Circle has payload")
+    expect(__LOC__, def_pts.has(1).not(), "Square no payload")
+    ref p0 : Str = def_pts[0]
     assert_eq_str(__LOC__, "I64", p0)
-    ref p2 : Str = def.payload_types.get(2)
+    ref p2 : Str = def_pts[2]
     assert_eq_str(__LOC__, "Str", p2)
 }
 

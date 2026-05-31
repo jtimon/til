@@ -271,8 +271,9 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
             switch edef2.node_type {
             case NodeType.EnumDef(edd2):
                 if etag2.to_usize().gte(edd2.variants.len()) { return NULL }
-                if edd2.payload_types.has(etag2.cast(I64)).not() { return NULL }
-                ref payload_type_name : Str = edd2.payload_types.get(etag2.cast(I64))
+                ref edd2_pts : Map = edd2.payload_types
+                if edd2_pts.has(etag2.cast(I64)).not() { return NULL }
+                ref payload_type_name : Str = edd2_pts[etag2.cast(I64)]
                 // Fabricate a Declaration whose explicit_type matches the
                 // variant's payload type so read_field can decode the bytes
                 // sitting at ei.data + ENUM_PAYLOAD_OFFSET. (The variant's
@@ -469,7 +470,7 @@ is_known := func(ctx: Context, e: Expr, mut out: Value) returns shallow Bool {
         return true
     case NodeType.Ident(id):
         if ctx.precomp_known.has(ident_name(id)) {
-            ref v : Value = ctx.precomp_known.get(ident_name(id))
+            ref v : Value = ctx.precomp_known[ident_name(id)]
             out = v
             return true
         }
@@ -983,7 +984,7 @@ track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
         // a no-op on .data -- so a same-name overwrite leaks the old
         // payload. Deep-free it before set.
         if ctx.precomp_known.has(name) {
-            ref old : Value = ctx.precomp_known.get(name)
+            ref old : Value = ctx.precomp_known[name]
             cleanup_value_payload(old)
         }
         mut vcopy := v
@@ -1002,7 +1003,7 @@ track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
     if is_known(ctx, rhs, v) {
         if ctx.precomp_known.has(name) {
-            ref old : Value = ctx.precomp_known.get(name)
+            ref old : Value = ctx.precomp_known[name]
             cleanup_value_payload(old)
         }
         mut vcopy := v

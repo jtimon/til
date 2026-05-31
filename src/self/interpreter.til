@@ -420,7 +420,8 @@ Scope := struct {
 lookup_interp_type_def := func(name: Str, ctx: Context) returns ref Expr {
     ref m : Map = ctx.interp_type_defs
     if m.has(name).not() { return NULL }
-    return deref(m.get(name))
+    ref slot : Dynamic = m[name]
+    return deref(slot)
 }
 
 val_none := func() returns shallow Value {
@@ -1806,7 +1807,7 @@ scope_get := func(mut s: Scope, name: Str) returns ref Cell {
     while true {
         if is_null(cur) { return NULL }
         if cur.bindings.has(name) {
-            ref b : Binding = cur.bindings.get(name)
+            ref b : Binding = cur.bindings[name]
             return b.cell
         }
         cur = cur.parent
@@ -1827,7 +1828,7 @@ scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
     while true {
         if is_null(cur) { return "" }
         if cur.payload_aliases.has(name) {
-            ref v : Str = cur.payload_aliases.get(name)
+            ref v : Str = cur.payload_aliases[name]
             return v.clone()
         }
         cur = cur.parent
@@ -1837,7 +1838,7 @@ scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
 
 scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
     if s.bindings.has(name) {
-        ref b : Binding = s.bindings.get(name)
+        ref b : Binding = s.bindings[name]
         free_value(b.cell.val)
         memcpy(b.cell.val, val, Value.size())
         return
@@ -2155,7 +2156,7 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns ref Value {
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
     if c.ns_fields.has(qn).not() { return NULL }
-    ref v : Value = c.ns_fields.get(qn)
+    ref v : Value = c.ns_fields[qn]
     return v
 }
 
@@ -2702,13 +2703,13 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     if ffi_rc.cast(I64).eq(0).not() { return ffi_rc }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             ffi_init_struct_defs_append(iu.ast, lp.ctx)
             ffi_init_scan_program(iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
         ffi_init_struct_defs_append(iu.ast, lp.ctx)
         ffi_init_scan_program(iu.ast, lp.ctx)
     }
@@ -2718,61 +2719,61 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     // 1) Pre-register func/struct/enum definitions
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             interpret_register_defs(global, iu.ast)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
         interpret_register_defs(global, iu.ast)
     }
 
     // 2) Pre-register type aliases
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             interpret_register_aliases(global, iu.ast)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
         interpret_register_aliases(global, iu.ast)
     }
 
     // 3) Initialize namespace fields
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             interpreter_init_ns(lp.ctx, global, iu.ast)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
         interpreter_init_ns(lp.ctx, global, iu.ast)
     }
 
     // 4) Copy namespace entries for type aliases
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             interpret_copy_alias_ns(iu.ast, global, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
         interpret_copy_alias_ns(iu.ast, global, lp.ctx)
     }
 
     // 5) Evaluate top-level declarations
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             context_enter_file(lp.ctx, u.path)
             eval_body(global, iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
         eval_body(global, iu.ast, lp.ctx)
     }
@@ -2784,7 +2785,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
         mut test_count : I32 = 0
         mut pass_count : I32 = 0
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported.get(u.path)
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_func_decl(stmt) {
                     switch stmt.child(0).node_type {

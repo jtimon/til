@@ -34,19 +34,19 @@ namespace:
 
     /// Ref to the value stored under `key`. Panics if not found.
     get := func(self: DynMap, key: Str) returns ref Dynamic {
-        ref tup : Tuple = self.items.get(key)
+        ref tup : Tuple = self.items[key]
         return tup.get(0)
     }
 
     /// Type name of the value stored under `key`.
     type_at := func(self: DynMap, key: Str) returns ref Str {
-        ref tup : Tuple = self.items.get(key)
+        ref tup : Tuple = self.items[key]
         return tup.type_at(0)
     }
 
     /// Byte size of the value stored under `key`.
     size_at := func(self: DynMap, key: Str) returns ref USize {
-        ref tup : Tuple = self.items.get(key)
+        ref tup : Tuple = self.items[key]
         return tup.size_at(0)
     }
 }

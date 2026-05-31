@@ -77,8 +77,10 @@ namespace:
         return false
     }
 
-    /// Return a ref to the value for `key`. Panics if not found.
-    get := func(self: Map, key: Dynamic) returns ref Dynamic {
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    get := func(self: Map, key: Dynamic) returns ref Dynamic throws KeyNotFound {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo.lt(hi) {
@@ -90,8 +92,7 @@ namespace:
                 else { return self.val_ptr(mid) }
             }
         }
-        panic(__LOC__, "Map.get: key not found")
-        return to_ptr(self.values.data)
+        throw KeyNotFound(msg = format(__LOC__, ":Map.get: key not found"))
     }
 
     /// Insert or overwrite the value for `key`. Both key and val are owned.

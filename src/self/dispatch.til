@@ -671,8 +671,9 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
             interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
             exit(1)
         }
-        if ed.payload_types.has(idx) {
-            ref pt : Str = ed.payload_types.get(idx)
+        ref ed_pts : Map = ed.payload_types
+        if ed_pts.has(idx) {
+            ref pt : Str = ed_pts[idx]
             if pt.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
         } else {
             r = val_i64(0)
@@ -693,8 +694,9 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
             interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
             exit(1)
         }
-        if ed.payload_types.has(idx) {
-            ref pt : Str = ed.payload_types.get(idx)
+        ref ed_pts : Map = ed.payload_types
+        if ed_pts.has(idx) {
+            ref pt : Str = ed_pts[idx]
             r = str_to_owned_value(pt, ctx)
         } else {
             r = str_to_owned_value("", ctx)
@@ -999,7 +1001,7 @@ priv known_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
     if type_name.eq("F32")   { return ffi_type_ref("ffi_type_float") }
     if type_name.eq("Bool")  { return ffi_type_ref("ffi_type_uint8") }
     if ctx.ffi_struct_defs.has(type_name) {
-        ref box : ExprPtrBox = ctx.ffi_struct_defs.get(type_name)
+        ref box : ExprPtrBox = ctx.ffi_struct_defs[type_name]
         return build_struct_ffi_type(box.ptr, ctx)
     }
     return NULL
@@ -1169,8 +1171,10 @@ dispatch_init := func(ctx: Context) {
 }
 
 ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns shallow Bool {
-    if ctx.dispatch_map.has(name) {
-        ref fp : DispatchFn = to_ptr(ctx.dispatch_map.get(name))
+    ref dm : Map = ctx.dispatch_map
+    if dm.has(name) {
+        ref slot : Dynamic = dm[name]
+        ref fp : DispatchFn = to_ptr(slot)
         return fp(scope, e, result, ctx)
     }
     return false
@@ -1331,7 +1335,7 @@ ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
     if is_null(fe.return_type) { return NULL }
     if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
     if ctx.ffi_struct_defs.has(fe.return_type).not() { return NULL }
-    ref sdef_ptr : Dynamic = ctx.ffi_struct_defs.get(fe.return_type)
+    ref sdef_ptr : Dynamic = ctx.ffi_struct_defs[fe.return_type]
     return deref(sdef_ptr)
 }
 
@@ -1388,7 +1392,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     if ctx.ffi_loaded.not() { return false }
     if ctx.ffi_map.has(name).not() { return false }
 
-    ref fe : FFIEntry = ctx.ffi_map.get(name)
+    ref fe : FFIEntry = ctx.ffi_map[name]
     nargs := e.children.len().sub(1)
     mut alloc_n := nargs
     if alloc_n.eq(0) { alloc_n = 1 }
@@ -1495,7 +1499,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             result = Value.Dynamic(raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
         } else if ctx.ffi_struct_defs.has(fe.return_type) {
-            ref sdef_ptr : Dynamic = ctx.ffi_struct_defs.get(fe.return_type)
+            ref sdef_ptr : Dynamic = ctx.ffi_struct_defs[fe.return_type]
             ref sdef : Expr = deref(sdef_ptr)
             result = make_struct_value(fe.return_type, sdef, raw_ptr, false, ctx)
         } else {

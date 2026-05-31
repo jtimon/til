@@ -438,3 +438,11 @@ c_str_len := func(s: Dynamic) returns shallow USize {
 OutOfBounds := struct {
     msg: Str = ""
 }
+
+/// Error type for keyed accessors (Map.get, HashMap.get, ...) when
+/// the key is not present. The msg field carries a
+/// "file:line:col:<method>: key not found" description set at the
+/// throw site.
+KeyNotFound := struct {
+    msg: Str = ""
+}

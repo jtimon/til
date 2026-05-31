@@ -15,16 +15,22 @@ import("../src/std/hashmap")
 // Top-level globals deliberately named after common library-internal
 // locals (`m`, `s`, `tmp`, `out`, `result`, `node`) so a regression in
 // any pulled-in function surfaces here.
-m := {"a": 1, "b": 2, "c": 3}
+m : Map = {"a": 1, "b": 2, "c": 3}
 s := {10, 20, 30}
-tmp := {"p": 1}
-out := {"x": 100}
+tmp : Map = {"p": 1}
+out : Map = {"x": 100}
 result := {1, 2, 3}
-node := {"k": "v"}
+node : Map = {"k": "v"}
 
-// Map get (ref) + has + key iteration.
-ref ga : I64 = m.get("a")
-println(ga.to_str())
+// Map get (ref) + has + key iteration. The .get call is wrapped in
+// a function so the throw/catch pass runs on the bang (top-level
+// statements in script mode aren't processed by it today).
+get_a_from_m := func() returns I64 {
+    ref mm : Map = m
+    ref v : I64 = mm["a"]
+    return v.clone()
+}
+println(get_a_from_m().to_str())
 println(m.has("b").to_str())
 for k : Str in m.keys {
     println(k)

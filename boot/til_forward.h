@@ -5,6 +5,7 @@ typedef struct Mode Mode;
 typedef struct Vec Vec;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
+typedef struct KeyNotFound KeyNotFound;
 typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
@@ -294,6 +295,11 @@ typedef struct Str {
 typedef struct OutOfBounds {
     Str msg;
 } OutOfBounds;
+
+
+typedef struct KeyNotFound {
+    Str msg;
+} KeyNotFound;
 
 
 typedef struct Dynamic {
@@ -1032,6 +1038,9 @@ U32 c_str_len(void * s);
 OutOfBounds * OutOfBounds_clone(OutOfBounds * self);
 void OutOfBounds_delete(OutOfBounds * self, Bool call_free);
 U32 OutOfBounds_size(void);
+KeyNotFound * KeyNotFound_clone(KeyNotFound * self);
+void KeyNotFound_delete(KeyNotFound * self, Bool call_free);
+U32 KeyNotFound_size(void);
 U32 Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool _cf);
@@ -1062,7 +1071,7 @@ void Map_clear(Map * self);
 void * Map_key_ptr(Map * self, U32 * i);
 void * Map_val_ptr(Map * self, U32 * i);
 Bool Map_has(Map * self, void * key);
-void * Map_get(Map * self, void * key);
+void * Map_get(Map * self, void * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
 void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool call_free);
 Map * Map_clone(Map * self);

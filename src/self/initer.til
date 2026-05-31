@@ -87,7 +87,7 @@ TypeScope := struct {
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
         if self.bindings.has(name) {
-            ref b : TypeBinding = self.bindings.get(name)
+            ref b : TypeBinding = self.bindings[name]
             return b
         }
         if is_null(self.parent).not() {
@@ -115,7 +115,7 @@ namespace:
     }
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
         if self.bindings.has(name) {
-            ref b : TypeBinding = self.bindings.get(name)
+            ref b : TypeBinding = self.bindings[name]
             if is_null(b.struct_def).not() { return b.struct_def }
         }
         if is_null(self.parent).not() {
@@ -134,7 +134,7 @@ namespace:
         shallow line: U32, shallow col: U32,
         shallow is_param: Bool, shallow own_type: OwnType) {
             if self.bindings.has(name) {
-                ref mut b : TypeBinding = self.bindings.get(name)
+                ref mut b : TypeBinding = self.bindings[name]
                 b.type = type
                 b.func_type = func_type
                 b.is_mut = is_mut
@@ -694,8 +694,9 @@ priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns sha
     case NodeType.EnumDef(edd):
         for j in 0..edd.variants.len() {
             idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                ref pt : Str = edd.payload_types.get(idx)
+            ref edd_pts_a : Map = edd.payload_types
+            if edd_pts_a.has(idx) {
+                ref pt : Str = edd_pts_a[idx]
                 if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
             }
         }
@@ -941,8 +942,9 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
             ref vn : Str = edd.variants[j]
             variant_names.push(own vn.clone())
             idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                ref pt : Str = edd.payload_types.get(idx)
+            ref edd_pts_b : Map = edd.payload_types
+            if edd_pts_b.has(idx) {
+                ref pt : Str = edd_pts_b[idx]
                 variant_types.push(own pt.clone())
             } else {
                 variant_types.push(own "")
@@ -2671,7 +2673,7 @@ priv init_is_lift_target := func(stmt: Expr) returns shallow Bool {
 priv init_lookup_name := func(renamings: Map, name: Str) returns Str {
     if name.len().eq(0) { return "" }
     if renamings.has(name).not() { return "" }
-    ref s : Str = renamings.get(name)
+    ref s : Str = renamings[name]
     return s.clone()
 }
 
@@ -2751,8 +2753,9 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
     case NodeType.EnumDef(edd):
         for vi in 0..edd.variants.len() {
             vidx := vi.to_i64()
-            if edd.payload_types.has(vidx).not() { continue }
-            ref pt_old : Str = edd.payload_types.get(vidx)
+            ref edd_pts : Map = edd.payload_types
+            if edd_pts.has(vidx).not() { continue }
+            ref pt_old : Str = edd_pts[vidx]
             new_pt := init_lookup_name(renamings, pt_old)
             if new_pt.len().gt(0) {
                 edd.payload_types.set(own vidx.clone(), own new_pt.clone())
@@ -3115,7 +3118,7 @@ init_file := proc(path: Str, ctx: Context) returns shallow I32 {
     }
     ctx.imports_init_done.add(own path.clone())
 
-    ref iu : ImportUnit = ctx.imported.get(path)
+    ref iu : ImportUnit = ctx.imported[path]
 
     // Walk the AST in source order and recurse on each ~import("...")~ FCall.
     // iu.imports is kept as a side table that maps the i-th import FCall to

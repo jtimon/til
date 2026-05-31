@@ -5653,7 +5653,32 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
             ref fd : Declaration = sd.fields[fi]
             if fd.name.eq(field_name) {
                 if fd.explicit_type.len().gt(0) { return fd.explicit_type.clone() }
-                return til_type_name(fd.til_type)
+                tn := til_type_name(fd.til_type)
+                if tn.len().gt(0) { return tn }
+                // Field declared without an explicit type AND its
+                // til_type hasn't been inferred yet (extend_throwing_func_sigs
+                // runs before infer_body, so init expressions like
+                // `payload_types := Map.new(I64, Str)` haven't been
+                // typed). Guess from the default-value Expr: a bare
+                // ctor FCall like `Map.new(...)` or `Vec.new(T)` lets
+                // us read the type off the callee.
+                ref dv : Expr = fd.default_value
+                if dv.node_type.is(NodeType.FCall).and(dv.children.len().gt(0)) {
+                    ref dv_callee : Expr = dv.child(0)
+                    switch dv_callee.node_type {
+                    case NodeType.FieldAccess:
+                        if dv_callee.children.len().gt(0) {
+                            switch dv_callee.child(0).node_type {
+                            case NodeType.Ident(dv_recv): return ident_name(dv_recv)
+                            case:
+                            }
+                        }
+                    case NodeType.Ident(dv_id):
+                        return normalize_ctor_type(ident_name(dv_id))
+                    case:
+                    }
+                }
+                return ""
             }
         }
     case:
@@ -5670,7 +5695,7 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
     case NodeType.Ident(idn):
         nm := ident_name(idn)
         if ctx.lowering_param_types.has(nm) {
-            ref pt : Str = ctx.lowering_param_types.get(nm)
+            ref pt : Str = ctx.lowering_param_types[nm]
             return normalize_ctor_type(pt)
         }
         g := guess_local_type(body, nm)
@@ -7023,7 +7048,7 @@ type_decls_file := proc(path: Str, ctx: Context) returns shallow I32 {
     }
     ctx.imports_typer_decls_done.add(own path.clone())
 
-    ref iu : ImportUnit = ctx.imported.get(path)
+    ref iu : ImportUnit = ctx.imported[path]
     mut total : I32 = 0
     ast_count : USize = count_ast_imports(iu.ast)
     auto_count : USize = iu.imports.len().sub(ast_count)
@@ -7118,7 +7143,7 @@ type_bodies_file := proc(path: Str, ctx: Context) returns shallow I32 {
     }
     ctx.imports_typer_bodies_done.add(own path.clone())
 
-    ref iu : ImportUnit = ctx.imported.get(path)
+    ref iu : ImportUnit = ctx.imported[path]
 
     // Walk the AST in source order; recurse on each ~import("...")~ FCall.
     // iu.imports stays as a source-ordered side table for path resolution.
