@@ -154,6 +154,16 @@ proc parse_bitxor(mut p: priv___src_self_parser_til__Parser) returns Expr
 proc parse_bitor(mut p: priv___src_self_parser_til__Parser) returns Expr
 #+end_src
 
+* parse_logical_and
+#+begin_src til
+proc parse_logical_and(mut p: priv___src_self_parser_til__Parser) returns Expr
+#+end_src
+
+* parse_logical_or
+#+begin_src til
+proc parse_logical_or(mut p: priv___src_self_parser_til__Parser) returns Expr
+#+end_src
+
 * parse_expression
 #+begin_src til
 proc parse_expression(mut p: priv___src_self_parser_til__Parser) returns Expr

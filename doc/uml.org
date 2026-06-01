@@ -31,6 +31,8 @@
 *** GtEq
 *** PlusPlus
 *** MinusMinus
+*** AmpAmp
+*** PipePipe
 *** ColonEq
 *** Ident
 *** StringTok

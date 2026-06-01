@@ -16,24 +16,24 @@ func context_set_mode_from_path(mut ctx: Context, path: Str)
 func context_enter_file(mut ctx: Context, path: Str)
 #+end_src
 
-* hoisted__Str_12513
+* hoisted__Str_12541
 #+begin_src til
-hoisted__Str_12513 is a Str
+hoisted__Str_12541 is a Str
 #+end_src
 
-* hoisted__Str_12514
+* hoisted__Str_12542
 #+begin_src til
-hoisted__Str_12514 is a Str
+hoisted__Str_12542 is a Str
 #+end_src
 
-* hoisted__Type_12515
+* hoisted__Type_12543
 #+begin_src til
-hoisted__Type_12515 is a Type
+hoisted__Type_12543 is a Type
 #+end_src
 
-* hoisted__Type_12516
+* hoisted__Type_12544
 #+begin_src til
-hoisted__Type_12516 is a Type
+hoisted__Type_12544 is a Type
 #+end_src
 
 * mode_registry
@@ -41,44 +41,44 @@ hoisted__Type_12516 is a Type
 mode_registry is a Map
 #+end_src
 
-* hoisted__Bool_12517
+* hoisted__Bool_12545
 #+begin_src til
-hoisted__Bool_12517 is a Bool
+hoisted__Bool_12545 is a Bool
 #+end_src
 
-* hoisted__Bool_12518
+* hoisted__Bool_12546
 #+begin_src til
-hoisted__Bool_12518 is a Bool
+hoisted__Bool_12546 is a Bool
 #+end_src
 
-* hoisted__Bool_12519
+* hoisted__Bool_12547
 #+begin_src til
-hoisted__Bool_12519 is a Bool
+hoisted__Bool_12547 is a Bool
 #+end_src
 
-* hoisted__Bool_12520
+* hoisted__Bool_12548
 #+begin_src til
-hoisted__Bool_12520 is a Bool
+hoisted__Bool_12548 is a Bool
 #+end_src
 
-* hoisted__Bool_12521
+* hoisted__Bool_12549
 #+begin_src til
-hoisted__Bool_12521 is a Bool
+hoisted__Bool_12549 is a Bool
 #+end_src
 
-* hoisted__Bool_12522
+* hoisted__Bool_12550
 #+begin_src til
-hoisted__Bool_12522 is a Bool
+hoisted__Bool_12550 is a Bool
 #+end_src
 
-* hoisted__Str_12523
+* hoisted__Str_12551
 #+begin_src til
-hoisted__Str_12523 is a Str
+hoisted__Str_12551 is a Str
 #+end_src
 
-* hoisted__Mode_12524
+* hoisted__Mode_12552
 #+begin_src til
-hoisted__Mode_12524 is a Mode
+hoisted__Mode_12552 is a Mode
 #+end_src
 
 * mode_register

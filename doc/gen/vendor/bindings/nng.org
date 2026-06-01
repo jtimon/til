@@ -369,9 +369,9 @@ ext_proc nng_str_sockaddr(sa: Dynamic, buf: I8, shallow bufsz: U32) returns ref 
 nng_pipe_ev
 #+end_src
 
-* hoisted__I64_56297
+* hoisted__I64_56359
 #+begin_src til
-hoisted__I64_56297 is a I64
+hoisted__I64_56359 is a I64
 #+end_src
 
 * NNG_PIPE_EV_ADD_PRE
@@ -379,9 +379,9 @@ hoisted__I64_56297 is a I64
 NNG_PIPE_EV_ADD_PRE is a I32
 #+end_src
 
-* hoisted__I64_56298
+* hoisted__I64_56360
 #+begin_src til
-hoisted__I64_56298 is a I64
+hoisted__I64_56360 is a I64
 #+end_src
 
 * NNG_PIPE_EV_ADD_POST
@@ -389,9 +389,9 @@ hoisted__I64_56298 is a I64
 NNG_PIPE_EV_ADD_POST is a I32
 #+end_src
 
-* hoisted__I64_56299
+* hoisted__I64_56361
 #+begin_src til
-hoisted__I64_56299 is a I64
+hoisted__I64_56361 is a I64
 #+end_src
 
 * NNG_PIPE_EV_REM_POST
@@ -399,9 +399,9 @@ hoisted__I64_56299 is a I64
 NNG_PIPE_EV_REM_POST is a I32
 #+end_src
 
-* hoisted__I64_56300
+* hoisted__I64_56362
 #+begin_src til
-hoisted__I64_56300 is a I64
+hoisted__I64_56362 is a I64
 #+end_src
 
 * NNG_PIPE_EV_NUM
@@ -2178,9 +2178,9 @@ ext_proc nng_init_set_parameter(shallow _arg: I32, shallow _arg: U64)
 nng_log_level
 #+end_src
 
-* hoisted__I64_56301
+* hoisted__I64_56363
 #+begin_src til
-hoisted__I64_56301 is a I64
+hoisted__I64_56363 is a I64
 #+end_src
 
 * NNG_LOG_NONE
@@ -2188,9 +2188,9 @@ hoisted__I64_56301 is a I64
 NNG_LOG_NONE is a I32
 #+end_src
 
-* hoisted__I64_56302
+* hoisted__I64_56364
 #+begin_src til
-hoisted__I64_56302 is a I64
+hoisted__I64_56364 is a I64
 #+end_src
 
 * NNG_LOG_ERR
@@ -2198,9 +2198,9 @@ hoisted__I64_56302 is a I64
 NNG_LOG_ERR is a I32
 #+end_src
 
-* hoisted__I64_56303
+* hoisted__I64_56365
 #+begin_src til
-hoisted__I64_56303 is a I64
+hoisted__I64_56365 is a I64
 #+end_src
 
 * NNG_LOG_WARN
@@ -2208,9 +2208,9 @@ hoisted__I64_56303 is a I64
 NNG_LOG_WARN is a I32
 #+end_src
 
-* hoisted__I64_56304
+* hoisted__I64_56366
 #+begin_src til
-hoisted__I64_56304 is a I64
+hoisted__I64_56366 is a I64
 #+end_src
 
 * NNG_LOG_NOTICE
@@ -2218,9 +2218,9 @@ hoisted__I64_56304 is a I64
 NNG_LOG_NOTICE is a I32
 #+end_src
 
-* hoisted__I64_56305
+* hoisted__I64_56367
 #+begin_src til
-hoisted__I64_56305 is a I64
+hoisted__I64_56367 is a I64
 #+end_src
 
 * NNG_LOG_INFO
@@ -2228,9 +2228,9 @@ hoisted__I64_56305 is a I64
 NNG_LOG_INFO is a I32
 #+end_src
 
-* hoisted__I64_56306
+* hoisted__I64_56368
 #+begin_src til
-hoisted__I64_56306 is a I64
+hoisted__I64_56368 is a I64
 #+end_src
 
 * NNG_LOG_DEBUG
@@ -2243,9 +2243,9 @@ NNG_LOG_DEBUG is a I32
 nng_log_facility
 #+end_src
 
-* hoisted__I64_56307
+* hoisted__I64_56369
 #+begin_src til
-hoisted__I64_56307 is a I64
+hoisted__I64_56369 is a I64
 #+end_src
 
 * NNG_LOG_USER
@@ -2253,9 +2253,9 @@ hoisted__I64_56307 is a I64
 NNG_LOG_USER is a I32
 #+end_src
 
-* hoisted__I64_56308
+* hoisted__I64_56370
 #+begin_src til
-hoisted__I64_56308 is a I64
+hoisted__I64_56370 is a I64
 #+end_src
 
 * NNG_LOG_DAEMON
@@ -2263,9 +2263,9 @@ hoisted__I64_56308 is a I64
 NNG_LOG_DAEMON is a I32
 #+end_src
 
-* hoisted__I64_56309
+* hoisted__I64_56371
 #+begin_src til
-hoisted__I64_56309 is a I64
+hoisted__I64_56371 is a I64
 #+end_src
 
 * NNG_LOG_AUTH
@@ -2273,9 +2273,9 @@ hoisted__I64_56309 is a I64
 NNG_LOG_AUTH is a I32
 #+end_src
 
-* hoisted__I64_56310
+* hoisted__I64_56372
 #+begin_src til
-hoisted__I64_56310 is a I64
+hoisted__I64_56372 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL0
@@ -2283,9 +2283,9 @@ hoisted__I64_56310 is a I64
 NNG_LOG_LOCAL0 is a I32
 #+end_src
 
-* hoisted__I64_56311
+* hoisted__I64_56373
 #+begin_src til
-hoisted__I64_56311 is a I64
+hoisted__I64_56373 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL1
@@ -2293,9 +2293,9 @@ hoisted__I64_56311 is a I64
 NNG_LOG_LOCAL1 is a I32
 #+end_src
 
-* hoisted__I64_56312
+* hoisted__I64_56374
 #+begin_src til
-hoisted__I64_56312 is a I64
+hoisted__I64_56374 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL2
@@ -2303,9 +2303,9 @@ hoisted__I64_56312 is a I64
 NNG_LOG_LOCAL2 is a I32
 #+end_src
 
-* hoisted__I64_56313
+* hoisted__I64_56375
 #+begin_src til
-hoisted__I64_56313 is a I64
+hoisted__I64_56375 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL3
@@ -2313,9 +2313,9 @@ hoisted__I64_56313 is a I64
 NNG_LOG_LOCAL3 is a I32
 #+end_src
 
-* hoisted__I64_56314
+* hoisted__I64_56376
 #+begin_src til
-hoisted__I64_56314 is a I64
+hoisted__I64_56376 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL4
@@ -2323,9 +2323,9 @@ hoisted__I64_56314 is a I64
 NNG_LOG_LOCAL4 is a I32
 #+end_src
 
-* hoisted__I64_56315
+* hoisted__I64_56377
 #+begin_src til
-hoisted__I64_56315 is a I64
+hoisted__I64_56377 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL5
@@ -2333,9 +2333,9 @@ hoisted__I64_56315 is a I64
 NNG_LOG_LOCAL5 is a I32
 #+end_src
 
-* hoisted__I64_56316
+* hoisted__I64_56378
 #+begin_src til
-hoisted__I64_56316 is a I64
+hoisted__I64_56378 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL6
@@ -2343,9 +2343,9 @@ hoisted__I64_56316 is a I64
 NNG_LOG_LOCAL6 is a I32
 #+end_src
 
-* hoisted__I64_56317
+* hoisted__I64_56379
 #+begin_src til
-hoisted__I64_56317 is a I64
+hoisted__I64_56379 is a I64
 #+end_src
 
 * NNG_LOG_LOCAL7

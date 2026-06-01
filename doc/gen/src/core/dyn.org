@@ -141,7 +141,7 @@ func HashFn(: Dynamic, shallow : U32) returns shallow U64
 
 * TypeHashFn
 #+begin_src til
-func TypeHashFn(: Dynamic, : HashFn) returns shallow U64
+func TypeHashFn(: Dynamic, shallow : HashFn) returns shallow U64
 #+end_src
 
 * default_clone

@@ -22,9 +22,12 @@ namespace:
     func unity(shallow _self: U32) returns shallow U32
     ext_func eq(shallow a: U32, shallow b: U32) returns shallow Bool
     ext_func cmp(shallow a: U32, shallow b: U32) returns shallow I64
-    ext_func and(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func or(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func xor(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func band(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func bor(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func bxor(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func bnot(shallow a: U32) returns shallow U32
+    ext_func shl(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func shr(shallow a: U32, shallow b: U32) returns shallow U32
     ext_func clone(val: U32) returns shallow U32
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64

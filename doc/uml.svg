@@ -10,9 +10,9 @@
     </style>
   </defs>
   <rect class="bg" x="0" y="0" width="3700" height="3552"/>
-  <rect x="24" y="24" width="284" height="1596" rx="14" ry="14" class="panel"/>
+  <rect x="24" y="24" width="284" height="1632" rx="14" ry="14" class="panel"/>
   <text x="44" y="62" class="panel-label">lexer</text>
-  <rect x="44" y="88" width="172" height="1378" rx="10" ry="10" class="box"/>
+  <rect x="44" y="88" width="172" height="1414" rx="10" ry="10" class="box"/>
   <text x="58" y="126" class="title">TokenType: EnumDef</text>
   <text x="58" y="144" class="line">Eof</text>
   <text x="58" y="162" class="line">LParen</text>
@@ -45,55 +45,57 @@
   <text x="58" y="648" class="line">GtEq</text>
   <text x="58" y="666" class="line">PlusPlus</text>
   <text x="58" y="684" class="line">MinusMinus</text>
-  <text x="58" y="702" class="line">ColonEq</text>
-  <text x="58" y="720" class="line">Ident</text>
-  <text x="58" y="738" class="line">StringTok</text>
-  <text x="58" y="756" class="line">Number</text>
-  <text x="58" y="774" class="line">Char</text>
-  <text x="58" y="792" class="line">DocComment</text>
-  <text x="58" y="810" class="line">KwMut</text>
-  <text x="58" y="828" class="line">KwConst</text>
-  <text x="58" y="846" class="line">KwOwn</text>
-  <text x="58" y="864" class="line">KwRef</text>
-  <text x="58" y="882" class="line">KwShallow</text>
-  <text x="58" y="900" class="line">KwStruct</text>
-  <text x="58" y="918" class="line">KwEnum</text>
-  <text x="58" y="936" class="line">KwNamespace</text>
-  <text x="58" y="954" class="line">KwFunc</text>
-  <text x="58" y="972" class="line">KwProc</text>
-  <text x="58" y="990" class="line">KwTest</text>
-  <text x="58" y="1008" class="line">KwMacro</text>
-  <text x="58" y="1026" class="line">KwExtFunc</text>
-  <text x="58" y="1044" class="line">KwExtProc</text>
-  <text x="58" y="1062" class="line">KwExtStruct</text>
-  <text x="58" y="1080" class="line">KwReturns</text>
-  <text x="58" y="1098" class="line">KwThrows</text>
-  <text x="58" y="1116" class="line">KwIf</text>
-  <text x="58" y="1134" class="line">KwElse</text>
-  <text x="58" y="1152" class="line">KwWhile</text>
-  <text x="58" y="1170" class="line">KwFor</text>
-  <text x="58" y="1188" class="line">KwIn</text>
-  <text x="58" y="1206" class="line">KwSwitch</text>
-  <text x="58" y="1224" class="line">KwMatch</text>
-  <text x="58" y="1242" class="line">KwCase</text>
-  <text x="58" y="1260" class="line">KwDefault</text>
-  <text x="58" y="1278" class="line">KwReturn</text>
-  <text x="58" y="1296" class="line">KwThrow</text>
-  <text x="58" y="1314" class="line">KwCatch</text>
-  <text x="58" y="1332" class="line">KwBreak</text>
-  <text x="58" y="1350" class="line">KwContinue</text>
-  <text x="58" y="1368" class="line">KwDefer</text>
-  <text x="58" y="1386" class="line">KwTrue</text>
-  <text x="58" y="1404" class="line">KwFalse</text>
-  <text x="58" y="1422" class="line">KwNull</text>
-  <text x="58" y="1440" class="line">KwPriv</text>
-  <text x="58" y="1458" class="line">Error</text>
-  <rect x="44" y="1484" width="244" height="118" rx="10" ry="10" class="box"/>
-  <text x="58" y="1522" class="title">Token: StructDef</text>
-  <text x="58" y="1540" class="line">const type := TokenType.Eof</text>
-  <text x="58" y="1558" class="line">const text := &quot;&quot;</text>
-  <text x="58" y="1576" class="line">const line : U32 = 0</text>
-  <text x="58" y="1594" class="line">const col : U32 = 0</text>
+  <text x="58" y="702" class="line">AmpAmp</text>
+  <text x="58" y="720" class="line">PipePipe</text>
+  <text x="58" y="738" class="line">ColonEq</text>
+  <text x="58" y="756" class="line">Ident</text>
+  <text x="58" y="774" class="line">StringTok</text>
+  <text x="58" y="792" class="line">Number</text>
+  <text x="58" y="810" class="line">Char</text>
+  <text x="58" y="828" class="line">DocComment</text>
+  <text x="58" y="846" class="line">KwMut</text>
+  <text x="58" y="864" class="line">KwConst</text>
+  <text x="58" y="882" class="line">KwOwn</text>
+  <text x="58" y="900" class="line">KwRef</text>
+  <text x="58" y="918" class="line">KwShallow</text>
+  <text x="58" y="936" class="line">KwStruct</text>
+  <text x="58" y="954" class="line">KwEnum</text>
+  <text x="58" y="972" class="line">KwNamespace</text>
+  <text x="58" y="990" class="line">KwFunc</text>
+  <text x="58" y="1008" class="line">KwProc</text>
+  <text x="58" y="1026" class="line">KwTest</text>
+  <text x="58" y="1044" class="line">KwMacro</text>
+  <text x="58" y="1062" class="line">KwExtFunc</text>
+  <text x="58" y="1080" class="line">KwExtProc</text>
+  <text x="58" y="1098" class="line">KwExtStruct</text>
+  <text x="58" y="1116" class="line">KwReturns</text>
+  <text x="58" y="1134" class="line">KwThrows</text>
+  <text x="58" y="1152" class="line">KwIf</text>
+  <text x="58" y="1170" class="line">KwElse</text>
+  <text x="58" y="1188" class="line">KwWhile</text>
+  <text x="58" y="1206" class="line">KwFor</text>
+  <text x="58" y="1224" class="line">KwIn</text>
+  <text x="58" y="1242" class="line">KwSwitch</text>
+  <text x="58" y="1260" class="line">KwMatch</text>
+  <text x="58" y="1278" class="line">KwCase</text>
+  <text x="58" y="1296" class="line">KwDefault</text>
+  <text x="58" y="1314" class="line">KwReturn</text>
+  <text x="58" y="1332" class="line">KwThrow</text>
+  <text x="58" y="1350" class="line">KwCatch</text>
+  <text x="58" y="1368" class="line">KwBreak</text>
+  <text x="58" y="1386" class="line">KwContinue</text>
+  <text x="58" y="1404" class="line">KwDefer</text>
+  <text x="58" y="1422" class="line">KwTrue</text>
+  <text x="58" y="1440" class="line">KwFalse</text>
+  <text x="58" y="1458" class="line">KwNull</text>
+  <text x="58" y="1476" class="line">KwPriv</text>
+  <text x="58" y="1494" class="line">Error</text>
+  <rect x="44" y="1520" width="244" height="118" rx="10" ry="10" class="box"/>
+  <text x="58" y="1558" class="title">Token: StructDef</text>
+  <text x="58" y="1576" class="line">const type := TokenType.Eof</text>
+  <text x="58" y="1594" class="line">const text := &quot;&quot;</text>
+  <text x="58" y="1612" class="line">const line : U32 = 0</text>
+  <text x="58" y="1630" class="line">const col : U32 = 0</text>
   <rect x="342" y="24" width="580" height="3504" rx="14" ry="14" class="panel"/>
   <text x="362" y="62" class="panel-label">ast</text>
   <rect x="362" y="88" width="172" height="82" rx="10" ry="10" class="box"/>

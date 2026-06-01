@@ -31,6 +31,7 @@ enum Target {
     LinuxX64
     LinuxArm64
     LinuxRiscv64
+    LinuxX86
     WindowsX64
     MacosX64
     MacosArm64
@@ -40,6 +41,7 @@ namespace:
     LinuxX64
     LinuxArm64
     LinuxRiscv64
+    LinuxX86
     WindowsX64
     MacosX64
     MacosArm64

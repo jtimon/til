@@ -25,9 +25,12 @@ namespace:
     func neg(shallow a: I8) returns shallow I8
     /// Absolute value.
     func abs(shallow a: I8) returns shallow I8
-    ext_func and(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func or(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func xor(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func band(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func bor(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func bxor(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func bnot(shallow a: I8) returns shallow I8
+    ext_func shl(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func shr(shallow a: I8, shallow b: I8) returns shallow I8
     ext_func clone(val: I8) returns shallow I8
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64

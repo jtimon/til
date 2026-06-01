@@ -35,6 +35,8 @@ enum TokenType {
     GtEq
     PlusPlus
     MinusMinus
+    AmpAmp
+    PipePipe
     ColonEq
     Ident
     StringTok
@@ -110,6 +112,8 @@ namespace:
     GtEq
     PlusPlus
     MinusMinus
+    AmpAmp
+    PipePipe
     ColonEq
     Ident
     StringTok
