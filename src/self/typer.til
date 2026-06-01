@@ -2250,10 +2250,20 @@ cast_is_signed := func(t: Type) returns Bool {
 cast_pair_ok := func(src: Type, target: Type) returns Bool {
     src_size := cast_int_size(src)
     target_size := cast_int_size(target)
-    if src_size.eq(0).or(target_size.eq(0)) { return false }
-    if src_size.eq(target_size) { return true }
-    if src_size.lt(target_size) {
-        return cast_is_signed(src).eq(cast_is_signed(target))
+    if src_size.gt(0).and(target_size.gt(0)) {
+        if src_size.eq(target_size) { return true }
+        if src_size.lt(target_size) {
+            return cast_is_signed(src).eq(cast_is_signed(target))
+        }
+        return false
+    }
+    // Issue #58: Dynamic -> FuncPtr (named FuncSig) is the user's
+    // assertion that the slot holds a function pointer of the target
+    // signature -- used to pull a fn ptr out of a Dynamic-element Vec
+    // (`Vec.new(BinaryOp)`) and call it. FuncPtr -> FuncPtr (same shape)
+    // is accepted as an identity / nominal cast for completeness.
+    if target.is(Type.FuncPtr) {
+        if src.is(Type.Dynamic).or(src.is(Type.FuncPtr)) { return true }
     }
     return false
 }
@@ -2288,7 +2298,14 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         e.set_expr_til_type(Type.Unknown)
         return
     }
-    target_type := til_type_from_explicit_type(tname)
+    // Issue #58: a bare user FuncSig name (`cast(raw, BinaryOp)`)
+    // resolves to Type.Custom through til_type_from_explicit_type;
+    // walk scope to map it to Type.FuncPtr so cast_pair_ok's
+    // Dynamic -> FuncPtr branch fires.
+    mut target_type := til_type_from_explicit_type(tname)
+    if target_type.is(Type.Custom) {
+        target_type = type_from_name(tname, scope, ctx)
+    }
     if cast_pair_ok(src_type, target_type).not() {
         e.type_error(format(
             "cast only supports same-size integer reinterpret ",
@@ -2298,10 +2315,77 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         e.set_expr_til_type(Type.Unknown)
         return
     }
+    // Issue #58: for Dynamic -> FuncPtr (user FuncSig like BinaryOp),
+    // leave child(2) as the original Ident so a parent FCall can look
+    // up the FuncSig (param types, return type) to validate the call
+    // and pick the right C function-pointer cast in codegen. The
+    // integer-cast path needs the Type-value rewrite; the FuncPtr path
+    // intentionally skips it.
+    if target_type.is(Type.FuncPtr).and(src_type.is(Type.FuncPtr).not()) {
+        e.child(2).set_expr_til_type(Type.Enum("Type"))
+        e.set_expr_til_type(target_type)
+        return
+    }
     mut replacement := e.child(2).make_til_type_expr(target_type)
     move(e.child(2), replacement, Expr.size())
     infer_expr(scope, e.child(2), in_func, ctx)
     e.set_expr_til_type(target_type)
+}
+
+// Issue #58: type-check a postfix call where the callee is
+// `cast(value, FuncSig)`. The cast has already been infer'd; this
+// function reads the FuncSig name out of cast's child(2), looks up the
+// FuncDef in scope, validates arg count + arg types against the sig,
+// and sets the outer FCall's til_type to the sig's return type. Returns
+// false when the callee isn't a cast-to-FuncSig shape so callers can
+// fall back to other paths.
+infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
+    ref callee : Expr = e.child(0)
+    if callee.node_type.is(NodeType.FCall).not() { return false }
+    if callee.expr_til_type().is(Type.FuncPtr).not() { return false }
+    if callee.children.len().neq(3) { return false }
+    ref cast_head : Expr = callee.child(0)
+    switch cast_head.node_type {
+    case NodeType.Ident(cn):
+        if cn.ident_name().eq("cast").not() { return false }
+    case:
+        return false
+    }
+    mut sig_name := ""
+    switch callee.child(2).node_type {
+    case NodeType.Ident(tn): sig_name = tn.ident_name()
+    case:
+        return false
+    }
+    ref sig_bind : TypeBinding = scope.get_binding(sig_name)
+    if is_null(sig_bind) { return false }
+    if sig_bind.type.is(Type.FuncPtr).not() { return false }
+    if is_null(sig_bind.func_def) { return false }
+    ref sig_def : Expr = sig_bind.func_def
+    switch sig_def.node_type {
+    case NodeType.FuncDef(sfd):
+        nargs := e.children.len().sub(1)
+        nparam := sfd.params.len()
+        if nargs.neq(nparam) {
+            type_error(e, format(
+                "function pointer of type '", sig_name, "' expects ",
+                nparam.to_str(), " arg(s), got ", nargs.to_str()
+            ), ctx)
+            e.set_expr_til_type(Type.Unknown)
+            return true
+        }
+        for ai in 1..e.children.len() {
+            infer_expr(scope, e.child(ai), in_func, ctx)
+        }
+        if sfd.return_type.len().gt(0) {
+            e.set_expr_til_type(type_from_name(sfd.return_type, scope, ctx))
+        } else {
+            e.set_expr_til_type(Type.None)
+        }
+        return true
+    case:
+        return false
+    }
 }
 
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
@@ -2309,6 +2393,17 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
     }
     ref mut callee : Expr = e.child(0)
+    // Issue #58: postfix call on a cast result: `cast(raw, BinaryOp)(3, 4)`.
+    // Recognise the cast-to-FuncSig shape, type the cast (which sets the
+    // cast expr's til_type to Type.FuncPtr and keeps child(2) as the
+    // FuncSig Ident), and validate the outer call against the FuncSig.
+    if callee.node_type.is(NodeType.FCall) {
+        infer_expr(scope, callee, in_func, ctx)
+        if infer_funcptr_call_via_cast(scope, e, in_func, ctx) { return }
+        // Other non-Ident callees (e.g. ops[0](args) without cast) are
+        // not yet supported; the typer below will fall through to the
+        // UNREACHABLE branch with a more diagnostic-able shape.
+    }
     mut name := ""
     switch callee.node_type {
     case NodeType.Ident(name0):

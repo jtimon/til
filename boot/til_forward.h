@@ -1483,6 +1483,7 @@ I32 cast_int_size(Type * t);
 Bool cast_is_signed(Type * t);
 Bool cast_pair_ok(Type * src, Type * target);
 void infer_cast_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
+Bool infer_funcptr_call_via_cast(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_ident_expr(TypeScope * scope, Expr * expr, Context * ctx);

@@ -1647,6 +1647,58 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         UNREACHABLE(__LOC__)
         return val_none()
     }
+    case NodeType.FCall:
+        // Issue #58: postfix call on a sub-expression callee, e.g.
+        // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
+        // get the function pointer, then dispatch with the call's args.
+        cast_val := eval_expr(scope, callee_expr, ctx)
+        if cast_val.is(Value.Func).not() {
+            interp_error(e, "function-pointer call: callee did not evaluate to a function", ctx)
+            exit(1)
+        }
+        switch cast_val {
+        case Value.Func(cv_fp):
+            ref fdef3 : Expr = deref(cv_fp)
+            switch fdef3.node_type {
+            case NodeType.FuncDef(fdef3_data):
+                ref body3 : Expr = fdef3.child(0)
+                call_scope3 := scope_new(scope)
+                nparam3 := fdef3_data.params.len()
+                for pi in 0..nparam3 {
+                    ref arg_expr3 : Expr = e.child(pi.add(1))
+                    ref param3 : Declaration = fdef3_data.params[pi]
+                    mut arg3 := val_none()
+                    switch arg_expr3.node_type {
+                    case NodeType.Ident(arg_ident3):
+                        ref arg_cell3 : Cell = scope_get(scope, ident_name(arg_ident3))
+                        if is_null(arg_cell3).not() {
+                            scope_set_borrowed(call_scope3, param3.name, arg_cell3)
+                            continue
+                        }
+                        arg3 = eval_expr(scope, arg_expr3, ctx)
+                    case:
+                        arg3 = eval_expr(scope, arg_expr3, ctx)
+                    }
+                    arg3 = widen_numeric(arg3, param3.explicit_type, ctx)
+                    scope_set_owned(call_scope3, param3.name, arg3)
+                }
+                c.has_return = false
+                eval_body(call_scope3, body3, ctx)
+                mut result3 := val_none()
+                if c.has_return {
+                    result3 = c.return_value.clone()
+                    c.has_return = false
+                }
+                scope_free(own call_scope3)
+                return result3
+            case:
+                UNREACHABLE(__LOC__)
+                return val_none()
+            }
+        case:
+            UNREACHABLE(__LOC__)
+            return val_none()
+        }
     case:
         UNREACHABLE(__LOC__)
         return val_none()

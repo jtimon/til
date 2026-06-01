@@ -133,6 +133,40 @@ test_vec_funcsig_push_len := test() {
     assert_eq(__LOC__, ops.len().to_i64(), 2)
 }
 
+// Round-trip: push fn_add / fn_mul into a Vec.new(BinaryOp), pull each
+// slot out via a FuncSig-typed ref binding (`ref g : BinaryOp = ops[i]`)
+// and call it. The ref-binding reads the slot through
+// reinterpret_ptr_value's FuncSig branch -- which only works once the
+// FFI bridge round-trips Value.Func through Vec.push without losing the
+// pointer (Value.Func cases in ext_dispatch_ffi, issue #58).
+test_vec_funcsig_call_through_ref := test() {
+    mut ops := Vec.new(BinaryOp)
+    ops.push(own fn_add)
+    ops.push(own fn_mul)
+    ref g : BinaryOp = ops[0.to_usize()]
+    assert_eq(__LOC__, g(3, 4), 7)
+    ref h : BinaryOp = ops[1.to_usize()]
+    assert_eq(__LOC__, h(3, 4), 12)
+}
+
+// Inline `cast(<dyn>, BinaryOp)(args)` -- a fn ptr pulled directly out
+// of a typed Vec, cast to the matching FuncSig, and invoked, all in one
+// expression (issue #58). Three pieces had to line up: the parser
+// accepts a postfix `(args)` on any expression; the typer's cast accepts
+// Dynamic -> FuncPtr against the user FuncSig and the outer FCall
+// resolves the sig through cast's preserved Ident child; codegen emits
+// `(*(void **)slot)` for the dynamic-to-fn-ptr read, then the standard
+// indirect-call cast on top.
+test_vec_funcsig_cast_call_inline := test() {
+    mut ops := Vec.new(BinaryOp)
+    ops.push(own fn_add)
+    ops.push(own fn_mul)
+    ref raw0 : Dynamic = ops[0.to_usize()]
+    ref raw1 : Dynamic = ops[1.to_usize()]
+    assert_eq(__LOC__, cast(raw0, BinaryOp)(3, 4), 7)
+    assert_eq(__LOC__, cast(raw1, BinaryOp)(3, 4), 12)
+}
+
 // --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---
 // rstil's first_class.org uses `FuncDef` as the metatype name for
 // concrete function definitions; til's internal struct is named

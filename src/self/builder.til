@@ -108,6 +108,33 @@ fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         ref via_global : Expr = find_callee_fdef(name.ident_name(), ctx)
         if via_global.is_null().not() { return via_global }
         return NULL
+    case NodeType.FCall:
+        // Issue #58: `cast(value, BinaryOp)(args)`. The cast's til_type
+        // is Type.FuncPtr (set by infer_cast_fcall on the user FuncSig
+        // path), and child(2) is the FuncSig Ident kept verbatim so we
+        // can resolve the signature here.
+        if callee.children.len().neq(3) { return NULL }
+        ref cast_head : Expr = callee.child(0)
+        switch cast_head.node_type {
+        case NodeType.Ident(cn):
+            if cn.ident_name().eq("cast").not() { return NULL }
+        case:
+            return NULL
+        }
+        mut sig_name := ""
+        switch callee.child(2).node_type {
+        case NodeType.Ident(tn): sig_name = tn.ident_name()
+        case: return NULL
+        }
+        sf := s.find(sig_name.clone())
+        switch sf {
+        case ScopeFind.Found(ftb):
+            if is_null(ftb.func_def) { return NULL }
+            if ftb.func_def.children.len().neq(0) { return NULL }
+            return ftb.func_def
+        case:
+        }
+        return NULL
     case:
         return NULL
     }
@@ -2138,6 +2165,26 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
         }
     case NodeType.FCall:
         ref callee : Expr = e.child(0)
+        // Issue #58: indirect call through a cast result -- the
+        // `cast(value, BinaryOp)(args)` shape. Same C emission as the
+        // FuncSig-typed struct field below: emit the cast result as a
+        // void*, cast it to the C function-pointer type, and apply the
+        // args. fcall_fn_sig resolves the FuncSig via the cast's
+        // child(2) Ident.
+        if callee.node_type.is(NodeType.FCall) {
+            if callee.expr_til_type().is(Type.FuncPtr) {
+                ref sig_cc : Expr = fcall_fn_sig(e, ctx)
+                if is_null(sig_cc).not() {
+                    emit_fcall_funcptr_cast(f, e, sig_cc)
+                    f.write("))(void *)(")
+                    emit_expr(f, callee, depth, ctx)
+                    f.write("))(")
+                    emit_fcall_funcptr_args(f, e, sig_cc, depth, ctx)
+                    f.write(")")
+                    return f
+                }
+            }
+        }
         // Indirect call through FuncSig-typed struct field
         if callee.node_type.is(NodeType.FieldAccess) {
             if callee.expr_til_type().is(Type.FuncPtr) {
@@ -2222,11 +2269,30 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
             } else if name.ident_name().eq("cast") {
                 // Issue #212: same-size integer reinterpret -> bare C cast.
                 // The typer set this FCall's til_type to the target type T.
-                f.write("(")
-                f.write(til_type_name_c(e.expr_til_type()))
-                f.write(")(")
-                emit_deref(f, e.child(1), depth, ctx)
-                f.write(")")
+                mut cast_c_type := til_type_name_c(e.expr_til_type())
+                // Issue #58: cast-to-FuncSig. til_type_name_c yields "Fn",
+                // which is not a C type. For Dynamic -> FuncPtr the source
+                // is a slot pointer (Vec.get returned the slot address);
+                // we read the actual function pointer with one deref. For
+                // FuncPtr -> FuncPtr (identity) we just pass through as
+                // void *.
+                if cast_c_type.eq("Fn") {
+                    if e.child(1).expr_til_type().is(Type.Dynamic) {
+                        f.write("(*(void **)(")
+                        emit_deref(f, e.child(1), depth, ctx)
+                        f.write("))")
+                    } else {
+                        f.write("(void *)(")
+                        emit_deref(f, e.child(1), depth, ctx)
+                        f.write(")")
+                    }
+                } else {
+                    f.write("(")
+                    f.write(cast_c_type)
+                    f.write(")(")
+                    emit_deref(f, e.child(1), depth, ctx)
+                    f.write(")")
+                }
             } else if name.ident_name().eq("dyn_size_of") {
                 f.write("dyn_size_of(")
                 emit_as_ptr(f, e.child(1), depth, false, ctx)

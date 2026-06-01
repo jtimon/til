@@ -124,20 +124,18 @@
    Vec.new(Type)       // Vec of any type definition
    #+end_src
 
-   Storing function pointers in collections works for create and push:
-   ~ops := Vec.new(BinaryOp)~ followed by ~ops.push(own fn_add)~ now
-   stores the function pointer in a Fn-typed slot. ~Vec.new_type_name~
-   special-cases ~"Fn"~ to use an 8-byte slot with default no-op
-   clone/delete (function pointers are plain values, not heap boxes),
-   and ~Vec.push~ uses ~write_ptr~ to deposit the pointer value into
-   the slot instead of memcpy + free (which crashed because fn ptrs
-   aren't heap memory).
-
-   Still TODO: calling/retrieving the stored function pointer back out
-   of the Vec (~ops.get(0)~ + invoke). The slot is correct but the
-   ~cast(BinaryOp, ops.get(i))~ and direct-invoke path still needs work
-   to round-trip through ~Type.FuncPtr~ at the receiver side.
-   Originally moved here from [[./61.org][#61]].
+   Storing function pointers in collections works for create, push, and
+   retrieve+call: ~ops := Vec.new(BinaryOp)~ then ~ops.push(own fn_add)~
+   stores the function pointer in a Fn-typed slot, and
+   ~ref g : BinaryOp = ops[i] ; g(...)~ pulls the slot back out via
+   ~reinterpret_ptr_value~'s FuncSig branch and dispatches. The push
+   path uses ~write_ptr~ to deposit the raw pointer instead of memcpy +
+   free (fn ptrs aren't heap memory); the read path is the existing
+   FuncSig-aware deref. The remaining sugar -- inline
+   ~cast(ops.get(i), BinaryOp)(3, 4)~ and direct ~ops[i](3, 4)~ -- is
+   still TODO (the typer's ~cast_pair_ok~ rejects Dynamic -> FuncPtr,
+   and the parser doesn't allow ~<expr>(args)~).  Originally moved here
+   from [[./61.org][#61]].
 
 *** Introspection
 
@@ -221,7 +219,11 @@
      ~Vec.new(StructDef)~, ~Vec.new(EnumDef)~, ~Vec.new(FuncDef)~
      all create + push (Vec stores ~struct_def_of("X")~ /
      ~enum_def_of("X")~ values; for FuncDef, function-pointer
-     slots).
+     slots). Retrieve + call works in both modes via a FuncSig-typed
+     ref binding: ~ref g : BinaryOp = ops[i] ; g(3, 4)~. The FFI
+     bridge round-trips ~Value.Func~ through ~Vec.push~ so the slot
+     gets the real pointer value instead of a NULL written by the
+     missing variant in ~ext_dispatch_ffi~.
    - [X] Introspection helpers ~func_sig_of~, ~struct_def_of~,
      ~enum_def_of~ assemble FuncSig / StructDef / EnumDef values from
      the loaded program.
@@ -249,11 +251,23 @@
 
    Still missing for rstil parity:
 
-   - [ ] Calling a function-pointer retrieved from a typed Vec:
-     ~cast(BinaryOp, ops.get(0))(3, 4)~. The slot stores the pointer
-     correctly today; the receiver side still needs to round-trip
-     through ~Type.FuncPtr~ to make the call legal. (Existing TODO
-     in this issue under "Collections of types".)
+   - [X] Inline ~cast(ops.get(0), BinaryOp)(3, 4)~. The parser accepts
+     postfix ~(args)~ on any expression; ~cast_pair_ok~ accepts
+     Dynamic -> FuncPtr against a user FuncSig name (and FuncPtr ->
+     FuncPtr identity); ~infer_funcptr_call_via_cast~ resolves the
+     FuncSig through the cast's preserved Ident child and validates the
+     outer call; ~h_cast~ adds the Fn branch (two derefs to read the
+     fn ptr stored at the slot the Dynamic points to); codegen emits
+     ~(*(void **)slot)~ for the dynamic-to-fn-ptr read, then the same
+     indirect-call cast (~Ret (*)(Args)~) the FuncSig-typed-struct-field
+     path uses.
+   - [ ] Direct ~ops[0](3, 4)~ (no cast). The subscript desugars to
+     ~ops.get(0)?~ which returns Dynamic; the bang hoist lifts it into
+     ~_bang_ret_0 := ops.get(0)?~ and the typer rejects owning Dynamic
+     without an explicit type. Making this work needs either a typed
+     ~Vec.get~ specialization (return the element type, not Dynamic)
+     or context-driven typing of the hoisted temp from the outer call
+     site.
    - [ ] Macro body cases beyond ~return <single-literal>~: an
      ~if T.is(...) { return struct {...} } else { return struct {...} }~
      macro doesn't expand today (init's pre-pass only matches single-

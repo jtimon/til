@@ -388,8 +388,34 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
         else if src_tn.eq("U64") { ref tmp : U64 = p; v = val_u64(tmp) }
     case:
     }
-    raw := value_to_u64(v)
     tn := til_type_name_c(e.expr_til_type())
+    // Issue #58: cast(value, FuncSig) where target is a user FuncSig
+    // resolves to Type.FuncPtr ("Fn"). The runtime cast is a pointer
+    // re-tag: the source slot already stores the function pointer, we
+    // just need a Value.Func wrapping it. For Value.Dynamic / Value.Ref
+    // sources (Vec.get on an Fn-typed Vec) the payload is the slot
+    // address and the function pointer is one further deref; for
+    // Value.Func source it's already the fn ptr in the payload slot.
+    if tn.eq("Fn") {
+        switch v {
+        case Value.Func(fp):
+            ref real_fp : Dynamic = deref(fp)
+            r = Value.Func(real_fp)
+            return true
+        case Value.Dynamic(p):
+            ref slot_addr : Dynamic = deref(p)
+            ref real_fp   : Dynamic = deref(slot_addr)
+            r = Value.Func(real_fp)
+            return true
+        case Value.Ref(p):
+            ref slot_addr : Dynamic = deref(p)
+            ref real_fp   : Dynamic = deref(slot_addr)
+            r = Value.Func(real_fp)
+            return true
+        case:
+        }
+    }
+    raw := value_to_u64(v)
     if tn.eq("I8")  { r = val_i8(raw.cast(I64));  return true }
     if tn.eq("U8")  { r = val_u8(raw.cast(I64));  return true }
     if tn.eq("I16") { r = val_i16(raw.cast(I64)); return true }
@@ -1431,6 +1457,8 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
                         write_ptr(dst, deref(pv))
                     case Value.Dynamic(pv):
                         write_ptr(dst, deref(pv))
+                    case Value.Func(fv):
+                        write_ptr(dst, deref(fv))
                     case:
                         write_ptr(dst, NULL)
                     }
@@ -1455,6 +1483,10 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
                 write_ptr(ptr_add(args, i.cast(U64).mul(8)), deref(pv))
             case Value.Dynamic(pv):
                 write_ptr(ptr_add(args, i.cast(U64).mul(8)), deref(pv))
+            case Value.Func(fv):
+                // Issue #58: pass through function pointer (Value.Func payload
+                // is the function pointer itself, deref reads the actual ptr).
+                write_ptr(ptr_add(args, i.cast(U64).mul(8)), deref(fv))
             case Value.Struct(si):
                 write_ptr(ptr_add(args, i.cast(U64).mul(8)), si.data)
             case Value.Enum(ei):

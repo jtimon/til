@@ -1066,8 +1066,18 @@ parse_primary := proc(mut p: Parser) returns Expr {
     // Field access chain: e.field or e.method(args). Subscript a[b]
     // desugars to a[b] -- generic over any type whose get throws
     // (Array today, Map et al. once their get throws), exactly like
-    // a + b desugars to a.add(b).
-    while check(p, TokenType.Dot).or(check(p, TokenType.LBracket)) {
+    // a + b desugars to a.add(b). Postfix call `<expr>(args)` (issue
+    // #58) calls e as a function-pointer-shaped expression -- e.g.
+    // `ops[0](3, 4)` or `cast(raw, BinaryOp)(3, 4)`.
+    while check(p, TokenType.Dot).or(check(p, TokenType.LBracket)).or(check(p, TokenType.LParen)) {
+        if check(p, TokenType.LParen) {
+            // Postfix call on an arbitrary expression. parse_call
+            // handles the arg loop and consumes the closing ')'.
+            pc_line := peek_line(p)
+            pc_col := peek_col(p)
+            e = parse_call(p, own e.clone(), pc_line, pc_col)
+            continue
+        }
         if check(p, TokenType.LBracket) {
             b_line := peek_line(p)
             b_col := peek_col(p)
