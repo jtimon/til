@@ -681,10 +681,6 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                         ref edef : Expr = deref(eptr)
                                         if edef.node_type.is(NodeType.EnumDef) {
                                             mut total_size : I32 = ctx_total_size(sname, ctx)
-                                            switch edef.node_type {
-                                            case NodeType.EnumDef: // size already from ctx
-                                            case:
-                                            }
                                             tag := enum_variant_tag(edef, fname.field_access_name())
                                             if tag.cast(I64).gte(0) {
                                                 if enum_has_payloads(edef) {
@@ -804,10 +800,6 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
             if tdef.node_type.is(NodeType.EnumDef) {
                 if enum_has_payloads(tdef) {
                     mut total_size : I32 = ctx_total_size(type_name, ctx)
-                    switch tdef.node_type {
-                    case NodeType.EnumDef: // size already from ctx
-                    case:
-                    }
                     ref ei : EnumInstance = deref(p)
                     if ei.is_null() { return val_enum_simple(type_name, 0, total_size) }
                     ref etag_ref : Dynamic = ei.data
@@ -2496,10 +2488,6 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
             ref edef : Expr = edef_lookup
             if enum_has_payloads(edef) {
                 mut total_size : I32 = ctx_total_size(ftype, ctx)
-                switch edef.node_type {
-                case NodeType.EnumDef: // size already from ctx
-                case:
-                }
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }

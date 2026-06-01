@@ -1308,10 +1308,6 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case:
                 }
                 mut total_size : I32 = ctx_total_size(enum_name, ctx)
-                switch enum_def.node_type {
-                case NodeType.EnumDef: // size already from ctx
-                case:
-                }
                 mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
                 move(result, tmp, Value.size())
                 if must_free_pdata {
@@ -1319,10 +1315,6 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 }
             } else {
                 mut total_size : I32 = ctx_total_size(enum_name, ctx)
-                switch enum_def.node_type {
-                case NodeType.EnumDef: // size already from ctx
-                case:
-                }
                 mut tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
                 move(result, tmp, Value.size())
             }
