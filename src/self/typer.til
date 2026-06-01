@@ -592,25 +592,13 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
 // Issue #179 step 5: locate a namespace member's Declaration so the
 // caller can read its is_priv flag (find_namespace_func only returns
 // the default_value FuncDef Expr).
-namespace_member_is_priv := func(sdef: Expr, method: Str) returns Bool {
-    if sdef.is_null() { return false }
+find_ns_decl := func(sdef: Expr, method: Str) returns ref Declaration {
+    if sdef.is_null() { return NULL }
     ref ns : Vec = def_ns_decls(sdef)
     for fd : Declaration in ns {
-        if fd.name.eq(method) { return fd.is_priv }
+        if fd.name.eq(method) { return fd }
     }
-    return false
-}
-
-// #187 step 3: mark a namespace member as used. Skipped while
-// auto_gen_depth > 0 so auto-emitted clone/delete/size don't mask
-// genuinely-unused priv namespace methods.
-mark_ns_member_used := func(sdef: Expr, method: Str) returns Bool {
-    if sdef.is_null() { return false }
-    ref ns : Vec = def_ns_decls(sdef)
-    for fd : Declaration in ns {
-        if fd.name.eq(method) { fd.used = true; return true }
-    }
-    return false
+    return NULL
 }
 
 try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns Bool {
@@ -1863,8 +1851,11 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
         e.set_expr_til_type(Type.Unknown)
         return true
     }
-    check_member_priv(e, obj3_sname, method, namespace_member_is_priv(sdef2, method), ctx)
-    if ctx.auto_gen_depth.eq(0) { mark_ns_member_used(sdef2, method) }
+    ref fd : Declaration = find_ns_decl(sdef2, method)
+    mut ns_member_priv := false
+    if fd.is_null().not() { ns_member_priv = fd.is_priv }
+    check_member_priv(e, obj3_sname, method, ns_member_priv, ctx)
+    if ctx.auto_gen_depth.eq(0).and(fd.is_null().not()) { fd.used = true }
     if ctx.proc_def_depth.gt(0).or(in_func.neq(0)) {
         switch ns_func2.node_type {
         case NodeType.FuncDef(ns_fdef0):
