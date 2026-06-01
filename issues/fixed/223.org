@@ -91,8 +91,34 @@
     it (step 2). On a struct/enum, an explicit ~shallow~ is a force/override:
     always honored, never rejected, and it bypasses the eligibility heuristic
     (step 4).
-  - Exclusions throughout: ~ext_func~/~ext_proc~ (qualifier maps to a fixed C
-    ABI), ~mut~/~own~ params, and ~returns ref T~ params (must stay borrowed).
+  -   Exclusions throughout: ~ext_func~/~ext_proc~ (qualifier maps to a fixed C
+    ABI; see concrete failures below), ~mut~/~own~ params, and ~returns ref T~
+    params (must stay borrowed).
+
+  Why the ext_* exclusion is not negotiable:
+    The ~shallow~ qualifier on ~ext_func~/~ext_proc~ declarations controls the
+    C calling convention for a pre-existing C implementation. Changing it
+    produces incompatible C code:
+    - **Params**: the default ~OwnType.Ref~ (no keyword) generates ~const T *~
+      (pointer).  Auto-shallow to ~Shallow~ would generate ~T~ (by value).
+      Example: ~U32_clone(const U32 *v)~ -- the C implementation expects a
+      pointer and dereferences it.  Dropping ~shallow~ from the til param
+      would make the codegen pass ~U32~ by value, which the implementation
+      then treats as a pointer, crashing on dereference of a small integer.
+    - **Returns**: the default ~Own~ generates ~T *~ (pointer return).
+      Auto-shallow to ~Shallow~ would generate ~T~ (value return).
+      Example: ~spawn_cmd(const Str *cmd)~ returns a heap-allocated ~I64 *~.
+      The til declaration correctly uses ~returns I64~ (no ~shallow~, default
+      Own).  Auto-shallow would change the codegen to expect ~I64~ by value,
+      causing a type mismatch at link time or a use-after-free on the now-
+      invisible heap pointer.
+    - **Implicit shallow on params that already lack shallow**: some ext_*
+      declarations intentionally omit ~shallow~ on params to get pointer
+      semantics (e.g. ~val: U32~ defaults to Ref = pointer).  Normalizing
+      these to ~shallow~ would break the ABI just as badly as removing an
+      explicit ~shallow~.
+    **Bottom line**: every ext_* declaration encodes a deliberate C interface
+    contract.  The compiler must not second-guess it.
 
   What was harder than expected:
   - Steps 1 (primitives) and 3 (structs) each surfaced a cluster of latent

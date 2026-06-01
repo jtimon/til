@@ -19,5 +19,5 @@
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:
       `shallow` on ext functions is part of the C ABI contract, not
-      redundant noise. The `til doc` output already has a note about this
-      (see issues/fixed/223.org lines 94-95).
+      redundant noise.  See issues/fixed/223.org for concrete examples
+      (U32_clone crash, spawn_cmd heap pointer).
