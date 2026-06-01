@@ -620,9 +620,9 @@ main := proc() {
         if IsMouseButtonPressed(0) {
             raw_mx := GetMouseX()
             raw_my := GetMouseY()
-            if raw_my >= RADIO_Y & raw_my < RADIO_Y + BTN_H {
+            if raw_my >= RADIO_Y && raw_my < RADIO_Y + BTN_H {
                 // Restart button (leftmost): apply radio settings + reset board
-                if raw_mx >= RESTART_X & raw_mx < RESTART_X + RESTART_BTN_W {
+                if raw_mx >= RESTART_X && raw_mx < RESTART_X + RESTART_BTN_W {
                     if sel_color == 0 {
                         human_color = 2
                     } else {
@@ -656,20 +656,20 @@ main := proc() {
                     move_num = 0
                 }
                 // Color radio (White / Black)
-                if raw_mx >= COLOR_X & raw_mx < COLOR_X + COLOR_BTN_W * 2 {
+                if raw_mx >= COLOR_X && raw_mx < COLOR_X + COLOR_BTN_W * 2 {
                     sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).cast(I64)
                 }
                 // Mode radio (1P / 2P)
-                if raw_mx >= MODE_X & raw_mx < MODE_X + MODE_BTN_W * 2 {
+                if raw_mx >= MODE_X && raw_mx < MODE_X + MODE_BTN_W * 2 {
                     sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).cast(I64)
                 }
                 // Size radio (9x9 / 13x13 / 19x19)
-                if raw_mx >= SIZE_X & raw_mx < SIZE_X + SIZE_BTN_W * 3 {
+                if raw_mx >= SIZE_X && raw_mx < SIZE_X + SIZE_BTN_W * 3 {
                     sel_size = ((raw_mx - SIZE_X) / SIZE_BTN_W).cast(I64)
                 }
                 // Difficulty radio (1..5, only when 1P selected)
                 if sel_2p == 0 {
-                    if raw_mx >= DIFF_X & raw_mx < DIFF_X + DIFF_BTN_W * 5 {
+                    if raw_mx >= DIFF_X && raw_mx < DIFF_X + DIFF_BTN_W * 5 {
                         sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).cast(I64)
                     }
                 }
@@ -775,7 +775,7 @@ main := proc() {
                         half := cell_size / 2
                         col := (mx + half) / cell_size
                         row := (my + half) / cell_size
-                        if row >= 0 & row < board_size.to_i32() & col >= 0 & col < board_size.to_i32() {
+                        if row >= 0 && row < board_size.to_i32() && col >= 0 && col < board_size.to_i32() {
                             idx := row.cast(I64) * board_size + col.cast(I64)
                             copy_board(tmp_board, board, total)
                             cap := try_place(tmp_board, visited, lib_seen, stk, idx, board_size, turn, ko_board, has_ko)
@@ -898,7 +898,7 @@ main := proc() {
         // Hover indicator
         if !game_over {
             mut show_hover := true
-            if vs_ai == 2 & turn == ai_color { show_hover = false }
+            if vs_ai == 2 && turn == ai_color { show_hover = false }
             if show_hover {
                 raw_my := GetMouseY()
                 if raw_my >= board_py {
@@ -907,7 +907,7 @@ main := proc() {
                     half := cell_size / 2
                     hcol := (mx + half) / cell_size
                     hrow := (my + half) / cell_size
-                    if hrow >= 0 & hrow < board_size.to_i32() & hcol >= 0 & hcol < board_size.to_i32() {
+                    if hrow >= 0 && hrow < board_size.to_i32() && hcol >= 0 && hcol < board_size.to_i32() {
                         hidx := (hrow * board_size.to_i32() + hcol).cast(I64)
                         ref hp : I64 = board[hidx.to_u32()]
                         if hp.eq(0) {

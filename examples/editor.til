@@ -56,10 +56,10 @@ main := proc(args: ..Str) {
         }
 
         // 341/345 = KEY_LEFT/RIGHT_CONTROL, 342/346 = KEY_LEFT/RIGHT_ALT
-        ctrl := IsKeyDown(341) | IsKeyDown(345) | IsKeyDown(342) | IsKeyDown(346)
+        ctrl := IsKeyDown(341) || IsKeyDown(345) || IsKeyDown(342) || IsKeyDown(346)
 
         // Ctrl+S = save
-        if ctrl & IsKeyPressed(83) {
+        if ctrl && IsKeyPressed(83) {
             if filename.len() == 0 {
                 filename = save_file_dialog("Save file", "")
             }
@@ -73,7 +73,7 @@ main := proc(args: ..Str) {
         }
 
         // Ctrl+O = open file
-        if ctrl & IsKeyPressed(79) {
+        if ctrl && IsKeyPressed(79) {
             path := open_file_dialog("Open file", "")
             if path.len() > 0 {
                 filename = path
@@ -98,7 +98,7 @@ main := proc(args: ..Str) {
         }
 
         // Arrow keys
-        if IsKeyPressed(265) | (IsKeyDown(265) & IsKeyDown(265)) {
+        if IsKeyPressed(265) || (IsKeyDown(265) && IsKeyDown(265)) {
             // Up
             if IsKeyPressed(265) {
                 if cursor_y > 0 {
@@ -284,7 +284,7 @@ main := proc(args: ..Str) {
         if !ctrl {
             mut ch := GetCharPressed()
             while ch > 0 {
-                if ch >= 32 & ch < 127 {
+                if ch >= 32 && ch < 127 {
                     // Insert character at cursor
                     ch_str := Str.from_byte(ch.cast(I64).to_u8())
                     ref cur_line : Str = lines[cursor_y.cast(U32)]

@@ -53,7 +53,7 @@ main := proc() {
         if IsMouseButtonPressed(0) {
             mx := GetMouseX() / CELL
             my := (GetMouseY() - BAR_H) / CELL
-            if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
+            if mx >= 0 && mx < COLS && my >= 0 && my < ROWS {
                 idx := (my * COLS + mx).cast(I64)
                 idx_u : USize = idx.to_usize()
                 ref val : I64 = grid[idx_u]

@@ -132,7 +132,7 @@ main := proc() {
                             ref bchrom_off : I32 = BLACK_CHROMS[j]
                             chrom := bchrom_off + oct.cast(I32) * 12
                             bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
-                            if chrom.to_usize() < NUM_KEYS & mx >= bx & mx < bx + BLACK_W {
+                            if chrom.to_usize() < NUM_KEYS && mx >= bx && mx < bx + BLACK_W {
                                 mouse_note = chrom
                             }
                         }
@@ -141,13 +141,13 @@ main := proc() {
                 // If no black key hit, check white keys
                 if mouse_note < 0 {
                     wk := mx / WHITE_W
-                    if wk >= 0 & wk < 21 {
+                    if wk >= 0 && wk < 21 {
                         oct := wk / 7
                         ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
                         mouse_note = nat + oct * 12
                     }
                 }
-                if mouse_note >= 0 & mouse_note.to_usize() < NUM_KEYS {
+                 if mouse_note >= 0 && mouse_note.to_usize() < NUM_KEYS {
                     key_down.set(mouse_note.to_usize(), own 1)
                 }
             }
@@ -158,7 +158,7 @@ main := proc() {
             ref kd : I32 = key_down[i]
             ref pd : I32 = prev_down[i]
             // Newly pressed
-            if kd == 1 & pd == 0 {
+            if kd == 1 && pd == 0 {
                 ref s : Sound = sounds[i]
                 PlaySound(s)
                 // Add note event
@@ -172,7 +172,7 @@ main := proc() {
                 }
             }
             // Just released
-            if kd == 0 & pd == 1 {
+            if kd == 0 && pd == 1 {
                 ref s : Sound = sounds[i]
                 StopSound(s)
                 // Close the note event
@@ -180,7 +180,7 @@ main := proc() {
                     idx := (ev_head - 1 - j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
                     ref en : I32 = ev_note[idx.to_usize()]
                     ref ee : I64 = ev_end[idx.to_usize()]
-                    if en == i.cast(I32) & ee == -1 {
+                    if en == i.cast(I32) && ee == -1 {
                         t_val := timer
                         ev_end.set(idx.to_usize(), own t_val)
                         break
@@ -212,7 +212,7 @@ main := proc() {
                 DrawRectangle(0, ny, WINDOW_WIDTH, note_h, GRID_BLACK)
             }
             // Octave separator
-            if i % 12 == 0 & i > 0 {
+            if i % 12 == 0 && i > 0 {
                 DrawRectangle(0, ny, WINDOW_WIDTH, 1, GRID_LINE)
             }
         }

@@ -1108,7 +1108,7 @@ escape_doc_for_literal_str := func(raw: Str) returns Str {
         } else if c.eq(9) {
             out = out.concat("\\t")
         } else {
-            out = out.concat(Str.from_byte(c.cast(I64).and(255).to_u8()))
+            out = out.concat(Str.from_byte(c.cast(I64).band(255).to_u8()))
         }
     }
     return out

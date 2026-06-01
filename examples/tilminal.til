@@ -85,7 +85,7 @@ main := proc(args: ..Str) {
         // Character input (printable ASCII)
         mut ch := GetCharPressed()
         while ch > 0 {
-            if ch >= 32 & ch < 127 {
+             if ch >= 32 && ch < 127 {
                 input = input.concat(Str.from_byte(ch.cast(I64).to_u8()))
             }
             ch = GetCharPressed()

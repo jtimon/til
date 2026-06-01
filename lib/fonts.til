@@ -81,7 +81,7 @@ sum_u32_be := func(buf: Str, offset: USize, length: USize) returns I64 {
             mut byte_val : I64 = 0
             if i.add(j).lt(length) {
                 ref b : I8 = buf.byte_at(offset.add(i).add(j))
-                byte_val = b.cast(I64).and(255)
+                byte_val = b.cast(I64).band(255)
             }
             word = word.mul(256).add(byte_val)
             j = j.add(1)
@@ -100,7 +100,7 @@ utf16be_ascii := func(s: Str) returns Str {
     while i.lt(s.len()) {
         ref b : I8 = s.byte_at(i)
         w_u8(out, 0)
-        w_u8(out, b.cast(I64).and(255).to_u8())
+        w_u8(out, b.cast(I64).band(255).to_u8())
         i = i.add(1)
     }
     return out

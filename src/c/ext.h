@@ -37,9 +37,12 @@ I64 I64_sub(I64 a, I64 b);
 I64 I64_mul(I64 a, I64 b);
 I64 I64_div(I64 a, I64 b);
 I64 I64_mod(I64 a, I64 b);
-I64 I64_and(I64 a, I64 b);
-I64 I64_or(I64 a, I64 b);
-I64 I64_xor(I64 a, I64 b);
+I64 I64_band(I64 a, I64 b);
+I64 I64_bor(I64 a, I64 b);
+I64 I64_bxor(I64 a, I64 b);
+I64 I64_bnot(I64 a);
+I64 I64_shl(I64 a, I64 b);
+I64 I64_shr(I64 a, I64 b);
 
 // I64 comparisons
 Bool I64_eq(I64 a, I64 b);
@@ -51,9 +54,12 @@ U8 U8_sub(U8 a, U8 b);
 U8 U8_mul(U8 a, U8 b);
 U8 U8_div(U8 a, U8 b);
 U8 U8_mod(U8 a, U8 b);
-U8 U8_and(U8 a, U8 b);
-U8 U8_or(U8 a, U8 b);
-U8 U8_xor(U8 a, U8 b);
+U8 U8_band(U8 a, U8 b);
+U8 U8_bor(U8 a, U8 b);
+U8 U8_bxor(U8 a, U8 b);
+U8 U8_bnot(U8 a);
+U8 U8_shl(U8 a, U8 b);
+U8 U8_shr(U8 a, U8 b);
 
 // U8 comparisons
 Bool U8_eq(U8 a, U8 b);
@@ -78,9 +84,12 @@ I8 I8_sub(I8 a, I8 b);
 I8 I8_mul(I8 a, I8 b);
 I8 I8_div(I8 a, I8 b);
 I8 I8_mod(I8 a, I8 b);
-I8 I8_and(I8 a, I8 b);
-I8 I8_or(I8 a, I8 b);
-I8 I8_xor(I8 a, I8 b);
+I8 I8_band(I8 a, I8 b);
+I8 I8_bor(I8 a, I8 b);
+I8 I8_bxor(I8 a, I8 b);
+I8 I8_bnot(I8 a);
+I8 I8_shl(I8 a, I8 b);
+I8 I8_shr(I8 a, I8 b);
 
 // I8 comparisons
 Bool I8_eq(I8 a, I8 b);
@@ -101,9 +110,12 @@ I16 I16_sub(I16 a, I16 b);
 I16 I16_mul(I16 a, I16 b);
 I16 I16_div(I16 a, I16 b);
 I16 I16_mod(I16 a, I16 b);
-I16 I16_and(I16 a, I16 b);
-I16 I16_or(I16 a, I16 b);
-I16 I16_xor(I16 a, I16 b);
+I16 I16_band(I16 a, I16 b);
+I16 I16_bor(I16 a, I16 b);
+I16 I16_bxor(I16 a, I16 b);
+I16 I16_bnot(I16 a);
+I16 I16_shl(I16 a, I16 b);
+I16 I16_shr(I16 a, I16 b);
 
 // I16 comparisons
 Bool I16_eq(I16 a, I16 b);
@@ -130,9 +142,12 @@ U16 U16_sub(U16 a, U16 b);
 U16 U16_mul(U16 a, U16 b);
 U16 U16_div(U16 a, U16 b);
 U16 U16_mod(U16 a, U16 b);
-U16 U16_and(U16 a, U16 b);
-U16 U16_or(U16 a, U16 b);
-U16 U16_xor(U16 a, U16 b);
+U16 U16_band(U16 a, U16 b);
+U16 U16_bor(U16 a, U16 b);
+U16 U16_bxor(U16 a, U16 b);
+U16 U16_bnot(U16 a);
+U16 U16_shl(U16 a, U16 b);
+U16 U16_shr(U16 a, U16 b);
 
 // U16 comparisons
 Bool U16_eq(U16 a, U16 b);
@@ -155,10 +170,12 @@ I32 I32_sub(I32 a, I32 b);
 I32 I32_mul(I32 a, I32 b);
 I32 I32_div(I32 a, I32 b);
 I32 I32_mod(I32 a, I32 b);
-I32 I32_and(I32 a, I32 b);
-I32 I32_or(I32 a, I32 b);
-I32 I32_xor(I32 a, I32 b);
-I32 I32_not(I32 a);
+I32 I32_band(I32 a, I32 b);
+I32 I32_bor(I32 a, I32 b);
+I32 I32_bxor(I32 a, I32 b);
+I32 I32_bnot(I32 a);
+I32 I32_shl(I32 a, I32 b);
+I32 I32_shr(I32 a, I32 b);
 
 // I32 comparisons
 Bool I32_eq(I32 a, I32 b);
@@ -200,9 +217,12 @@ U32 U32_sub(U32 a, U32 b);
 U32 U32_mul(U32 a, U32 b);
 U32 U32_div(U32 a, U32 b);
 U32 U32_mod(U32 a, U32 b);
-U32 U32_and(U32 a, U32 b);
-U32 U32_or(U32 a, U32 b);
-U32 U32_xor(U32 a, U32 b);
+U32 U32_band(U32 a, U32 b);
+U32 U32_bor(U32 a, U32 b);
+U32 U32_bxor(U32 a, U32 b);
+U32 U32_bnot(U32 a);
+U32 U32_shl(U32 a, U32 b);
+U32 U32_shr(U32 a, U32 b);
 
 // U32 comparisons
 Bool U32_eq(U32 a, U32 b);
@@ -223,9 +243,12 @@ U64 U64_sub(U64 a, U64 b);
 U64 U64_mul(U64 a, U64 b);
 U64 U64_div(U64 a, U64 b);
 U64 U64_mod(U64 a, U64 b);
-U64 U64_and(U64 a, U64 b);
-U64 U64_or(U64 a, U64 b);
-U64 U64_xor(U64 a, U64 b);
+U64 U64_band(U64 a, U64 b);
+U64 U64_bor(U64 a, U64 b);
+U64 U64_bxor(U64 a, U64 b);
+U64 U64_bnot(U64 a);
+U64 U64_shl(U64 a, U64 b);
+U64 U64_shr(U64 a, U64 b);
 
 // U64 comparisons
 Bool U64_eq(U64 a, U64 b);
@@ -246,6 +269,9 @@ Bool Bool_eq(Bool a, Bool b);
 Bool and(Bool a, Bool b);
 Bool or(Bool a, Bool b);
 Bool not(Bool a);
+Bool band(Bool a, Bool b);
+Bool bor(Bool a, Bool b);
+Bool bxor(Bool a, Bool b);
 
 // Bool clone
 Bool Bool_clone(const Bool *v);

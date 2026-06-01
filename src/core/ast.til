@@ -335,7 +335,7 @@ set_own_arg := func(mut fcall: Expr, arg_index: USize) {
     case NodeType.FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit.mul(2) }
-        fcd.own_args = fcd.own_args.or(bit)
+        fcd.own_args = fcd.own_args.bor(bit)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -346,7 +346,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     case NodeType.FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit.mul(2) }
-        return fcd.own_args.and(bit).gt(0)
+        return fcd.own_args.band(bit).gt(0)
     case:
         UNREACHABLE(__LOC__)
         return false

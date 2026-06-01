@@ -70,7 +70,7 @@ main := proc(args: ..Str) {
         DrawText("Gershon Kingsley, 1969".c_str, 130, 70, 16, DARK_GRAY)
 
         // Visualizer: bouncing bars for current note
-        if note_idx > 0 & note_idx <= num_notes {
+         if note_idx > 0 && note_idx <= num_notes {
             ref cur_freq : I64 = notes[(note_idx - 1).to_usize()]
             if cur_freq > 0 {
                 // Bar height proportional to frequency

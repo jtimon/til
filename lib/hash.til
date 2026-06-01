@@ -40,7 +40,7 @@ hash_str := func(s: Str) returns U64 {
     mut h : U64 = FNV_OFFSET
     for i in 0..s.len() {
         ref b : I8 = s.byte_at(i)
-        h = h.xor(b.to_u64()).mul(FNV_PRIME)
+        h = h.bxor(b.to_u64()).mul(FNV_PRIME)
     }
     return h
 }
@@ -53,14 +53,14 @@ fnv1a := func(data: Dynamic, n: USize) returns U64 {
     mut h : U64 = FNV_OFFSET
     for i in 0..n {
         ref b : U8 = ptr_add(data, i)
-        h = h.xor(b.cast(U64)).mul(FNV_PRIME)
+        h = h.bxor(b.cast(U64)).mul(FNV_PRIME)
     }
     return h
 }
 
 // Reduce a hash to a bucket index. Plain modulo works for any cap;
 // callers that pick a power-of-two cap can replace this with
-// `h.to_usize().and(cap.sub(1.to_usize()))` to drop the divide.
+// `h.to_usize().band(cap.sub(1.to_usize()))` to drop the divide.
 bucket := func(h: U64, cap: USize) returns USize {
     return h.to_usize().mod(cap)
 }

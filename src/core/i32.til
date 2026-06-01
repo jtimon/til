@@ -32,9 +32,12 @@ namespace:
     neg := func(a: I32) returns I32 { return 0.sub(a.cast(I64)).to_i32() }
     /// Absolute value.
     abs := func(a: I32) returns I32 { if a.cast(I64).lt(0) { return 0.sub(a.cast(I64)).to_i32() } return a }
-    and := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    or := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
+    band := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
+    bor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
+    bxor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
+    bnot := ext_func(shallow a: I32) returns shallow I32 {}
+    shl := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
+    shr := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     clone := ext_func(val: I32) returns shallow I32 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {

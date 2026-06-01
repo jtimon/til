@@ -285,7 +285,7 @@ parse_path_d := func(d: Str, mut segments: Vec) {
             last_cmd = 0
         } else {
             panic(__LOC__, "unsupported SVG path command '",
-                  Str.from_byte(cmd.cast(I64).and(255).to_u8()), "'")
+                  Str.from_byte(cmd.cast(I64).band(255).to_u8()), "'")
         }
     }
 }

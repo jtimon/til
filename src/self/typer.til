@@ -1813,12 +1813,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             mut new_own : U64 = 0
             mut bit : U64 = 1
             for bi in 0..e.children.len() {
-                if old_own.and(bit).gt(0) {
+                if old_own.band(bit).gt(0) {
                     if bi.eq(0) {
-                        new_own = new_own.or(bit)
+                        new_own = new_own.bor(bit)
                     } else {
                         // Shift this bit left by 1 position
-                        new_own = new_own.or(bit.mul(2))
+                        new_own = new_own.bor(bit.mul(2))
                     }
                 }
                 bit = bit.mul(2)
@@ -9369,7 +9369,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32, vc: 
                     set_expr_til_type(va_id, Type.Struct("Array"))
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
-                    new_own = new_own.or(bit)
+                    new_own = new_own.bor(bit)
                     fcall_new_ch.push(own va_id)
                     va_inserted = true
                 }
@@ -9380,17 +9380,17 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32, vc: 
                 set_expr_til_type(va_id, Type.Struct("Array"))
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
-                new_own = new_own.or(bit)
+                new_own = new_own.bor(bit)
                 fcall_new_ch.push(own va_id)
                 va_inserted = true
             }
             // Transfer own bit from old position j to new position
             mut old_bit : U64 = 1
             for _ in 0..j { old_bit = old_bit.mul(2) }
-            if old_own.and(old_bit).gt(0) {
+            if old_own.band(old_bit).gt(0) {
                 mut nb : U64 = 1
                 for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
-                new_own = new_own.or(nb)
+                new_own = new_own.bor(nb)
             }
             fcall_new_ch.push_take(old_args, j)
         }
@@ -9399,7 +9399,7 @@ rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32, vc: 
             set_expr_til_type(va_id, Type.Struct("Array"))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
-            new_own = new_own.or(bit)
+            new_own = new_own.bor(bit)
             fcall_new_ch.push(own va_id)
         }
         fcall.children.move_from(fcall_new_ch)
@@ -9743,7 +9743,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
                     set_expr_til_type(kw_id, Type.Struct("DynMap"))
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
-                    new_own = new_own.or(bit)
+                    new_own = new_own.bor(bit)
                     fcall_new_ch.push(own kw_id)
                     kw_inserted = true
                 }
@@ -9754,17 +9754,17 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
                 set_expr_til_type(kw_id, Type.Struct("DynMap"))
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
-                new_own = new_own.or(bit)
+                new_own = new_own.bor(bit)
                 fcall_new_ch.push(own kw_id)
                 kw_inserted = true
             }
             // Transfer own bit from old position j to new position
             mut old_bit : U64 = 1
             for _ in 0..j { old_bit = old_bit.mul(2) }
-            if old_own.and(old_bit).gt(0) {
+            if old_own.band(old_bit).gt(0) {
                 mut nb : U64 = 1
                 for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
-                new_own = new_own.or(nb)
+                new_own = new_own.bor(nb)
             }
             fcall_new_ch.push_take(old_args, j)
         }
@@ -9773,7 +9773,7 @@ rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
             set_expr_til_type(kw_id, Type.Struct("DynMap"))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
-            new_own = new_own.or(bit)
+            new_own = new_own.bor(bit)
             fcall_new_ch.push(own kw_id)
         }
 

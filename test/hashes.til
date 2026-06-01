@@ -77,7 +77,7 @@ test_bucket_covers_all_with_enough_keys := test() {
     for i in 0..1000 {
         bi := bucket(hash_i64(i), cap)
         mask : I64 = 1.mul(pow2(bi.to_i64()))
-        seen = seen.or(mask)
+        seen = seen.bor(mask)
     }
     // 16 buckets -> low 16 bits all set -> 0xFFFF.
     assert_eq(__LOC__, seen, 65535)

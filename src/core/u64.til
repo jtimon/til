@@ -28,9 +28,12 @@ namespace:
     unity := func(_self: U64) returns U64 { return 1 }
     eq := ext_func(shallow a: U64, shallow b: U64) returns shallow Bool {}
     cmp := ext_func(shallow a: U64, shallow b: U64) returns shallow I64 {}
-    and := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
-    or := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
-    xor := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    band := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    bor := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    bxor := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    bnot := ext_func(shallow a: U64) returns shallow U64 {}
+    shl := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    shr := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     clone := ext_func(val: U64) returns shallow U64 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {

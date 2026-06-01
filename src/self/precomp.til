@@ -177,7 +177,7 @@ priv str_to_source_form := func(s: Str) returns Str {
             // Convert the byte to unsigned for the nibble math: I8's
             // negative range (high-bit bytes like 0x80..0xFF) splits
             // arithmetic the wrong way around for hex display.
-            ub : U8 = b.cast(I64).and(255).to_u8()
+            ub : U8 = b.cast(I64).band(255).to_u8()
             out = out.concat("\\x")
             hi : U8 = ub.div(16)
             lo : U8 = ub.mod(16)

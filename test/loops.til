@@ -4,7 +4,7 @@ test_for_in_str := test() {
     // Str.get returns ref I8 -- type inferred
     mut result := Str.with_capacity(10)
     for c in "hello" {
-        result.push_str(Str.from_byte(c.cast(I64).and(255).to_u8()))
+        result.push_str(Str.from_byte(c.cast(I64).band(255).to_u8()))
     }
     assert_eq_str(__LOC__, result, "hello")
 }
@@ -13,7 +13,7 @@ test_for_in_str_explicit := test() {
     // Explicit type annotation also works
     mut result := Str.with_capacity(10)
     for c : I8 in "world" {
-        result.push_str(Str.from_byte(c.cast(I64).and(255).to_u8()))
+        result.push_str(Str.from_byte(c.cast(I64).band(255).to_u8()))
     }
     assert_eq_str(__LOC__, result, "world")
 }
@@ -50,7 +50,7 @@ test_for_in_continue := test() {
     mut result := Str.with_capacity(10)
     for c in "abcbd" {
         if c.eq('b') { continue }
-        result.push_str(Str.from_byte(c.cast(I64).and(255).to_u8()))
+        result.push_str(Str.from_byte(c.cast(I64).band(255).to_u8()))
     }
     assert_eq_str(__LOC__, result, "acd")
 }

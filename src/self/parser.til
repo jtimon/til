@@ -1270,7 +1270,7 @@ parse_bitand := proc(mut p: Parser) returns Expr {
         op_col := peek_col(p)
         advance(p)
         mut rhs := parse_comparison(p)
-        e = make_binop_call(e, "and", op_line, op_col, rhs)
+        e = make_binop_call(e, "band", op_line, op_col, rhs)
     }
     return e
 }
@@ -1283,7 +1283,7 @@ parse_bitxor := proc(mut p: Parser) returns Expr {
         op_col := peek_col(p)
         advance(p)
         mut rhs := parse_bitand(p)
-        e = make_binop_call(e, "xor", op_line, op_col, rhs)
+        e = make_binop_call(e, "bxor", op_line, op_col, rhs)
     }
     return e
 }
@@ -1296,14 +1296,40 @@ parse_bitor := proc(mut p: Parser) returns Expr {
         op_col := peek_col(p)
         advance(p)
         mut rhs := parse_bitxor(p)
+        e = make_binop_call(e, "bor", op_line, op_col, rhs)
+    }
+    return e
+}
+
+// parse_logical_and: && (below bitor)
+parse_logical_and := proc(mut p: Parser) returns Expr {
+    mut e := parse_bitor(p)
+    while check(p, TokenType.AmpAmp) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        advance(p)
+        mut rhs := parse_bitor(p)
+        e = make_binop_call(e, "and", op_line, op_col, rhs)
+    }
+    return e
+}
+
+// parse_logical_or: || (below logical_and)
+parse_logical_or := proc(mut p: Parser) returns Expr {
+    mut e := parse_logical_and(p)
+    while check(p, TokenType.PipePipe) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        advance(p)
+        mut rhs := parse_logical_and(p)
         e = make_binop_call(e, "or", op_line, op_col, rhs)
     }
     return e
 }
 
-// parse_expression: top-level expression (bitor + range)
+// parse_expression: top-level expression (logical_or + range)
 parse_expression := proc(mut p: Parser) returns Expr {
-    mut e := parse_bitor(p)
+    mut e := parse_logical_or(p)
     // Range expression: e..rhs → Range.new(e, rhs)
     if check(p, TokenType.DotDot) {
         dt_line := peek_line(p)

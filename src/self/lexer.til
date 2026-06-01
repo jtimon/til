@@ -22,6 +22,7 @@ TokenType := enum {
     Lt, LtEq,
     Gt, GtEq,
     PlusPlus, MinusMinus,
+    AmpAmp, PipePipe,
 
     // Assignment
     ColonEq,
@@ -114,6 +115,8 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.GtEq: return ">="
     case TokenType.PlusPlus: return "++"
     case TokenType.MinusMinus: return "--"
+    case TokenType.AmpAmp: return "&&"
+    case TokenType.PipePipe: return "||"
     case TokenType.ColonEq: return ":="
     case TokenType.Ident: return "identifier"
     case TokenType.StringTok: return "string"
@@ -207,6 +210,8 @@ lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
     if c.eq('+').and(c2.eq('+')) { return TokenType.PlusPlus }
     if c.eq('-').and(c2.eq('-')) { return TokenType.MinusMinus }
     if c.eq('.').and(c2.eq('.')) { return TokenType.DotDot }
+    if c.eq('&').and(c2.eq('&')) { return TokenType.AmpAmp }
+    if c.eq('|').and(c2.eq('|')) { return TokenType.PipePipe }
     return TokenType.Eof
 }
 

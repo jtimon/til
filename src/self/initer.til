@@ -396,7 +396,7 @@ Context := struct {
 }
 
 priv align_up := func(offset: I32, align: I32) returns I32 {
-    return offset.add(align).sub(1).and(align.sub(1).xor(-1))
+    return offset.add(align).sub(1).band(align.sub(1).bxor(-1))
 }
 
 // Issue #158: classify one top-level statement's foldable macro/func names

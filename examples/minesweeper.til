@@ -55,12 +55,12 @@ main := proc() {
             flags = 0
         }
 
-        if !game_over & !game_won {
+        if !game_over && !game_won {
             if IsMouseButtonPressed(0) {
                 // Left click - reveal
                 mx := GetMouseX() / CELL
                 my := (GetMouseY() - TOP_BAR) / CELL
-                if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
+                if mx >= 0 && mx < COLS && my >= 0 && my < ROWS {
                     idx := my * COLS + mx
                     idx_u : USize = idx.to_usize()
                     ref st : I32 = state[idx_u]
@@ -81,7 +81,7 @@ main := proc() {
                                     if diff_x < 0 { diff_x = -diff_x }
                                     mut diff_y := py - my
                                     if diff_y < 0 { diff_y = -diff_y }
-                                    if diff_x > 1 | diff_y > 1 {
+                                    if diff_x > 1 || diff_y > 1 {
                                         mines.set(pos_u, own 1)
                                         placed = placed + 1
                                     }
@@ -100,7 +100,7 @@ main := proc() {
                                     while ny <= cy + 1 {
                                         mut nx : I32 = cx - 1
                                         while nx <= cx + 1 {
-                                            if nx >= 0 & nx < COLS & ny >= 0 & ny < ROWS {
+                                            if nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS {
                                                 ni := ny * COLS + nx
                                                 ni_u : USize = ni.to_usize()
                                                 ref nm : I32 = mines[ni_u]
@@ -154,7 +154,7 @@ main := proc() {
                                         while py <= cur_y + 1 {
                                             mut px : I32 = cur_x - 1
                                             while px <= cur_x + 1 {
-                                                if px >= 0 & px < COLS & py >= 0 & py < ROWS {
+                                                if px >= 0 && px < COLS && py >= 0 && py < ROWS {
                                                     ni := py * COLS + px
                                                     ni_u : USize = ni.to_usize()
                                                     ref ns : I32 = state[ni_u]
@@ -189,7 +189,7 @@ main := proc() {
                 // Right click - toggle flag
                 mx := GetMouseX() / CELL
                 my := (GetMouseY() - TOP_BAR) / CELL
-                if mx >= 0 & mx < COLS & my >= 0 & my < ROWS {
+                if mx >= 0 && mx < COLS && my >= 0 && my < ROWS {
                     idx := my * COLS + mx
                     idx_u : USize = idx.to_usize()
                     ref st : I32 = state[idx_u]

@@ -42,9 +42,9 @@ test_boolean := test() {
 }
 
 test_bitwise := test() {
-    assert_eq(__LOC__, 6.and(3), 2)
-    assert_eq(__LOC__, 6.or(3), 7)
-    assert_eq(__LOC__, 6.xor(3), 5)
+    assert_eq(__LOC__, 6.band(3), 2)
+    assert_eq(__LOC__, 6.bor(3), 7)
+    assert_eq(__LOC__, 6.bxor(3), 5)
 }
 
 test_f32_arithmetic := test() {

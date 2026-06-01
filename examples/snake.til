@@ -123,25 +123,25 @@ main := proc() {
             if IsKeyPressed(82) { restart = true }
         } else {
             // P1: WASD (+ arrows in 1P mode)
-            if IsKeyPressed(87) | (!two_player & IsKeyPressed(265)) {
+             if IsKeyPressed(87) || (!two_player && IsKeyPressed(265)) {
                 if dy != 1 {
                     next_dx = 0
                     next_dy = -1
                 }
             }
-            if IsKeyPressed(83) | (!two_player & IsKeyPressed(264)) {
+             if IsKeyPressed(83) || (!two_player && IsKeyPressed(264)) {
                 if dy != -1 {
                     next_dx = 0
                     next_dy = 1
                 }
             }
-            if IsKeyPressed(65) | (!two_player & IsKeyPressed(263)) {
+             if IsKeyPressed(65) || (!two_player && IsKeyPressed(263)) {
                 if dx != 1 {
                     next_dx = -1
                     next_dy = 0
                 }
             }
-            if IsKeyPressed(68) | (!two_player & IsKeyPressed(262)) {
+             if IsKeyPressed(68) || (!two_player && IsKeyPressed(262)) {
                 if dx != -1 {
                     next_dx = 1
                     next_dy = 0
@@ -247,7 +247,7 @@ main := proc() {
                         }
                     }
 
-                    if p1_dead | p2_dead { game_over = true }
+                     if p1_dead || p2_dead { game_over = true }
 
                     if !game_over {
                         // Shift P1 body
@@ -270,8 +270,8 @@ main := proc() {
                         }
                         body2.set(0, own new_pos2)
 
-                        // Food collision P1
-                        if new_x == food_x & new_y == food_y {
+                         // Food collision P1
+                         if new_x == food_x && new_y == food_y {
                             ref tail_ref : I32 = body[snake_len - 1]
                             tail_val := tail_ref
                             body.set(snake_len, own tail_val)
@@ -280,8 +280,8 @@ main := proc() {
                             food_x = GetRandomValue(0, COLS - 1)
                             food_y = GetRandomValue(0, ROWS - 1)
                         }
-                        // Food collision P2
-                        if new_x2 == food_x & new_y2 == food_y {
+                         // Food collision P2
+                         if new_x2 == food_x && new_y2 == food_y {
                             ref tail_ref2 : I32 = body2[snake_len2 - 1]
                             tail_val2 := tail_ref2
                             body2.set(snake_len2, own tail_val2)
@@ -317,7 +317,7 @@ main := proc() {
                         }
                         body.set(0, own new_pos)
 
-                        if new_x == food_x & new_y == food_y {
+                         if new_x == food_x && new_y == food_y {
                             ref tail_ref : I32 = body[snake_len - 1]
                             tail_val := tail_ref
                             body.set(snake_len, own tail_val)
@@ -398,7 +398,7 @@ main := proc() {
         if game_over {
             gy := H / 2 - 20
             if two_player {
-                if p1_dead & p2_dead {
+                 if p1_dead && p2_dead {
                     DrawText("DRAW".c_str, W / 2 - 50, gy, 40, RED)
                 } else {
                     if p1_dead {

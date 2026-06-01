@@ -766,9 +766,9 @@ main := proc() {
         if IsMouseButtonPressed(0) {
             raw_mx := GetMouseX()
             raw_my := GetMouseY()
-            if raw_my >= RADIO_Y & raw_my < RADIO_Y + BTN_H {
+             if raw_my >= RADIO_Y && raw_my < RADIO_Y + BTN_H {
                 // Restart button (leftmost): apply radio settings + reset board
-                if raw_mx >= RESTART_X & raw_mx < RESTART_X + RESTART_BTN_W {
+                if raw_mx >= RESTART_X && raw_mx < RESTART_X + RESTART_BTN_W {
                     human_side = sel_color
                     ai_side = 1 - sel_color
                     if sel_2p == 0 { vs_ai = 2 } else { vs_ai = 1 }
@@ -793,16 +793,16 @@ main := proc() {
                     ai_timer = 0
                 }
                 // Color radio (White / Black)
-                if raw_mx >= COLOR_X & raw_mx < COLOR_X + COLOR_BTN_W * 2 {
+                 if raw_mx >= COLOR_X && raw_mx < COLOR_X + COLOR_BTN_W * 2 {
                     sel_color = ((raw_mx - COLOR_X) / COLOR_BTN_W).cast(I64)
                 }
                 // Mode radio (1P / 2P)
-                if raw_mx >= MODE_X & raw_mx < MODE_X + MODE_BTN_W * 2 {
+                if raw_mx >= MODE_X && raw_mx < MODE_X + MODE_BTN_W * 2 {
                     sel_2p = ((raw_mx - MODE_X) / MODE_BTN_W).cast(I64)
                 }
                 // Difficulty radio (1..5, only when 1P selected)
                 if sel_2p == 0 {
-                    if raw_mx >= DIFF_X & raw_mx < DIFF_X + DIFF_BTN_W * 5 {
+                    if raw_mx >= DIFF_X && raw_mx < DIFF_X + DIFF_BTN_W * 5 {
                         sel_difficulty = ((raw_mx - DIFF_X) / DIFF_BTN_W + 1).cast(I64)
                     }
                 }
@@ -906,7 +906,7 @@ main := proc() {
                     click_c := mx / CELL
                     click_r := my / CELL
 
-                    if click_r >= 0 & click_r < 8 & click_c >= 0 & click_c < 8 {
+                     if click_r >= 0 && click_r < 8 && click_c >= 0 && click_c < 8 {
                         click_idx := (click_r * 8 + click_c).cast(I64)
 
                         if selected.gte(0) {

@@ -74,9 +74,12 @@ namespace:
     neg := func(a: I64) returns I64 { return 0.sub(a) }
     /// Absolute value.
     abs := func(a: I64) returns I64 { if a.lt(0) { return 0.sub(a) } return a }
-    and := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
-    or := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
-    xor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
+    band := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
+    bor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
+    bxor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
+    bnot := ext_func(shallow a: I64) returns shallow I64 {}
+    shl := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
+    shr := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     clone := ext_func(val: I64) returns shallow I64 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {

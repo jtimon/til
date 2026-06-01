@@ -138,6 +138,8 @@ typedef enum {
     TokenType_TAG_GtEq,
     TokenType_TAG_PlusPlus,
     TokenType_TAG_MinusMinus,
+    TokenType_TAG_AmpAmp,
+    TokenType_TAG_PipePipe,
     TokenType_TAG_ColonEq,
     TokenType_TAG_Ident,
     TokenType_TAG_StringTok,
@@ -1299,6 +1301,8 @@ Expr * parse_comparison(priv___src_self_parser_til__Parser * p);
 Expr * parse_bitand(priv___src_self_parser_til__Parser * p);
 Expr * parse_bitxor(priv___src_self_parser_til__Parser * p);
 Expr * parse_bitor(priv___src_self_parser_til__Parser * p);
+Expr * parse_logical_and(priv___src_self_parser_til__Parser * p);
+Expr * parse_logical_or(priv___src_self_parser_til__Parser * p);
 Expr * parse_expression(priv___src_self_parser_til__Parser * p);
 Expr * parse_statement_ident(priv___src_self_parser_til__Parser * p, Bool is_mut, OwnType own_type);
 void drain_doc_comments(priv___src_self_parser_til__Parser * p);
@@ -2282,6 +2286,8 @@ TokenType *TokenType_Gt();
 TokenType *TokenType_GtEq();
 TokenType *TokenType_PlusPlus();
 TokenType *TokenType_MinusMinus();
+TokenType *TokenType_AmpAmp();
+TokenType *TokenType_PipePipe();
 TokenType *TokenType_ColonEq();
 TokenType *TokenType_Ident();
 TokenType *TokenType_StringTok();
