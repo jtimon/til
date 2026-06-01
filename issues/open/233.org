@@ -1,0 +1,23 @@
+# priority: medium
+** OPEN #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
+
+*   Current state:
+    - /// doc comments: plain text, no markup, no metadata.
+    - Packed blobs for runtime help() (linear lookup).
+    - `til doc` -> bare org-mode output, mirroring source tree, no nav, no search, internals leaking (e.g. `priv___...`).
+    - No HTML, no cross-links, no grouping.
+
+*   Proposed vision (Python/Elixir-inspired):
+    - Adopt explicit doc contract attributes (similar to `@doc`, `@moduledoc`).
+    - Markdown markup in docs (backticks, lists, headings).
+    - Rich metadata: `@since`, `@deprecated`, `@group`.
+    - Internals hiding (`@doc false`).
+    - Doctests (`>>>` or `iex>` style) verified by `make test`.
+    - Structured introspection via `inspect`-like tools.
+    - Generate searchable HTML with nav sidebar + grouping + versioning.
+
+*   Notes:
+    - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:
+      `shallow` on ext functions is part of the C ABI contract, not
+      redundant noise. The `til doc` output already has a note about this
+      (see issues/fixed/223.org lines 94-95).
