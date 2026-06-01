@@ -1282,8 +1282,8 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Struct(si):
                     if si.struct_def.is_null().not() {
                         switch si.struct_def.node_type {
-                        case NodeType.StructDef(sd):
-                            psz = sd.total_struct_size
+                        case NodeType.StructDef:
+                            psz = ctx_total_size(si.struct_name, si.ctx)
                         case:
                         }
                     }
@@ -1307,10 +1307,9 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Func(f):    pdata = to_ptr(f); psz = 8
                 case:
                 }
-                mut total_size : I32 = 0
+                mut total_size : I32 = ctx_total_size(enum_name, ctx)
                 switch enum_def.node_type {
-                case NodeType.EnumDef(ed):
-                    total_size = ed.total_enum_size
+                case NodeType.EnumDef: // size already from ctx
                 case:
                 }
                 mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
@@ -1319,10 +1318,9 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                     free(own pdata)
                 }
             } else {
-                mut total_size : I32 = 0
+                mut total_size : I32 = ctx_total_size(enum_name, ctx)
                 switch enum_def.node_type {
-                case NodeType.EnumDef(ed):
-                    total_size = ed.total_enum_size
+                case NodeType.EnumDef: // size already from ctx
                 case:
                 }
                 mut tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
@@ -1509,8 +1507,8 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     mut ret_buf : Dynamic = 0
     if ret_sdef.is_null().not() {
         switch ret_sdef.node_type {
-        case NodeType.StructDef(sdd):
-            ret_buf = malloc(sdd.total_struct_size.to_usize())
+        case NodeType.StructDef:
+            ret_buf = malloc(ctx_total_size(fe.return_type, ctx).to_usize())
             ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
         case:
             ffi_call(fe.cif, fe.fn, raw, arg_ptrs)

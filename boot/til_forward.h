@@ -1494,8 +1494,8 @@ Bool priv___src_self_typer_til__expr_uses_self_field(Expr * e, Str * field_name)
 void priv___src_self_typer_til__check_user_delete_frees_own_fields(Str * struct_name, Expr * sdef, Context * ctx);
 void priv___src_self_typer_til__typer_resolve_enum_payload_types(EnumDef * edef, TypeScope * scope, Context * ctx);
 void infer_type_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
-Bool is_shallow_struct(Str * type_name, TypeScope * scope);
-Bool is_auto_shallow_type(Type * t, Str * type_name, TypeScope * scope);
+Bool is_shallow_struct(Str * type_name, TypeScope * scope, Context * ctx);
+Bool is_auto_shallow_type(Type * t, Str * type_name, TypeScope * scope, Context * ctx);
 void infer_func_sig_expr(TypeScope * scope, Expr * expr);
 void check_ref_function_returns(TypeScope * func_scope, Expr * expr, Context * ctx);
 Str * priv___src_self_typer_til__lookup_variant_payload_type(TypeScope * scope, Str * enum_name, Str * variant_name);

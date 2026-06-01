@@ -2747,14 +2747,14 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
 // Enums are not covered here (revisit separately). Mirrors builder's
 // is_pod_struct field rules, plus the size gate.
 PTR_SIZE_BYTES : I32 = 8
-is_shallow_struct := func(type_name: Str, scope: TypeScope) returns Bool {
+is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len().eq(0) { return false }
     if scope.is_null() { return false }
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
-        if sdd.total_struct_size.gt(PTR_SIZE_BYTES) { return false }
+        if ctx_total_size(type_name, ctx).gt(PTR_SIZE_BYTES) { return false }
         if sdd.fields.len().eq(0) { return false }
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
@@ -2762,7 +2762,7 @@ is_shallow_struct := func(type_name: Str, scope: TypeScope) returns Bool {
             ref ftn : Str = fd.explicit_type
             if ftn.len().eq(0) { return false }
             if is_primitive(til_type_from_explicit_type(ftn)) { continue }
-            if is_shallow_struct(ftn, scope) { continue }
+            if is_shallow_struct(ftn, scope, ctx) { continue }
             return false
         }
         return true
@@ -2773,9 +2773,9 @@ is_shallow_struct := func(type_name: Str, scope: TypeScope) returns Bool {
 
 // A param/return type qualifies for auto-shallow if it is a primitive
 // (step 1) or a small value-shaped struct (step 3).
-is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope) returns Bool {
+is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if is_primitive(t) { return true }
-    return is_shallow_struct(type_name, scope)
+    return is_shallow_struct(type_name, scope, ctx)
 }
 
 infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
@@ -3019,7 +3019,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // 'ref' returns are left alone (a borrowed pointer is intentional).
             if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Own)) {
                 rt := type_from_name_at(resolved_return_type, scope, expr, ctx)
-                if is_auto_shallow_type(rt, resolved_return_type, scope) { fdef.return_own_type = OwnType.Shallow }
+                if is_auto_shallow_type(rt, resolved_return_type, scope, ctx) { fdef.return_own_type = OwnType.Shallow }
             }
         }
         for i in 0..fdef.params.len() {
@@ -3080,7 +3080,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 // hand a param back by reference (e.g. min(a, b) returns ref I64),
                 // so its params must stay borrowed pointers -- skip auto-shallow
                 // there.
-                if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope)) {
+                if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
                     param.own_type = OwnType.Shallow
                 }
                 func_scope.set(param.name, pt, FuncType.None, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
