@@ -48,6 +48,7 @@
 *** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
+*** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

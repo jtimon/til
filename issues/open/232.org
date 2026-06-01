@@ -3,25 +3,38 @@
 
 :DEPENDENCIES: [[./151.org][#151]] [[./81.org][#81]]
 
-  Add ~Target.LinuxX86~ (32-bit i386 Linux) as a cross-compilation
-  target. The existing ~Wasm32~ and ~TempleosX86~ enum values already
-  have ~target_is_32bit~ helpers, but nothing actually compiles because
-  til's generated C assumes 64-bit pointers in places.
+  Add 32-bit Linux targets (~linux-x86~, ~linux-arm32~, ~linux-riscv32~)
+  as cross-compilation targets. The existing ~Wasm32~ and ~TempleosX86~
+  enum values already have ~target_is_32bit~ helpers, but nothing
+  actually compiles because til's generated C assumed 64-bit pointers.
 
-  A LinuxX86 target is easier to test (gcc -m32 + qemu-i386) than
-  wasm32 or templeos-x86, making it the ideal canary for the 32-bit
-  pointer audit described in #151.
+  linux-x86 is the ideal canary (gcc -m32 + qemu-i386), followed by
+  arm32 (arm-linux-gnueabihf-gcc) and riscv32 (riscv32-linux-gnu-gcc).
 
 *** Scope
 
-  1. Add ~Target.LinuxX86~ to the enum in [[file:../../src/self/targets.til][src/self/targets.til]]
-     and wire all switch cases.
+  1. Add ~Target.LinuxX86~, ~Target.LinuxArm32~, ~Target.LinuxRiscv32~
+     to the enum in [[file:../../src/self/targets.til][src/self/targets.til]] and wire all switch cases.
   2. Fix hardcoded 64-bit values in [[file:../../src/self/builder.til][src/self/builder.til]]:
      - ~dyn_size_of~ returns 8 for Dynamic (~sizeof(void*)~)
-     - Any other pointer-width assumptions in emitted C
-  3. Cross-build vendor libs for 32-bit (~gcc -m32~):
-     - libffi: ~./configure --host=i686-linux-gnu~
-     - raylib: ~CC="gcc -m32" PLATFORM=PLATFORM_DESKTOP~
-     - tinyfd: ~gcc -m32 -c~
-  4. Add Makefile targets and CI job for linux-x86.
-  5. Test cross-compiled binaries with ~qemu-i386~.
+     - ~get_payload~ in ext.c uses ~sizeof(I64)~ instead of ~sizeof(void*)~
+  3. Cross-build vendor libs for 32-bit:
+     - x86: ~gcc -m32~ raylib/tinyfd
+     - arm32: ~arm-linux-gnueabihf-gcc~ raylib/tinyfd
+     - riscv32: ~riscv32-linux-gnu-gcc~ raylib/tinyfd
+  4. Add CI jobs for linux-x86 (with qemu-i386 test) and linux-arm32
+     (file-format verification; no emulation runner available).
+  5. Test cross-compiled binaries.
+
+*** Progress
+
+  :PROPERTIES:
+  :DONE: 2026-06-01
+  :END:
+
+  - All three targets added to enum, all switch cases wired.
+  - ~dyn_size_of~ and ~get_payload~ fixed for 32-bit pointer widths.
+  - linux-x86 cross-compiles and runs under qemu-i386.
+  - CI jobs added for linux-x86 (file + qemu) and linux-arm32 (file).
+  - riscv32: target defined, but no standard sysroot package exists
+    for linking 32-bit RISC-V binaries on CI yet.

@@ -56,6 +56,74 @@ jobs:
           ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 examples/hello_script.til
           file bin/hello_script_riscv64 | grep -q "RISC-V"
 
+  linux-x86:
+    name: linux-x86
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-multilib qemu-user
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile and run for linux-x86
+        run: |
+          ./bin/til build --target=linux-x86 -o bin/hello_script_x86 examples/hello_script.til
+          file bin/hello_script_x86 | grep -q "80386"
+          qemu-i386 bin/hello_script_x86
+          qemu-i386 bin/hello_script_x86 | grep -q "Hello World"
+
+  linux-arm32:
+    name: linux-arm32
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri gcc-arm-linux-gnueabihf qemu-user
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile for linux-arm32
+        run: |
+          ./bin/til build --target=linux-arm32 -o bin/hello_script_arm32 examples/hello_script.til
+          file bin/hello_script_arm32 | grep -q "ARM"
+      - name: Run via qemu-arm
+        run: |
+          qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32
+          qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32 | grep -q "Hello World"
+
+  linux-riscv32:
+    name: linux-riscv32
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri qemu-user bzip2
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Download Bootlin riscv32 toolchain
+        run: |
+          curl -sL https://toolchains.bootlin.com/downloads/releases/toolchains/riscv32-ilp32d/tarballs/riscv32-ilp32d--glibc--bleeding-edge-2024.02-1.tar.bz2 \
+            -o /tmp/riscv32-toolchain.tar.bz2
+          mkdir -p /tmp/riscv32-tc
+          tar -xjf /tmp/riscv32-toolchain.tar.bz2 -C /tmp/riscv32-tc
+          TC_DIR=$(ls -d /tmp/riscv32-tc/riscv32*)
+          echo "RISCV32_TC=$TC_DIR" >> $GITHUB_ENV
+          echo "Toolchain: $TC_DIR"
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile and run for linux-riscv32
+        run: |
+          RISCV32_CC=$(ls "$RISCV32_TC/bin/riscv32-*-gcc" | head -1)
+          ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" \
+            -o bin/hello_script_riscv32 examples/hello_script.til
+          file bin/hello_script_riscv32 | grep -q "RISC-V"
+          SYSROOT=$("$RISCV32_CC" -print-sysroot)
+          qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32
+          qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32 | grep -q "Hello World"
+
   windows-x64-build:
     name: windows-x64 (cross-compile on linux)
     runs-on: ubuntu-latest

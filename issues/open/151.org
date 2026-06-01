@@ -26,8 +26,15 @@
     ~tmp/hello_simple.til~ (~println(~["Hello"]~)~) for linux-x86
     with ~gcc -m32~ and verified they run correctly under ~qemu-i386~.
 
+  * Added ~Target.LinuxArm32~ and ~Target.LinuxRiscv32~ to the enum
+    with all switch cases wired (toolchain: ~arm-linux-gnueabihf-gcc~
+    and ~riscv32-linux-gnu-gcc~).
+
+  * Added CI jobs for linux-x86 (file verify + qemu-i386 run) and
+    linux-arm32 (file verify) in [[file:../../.github/workflows/tests.yml][tests.yml]].
+
   Remaining (per [[./232.org][#232]]):
   - Build 32-bit vendor libs (libffi, raylib, tinyfd)
-  - Add Makefile targets and CI job
   - Run full test suite for linux-x86 via qemu
+  - riscv32 CI (blocked on standard toolchain package)
 
