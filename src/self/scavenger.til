@@ -7,12 +7,12 @@ priv scav_fa_is_ns := func(e: Expr) returns Bool {
     ref obj : Expr = e.child(0)
     switch obj.node_type {
     case NodeType.Ident(id):
-        obj_type_name := til_type_name(expr_til_type(obj))
+        obj_type_name := til_type_name(obj.expr_til_type())
         if obj_type_name.eq("StructDef").or(obj_type_name.eq("EnumDef")) {
             return true
         }
         // Also check: if ident name matches struct_name, it's a type reference
-        if obj_type_name.len().gt(0).and(obj_type_name.eq(ident_name(id))) { return true }
+        if obj_type_name.len().gt(0).and(obj_type_name.eq(id.ident_name())) { return true }
     case:
     }
     return false
@@ -67,11 +67,11 @@ priv push_builtin_methods := func(mut v: Vec, builtin_name: Str, m1: Str, m2: St
 }
 
 collect_refs := func(e: Expr, mut refs: Vec) {
-    if is_null(e) { return }
+    if e.is_null() { return }
 
     switch e.node_type {
     case NodeType.Ident(ident):
-        vec_push_str(refs, ident_name(ident))
+        vec_push_str(refs, ident.ident_name())
     case NodeType.FCall:
         // Check for namespace method call: Type.method(args...)
         if e.children.len().gt(0) {
@@ -82,16 +82,16 @@ collect_refs := func(e: Expr, mut refs: Vec) {
                     case NodeType.Ident(type_name):
                         switch fa.node_type {
                         case NodeType.FieldAccess(method):
-                            vec_push_str(refs, ident_name(type_name))
-                            push_qn(refs, ident_name(type_name), field_access_name(method))
+                            vec_push_str(refs, type_name.ident_name())
+                            push_qn(refs, type_name.ident_name(), method.field_access_name())
                             // Issue #56/#57: when the typer rewrites a Type-typed
                             // arg (e.g. count_variants(Color3) where T: Type) into
                             // Type.Enum("Color3") / Type.Struct(...) / Type.Custom(...),
                             // the underlying type name only survives as the string
                             // literal arg. Without recording it here the scavenger
                             // would prune the enum/struct decl as unused.
-                            if ident_name(type_name).eq("Type") {
-                                mn := field_access_name(method)
+                            if type_name.ident_name().eq("Type") {
+                                mn := method.field_access_name()
                                 is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
                                 if is_named_type_ctor.and(e.children.len().gte(2)) {
                                     switch e.child(1).node_type {
@@ -122,11 +122,11 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {
                 case NodeType.Ident(cn):
-                    if ident_name(cn).eq("array") {
+                    if cn.ident_name().eq("array") {
                         push_builtin_methods(refs, "Array", "new", "set", "delete")
-                    } else if ident_name(cn).eq("vec") {
+                    } else if cn.ident_name().eq("vec") {
                         push_builtin_methods(refs, "Vec", "new", "push", "delete")
-                    } else if ident_name(cn).eq("struct_def_of").or(ident_name(cn).eq("enum_def_of")) {
+                    } else if cn.ident_name().eq("struct_def_of").or(cn.ident_name().eq("enum_def_of")) {
                         // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
                         // builds a runtime StructDef/EnumDef value by querying
                         // the introspection primitives for type X. Pull X out
@@ -163,8 +163,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {
                 case NodeType.Ident(type_name):
-                    vec_push_str(refs, ident_name(type_name))
-                    push_qn(refs, ident_name(type_name), field_access_name(field_name))
+                    vec_push_str(refs, type_name.ident_name())
+                    push_qn(refs, type_name.ident_name(), field_name.field_access_name())
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -176,8 +176,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
             if e.child(0).node_type.is(NodeType.Ident) {
                 switch e.child(0).node_type {
                 case NodeType.Ident(type_name):
-                    vec_push_str(refs, ident_name(type_name))
-                    push_qn(refs, ident_name(type_name), field_name)
+                    vec_push_str(refs, type_name.ident_name())
+                    push_qn(refs, type_name.ident_name(), field_name)
                 case:
                     UNREACHABLE(__LOC__)
                 }
@@ -194,7 +194,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
     switch e.node_type {
     case NodeType.StructDef(cr_sdd):
         for cr_fd : Declaration in cr_sdd.fields {
-            if is_null(cr_fd.default_value).not() {
+            if cr_fd.default_value.is_null().not() {
                 collect_refs(cr_fd.default_value, refs)
             }
             if cr_fd.explicit_type.len().gt(0) {
@@ -207,7 +207,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cr_ns : Vec = def_ns_decls(e)
         for cr_d : Declaration in cr_ns {
-            if is_null(cr_d.default_value).not() {
+            if cr_d.default_value.is_null().not() {
                 collect_refs(cr_d.default_value, refs)
             }
         }
@@ -294,7 +294,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
     ref callee : Expr = e.child(0)
     mut is_dc := false
     switch callee.node_type {
-    case NodeType.Ident(cn): is_dc = ident_name(cn).eq("dyn_call").or(ident_name(cn).eq("dyn_call_ret"))
+    case NodeType.Ident(cn): is_dc = cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret"))
     case:
     }
     if is_dc.not() { return e.children.len() }
@@ -302,7 +302,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
     mut nargs : USize = 0
     switch nargs_e.node_type {
     case NodeType.Literal(Literal.Num(s)):
-        nargs = literal_num_text(s).to_usize()
+        nargs = s.literal_num_text().to_usize()
     case:
         return e.children.len()
     }
@@ -316,10 +316,10 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
 // any nesting depth) so a candidate's auto-generated cleanup doesn't
 // pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
 priv collect_body_refs := proc(e: Expr, mut refs: Set, candidates: Set) {
-    if is_null(e) { return }
+    if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(name):
-        refs.add(own ident_name(name))
+        refs.add(own name.ident_name())
     case NodeType.Assign(adata):
         refs.add(own adata.name.clone())
     case:
@@ -361,7 +361,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
     switch callee.node_type {
-    case NodeType.FieldAccess(m): method = field_access_name(m)
+    case NodeType.FieldAccess(m): method = m.field_access_name()
     case:
     }
     if method.eq("delete").not() { return "" }
@@ -380,7 +380,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     if bv { return "" }
     mut tn := ""
     switch arg0.node_type {
-    case NodeType.Ident(n): tn = ident_name(n)
+    case NodeType.Ident(n): tn = n.ident_name()
     case:
     }
     return tn
@@ -393,7 +393,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
 // (no-op view cleanup) -- so dropping the Decl + its trivial delete
 // has no observable effect.
 priv rhs_is_pure_byvalue := func(e: Expr) returns Bool {
-    if is_null(e) { return false }
+    if e.is_null() { return false }
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Bool): return true
@@ -415,7 +415,7 @@ priv MARK_REPLACE_RHS : U8 = 2
 // also live in nested early-return bodies (if-then deletes before a
 // return) that the outer body's phase 3 didn't reach.
 priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
-    if is_null(e) { return }
+    if e.is_null() { return }
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n.gt(0) {
@@ -585,7 +585,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     if callee.node_type.is(NodeType.FieldAccess).not() { return false }
     mut method_eq := false
     switch callee.node_type {
-    case NodeType.FieldAccess(m): method_eq = field_access_name(m).eq("delete")
+    case NodeType.FieldAccess(m): method_eq = m.field_access_name().eq("delete")
     case:
     }
     if method_eq.not() { return false }
@@ -595,7 +595,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     if arg0.node_type.is(NodeType.Ident).not() { return false }
     mut name_eq := false
     switch arg0.node_type {
-    case NodeType.Ident(n): name_eq = ident_name(n).eq(name)
+    case NodeType.Ident(n): name_eq = n.ident_name().eq(name)
     case:
     }
     if name_eq.not() { return false }
@@ -645,7 +645,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
 priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
-    if is_null(e) { return }
+    if e.is_null() { return }
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for i in 0..e.children.len() {
@@ -661,7 +661,7 @@ priv body_dce_ns := proc(rhs: Expr) {
     ref ns : Vec = def_ns_decls(rhs)
     for _nsd_e : Declaration in ns {
         ref nsd : Declaration = _nsd_e
-        if is_null(nsd.default_value) { continue }
+        if nsd.default_value.is_null() { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_value.children.len().eq(0) { continue }
         body_dce_walk(nsd.default_value.child(0), false)

@@ -1,0 +1,70 @@
+mode cli
+
+import("../src/core/io")
+import("../src/core/str")
+import("../src/core/vec")
+import("../src/core/u32")
+import("../src/std/sys")
+import("../src/self/lexer")
+import("../src/self/parser")
+
+TARGETS := Vec.new(Str)
+TARGETS.push(own "is_null")
+TARGETS.push(own "expr_til_type")
+TARGETS.push(own "ident_name")
+TARGETS.push(own "set_expr_til_type")
+TARGETS.push(own "field_access_name")
+TARGETS.push(own "ptr_eq")
+TARGETS.push(own "literal_num_text")
+
+mut count : I64 = 0
+
+is_target := func(name: Str) returns Bool {
+    for t : Str in TARGETS {
+        if name.eq(t) { return true }
+    }
+    return false
+}
+
+walk := proc(e: Expr, path: Str) {
+    switch e.node_type {
+    case NodeType.FCall(_):
+        if e.children.len().gt(1) {
+            ref callee : Expr = e.child(0)
+            switch callee.node_type {
+            case NodeType.Ident(id):
+                if is_target(id.name) {
+                    if e.children.len().gt(2) {
+                        println(path, ":", e.line.to_str(), ":", e.col.to_str(),
+                            ": ", id.name, "(first, ...) -> first.", id.name, "(...)")
+                    } else {
+                        println(path, ":", e.line.to_str(), ":", e.col.to_str(),
+                            ": ", id.name, "() -> .", id.name, "()")
+                    }
+                    count = count.add(1)
+                }
+            case:
+            }
+        }
+    case:
+    }
+    for ci in 0..e.children.len() {
+        walk(e.child(ci), path)
+    }
+}
+
+main := proc(args: ..Str) {
+    if args.len().eq(0) {
+        println("Usage: til examples/find_ufcs_opportunities.til <file.til> ...")
+        println("  or:  find src/ -name '*.til' -exec til examples/find_ufcs_opportunities.til {} +")
+        return
+    }
+    for fp : Str in args {
+        src := File.readfile(fp)
+        tokens := tokenize(src, fp)
+        mut mode_out := ""
+        root := parse(tokens, fp, mode_out)
+        walk(root, fp)
+    }
+    println("Total: ", count.to_str())
+}

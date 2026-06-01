@@ -54,7 +54,7 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
 ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size()) }
 
 ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
-    if is_null(cif.rtype) { return false }
+    if cif.rtype.is_null() { return false }
     ref rt : ffi_type = cif.rtype
     return rt.type.eq(FFI_TYPE_STRUCT.to_i16())
 }
@@ -72,14 +72,14 @@ process_id := ext_func() returns shallow I32 {}
 
 ffi_dlsym := func(name: Str) returns ref U8 {
     ref fn : U8 = ffi_user_symbol(name)
-    if is_null(fn).not() {
+    if fn.is_null().not() {
         return fn
     }
     return ffi_global_symbol(name)
 }
 
 ffi_init_link_libs := func(link_flags: Str) {
-    if is_null(link_flags) {
+    if link_flags.is_null() {
         return
     }
     mut i : USize = 0
@@ -106,7 +106,7 @@ ffi_init_link_libs := func(link_flags: Str) {
 
 ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
-    if is_null(user_c_path) { return 0 }
+    if user_c_path.is_null() { return 0 }
     if user_c_path.len().eq(0) { return 0 }
 
     dot_str := "."
@@ -120,7 +120,7 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
     system_cmd("mkdir -p tmp")
 
     mut lf := ""
-    if is_null(link_flags).not() {
+    if link_flags.is_null().not() {
         lf = link_flags
     }
     cmd := format("cc -Wall -Wextra -shared -fPIC -I", ext_dir,
@@ -356,7 +356,7 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     // and rebuild the matching scalar Value variant; otherwise
     // value_to_u64 hits its default `case: return 0` and the widening
     // cast silently returns zero.
-    src_tn := til_type_name_c(expr_til_type(e.child(1)))
+    src_tn := til_type_name_c(e.child(1).expr_til_type())
     switch v {
     case Value.Ref(p):
         if src_tn.eq("I8") { ref tmp : I8 = p; v = val_i8(tmp.cast(I64)) }
@@ -389,7 +389,7 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     case:
     }
     raw := value_to_u64(v)
-    tn := til_type_name_c(expr_til_type(e))
+    tn := til_type_name_c(e.expr_til_type())
     if tn.eq("I8")  { r = val_i8(raw.cast(I64));  return true }
     if tn.eq("U8")  { r = val_u8(raw.cast(I64));  return true }
     if tn.eq("I16") { r = val_i16(raw.cast(I64)); return true }
@@ -475,7 +475,7 @@ h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     method_val := eval_expr(s, e.child(2), ctx)
     type_name := str_view(type_name_val)
     method := str_view(method_val)
-    r = val_bool(is_null(ns_get(type_name, method, ctx)).not())
+    r = val_bool(ns_get(type_name, method, ctx).is_null().not())
     return true
 }
 
@@ -485,7 +485,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := str_view(type_name_val)
     method := str_view(method_val)
     ref nsv : Value = ns_get(type_name, method, ctx)
-    if is_null(nsv) {
+    if nsv.is_null() {
         panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
     }
     if nsv.is(Value.Func).not() {
@@ -522,7 +522,7 @@ priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
 // introspection handlers (issue #56/#58).
 interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
-    if is_null(tc) {
+    if tc.is_null() {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
         exit(1)
     }
@@ -612,7 +612,7 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 // introspection handlers (issue #57/#58).
 interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
-    if is_null(tc) {
+    if tc.is_null() {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
         exit(1)
     }
@@ -710,7 +710,7 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
 // Shared by the func_sig_* introspection handlers (issue #58).
 interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
-    if is_null(tc) {
+    if tc.is_null() {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
         exit(1)
     }
@@ -823,7 +823,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
     switch type_val {
     case Value.Enum(ei):
         ref til_type_def : Expr = lookup_interp_type_def("Type", ctx)
-        if is_null(til_type_def) {
+        if til_type_def.is_null() {
             panic(__LOC__, "dyn_type_to_str: Type definition not registered")
         }
         ref tag_ptr : Dynamic = ei.data
@@ -1010,7 +1010,7 @@ priv known_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
 // types are passed as opaque pointers.
 priv shallow_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
     ref t : ffi_type = known_ffi_type(type_name, ctx)
-    if is_null(t).not() { return t }
+    if t.is_null().not() { return t }
     return ffi_type_ref("ffi_type_pointer")
 }
 
@@ -1018,7 +1018,7 @@ field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.explicit_type.len().eq(0) { return ffi_type_ref("ffi_type_sint64") }
     ref t : ffi_type = known_ffi_type(dd.explicit_type, ctx)
-    if is_null(t).not() { return t }
+    if t.is_null().not() { return t }
     return ffi_type_ref("ffi_type_sint64")
 }
 
@@ -1055,7 +1055,7 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
 h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     switch e.child(1).node_type {
     case NodeType.Ident(ident):
-        ref cell : Cell = scope_get(s, ident_name(ident))
+        ref cell : Cell = scope_get(s, ident.ident_name())
         free_value_full(cell.val)
         memcpy(cell.val, val_none(), Value.size())
     case:
@@ -1186,7 +1186,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
 
     // Build fake AST: Type.method(args...)
     mut type_ident := Expr.new(ident_node(type_name), e.line, e.col)
-    set_expr_til_type(type_ident, Type.Struct(type_name.clone()))
+    type_ident.set_expr_til_type(Type.Struct(type_name.clone()))
 
     mut field_access := Expr.new(field_access_node(method), e.line, e.col)
     field_access.add_child(own type_ident)
@@ -1198,7 +1198,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     ref arity_expr : Expr = e.child(3)
     mut nargs : U32 = 0
     switch arity_expr.node_type {
-    case NodeType.Literal(Literal.Num(arity_str)): nargs = literal_num_text(arity_str).to_u32()
+    case NodeType.Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
     case:
         UNREACHABLE(__LOC__)
     }
@@ -1212,13 +1212,13 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
 
 get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns I32 {
     ref size_fn : Value = ns_get(type_name, "size", ctx)
-    if is_null(size_fn) {
+    if size_fn.is_null() {
         interp_error(src, type_name.concat(" has no size() method"), ctx)
         exit(1)
     }
     // Build fake call: Type.size()
     mut type_ident := Expr.new(ident_node(type_name), src.line, src.col)
-    set_expr_til_type(type_ident, Type.Struct(type_name.clone()))
+    type_ident.set_expr_til_type(Type.Struct(type_name.clone()))
 
     mut field_access := Expr.new(field_access_node("size"), src.line, src.col)
     field_access.add_child(own type_ident)
@@ -1254,7 +1254,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Float(x):   pdata = to_ptr(x); psz = 4
                 case Value.Boolean(x): pdata = to_ptr(x); psz = 1
                 case Value.Struct(si):
-                    if is_null(si.struct_def).not() {
+                    if si.struct_def.is_null().not() {
                         switch si.struct_def.node_type {
                         case NodeType.StructDef(sd):
                             psz = sd.total_struct_size
@@ -1339,7 +1339,7 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Contex
 // NULL if the return type isn't a known shallow struct.
 ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
     if fe.return_is_shallow.not() { return NULL }
-    if is_null(fe.return_type) { return NULL }
+    if fe.return_type.is_null() { return NULL }
     if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
     if ctx.ffi_struct_defs.has(fe.return_type).not() { return NULL }
     ref sdef_ptr : Dynamic = ctx.ffi_struct_defs[fe.return_type]
@@ -1352,15 +1352,15 @@ ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
 priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns Bool {
-    if ptr_eq(atype, ffi_type_ref("ffi_type_sint64")) { type_name = "I64"; size = 8; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_uint8"))  { type_name = "U8";  size = 1; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_sint8"))  { type_name = "I8";  size = 1; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_sint16")) { type_name = "I16"; size = 2; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_uint16")) { type_name = "U16"; size = 2; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_sint32")) { type_name = "I32"; size = 4; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_uint32")) { type_name = "U32"; size = 4; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_uint64")) { type_name = "U64"; size = 8; return true }
-    if ptr_eq(atype, ffi_type_ref("ffi_type_float"))  { type_name = "F32"; size = 4; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_sint64")) { type_name = "I64"; size = 8; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_uint8"))  { type_name = "U8";  size = 1; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_sint8"))  { type_name = "I8";  size = 1; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_sint16")) { type_name = "I16"; size = 2; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_uint16")) { type_name = "U16"; size = 2; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_sint32")) { type_name = "I32"; size = 4; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_uint32")) { type_name = "U32"; size = 4; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_uint64")) { type_name = "U64"; size = 8; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_float"))  { type_name = "F32"; size = 4; return true }
     return false
 }
 
@@ -1409,7 +1409,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
 
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)), ctx)
-        mut is_shallow := is_null(fe.param_shallows).not()
+        mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam.to_usize()))
         if is_shallow {
             ref ps : Bool = ptr_add(fe.param_shallows, i.cast(U64))
@@ -1462,7 +1462,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             case:
                 write_ptr(ptr_add(args, i.cast(U64).mul(8)), NULL)
             }
-            if is_null(dp).not() {
+            if dp.is_null().not() {
                 write_ptr(ptr_add(args, i.cast(U64).mul(8)), dp)
             }
             write_ptr(ptr_add(arg_ptrs, i.cast(U64).mul(8)), ptr_add(args, i.cast(U64).mul(8)))
@@ -1475,7 +1475,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     // raw: 16-byte buffer for return value
     raw : Dynamic = calloc(1, 16)
     mut ret_buf : Dynamic = 0
-    if is_null(ret_sdef).not() {
+    if ret_sdef.is_null().not() {
         switch ret_sdef.node_type {
         case NodeType.StructDef(sdd):
             ret_buf = malloc(sdd.total_struct_size.to_usize())
@@ -1488,9 +1488,9 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     }
 
     // Decode return value
-    if is_null(fe.return_type) {
+    if fe.return_type.is_null() {
         result = val_none()
-    } else if is_null(ret_sdef).not() {
+    } else if ret_sdef.is_null().not() {
         result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false, ctx)
     } else if fe.return_is_shallow {
         if ffi_decode_scalar(fe.return_type, to_ptr(raw), result, ctx).not() {
@@ -1566,7 +1566,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
 
         // Resolve return ffi_type
         ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
-        if is_null(entry.return_type).not() {
+        if entry.return_type.is_null().not() {
             if ret_shallow {
                 rtype = to_ptr(shallow_ffi_type(entry.return_type, ctx))
             } else {
@@ -1608,7 +1608,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                         switch stmt.node_type {
                         case NodeType.Decl(dname):
                             ref fn_ptr : U8 = ffi_dlsym(dname.name)
-                            if is_null(fn_ptr).not() {
+                            if fn_ptr.is_null().not() {
                                 ffi_register(dname.name, fn_ptr, fdef, ctx)
                             }
                         case:
@@ -1626,7 +1626,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                         for d_j : Declaration in sdd_data.ns_decls {
                         ref fdd : Declaration = d_j
                         ref fdef : Expr = fdd.default_value
-                        if is_null(fdef) { continue }
+                        if fdef.is_null() { continue }
                         mut fd_func_type := FuncType.None
                         switch fdef.node_type {
                         case NodeType.FuncDef(fd):
@@ -1637,7 +1637,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                         if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
                             flat_name := sdd.name.clone().format("_", fdd.name)
                             ref fn_ptr : U8 = ffi_dlsym(flat_name)
-                            if is_null(fn_ptr).not() {
+                            if fn_ptr.is_null().not() {
                                 ffi_register(flat_name, fn_ptr, fdef, ctx)
                             }
                         } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
@@ -1652,7 +1652,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                                             switch inner.node_type {
                                             case NodeType.Decl(iname):
                                                 ref ifn : U8 = ffi_dlsym(iname.name)
-                                                if is_null(ifn).not() {
+                                                if ifn.is_null().not() {
                                                     ffi_register(iname.name, ifn, idef, ctx)
                                                 }
                                             case:
@@ -1710,7 +1710,7 @@ ffi_cleanup := proc(ctx: Context) {
     }
     if ctx.ffi_type_cache_inited {
         for box : FFITypePtrBox in ctx.ffi_type_cache {
-            if is_null(box.ptr).not() {
+            if box.ptr.is_null().not() {
                 free(own box.ptr.elements)
                 free(own box.ptr)
             }

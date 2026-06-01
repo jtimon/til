@@ -30,7 +30,7 @@ namespace:
         return a.name.eq(b.name)
     }
     to_str := func(self: TypeBinding) returns Str {
-        if is_null(self.name) { return "TypeBinding" }
+        if self.name.is_null() { return "TypeBinding" }
         return self.name.clone()
     }
 }
@@ -90,7 +90,7 @@ namespace:
             ref b : TypeBinding = self.bindings[name]
             return b
         }
-        if is_null(self.parent).not() {
+        if self.parent.is_null().not() {
             ref pb : TypeBinding = self.parent.get_binding(name)
             return pb
         }
@@ -98,34 +98,34 @@ namespace:
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
         ref b : TypeBinding = self.get_binding(name)
-        if is_null(b).not() {
+        if b.is_null().not() {
             return ScopeFind.Found(b.clone())
         }
         return ScopeFind.NotFound
     }
     get_type := func(self: TypeScope, name: Str) returns Type {
         ref b : TypeBinding = self.get_binding(name)
-        if is_null(b).not() { return b.type.clone() }
+        if b.is_null().not() { return b.type.clone() }
         return Type.Unknown
     }
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
         ref b : TypeBinding = self.get_binding(name)
-        if is_null(b).not() { return b.func_type }
+        if b.is_null().not() { return b.func_type }
         return FuncType.None
     }
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
         if self.bindings.has(name) {
             ref b : TypeBinding = self.bindings[name]
-            if is_null(b.struct_def).not() { return b.struct_def }
+            if b.struct_def.is_null().not() { return b.struct_def }
         }
-        if is_null(self.parent).not() {
+        if self.parent.is_null().not() {
             return self.parent.get_struct(name)
         }
         return NULL
     }
     is_mut := func(self: TypeScope, name: Str) returns Bool {
         ref b : TypeBinding = self.get_binding(name)
-        if is_null(b).not() { return b.is_mut }
+        if b.is_null().not() { return b.is_mut }
         return false
     }
     set := func(mut self: TypeScope, name: Str, type: Type,
@@ -444,7 +444,7 @@ precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
         case NodeType.Decl(sdd):
             for d_j : Declaration in pc_edd.ns_decls {
                 ref nsd : Declaration = d_j
-                if is_null(nsd.default_value) { continue }
+                if nsd.default_value.is_null() { continue }
                 switch nsd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
                     qname := sdd.name.format("_", nsd.name)
@@ -484,7 +484,7 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: 
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
     gc.add_child(own gp)
     gc.add_child(own arg)
-    set_expr_til_type(gc, payload_type)
+    gc.set_expr_til_type(payload_type)
     return gc
 }
 
@@ -534,25 +534,25 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("StructDef") { return Type.Struct("StructDef") }
     if name.eq("EnumDef") { return Type.Struct("EnumDef") }
     if name.eq("Dynamic")   { return Type.Dynamic }
-    if is_null(scope).not() {
+    if scope.is_null().not() {
         ref b : TypeBinding = scope.get_binding(name)
-        if is_null(b).not() {
+        if b.is_null().not() {
             if b.is_type_alias {
                 if b.alias_target.is_empty().not() {
                     return type_from_name_init(b.alias_target, scope)
                 }
             }
             if b.is_builtin {
-                if is_null(b.struct_def).not() { return b.type }
+                if b.struct_def.is_null().not() { return b.type }
             }
-            if is_null(b.func_def).not() {
+            if b.func_def.is_null().not() {
                 if b.func_def.children.len().eq(0) {
                     return Type.FuncPtr
                 }
             }
         }
         ref sdef : Expr = scope.get_struct(name)
-        if is_null(sdef).not() {
+        if sdef.is_null().not() {
             if sdef.node_type.is(NodeType.EnumDef) {
                 return Type.Enum(name.clone())
             }
@@ -565,7 +565,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
 init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     mut resolved := name.clone()
     ref b : TypeBinding = scope.get_binding(name)
-    if is_null(b).not() {
+    if b.is_null().not() {
         if b.is_type_alias {
             if b.alias_target.is_empty().not() {
                 resolved = b.alias_target.clone()
@@ -590,7 +590,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         existing_find := scope.find(sname)
         switch existing_find {
         case ScopeFind.Found(existing):
-            if is_null(existing.struct_def).not() {
+            if existing.struct_def.is_null().not() {
                 println(
                     ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: struct '", sname, "' already declared at ",
@@ -644,7 +644,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
 // "" when nothing usable is available.
 priv field_inferred_type_name := func(fd: Declaration) returns Str {
     if fd.explicit_type.len().gt(0) { return fd.explicit_type.clone() }
-    if is_null(fd.default_value) { return "" }
+    if fd.default_value.is_null() { return "" }
     ref def_val : Expr = fd.default_value
     switch def_val.node_type {
     case NodeType.Literal(Literal.Num):  return "I64"
@@ -654,7 +654,7 @@ priv field_inferred_type_name := func(fd: Declaration) returns Str {
         if def_val.children.len().eq(0) { return "" }
         ref callee : Expr = def_val.child(0)
         switch callee.node_type {
-        case NodeType.Ident(cn): return ident_name(cn)
+        case NodeType.Ident(cn): return cn.ident_name()
         case:
         }
     case:
@@ -678,9 +678,9 @@ priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Boo
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
     if t.is(Type.FuncPtr) { return true }
-    if is_null(scope) { return false }
+    if scope.is_null() { return false }
     ref sdef : Expr = scope.get_struct(type_name)
-    if is_null(sdef) { return false }
+    if sdef.is_null() { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
         if sdd.fields.len().eq(0) { return false }
@@ -963,7 +963,7 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         existing_find := scope.find(ename)
         switch existing_find {
         case ScopeFind.Found(existing):
-            if is_null(existing.struct_def).not() {
+            if existing.struct_def.is_null().not() {
                 println(
                     ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: enum '", ename, "' already declared at ",
@@ -1184,7 +1184,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: 
             mut then_body := Expr.new(NodeType.Body, line, col)
 
             mut type_id := Expr.new(ident_node(vtype), line, col)
-            set_expr_til_type(type_id, type_from_name_init(vtype, scope))
+            type_id.set_expr_til_type(type_from_name_init(vtype, scope))
             mut del_acc := Expr.new(field_access_node("delete"), line, col)
             del_acc.add_child(own type_id)
             mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -1616,7 +1616,7 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
     mut target_name := ""
     switch rhs.node_type {
     case NodeType.Ident(tn):
-        target_name = ident_name(tn)
+        target_name = tn.ident_name()
     case:
         return
     }
@@ -1626,8 +1626,8 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
         find := scope.find(target_name)
         switch find {
         case ScopeFind.Found(target):
-            if is_null(target.struct_def).and(target.is_builtin.not()) {
-                if is_null(target.func_def) {
+            if target.struct_def.is_null().and(target.is_builtin.not()) {
+                if target.func_def.is_null() {
                     return
                 }
                 if target.func_def.children.len().neq(0) {
@@ -1685,7 +1685,7 @@ register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
             if sdecl0.explicit_type.len().eq(0) {
                 switch rhs.node_type {
                 case NodeType.Ident(rhs_name):
-                    if type_from_name_init(ident_name(rhs_name), scope).is(Type.Unknown).not() {
+                    if type_from_name_init(rhs_name.ident_name(), scope).is(Type.Unknown).not() {
                         return
                     }
                 case:
@@ -1736,7 +1736,7 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
             fs_find := scope.find(sdecl.explicit_type)
             switch fs_find {
             case ScopeFind.Found(fsb):
-                if is_null(fsb.func_def).not() {
+                if fsb.func_def.is_null().not() {
                     if fsb.func_def.children.len().eq(0) {
                         ref sig : Expr = fsb.func_def
                         switch def.node_type {
@@ -2248,14 +2248,14 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 
                 mut ftype := fd.explicit_type
                 if ftype.len().eq(0) {
-                    if is_null(fd.default_value).not() {
+                    if fd.default_value.is_null().not() {
                         ref def_val : Expr = fd.default_value
                         if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len().gt(0) {
                                 ref callee : Expr = def_val.child(0)
                                 switch callee.node_type {
                                 case NodeType.Ident(_ft):
-                                    ftype = ident_name(_ft)
+                                    ftype = _ft.ident_name()
                                 case:
                                 }
                             }
@@ -2270,24 +2270,24 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             } else {
                 mut ftype := fd.explicit_type
                 if ftype.len().eq(0) {
-                    if is_null(fd.default_value).not() {
+                    if fd.default_value.is_null().not() {
                         ref def_val : Expr = fd.default_value
                         if def_val.node_type.is_literal_num() { ftype = "I64" }
                         else if def_val.node_type.is_literal_str() { ftype = "Str" }
                         else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
-                        else if til_type_name(expr_til_type(def_val)).len().gt(0) { ftype = til_type_name(expr_til_type(def_val)) }
+                        else if til_type_name(def_val.expr_til_type()).len().gt(0) { ftype = til_type_name(def_val.expr_til_type()) }
                         else if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len().gt(0) {
                                 ref callee : Expr = def_val.child(0)
                                 switch callee.node_type {
                                 case NodeType.Ident(_ft):
-                                    ftype = ident_name(_ft)
+                                    ftype = _ft.ident_name()
                                 case NodeType.FieldAccess:
                                     if callee.children.len().gt(0) {
                                         ref type_node : Expr = callee.child(0)
                                         switch type_node.node_type {
                                         case NodeType.Ident(_ft):
-                                            ftype = ident_name(_ft)
+                                            ftype = _ft.ident_name()
                                         case:
                                         }
                                     }
@@ -2299,7 +2299,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                                 ref type_node : Expr = def_val.child(0)
                                 switch type_node.node_type {
                                 case NodeType.Ident(_ft):
-                                    ftype = ident_name(_ft)
+                                    ftype = _ft.ident_name()
                                 case:
                                 }
                             }
@@ -2312,7 +2312,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 }
 
                 ref ab : TypeBinding = scope.get_binding(ftype)
-                if is_null(ab).not() {
+                if ab.is_null().not() {
                     if ab.is_type_alias {
                         if ab.alias_target.is_empty().not() {
                             ftype = ab.alias_target
@@ -2334,10 +2334,10 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 else if type_from_name_init(ftype, scope).is(Type.FuncPtr) { fsz = 8; falign = 8 }
                 else {
                     ref nested_def : Expr = scope.get_struct(ftype)
-                    if is_null(nested_def).not().and(nested_def.node_type.is(NodeType.EnumDef)) {
+                    if nested_def.is_null().not().and(nested_def.node_type.is(NodeType.EnumDef)) {
                         fsz = compute_enum_layout(nested_def, scope)
                         if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
-                    } else if is_null(nested_def).not() {
+                    } else if nested_def.is_null().not() {
                         compute_struct_layout(nested_def, scope)
                         switch nested_def.node_type {
                         case NodeType.StructDef(nested_meta):
@@ -2385,7 +2385,7 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     if ftype.eq("Dynamic") { sz = 8; al = 8; return }
     if type_from_name_init(ftype, scope).is(Type.FuncPtr) { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
-    if is_null(nested) { sz = 8; al = 8; return }
+    if nested.is_null() { sz = 8; al = 8; return }
     switch nested.node_type {
     case NodeType.StructDef(_nm):
         compute_struct_layout(nested, scope)
@@ -2454,7 +2454,7 @@ record_struct_layout := func(ctx: Context, name: Str, sdef: Expr) {
         for fd : Declaration in sm.fields {
             mut flx := FieldLayout(offset = fd.field_offset, size = fd.field_size)
             if is_primitive(fd.til_type).not() {
-                if is_null(lookup_interp_type_def(fd.explicit_type, ctx)).not() {
+                if lookup_interp_type_def(fd.explicit_type, ctx).is_null().not() {
                     flx.struct_name = fd.explicit_type.clone()
                 }
             }
@@ -2522,8 +2522,8 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
         out_type = Type.Dynamic
         return true
     case NodeType.Ident(id):
-        ref b : TypeBinding = scope.get_binding(ident_name(id))
-        if is_null(b) { return false }
+        ref b : TypeBinding = scope.get_binding(id.ident_name())
+        if b.is_null() { return false }
         out_type = b.type
         return out_type.is(Type.Unknown).not()
     case NodeType.FieldAccess:
@@ -2531,15 +2531,15 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
         if rhs.children.len().gt(0) {
             ref _io1 : Expr = rhs.child(0)
             if _io1.node_type.is(NodeType.Ident) {
-                if til_type_name(expr_til_type(_io1)).eq("StructDef").or(til_type_name(expr_til_type(_io1)).eq("EnumDef")) {
+                if til_type_name(_io1.expr_til_type()).eq("StructDef").or(til_type_name(_io1.expr_til_type()).eq("EnumDef")) {
                     init_ns1 = true
                 }
             }
         }
-        if init_ns1.and(expr_til_type(rhs).is(Type.Enum)) {
+        if init_ns1.and(rhs.expr_til_type().is(Type.Enum)) {
             mut enum_name := ""
             if rhs.children.len().gt(0) {
-                enum_name = til_type_name(expr_til_type(rhs.child(0)))
+                enum_name = til_type_name(rhs.child(0).expr_til_type())
             }
             out_type = Type.Enum(enum_name.clone())
             return true
@@ -2549,12 +2549,12 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
         ref callee : Expr = rhs.child(0)
         switch callee.node_type {
         case NodeType.Ident(cn):
-            if til_type_name(expr_til_type(rhs)).len().gt(0).and(ident_name(cn).eq(til_type_name(expr_til_type(rhs)))) {
-                out_type = Type.Struct(til_type_name(expr_til_type(rhs)))
+            if til_type_name(rhs.expr_til_type()).len().gt(0).and(cn.ident_name().eq(til_type_name(rhs.expr_til_type()))) {
+                out_type = Type.Struct(til_type_name(rhs.expr_til_type()))
                 return true
             }
-            ref fb : TypeBinding = scope.get_binding(ident_name(cn))
-            if is_null(fb) { return false }
+            ref fb : TypeBinding = scope.get_binding(cn.ident_name())
+            if fb.is_null() { return false }
             out_type = fb.type
             return out_type.is(Type.Unknown).not()
         case NodeType.FieldAccess:
@@ -2562,13 +2562,13 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
             if callee.children.len().gt(0) {
                 ref _io2 : Expr = callee.child(0)
                 if _io2.node_type.is(NodeType.Ident) {
-                    if til_type_name(expr_til_type(_io2)).eq("StructDef").or(til_type_name(expr_til_type(_io2)).eq("EnumDef")) {
+                    if til_type_name(_io2.expr_til_type()).eq("StructDef").or(til_type_name(_io2.expr_til_type()).eq("EnumDef")) {
                         init_ns2 = true
                     }
                 }
             }
-            if init_ns2.and(til_type_name(expr_til_type(rhs)).len().gt(0)).and(expr_til_type(rhs).is(Type.Enum)) {
-                out_type = Type.Enum(til_type_name(expr_til_type(rhs)))
+            if init_ns2.and(til_type_name(rhs.expr_til_type()).len().gt(0)).and(rhs.expr_til_type().is(Type.Enum)) {
+                out_type = Type.Enum(til_type_name(rhs.expr_til_type()))
                 return true
             }
             return false
@@ -2705,7 +2705,7 @@ priv init_lookup_name := func(renamings: Map, name: Str) returns Str {
 priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map) {
     switch e.node_type {
     case NodeType.Ident(name):
-        new_name := init_lookup_name(renamings, ident_name(name))
+        new_name := init_lookup_name(renamings, name.ident_name())
         if new_name.len().gt(0) {
             e.node_type = ident_node(new_name)
         }
@@ -2730,19 +2730,19 @@ priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map) {
 }
 
 priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
-    if is_null(e) { return }
+    if e.is_null() { return }
     init_rename_ident_in_place(e, renamings)
     // `for x : LocalInfo in xs { ... }` stores the loop's explicit type
     // on the ForIn node's payload as Type.Custom("LocalInfo") (read back
     // via expr_til_type). No Declaration is involved (parser.til:1428),
     // so init_rename_decl_in_place misses it; patch the Type.Custom
     // payload here.
-    custom_t := expr_til_type(e)
+    custom_t := e.expr_til_type()
     switch custom_t {
     case Type.Custom(custom_name):
         new_custom := init_lookup_name(renamings, custom_name)
         if new_custom.len().gt(0) {
-            set_expr_til_type(e, Type.Custom(new_custom.clone()))
+            e.set_expr_til_type(Type.Custom(new_custom.clone()))
         }
     case:
     }
@@ -2758,20 +2758,20 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
         }
         for mut pd : Declaration in fd.params {
             init_rename_decl_in_place(pd, renamings)
-            if is_null(pd.default_value).not() {
+            if pd.default_value.is_null().not() {
                 init_rewrite_refs(pd.default_value, renamings)
             }
         }
     case NodeType.StructDef(sdd):
         for mut sf : Declaration in sdd.fields {
             init_rename_decl_in_place(sf, renamings)
-            if is_null(sf.default_value).not() {
+            if sf.default_value.is_null().not() {
                 init_rewrite_refs(sf.default_value, renamings)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
             init_rename_decl_in_place(nd, renamings)
-            if is_null(nd.default_value).not() {
+            if nd.default_value.is_null().not() {
                 init_rewrite_refs(nd.default_value, renamings)
             }
         }
@@ -2787,7 +2787,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
         }
         for mut nd : Declaration in edd.ns_decls {
             init_rename_decl_in_place(nd, renamings)
-            if is_null(nd.default_value).not() {
+            if nd.default_value.is_null().not() {
                 init_rewrite_refs(nd.default_value, renamings)
             }
         }
@@ -2800,7 +2800,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
 }
 
 priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec) {
-    if is_null(body) { return }
+    if body.is_null() { return }
     if body.node_type.is(NodeType.Body).not() { return }
 
     mut renamings := Map.new(Str, Str)
@@ -2854,11 +2854,11 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
 }
 
 priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_level: Vec) {
-    if is_null(def) { return }
+    if def.is_null() { return }
     switch def.node_type {
     case NodeType.StructDef(ld_sdd):
         for mut nd : Declaration in ld_sdd.ns_decls {
-            if is_null(nd.default_value) { continue }
+            if nd.default_value.is_null() { continue }
             if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
             if nd.default_value.children.len().eq(0) { continue }
             ref mut nbody : Expr = nd.default_value.child(0)
@@ -2866,7 +2866,7 @@ priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_le
         }
     case NodeType.EnumDef(ld_edd):
         for mut nd : Declaration in ld_edd.ns_decls {
-            if is_null(nd.default_value) { continue }
+            if nd.default_value.is_null() { continue }
             if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
             if nd.default_value.children.len().eq(0) { continue }
             ref mut nbody : Expr = nd.default_value.child(0)
@@ -2884,7 +2884,7 @@ priv init_recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut
 }
 
 priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_level: Vec) {
-    if is_null(e) { return }
+    if e.is_null() { return }
     if e.node_type.is(NodeType.Body) {
         init_lift_in_body(e, parent_prefix, top_level)
         return
@@ -2931,17 +2931,17 @@ priv init_subst_ident_name := func(subs: Map, name: Str) returns Str {
     ref repl : Expr = subs[name]
     switch repl.node_type {
     case NodeType.Ident(idn):
-        return ident_name(idn).clone()
+        return idn.ident_name().clone()
     case:
         return ""
     }
 }
 
 priv init_substitute_idents := func(mut e: Expr, subs: Map) {
-    if is_null(e) { return }
+    if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(idn):
-        nm := ident_name(idn)
+        nm := idn.ident_name()
         if subs.has(nm) {
             ref repl_expr : Expr = subs[nm]
             mut cloned := repl_expr.clone()
@@ -2968,7 +2968,7 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map) {
             fd.explicit_type = new_type.clone()
             fd.til_type = til_type_from_explicit_type(fd.explicit_type)
         }
-        if is_null(fd.default_value).not() {
+        if fd.default_value.is_null().not() {
             init_substitute_idents(fd.default_value, subs)
         }
     }
@@ -2978,7 +2978,7 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map) {
             nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
-        if is_null(nd.default_value).not() {
+        if nd.default_value.is_null().not() {
             init_substitute_idents(nd.default_value, subs)
         }
     }
@@ -3000,7 +3000,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
             nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
-        if is_null(nd.default_value).not() {
+        if nd.default_value.is_null().not() {
             init_substitute_idents(nd.default_value, subs)
         }
     }
@@ -3013,7 +3013,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map) {
             pd.explicit_type = new_type.clone()
             pd.til_type = til_type_from_explicit_type(pd.explicit_type)
         }
-        if is_null(pd.default_value).not() {
+        if pd.default_value.is_null().not() {
             init_substitute_idents(pd.default_value, subs)
         }
     }
@@ -3082,7 +3082,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         if callee.node_type.is(NodeType.Ident).not() { continue }
         mut callee_name := ""
         switch callee.node_type {
-        case NodeType.Ident(cn): callee_name = ident_name(cn)
+        case NodeType.Ident(cn): callee_name = cn.ident_name()
         case:
         }
         if macros.has(callee_name).not() { continue }
@@ -3345,7 +3345,7 @@ count_ast_imports := func(body: Expr) returns USize {
                 if imp_stmt.child(1).node_type.is_literal_str() {
                     switch imp_stmt.child(0).node_type {
                     case NodeType.Ident(id):
-                        if ident_name(id).eq("import") { is_imp = true }
+                        if id.ident_name().eq("import") { is_imp = true }
                     case:
                     }
                 }
@@ -3355,7 +3355,7 @@ count_ast_imports := func(body: Expr) returns USize {
                 if stmt.child(1).node_type.is_literal_str() {
                     switch stmt.child(0).node_type {
                     case NodeType.Ident(id):
-                        if ident_name(id).eq("import") { is_imp = true }
+                        if id.ident_name().eq("import") { is_imp = true }
                     case:
                     }
                 }
@@ -3395,7 +3395,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
                 if imp_stmt.child(1).node_type.is_literal_str() {
                     switch imp_stmt.child(0).node_type {
                     case NodeType.Ident(id):
-                        if ident_name(id).eq("import") { is_imp = true }
+                        if id.ident_name().eq("import") { is_imp = true }
                     case:
                     }
                 }
@@ -3405,7 +3405,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
                 if stmt.child(1).node_type.is_literal_str() {
                     switch stmt.child(0).node_type {
                     case NodeType.Ident(id):
-                        if ident_name(id).eq("import") { is_imp = true }
+                        if id.ident_name().eq("import") { is_imp = true }
                     case:
                     }
                 }

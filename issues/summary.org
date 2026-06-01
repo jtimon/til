@@ -71,3 +71,4 @@
 ** Medium
 ** Low
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
+*** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase

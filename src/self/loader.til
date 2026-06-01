@@ -45,7 +45,7 @@ display_path := func(p: Str, cwd: Str) returns Str {
 
 priv require_mode := func(path: Str, mode_name: Str) returns ref Mode {
     ref resolved : Mode = mode_resolve(mode_name)
-    if is_null(resolved) {
+    if resolved.is_null() {
         panic(__LOC__, path, ": unknown mode '", mode_name, "'")
     }
     return resolved
@@ -122,7 +122,7 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec) {
     if imp_stmt.children.len().gte(2) {
         switch imp_stmt.child(0).node_type {
         case NodeType.Ident(_c0id):
-            if ident_name(_c0id).eq("import") {
+            if _c0id.ident_name().eq("import") {
                 switch imp_stmt.child(1).node_type {
                 case NodeType.Literal(Literal.Str(p)):
                     if p.ends_with(".til") {
@@ -256,9 +256,9 @@ LoadedProgram := struct {
 
 retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: Str) {
     ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
-    if is_null(alias_binding) { return }
+    if alias_binding.is_null() { return }
     ref target_binding : TypeBinding = scope.get_binding(target_name)
-    if is_null(target_binding) { return }
+    if target_binding.is_null() { return }
     alias_binding.type = target_binding.type.clone()
     alias_binding.func_type = target_binding.func_type
     alias_binding.struct_def = target_binding.struct_def
@@ -399,7 +399,7 @@ find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns re
     ref ns : Vec = def_ns_decls(tdecl.child(0))
     for nsd : Declaration in ns {
         if nsd.name.eq(method_part) {
-            if is_null(nsd.default_value).not() {
+            if nsd.default_value.is_null().not() {
                 return nsd.default_value
             }
         }
@@ -409,7 +409,7 @@ find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns re
 
 scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     mut is_cli := false
-    if is_null(lp.cur_mode).not() {
+    if lp.cur_mode.is_null().not() {
         if lp.cur_mode.needs_main {
             if lp.run_tests.not() {
                 is_cli = true
@@ -508,7 +508,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                             ref nstv : Vec = def_ns_decls(stmt.child(0))
                             for nsd : Declaration in nstv {
                                 ref nsfdef : Expr = nsd.default_value
-                                if is_null(nsfdef) { continue }
+                                if nsfdef.is_null() { continue }
                                 if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
                                 switch nsfdef.node_type {
                                 case NodeType.FuncDef(nsfd):
@@ -559,7 +559,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 switch bfs_tdef.node_type {
                 case NodeType.StructDef(bfs_sdd):
                     for bfs_fd : Declaration in bfs_sdd.fields {
-                        if is_null(bfs_fd.default_value).not() {
+                        if bfs_fd.default_value.is_null().not() {
                             collect_refs(bfs_fd.default_value, worklist)
                         }
                         if bfs_fd.explicit_type.len().gt(0) {
@@ -595,7 +595,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 switch bfs_tdef2.node_type {
                 case NodeType.StructDef(bfs_sdd2):
                     for bfs_fd2 : Declaration in bfs_sdd2.fields {
-                        if is_null(bfs_fd2.default_value).not() {
+                        if bfs_fd2.default_value.is_null().not() {
                             collect_refs(bfs_fd2.default_value, worklist)
                         }
                         if bfs_fd2.explicit_type.len().gt(0) {
@@ -631,11 +631,11 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
         // `fnv1a` gets pruned and the init `HashMap_HASHER = (void
         // *)fnv1a` in main() references an undeclared symbol.
         ref ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, top, name)
-        if is_null(ns_fdef).not() {
+        if ns_fdef.is_null().not() {
             collect_refs(ns_fdef, worklist)
         }
         ref core_ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, core_top, name)
-        if is_null(core_ns_fdef).not() {
+        if core_ns_fdef.is_null().not() {
             collect_refs(core_ns_fdef, worklist)
         }
     }
@@ -659,7 +659,7 @@ priv cli_arg_type_supported := func(name: Str) returns Bool {
 // what the builder parses. Runs on the compile path (scavenge_imported); the
 // interpreter additionally guards at runtime in parse_cli_arg.
 validate_cli_main := func(lp: LoadedProgram) {
-    if is_null(lp.cur_mode) { return }
+    if lp.cur_mode.is_null() { return }
     if lp.cur_mode.needs_main.not() { return }
     if lp.run_tests { return }
     for u : ProgramUnit in lp.units {
@@ -741,7 +741,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                 case NodeType.Ident(fname):
                     switch stmt.child(1).node_type {
                     case NodeType.Literal(Literal.Str(arg)):
-                        if ident_name(fname).eq("link") {
+                        if fname.ident_name().eq("link") {
                             keep = false
                             if arg.find("/").gte(0) {
                                 resolved := resolve_link_path(base_dir, root_dir, arg)
@@ -758,7 +758,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
                             } else {
                                 lp.link_flags = lp.link_flags.format(" -l", arg)
                             }
-                        } else if ident_name(fname).eq("link_c") {
+                        } else if fname.ident_name().eq("link_c") {
                             keep = false
                             if lp.link_c_paths.len().gt(0) {
                                 lp.link_c_paths = lp.link_c_paths.concat(" ")
@@ -800,7 +800,7 @@ load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                         ref callee : Expr = val.child(0)
                         switch callee.node_type {
                         case NodeType.Ident(id):
-                            if ident_name(id).eq("Mode") {
+                            if id.ident_name().eq("Mode") {
                                 is_valid = true
                                 mut m := Mode()
                                 for i in 1..val.children.len() {
@@ -844,7 +844,7 @@ load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 
     // Store in lp.ctx.imported so it can be typechecked.
     ref mode_mode_def : Mode = mode_resolve(mode_str)
-    if is_null(mode_mode_def) {
+    if mode_mode_def.is_null() {
         panic(__LOC__, "unknown mode '", mode_str, "' for mode file")
     }
     mut iu := ImportUnit(mode_str = mode_str.clone())
@@ -1239,7 +1239,7 @@ append_ns_method_indented := func(mut out: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     mut handled := false
-    if is_null(d.default_value).not() {
+    if d.default_value.is_null().not() {
         switch d.default_value.node_type {
         case NodeType.FuncDef(fd):
             out.push_str(func_kind(fd.func_type))
@@ -1292,7 +1292,7 @@ format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     }
     for d : Declaration in sdef.ns_decls {
         cap = cap.add(d.name.len()).add(d.doc.len().mul(2)).add(192)
-        if is_null(d.default_value).not() {
+        if d.default_value.is_null().not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
                 cap = cap.add(fd.return_type.len()).add(48)
@@ -1330,7 +1330,7 @@ format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     }
     for d : Declaration in edef.ns_decls {
         cap = cap.add(d.name.len()).add(d.doc.len().mul(2)).add(192)
-        if is_null(d.default_value).not() {
+        if d.default_value.is_null().not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
                 cap = cap.add(fd.return_type.len()).add(48)
@@ -1391,7 +1391,7 @@ collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: S
     qual := type_name.format(".", d.name)
     mut info_cap : USize = qual.len().add(64)
     mut is_func := false
-    if is_null(d.default_value).not() {
+    if d.default_value.is_null().not() {
         switch d.default_value.node_type {
         case NodeType.FuncDef(fd):
             is_func = true
@@ -1538,7 +1538,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs
     if imp_stmt.children.len().gte(1) {
         switch imp_stmt.child(0).node_type {
         case NodeType.Ident(id):
-            if ident_name(id).eq("import") {
+            if id.ident_name().eq("import") {
                 if imp_stmt.children.len().gt(1) {
                     mut path := ""
                     switch imp_stmt.child(1).node_type {
@@ -1553,14 +1553,14 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs
                             for arg_i in 2..imp_stmt.children.len() {
                                 switch imp_stmt.child(arg_i).node_type {
                                 case NodeType.Ident(sym_id):
-                                    exp_symbols.push(own ident_name(sym_id))
+                                    exp_symbols.push(own sym_id.ident_name())
                                 case:
                                 }
                             }
                         } else if is_decl_rhs {
                             if ctx.imported.has(resolved_path) {
                                 ref iu : ImportUnit = ctx.imported[resolved_path]
-                                if is_null(iu).not() {
+                                if iu.is_null().not() {
                                     for child : Expr in iu.ast.children {
                                         if child.node_type.is(NodeType.Decl) {
                                             switch child.node_type {
@@ -1581,7 +1581,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs
                             mut def := Expr.new(NodeType.StructDef(StructDef()), imp_stmt.line, imp_stmt.col)
                             if ctx.imported.has(resolved_path) {
                                 ref iu : ImportUnit = ctx.imported[resolved_path]
-                                if is_null(iu).not() {
+                                if iu.is_null().not() {
                                     for sym : Str in exp_symbols {
                                         mut found := false
                                         for dd : Expr in iu.ast.children {
@@ -1667,7 +1667,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 if imp_stmt_ref.children.len().gte(2) {
                     switch imp_stmt_ref.child(0).node_type {
                     case NodeType.Ident(id):
-                        if ident_name(id).eq("import") {
+                        if id.ident_name().eq("import") {
                             switch imp_stmt_ref.child(1).node_type {
                             case NodeType.Literal(Literal.Str(_p)):
                                 is_valid_import = true
@@ -1682,7 +1682,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 if imp_stmt_ref.children.len().gte(2) {
                     switch imp_stmt_ref.child(0).node_type {
                     case NodeType.Ident(id):
-                        if ident_name(id).eq("import") {
+                        if id.ident_name().eq("import") {
                             switch imp_stmt_ref.child(1).node_type {
                             case NodeType.Literal(Literal.Str(_p)):
                                 is_valid_import = true

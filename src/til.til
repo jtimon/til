@@ -138,7 +138,7 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     }
     if typed_ast.children.len().eq(0) { return false }
     ref tlast : Expr = typed_ast.children[typed_ast.children.len().sub(1)]
-    tlast_t := expr_til_type(tlast)
+    tlast_t := tlast.expr_til_type()
     if tlast_t.is(Type.None) { return false }
     if tlast_t.is(Type.Unknown) { return false }
     return true

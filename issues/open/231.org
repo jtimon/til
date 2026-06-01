@@ -1,0 +1,40 @@
+# priority: medium
+** WIP #231 Use UFCS for standalone functions throughout the codebase
+
+  til supports Uniform Function Call Syntax: ~x.func(args)~
+  desugars to ~func(x, args)~. The typer's ~try_ufcs_rewrite~
+  handles this automatically. We use UFCS aggressively for
+  methods but almost never for standalone functions.
+
+  Example: ~is_null(x)~ reads worse than ~x.is_null()~. The
+  latter reads left-to-right as a pipeline.
+
+  Target functions (standalone, first-param-is-receiver):
+
+  | Function             | Prefix calls | UFCS form             |
+  |----------------------+--------------+-----------------------|
+  | is_null              |          547 | x.is_null()           |
+  | expr_til_type        |          401 | e.expr_til_type()     |
+  | ident_name           |          234 | id.ident_name()       |
+  | set_expr_til_type    |          147 | e.set_expr_til_type(t)|
+  | field_access_name    |           80 | fa.field_access_name()|
+  | ptr_eq               |           13 | a.ptr_eq(b)           |
+  | literal_num_text     |         few | n.literal_num_text()  |
+
+  None of these currently use UFCS -- the ~is_null~ comment even
+  says "Reached via UFCS as ~aaa.is_null()~" yet it is never
+  called that way.
+
+  Plan:
+  - [ ] Write examples/find_ufcs_opportunities.til (AST walker
+        using lexer + parser imports)
+  - [ ] Convert is_null(x) -> x.is_null() (547 calls)
+  - [ ] Convert expr_til_type(e) -> e.expr_til_type() (401 calls)
+  - [ ] Convert ident_name(id) -> id.ident_name() (234 calls)
+  - [ ] Convert set_expr_til_type(mut e, t) -> e.set_expr_til_type(t)
+        (147 calls)
+  - [ ] Convert field_access_name(fa) -> fa.field_access_name()
+        (80 calls)
+  - [ ] Convert ptr_eq(a, b) -> a.ptr_eq(b) (13 calls)
+  - [ ] Convert literal_num_text(n) -> n.literal_num_text()
+  - [ ] make test after each batch

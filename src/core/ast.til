@@ -677,12 +677,12 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Decl(dd):    return dd.til_type.clone()
     case NodeType.Assign:
         if e.children.len().eq(0) { return Type.Unknown }
-        return expr_til_type(e.child(0))
+        return e.child(0).expr_til_type()
     case NodeType.MapLit:      return Type.Struct("Map")
     case NodeType.SetLit:      return Type.Struct("Set")
     case NodeType.NamedArg:
         if e.children.len().eq(0) { return Type.Unknown }
-        return expr_til_type(e.child(0))
+        return e.child(0).expr_til_type()
     case NodeType.FCall(fcd):  return fcd.til_type.clone()
     case NodeType.FuncDef:     return Type.FuncPtr
     case NodeType.StructDef:   return Type.Struct("StructDef")
@@ -691,7 +691,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.FieldAssign: return Type.None
     case NodeType.Return:
         if e.children.len().eq(0) { return Type.None }
-        return expr_til_type(e.child(0))
+        return e.child(0).expr_til_type()
     case NodeType.If:          return Type.None
     case NodeType.While:       return Type.None
     case NodeType.ForIn(fd):   return fd.til_type.clone()
@@ -702,7 +702,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.NoDefaultArg:return Type.Unknown
     case NodeType.Throw:
         if e.children.len().eq(0) { return Type.None }
-        return expr_til_type(e.child(0))
+        return e.child(0).expr_til_type()
     case NodeType.Catch:       return Type.None
     case NodeType.RestPattern: return Type.Unknown
     }
@@ -725,14 +725,14 @@ set_expr_til_type := func(mut e: Expr, shallow t: Type) {
         fd.til_type = t
     case NodeType.Throw:
         if e.children.len().gt(0) {
-            set_expr_til_type(e.child(0), t)
+            e.child(0).set_expr_til_type(t)
         }
     case:
     }
 }
 
 set_fcall_til_type := func(mut fcall: Expr, shallow t: Type) {
-    set_expr_til_type(fcall, t)
+    fcall.set_expr_til_type(t)
 }
 
 // --- func_type_variant_name ---
@@ -763,12 +763,12 @@ node_head_str := func(data: NodeType) returns Str {
     switch data {
     case NodeType.Body:           return "Body"
     case NodeType.Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
-    case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", literal_num_text(s))
+    case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", s.literal_num_text())
     case NodeType.Literal(Literal.Bool(b)):
         if b { return "LiteralBool true" }
         return "LiteralBool false"
     case NodeType.Literal(Literal.Null):    return "LiteralNull"
-    case NodeType.Ident(s):       return format("Ident ", ident_name(s))
+    case NodeType.Ident(s):       return format("Ident ", s.ident_name())
     case NodeType.Decl(d):
         if d.is_mut { return format("Decl mut ", d.name) }
         return format("Decl ", d.name)
@@ -777,7 +777,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.FuncDef(f):     return format("FuncDef ", func_type_variant_name(f.func_type))
     case NodeType.StructDef:      return "StructDef"
     case NodeType.EnumDef:        return "EnumDef"
-    case NodeType.FieldAccess(s): return format("FieldAccess ", field_access_name(s))
+    case NodeType.FieldAccess(s): return format("FieldAccess ", s.field_access_name())
     case NodeType.FieldAssign(fad): return format("FieldAssign ", fad.name)
     case NodeType.Return:         return "Return"
     case NodeType.If:             return "If"
@@ -873,14 +873,14 @@ ast_print := proc(e: Expr, indent: U32) {
         print("  ")
     }
     print("(", node_name(e.node_type))
-    et := expr_til_type(e)
+    et := e.expr_til_type()
     if et.is(Type.Unknown).not() {
         print(":", til_type_name_c(et))
     }
     switch e.node_type {
-    case NodeType.Ident(s):      print(" \"", ident_name(s), "\"")
+    case NodeType.Ident(s):      print(" \"", s.ident_name(), "\"")
     case NodeType.Literal(Literal.Str(s)): print(" \"", s, "\"")
-    case NodeType.Literal(Literal.Num(s)): print(" \"", literal_num_text(s), "\"")
+    case NodeType.Literal(Literal.Num(s)): print(" \"", s.literal_num_text(), "\"")
     case NodeType.Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
     case NodeType.ForIn(fi):
         if fi.is_mut { print(" mut") }

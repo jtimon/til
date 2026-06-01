@@ -88,13 +88,13 @@ init_window := proc(w: I32, h: I32, title: Str) {
 // (c_str_len lives in src/core/str.til, reachable here via core import)
 save_file_dialog := proc(title: Str, default_path: Str) returns Str {
     ref result : I8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL)
-    if is_null(result) { return "" }
+    if result.is_null() { return "" }
     view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
     return view.clone()
 }
 open_file_dialog := proc(title: Str, default_path: Str) returns Str {
     ref result : I8 = tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL, 0)
-    if is_null(result) { return "" }
+    if result.is_null() { return "" }
     view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
     return view.clone()
 }

@@ -938,7 +938,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if ch.len().gt(0) { byte_val = ch.get(0).cast(I64) }
         }
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
-        set_expr_til_type(e, Type.Struct("U8"))
+        e.set_expr_til_type(Type.Struct("U8"))
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
@@ -1823,7 +1823,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         mut node := Expr.new(NodeType.ForIn(ForInData(name = iname, is_mut = for_is_mut)), i_line, i_col)
         if check(p, TokenType.Colon) {
             advance(p)
-            set_expr_til_type(node, Type.Custom(expect_text(p, TokenType.Ident)))
+            node.set_expr_til_type(Type.Custom(expect_text(p, TokenType.Ident)))
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))
