@@ -1,0 +1,35 @@
+# priority: low
+** OPEN #235 Vendor libsecp256k1 and expose sha256d via the HashFn interface
+
+  Add ~libsecp256k1~ as a new vendor dependency under ~vendor/~ (next
+  to ~libffi~ / ~raylib~ / ~nng~) and expose its SHA-256 + SHA-256d
+  (double-SHA-256) primitives as another byte-level hash usable from
+  til. Long-term goal: any crypto-strength hash needed for chain /
+  signature work is a one-vendor-dep step away.
+
+  The interesting part is the interface, not the link wiring. ~HashFn~
+  today is fixed at ~func(Dynamic, USize) returns U64~ -- the U64 fits
+  FNV-1a / Knuth output exactly, but SHA-256d's natural output is 32
+  bytes. Folding a 32-byte digest down to ~U64~ at the boundary throws
+  away the very property the caller asked for. Two shapes worth
+  considering:
+
+  - Generalise the return type. ~HashResult~ as an enum with variants
+    for the common widths -- ~U64~, ~U128~ (when til grows one),
+    ~Bytes32~ for SHA-256, etc. ~HashMap~ still folds whatever it gets
+    down to a bucket index; callers that want the full digest
+    (e.g. content-addressed lookups, merkle work) keep it.
+  - Keep ~HashFn~ as ~U64~ and add a parallel ~CryptoHashFn :=
+    func(Dynamic, USize, mut Dynamic) returns USize~ (caller-supplied
+    output buffer, returns bytes written). ~HashMap~ stays on the
+    cheap ~HashFn~; crypto consumers reach for the second alias.
+
+  Sketch the trade-off in a short note when starting work; commit to
+  one before touching ~src/std/hashmap.til~. None of this is final
+  yet -- the firm deliverable is the vendor dep plus a working
+  sha256d-of-bytes call from til. Picking the interface shape and
+  whether ~HashMap.HASHER~ ever points at sha256d is the open part.
+
+  Bench coverage from #234 should grow to include the crypto hash so
+  the order-of-magnitude cost gap (FNV-1a vs SHA-256d) is visible
+  next to the swap site.
