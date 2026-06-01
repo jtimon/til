@@ -115,7 +115,7 @@ rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_fu
     case NodeType.Ident(arg_name):
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
         if type_binding_is_type_token(b).not() { return }
-        mut replacement := make_til_type_expr(arg, b.type)
+        mut replacement := arg.make_til_type_expr(b.type)
         move(arg, replacement, Expr.size())
         infer_expr(scope, arg, in_func, ctx)
     case:
@@ -538,7 +538,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         // for the receiver-qualified method name).
         if e.expr_til_type().is(Type.Enum("Type")) {
             for ai in 1..e.children.len() {
-                if expr_is_comptime(e.child(ai), scope).not() { return false }
+                if e.child(ai).expr_is_comptime(scope).not() { return false }
             }
             return true
         }
@@ -571,7 +571,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         }
         if cb.func_type.is(FuncType.Macro).or(cb.func_type.is(FuncType.Func)).or(cb.func_type.is(FuncType.ExtFunc)) {
             for ai in 1..e.children.len() {
-                if expr_is_comptime(e.child(ai), scope).not() { return false }
+                if e.child(ai).expr_is_comptime(scope).not() { return false }
             }
             return true
         }
@@ -840,7 +840,7 @@ check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Context) {
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.FCall).not() { return }
         if fcall_returns_own(rhs, scope).not() { return }
-        type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"), ctx)
+        stmt.type_error("ref binding '".concat(sdecl.name).concat("' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"), ctx)
     case:
     }
 }
@@ -856,7 +856,7 @@ check_ref_field_owned_default := proc(fd: Declaration, scope: TypeScope, ctx: Co
     if fd.default_value.node_type.is_literal_null() { return }
     if fd.default_value.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(fd.default_value, scope).not() { return }
-    type_error(fd.default_value, "ref field '".concat(fd.name).concat("' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"), ctx)
+    fd.default_value.type_error("ref field '".concat(fd.name).concat("' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"), ctx)
 }
 
 // #168 step 4: assignments to ref-typed lvalues follow the same
@@ -867,7 +867,7 @@ check_ref_field_owned_default := proc(fd: Declaration, scope: TypeScope, ctx: Co
 check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope, ctx: Context) {
     if rhs.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(rhs, scope).not() { return }
-    type_error(stmt, "ref target '".concat(target_name).concat("' cannot be assigned an owned value (.clone() / constructor / function returning own) -- borrow the source directly, or change the target to 'own'/'mut'")
+    stmt.type_error("ref target '".concat(target_name).concat("' cannot be assigned an owned value (.clone() / constructor / function returning own) -- borrow the source directly, or change the target to 'own'/'mut'")
     , ctx)
 }
 
@@ -891,7 +891,7 @@ check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is_literal_null().not() { return }
-        type_error(stmt, "ref binding '".concat(sdecl.name).concat("' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"), ctx)
+        stmt.type_error("ref binding '".concat(sdecl.name).concat("' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"), ctx)
     case:
     }
 }
@@ -914,7 +914,7 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
                 switch sig.node_type {
                 case NodeType.FuncDef(sig_fdef):
                     if nargs.neq(sig_fdef.params.len()) {
-                        type_error(e, "function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
+                        e.type_error("function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
                     }
                     mut ai : U32 = 0
                     while ai.lt(nargs) {
@@ -998,16 +998,16 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             // mutated. Pass the value directly. (Own params legitimately
             // consume the clone; ref-mut params may mutate the copy.)
             if pp2.own_type.is(OwnType.Ref).and(pp2.is_mut.not()) {
-                if is_clone_fcall(arg) {
-                    type_error(arg, "redundant '.clone()': parameter '".concat(pp2.name).concat("' is a ref (borrow); pass the value directly"), ctx)
+                if arg.is_clone_fcall() {
+                    arg.type_error("redundant '.clone()': parameter '".concat(pp2.name).concat("' is a ref (borrow); pass the value directly"), ctx)
                 }
             }
             if pown {
                 if get_own_arg(e, ci).not() {
-                    type_error(arg, "argument for 'own' parameter '".concat(pp2.name).concat("' must be marked 'own'"), ctx)
+                    arg.type_error("argument for 'own' parameter '".concat(pp2.name).concat("' must be marked 'own'"), ctx)
                 }
             } else if get_own_arg(e, ci) {
-                type_error(arg, "'own' on argument but parameter '".concat(pp2.name).concat("' is not 'own'"), ctx)
+                arg.type_error("'own' on argument but parameter '".concat(pp2.name).concat("' is not 'own'"), ctx)
             }
             if pown {
                 switch arg.node_type {
@@ -1016,7 +1016,7 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                     switch sf_ab {
                     case ScopeFind.Found(ab):
                         if ab.own_type.is(OwnType.Ref) {
-                            type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", ctx)
+                            arg.type_error("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", ctx)
                         }
                     case:
                     }
@@ -1025,12 +1025,12 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
             }
             if pown {
                 if arg.node_type.is_literal_null() {
-                    type_error(arg, "cannot pass null to 'own' parameter", ctx)
+                    arg.type_error("cannot pass null to 'own' parameter", ctx)
                 }
             }
             if pp2.own_type.is(OwnType.Shallow) {
                 if arg.node_type.is_literal_null() {
-                    type_error(arg, "cannot pass null to 'shallow' parameter", ctx)
+                    arg.type_error("cannot pass null to 'shallow' parameter", ctx)
                 }
             }
             ci = ci.add(1)
@@ -1062,7 +1062,7 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
     switch sf_sb {
     case ScopeFind.Found(sb):
         if sb.is_builtin {
-            type_error(e, "cannot instantiate builtin type '".concat(name).concat("'"), ctx)
+            e.type_error("cannot instantiate builtin type '".concat(name).concat("'"), ctx)
             e.set_expr_til_type(Type.Unknown)
             return true
         }
@@ -1081,7 +1081,7 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
             }
         }
         if has_new {
-            type_error(e, "struct '".concat(name).concat("' has a new() constructor; use ").concat(name).concat(".new(...) instead"), ctx)
+            e.type_error("struct '".concat(name).concat("' has a new() constructor; use ").concat(name).concat(".new(...) instead"), ctx)
             e.set_expr_til_type(Type.Struct(name.clone()))
             return true
         }
@@ -1108,7 +1108,7 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
                 }
                 if slot.lt(0) {
                     msg := format("struct '", name, "' has no field '", aname, "'")
-                    type_error(arg, msg, ctx)
+                    arg.type_error(msg, ctx)
                 }
                 if slot.gte(0) {
                     ref ctor_fld : Declaration = ctor_sdd.fields[slot.cast(U32)]
@@ -1117,14 +1117,14 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
                     ref slot_arg : CtorArg = field_vals[slot.cast(U32)]
                     if slot_arg.is(CtorArg.Filled) {
                         msg := format("duplicate argument for field '", aname, "'")
-                        type_error(arg, msg, ctx)
+                        arg.type_error(msg, ctx)
                     }
                     if slot_arg.is(CtorArg.Filled).not() {
                         field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
-                type_error(arg, "struct instantiation requires named arguments", ctx)
+                arg.type_error("struct instantiation requires named arguments", ctx)
                 continue
             }
         }
@@ -1208,33 +1208,33 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
                     if kwi.gte(0) {
                         kw_args.push(own arg.clone())
                     } else {
-                        type_error(arg, format("'", name, "' has no parameter '", aname, "'"), ctx)
+                        arg.type_error(format("'", name, "' has no parameter '", aname, "'"), ctx)
                     }
                 } else {
                     ref slot_arg : Expr = new_args[slot.cast(U32)]
                     if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
-                        type_error(arg, format("duplicate argument for parameter '", aname, "'"), ctx)
+                        arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
                         ref slot_e : Expr = new_args[slot.cast(U32)]
-                        free_expr_slot_in_place(slot_e)
+                        slot_e.free_expr_slot_in_place()
                         new_args.set(slot.cast(U32), own arg.child(0).clone())
                     }
                 }
             case:
                 if seen_named {
-                    type_error(arg, "positional argument after named argument", ctx)
+                    arg.type_error("positional argument after named argument", ctx)
                 }
                 if vi.gte(0) {
                     if pos_idx.gte(fixed_count) {
                         va_args.push(own arg.clone())
                     } else if pos_idx.lt(nparam) {
                         ref pos_slot_va : Expr = new_args[pos_idx]
-                        free_expr_slot_in_place(pos_slot_va)
+                        pos_slot_va.free_expr_slot_in_place()
                         new_args.set(pos_idx, own arg.clone())
                     }
                 } else if pos_idx.lt(nparam) {
                     ref pos_slot : Expr = new_args[pos_idx]
-                    free_expr_slot_in_place(pos_slot)
+                    pos_slot.free_expr_slot_in_place()
                     new_args.set(pos_idx, own arg.clone())
                 }
                 pos_idx = pos_idx.add(1)
@@ -1247,10 +1247,10 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params[i]
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    free_expr_slot_in_place(slot_arg)
+                    slot_arg.free_expr_slot_in_place()
                     new_args.set(i, own param.default_value.clone())
                 } else {
-                    type_error(e, format("missing argument for parameter '", param.name, "'"), ctx)
+                    e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 }
             }
         }
@@ -1260,7 +1260,7 @@ desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBi
         }
         if vi.lt(0) {
             if pos_idx.gt(max_pos) {
-                type_error(e, format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
+                e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
             }
         }
         mut new_ch := Vec.new(Expr)
@@ -1372,14 +1372,14 @@ redundant_literal_conversion := func(e: Expr, expected: Type) returns Bool {
 }
 
 redundant_conversion_error := proc(at: Expr, expected: Type, ctx: Context) {
-    type_error(at, "redundant conversion: numeric literal already narrows to "
+    at.type_error("redundant conversion: numeric literal already narrows to "
         .concat(type_to_name(expected)).concat(" in this context; drop the .to_* / .cast(T) conversion"), ctx)
 }
 
 validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context) {
     if arg.expr_til_type().is(Type.Dynamic) { return }
     if arg.expr_til_type().is(Type.Unknown) { return }
-    if redundant_literal_conversion(arg, ptype) {
+    if arg.redundant_literal_conversion(ptype) {
         redundant_conversion_error(arg, ptype, ctx)
         return
     }
@@ -1387,7 +1387,7 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(ptype) {
             if literal_in_range(lit_str.literal_num_text(), ptype).not() {
-                type_error(arg, "integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(ptype)), ctx)
+                arg.type_error("integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(ptype)), ctx)
             }
             arg.set_expr_til_type(ptype)
             return
@@ -1403,12 +1403,12 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
         return
     }
     if arg.expr_til_type().is(ptype).not() {
-        type_error(arg, "argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
+        arg.type_error("argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
     } else if is_aggregate(ptype) {
         arg_sname := til_type_name(arg.expr_til_type())
         if arg_sname.len().gt(0) {
             if ptype_name.eq(arg_sname).not() {
-                type_error(arg, "argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(arg_sname), ctx)
+                arg.type_error("argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(arg_sname), ctx)
             }
         }
     }
@@ -1544,7 +1544,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         if e.children.len().gte(3) {
             ref method_arg : Expr = e.child(2)
             if method_arg.node_type.is_literal_str().not() {
-                type_error(method_arg, "dyn_call method argument must be a string literal", ctx)
+                method_arg.type_error("dyn_call method argument must be a string literal", ctx)
             }
         }
     }
@@ -1552,13 +1552,13 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         if e.children.len().gte(2) {
             ref type_arg : Expr = e.child(1)
             if type_arg.node_type.is_literal_str().not() {
-                type_error(type_arg, "array/vec type_name argument must be a string literal", ctx)
+                type_arg.type_error("array/vec type_name argument must be a string literal", ctx)
             }
         }
     }
     mut fn_type := scope.get_type(name)
     if fn_type.is(Type.Unknown) {
-        type_error(e, "undefined function '".concat(name).concat("'"), ctx)
+        e.type_error("undefined function '".concat(name).concat("'"), ctx)
     }
     if fn_type.is(Type.FuncPtr) {
         if callee_bind.is_null().not() {
@@ -1588,7 +1588,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                         mut nargs : U32 = e.children.len()
                         nargs = nargs.sub(1)
                         if nargs.neq(sig_fdef.params.len()) {
-                            type_error(e, "function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
+                            e.type_error("function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
                         }
                         mut ai : U32 = 0
                         while ai.lt(nargs) {
@@ -1610,7 +1610,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
                                 continue
                             }
                             if arg.expr_til_type().is(expected).not() {
-                                type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
+                                e.type_error("function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
                             }
                             ai = ai.add(1)
                         }
@@ -1648,7 +1648,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
             if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)) {
                 ctx.proc_calls_count = ctx.proc_calls_count.add(1)
                 if debug_exempt.not() {
-                    type_error(e, "func cannot call proc '".concat(name).concat("'"), ctx)
+                    e.type_error("func cannot call proc '".concat(name).concat("'"), ctx)
                 }
             }
         } else if ctx.proc_def_depth.gt(0) {
@@ -1659,7 +1659,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
         }
     }
     if scope.get_func_type(name).is(FuncType.Test) {
-        type_error(e, "test functions cannot be called ('".concat(name).concat("')"), ctx)
+        e.type_error("test functions cannot be called ('".concat(name).concat("')"), ctx)
     }
 }
 
@@ -1719,7 +1719,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
     // level so callers fix the source instead of paying for the copy.
     if method.eq("clone") {
         if obj.node_type.is_nonnull_literal() {
-            type_error(e, "redundant '' on a literal", ctx)
+            e.type_error("redundant '' on a literal", ctx)
             e.set_expr_til_type( Type.Unknown)
             return true
         }
@@ -1747,7 +1747,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
         // namespace calls like `Str.to_str(x)` (handled by the
         // obj_is_type branch), which dispatch on the explicit type.
         if has_type_name.and(is_self_conversion_method(method, type_name)) {
-            type_error(e, format(
+            e.type_error(format(
                 "redundant self-conversion: '", method,
                 "' would convert ", type_name, " to itself; ",
                 "value is already of type '", type_name, "'",
@@ -1764,7 +1764,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             switch cast_target_arg.node_type {
             case NodeType.Ident(cast_id_data):
                 if cast_id_data.ident_name().eq(type_name) {
-                    type_error(e, format(
+                    e.type_error(format(
                         "redundant self-cast: 'cast(", type_name,
                         ")' would reinterpret ", type_name,
                         " as itself; drop the .cast(", type_name, ")",
@@ -1787,15 +1787,15 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             }
             if has_type_name.not() {
                 if obj.expr_til_type().is(Type.Dynamic) {
-                    type_error(e, format(
+                    e.type_error(format(
                         "cannot call method '", method, "' on Dynamic value; ",
                         "use 'ref x : Type = ...' to declare with an explicit type first",
                     ), ctx)
                 } else {
-                    type_error(e, format("no method '", method, "' for type 'unknown'"), ctx)
+                    e.type_error(format("no method '", method, "' for type 'unknown'"), ctx)
                 }
             } else {
-                type_error(e, format("no method '", method, "' for type '", type_name, "'"), ctx)
+                e.type_error(format("no method '", method, "' for type '", type_name, "'"), ctx)
             }
             e.set_expr_til_type(Type.Unknown)
             return true
@@ -1859,7 +1859,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
     ref sdef2 : Expr = scope.get_struct(obj3_sname)
     ref ns_func2 : Expr = find_namespace_func(sdef2, method, scope)
     if ns_func2.is_null() {
-        type_error(e, format("no namespace function '", method, "'"), ctx)
+        e.type_error(format("no namespace function '", method, "'"), ctx)
         e.set_expr_til_type(Type.Unknown)
         return true
     }
@@ -1902,18 +1902,18 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                     }
                 }
                 if slot.lt(0) {
-                    type_error(arg, format("no parameter '", aname, "'"), ctx)
+                    arg.type_error(format("no parameter '", aname, "'"), ctx)
                 } else {
                     ref slot_arg : CtorArg = new_args[slot.cast(U32)]
                     if slot_arg.is(CtorArg.Filled) {
-                        type_error(arg, format("duplicate argument for parameter '", aname, "'"), ctx)
+                        arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
                         new_args.set(slot.cast(U32), own CtorArg.Filled(arg.child(0).clone()))
                     }
                 }
             case:
                 if seen_named {
-                    type_error(arg, "positional argument after named argument", ctx)
+                    arg.type_error("positional argument after named argument", ctx)
                 }
                 if pos_idx.lt(np) {
                     new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
@@ -1928,12 +1928,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
                     new_args.set(i, own CtorArg.Filled(param.default_value.clone()))
                 } else {
-                    type_error(e, format("missing argument for parameter '", param.name, "'"), ctx)
+                    e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 }
             }
         }
         if pos_idx.gt(np) {
-            type_error(e, format("too many arguments: expected ", np.to_str(), ", got ", pos_idx.to_str()), ctx)
+            e.type_error(format("too many arguments: expected ", np.to_str(), ", got ", pos_idx.to_str()), ctx)
         }
         mut new_ch := Vec.new(Expr)
         ref callee : Expr = e.child(0)
@@ -1994,7 +1994,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             case NodeType.Literal(Literal.Num(lit_str)):
                 if is_numeric_type(ptype) {
                     if literal_in_range(lit_str.literal_num_text(), ptype).not() {
-                        type_error(arg, format(
+                        arg.type_error(format(
                             "integer literal ", lit_str.literal_num_text(), " out of range for ", til_type_name_c(ptype),
                         ), ctx)
                     }
@@ -2010,7 +2010,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             }
             if type_prefix(arg.expr_til_type()).eq(type_prefix(ptype)).not() {
                 ref param_name : Str = param3.name
-                type_error(arg, format(
+                arg.type_error(format(
                     "argument type mismatch for '", param_name,
                     "': expected ", ptype_name, ", got ", til_type_name_c(arg.expr_til_type()),
                 ), ctx)
@@ -2019,7 +2019,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                 if arg_sname.len().gt(0) {
                     if ptype_name.eq(arg_sname).not() {
                         ref param_name : Str = param3.name
-                        type_error(arg, format(
+                        arg.type_error(format(
                             "argument type mismatch for '", param_name,
                             "': expected ", ptype_name, ", got ", arg_sname,
                         ), ctx)
@@ -2056,10 +2056,10 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                 ref arg : Expr = e.child(i)
                 if pown {
                     if get_own_arg(e, i).not() {
-                        type_error(arg, format("argument for 'own' parameter '", pp.name, "' must be marked 'own'"), ctx)
+                        arg.type_error(format("argument for 'own' parameter '", pp.name, "' must be marked 'own'"), ctx)
                     }
                 } else if get_own_arg(e, i) {
-                    type_error(arg, format("'own' on argument but parameter '", pp.name, "' is not 'own'"), ctx)
+                    arg.type_error(format("'own' on argument but parameter '", pp.name, "' is not 'own'"), ctx)
                 }
                 if pown {
                 switch arg.node_type {
@@ -2068,7 +2068,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                         switch sf_ab {
                         case ScopeFind.Found(ab):
                             if ab.own_type.is(OwnType.Ref) {
-                                type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", ctx)
+                                arg.type_error("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", ctx)
                             }
                         case:
                         }
@@ -2077,12 +2077,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                 }
                 if pown {
                     if arg.node_type.is_literal_null() {
-                        type_error(arg, "cannot pass null to 'own' parameter", ctx)
+                        arg.type_error("cannot pass null to 'own' parameter", ctx)
                     }
                 }
                 if pp.own_type.is(OwnType.Shallow) {
                     if arg.node_type.is_literal_null() {
-                        type_error(arg, "cannot pass null to 'shallow' parameter", ctx)
+                        arg.type_error("cannot pass null to 'shallow' parameter", ctx)
                     }
                 }
             }
@@ -2095,8 +2095,8 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
         // Issue #191: namespace macro calls require all arguments to be comptime-known.
         if ns_fdef.func_type.is(FuncType.Macro) {
             for ai in 1..e.children.len() {
-                if expr_is_comptime(e.child(ai), scope).not() {
-                    type_error(e.child(ai), "macro argument must be known at compile time", ctx)
+                if e.child(ai).expr_is_comptime(scope).not() {
+                    e.child(ai).type_error("macro argument must be known at compile time", ctx)
                 }
             }
         }
@@ -2127,7 +2127,7 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding, ctx: 
         if b.orig_name.len().gt(0).and(b.name.starts_with("priv__")) {
             display_name = b.orig_name
         }
-        type_error(e, "'".concat(display_name).concat("' is private to '").concat(b.path)
+        e.type_error("'".concat(display_name).concat("' is private to '").concat(b.path)
             .concat("'; remove 'priv' to expose it"), ctx)
         return
     }
@@ -2153,7 +2153,7 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding, ctx: 
     if ctx.current_top_func_name.starts_with(parent_underscore) { return }
     if ctx.current_type_name.eq(parent_name) { return }
     if ctx.current_type_name.starts_with(parent_underscore) { return }
-    type_error(e, "'".concat(b.orig_name).concat("' is a local def of '")
+    e.type_error("'".concat(b.orig_name).concat("' is a local def of '")
         .concat(parent_name).concat("' and cannot be referenced from outside it"), ctx)
 }
 
@@ -2181,7 +2181,7 @@ priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope, ctx:
 check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, ctx: Context) {
     if member_is_priv.not() { return }
     if ctx.current_type_name.eq(owner_name) { return }
-    type_error(e, "'".concat(owner_name).concat(".").concat(member_name)
+    e.type_error("'".concat(owner_name).concat(".").concat(member_name)
         .concat("' is private to its struct; remove 'priv' to expose it"), ctx)
 }
 
@@ -2210,7 +2210,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
             if sdef.is_null() { return }
             ref del : Expr = find_namespace_func(sdef, "delete", scope)
             if del.is_null() { return }
-            type_error(e, format(
+            e.type_error(format(
                 "free(own ", an.ident_name(), ") shallow-frees managed type '", tn,
                 "': passing 'own' makes the asap pass skip ", tn,
                 ".delete, leaking its owned fields -- call ", tn, ".delete(own ",
@@ -2274,7 +2274,7 @@ cast_pair_ok := func(src: Type, target: Type) returns Bool {
 // stand-in for the not-yet-expressible `returns T`.
 infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
     if e.children.len().neq(3) {
-        type_error(e, "cast expects (value, Type), e.g. x.cast(I32)", ctx)
+        e.type_error("cast expects (value, Type), e.g. x.cast(I32)", ctx)
         e.set_expr_til_type(Type.Unknown)
         return
     }
@@ -2293,13 +2293,13 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
     switch e.child(2).node_type {
     case NodeType.Ident(tn0): tname = tn0.ident_name()
     case:
-        type_error(e.child(2), "cast target must be a type name, e.g. cast(x, I32)", ctx)
+        e.child(2).type_error("cast target must be a type name, e.g. cast(x, I32)", ctx)
         e.set_expr_til_type(Type.Unknown)
         return
     }
     target_type := til_type_from_explicit_type(tname)
     if cast_pair_ok(src_type, target_type).not() {
-        type_error(e, format(
+        e.type_error(format(
             "cast only supports same-size integer reinterpret ",
             "(any signedness) and same-signedness widening; ",
             "cannot cast ", til_type_name_c(src_type), " to ", tname,
@@ -2307,7 +2307,7 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         e.set_expr_til_type(Type.Unknown)
         return
     }
-    mut replacement := make_til_type_expr(e.child(2), target_type)
+    mut replacement := e.child(2).make_til_type_expr(target_type)
     move(e.child(2), replacement, Expr.size())
     infer_expr(scope, e.child(2), in_func, ctx)
     e.set_expr_til_type(target_type)
@@ -2328,7 +2328,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         // til_type still Unknown.
         if name0.ident_name().eq("get_payload") {
             if e.expr_til_type().is(Type.Unknown) {
-                type_error(e, "bare get_payload(...) is not allowed; use a switch case binding instead", ctx)
+                e.type_error("bare get_payload(...) is not allowed; use a switch case binding instead", ctx)
                 return
             }
             // typer-emitted: infer the receiver argument so downstream
@@ -2373,8 +2373,8 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
     if callee_bind.is_null().not() {
         if callee_bind.func_type.is(FuncType.Macro) {
             for ai in 1..e.children.len() {
-                if expr_is_comptime(e.child(ai), scope).not() {
-                    type_error(e.child(ai), "macro argument must be known at compile time", ctx)
+                if e.child(ai).expr_is_comptime(scope).not() {
+                    e.child(ai).type_error("macro argument must be known at compile time", ctx)
                 }
             }
         }
@@ -2407,7 +2407,7 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     case NodeType.Ident(id_name):
         type := scope.get_type(id_name.ident_name())
         if type.is(Type.Unknown) {
-            type_error(expr, "undefined symbol '".concat(id_name.ident_name()).concat("'"), ctx)
+            expr.type_error("undefined symbol '".concat(id_name.ident_name()).concat("'"), ctx)
         }
         expr.set_expr_til_type(type)
         ref mut ib : TypeBinding = scope.get_binding(id_name.ident_name())
@@ -2517,7 +2517,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ct
                 for fd : Declaration in _cdsdd.fields {
                     if fd.own_type.is(OwnType.Own).not() { continue }
                     if expr_uses_self_field(cdbody, fd.name).not() {
-                        type_error(cdnd.default_value,
+                        cdnd.default_value.type_error(
                             "delete on '".concat(struct_name)
                                 .concat("' never references 'own' field 'self.")
                                 .concat(fd.name)
@@ -2557,7 +2557,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     case NodeType.StructDef(tc_sdd):
         for fd : Declaration in tc_sdd.fields {
             if fd.redundant_mut {
-                type_error(fd.default_value, "redundant 'mut' on struct field '".concat(fd.name).concat("': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
+                fd.default_value.type_error("redundant 'mut' on struct field '".concat(fd.name).concat("': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
             }
             if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
                 infer_expr(inner, fd.default_value, 0, ctx)
@@ -2775,7 +2775,7 @@ check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: Conte
         // (the err code flows out through the out-param), so allow it.
         if throws_count.gt(0).and(rv.node_type.is_literal_null()) { continue }
         if expr_is_borrow_source(rv, func_scope).not() {
-            type_error(stmt, "ref function must return a parameter or ref variable", ctx)
+            stmt.type_error("ref function must return a parameter or ref variable", ctx)
         }
     }
 }
@@ -2896,19 +2896,19 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // level of a struct/enum (issue #51).  Tests in arbitrary
             // nested function bodies are still rejected.
             if scope.parent.is_null().not().and(ifd_in_ns.not()) {
-                type_error(expr, "test functions can only be declared at root scope or in a struct/enum namespace", ctx)
+                expr.type_error("test functions can only be declared at root scope or in a struct/enum namespace", ctx)
             }
             if fdef.return_type.len().gt(0) {
-                type_error(expr, "test functions cannot have a return type", ctx)
+                expr.type_error("test functions cannot have a return type", ctx)
             }
             if fdef.params.len().gt(0) {
-                type_error(expr, "test functions cannot have parameters", ctx)
+                expr.type_error("test functions cannot have parameters", ctx)
             }
         }
         ref cur_mode : Mode = ctx.mode
         if cur_mode.is_pure {
             if fdef.func_type.is(FuncType.Proc) {
-                type_error(expr, "proc not allowed in pure mode", ctx)
+                expr.type_error("proc not allowed in pure mode", ctx)
             }
         }
         mut func_scope := TypeScope(parent = scope)
@@ -2923,7 +2923,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // distinction between an explicit and an inferred shallow.
             if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Shallow)) {
                 if is_primitive(type_from_name_at(resolved_return_type, scope, expr, ctx)) {
-                    type_error(expr, "redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
+                    expr.type_error("redundant 'shallow' on primitive return type: primitives are returned by value automatically (issue #223); drop it", ctx)
                 }
             }
             // Issue #223 step 1/3: a primitive (step 1) or a small value-shaped
@@ -2948,7 +2948,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // macros -- a param like `T` is a stand-in resolved at
             // expansion time, not a real type.
             if pt.is(Type.Unknown).and(macro_is_template.not()) {
-                type_error(expr, "undefined type '".concat(ptn).concat("'"), ctx)
+                expr.type_error("undefined type '".concat(ptn).concat("'"), ctx)
             }
             pmut := param.is_mut
             pown := param.own_type.is(OwnType.Own)
@@ -2956,16 +2956,16 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             if pshallow {
                 is_scalar := is_primitive(pt)
                 if is_scalar.not().and(pt.is(Type.Struct).not()).and(pt.is(Type.Enum).not()) {
-                    type_error(expr, "shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"), ctx)
+                    expr.type_error("shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"), ctx)
                 }
                 if pown {
-                    type_error(expr, "parameter cannot be both 'shallow' and 'own'", ctx)
+                    expr.type_error("parameter cannot be both 'shallow' and 'own'", ctx)
                 }
                 // Issue #223 step 2: an explicit 'shallow' on a primitive
                 // parameter is redundant where auto-shallow applies (ordinary
                 // func/proc not returning ref). Reject it.
                 if is_scalar.and(auto_shallow_ok).and(fdef.return_own_type.is(OwnType.Ref).not()) {
-                    type_error(expr, "redundant 'shallow' on primitive parameter '".concat(param.name).concat("': primitives are passed by value automatically (issue #223); drop it"), ctx)
+                    expr.type_error("redundant 'shallow' on primitive parameter '".concat(param.name).concat("': primitives are passed by value automatically (issue #223); drop it"), ctx)
                 }
             }
             if i.cast(I32).eq(fdef.variadic_index) {
@@ -3077,13 +3077,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         }
         if is_proc {
             if ctx.proc_calls_count.eq(0) {
-                type_error(expr, "proc has no proc/ext_proc calls; should be a func", ctx)
+                expr.type_error("proc has no proc/ext_proc calls; should be a func", ctx)
             }
             ctx.proc_calls_count = saved_proc_calls
             ctx.proc_def_depth = ctx.proc_def_depth.sub(1)
         }
         if is_macro.and(fdef.return_type.len().eq(0)) {
-            type_error(expr, "macro must declare a return type", ctx)
+            expr.type_error("macro must declare a return type", ctx)
         }
         if macro_is_template.not() {
             check_ref_function_returns(func_scope, expr, ctx)
@@ -3108,7 +3108,7 @@ check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
             ref pb : TypeBinding = func_scope.get_binding(param.name)
             if pb.is_null() { continue }
             if pb.used.not() {
-                type_error(expr, "unused parameter '".concat(param.name).concat("'"), ctx)
+                expr.type_error("unused parameter '".concat(param.name).concat("'"), ctx)
             }
         }
     case:
@@ -3277,11 +3277,11 @@ narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context) {
     switch rv.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if literal_in_range(lit_str.literal_num_text(), rt).not() {
-            type_error(rv, "integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(rt)), ctx)
+            rv.type_error("integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(rt)), ctx)
         }
         rv.set_expr_til_type(rt)
     case:
-        if redundant_literal_conversion(rv, rt) {
+        if rv.redundant_literal_conversion(rt) {
             redundant_conversion_error(rv, rt, ctx)
         }
     }
@@ -3299,7 +3299,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, return
                 switch sf {
                 case ScopeFind.Found(b):
                     if b.own_type.is(OwnType.Ref).and(b.is_alias.not()).and(b.is_param.not()) {
-                        type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'", ctx)
+                        stmt.type_error("cannot return ref variable from non-ref function; use .clone() or 'returns ref'", ctx)
                     }
                         if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
                             tname := type_to_name(stmt.expr_til_type())
@@ -3317,7 +3317,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, return
             // -- the heap allocation has nowhere to live in the caller.
             ref ret_expr : Expr = stmt.child(0)
             if ret_expr.node_type.is(NodeType.FCall).and(fcall_returns_own(ret_expr, scope)) {
-                type_error(stmt, "ref-typed function cannot return an owned value (.clone() / constructor / function returning own) -- return a borrow source directly, or change the signature to return owned", ctx)
+                stmt.type_error("ref-typed function cannot return an owned value (.clone() / constructor / function returning own) -- return a borrow source directly, or change the signature to return owned", ctx)
             }
         }
     } else {
@@ -3328,7 +3328,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, return
 infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     if stmt.child(0).expr_til_type().is(Type.Bool).not().and(stmt.child(0).expr_til_type().is(Type.Unknown).not()) {
-        type_error(stmt, "if condition must be Bool", ctx)
+        stmt.type_error("if condition must be Bool", ctx)
     }
     then_scope := TypeScope(parent = scope)
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
@@ -3401,12 +3401,12 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, 
             if found.not() {
                 mut kind := "struct"
                 if sdef.node_type.is(NodeType.EnumDef) { kind = "enum" }
-                type_error(expr, kind.concat(" '").concat(obj_sname).concat("' has no field '").concat(fname).concat("'"), ctx)
+                expr.type_error(kind.concat(" '").concat(obj_sname).concat("' has no field '").concat(fname).concat("'"), ctx)
                 expr.set_expr_til_type(Type.Unknown)
             }
         }
     } else {
-        type_error(expr, "field access on non-struct value", ctx)
+        expr.type_error("field access on non-struct value", ctx)
         expr.set_expr_til_type(Type.Unknown)
     }
 }
@@ -3438,7 +3438,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                         check_member_priv(stmt, obj_sname, fname, fld.is_priv, ctx)
                         if ctx.auto_gen_depth.eq(0) { fld.used = true }
                         if fld.is_mut.not() {
-                            type_error(stmt, "cannot assign to const field '".concat(fname).concat("'; remove the 'const' keyword from its declaration to make it mutable"), ctx)
+                            stmt.type_error("cannot assign to const field '".concat(fname).concat("'; remove the 'const' keyword from its declaration to make it mutable"), ctx)
                         }
                         if fld.own_type.is(OwnType.Ref) {
                             check_ref_assign_owned_rhs(stmt, fname, rhs, scope, ctx)
@@ -3448,7 +3448,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                         case NodeType.Literal(Literal.Num(lit_str)):
                             if is_numeric_type(fld.til_type) {
                                 if literal_in_range(lit_str.literal_num_text(), fld.til_type).not() {
-                                    type_error(rhs, "integer literal out of range for field '".concat(fname).concat("'"), ctx)
+                                    rhs.type_error("integer literal out of range for field '".concat(fname).concat("'"), ctx)
                                 }
                                 rhs.set_expr_til_type(fld.til_type.clone())
                                 handled_lit = true
@@ -3460,7 +3460,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                             if rhs_type.is(fld.til_type).not() {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
-                                        type_error(stmt, "field '".concat(fname).concat("' type mismatch"), ctx)
+                                        stmt.type_error("field '".concat(fname).concat("' type mismatch"), ctx)
                                     }
                                 }
                             }
@@ -3477,14 +3477,14 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                     if nsd.name.eq(fname) {
                         found = true
                         if nsd.is_mut.not() {
-                            type_error(stmt, "cannot assign to immutable field '".concat(fname).concat("'"), ctx)
+                            stmt.type_error("cannot assign to immutable field '".concat(fname).concat("'"), ctx)
                         }
                         mut handled_lit2 := false
                         switch rhs.node_type {
                         case NodeType.Literal(Literal.Num(lit_str)):
                             if is_numeric_type(nsd.til_type) {
                                 if literal_in_range(lit_str.literal_num_text(), nsd.til_type).not() {
-                                    type_error(rhs, "integer literal out of range for field '".concat(fname).concat("'"), ctx)
+                                    rhs.type_error("integer literal out of range for field '".concat(fname).concat("'"), ctx)
                                 }
                                 rhs.set_expr_til_type(nsd.til_type.clone())
                                 handled_lit2 = true
@@ -3496,7 +3496,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                             if rhs_type.is(nsd.til_type).not() {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
-                                        type_error(stmt, "field '".concat(fname).concat("' type mismatch"), ctx)
+                                        stmt.type_error("field '".concat(fname).concat("' type mismatch"), ctx)
                                     }
                                 }
                             }
@@ -3506,14 +3506,14 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                 }
             }
             if found.not() {
-                type_error(stmt, "struct '".concat(obj_sname).concat("' has no field '").concat(fname).concat("'"), ctx)
+                stmt.type_error("struct '".concat(obj_sname).concat("' has no field '").concat(fname).concat("'"), ctx)
             }
         }
     } else {
-        type_error(stmt, "field assignment on non-struct value", ctx)
+        stmt.type_error("field assignment on non-struct value", ctx)
     }
     stmt.set_expr_til_type(Type.None)
-    if fa_own_type(stmt, scope).is(OwnType.Ref).not().and(
+    if stmt.fa_own_type(scope).is(OwnType.Ref).not().and(
         rhs.node_type.is(NodeType.Ident).or(
             rhs.node_type.is(NodeType.FieldAccess).and(is_aggregate(rhs.expr_til_type()))
         )
@@ -3529,7 +3529,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
 infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     if stmt.child(0).expr_til_type().is(Type.Bool).not().and(stmt.child(0).expr_til_type().is(Type.Unknown).not()) {
-        type_error(stmt, "while condition must be Bool, got ".concat(type_to_name(stmt.child(0).expr_til_type())), ctx)
+        stmt.type_error("while condition must be Bool, got ".concat(type_to_name(stmt.child(0).expr_til_type())), ctx)
     }
     if expr_contains_fcall(stmt.child(0)) {
         ref cond : Expr = stmt.child(0)
@@ -3599,7 +3599,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
             if declared.eq(expected).not() {
                 mut value_type := "StructDef"
                 if is_enum { value_type = "EnumDef" }
-                type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is ").concat(value_type), ctx)
+                stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is ").concat(value_type), ctx)
             }
         }
         stmt.set_expr_til_type(Type.None)
@@ -3614,7 +3614,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
                 ) {
                     mut kind := "struct"
                     if is_enum { kind = "enum" }
-                    type_error(stmt, kind.concat(" '").concat(sname).concat("' already declared at ")
+                    stmt.type_error(kind.concat(" '").concat(sname).concat("' already declared at ")
                         .concat(existing.path).concat(":").concat(existing.line.to_str()).concat(":").concat(existing.col.to_str()), ctx)
                     return true
                 }
@@ -3660,7 +3660,7 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         // for a FuncDef value.
         annot_is_funcdef := sdecl.explicit_type.eq("FunctionDef").or(sdecl.explicit_type.eq("FuncDef"))
         if sdecl.explicit_type.len().gt(0).and(annot_is_funcdef.not()) {
-            type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"), ctx)
+            stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"), ctx)
         }
         switch stmt.child(0).node_type {
         case NodeType.FuncDef(fdef):
@@ -3771,30 +3771,30 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) {
         case:
         }
         if declared.is(Type.Unknown) {
-            type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"), ctx)
-        } else if redundant_literal_conversion(val, declared) {
+            stmt.type_error("undefined type '".concat(sdecl.explicit_type).concat("'"), ctx)
+        } else if val.redundant_literal_conversion(declared) {
             redundant_conversion_error(val, declared, ctx)
         } else if val.node_type.is_literal_num().and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
             switch val.node_type {
             case NodeType.Literal(Literal.Num(lit_str)):
                 if is_numeric_type(declared).and(literal_in_range(lit_str.literal_num_text(), declared).not()) {
-                    type_error(val, "integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(declared)), ctx)
+                    val.type_error("integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(declared)), ctx)
                 }
             case:
             }
             val.set_expr_til_type(declared)
         } else if val.node_type.is_literal_null().and(sdecl.own_type.is(OwnType.Ref).not()) {
-            type_error(stmt, "null can only be assigned to 'ref' declarations", ctx)
+            stmt.type_error("null can only be assigned to 'ref' declarations", ctx)
         } else if can_implicit_usize_coerce(val.expr_til_type(), declared, sdecl.explicit_type).not()
         .and(val.expr_til_type().is(declared).not())
         .and(val.expr_til_type().is(Type.Dynamic).not())
     .and(declared.is(Type.Dynamic).not()) {
-        type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
+        stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
             .concat(" but value is ").concat(type_to_name(val.expr_til_type())), ctx)
     } else if is_aggregate(declared) {
         val_sname := til_type_name(val.expr_til_type())
         if val_sname.len().gt(0).and(resolve_type_alias(scope, sdecl.explicit_type).eq(val_sname).not()) {
-            type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type)
+            stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type)
                 .concat(" but value is ").concat(val_sname), ctx)
         }
     }
@@ -3833,7 +3833,7 @@ infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     if stmt.expr_til_type().is(Type.Dynamic) {
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
-            type_error(stmt, "cannot store Dynamic in '".concat(sdecl.name)
+            stmt.type_error("cannot store Dynamic in '".concat(sdecl.name)
                 .concat("'; add a type annotation like '").concat(sdecl.name).concat(" : Type = ...' to specify the concrete type"), ctx)
         case:
             UNREACHABLE(__LOC__)
@@ -3847,9 +3847,9 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
         ref mut rhs : Expr = stmt.child(0)
         if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Own)) {
             if sdecl.is_mut {
-                type_error(stmt, "no need for 'own' on mutable local '".concat(sdecl.name).concat("'; write 'mut ").concat(sdecl.name).concat(" := ...'"), ctx)
+                stmt.type_error("no need for 'own' on mutable local '".concat(sdecl.name).concat("'; write 'mut ").concat(sdecl.name).concat(" := ...'"), ctx)
             } else {
-                type_error(stmt, "no need for 'own' on local '".concat(sdecl.name).concat("'; locals are owned by default"), ctx)
+                stmt.type_error("no need for 'own' on local '".concat(sdecl.name).concat("'; locals are owned by default"), ctx)
             }
         }
         scope.set(sdecl.name, stmt.expr_til_type(), FuncType.None, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -3905,21 +3905,21 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
                 }
             }
             if expr_is_ref_decl_source(rhs, scope).not() {
-                type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable", ctx)
+                stmt.type_error("'ref' declaration requires null, a ref-returning function, or ref/param variable", ctx)
             }
             if sdecl.is_mut {
                 switch rhs.node_type {
                 case NodeType.Ident(_rid):
                     ref _rb : TypeBinding = scope.get_binding(_rid.ident_name())
                     if _rb.is_null().not().and(_rb.is_mut.not()) {
-                        type_error(stmt, "'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
+                        stmt.type_error("'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
                     }
                 case:
                 }
             }
         }
         if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
-            type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
+            stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
         }
         if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.expr_til_type().is(Type.FuncPtr).not()) {
             switch rhs.node_type {
@@ -4390,7 +4390,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
 replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
     ref slot_sw : Expr = body.children[stmt_idx]
-    free_expr_slot_in_place(slot_sw)
+    slot_sw.free_expr_slot_in_place()
     move(slot_sw, block, Expr.size())
 }
 
@@ -4464,7 +4464,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
                 }
             }
             if vsp_found.not() {
-                type_error(pattern, "struct pattern '".concat(vsp_type_name).concat("' is missing field '").concat(vfld.name).concat("'; either bind it or add '..' to allow partial matching"), ctx)
+                pattern.type_error("struct pattern '".concat(vsp_type_name).concat("' is missing field '").concat(vfld.name).concat("'; either bind it or add '..' to allow partial matching"), ctx)
             }
         }
     case:
@@ -4558,7 +4558,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
         ref case_node : Expr = stmt.child(ci)
         if case_node.children.len().eq(1) {
             if saw_default {
-                type_error(case_node, "unreachable default arm; an earlier `case:` already covers everything", ctx)
+                case_node.type_error("unreachable default arm; an earlier `case:` already covers everything", ctx)
             }
             default_body = case_node.child(0).clone()
             has_default_body = true
@@ -4578,10 +4578,10 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
         ref mut case_body : Expr = case_node.child(body_idx)
         validate_struct_pattern_rest(scope, match_expr, ctx)
         if saw_default {
-            type_error(case_node, "unreachable case; an earlier `case:` default already covers everything", ctx)
+            case_node.type_error("unreachable case; an earlier `case:` default already covers everything", ctx)
         } else if has_switch_enum_def.and(has_guard.not()) {
             if is_pattern_covered(scope, coverage, sw_expr_sname, match_expr) {
-                type_error(case_node, "unreachable case; the variant is already fully covered by an earlier arm", ctx)
+                case_node.type_error("unreachable case; the variant is already fully covered by an earlier arm", ctx)
             }
         }
         // Guards may fail at runtime, so they don't mark the pattern as
@@ -4684,7 +4684,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
                 if msg.ends_with(":").not() { msg = msg.concat(",") }
                 msg = msg.concat(" ").concat(mp)
             }
-            type_error(stmt, msg, ctx)
+            stmt.type_error(msg, ctx)
         } else if any_guard.not().and(has_first_if).and(has_last_case_body) {
             // Exhaustive enum switch, no `case:`, no guards: attach a clone
             // of the last case body as the chain's terminal else so C sees
@@ -4701,7 +4701,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
 
 replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
     ref slot_bd : Expr = body.children[stmt_idx]
-    free_expr_slot_in_place(slot_bd)
+    slot_bd.free_expr_slot_in_place()
     move(slot_bd, block, Expr.size())
 }
 
@@ -4847,13 +4847,13 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         }
     }
     if type_name.len().eq(0) {
-        type_error(stmt, "for-in requires a collection type with get() and len() methods", ctx)
+        stmt.type_error("for-in requires a collection type with get() and len() methods", ctx)
         return false
     }
 
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() {
-        type_error(stmt, "for-in requires a collection type with get() and len() methods", ctx)
+        stmt.type_error("for-in requires a collection type with get() and len() methods", ctx)
         return false
     }
 
@@ -4861,14 +4861,14 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     ref get_func : Expr = find_namespace_func(sdef, "get", scope)
 
     if len_func.is_null() {
-        type_error(stmt, "type '".concat(type_name).concat("' has no 'len' method (required for for-in)"), ctx)
+        stmt.type_error("type '".concat(type_name).concat("' has no 'len' method (required for for-in)"), ctx)
         return false
     }
     mut idx_type := ""
     switch len_func.node_type {
     case NodeType.FuncDef(len_def):
         if len_def.params.len().neq(1).or(len_def.return_type.len().eq(0)) {
-            type_error(stmt, "type '".concat(type_name).concat("' len() must take 1 param and return a scalar for for-in"), ctx)
+            stmt.type_error("type '".concat(type_name).concat("' len() must take 1 param and return a scalar for for-in"), ctx)
             return false
         }
         idx_type = len_def.return_type.clone()
@@ -4878,7 +4878,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     }
 
     if get_func.is_null() {
-        type_error(stmt, "type '".concat(type_name).concat("' has no 'get' method (required for for-in)"), ctx)
+        stmt.type_error("type '".concat(type_name).concat("' has no 'get' method (required for for-in)"), ctx)
         return false
     }
     mut elem_type := til_type_name(stmt.expr_til_type())
@@ -4894,17 +4894,17 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         // any subsequent for-in over the same type sees the extended
         // shape because we mutated its FuncDef.
         if get_def.params.len().lt(2) {
-            type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
+            stmt.type_error("type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
             return false
         }
         ref get_idx_param : Declaration = get_def.params[1]
         if get_idx_param.explicit_type.len().eq(0).or(get_idx_param.explicit_type.eq(idx_type).not()) {
-            type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
+            stmt.type_error("type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
             return false
         }
         if elem_type.len().eq(0) {
             if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
-                type_error(stmt, "cannot infer element type for '".concat(type_name).concat("', use explicit type: for x : Type in ..."), ctx)
+                stmt.type_error("cannot infer element type for '".concat(type_name).concat("', use explicit type: for x : Type in ..."), ctx)
                 return false
             }
             elem_type = get_def.return_type.clone()
@@ -6905,12 +6905,12 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
         infer_return_stmt(scope, stmt, in_func, returns_ref, ctx)
     case NodeType.Break:
         if in_loop.eq(0) {
-            type_error(stmt, "break outside loop", ctx)
+            stmt.type_error("break outside loop", ctx)
         }
         stmt.set_expr_til_type(Type.None)
     case NodeType.Continue:
         if in_loop.eq(0) {
-            type_error(stmt, "continue outside loop", ctx)
+            stmt.type_error("continue outside loop", ctx)
         }
         stmt.set_expr_til_type(Type.None)
     case NodeType.If:
@@ -6939,7 +6939,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
         if stmt.children.len().eq(1) {
             infer_expr(scope, stmt.child(0), in_func, ctx)
         } else {
-            type_error(stmt, "throw must have exactly one parameter", ctx)
+            stmt.type_error("throw must have exactly one parameter", ctx)
         }
         stmt.set_expr_til_type(Type.None)
     case NodeType.Catch:
@@ -6955,7 +6955,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
             check_unused_locals(catch_scope, ctx.path, ctx)
             TypeScope.delete(own catch_scope)
         } else {
-            type_error(stmt, "catch must have 3 children: var, type, body", ctx)
+            stmt.type_error("catch must have 3 children: var, type, body", ctx)
         }
         stmt.set_expr_til_type(Type.None)
     case:
@@ -7460,7 +7460,7 @@ type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
                 }
             }
             if is_valid.not() {
-                type_error(stmt, "only Mode declarations (e.g. `cli := Mode(...)`) and imports are allowed in 'mode mode'", ctx)
+                stmt.type_error("only Mode declarations (e.g. `cli := Mode(...)`) and imports are allowed in 'mode mode'", ctx)
             }
         }
     }
@@ -7496,11 +7496,11 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
     }
     existing := scope.get_type(aname)
     if existing.is(Type.Unknown) {
-        type_error(stmt, "undefined symbol '".concat(aname).concat("'"), ctx)
-    } else if redundant_literal_conversion(rhs, existing) {
+        stmt.type_error("undefined symbol '".concat(aname).concat("'"), ctx)
+    } else if rhs.redundant_literal_conversion(existing) {
         redundant_conversion_error(rhs, existing, ctx)
     } else if scope.is_mut(aname).not() {
-        type_error(stmt, "cannot assign to immutable variable '".concat(aname).concat("'"), ctx)
+        stmt.type_error("cannot assign to immutable variable '".concat(aname).concat("'"), ctx)
         sf := scope.find(aname)
         switch sf {
         case ScopeFind.Found(b):
@@ -7515,14 +7515,14 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
         switch rhs.node_type {
         case NodeType.Literal(Literal.Num(lit_str)):
             if literal_in_range(lit_str.literal_num_text(), existing).not() {
-                type_error(stmt, "integer literal out of range for assignment to '".concat(aname).concat("'"), ctx)
+                stmt.type_error("integer literal out of range for assignment to '".concat(aname).concat("'"), ctx)
             }
         case:
         }
         rhs.set_expr_til_type(existing)
         stmt.set_expr_til_type(existing)
     } else if rhs.expr_til_type().is(existing).not().and(rhs.expr_til_type().is(Type.Unknown).not()) {
-        type_error(stmt, "'".concat(aname).concat("' assignment type mismatch"), ctx)
+        stmt.type_error("'".concat(aname).concat("' assignment type mismatch"), ctx)
     }
     sf_assign := scope.find(aname)
     mut is_ref_target := false
@@ -8413,7 +8413,7 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: U32, ctx: Context) returns Expr {
     mut new_call := make_ns_call("Array", "new", Type.Struct("Array"), fcall)
 
-    mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope, ctx))
+    mut et := fcall.make_til_type_expr(type_from_name(elem_type, scope, ctx))
     new_call.add_child(own et)
 
     cap_str := vc.to_str()
@@ -8463,7 +8463,7 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, vi
 build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, ctx: Context) returns Expr {
     mut new_call := make_ns_call("Vec", "new", Type.Struct("Vec"), fcall)
 
-    mut et := make_til_type_expr(fcall, type_from_name(elem_type, scope, ctx))
+    mut et := fcall.make_til_type_expr(type_from_name(elem_type, scope, ctx))
     new_call.add_child(own et)
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
@@ -8526,11 +8526,11 @@ desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: V
                 if cn_str.eq("vec") {
                     vec_name := "_vec_".concat(ctx.coll_counter.to_str())
                     ctx.coll_counter++
-                    mut vec_decl := build_builtin_vec_decl(fcall, scope, elem_type, vec_name, ctx)
+                    mut vec_decl := fcall.build_builtin_vec_decl(scope, elem_type, vec_name, ctx)
                     scope.set(vec_name, Type.Struct("Vec"), FuncType.None, true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                     new_ch.push(own vec_decl)
                     for j in 0..count {
-                        mut push_call := build_builtin_vec_push(fcall, scope, vec_name, j)
+                        mut push_call := fcall.build_builtin_vec_push(scope, vec_name, j)
                         new_ch.push(own push_call)
                     }
                     rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct("Vec"))
@@ -8582,7 +8582,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
             switch child1.node_type {
             case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = rhs.children.len().sub(2)
-                mut vec_decl := build_builtin_vec_decl(rhs, scope, elem_type, var_name, ctx)
+                mut vec_decl := rhs.build_builtin_vec_decl(scope, elem_type, var_name, ctx)
                 vec_decl.set_expr_til_type(Type.Struct("Vec"))
                 switch vec_decl.node_type {
                 case NodeType.Decl(dd):
@@ -8592,7 +8592,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
                 scope.set(var_name, Type.Struct("Vec"), FuncType.None, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own vec_decl)
                 for j in 0..count {
-                    mut push_call := build_builtin_vec_push(rhs, scope, var_name, j)
+                    mut push_call := rhs.build_builtin_vec_push(scope, var_name, j)
                     new_ch.push(own push_call)
                 }
                 return true
@@ -8638,31 +8638,31 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 
     if set_lit.children.len().eq(0) {
-        type_error(set_lit, "set literal must have at least one element", ctx)
+        set_lit.type_error("set literal must have at least one element", ctx)
         return false
     }
 
     ref first : Expr = set_lit.child(0)
     elem_type := type_to_name(first.expr_til_type())
     if elem_type.len().eq(0) {
-        type_error(first, "set literal: cannot determine element type", ctx)
+        first.type_error("set literal: cannot determine element type", ctx)
         return false
     }
 
     if type_has_cmp(scope, elem_type).not() {
-        type_error(first, "set literal: element type '".concat(elem_type).concat("' must implement cmp"), ctx)
+        first.type_error("set literal: element type '".concat(elem_type).concat("' must implement cmp"), ctx)
     }
 
     for j in 1..set_lit.children.len() {
         ref v : Expr = set_lit.child(j)
         vt := type_to_name(v.expr_til_type())
         if vt.len().eq(0).or(vt.eq(elem_type).not()) {
-            type_error(v, "set literal: all elements must be the same type", ctx)
+            v.type_error("set literal: all elements must be the same type", ctx)
         }
     }
 
     mut new_call := make_ns_call("Set", "new", Type.Struct("Set"), set_lit)
-    mut et := make_til_type_expr(set_lit, first.expr_til_type())
+    mut et := set_lit.make_til_type_expr(first.expr_til_type())
     new_call.add_child(own et)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
@@ -8708,11 +8708,11 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     n_pairs := map_lit.children.len().div(2)
 
     if map_lit.children.len().eq(0) {
-        type_error(map_lit, "map literal must have at least one entry", ctx)
+        map_lit.type_error("map literal must have at least one entry", ctx)
         return false
     }
     if map_lit.children.len().mod(2).eq(0).not() {
-        type_error(map_lit, "map literal has mismatched key/value pairs", ctx)
+        map_lit.type_error("map literal has mismatched key/value pairs", ctx)
         return false
     }
 
@@ -8722,16 +8722,16 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     val_type := type_to_name(first_val.expr_til_type())
 
     if key_type.len().eq(0) {
-        type_error(first_key, "map literal: cannot determine key type", ctx)
+        first_key.type_error("map literal: cannot determine key type", ctx)
         return false
     }
     if val_type.len().eq(0) {
-        type_error(first_val, "map literal: cannot determine value type", ctx)
+        first_val.type_error("map literal: cannot determine value type", ctx)
         return false
     }
 
     if type_has_cmp(scope, key_type).not() {
-        type_error(first_key, "map literal: key type '".concat(key_type).concat("' must implement cmp"), ctx)
+        first_key.type_error("map literal: key type '".concat(key_type).concat("' must implement cmp"), ctx)
     }
 
     for j in 2..map_lit.children.len() {
@@ -8739,21 +8739,21 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
             ref k : Expr = map_lit.child(j)
             kt := type_to_name(k.expr_til_type())
             if kt.len().eq(0).or(kt.eq(key_type).not()) {
-                type_error(k, "map literal: all keys must be the same type", ctx)
+                k.type_error("map literal: all keys must be the same type", ctx)
             }
         } else {
             ref v : Expr = map_lit.child(j)
             vt := type_to_name(v.expr_til_type())
             if vt.len().eq(0).or(vt.eq(val_type).not()) {
-                type_error(v, "map literal: all values must be the same type", ctx)
+                v.type_error("map literal: all values must be the same type", ctx)
             }
         }
     }
 
     mut new_call := make_ns_call("Map", "new", Type.Struct("Map"), map_lit)
-    mut kt := make_til_type_expr(map_lit, first_key.expr_til_type())
+    mut kt := map_lit.make_til_type_expr(first_key.expr_til_type())
     new_call.add_child(own kt)
-    mut vt := make_til_type_expr(map_lit, first_val.expr_til_type())
+    mut vt := map_lit.make_til_type_expr(first_val.expr_til_type())
     new_call.add_child(own vt)
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
@@ -9286,7 +9286,7 @@ hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mu
     .or(rhs.node_type.is_nonnull_literal()) {
         replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
         ref slot_hoist : Expr = stmt.children[0]
-        free_expr_slot_in_place(slot_hoist)
+        slot_hoist.free_expr_slot_in_place()
         stmt.children.set(0, own replacement)
     }
 }
@@ -9323,7 +9323,7 @@ hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut
 hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     hoist_expr(ctx, stmt.child(1), hoisted, scope)
     mut fa_hoist := true
-    if fa_own_type(stmt, scope).is(OwnType.Shallow) {
+    if stmt.fa_own_type(scope).is(OwnType.Shallow) {
         rhs_type := stmt.child(1).expr_til_type()
         if is_aggregate(rhs_type) {
             fa_hoist = false
@@ -9885,7 +9885,7 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
     // assigned into a ref-typed field never got its scope-end delete.
     // (Issue #109: test/ref.til's `a.next = b` where `next` is `ref mut
     // next : RefNode` leaked b's 16-byte wrapper.)
-    if e.node_type.is(NodeType.FieldAssign).and(fa_own_type(e, scope).is(OwnType.Own)) {
+    if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
         if e.children.len().gt(1) {
             switch e.child(1).node_type {
             case NodeType.Ident(_ei):
@@ -9957,8 +9957,8 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
-    if fa_own_type(stmt, scope).is(OwnType.Ref) { return false }
-    if fa_own_type(stmt, scope).is(OwnType.Shallow).not() { return true }
+    if stmt.fa_own_type(scope).is(OwnType.Ref) { return false }
+    if stmt.fa_own_type(scope).is(OwnType.Shallow).not() { return true }
     ft := stmt.child(1).expr_til_type()
     if is_aggregate(ft) { return true }
     return false

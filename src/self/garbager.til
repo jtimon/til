@@ -250,7 +250,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
         for i in 0..body.children.len() {
             ref mut stmt : Expr = body.child(i)
             if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
-            if fa_own_type(stmt, scope).is(OwnType.Ref).not() { continue }
+            if stmt.fa_own_type(scope).is(OwnType.Ref).not() { continue }
             if stmt.children.len().lt(2) { continue }
             // target side: walk down the FieldAccess chain to find the
             // root Ident (the holder local's name).
@@ -366,7 +366,7 @@ check_use_after_own_transfer := proc(body: Expr, mut locals: Vec, ctx: Context) 
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.child(local.last_use.to_usize())
-            type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"), ctx)
+            stmt.type_error("use of '".concat(local.name).concat("' after ownership transfer"), ctx)
             ref xfer : Expr = body.child(local.own_transfer.to_usize())
             println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")
@@ -568,7 +568,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut
                                 mut _bare := Expr.new(ident_node(local.name), _fa_rhs.line, _fa_rhs.col)
                                 _bare.set_expr_til_type(local.type.clone())
                                 ref slot_fa : Expr = stmt.children[1]
-                                free_expr_slot_in_place(slot_fa)
+                                slot_fa.free_expr_slot_in_place()
                                 stmt.children.set(1, own _bare)
                                 free_call := make_free_call(local.name, local.type, stmt)
                                 if free_call.is_null().not() {
@@ -614,7 +614,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut
                                 mut bare_ident := Expr.new(ident_node(local.name), assign_rhs.line, assign_rhs.col)
                                 bare_ident.set_expr_til_type(local.type.clone())
                                 ref slot_assign : Expr = stmt.children[0]
-                                free_expr_slot_in_place(slot_assign)
+                                slot_assign.free_expr_slot_in_place()
                                 stmt.children.set(0, own bare_ident)
                                 continue
                             }
