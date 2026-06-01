@@ -24,16 +24,6 @@ priv DynCallInfo := struct {
 
 // --- Leaf functions ---
 
-priv is_dyn_call_name := func(name: Str, mut has_ret: Bool) returns Bool {
-    if name.eq("dyn_call") { has_ret = false; return true }
-    if name.eq("dyn_call_ret") { has_ret = true; return true }
-    return false
-}
-
-// Per-function-emission cache of FuncPtr local signatures, populated at
-// emit_stmt_decl and read back by fcall_fn_sig when a FuncPtr local is
-// called. Lives on Context (#178 first table); the builder swaps it at
-// emit_func_def boundaries to scope it per emission.
 priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns ref Expr {
     ref m : Map = ctx.local_fn_sigs
     ref slot : Dynamic = m.get(name)?
@@ -41,9 +31,6 @@ priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns ref Expr {
     return deref(slot)
 }
 
-// Resolve the FuncDef Expr that backs a FuncPtr-typed Decl, by looking
-// at the rhs (Ident or FCall) and falling back to the declared
-// explicit_type alias. Returns NULL if no resolution succeeds.
 resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns ref Expr {
     switch rhs.node_type {
     case NodeType.Ident(rhs_name):
@@ -339,26 +326,6 @@ is_ext_h_type := func(name: Str) returns Bool {
 // print_single / print_flush have hand-written prototypes emitted as
 // part of the standard prelude (see emit_header_defs_and_funcs_lp);
 // suppressing the ext_proc-side emission avoids a duplicate decl.
-is_skip_ext_decl := func(name: Str) returns Bool {
-    if name.eq("print_single") { return true }
-    if name.eq("print_flush") { return true }
-    return false
-}
-
-is_scalar_method_type := func(name: Str) returns Bool {
-    if name.eq("U8") { return true }
-    if name.eq("I8") { return true }
-    if name.eq("I16") { return true }
-    if name.eq("U16") { return true }
-    if name.eq("I32") { return true }
-    if name.eq("F32") { return true }
-    if name.eq("U32") { return true }
-    if name.eq("U64") { return true }
-    if name.eq("I64") { return true }
-    if name.eq("Bool") { return true }
-    return false
-}
-
 is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     ref rhs : Expr = stmt.child(0)
@@ -838,8 +805,6 @@ emit_til_default := proc(f: File, shallow t: Type) {
     }
 }
 
-callee_return_ctype := ext_func(callee_name: Str) returns Str {}
-
 // Resolve the C parameter type for fd.params[i]. Avoids the
 // `mut ptype := ""` pre-init pattern in emit_param_list, whose empty
 // Str leaked once per parameter on each call.
@@ -901,8 +866,10 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
             case NodeType.Ident(callee_name):
                 switch c2.node_type {
                 case NodeType.Literal(Literal.Str(method)):
+                    cn := callee_name.ident_name()
                     mut has_ret := false
-                    if is_dyn_call_name(callee_name.ident_name(), has_ret) {
+                    if cn.eq("dyn_call_ret") { has_ret = true }
+                    if cn.eq("dyn_call").or(cn.eq("dyn_call_ret")) {
                         mut nargs : I32 = 1
                         if e.children.len().gte(4) {
                             ref c3 : Expr = e.child(3)
@@ -1005,16 +972,6 @@ get_stack_local_ctype := func(name: Str, ctx: Context) returns ref Str {
     return NULL
 }
 
-// Resolve an Ident's C type name to an owned Str: the recorded
-// stack-local type if any, otherwise derived from the Expr's til_type.
-// Replaces the previous `ref mut ctype : Str = NULL; if is_null { ctype
-// = c_type_name(..., ctx) }` shape that leaked an owned Str into a ref slot.
-resolve_ident_ctype := func(ident: Str, ttype: Type, sname: Str, ctx: Context) returns Str {
-    ref existing : Str = get_stack_local_ctype(ident, ctx)
-    if existing.is_null().not() { return existing.clone() }
-    return c_type_name(ttype, sname, ctx)
-}
-
 resolve_callee_name := ext_func(fcall: Expr) returns Str {}
 
 resolve_callee_name := func(fcall: Expr) returns Str {
@@ -1025,18 +982,6 @@ resolve_callee_name := func(fcall: Expr) returns Str {
         if sname.len().eq(0) { return "" }
         return sname.format("_", mname.field_access_name())
     case NodeType.Ident(ident): return ident.ident_name()
-    case:
-        return ""
-    }
-}
-
-callee_return_ctype := func(callee_name: Str, ctx: Context) returns Str {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return "" }
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        if fd.return_type.len().eq(0) { return "" }
-        return type_name_to_c_value(fd.return_type, ctx)
     case:
         return ""
     }
@@ -1057,7 +1002,15 @@ fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
             return til_type_to_c(t)
         }
     }
-    return callee_return_ctype(callee, ctx)
+    ref fdef : Expr = find_callee_fdef(callee, ctx)
+    if fdef.is_null() { return "" }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.return_type.len().eq(0) { return "" }
+        return type_name_to_c_value(fd.return_type, ctx)
+    case:
+        return ""
+    }
 }
 
 check_fcall_mut_args := proc(ctx: Context, e: Expr) {
@@ -2213,9 +2166,9 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                     if callee_param_is_shallow(flat, i.sub(1), ctx) {
                         emit_deref(f, e.child(i), depth, ctx)
                     } else if callee_param_is_usize(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
-                        emit_usize_ref(f, e.child(i), depth, ctx)
+                        f.write("USIZE_REF(").emit_deref(e.child(i), depth, ctx).write(")")
                     } else if callee_param_is_uptr(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
-                        emit_uptr_ref(f, e.child(i), depth, ctx)
+                        f.write("UPTR_REF(").emit_deref(e.child(i), depth, ctx).write(")")
                     } else {
                         emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i), ctx)
                     }
@@ -2370,9 +2323,9 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                     if callee_param_is_shallow(name.ident_name(), i.sub(1), ctx) {
                         emit_deref(f, e.child(i), depth, ctx)
                     } else if callee_param_is_usize(name.ident_name(), i.sub(1), ctx).and(callee_param_is_own(name.ident_name(), i.sub(1), ctx).not()) {
-                        emit_usize_ref(f, e.child(i), depth, ctx)
+                        f.write("USIZE_REF(").emit_deref(e.child(i), depth, ctx).write(")")
                     } else if callee_param_is_uptr(name.ident_name(), i.sub(1), ctx).and(callee_param_is_own(name.ident_name(), i.sub(1), ctx).not()) {
-                        emit_uptr_ref(f, e.child(i), depth, ctx)
+                        f.write("UPTR_REF(").emit_deref(e.child(i), depth, ctx).write(")")
                     } else {
                         emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i), ctx)
                     }
@@ -2761,7 +2714,9 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, 
     case NodeType.Ident(ident):
         if is_shallow_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
             if is_own {
-                ctype := resolve_ident_ctype(ident.ident_name(), e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+                ref existing : Str = get_stack_local_ctype(ident.ident_name(), ctx)
+                mut ctype := ""
+                if existing.is_null().not() { ctype = existing.clone() } else { ctype = c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx) }
                 f.write("({ ")
                 f.write(ctype)
                 f.write(" *_oa = malloc(sizeof(")
@@ -2846,14 +2801,6 @@ emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, 
     return f
 }
 
-emit_usize_ref := proc(f: File, e: Expr, depth: I32, ctx: Context) {
-    f.write("USIZE_REF(").emit_deref(e, depth, ctx).write(")")
-}
-
-emit_uptr_ref := proc(f: File, e: Expr, depth: I32, ctx: Context) {
-    f.write("UPTR_REF(").emit_deref(e, depth, ctx).write(")")
-}
-
 // C statement-expression that parses the argv c-string `arg` into a value of
 // C type `ctype` via the Str.from_c_str view, then heap-boxes it. `conv` is
 // the C expression producing the value, written in terms of the view `_cv`
@@ -2908,11 +2855,6 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
         return
     }
     f.write(ind); f.write(ttype); f.write(" *"); f.write(var); f.write(" = "); f.write(expr); f.write(";\n")
-}
-
-emit_cli_parse_arg := proc(f: File, pname: Str, ptype: Str, argi: I32) {
-    arg := "argv[".format(argi.to_str(), "]")
-    emit_cli_parse_value(f, "    ", ptype, pname, arg)
 }
 
 emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
@@ -2987,7 +2929,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static:
                     f.write("        Array_set("); f.write(p.name); f.write(", _idx, _val);\n")
                     f.write("    }\n")
                 } else {
-                    emit_cli_parse_arg(f, p.name, p.explicit_type, argi)
+                    arg := "argv[".format(argi.to_str(), "]")
+                    emit_cli_parse_value(f, "    ", p.explicit_type, p.name, arg)
                     argi = argi.add(1)
                 }
             }
@@ -6618,7 +6561,7 @@ emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
             if fd.func_type.is(FuncType.ExtFunc).not().and(fd.func_type.is(FuncType.ExtProc).not()) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                if is_skip_ext_decl(dd.name) { continue }
+                if dd.name.eq("print_single").or(dd.name.eq("print_flush")) { continue }
                 // Issue #176: builder.til (and similar units) use the
                 // ext_func / ext_proc declaration as a forward-decl
                 // shim so a regular func / proc body defined later can be
@@ -6922,7 +6865,7 @@ check_install_rc := proc(rc: I32, what: Str) returns I32 {
 }
 
 builder_compiler_root := func(lp: LoadedProgram) returns Str {
-    return compiler_root(lp.ext_c_path)
+    return lp.ext_c_path.strip_suffix("/src/c/ext.c")
 }
 
 support_root := func(prefix: Str) returns Str {

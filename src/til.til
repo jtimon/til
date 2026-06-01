@@ -505,7 +505,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array, start_idx: USize) 
                 ref next_arg : Str = args[ai]
                 lib = next_arg.clone()
             }
-            loaded_add_lflag(lp, lib)
+            lp.link_flags = lp.link_flags.format(" -l", lib)
         } else {
             user_argv.push(own arg.clone())
         }

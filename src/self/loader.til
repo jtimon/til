@@ -15,13 +15,6 @@ realpath_str := ext_func(path: Str) returns Str {}
 
 // --- Leaf helpers ---
 
-// Owned copy of first n bytes of s (substr returns a view, this returns a clone)
-priv str_left := func(s: Str, n: USize) returns Str {
-    if n.eq(0) { return "" }
-    if n.gte(s.len()) { return s }
-    return s.substr(0, n).clone()
-}
-
 priv normalize_mode_name := func(mode_name: Str) returns Str {
     if mode_name.len().gt(0) {
         return mode_name
@@ -67,11 +60,7 @@ dir_of := func(abs: Str) returns Str {
     while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
         last_slash = last_slash.sub(1)
     }
-    return str_left(abs, last_slash)
-}
-
-compiler_root := func(ext_c_path: Str) returns Str {
-    return ext_c_path.strip_suffix("/src/c/ext.c")
+    return abs.substr(0, last_slash).clone()
 }
 
 resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
@@ -645,13 +634,6 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
 // Types that a CLI argument can be parsed into. Must match the builder's
 // cli_box_expr (codegen) and the interpreter's parse_cli_arg -- keep the
 // three in sync when adding a type.
-priv cli_arg_type_supported := func(name: Str) returns Bool {
-    return name.eq("Str").or(name.eq("I64")).or(name.eq("U8")).or(name.eq("I8"))
-        .or(name.eq("I16")).or(name.eq("U16")).or(name.eq("I32")).or(name.eq("U32"))
-        .or(name.eq("U64")).or(name.eq("USize")).or(name.eq("UPtr")).or(name.eq("Bool"))
-        .or(name.eq("F32"))
-}
-
 // Reject a main() whose parameters can't be parsed from CLI arguments, with a
 // clear up-front error. Without this the builder emits C that references an
 // undeclared param (a cryptic -Werror=unused-parameter failure) instead of a
@@ -677,7 +659,10 @@ validate_cli_main := func(lp: LoadedProgram) {
             switch stmt.child(0).node_type {
             case NodeType.FuncDef(fdef):
                 for p : Declaration in fdef.params {
-                    if cli_arg_type_supported(p.explicit_type).not() {
+                    if p.explicit_type.eq("Str").or(p.explicit_type.eq("I64")).or(p.explicit_type.eq("U8")).or(p.explicit_type.eq("I8"))
+                        .or(p.explicit_type.eq("I16")).or(p.explicit_type.eq("U16")).or(p.explicit_type.eq("I32")).or(p.explicit_type.eq("U32"))
+                        .or(p.explicit_type.eq("U64")).or(p.explicit_type.eq("USize")).or(p.explicit_type.eq("UPtr")).or(p.explicit_type.eq("Bool"))
+                        .or(p.explicit_type.eq("F32")).not() {
                         loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
                         panic(loc, "main parameter '", p.name, "': type '", p.explicit_type,
                             "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)")
@@ -722,7 +707,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
 extract_link_info := func(mut lp: LoadedProgram) {
-    root_dir := compiler_root(lp.ext_c_path)
+    root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them. Move iu.ast.children into a local Vec
     // and push_take kept stmts (no clone); the trailing delete drops the
@@ -1521,11 +1506,6 @@ doc_init_src_line := func(core_ast: Expr, user_ast: Expr, scope: TypeScope) retu
     collect_decl_packed(core_ast, scope, packed_info, packed_docs)
     collect_decl_packed(user_ast, scope, packed_info, packed_docs)
     return build_doc_init_line(packed_info, packed_docs)
-}
-
-// Append -l flag to the link_flags carried on lp.
-loaded_add_lflag := func(mut lp: LoadedProgram, lib: Str) {
-    lp.link_flags = lp.link_flags.format(" -l", lib)
 }
 
 // Run init/typecheck/precomp/scavenge on the loaded program. Sets
