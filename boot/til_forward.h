@@ -206,6 +206,7 @@ typedef enum {
     Target_TAG_LinuxX64,
     Target_TAG_LinuxArm64,
     Target_TAG_LinuxRiscv64,
+    Target_TAG_LinuxX86,
     Target_TAG_WindowsX64,
     Target_TAG_MacosX64,
     Target_TAG_MacosArm64,
@@ -2342,6 +2343,7 @@ Bool Target_eq(Target *, Target *);
 Target *Target_LinuxX64();
 Target *Target_LinuxArm64();
 Target *Target_LinuxRiscv64();
+Target *Target_LinuxX86();
 Target *Target_WindowsX64();
 Target *Target_MacosX64();
 Target *Target_MacosArm64();

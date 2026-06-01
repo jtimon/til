@@ -26,7 +26,6 @@
 *** [[./open/114.org][#114]] Source docs + repl help/introspection
 *** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
 *** [[./open/117.org][#117]] Bool and/or do not short-circuit
-*** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
 *** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
 *** [[./open/154.org][#154]] Typer error for unused imports
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
@@ -68,7 +67,9 @@
 ** High
 *** [[./open/158.org][#158]] One pass per phase across the whole pipeline
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
+*** [[./open/232.org][#232]] Add LinuxX86 (32-bit) target support
 ** Medium
 ** Low
+*** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase

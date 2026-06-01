@@ -1,7 +1,7 @@
 # priority: low
-** OPEN #151 32-bit targets: wasm32 and templeos-x86
+** WIP #151 32-bit targets: wasm32 and templeos-x86
 
-:DEPENDENCIES: [[./81.org][#81]]
+:DEPENDENCIES: [[./81.org][#81]] [[./232.org][#232]]
 
   [[file:../../src/self/targets.til][src/self/targets.til]] already has ~Target.Wasm32~ and
   ~Target.TempleosX86~ in the enum (mirrored from rstil), with
@@ -11,27 +11,23 @@
   pointers everywhere (~USize~, raw pointer arithmetic), and the
   32-bit targets would generate C that's unsound on 32-bit ABIs.
 
-  Depends on [[./81.org][#81]]: once ~UPtr~ is a pointer-sized integer that's
-  ~U64~ on 64-bit targets and ~U32~ on 32-bit ones, the codegen can
-  use ~UPtr~ consistently for anything that must match the target
-  pointer width. That unblocks emitting valid C for wasm32 and
-  templeos-x86.
+  Progress so far (via [[./232.org][#232]] LinuxX86 canary):
 
-  Scope once [[./81.org][#81]] lands:
-  - Audit [[file:../../src/self/builder.til][src/self/builder.til]] for places that assume 64-bit
-    pointer arithmetic and replace with ~UPtr~.
-  - Add ~wasm32~ and ~templeos-x86~ CI jobs mirroring the existing
-    cross-compile pattern: ubuntu-latest + ~clang~ (wasm32) or
-    HolyC toolchain (templeos-x86), cross-compile a
-    [[file:../../examples/hello_script.til][examples/hello_script.til]] and verify the output format
-    (~file~ says ~WebAssembly~ for wasm32; TempleOS ~.BIN~ format
-    for templeos-x86).
-  - For templeos-x86, ~lang~ must switch to ~Lang.HolyC~ via
-    ~default_lang_for_target~, which is already the case in
-    ~targets.til~.
+  * Fixed ~get_payload~ in [[file:../../src/c/ext.c][src/c/ext.c]] to use ~sizeof(void*)~
+    instead of ~sizeof(I64)~ for the tag-offset computation. On 64-bit
+    both are 8, but on 32-bit ~sizeof(I64)=8~ (off by 4) while
+    ~sizeof(void*)=4~ (correct). This was the primary crash in all
+    32-bit til programs (Type_delete reading garbage payload pointers).
 
-  Rstil implemented neither of these targets in CI for the same
-  reason (no UPtr equivalent / HolyC codegen not wired up) -- the
-  enum values exist as placeholders to reserve names and keep the
-  ~--target~ parser honest.
+  * Fixed ~dyn_size_of~ in [[file:../../src/self/builder.til][src/self/builder.til]] to use
+    ~sizeof(Dynamic)~ instead of hardcoded 8.
+
+  * Cross-compiled ~examples/hello_script.til~ (~echo Hello World~) and
+    ~tmp/hello_simple.til~ (~println(~["Hello"]~)~) for linux-x86
+    with ~gcc -m32~ and verified they run correctly under ~qemu-i386~.
+
+  Remaining (per [[./232.org][#232]]):
+  - Build 32-bit vendor libs (libffi, raylib, tinyfd)
+  - Add Makefile targets and CI job
+  - Run full test suite for linux-x86 via qemu
 

@@ -10,7 +10,7 @@ import("../std/sys")
 Lang := enum {
     C,
     HolyC,
-    TIL
+    TIL,
 }
 
 priv lang_to_str := func(lang: Lang) returns Str {
@@ -28,11 +28,12 @@ Target := enum {
     LinuxX64,
     LinuxArm64,
     LinuxRiscv64,
+    LinuxX86,
     WindowsX64,
     MacosX64,
     MacosArm64,
     Wasm32,
-    TempleosX86
+    TempleosX86,
 }
 
 target_from_str := func(s: Str) returns Target {
@@ -45,6 +46,10 @@ target_from_str := func(s: Str) returns Target {
     case "linux-riscv64":   return Target.LinuxRiscv64
     case "linux-riscv":     return Target.LinuxRiscv64
     case "riscv64":         return Target.LinuxRiscv64
+    case "linux-x86":       return Target.LinuxX86
+    case "linux-i386":      return Target.LinuxX86
+    case "linux-i686":      return Target.LinuxX86
+    case "linux-32":        return Target.LinuxX86
     case "windows-x64":     return Target.WindowsX64
     case "windows-x86_64":  return Target.WindowsX64
     case "win64":           return Target.WindowsX64
@@ -60,7 +65,7 @@ target_from_str := func(s: Str) returns Target {
     case "templeos-x86":    return Target.TempleosX86
     case "templeos":        return Target.TempleosX86
     }
-    panic(__LOC__, "Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
+    panic(__LOC__, "Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
     return Target.LinuxX64
 }
 
@@ -69,6 +74,7 @@ priv target_to_str := func(target: Target) returns Str {
     case Target.LinuxX64:     return "linux-x64"
     case Target.LinuxArm64:   return "linux-arm64"
     case Target.LinuxRiscv64: return "linux-riscv64"
+    case Target.LinuxX86:     return "linux-x86"
     case Target.WindowsX64:   return "windows-x64"
     case Target.MacosX64:     return "macos-x64"
     case Target.MacosArm64:   return "macos-arm64"
@@ -80,6 +86,7 @@ priv target_to_str := func(target: Target) returns Str {
 
 priv target_is_32bit := func(target: Target) returns Bool {
     switch target {
+    case Target.LinuxX86: return true
     case Target.Wasm32: return true
     case Target.TempleosX86: return true
     case: return false
@@ -140,6 +147,7 @@ toolchain_command := func(target: Target, lang: Lang) returns Str {
     case Target.LinuxX64:     return "gcc"
     case Target.LinuxArm64:   return "aarch64-linux-gnu-gcc"
     case Target.LinuxRiscv64: return "riscv64-linux-gnu-gcc"
+    case Target.LinuxX86:     return "gcc"
     case Target.WindowsX64:   return "x86_64-w64-mingw32-gcc"
     case Target.MacosX64:     return "clang"
     case Target.MacosArm64:   return "clang"
@@ -151,6 +159,7 @@ toolchain_command := func(target: Target, lang: Lang) returns Str {
 
 target_prefix_args := func(target: Target) returns Str {
     switch target {
+    case Target.LinuxX86:     return " -m32 -I/usr/include/x86_64-linux-gnu"
     case Target.MacosArm64: return " -target arm64-apple-macos11"
     case Target.MacosX64:   return " -target x86_64-apple-macos10.12"
     case Target.Wasm32:     return " --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all"
@@ -203,6 +212,7 @@ target_system_libs := func(target: Target) returns Str {
     case Target.LinuxX64:     return "-ldl -lrt -lm -lpthread"
     case Target.LinuxArm64:   return "-ldl -lrt -lm -lpthread"
     case Target.LinuxRiscv64: return "-ldl -lrt -lm -lpthread"
+    case Target.LinuxX86:     return "-ldl -lrt -lm -lpthread"
     case Target.WindowsX64:   return "-lpsapi"
     case Target.MacosX64:     return "-lm -lpthread"
     case Target.MacosArm64:   return "-lm -lpthread"
@@ -231,6 +241,8 @@ target_gui_libs := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
+    case Target.LinuxX86:
+        return "vendor/raylib/src/libraylib-x86.a vendor/tinyfiledialogs/libtinyfd-x86.a"
     case Target.WindowsX64:
         return "vendor/raylib/src/libraylib-win64.a vendor/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
     case: return ""

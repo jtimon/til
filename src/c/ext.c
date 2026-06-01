@@ -585,7 +585,7 @@ void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
-void *get_payload(void *self) { return (U8*)self + sizeof(I64); }
+void *get_payload(void *self) { return (U8*)self + sizeof(void *); }
 
 // CLI arg parsing
 

@@ -1,0 +1,27 @@
+# priority: high
+** WIP #232 Add LinuxX86 (32-bit) target support
+
+:DEPENDENCIES: [[./151.org][#151]] [[./81.org][#81]]
+
+  Add ~Target.LinuxX86~ (32-bit i386 Linux) as a cross-compilation
+  target. The existing ~Wasm32~ and ~TempleosX86~ enum values already
+  have ~target_is_32bit~ helpers, but nothing actually compiles because
+  til's generated C assumes 64-bit pointers in places.
+
+  A LinuxX86 target is easier to test (gcc -m32 + qemu-i386) than
+  wasm32 or templeos-x86, making it the ideal canary for the 32-bit
+  pointer audit described in #151.
+
+*** Scope
+
+  1. Add ~Target.LinuxX86~ to the enum in [[file:../../src/self/targets.til][src/self/targets.til]]
+     and wire all switch cases.
+  2. Fix hardcoded 64-bit values in [[file:../../src/self/builder.til][src/self/builder.til]]:
+     - ~dyn_size_of~ returns 8 for Dynamic (~sizeof(void*)~)
+     - Any other pointer-width assumptions in emitted C
+  3. Cross-build vendor libs for 32-bit (~gcc -m32~):
+     - libffi: ~./configure --host=i686-linux-gnu~
+     - raylib: ~CC="gcc -m32" PLATFORM=PLATFORM_DESKTOP~
+     - tinyfd: ~gcc -m32 -c~
+  4. Add Makefile targets and CI job for linux-x86.
+  5. Test cross-compiled binaries with ~qemu-i386~.
