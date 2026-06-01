@@ -703,6 +703,7 @@ typedef struct Scope {
     Map bindings;
     Scope *parent;
     Map payload_aliases;
+    Map ref_primitive_ptrs;
     Vec box_owned_dynamics;
 } Scope;
 
@@ -2048,6 +2049,8 @@ Value * widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
 Str * scope_get_payload_alias(Scope * s, Str * name);
+Bool interp_is_primitive_type_name(Str * name);
+void * scope_get_ref_primitive_ptr(Scope * s, Str * name);
 void scope_set_owned(Scope * s, Str * name, Value * val);
 void scope_set_borrowed(Scope * s, Str * name, Cell * cell);
 void scope_free(Scope * s);

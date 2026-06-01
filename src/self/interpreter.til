@@ -399,6 +399,14 @@ Scope := struct {
     // empty map (the default) means "no aliases" and assignment behaves
     // exactly like before.
     payload_aliases := Map.new(Str, Str)
+    // #227: ref-bindings to primitive scalars at a raw pointer
+    // (`ref mut x : U32 = ptr_add(...)`) need to write back through the
+    // original pointer on assignment. reinterpret_ptr_value collapses
+    // val into a Value.<Primitive>(value) so the ptr is otherwise lost.
+    // This side table keeps the source pointer so the Assign handler
+    // can dispatch through the matching write_* primitive. Key: binding
+    // name. Value: raw Dynamic pointer to the original storage cell.
+    ref_primitive_ptrs := Map.new(Str, Dynamic)
     // Issue #217 follow-up: heap allocations created by
     // box_scalar_to_dynamic at this scope's call binding sites. Each
     // entry is a raw `Dynamic` pointer that scope_free must reclaim
@@ -922,6 +930,23 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
             }
             if dd.own_type.is(OwnType.Ref) {
                 if dd.explicit_type.len().gt(0) {
+                    // #227: for ref-mut bindings to primitive scalars at a
+                    // raw pointer, save the source ptr so a later Assign
+                    // can write back through it. reinterpret_ptr_value
+                    // collapses val into a Value.<Primitive>(scalar)
+                    // immediately below, which would otherwise lose the
+                    // address.
+                    if interp_is_primitive_type_name(dd.explicit_type) {
+                        if is_value_ptr(val) {
+                            ref ptr_view : Dynamic = value_ptr_view(val)
+                            ref source_addr : Dynamic = deref(ptr_view)
+                            if is_null(source_addr).not() {
+                                holder : Dynamic = malloc(8)
+                                write_ptr(holder, source_addr)
+                                scope.ref_primitive_ptrs.set(own dd.name.clone(), own holder)
+                            }
+                        }
+                    }
                     val = reinterpret_ptr_value(val, dd.explicit_type, scope, ctx)
                 }
             }
@@ -975,6 +1000,29 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
             }
             new_val := eval_expr(scope, rhs, ctx)
             memcpy(cell.val, new_val, Value.size())
+            // #227: for ref-mut bindings to a primitive scalar at a raw
+            // pointer (`ref mut x : U32 = ptr_add(...)`), also write the
+            // new value back through the saved source pointer so the
+            // underlying storage actually changes. Without this, the
+            // memcpy above just updates the cell's local Value, leaving
+            // the original ptr_add target unmodified -- the compile-path
+            // equivalent of issue #226's pointer-rebind bug.
+            ref ref_ptr : Dynamic = scope_get_ref_primitive_ptr(scope, ad.name)
+            if is_null(ref_ptr).not() {
+                switch new_val {
+                case Value.Int(iv):     write_i64(ref_ptr, iv)
+                case Value.Byte(u8v):   write_u8(ref_ptr, u8v)
+                case Value.Sbyte(i8v):  write_i8(ref_ptr, i8v)
+                case Value.Short(i16v): write_i16(ref_ptr, i16v)
+                case Value.Ushort(u16v): write_u16(ref_ptr, u16v)
+                case Value.Int32(i32v): write_i32(ref_ptr, i32v)
+                case Value.Uint32(u32v): write_u32(ref_ptr, u32v)
+                case Value.Uint64(u64v): write_u64(ref_ptr, u64v)
+                case Value.Boolean(bv): write_bool(ref_ptr, bv)
+                case Value.Float(fv):   write_f32(ref_ptr, fv)
+                case:
+                }
+            }
             // #211 follow-up: if this binding aliases an enum's payload
             // memory, mirror the write into ei.data + ENUM_PAYLOAD_OFFSET
             // so the change is visible after the case body. Primitives
@@ -1939,6 +1987,41 @@ scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
     return ""
 }
 
+// #227: matches builder.til's is_primitive_type by name. Inlined
+// here because interpreter.til doesn't import that helper.
+interp_is_primitive_type_name := func(name: Str) returns Bool {
+    if name.eq("I8") { return true }
+    if name.eq("U8") { return true }
+    if name.eq("I16") { return true }
+    if name.eq("U16") { return true }
+    if name.eq("I32") { return true }
+    if name.eq("U32") { return true }
+    if name.eq("I64") { return true }
+    if name.eq("U64") { return true }
+    if name.eq("USize") { return true }
+    if name.eq("UPtr") { return true }
+    if name.eq("F32") { return true }
+    if name.eq("Bool") { return true }
+    return false
+}
+
+// #227: returns NULL if `name` is not a ref-to-primitive binding.
+// Otherwise returns the source address (the ptr_add result the ref
+// was bound to) so the Assign handler can write through it.
+scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dynamic {
+    ref mut cur : Scope = s
+    while true {
+        if is_null(cur) { return NULL }
+        if cur.ref_primitive_ptrs.has(name) {
+            ref holder : Dynamic = cur.ref_primitive_ptrs[name]
+            ref stored : Dynamic = deref(holder)
+            return stored
+        }
+        cur = cur.parent
+    }
+    return NULL
+}
+
 scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
     if s.bindings.has(name) {
         ref b : Binding = s.bindings[name]
@@ -2282,12 +2365,11 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
     memcpy(copy, data, len)
     memset(ptr_add(copy, len), 0, 1)
     write_ptr(inst_data, copy)
-    ref mut count_slot : U32 = ptr_add(inst_data, 8)
-    count_slot = len
+    write_u32(ptr_add(inst_data, 8), len)
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
-    memcpy(ptr_add(inst_data, 12), count_slot, U32.size())
+    write_u32(ptr_add(inst_data, 12), len)
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
@@ -2307,9 +2389,8 @@ make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns sha
 make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size())
     write_ptr(inst_data, data)
-    ref mut count_slot : U32 = ptr_add(inst_data, 8)
-    count_slot = len
-    memcpy(ptr_add(inst_data, 12), count_slot, U32.size())
+    write_u32(ptr_add(inst_data, 8), len)
+    write_u32(ptr_add(inst_data, 12), len)
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {

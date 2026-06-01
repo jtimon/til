@@ -118,3 +118,32 @@ test_ref_struct_field := test() {
     assert_eq(__LOC__, c.value, 10)
     assert_eq(__LOC__, c.next.value, 20)
 }
+
+# --- Issue #226 / #227: ref mut primitive must deref-write ---
+#
+# Both compile (#226) and interp (#227) paths now deref-write
+# when assigning a value through a `ref mut x : Primitive` binding
+# whose RHS was a raw pointer expression. The compile fix lives
+# in builder.til (do_rebind skip for params); the interp fix lives
+# in this file (ref_primitive_ptrs side table + write_* dispatch
+# on Assign).
+
+ref226_param_rhs := func(len: USize) returns U32 {
+    buf : Dynamic = malloc(8)
+    write_u32(buf, 0)
+    ref mut slot : U32 = ptr_add(buf, 0)
+    slot = len
+    // Re-read via a fresh ref binding: this triggers
+    // reinterpret_ptr_value which loads the U32 at `buf`, so we
+    // verify the original storage actually got the write rather
+    // than just trusting `slot`'s local cell.
+    ref read_back : U32 = ptr_add(buf, 0)
+    out : U32 = read_back
+    free(own buf)
+    return out
+}
+
+test_ref_mut_primitive_assign := test() {
+    got := ref226_param_rhs(42)
+    assert_eq(__LOC__, got.to_i64(), 42)
+}
