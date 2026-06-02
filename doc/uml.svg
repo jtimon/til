@@ -438,7 +438,7 @@
   <rect x="2772" y="478" width="228" height="64" rx="10" ry="10" class="box"/>
   <text x="2786" y="516" class="title">FFITypePtrBox: StructDef</text>
   <text x="2786" y="534" class="line">ref ptr : ffi_type = NULL</text>
-  <rect x="3094" y="24" width="428" height="1124" rx="14" ry="14" class="panel"/>
+  <rect x="3094" y="24" width="428" height="1142" rx="14" ry="14" class="panel"/>
   <text x="3114" y="62" class="panel-label">interpreter</text>
   <rect x="3114" y="88" width="252" height="136" rx="10" ry="10" class="box"/>
   <text x="3128" y="126" class="title">StructInstance: StructDef</text>
@@ -451,7 +451,7 @@
   <text x="3128" y="280" class="title">EnumInstance: StructDef</text>
   <text x="3128" y="298" class="line">ref enum_name : Str = NULL</text>
   <text x="3128" y="316" class="line">own data : U8 = 0</text>
-  <text x="3128" y="334" class="line">data_size : I32 = 0</text>
+  <text x="3128" y="334" class="line">data_size : USize = 0</text>
   <text x="3128" y="352" class="line">borrowed := false</text>
   <rect x="3114" y="378" width="196" height="334" rx="10" ry="10" class="box"/>
   <text x="3128" y="416" class="title">Value: EnumDef</text>
@@ -479,15 +479,16 @@
   <text x="3128" y="868" class="line">ref name : Str = NULL</text>
   <text x="3128" y="886" class="line">ref cell : Cell = NULL</text>
   <text x="3128" y="904" class="line">cell_is_local := false</text>
-  <rect x="3114" y="930" width="388" height="118" rx="10" ry="10" class="box"/>
+  <rect x="3114" y="930" width="388" height="136" rx="10" ry="10" class="box"/>
   <text x="3128" y="968" class="title">Scope: StructDef</text>
   <text x="3128" y="986" class="line">bindings := Map.new(Str, Binding)</text>
   <text x="3128" y="1004" class="line">ref parent : Scope = NULL</text>
   <text x="3128" y="1022" class="line">payload_aliases := Map.new(Str, Str)</text>
-  <text x="3128" y="1040" class="line">box_owned_dynamics := Vec.new_type_name(&quot;Fn&quot;)</text>
-  <rect x="3114" y="1066" width="188" height="64" rx="10" ry="10" class="box"/>
-  <text x="3128" y="1104" class="title">DynPtrBox: StructDef</text>
-  <text x="3128" y="1122" class="line">own p : U8 = 0</text>
+  <text x="3128" y="1040" class="line">ref_primitive_ptrs := Map.new(Str, Dynamic)</text>
+  <text x="3128" y="1058" class="line">box_owned_dynamics := Vec.new_type_name(&quot;Fn&quot;)</text>
+  <rect x="3114" y="1084" width="188" height="64" rx="10" ry="10" class="box"/>
+  <text x="3128" y="1122" class="title">DynPtrBox: StructDef</text>
+  <text x="3128" y="1140" class="line">own p : U8 = 0</text>
   <rect x="3556" y="24" width="120" height="82" rx="14" ry="14" class="panel"/>
   <text x="3576" y="62" class="panel-label">modes</text>
 </svg>

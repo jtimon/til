@@ -2316,7 +2316,7 @@ ext_proc SetWindowIcon(shallow image: Image)
 
 * SetWindowIcons
 #+begin_src til
-ext_proc SetWindowIcons(images: Image, shallow count: I32)
+ext_proc SetWindowIcons(mut images: Image, shallow count: I32)
 #+end_src
 
 * SetWindowTitle
@@ -2731,7 +2731,7 @@ ext_proc LoadRandomSequence(shallow count: U32, shallow min: I32, shallow max: I
 
 * UnloadRandomSequence
 #+begin_src til
-ext_proc UnloadRandomSequence(sequence: I32)
+ext_proc UnloadRandomSequence(mut sequence: I32)
 #+end_src
 
 * TakeScreenshot
@@ -2766,27 +2766,27 @@ ext_proc MemAlloc(shallow size: U32) returns Dynamic
 
 * MemRealloc
 #+begin_src til
-ext_proc MemRealloc(ptr: Dynamic, shallow size: U32) returns Dynamic
+ext_proc MemRealloc(mut ptr: Dynamic, shallow size: U32) returns Dynamic
 #+end_src
 
 * MemFree
 #+begin_src til
-ext_proc MemFree(ptr: Dynamic)
+ext_proc MemFree(mut ptr: Dynamic)
 #+end_src
 
 * LoadFileData
 #+begin_src til
-ext_proc LoadFileData(fileName: I8, dataSize: I32) returns ref I8
+ext_proc LoadFileData(fileName: I8, mut dataSize: I32) returns ref I8
 #+end_src
 
 * UnloadFileData
 #+begin_src til
-ext_proc UnloadFileData(data: U8)
+ext_proc UnloadFileData(mut data: U8)
 #+end_src
 
 * SaveFileData
 #+begin_src til
-ext_proc SaveFileData(fileName: I8, data: Dynamic, shallow dataSize: I32) returns shallow Bool
+ext_proc SaveFileData(fileName: I8, mut data: Dynamic, shallow dataSize: I32) returns shallow Bool
 #+end_src
 
 * ExportDataAsCode
@@ -2801,7 +2801,7 @@ ext_proc LoadFileText(fileName: I8) returns ref I8
 
 * UnloadFileText
 #+begin_src til
-ext_proc UnloadFileText(text: I8)
+ext_proc UnloadFileText(mut text: I8)
 #+end_src
 
 * SaveFileText
@@ -2981,42 +2981,42 @@ ext_proc GetDirectoryFileCountEx(basePath: I8, filter: I8, shallow scanSubdirs: 
 
 * CompressData
 #+begin_src til
-ext_func CompressData(data: U8, shallow dataSize: I32, compDataSize: I32) returns ref I8
+ext_func CompressData(data: U8, shallow dataSize: I32, mut compDataSize: I32) returns ref I8
 #+end_src
 
 * DecompressData
 #+begin_src til
-ext_func DecompressData(compData: U8, shallow compDataSize: I32, dataSize: I32) returns ref I8
+ext_func DecompressData(compData: U8, shallow compDataSize: I32, mut dataSize: I32) returns ref I8
 #+end_src
 
 * EncodeDataBase64
 #+begin_src til
-ext_func EncodeDataBase64(data: U8, shallow dataSize: I32, outputSize: I32) returns ref I8
+ext_func EncodeDataBase64(data: U8, shallow dataSize: I32, mut outputSize: I32) returns ref I8
 #+end_src
 
 * DecodeDataBase64
 #+begin_src til
-ext_func DecodeDataBase64(text: I8, outputSize: I32) returns ref I8
+ext_func DecodeDataBase64(text: I8, mut outputSize: I32) returns ref I8
 #+end_src
 
 * ComputeCRC32
 #+begin_src til
-ext_func ComputeCRC32(data: U8, shallow dataSize: I32) returns shallow I32
+ext_func ComputeCRC32(mut data: U8, shallow dataSize: I32) returns shallow I32
 #+end_src
 
 * ComputeMD5
 #+begin_src til
-ext_func ComputeMD5(data: U8, shallow dataSize: I32) returns ref I32
+ext_func ComputeMD5(mut data: U8, shallow dataSize: I32) returns ref I32
 #+end_src
 
 * ComputeSHA1
 #+begin_src til
-ext_func ComputeSHA1(data: U8, shallow dataSize: I32) returns ref I32
+ext_func ComputeSHA1(mut data: U8, shallow dataSize: I32) returns ref I32
 #+end_src
 
 * ComputeSHA256
 #+begin_src til
-ext_func ComputeSHA256(data: U8, shallow dataSize: I32) returns ref I32
+ext_func ComputeSHA256(mut data: U8, shallow dataSize: I32) returns ref I32
 #+end_src
 
 * LoadAutomationEventList
@@ -3036,7 +3036,7 @@ ext_proc ExportAutomationEventList(shallow list: AutomationEventList, fileName: 
 
 * SetAutomationEventList
 #+begin_src til
-ext_proc SetAutomationEventList(list: AutomationEventList)
+ext_proc SetAutomationEventList(mut list: AutomationEventList)
 #+end_src
 
 * SetAutomationEventBaseFrame
@@ -3296,12 +3296,12 @@ ext_proc GetGesturePinchAngle() returns shallow F32
 
 * UpdateCamera
 #+begin_src til
-ext_proc UpdateCamera(camera: Camera3D, shallow mode: I32)
+ext_proc UpdateCamera(mut camera: Camera3D, shallow mode: I32)
 #+end_src
 
 * UpdateCameraPro
 #+begin_src til
-ext_proc UpdateCameraPro(camera: Camera3D, shallow movement: Vector3, shallow rotation: Vector3, shallow zoom: F32)
+ext_proc UpdateCameraPro(mut camera: Camera3D, shallow movement: Vector3, shallow rotation: Vector3, shallow zoom: F32)
 #+end_src
 
 * SetShapesTexture
@@ -3641,7 +3641,7 @@ ext_func CheckCollisionPointPoly(shallow point: Vector2, points: Vector2, shallo
 
 * CheckCollisionLines
 #+begin_src til
-ext_func CheckCollisionLines(shallow startPos1: Vector2, shallow endPos1: Vector2, shallow startPos2: Vector2, shallow endPos2: Vector2, collisionPoint: Vector2) returns shallow Bool
+ext_func CheckCollisionLines(shallow startPos1: Vector2, shallow endPos1: Vector2, shallow startPos2: Vector2, shallow endPos2: Vector2, mut collisionPoint: Vector2) returns shallow Bool
 #+end_src
 
 * GetCollisionRec
@@ -3661,12 +3661,12 @@ ext_proc LoadImageRaw(fileName: I8, shallow width: I32, shallow height: I32, sha
 
 * LoadImageAnim
 #+begin_src til
-ext_proc LoadImageAnim(fileName: I8, frames: I32) returns shallow Image
+ext_proc LoadImageAnim(fileName: I8, mut frames: I32) returns shallow Image
 #+end_src
 
 * LoadImageAnimFromMemory
 #+begin_src til
-ext_proc LoadImageAnimFromMemory(fileType: I8, fileData: U8, shallow dataSize: I32, frames: I32) returns shallow Image
+ext_proc LoadImageAnimFromMemory(fileType: I8, fileData: U8, shallow dataSize: I32, mut frames: I32) returns shallow Image
 #+end_src
 
 * LoadImageFromMemory
@@ -3701,7 +3701,7 @@ ext_proc ExportImage(shallow image: Image, fileName: I8) returns shallow Bool
 
 * ExportImageToMemory
 #+begin_src til
-ext_proc ExportImageToMemory(shallow image: Image, fileType: I8, fileSize: I32) returns ref I8
+ext_proc ExportImageToMemory(shallow image: Image, fileType: I8, mut fileSize: I32) returns ref I8
 #+end_src
 
 * ExportImageAsCode
@@ -3781,127 +3781,127 @@ ext_func ImageTextEx(shallow font: Font, text: I8, shallow fontSize: F32, shallo
 
 * ImageFormat
 #+begin_src til
-ext_proc ImageFormat(image: Image, shallow newFormat: I32)
+ext_proc ImageFormat(mut image: Image, shallow newFormat: I32)
 #+end_src
 
 * ImageToPOT
 #+begin_src til
-ext_proc ImageToPOT(image: Image, shallow fill: Color)
+ext_proc ImageToPOT(mut image: Image, shallow fill: Color)
 #+end_src
 
 * ImageCrop
 #+begin_src til
-ext_proc ImageCrop(image: Image, shallow crop: Rectangle)
+ext_proc ImageCrop(mut image: Image, shallow crop: Rectangle)
 #+end_src
 
 * ImageAlphaCrop
 #+begin_src til
-ext_proc ImageAlphaCrop(image: Image, shallow threshold: F32)
+ext_proc ImageAlphaCrop(mut image: Image, shallow threshold: F32)
 #+end_src
 
 * ImageAlphaClear
 #+begin_src til
-ext_proc ImageAlphaClear(image: Image, shallow color: Color, shallow threshold: F32)
+ext_proc ImageAlphaClear(mut image: Image, shallow color: Color, shallow threshold: F32)
 #+end_src
 
 * ImageAlphaMask
 #+begin_src til
-ext_proc ImageAlphaMask(image: Image, shallow alphaMask: Image)
+ext_proc ImageAlphaMask(mut image: Image, shallow alphaMask: Image)
 #+end_src
 
 * ImageAlphaPremultiply
 #+begin_src til
-ext_proc ImageAlphaPremultiply(image: Image)
+ext_proc ImageAlphaPremultiply(mut image: Image)
 #+end_src
 
 * ImageBlurGaussian
 #+begin_src til
-ext_proc ImageBlurGaussian(image: Image, shallow blurSize: I32)
+ext_proc ImageBlurGaussian(mut image: Image, shallow blurSize: I32)
 #+end_src
 
 * ImageKernelConvolution
 #+begin_src til
-ext_proc ImageKernelConvolution(image: Image, kernel: F32, shallow kernelSize: I32)
+ext_proc ImageKernelConvolution(mut image: Image, kernel: F32, shallow kernelSize: I32)
 #+end_src
 
 * ImageResize
 #+begin_src til
-ext_proc ImageResize(image: Image, shallow newWidth: I32, shallow newHeight: I32)
+ext_proc ImageResize(mut image: Image, shallow newWidth: I32, shallow newHeight: I32)
 #+end_src
 
 * ImageResizeNN
 #+begin_src til
-ext_proc ImageResizeNN(image: Image, shallow newWidth: I32, shallow newHeight: I32)
+ext_proc ImageResizeNN(mut image: Image, shallow newWidth: I32, shallow newHeight: I32)
 #+end_src
 
 * ImageResizeCanvas
 #+begin_src til
-ext_proc ImageResizeCanvas(image: Image, shallow newWidth: I32, shallow newHeight: I32, shallow offsetX: I32, shallow offsetY: I32, shallow fill: Color)
+ext_proc ImageResizeCanvas(mut image: Image, shallow newWidth: I32, shallow newHeight: I32, shallow offsetX: I32, shallow offsetY: I32, shallow fill: Color)
 #+end_src
 
 * ImageMipmaps
 #+begin_src til
-ext_proc ImageMipmaps(image: Image)
+ext_proc ImageMipmaps(mut image: Image)
 #+end_src
 
 * ImageDither
 #+begin_src til
-ext_proc ImageDither(image: Image, shallow rBpp: I32, shallow gBpp: I32, shallow bBpp: I32, shallow aBpp: I32)
+ext_proc ImageDither(mut image: Image, shallow rBpp: I32, shallow gBpp: I32, shallow bBpp: I32, shallow aBpp: I32)
 #+end_src
 
 * ImageFlipVertical
 #+begin_src til
-ext_proc ImageFlipVertical(image: Image)
+ext_proc ImageFlipVertical(mut image: Image)
 #+end_src
 
 * ImageFlipHorizontal
 #+begin_src til
-ext_proc ImageFlipHorizontal(image: Image)
+ext_proc ImageFlipHorizontal(mut image: Image)
 #+end_src
 
 * ImageRotate
 #+begin_src til
-ext_proc ImageRotate(image: Image, shallow degrees: I32)
+ext_proc ImageRotate(mut image: Image, shallow degrees: I32)
 #+end_src
 
 * ImageRotateCW
 #+begin_src til
-ext_proc ImageRotateCW(image: Image)
+ext_proc ImageRotateCW(mut image: Image)
 #+end_src
 
 * ImageRotateCCW
 #+begin_src til
-ext_proc ImageRotateCCW(image: Image)
+ext_proc ImageRotateCCW(mut image: Image)
 #+end_src
 
 * ImageColorTint
 #+begin_src til
-ext_proc ImageColorTint(image: Image, shallow color: Color)
+ext_proc ImageColorTint(mut image: Image, shallow color: Color)
 #+end_src
 
 * ImageColorInvert
 #+begin_src til
-ext_proc ImageColorInvert(image: Image)
+ext_proc ImageColorInvert(mut image: Image)
 #+end_src
 
 * ImageColorGrayscale
 #+begin_src til
-ext_proc ImageColorGrayscale(image: Image)
+ext_proc ImageColorGrayscale(mut image: Image)
 #+end_src
 
 * ImageColorContrast
 #+begin_src til
-ext_proc ImageColorContrast(image: Image, shallow contrast: F32)
+ext_proc ImageColorContrast(mut image: Image, shallow contrast: F32)
 #+end_src
 
 * ImageColorBrightness
 #+begin_src til
-ext_proc ImageColorBrightness(image: Image, shallow brightness: I32)
+ext_proc ImageColorBrightness(mut image: Image, shallow brightness: I32)
 #+end_src
 
 * ImageColorReplace
 #+begin_src til
-ext_proc ImageColorReplace(image: Image, shallow color: Color, shallow replace: Color)
+ext_proc ImageColorReplace(mut image: Image, shallow color: Color, shallow replace: Color)
 #+end_src
 
 * LoadImageColors
@@ -3911,17 +3911,17 @@ ext_func LoadImageColors(shallow image: Image) returns ref Color
 
 * LoadImagePalette
 #+begin_src til
-ext_func LoadImagePalette(shallow image: Image, shallow maxPaletteSize: I32, colorCount: I32) returns ref Color
+ext_func LoadImagePalette(shallow image: Image, shallow maxPaletteSize: I32, mut colorCount: I32) returns ref Color
 #+end_src
 
 * UnloadImageColors
 #+begin_src til
-ext_proc UnloadImageColors(colors: Color)
+ext_proc UnloadImageColors(mut colors: Color)
 #+end_src
 
 * UnloadImagePalette
 #+begin_src til
-ext_proc UnloadImagePalette(colors: Color)
+ext_proc UnloadImagePalette(mut colors: Color)
 #+end_src
 
 * GetImageAlphaBorder
@@ -3936,112 +3936,112 @@ ext_func GetImageColor(shallow image: Image, shallow x: I32, shallow y: I32) ret
 
 * ImageClearBackground
 #+begin_src til
-ext_proc ImageClearBackground(dst: Image, shallow color: Color)
+ext_proc ImageClearBackground(mut dst: Image, shallow color: Color)
 #+end_src
 
 * ImageDrawPixel
 #+begin_src til
-ext_proc ImageDrawPixel(dst: Image, shallow posX: I32, shallow posY: I32, shallow color: Color)
+ext_proc ImageDrawPixel(mut dst: Image, shallow posX: I32, shallow posY: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawPixelV
 #+begin_src til
-ext_proc ImageDrawPixelV(dst: Image, shallow position: Vector2, shallow color: Color)
+ext_proc ImageDrawPixelV(mut dst: Image, shallow position: Vector2, shallow color: Color)
 #+end_src
 
 * ImageDrawLine
 #+begin_src til
-ext_proc ImageDrawLine(dst: Image, shallow startPosX: I32, shallow startPosY: I32, shallow endPosX: I32, shallow endPosY: I32, shallow color: Color)
+ext_proc ImageDrawLine(mut dst: Image, shallow startPosX: I32, shallow startPosY: I32, shallow endPosX: I32, shallow endPosY: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawLineV
 #+begin_src til
-ext_proc ImageDrawLineV(dst: Image, shallow start: Vector2, shallow end: Vector2, shallow color: Color)
+ext_proc ImageDrawLineV(mut dst: Image, shallow start: Vector2, shallow end: Vector2, shallow color: Color)
 #+end_src
 
 * ImageDrawLineEx
 #+begin_src til
-ext_proc ImageDrawLineEx(dst: Image, shallow start: Vector2, shallow end: Vector2, shallow thick: I32, shallow color: Color)
+ext_proc ImageDrawLineEx(mut dst: Image, shallow start: Vector2, shallow end: Vector2, shallow thick: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawCircle
 #+begin_src til
-ext_proc ImageDrawCircle(dst: Image, shallow centerX: I32, shallow centerY: I32, shallow radius: I32, shallow color: Color)
+ext_proc ImageDrawCircle(mut dst: Image, shallow centerX: I32, shallow centerY: I32, shallow radius: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawCircleV
 #+begin_src til
-ext_proc ImageDrawCircleV(dst: Image, shallow center: Vector2, shallow radius: I32, shallow color: Color)
+ext_proc ImageDrawCircleV(mut dst: Image, shallow center: Vector2, shallow radius: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawCircleLines
 #+begin_src til
-ext_proc ImageDrawCircleLines(dst: Image, shallow centerX: I32, shallow centerY: I32, shallow radius: I32, shallow color: Color)
+ext_proc ImageDrawCircleLines(mut dst: Image, shallow centerX: I32, shallow centerY: I32, shallow radius: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawCircleLinesV
 #+begin_src til
-ext_proc ImageDrawCircleLinesV(dst: Image, shallow center: Vector2, shallow radius: I32, shallow color: Color)
+ext_proc ImageDrawCircleLinesV(mut dst: Image, shallow center: Vector2, shallow radius: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawRectangle
 #+begin_src til
-ext_proc ImageDrawRectangle(dst: Image, shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow color: Color)
+ext_proc ImageDrawRectangle(mut dst: Image, shallow posX: I32, shallow posY: I32, shallow width: I32, shallow height: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawRectangleV
 #+begin_src til
-ext_proc ImageDrawRectangleV(dst: Image, shallow position: Vector2, shallow size: Vector2, shallow color: Color)
+ext_proc ImageDrawRectangleV(mut dst: Image, shallow position: Vector2, shallow size: Vector2, shallow color: Color)
 #+end_src
 
 * ImageDrawRectangleRec
 #+begin_src til
-ext_proc ImageDrawRectangleRec(dst: Image, shallow rec: Rectangle, shallow color: Color)
+ext_proc ImageDrawRectangleRec(mut dst: Image, shallow rec: Rectangle, shallow color: Color)
 #+end_src
 
 * ImageDrawRectangleLines
 #+begin_src til
-ext_proc ImageDrawRectangleLines(dst: Image, shallow rec: Rectangle, shallow thick: I32, shallow color: Color)
+ext_proc ImageDrawRectangleLines(mut dst: Image, shallow rec: Rectangle, shallow thick: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawTriangle
 #+begin_src til
-ext_proc ImageDrawTriangle(dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
+ext_proc ImageDrawTriangle(mut dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
 #+end_src
 
 * ImageDrawTriangleEx
 #+begin_src til
-ext_proc ImageDrawTriangleEx(dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow c1: Color, shallow c2: Color, shallow c3: Color)
+ext_proc ImageDrawTriangleEx(mut dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow c1: Color, shallow c2: Color, shallow c3: Color)
 #+end_src
 
 * ImageDrawTriangleLines
 #+begin_src til
-ext_proc ImageDrawTriangleLines(dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
+ext_proc ImageDrawTriangleLines(mut dst: Image, shallow v1: Vector2, shallow v2: Vector2, shallow v3: Vector2, shallow color: Color)
 #+end_src
 
 * ImageDrawTriangleFan
 #+begin_src til
-ext_proc ImageDrawTriangleFan(dst: Image, points: Vector2, shallow pointCount: I32, shallow color: Color)
+ext_proc ImageDrawTriangleFan(mut dst: Image, points: Vector2, shallow pointCount: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawTriangleStrip
 #+begin_src til
-ext_proc ImageDrawTriangleStrip(dst: Image, points: Vector2, shallow pointCount: I32, shallow color: Color)
+ext_proc ImageDrawTriangleStrip(mut dst: Image, points: Vector2, shallow pointCount: I32, shallow color: Color)
 #+end_src
 
 * ImageDraw
 #+begin_src til
-ext_proc ImageDraw(dst: Image, shallow src: Image, shallow srcRec: Rectangle, shallow dstRec: Rectangle, shallow tint: Color)
+ext_proc ImageDraw(mut dst: Image, shallow src: Image, shallow srcRec: Rectangle, shallow dstRec: Rectangle, shallow tint: Color)
 #+end_src
 
 * ImageDrawText
 #+begin_src til
-ext_proc ImageDrawText(dst: Image, text: I8, shallow posX: I32, shallow posY: I32, shallow fontSize: I32, shallow color: Color)
+ext_proc ImageDrawText(mut dst: Image, text: I8, shallow posX: I32, shallow posY: I32, shallow fontSize: I32, shallow color: Color)
 #+end_src
 
 * ImageDrawTextEx
 #+begin_src til
-ext_proc ImageDrawTextEx(dst: Image, shallow font: Font, text: I8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color)
+ext_proc ImageDrawTextEx(mut dst: Image, shallow font: Font, text: I8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow tint: Color)
 #+end_src
 
 * LoadTexture
@@ -4096,7 +4096,7 @@ ext_proc UpdateTextureRec(shallow texture: Texture, shallow rec: Rectangle, pixe
 
 * GenTextureMipmaps
 #+begin_src til
-ext_proc GenTextureMipmaps(texture: Texture)
+ext_proc GenTextureMipmaps(mut texture: Texture)
 #+end_src
 
 * SetTextureFilter
@@ -4211,12 +4211,12 @@ ext_func GetColor(shallow hexValue: U32) returns shallow Color
 
 * GetPixelColor
 #+begin_src til
-ext_func GetPixelColor(srcPtr: Dynamic, shallow format: I32) returns shallow Color
+ext_func GetPixelColor(mut srcPtr: Dynamic, shallow format: I32) returns shallow Color
 #+end_src
 
 * SetPixelColor
 #+begin_src til
-ext_proc SetPixelColor(dstPtr: Dynamic, shallow color: Color, shallow format: I32)
+ext_proc SetPixelColor(mut dstPtr: Dynamic, shallow color: Color, shallow format: I32)
 #+end_src
 
 * GetPixelDataSize
@@ -4256,17 +4256,17 @@ ext_func IsFontValid(shallow font: Font) returns shallow Bool
 
 * LoadFontData
 #+begin_src til
-ext_proc LoadFontData(fileData: U8, shallow dataSize: I32, shallow fontSize: I32, codepoints: I32, shallow codepointCount: I32, shallow type: I32, glyphCount: I32) returns ref GlyphInfo
+ext_proc LoadFontData(fileData: U8, shallow dataSize: I32, shallow fontSize: I32, codepoints: I32, shallow codepointCount: I32, shallow type: I32, mut glyphCount: I32) returns ref GlyphInfo
 #+end_src
 
 * GenImageFontAtlas
 #+begin_src til
-ext_proc GenImageFontAtlas(glyphs: GlyphInfo, glyphRecs: Dynamic, shallow glyphCount: I32, shallow fontSize: I32, shallow padding: I32, shallow packMethod: I32) returns shallow Image
+ext_proc GenImageFontAtlas(glyphs: GlyphInfo, mut glyphRecs: Dynamic, shallow glyphCount: I32, shallow fontSize: I32, shallow padding: I32, shallow packMethod: I32) returns shallow Image
 #+end_src
 
 * UnloadFontData
 #+begin_src til
-ext_proc UnloadFontData(glyphs: GlyphInfo, shallow glyphCount: I32)
+ext_proc UnloadFontData(mut glyphs: GlyphInfo, shallow glyphCount: I32)
 #+end_src
 
 * UnloadFont
@@ -4351,17 +4351,17 @@ ext_func LoadUTF8(codepoints: I32, shallow length: I32) returns ref I8
 
 * UnloadUTF8
 #+begin_src til
-ext_proc UnloadUTF8(text: I8)
+ext_proc UnloadUTF8(mut text: I8)
 #+end_src
 
 * LoadCodepoints
 #+begin_src til
-ext_func LoadCodepoints(text: I8, count: I32) returns ref I32
+ext_func LoadCodepoints(text: I8, mut count: I32) returns ref I32
 #+end_src
 
 * UnloadCodepoints
 #+begin_src til
-ext_proc UnloadCodepoints(codepoints: I32)
+ext_proc UnloadCodepoints(mut codepoints: I32)
 #+end_src
 
 * GetCodepointCount
@@ -4371,37 +4371,37 @@ ext_func GetCodepointCount(text: I8) returns shallow I32
 
 * GetCodepoint
 #+begin_src til
-ext_func GetCodepoint(text: I8, codepointSize: I32) returns shallow I32
+ext_func GetCodepoint(text: I8, mut codepointSize: I32) returns shallow I32
 #+end_src
 
 * GetCodepointNext
 #+begin_src til
-ext_func GetCodepointNext(text: I8, codepointSize: I32) returns shallow I32
+ext_func GetCodepointNext(text: I8, mut codepointSize: I32) returns shallow I32
 #+end_src
 
 * GetCodepointPrevious
 #+begin_src til
-ext_func GetCodepointPrevious(text: I8, codepointSize: I32) returns shallow I32
+ext_func GetCodepointPrevious(text: I8, mut codepointSize: I32) returns shallow I32
 #+end_src
 
 * CodepointToUTF8
 #+begin_src til
-ext_func CodepointToUTF8(shallow codepoint: I32, utf8Size: I32) returns ref I8
+ext_func CodepointToUTF8(shallow codepoint: I32, mut utf8Size: I32) returns ref I8
 #+end_src
 
 * LoadTextLines
 #+begin_src til
-ext_func LoadTextLines(text: I8, count: I32) returns Dynamic
+ext_func LoadTextLines(text: I8, mut count: I32) returns Dynamic
 #+end_src
 
 * UnloadTextLines
 #+begin_src til
-ext_proc UnloadTextLines(text: Dynamic, shallow lineCount: I32)
+ext_proc UnloadTextLines(mut text: Dynamic, shallow lineCount: I32)
 #+end_src
 
 * TextCopy
 #+begin_src til
-ext_func TextCopy(dst: I8, src: I8) returns shallow I32
+ext_func TextCopy(mut dst: I8, src: I8) returns shallow I32
 #+end_src
 
 * TextIsEqual
@@ -4446,17 +4446,17 @@ ext_func TextInsert(text: I8, insert: I8, shallow position: I32) returns ref I8
 
 * TextJoin
 #+begin_src til
-ext_func TextJoin(textList: Dynamic, shallow count: I32, delimiter: I8) returns ref I8
+ext_func TextJoin(mut textList: Dynamic, shallow count: I32, delimiter: I8) returns ref I8
 #+end_src
 
 * TextSplit
 #+begin_src til
-ext_func TextSplit(text: I8, shallow delimiter: I8, count: I32) returns Dynamic
+ext_func TextSplit(text: I8, shallow delimiter: I8, mut count: I32) returns Dynamic
 #+end_src
 
 * TextAppend
 #+begin_src til
-ext_proc TextAppend(text: I8, append: I8, position: I32)
+ext_proc TextAppend(mut text: I8, append: I8, mut position: I32)
 #+end_src
 
 * TextFindIndex
@@ -4681,7 +4681,7 @@ ext_proc DrawBillboardPro(shallow camera: Camera3D, shallow texture: Texture, sh
 
 * UploadMesh
 #+begin_src til
-ext_proc UploadMesh(mesh: Mesh, shallow dynamic: Bool)
+ext_proc UploadMesh(mut mesh: Mesh, shallow dynamic: Bool)
 #+end_src
 
 * UpdateMeshBuffer
@@ -4711,7 +4711,7 @@ ext_func GetMeshBoundingBox(shallow mesh: Mesh) returns shallow BoundingBox
 
 * GenMeshTangents
 #+begin_src til
-ext_proc GenMeshTangents(mesh: Mesh)
+ext_proc GenMeshTangents(mut mesh: Mesh)
 #+end_src
 
 * ExportMesh
@@ -4781,7 +4781,7 @@ ext_func GenMeshCubicmap(shallow cubicmap: Image, shallow cubeSize: Vector3) ret
 
 * LoadMaterials
 #+begin_src til
-ext_proc LoadMaterials(fileName: I8, materialCount: I32) returns ref Material
+ext_proc LoadMaterials(fileName: I8, mut materialCount: I32) returns ref Material
 #+end_src
 
 * LoadMaterialDefault
@@ -4801,17 +4801,17 @@ ext_proc UnloadMaterial(shallow material: Material)
 
 * SetMaterialTexture
 #+begin_src til
-ext_proc SetMaterialTexture(material: Material, shallow mapType: I32, shallow texture: Texture)
+ext_proc SetMaterialTexture(mut material: Material, shallow mapType: I32, shallow texture: Texture)
 #+end_src
 
 * SetModelMeshMaterial
 #+begin_src til
-ext_proc SetModelMeshMaterial(model: Model, shallow meshId: I32, shallow materialId: I32)
+ext_proc SetModelMeshMaterial(mut model: Model, shallow meshId: I32, shallow materialId: I32)
 #+end_src
 
 * LoadModelAnimations
 #+begin_src til
-ext_proc LoadModelAnimations(fileName: I8, animCount: I32) returns ref ModelAnimation
+ext_proc LoadModelAnimations(fileName: I8, mut animCount: I32) returns ref ModelAnimation
 #+end_src
 
 * UpdateModelAnimation
@@ -4826,7 +4826,7 @@ ext_proc UpdateModelAnimationEx(shallow model: Model, shallow animA: ModelAnimat
 
 * UnloadModelAnimations
 #+begin_src til
-ext_proc UnloadModelAnimations(animations: ModelAnimation, shallow animCount: I32)
+ext_proc UnloadModelAnimations(mut animations: ModelAnimation, shallow animCount: I32)
 #+end_src
 
 * IsModelAnimationValid
@@ -5016,12 +5016,12 @@ ext_func WaveCopy(shallow wave: Wave) returns shallow Wave
 
 * WaveCrop
 #+begin_src til
-ext_proc WaveCrop(wave: Wave, shallow initFrame: I32, shallow finalFrame: I32)
+ext_proc WaveCrop(mut wave: Wave, shallow initFrame: I32, shallow finalFrame: I32)
 #+end_src
 
 * WaveFormat
 #+begin_src til
-ext_proc WaveFormat(wave: Wave, shallow sampleRate: I32, shallow sampleSize: I32, shallow channels: I32)
+ext_proc WaveFormat(mut wave: Wave, shallow sampleRate: I32, shallow sampleSize: I32, shallow channels: I32)
 #+end_src
 
 * LoadWaveSamples
@@ -5031,7 +5031,7 @@ ext_func LoadWaveSamples(shallow wave: Wave) returns ref F32
 
 * UnloadWaveSamples
 #+begin_src til
-ext_proc UnloadWaveSamples(samples: F32)
+ext_proc UnloadWaveSamples(mut samples: F32)
 #+end_src
 
 * LoadMusicStream
@@ -5211,61 +5211,61 @@ ext_proc DetachAudioMixedProcessor(processor: Dynamic)
 
 * GetCameraForward
 #+begin_src til
-ext_func GetCameraForward(camera: Camera3D) returns shallow Vector3
+ext_func GetCameraForward(mut camera: Camera3D) returns shallow Vector3
 #+end_src
 
 * GetCameraUp
 #+begin_src til
-ext_func GetCameraUp(camera: Camera3D) returns shallow Vector3
+ext_func GetCameraUp(mut camera: Camera3D) returns shallow Vector3
 #+end_src
 
 * GetCameraRight
 #+begin_src til
-ext_func GetCameraRight(camera: Camera3D) returns shallow Vector3
+ext_func GetCameraRight(mut camera: Camera3D) returns shallow Vector3
 #+end_src
 
 * CameraMoveForward
 #+begin_src til
-ext_proc CameraMoveForward(camera: Camera3D, shallow distance: F32, shallow moveInWorldPlane: Bool)
+ext_proc CameraMoveForward(mut camera: Camera3D, shallow distance: F32, shallow moveInWorldPlane: Bool)
 #+end_src
 
 * CameraMoveUp
 #+begin_src til
-ext_proc CameraMoveUp(camera: Camera3D, shallow distance: F32)
+ext_proc CameraMoveUp(mut camera: Camera3D, shallow distance: F32)
 #+end_src
 
 * CameraMoveRight
 #+begin_src til
-ext_proc CameraMoveRight(camera: Camera3D, shallow distance: F32, shallow moveInWorldPlane: Bool)
+ext_proc CameraMoveRight(mut camera: Camera3D, shallow distance: F32, shallow moveInWorldPlane: Bool)
 #+end_src
 
 * CameraMoveToTarget
 #+begin_src til
-ext_proc CameraMoveToTarget(camera: Camera3D, shallow delta: F32)
+ext_proc CameraMoveToTarget(mut camera: Camera3D, shallow delta: F32)
 #+end_src
 
 * CameraYaw
 #+begin_src til
-ext_proc CameraYaw(camera: Camera3D, shallow angle: F32, shallow rotateAroundTarget: Bool)
+ext_proc CameraYaw(mut camera: Camera3D, shallow angle: F32, shallow rotateAroundTarget: Bool)
 #+end_src
 
 * CameraPitch
 #+begin_src til
-ext_proc CameraPitch(camera: Camera3D, shallow angle: F32, shallow lockView: Bool, shallow rotateAroundTarget: Bool, shallow rotateUp: Bool)
+ext_proc CameraPitch(mut camera: Camera3D, shallow angle: F32, shallow lockView: Bool, shallow rotateAroundTarget: Bool, shallow rotateUp: Bool)
 #+end_src
 
 * CameraRoll
 #+begin_src til
-ext_proc CameraRoll(camera: Camera3D, shallow angle: F32)
+ext_proc CameraRoll(mut camera: Camera3D, shallow angle: F32)
 #+end_src
 
 * GetCameraViewMatrix
 #+begin_src til
-ext_func GetCameraViewMatrix(camera: Camera3D) returns shallow Matrix
+ext_func GetCameraViewMatrix(mut camera: Camera3D) returns shallow Matrix
 #+end_src
 
 * GetCameraProjectionMatrix
 #+begin_src til
-ext_func GetCameraProjectionMatrix(camera: Camera3D, shallow aspect: F32) returns shallow Matrix
+ext_func GetCameraProjectionMatrix(mut camera: Camera3D, shallow aspect: F32) returns shallow Matrix
 #+end_src
 

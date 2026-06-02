@@ -38,7 +38,7 @@ func insert_exit_deletes_into_stmt(stmt: Expr, body_stmts: Vec, mut locals: Vec,
 
 * insert_post_stmt_deletes
 #+begin_src til
-func insert_post_stmt_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope)
+func insert_post_stmt_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec)
 #+end_src
 
 * insert_assign_delete

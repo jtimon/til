@@ -28,7 +28,7 @@ ext_proc tinyfd_selectFolderDialog(aTitle: I8, aDefaultPath: I8) returns ref I8
 
 * tinyfd_colorChooser
 #+begin_src til
-ext_proc tinyfd_colorChooser(aTitle: I8, aDefaultHexRGB: I8, aDefaultRGB: U8, aoResultRGB: U8) returns ref I8
+ext_proc tinyfd_colorChooser(aTitle: I8, aDefaultHexRGB: I8, aDefaultRGB: U8, mut aoResultRGB: U8) returns ref I8
 #+end_src
 
 * tinyfd_arrayDialog

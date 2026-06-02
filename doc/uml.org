@@ -390,7 +390,7 @@
 ** EnumInstance: StructDef
 *** ref enum_name : Str = NULL
 *** own data : U8 = 0
-*** data_size : I32 = 0
+*** data_size : USize = 0
 *** borrowed := false
 ** Value: EnumDef
 *** None
@@ -419,6 +419,7 @@
 *** bindings := Map.new(Str, Binding)
 *** ref parent : Scope = NULL
 *** payload_aliases := Map.new(Str, Str)
+*** ref_primitive_ptrs := Map.new(Str, Dynamic)
 *** box_owned_dynamics := Vec.new_type_name("Fn")
 ** DynPtrBox: StructDef
 *** own p : U8 = 0

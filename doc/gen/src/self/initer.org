@@ -331,12 +331,12 @@ func generate_struct_size_methods(program: Expr)
 
 * gen_enum_size_method_for_stmt
 #+begin_src til
-proc gen_enum_size_method_for_stmt(stmt: Expr, scope: TypeScope)
+proc gen_enum_size_method_for_stmt(stmt: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * generate_enum_size_methods
 #+begin_src til
-proc generate_enum_size_methods(program: Expr, scope: TypeScope)
+proc generate_enum_size_methods(program: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * gen_unity_derived_for_stmt
@@ -346,7 +346,7 @@ func gen_unity_derived_for_stmt(stmt: Expr)
 
 * generate_size_methods
 #+begin_src til
-proc generate_size_methods(program: Expr, scope: TypeScope)
+proc generate_size_methods(program: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * gen_cmp_derived_for_stmt
@@ -356,37 +356,22 @@ func gen_cmp_derived_for_stmt(stmt: Expr)
 
 * compute_struct_layout
 #+begin_src til
-proc compute_struct_layout(mut struct_def: Expr, scope: TypeScope)
+proc compute_struct_layout(name: Str, mut struct_def: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * type_size_align
 #+begin_src til
-proc type_size_align(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32)
+proc type_size_align(ftype: Str, scope: TypeScope, ctx: Context, mut sz: I32, mut al: I32)
 #+end_src
 
 * compute_enum_layout
 #+begin_src til
-proc compute_enum_layout(enum_def: Expr, scope: TypeScope) returns shallow I32
+proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns shallow I32
 #+end_src
 
 * ctx_total_size
 #+begin_src til
 func ctx_total_size(name: Str, ctx: Context) returns shallow I32
-#+end_src
-
-* record_struct_layout
-#+begin_src til
-func record_struct_layout(ctx: Context, name: Str, sdef: Expr)
-#+end_src
-
-* record_enum_layout
-#+begin_src til
-func record_enum_layout(ctx: Context, name: Str, edef: Expr)
-#+end_src
-
-* compute_all_struct_layouts
-#+begin_src til
-proc compute_all_struct_layouts(program: Expr, scope: TypeScope)
 #+end_src
 
 * infer_top_level_decl_type
@@ -417,5 +402,20 @@ func count_ast_imports(body: Expr) returns shallow U32
 * init_file
 #+begin_src til
 proc init_file(path: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* enum_variant_is_payload_less
+#+begin_src til
+func enum_variant_is_payload_less(enum_def: Expr, variant_name: Str) returns shallow Bool
+#+end_src
+
+* clone_call_type_name
+#+begin_src til
+func clone_call_type_name(e: Expr) returns Str
+#+end_src
+
+* is_pod_enum_clone_of
+#+begin_src til
+func is_pod_enum_clone_of(e: Expr, edef: Expr) returns shallow Bool
 #+end_src
 

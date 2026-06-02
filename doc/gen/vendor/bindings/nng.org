@@ -276,7 +276,7 @@ ext_proc nng_socket_set_string(shallow _arg: nng_socket, _arg: I8, _arg: I8) ret
 
 * nng_socket_set_ptr
 #+begin_src til
-ext_proc nng_socket_set_ptr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_socket_set_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_socket_set_ms
@@ -291,57 +291,57 @@ ext_proc nng_socket_set_addr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) 
 
 * nng_socket_get
 #+begin_src til
-ext_proc nng_socket_get(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_socket_get(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_socket_get_bool
 #+begin_src til
-ext_proc nng_socket_get_bool(shallow _arg: nng_socket, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_socket_get_bool(shallow _arg: nng_socket, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_socket_get_int
 #+begin_src til
-ext_proc nng_socket_get_int(shallow _arg: nng_socket, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_socket_get_int(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_socket_get_size
 #+begin_src til
-ext_proc nng_socket_get_size(shallow _arg: nng_socket, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_socket_get_size(shallow _arg: nng_socket, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_socket_get_uint64
 #+begin_src til
-ext_proc nng_socket_get_uint64(shallow _arg: nng_socket, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_socket_get_uint64(shallow _arg: nng_socket, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_socket_get_string
 #+begin_src til
-ext_proc nng_socket_get_string(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_socket_get_string(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_socket_get_ptr
 #+begin_src til
-ext_proc nng_socket_get_ptr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_socket_get_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_socket_get_ms
 #+begin_src til
-ext_proc nng_socket_get_ms(shallow _arg: nng_socket, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_socket_get_ms(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_socket_get_addr
 #+begin_src til
-ext_proc nng_socket_get_addr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_socket_get_addr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_socket_proto_id
 #+begin_src til
-ext_proc nng_socket_proto_id(shallow id: nng_socket, _arg: I16) returns shallow I32
+ext_proc nng_socket_proto_id(shallow id: nng_socket, mut _arg: U16) returns shallow I32
 #+end_src
 
 * nng_socket_peer_id
 #+begin_src til
-ext_proc nng_socket_peer_id(shallow id: nng_socket, _arg: I16) returns shallow I32
+ext_proc nng_socket_peer_id(shallow id: nng_socket, mut _arg: U16) returns shallow I32
 #+end_src
 
 * nng_socket_proto_name
@@ -356,12 +356,12 @@ ext_proc nng_socket_peer_name(shallow id: nng_socket, _arg: Dynamic) returns sha
 
 * nng_socket_raw
 #+begin_src til
-ext_proc nng_socket_raw(shallow _arg: nng_socket, _arg: Bool) returns shallow I32
+ext_proc nng_socket_raw(shallow _arg: nng_socket, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_str_sockaddr
 #+begin_src til
-ext_proc nng_str_sockaddr(sa: Dynamic, buf: I8, shallow bufsz: U32) returns ref I8
+ext_proc nng_str_sockaddr(sa: Dynamic, mut buf: I8, shallow bufsz: U32) returns ref I8
 #+end_src
 
 * nng_pipe_ev
@@ -396,27 +396,27 @@ nng_pipe_cb
 
 * nng_pipe_notify
 #+begin_src til
-ext_proc nng_pipe_notify(shallow _arg: nng_socket, shallow _arg: I32, _arg: Dynamic, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_notify(shallow _arg: nng_socket, shallow _arg: I32, _arg: Dynamic, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listen
 #+begin_src til
-ext_proc nng_listen(shallow _arg: nng_socket, _arg: I8, _arg: nng_listener, shallow _arg: I32) returns shallow I32
+ext_proc nng_listen(shallow _arg: nng_socket, _arg: I8, mut _arg: nng_listener, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_dial
 #+begin_src til
-ext_proc nng_dial(shallow _arg: nng_socket, _arg: I8, _arg: nng_dialer, shallow _arg: I32) returns shallow I32
+ext_proc nng_dial(shallow _arg: nng_socket, _arg: I8, mut _arg: nng_dialer, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_dialer_create
 #+begin_src til
-ext_proc nng_dialer_create(_arg: nng_dialer, shallow _arg: nng_socket, _arg: I8) returns shallow I32
+ext_proc nng_dialer_create(mut _arg: nng_dialer, shallow _arg: nng_socket, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_listener_create
 #+begin_src til
-ext_proc nng_listener_create(_arg: nng_listener, shallow _arg: nng_socket, _arg: I8) returns shallow I32
+ext_proc nng_listener_create(mut _arg: nng_listener, shallow _arg: nng_socket, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_dialer_start
@@ -481,7 +481,7 @@ ext_proc nng_dialer_set_string(shallow _arg: nng_dialer, _arg: I8, _arg: I8) ret
 
 * nng_dialer_set_ptr
 #+begin_src til
-ext_proc nng_dialer_set_ptr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_set_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_set_ms
@@ -496,47 +496,47 @@ ext_proc nng_dialer_set_addr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) 
 
 * nng_dialer_get
 #+begin_src til
-ext_proc nng_dialer_get(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_dialer_get(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_dialer_get_bool
 #+begin_src til
-ext_proc nng_dialer_get_bool(shallow _arg: nng_dialer, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_dialer_get_bool(shallow _arg: nng_dialer, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_dialer_get_int
 #+begin_src til
-ext_proc nng_dialer_get_int(shallow _arg: nng_dialer, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_dialer_get_int(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_dialer_get_size
 #+begin_src til
-ext_proc nng_dialer_get_size(shallow _arg: nng_dialer, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_dialer_get_size(shallow _arg: nng_dialer, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_dialer_get_uint64
 #+begin_src til
-ext_proc nng_dialer_get_uint64(shallow _arg: nng_dialer, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_dialer_get_uint64(shallow _arg: nng_dialer, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_dialer_get_string
 #+begin_src til
-ext_proc nng_dialer_get_string(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_get_string(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_get_ptr
 #+begin_src til
-ext_proc nng_dialer_get_ptr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_get_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_get_ms
 #+begin_src til
-ext_proc nng_dialer_get_ms(shallow _arg: nng_dialer, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_dialer_get_ms(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_dialer_get_addr
 #+begin_src til
-ext_proc nng_dialer_get_addr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_get_addr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_set
@@ -571,7 +571,7 @@ ext_proc nng_listener_set_string(shallow _arg: nng_listener, _arg: I8, _arg: I8)
 
 * nng_listener_set_ptr
 #+begin_src til
-ext_proc nng_listener_set_ptr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_set_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_set_ms
@@ -586,47 +586,47 @@ ext_proc nng_listener_set_addr(shallow _arg: nng_listener, _arg: I8, _arg: Dynam
 
 * nng_listener_get
 #+begin_src til
-ext_proc nng_listener_get(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_listener_get(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_listener_get_bool
 #+begin_src til
-ext_proc nng_listener_get_bool(shallow _arg: nng_listener, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_listener_get_bool(shallow _arg: nng_listener, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_listener_get_int
 #+begin_src til
-ext_proc nng_listener_get_int(shallow _arg: nng_listener, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_listener_get_int(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_listener_get_size
 #+begin_src til
-ext_proc nng_listener_get_size(shallow _arg: nng_listener, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_listener_get_size(shallow _arg: nng_listener, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_listener_get_uint64
 #+begin_src til
-ext_proc nng_listener_get_uint64(shallow _arg: nng_listener, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_listener_get_uint64(shallow _arg: nng_listener, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_listener_get_string
 #+begin_src til
-ext_proc nng_listener_get_string(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_get_string(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_get_ptr
 #+begin_src til
-ext_proc nng_listener_get_ptr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_get_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_get_ms
 #+begin_src til
-ext_proc nng_listener_get_ms(shallow _arg: nng_listener, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_listener_get_ms(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_listener_get_addr
 #+begin_src til
-ext_proc nng_listener_get_addr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_get_addr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_strerror
@@ -636,47 +636,47 @@ ext_proc nng_strerror(shallow _arg: I32) returns ref I8
 
 * nng_send
 #+begin_src til
-ext_proc nng_send(shallow _arg: nng_socket, _arg: Dynamic, shallow _arg: U32, shallow _arg: I32) returns shallow I32
+ext_proc nng_send(shallow _arg: nng_socket, mut _arg: Dynamic, shallow _arg: U32, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_recv
 #+begin_src til
-ext_proc nng_recv(shallow _arg: nng_socket, _arg: Dynamic, _arg: U32, shallow _arg: I32) returns shallow I32
+ext_proc nng_recv(shallow _arg: nng_socket, mut _arg: Dynamic, mut _arg: U32, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_sendmsg
 #+begin_src til
-ext_proc nng_sendmsg(shallow _arg: nng_socket, _arg: nng_msg, shallow _arg: I32) returns shallow I32
+ext_proc nng_sendmsg(shallow _arg: nng_socket, mut _arg: nng_msg, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_recvmsg
 #+begin_src til
-ext_proc nng_recvmsg(shallow _arg: nng_socket, _arg: Dynamic, shallow _arg: I32) returns shallow I32
+ext_proc nng_recvmsg(shallow _arg: nng_socket, mut _arg: Dynamic, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_sock_send
 #+begin_src til
-ext_proc nng_sock_send(shallow _arg: nng_socket, _arg: nng_aio)
+ext_proc nng_sock_send(shallow _arg: nng_socket, mut _arg: nng_aio)
 #+end_src
 
 * nng_send_aio
 #+begin_src til
-ext_proc nng_send_aio(shallow _arg: nng_socket, _arg: nng_aio)
+ext_proc nng_send_aio(shallow _arg: nng_socket, mut _arg: nng_aio)
 #+end_src
 
 * nng_sock_recv
 #+begin_src til
-ext_proc nng_sock_recv(shallow _arg: nng_socket, _arg: nng_aio)
+ext_proc nng_sock_recv(shallow _arg: nng_socket, mut _arg: nng_aio)
 #+end_src
 
 * nng_recv_aio
 #+begin_src til
-ext_proc nng_recv_aio(shallow _arg: nng_socket, _arg: nng_aio)
+ext_proc nng_recv_aio(shallow _arg: nng_socket, mut _arg: nng_aio)
 #+end_src
 
 * nng_ctx_open
 #+begin_src til
-ext_proc nng_ctx_open(_arg: nng_ctx, shallow _arg: nng_socket) returns shallow I32
+ext_proc nng_ctx_open(mut _arg: nng_ctx, shallow _arg: nng_socket) returns shallow I32
 #+end_src
 
 * nng_ctx_close
@@ -691,62 +691,62 @@ ext_proc nng_ctx_id(shallow _arg: nng_ctx) returns shallow I32
 
 * nng_ctx_recv
 #+begin_src til
-ext_proc nng_ctx_recv(shallow _arg: nng_ctx, _arg: nng_aio)
+ext_proc nng_ctx_recv(shallow _arg: nng_ctx, mut _arg: nng_aio)
 #+end_src
 
 * nng_ctx_recvmsg
 #+begin_src til
-ext_proc nng_ctx_recvmsg(shallow _arg: nng_ctx, _arg: Dynamic, shallow _arg: I32) returns shallow I32
+ext_proc nng_ctx_recvmsg(shallow _arg: nng_ctx, mut _arg: Dynamic, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_ctx_send
 #+begin_src til
-ext_proc nng_ctx_send(shallow _arg: nng_ctx, _arg: nng_aio)
+ext_proc nng_ctx_send(shallow _arg: nng_ctx, mut _arg: nng_aio)
 #+end_src
 
 * nng_ctx_sendmsg
 #+begin_src til
-ext_proc nng_ctx_sendmsg(shallow _arg: nng_ctx, _arg: nng_msg, shallow _arg: I32) returns shallow I32
+ext_proc nng_ctx_sendmsg(shallow _arg: nng_ctx, mut _arg: nng_msg, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_ctx_get
 #+begin_src til
-ext_proc nng_ctx_get(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_ctx_get(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_ctx_get_bool
 #+begin_src til
-ext_proc nng_ctx_get_bool(shallow _arg: nng_ctx, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_ctx_get_bool(shallow _arg: nng_ctx, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_ctx_get_int
 #+begin_src til
-ext_proc nng_ctx_get_int(shallow _arg: nng_ctx, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_ctx_get_int(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_ctx_get_size
 #+begin_src til
-ext_proc nng_ctx_get_size(shallow _arg: nng_ctx, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_ctx_get_size(shallow _arg: nng_ctx, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_ctx_get_uint64
 #+begin_src til
-ext_proc nng_ctx_get_uint64(shallow _arg: nng_ctx, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_ctx_get_uint64(shallow _arg: nng_ctx, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_ctx_get_string
 #+begin_src til
-ext_proc nng_ctx_get_string(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_ctx_get_string(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_ctx_get_ptr
 #+begin_src til
-ext_proc nng_ctx_get_ptr(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_ctx_get_ptr(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_ctx_get_ms
 #+begin_src til
-ext_proc nng_ctx_get_ms(shallow _arg: nng_ctx, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_ctx_get_ms(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_ctx_set
@@ -781,7 +781,7 @@ ext_proc nng_ctx_set_string(shallow _arg: nng_ctx, _arg: I8, _arg: I8) returns s
 
 * nng_ctx_set_ptr
 #+begin_src til
-ext_proc nng_ctx_set_ptr(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_ctx_set_ptr(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_ctx_set_ms
@@ -796,7 +796,7 @@ ext_proc nng_alloc(shallow _arg: U32) returns Dynamic
 
 * nng_free
 #+begin_src til
-ext_proc nng_free(_arg: Dynamic, shallow _arg: U32)
+ext_proc nng_free(mut _arg: Dynamic, shallow _arg: U32)
 #+end_src
 
 * nng_strdup
@@ -806,107 +806,107 @@ ext_proc nng_strdup(_arg: I8) returns ref I8
 
 * nng_strfree
 #+begin_src til
-ext_proc nng_strfree(_arg: I8)
+ext_proc nng_strfree(mut _arg: I8)
 #+end_src
 
 * nng_aio_free
 #+begin_src til
-ext_proc nng_aio_free(_arg: nng_aio)
+ext_proc nng_aio_free(mut _arg: nng_aio)
 #+end_src
 
 * nng_aio_reap
 #+begin_src til
-ext_proc nng_aio_reap(_arg: nng_aio)
+ext_proc nng_aio_reap(mut _arg: nng_aio)
 #+end_src
 
 * nng_aio_stop
 #+begin_src til
-ext_proc nng_aio_stop(_arg: nng_aio)
+ext_proc nng_aio_stop(mut _arg: nng_aio)
 #+end_src
 
 * nng_aio_result
 #+begin_src til
-ext_proc nng_aio_result(_arg: nng_aio) returns shallow I32
+ext_proc nng_aio_result(mut _arg: nng_aio) returns shallow I32
 #+end_src
 
 * nng_aio_count
 #+begin_src til
-ext_proc nng_aio_count(_arg: nng_aio) returns shallow U32
+ext_proc nng_aio_count(mut _arg: nng_aio) returns shallow U32
 #+end_src
 
 * nng_aio_cancel
 #+begin_src til
-ext_proc nng_aio_cancel(_arg: nng_aio)
+ext_proc nng_aio_cancel(mut _arg: nng_aio)
 #+end_src
 
 * nng_aio_abort
 #+begin_src til
-ext_proc nng_aio_abort(_arg: nng_aio, shallow _arg: I32)
+ext_proc nng_aio_abort(mut _arg: nng_aio, shallow _arg: I32)
 #+end_src
 
 * nng_aio_wait
 #+begin_src til
-ext_proc nng_aio_wait(_arg: nng_aio)
+ext_proc nng_aio_wait(mut _arg: nng_aio)
 #+end_src
 
 * nng_aio_busy
 #+begin_src til
-ext_proc nng_aio_busy(_arg: nng_aio) returns shallow Bool
+ext_proc nng_aio_busy(mut _arg: nng_aio) returns shallow Bool
 #+end_src
 
 * nng_aio_set_msg
 #+begin_src til
-ext_proc nng_aio_set_msg(_arg: nng_aio, _arg: nng_msg)
+ext_proc nng_aio_set_msg(mut _arg: nng_aio, mut _arg: nng_msg)
 #+end_src
 
 * nng_aio_get_msg
 #+begin_src til
-ext_proc nng_aio_get_msg(_arg: nng_aio) returns ref nng_msg
+ext_proc nng_aio_get_msg(mut _arg: nng_aio) returns ref nng_msg
 #+end_src
 
 * nng_aio_set_input
 #+begin_src til
-ext_proc nng_aio_set_input(_arg: nng_aio, shallow _arg: U32, _arg: Dynamic) returns shallow I32
+ext_proc nng_aio_set_input(mut _arg: nng_aio, shallow _arg: U32, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_aio_get_input
 #+begin_src til
-ext_proc nng_aio_get_input(_arg: nng_aio, shallow _arg: U32) returns Dynamic
+ext_proc nng_aio_get_input(mut _arg: nng_aio, shallow _arg: U32) returns Dynamic
 #+end_src
 
 * nng_aio_set_output
 #+begin_src til
-ext_proc nng_aio_set_output(_arg: nng_aio, shallow _arg: U32, _arg: Dynamic) returns shallow I32
+ext_proc nng_aio_set_output(mut _arg: nng_aio, shallow _arg: U32, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_aio_get_output
 #+begin_src til
-ext_proc nng_aio_get_output(_arg: nng_aio, shallow _arg: U32) returns Dynamic
+ext_proc nng_aio_get_output(mut _arg: nng_aio, shallow _arg: U32) returns Dynamic
 #+end_src
 
 * nng_aio_set_timeout
 #+begin_src til
-ext_proc nng_aio_set_timeout(_arg: nng_aio, shallow _arg: I32)
+ext_proc nng_aio_set_timeout(mut _arg: nng_aio, shallow _arg: I32)
 #+end_src
 
 * nng_aio_set_expire
 #+begin_src til
-ext_proc nng_aio_set_expire(_arg: nng_aio, shallow _arg: U64)
+ext_proc nng_aio_set_expire(mut _arg: nng_aio, shallow _arg: U64)
 #+end_src
 
 * nng_aio_set_iov
 #+begin_src til
-ext_proc nng_aio_set_iov(_arg: nng_aio, shallow _arg: U32, _arg: nng_iov) returns shallow I32
+ext_proc nng_aio_set_iov(mut _arg: nng_aio, shallow _arg: U32, _arg: nng_iov) returns shallow I32
 #+end_src
 
 * nng_aio_begin
 #+begin_src til
-ext_proc nng_aio_begin(_arg: nng_aio) returns shallow Bool
+ext_proc nng_aio_begin(mut _arg: nng_aio) returns shallow Bool
 #+end_src
 
 * nng_aio_finish
 #+begin_src til
-ext_proc nng_aio_finish(_arg: nng_aio, shallow _arg: I32)
+ext_proc nng_aio_finish(mut _arg: nng_aio, shallow _arg: I32)
 #+end_src
 
 * nng_aio_cancelfn
@@ -916,42 +916,42 @@ nng_aio_cancelfn
 
 * nng_aio_defer
 #+begin_src til
-ext_proc nng_aio_defer(_arg: nng_aio, _arg: Dynamic, _arg: Dynamic)
+ext_proc nng_aio_defer(mut _arg: nng_aio, _arg: Dynamic, mut _arg: Dynamic)
 #+end_src
 
 * nng_sleep_aio
 #+begin_src til
-ext_proc nng_sleep_aio(shallow _arg: I32, _arg: nng_aio)
+ext_proc nng_sleep_aio(shallow _arg: I32, mut _arg: nng_aio)
 #+end_src
 
 * nng_msg_alloc
 #+begin_src til
-ext_proc nng_msg_alloc(_arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_alloc(mut _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_free
 #+begin_src til
-ext_proc nng_msg_free(_arg: nng_msg)
+ext_proc nng_msg_free(mut _arg: nng_msg)
 #+end_src
 
 * nng_msg_realloc
 #+begin_src til
-ext_proc nng_msg_realloc(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_realloc(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_reserve
 #+begin_src til
-ext_proc nng_msg_reserve(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_reserve(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_capacity
 #+begin_src til
-ext_proc nng_msg_capacity(_arg: nng_msg) returns shallow U32
+ext_proc nng_msg_capacity(mut _arg: nng_msg) returns shallow U32
 #+end_src
 
 * nng_msg_header
 #+begin_src til
-ext_proc nng_msg_header(_arg: nng_msg) returns Dynamic
+ext_proc nng_msg_header(mut _arg: nng_msg) returns Dynamic
 #+end_src
 
 * nng_msg_header_len
@@ -961,7 +961,7 @@ ext_proc nng_msg_header_len(_arg: nng_msg) returns shallow U32
 
 * nng_msg_body
 #+begin_src til
-ext_proc nng_msg_body(_arg: nng_msg) returns Dynamic
+ext_proc nng_msg_body(mut _arg: nng_msg) returns Dynamic
 #+end_src
 
 * nng_msg_len
@@ -971,182 +971,182 @@ ext_proc nng_msg_len(_arg: nng_msg) returns shallow U32
 
 * nng_msg_append
 #+begin_src til
-ext_proc nng_msg_append(_arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_append(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_insert
 #+begin_src til
-ext_proc nng_msg_insert(_arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_insert(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_trim
 #+begin_src til
-ext_proc nng_msg_trim(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_trim(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_chop
 #+begin_src til
-ext_proc nng_msg_chop(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_chop(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_append
 #+begin_src til
-ext_proc nng_msg_header_append(_arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_header_append(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_insert
 #+begin_src til
-ext_proc nng_msg_header_insert(_arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_header_insert(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_trim
 #+begin_src til
-ext_proc nng_msg_header_trim(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_header_trim(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_chop
 #+begin_src til
-ext_proc nng_msg_header_chop(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_header_chop(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_append_u16
 #+begin_src til
-ext_proc nng_msg_header_append_u16(_arg: nng_msg, shallow _arg: I16) returns shallow I32
+ext_proc nng_msg_header_append_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_header_append_u32
 #+begin_src til
-ext_proc nng_msg_header_append_u32(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_header_append_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_append_u64
 #+begin_src til
-ext_proc nng_msg_header_append_u64(_arg: nng_msg, shallow _arg: U64) returns shallow I32
+ext_proc nng_msg_header_append_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_header_insert_u16
 #+begin_src til
-ext_proc nng_msg_header_insert_u16(_arg: nng_msg, shallow _arg: I16) returns shallow I32
+ext_proc nng_msg_header_insert_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_header_insert_u32
 #+begin_src til
-ext_proc nng_msg_header_insert_u32(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_header_insert_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_insert_u64
 #+begin_src til
-ext_proc nng_msg_header_insert_u64(_arg: nng_msg, shallow _arg: U64) returns shallow I32
+ext_proc nng_msg_header_insert_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_header_chop_u16
 #+begin_src til
-ext_proc nng_msg_header_chop_u16(_arg: nng_msg, _arg: I16) returns shallow I32
+ext_proc nng_msg_header_chop_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_header_chop_u32
 #+begin_src til
-ext_proc nng_msg_header_chop_u32(_arg: nng_msg, _arg: U32) returns shallow I32
+ext_proc nng_msg_header_chop_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_chop_u64
 #+begin_src til
-ext_proc nng_msg_header_chop_u64(_arg: nng_msg, _arg: U64) returns shallow I32
+ext_proc nng_msg_header_chop_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_header_trim_u16
 #+begin_src til
-ext_proc nng_msg_header_trim_u16(_arg: nng_msg, _arg: I16) returns shallow I32
+ext_proc nng_msg_header_trim_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_header_trim_u32
 #+begin_src til
-ext_proc nng_msg_header_trim_u32(_arg: nng_msg, _arg: U32) returns shallow I32
+ext_proc nng_msg_header_trim_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_header_trim_u64
 #+begin_src til
-ext_proc nng_msg_header_trim_u64(_arg: nng_msg, _arg: U64) returns shallow I32
+ext_proc nng_msg_header_trim_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_append_u16
 #+begin_src til
-ext_proc nng_msg_append_u16(_arg: nng_msg, shallow _arg: I16) returns shallow I32
+ext_proc nng_msg_append_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_append_u32
 #+begin_src til
-ext_proc nng_msg_append_u32(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_append_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_append_u64
 #+begin_src til
-ext_proc nng_msg_append_u64(_arg: nng_msg, shallow _arg: U64) returns shallow I32
+ext_proc nng_msg_append_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_insert_u16
 #+begin_src til
-ext_proc nng_msg_insert_u16(_arg: nng_msg, shallow _arg: I16) returns shallow I32
+ext_proc nng_msg_insert_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_insert_u32
 #+begin_src til
-ext_proc nng_msg_insert_u32(_arg: nng_msg, shallow _arg: U32) returns shallow I32
+ext_proc nng_msg_insert_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_insert_u64
 #+begin_src til
-ext_proc nng_msg_insert_u64(_arg: nng_msg, shallow _arg: U64) returns shallow I32
+ext_proc nng_msg_insert_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_chop_u16
 #+begin_src til
-ext_proc nng_msg_chop_u16(_arg: nng_msg, _arg: I16) returns shallow I32
+ext_proc nng_msg_chop_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_chop_u32
 #+begin_src til
-ext_proc nng_msg_chop_u32(_arg: nng_msg, _arg: U32) returns shallow I32
+ext_proc nng_msg_chop_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_chop_u64
 #+begin_src til
-ext_proc nng_msg_chop_u64(_arg: nng_msg, _arg: U64) returns shallow I32
+ext_proc nng_msg_chop_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_trim_u16
 #+begin_src til
-ext_proc nng_msg_trim_u16(_arg: nng_msg, _arg: I16) returns shallow I32
+ext_proc nng_msg_trim_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
 #+end_src
 
 * nng_msg_trim_u32
 #+begin_src til
-ext_proc nng_msg_trim_u32(_arg: nng_msg, _arg: U32) returns shallow I32
+ext_proc nng_msg_trim_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_msg_trim_u64
 #+begin_src til
-ext_proc nng_msg_trim_u64(_arg: nng_msg, _arg: U64) returns shallow I32
+ext_proc nng_msg_trim_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_msg_dup
 #+begin_src til
-ext_proc nng_msg_dup(_arg: Dynamic, _arg: nng_msg) returns shallow I32
+ext_proc nng_msg_dup(mut _arg: Dynamic, _arg: nng_msg) returns shallow I32
 #+end_src
 
 * nng_msg_clear
 #+begin_src til
-ext_proc nng_msg_clear(_arg: nng_msg)
+ext_proc nng_msg_clear(mut _arg: nng_msg)
 #+end_src
 
 * nng_msg_header_clear
 #+begin_src til
-ext_proc nng_msg_header_clear(_arg: nng_msg)
+ext_proc nng_msg_header_clear(mut _arg: nng_msg)
 #+end_src
 
 * nng_msg_set_pipe
 #+begin_src til
-ext_proc nng_msg_set_pipe(_arg: nng_msg, shallow _arg: nng_pipe)
+ext_proc nng_msg_set_pipe(mut _arg: nng_msg, shallow _arg: nng_pipe)
 #+end_src
 
 * nng_msg_get_pipe
@@ -1156,47 +1156,47 @@ ext_proc nng_msg_get_pipe(_arg: nng_msg) returns shallow nng_pipe
 
 * nng_pipe_get
 #+begin_src til
-ext_proc nng_pipe_get(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_pipe_get(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_pipe_get_bool
 #+begin_src til
-ext_proc nng_pipe_get_bool(shallow _arg: nng_pipe, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_pipe_get_bool(shallow _arg: nng_pipe, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_pipe_get_int
 #+begin_src til
-ext_proc nng_pipe_get_int(shallow _arg: nng_pipe, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_pipe_get_int(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_pipe_get_ms
 #+begin_src til
-ext_proc nng_pipe_get_ms(shallow _arg: nng_pipe, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_pipe_get_ms(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_pipe_get_size
 #+begin_src til
-ext_proc nng_pipe_get_size(shallow _arg: nng_pipe, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_pipe_get_size(shallow _arg: nng_pipe, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_pipe_get_uint64
 #+begin_src til
-ext_proc nng_pipe_get_uint64(shallow _arg: nng_pipe, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_pipe_get_uint64(shallow _arg: nng_pipe, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_pipe_get_string
 #+begin_src til
-ext_proc nng_pipe_get_string(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_get_string(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_pipe_get_ptr
 #+begin_src til
-ext_proc nng_pipe_get_ptr(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_get_ptr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_pipe_get_addr
 #+begin_src til
-ext_proc nng_pipe_get_addr(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_get_addr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_pipe_close
@@ -1226,87 +1226,87 @@ ext_proc nng_pipe_listener(shallow _arg: nng_pipe) returns shallow nng_listener
 
 * nng_stats_get
 #+begin_src til
-ext_proc nng_stats_get(_arg: Dynamic) returns shallow I32
+ext_proc nng_stats_get(mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stats_free
 #+begin_src til
-ext_proc nng_stats_free(_arg: nng_stat)
+ext_proc nng_stats_free(mut _arg: nng_stat)
 #+end_src
 
 * nng_stats_dump
 #+begin_src til
-ext_proc nng_stats_dump(_arg: nng_stat)
+ext_proc nng_stats_dump(mut _arg: nng_stat)
 #+end_src
 
 * nng_stat_next
 #+begin_src til
-ext_proc nng_stat_next(_arg: nng_stat) returns ref nng_stat
+ext_proc nng_stat_next(mut _arg: nng_stat) returns ref nng_stat
 #+end_src
 
 * nng_stat_child
 #+begin_src til
-ext_proc nng_stat_child(_arg: nng_stat) returns ref nng_stat
+ext_proc nng_stat_child(mut _arg: nng_stat) returns ref nng_stat
 #+end_src
 
 * nng_stat_name
 #+begin_src til
-ext_proc nng_stat_name(_arg: nng_stat) returns ref I8
+ext_proc nng_stat_name(mut _arg: nng_stat) returns ref I8
 #+end_src
 
 * nng_stat_type
 #+begin_src til
-ext_proc nng_stat_type(_arg: nng_stat) returns shallow I32
+ext_proc nng_stat_type(mut _arg: nng_stat) returns shallow I32
 #+end_src
 
 * nng_stat_find
 #+begin_src til
-ext_proc nng_stat_find(_arg: nng_stat, _arg: I8) returns ref nng_stat
+ext_proc nng_stat_find(mut _arg: nng_stat, _arg: I8) returns ref nng_stat
 #+end_src
 
 * nng_stat_find_socket
 #+begin_src til
-ext_proc nng_stat_find_socket(_arg: nng_stat, shallow _arg: nng_socket) returns ref nng_stat
+ext_proc nng_stat_find_socket(mut _arg: nng_stat, shallow _arg: nng_socket) returns ref nng_stat
 #+end_src
 
 * nng_stat_find_dialer
 #+begin_src til
-ext_proc nng_stat_find_dialer(_arg: nng_stat, shallow _arg: nng_dialer) returns ref nng_stat
+ext_proc nng_stat_find_dialer(mut _arg: nng_stat, shallow _arg: nng_dialer) returns ref nng_stat
 #+end_src
 
 * nng_stat_find_listener
 #+begin_src til
-ext_proc nng_stat_find_listener(_arg: nng_stat, shallow _arg: nng_listener) returns ref nng_stat
+ext_proc nng_stat_find_listener(mut _arg: nng_stat, shallow _arg: nng_listener) returns ref nng_stat
 #+end_src
 
 * nng_stat_unit
 #+begin_src til
-ext_proc nng_stat_unit(_arg: nng_stat) returns shallow I32
+ext_proc nng_stat_unit(mut _arg: nng_stat) returns shallow I32
 #+end_src
 
 * nng_stat_value
 #+begin_src til
-ext_proc nng_stat_value(_arg: nng_stat) returns shallow U64
+ext_proc nng_stat_value(mut _arg: nng_stat) returns shallow U64
 #+end_src
 
 * nng_stat_bool
 #+begin_src til
-ext_proc nng_stat_bool(_arg: nng_stat) returns shallow Bool
+ext_proc nng_stat_bool(mut _arg: nng_stat) returns shallow Bool
 #+end_src
 
 * nng_stat_string
 #+begin_src til
-ext_proc nng_stat_string(_arg: nng_stat) returns ref I8
+ext_proc nng_stat_string(mut _arg: nng_stat) returns ref I8
 #+end_src
 
 * nng_stat_desc
 #+begin_src til
-ext_proc nng_stat_desc(_arg: nng_stat) returns ref I8
+ext_proc nng_stat_desc(mut _arg: nng_stat) returns ref I8
 #+end_src
 
 * nng_stat_timestamp
 #+begin_src til
-ext_proc nng_stat_timestamp(_arg: nng_stat) returns shallow U64
+ext_proc nng_stat_timestamp(mut _arg: nng_stat) returns shallow U64
 #+end_src
 
 * nng_device
@@ -1316,7 +1316,7 @@ ext_proc nng_device(shallow _arg: nng_socket, shallow _arg: nng_socket) returns 
 
 * nng_device_aio
 #+begin_src til
-ext_proc nng_device_aio(_arg: nng_aio, shallow _arg: nng_socket, shallow _arg: nng_socket)
+ext_proc nng_device_aio(mut _arg: nng_aio, shallow _arg: nng_socket, shallow _arg: nng_socket)
 #+end_src
 
 * nng_url
@@ -1341,17 +1341,17 @@ namespace:
 
 * nng_url_parse
 #+begin_src til
-ext_proc nng_url_parse(_arg: Dynamic, _arg: I8) returns shallow I32
+ext_proc nng_url_parse(mut _arg: Dynamic, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_url_free
 #+begin_src til
-ext_proc nng_url_free(_arg: nng_url)
+ext_proc nng_url_free(mut _arg: nng_url)
 #+end_src
 
 * nng_url_clone
 #+begin_src til
-ext_proc nng_url_clone(_arg: Dynamic, _arg: nng_url) returns shallow I32
+ext_proc nng_url_clone(mut _arg: Dynamic, _arg: nng_url) returns shallow I32
 #+end_src
 
 * nng_version
@@ -1394,342 +1394,342 @@ namespace:
 
 * nng_stream_free
 #+begin_src til
-ext_proc nng_stream_free(_arg: nng_stream)
+ext_proc nng_stream_free(mut _arg: nng_stream)
 #+end_src
 
 * nng_stream_close
 #+begin_src til
-ext_proc nng_stream_close(_arg: nng_stream)
+ext_proc nng_stream_close(mut _arg: nng_stream)
 #+end_src
 
 * nng_stream_send
 #+begin_src til
-ext_proc nng_stream_send(_arg: nng_stream, _arg: nng_aio)
+ext_proc nng_stream_send(mut _arg: nng_stream, mut _arg: nng_aio)
 #+end_src
 
 * nng_stream_recv
 #+begin_src til
-ext_proc nng_stream_recv(_arg: nng_stream, _arg: nng_aio)
+ext_proc nng_stream_recv(mut _arg: nng_stream, mut _arg: nng_aio)
 #+end_src
 
 * nng_stream_get
 #+begin_src til
-ext_proc nng_stream_get(_arg: nng_stream, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_stream_get(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_get_bool
 #+begin_src til
-ext_proc nng_stream_get_bool(_arg: nng_stream, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_stream_get_bool(mut _arg: nng_stream, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_stream_get_int
 #+begin_src til
-ext_proc nng_stream_get_int(_arg: nng_stream, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_stream_get_int(mut _arg: nng_stream, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_get_ms
 #+begin_src til
-ext_proc nng_stream_get_ms(_arg: nng_stream, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_stream_get_ms(mut _arg: nng_stream, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_get_size
 #+begin_src til
-ext_proc nng_stream_get_size(_arg: nng_stream, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_stream_get_size(mut _arg: nng_stream, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_get_uint64
 #+begin_src til
-ext_proc nng_stream_get_uint64(_arg: nng_stream, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_stream_get_uint64(mut _arg: nng_stream, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_stream_get_string
 #+begin_src til
-ext_proc nng_stream_get_string(_arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_get_string(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_get_ptr
 #+begin_src til
-ext_proc nng_stream_get_ptr(_arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_get_ptr(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_get_addr
 #+begin_src til
-ext_proc nng_stream_get_addr(_arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_get_addr(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_set
 #+begin_src til
-ext_proc nng_stream_set(_arg: nng_stream, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_stream_set(mut _arg: nng_stream, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_set_bool
 #+begin_src til
-ext_proc nng_stream_set_bool(_arg: nng_stream, _arg: I8, shallow _arg: Bool) returns shallow I32
+ext_proc nng_stream_set_bool(mut _arg: nng_stream, _arg: I8, shallow _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_stream_set_int
 #+begin_src til
-ext_proc nng_stream_set_int(_arg: nng_stream, _arg: I8, shallow _arg: I32) returns shallow I32
+ext_proc nng_stream_set_int(mut _arg: nng_stream, _arg: I8, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_set_ms
 #+begin_src til
-ext_proc nng_stream_set_ms(_arg: nng_stream, _arg: I8, shallow _arg: I32) returns shallow I32
+ext_proc nng_stream_set_ms(mut _arg: nng_stream, _arg: I8, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_set_size
 #+begin_src til
-ext_proc nng_stream_set_size(_arg: nng_stream, _arg: I8, shallow _arg: U32) returns shallow I32
+ext_proc nng_stream_set_size(mut _arg: nng_stream, _arg: I8, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_set_uint64
 #+begin_src til
-ext_proc nng_stream_set_uint64(_arg: nng_stream, _arg: I8, shallow _arg: U64) returns shallow I32
+ext_proc nng_stream_set_uint64(mut _arg: nng_stream, _arg: I8, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_stream_set_string
 #+begin_src til
-ext_proc nng_stream_set_string(_arg: nng_stream, _arg: I8, _arg: I8) returns shallow I32
+ext_proc nng_stream_set_string(mut _arg: nng_stream, _arg: I8, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_stream_set_ptr
 #+begin_src til
-ext_proc nng_stream_set_ptr(_arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_set_ptr(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_alloc
 #+begin_src til
-ext_proc nng_stream_dialer_alloc(_arg: Dynamic, _arg: I8) returns shallow I32
+ext_proc nng_stream_dialer_alloc(mut _arg: Dynamic, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_alloc_url
 #+begin_src til
-ext_proc nng_stream_dialer_alloc_url(_arg: Dynamic, _arg: nng_url) returns shallow I32
+ext_proc nng_stream_dialer_alloc_url(mut _arg: Dynamic, _arg: nng_url) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_free
 #+begin_src til
-ext_proc nng_stream_dialer_free(_arg: nng_stream_dialer)
+ext_proc nng_stream_dialer_free(mut _arg: nng_stream_dialer)
 #+end_src
 
 * nng_stream_dialer_close
 #+begin_src til
-ext_proc nng_stream_dialer_close(_arg: nng_stream_dialer)
+ext_proc nng_stream_dialer_close(mut _arg: nng_stream_dialer)
 #+end_src
 
 * nng_stream_dialer_dial
 #+begin_src til
-ext_proc nng_stream_dialer_dial(_arg: nng_stream_dialer, _arg: nng_aio)
+ext_proc nng_stream_dialer_dial(mut _arg: nng_stream_dialer, mut _arg: nng_aio)
 #+end_src
 
 * nng_stream_dialer_set
 #+begin_src til
-ext_proc nng_stream_dialer_set(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_stream_dialer_set(mut _arg: nng_stream_dialer, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get
 #+begin_src til
-ext_proc nng_stream_dialer_get(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_stream_dialer_get(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_bool
 #+begin_src til
-ext_proc nng_stream_dialer_get_bool(_arg: nng_stream_dialer, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_stream_dialer_get_bool(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_int
 #+begin_src til
-ext_proc nng_stream_dialer_get_int(_arg: nng_stream_dialer, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_stream_dialer_get_int(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_ms
 #+begin_src til
-ext_proc nng_stream_dialer_get_ms(_arg: nng_stream_dialer, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_stream_dialer_get_ms(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_size
 #+begin_src til
-ext_proc nng_stream_dialer_get_size(_arg: nng_stream_dialer, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_stream_dialer_get_size(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_uint64
 #+begin_src til
-ext_proc nng_stream_dialer_get_uint64(_arg: nng_stream_dialer, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_stream_dialer_get_uint64(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_string
 #+begin_src til
-ext_proc nng_stream_dialer_get_string(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_dialer_get_string(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_ptr
 #+begin_src til
-ext_proc nng_stream_dialer_get_ptr(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_dialer_get_ptr(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_get_addr
 #+begin_src til
-ext_proc nng_stream_dialer_get_addr(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_dialer_get_addr(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_bool
 #+begin_src til
-ext_proc nng_stream_dialer_set_bool(_arg: nng_stream_dialer, _arg: I8, shallow _arg: Bool) returns shallow I32
+ext_proc nng_stream_dialer_set_bool(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_int
 #+begin_src til
-ext_proc nng_stream_dialer_set_int(_arg: nng_stream_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+ext_proc nng_stream_dialer_set_int(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_ms
 #+begin_src til
-ext_proc nng_stream_dialer_set_ms(_arg: nng_stream_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+ext_proc nng_stream_dialer_set_ms(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_size
 #+begin_src til
-ext_proc nng_stream_dialer_set_size(_arg: nng_stream_dialer, _arg: I8, shallow _arg: U32) returns shallow I32
+ext_proc nng_stream_dialer_set_size(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_uint64
 #+begin_src til
-ext_proc nng_stream_dialer_set_uint64(_arg: nng_stream_dialer, _arg: I8, shallow _arg: U64) returns shallow I32
+ext_proc nng_stream_dialer_set_uint64(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_string
 #+begin_src til
-ext_proc nng_stream_dialer_set_string(_arg: nng_stream_dialer, _arg: I8, _arg: I8) returns shallow I32
+ext_proc nng_stream_dialer_set_string(mut _arg: nng_stream_dialer, _arg: I8, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_ptr
 #+begin_src til
-ext_proc nng_stream_dialer_set_ptr(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_dialer_set_ptr(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_dialer_set_addr
 #+begin_src til
-ext_proc nng_stream_dialer_set_addr(_arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_dialer_set_addr(mut _arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_listener_alloc
 #+begin_src til
-ext_proc nng_stream_listener_alloc(_arg: Dynamic, _arg: I8) returns shallow I32
+ext_proc nng_stream_listener_alloc(mut _arg: Dynamic, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_stream_listener_alloc_url
 #+begin_src til
-ext_proc nng_stream_listener_alloc_url(_arg: Dynamic, _arg: nng_url) returns shallow I32
+ext_proc nng_stream_listener_alloc_url(mut _arg: Dynamic, _arg: nng_url) returns shallow I32
 #+end_src
 
 * nng_stream_listener_free
 #+begin_src til
-ext_proc nng_stream_listener_free(_arg: nng_stream_listener)
+ext_proc nng_stream_listener_free(mut _arg: nng_stream_listener)
 #+end_src
 
 * nng_stream_listener_close
 #+begin_src til
-ext_proc nng_stream_listener_close(_arg: nng_stream_listener)
+ext_proc nng_stream_listener_close(mut _arg: nng_stream_listener)
 #+end_src
 
 * nng_stream_listener_listen
 #+begin_src til
-ext_proc nng_stream_listener_listen(_arg: nng_stream_listener) returns shallow I32
+ext_proc nng_stream_listener_listen(mut _arg: nng_stream_listener) returns shallow I32
 #+end_src
 
 * nng_stream_listener_accept
 #+begin_src til
-ext_proc nng_stream_listener_accept(_arg: nng_stream_listener, _arg: nng_aio)
+ext_proc nng_stream_listener_accept(mut _arg: nng_stream_listener, mut _arg: nng_aio)
 #+end_src
 
 * nng_stream_listener_set
 #+begin_src til
-ext_proc nng_stream_listener_set(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+ext_proc nng_stream_listener_set(mut _arg: nng_stream_listener, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get
 #+begin_src til
-ext_proc nng_stream_listener_get(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_stream_listener_get(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_bool
 #+begin_src til
-ext_proc nng_stream_listener_get_bool(_arg: nng_stream_listener, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_stream_listener_get_bool(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_int
 #+begin_src til
-ext_proc nng_stream_listener_get_int(_arg: nng_stream_listener, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_stream_listener_get_int(mut _arg: nng_stream_listener, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_ms
 #+begin_src til
-ext_proc nng_stream_listener_get_ms(_arg: nng_stream_listener, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_stream_listener_get_ms(mut _arg: nng_stream_listener, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_size
 #+begin_src til
-ext_proc nng_stream_listener_get_size(_arg: nng_stream_listener, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_stream_listener_get_size(mut _arg: nng_stream_listener, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_uint64
 #+begin_src til
-ext_proc nng_stream_listener_get_uint64(_arg: nng_stream_listener, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_stream_listener_get_uint64(mut _arg: nng_stream_listener, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_string
 #+begin_src til
-ext_proc nng_stream_listener_get_string(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_listener_get_string(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_ptr
 #+begin_src til
-ext_proc nng_stream_listener_get_ptr(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_listener_get_ptr(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_listener_get_addr
 #+begin_src til
-ext_proc nng_stream_listener_get_addr(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_listener_get_addr(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_bool
 #+begin_src til
-ext_proc nng_stream_listener_set_bool(_arg: nng_stream_listener, _arg: I8, shallow _arg: Bool) returns shallow I32
+ext_proc nng_stream_listener_set_bool(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_int
 #+begin_src til
-ext_proc nng_stream_listener_set_int(_arg: nng_stream_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+ext_proc nng_stream_listener_set_int(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_ms
 #+begin_src til
-ext_proc nng_stream_listener_set_ms(_arg: nng_stream_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+ext_proc nng_stream_listener_set_ms(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: I32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_size
 #+begin_src til
-ext_proc nng_stream_listener_set_size(_arg: nng_stream_listener, _arg: I8, shallow _arg: U32) returns shallow I32
+ext_proc nng_stream_listener_set_size(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: U32) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_uint64
 #+begin_src til
-ext_proc nng_stream_listener_set_uint64(_arg: nng_stream_listener, _arg: I8, shallow _arg: U64) returns shallow I32
+ext_proc nng_stream_listener_set_uint64(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_string
 #+begin_src til
-ext_proc nng_stream_listener_set_string(_arg: nng_stream_listener, _arg: I8, _arg: I8) returns shallow I32
+ext_proc nng_stream_listener_set_string(mut _arg: nng_stream_listener, _arg: I8, _arg: I8) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_ptr
 #+begin_src til
-ext_proc nng_stream_listener_set_ptr(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_listener_set_ptr(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_stream_listener_set_addr
 #+begin_src til
-ext_proc nng_stream_listener_set_addr(_arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_listener_set_addr(mut _arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_udp
@@ -1745,77 +1745,77 @@ namespace:
 
 * nng_udp_open
 #+begin_src til
-ext_proc nng_udp_open(udpp: Dynamic, sa: Dynamic) returns shallow I32
+ext_proc nng_udp_open(mut udpp: Dynamic, mut sa: Dynamic) returns shallow I32
 #+end_src
 
 * nng_udp_close
 #+begin_src til
-ext_proc nng_udp_close(udp: nng_udp)
+ext_proc nng_udp_close(mut udp: nng_udp)
 #+end_src
 
 * nng_udp_sockname
 #+begin_src til
-ext_proc nng_udp_sockname(udp: nng_udp, sa: Dynamic) returns shallow I32
+ext_proc nng_udp_sockname(mut udp: nng_udp, mut sa: Dynamic) returns shallow I32
 #+end_src
 
 * nng_udp_send
 #+begin_src til
-ext_proc nng_udp_send(udp: nng_udp, aio: nng_aio)
+ext_proc nng_udp_send(mut udp: nng_udp, mut aio: nng_aio)
 #+end_src
 
 * nng_udp_recv
 #+begin_src til
-ext_proc nng_udp_recv(udp: nng_udp, aio: nng_aio)
+ext_proc nng_udp_recv(mut udp: nng_udp, mut aio: nng_aio)
 #+end_src
 
 * nng_udp_multicast_membership
 #+begin_src til
-ext_proc nng_udp_multicast_membership(udp: nng_udp, sa: Dynamic, shallow join: Bool) returns shallow I32
+ext_proc nng_udp_multicast_membership(mut udp: nng_udp, mut sa: Dynamic, shallow join: Bool) returns shallow I32
 #+end_src
 
 * nng_msg_getopt
 #+begin_src til
-ext_proc nng_msg_getopt(_arg: nng_msg, shallow _arg: I32, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_msg_getopt(mut _arg: nng_msg, shallow _arg: I32, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_getopt
 #+begin_src til
-ext_proc nng_getopt(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_getopt(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_getopt_bool
 #+begin_src til
-ext_proc nng_getopt_bool(shallow _arg: nng_socket, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_getopt_bool(shallow _arg: nng_socket, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_getopt_int
 #+begin_src til
-ext_proc nng_getopt_int(shallow _arg: nng_socket, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_getopt_int(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_getopt_ms
 #+begin_src til
-ext_proc nng_getopt_ms(shallow _arg: nng_socket, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_getopt_ms(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_getopt_size
 #+begin_src til
-ext_proc nng_getopt_size(shallow _arg: nng_socket, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_getopt_size(shallow _arg: nng_socket, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_getopt_uint64
 #+begin_src til
-ext_proc nng_getopt_uint64(shallow _arg: nng_socket, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_getopt_uint64(shallow _arg: nng_socket, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_getopt_ptr
 #+begin_src til
-ext_proc nng_getopt_ptr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_getopt_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_getopt_string
 #+begin_src til
-ext_proc nng_getopt_string(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_getopt_string(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_setopt
@@ -1855,32 +1855,32 @@ ext_proc nng_setopt_string(shallow _arg: nng_socket, _arg: I8, _arg: I8) returns
 
 * nng_setopt_ptr
 #+begin_src til
-ext_proc nng_setopt_ptr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_setopt_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_ctx_getopt
 #+begin_src til
-ext_proc nng_ctx_getopt(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_ctx_getopt(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_ctx_getopt_bool
 #+begin_src til
-ext_proc nng_ctx_getopt_bool(shallow _arg: nng_ctx, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_ctx_getopt_bool(shallow _arg: nng_ctx, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_ctx_getopt_int
 #+begin_src til
-ext_proc nng_ctx_getopt_int(shallow _arg: nng_ctx, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_ctx_getopt_int(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_ctx_getopt_ms
 #+begin_src til
-ext_proc nng_ctx_getopt_ms(shallow _arg: nng_ctx, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_ctx_getopt_ms(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_ctx_getopt_size
 #+begin_src til
-ext_proc nng_ctx_getopt_size(shallow _arg: nng_ctx, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_ctx_getopt_size(shallow _arg: nng_ctx, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_ctx_setopt
@@ -1910,47 +1910,47 @@ ext_proc nng_ctx_setopt_size(shallow _arg: nng_ctx, _arg: I8, shallow _arg: U32)
 
 * nng_dialer_getopt
 #+begin_src til
-ext_proc nng_dialer_getopt(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_dialer_getopt(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_bool
 #+begin_src til
-ext_proc nng_dialer_getopt_bool(shallow _arg: nng_dialer, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_dialer_getopt_bool(shallow _arg: nng_dialer, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_int
 #+begin_src til
-ext_proc nng_dialer_getopt_int(shallow _arg: nng_dialer, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_dialer_getopt_int(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_ms
 #+begin_src til
-ext_proc nng_dialer_getopt_ms(shallow _arg: nng_dialer, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_dialer_getopt_ms(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_size
 #+begin_src til
-ext_proc nng_dialer_getopt_size(shallow _arg: nng_dialer, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_dialer_getopt_size(shallow _arg: nng_dialer, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_sockaddr
 #+begin_src til
-ext_proc nng_dialer_getopt_sockaddr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_getopt_sockaddr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_uint64
 #+begin_src til
-ext_proc nng_dialer_getopt_uint64(shallow _arg: nng_dialer, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_dialer_getopt_uint64(shallow _arg: nng_dialer, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_ptr
 #+begin_src til
-ext_proc nng_dialer_getopt_ptr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_getopt_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_getopt_string
 #+begin_src til
-ext_proc nng_dialer_getopt_string(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_getopt_string(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_setopt
@@ -1985,7 +1985,7 @@ ext_proc nng_dialer_setopt_uint64(shallow _arg: nng_dialer, _arg: I8, shallow _a
 
 * nng_dialer_setopt_ptr
 #+begin_src til
-ext_proc nng_dialer_setopt_ptr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_dialer_setopt_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_dialer_setopt_string
@@ -1995,47 +1995,47 @@ ext_proc nng_dialer_setopt_string(shallow _arg: nng_dialer, _arg: I8, _arg: I8) 
 
 * nng_listener_getopt
 #+begin_src til
-ext_proc nng_listener_getopt(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_listener_getopt(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_bool
 #+begin_src til
-ext_proc nng_listener_getopt_bool(shallow _arg: nng_listener, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_listener_getopt_bool(shallow _arg: nng_listener, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_int
 #+begin_src til
-ext_proc nng_listener_getopt_int(shallow _arg: nng_listener, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_listener_getopt_int(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_ms
 #+begin_src til
-ext_proc nng_listener_getopt_ms(shallow _arg: nng_listener, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_listener_getopt_ms(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_size
 #+begin_src til
-ext_proc nng_listener_getopt_size(shallow _arg: nng_listener, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_listener_getopt_size(shallow _arg: nng_listener, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_sockaddr
 #+begin_src til
-ext_proc nng_listener_getopt_sockaddr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_getopt_sockaddr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_uint64
 #+begin_src til
-ext_proc nng_listener_getopt_uint64(shallow _arg: nng_listener, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_listener_getopt_uint64(shallow _arg: nng_listener, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_ptr
 #+begin_src til
-ext_proc nng_listener_getopt_ptr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_getopt_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_getopt_string
 #+begin_src til
-ext_proc nng_listener_getopt_string(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_getopt_string(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_setopt
@@ -2070,7 +2070,7 @@ ext_proc nng_listener_setopt_uint64(shallow _arg: nng_listener, _arg: I8, shallo
 
 * nng_listener_setopt_ptr
 #+begin_src til
-ext_proc nng_listener_setopt_ptr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_listener_setopt_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_listener_setopt_string
@@ -2080,47 +2080,47 @@ ext_proc nng_listener_setopt_string(shallow _arg: nng_listener, _arg: I8, _arg: 
 
 * nng_pipe_getopt
 #+begin_src til
-ext_proc nng_pipe_getopt(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic, _arg: U32) returns shallow I32
+ext_proc nng_pipe_getopt(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_bool
 #+begin_src til
-ext_proc nng_pipe_getopt_bool(shallow _arg: nng_pipe, _arg: I8, _arg: Bool) returns shallow I32
+ext_proc nng_pipe_getopt_bool(shallow _arg: nng_pipe, _arg: I8, mut _arg: Bool) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_int
 #+begin_src til
-ext_proc nng_pipe_getopt_int(shallow _arg: nng_pipe, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_pipe_getopt_int(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_ms
 #+begin_src til
-ext_proc nng_pipe_getopt_ms(shallow _arg: nng_pipe, _arg: I8, _arg: I32) returns shallow I32
+ext_proc nng_pipe_getopt_ms(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_size
 #+begin_src til
-ext_proc nng_pipe_getopt_size(shallow _arg: nng_pipe, _arg: I8, _arg: U32) returns shallow I32
+ext_proc nng_pipe_getopt_size(shallow _arg: nng_pipe, _arg: I8, mut _arg: U32) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_sockaddr
 #+begin_src til
-ext_proc nng_pipe_getopt_sockaddr(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_getopt_sockaddr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_uint64
 #+begin_src til
-ext_proc nng_pipe_getopt_uint64(shallow _arg: nng_pipe, _arg: I8, _arg: U64) returns shallow I32
+ext_proc nng_pipe_getopt_uint64(shallow _arg: nng_pipe, _arg: I8, mut _arg: U64) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_ptr
 #+begin_src til
-ext_proc nng_pipe_getopt_ptr(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_getopt_ptr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_pipe_getopt_string
 #+begin_src til
-ext_proc nng_pipe_getopt_string(shallow _arg: nng_pipe, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_pipe_getopt_string(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_closeall
@@ -2130,12 +2130,12 @@ ext_proc nng_closeall()
 
 * nng_stream_set_addr
 #+begin_src til
-ext_proc nng_stream_set_addr(_arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_stream_set_addr(mut _arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_ctx_get_addr
 #+begin_src til
-ext_proc nng_ctx_get_addr(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic) returns shallow I32
+ext_proc nng_ctx_get_addr(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_ctx_set_addr
@@ -2305,7 +2305,7 @@ ext_proc nng_random() returns shallow U32
 
 * nng_socket_pair
 #+begin_src til
-ext_proc nng_socket_pair(_arg: I32) returns shallow I32
+ext_proc nng_socket_pair(mut _arg: I32) returns shallow I32
 #+end_src
 
 * nng_thread
@@ -2321,12 +2321,12 @@ namespace:
 
 * nng_thread_set_name
 #+begin_src til
-ext_proc nng_thread_set_name(_arg: nng_thread, _arg: I8)
+ext_proc nng_thread_set_name(mut _arg: nng_thread, _arg: I8)
 #+end_src
 
 * nng_thread_destroy
 #+begin_src til
-ext_proc nng_thread_destroy(_arg: nng_thread)
+ext_proc nng_thread_destroy(mut _arg: nng_thread)
 #+end_src
 
 * nng_mtx
@@ -2342,22 +2342,22 @@ namespace:
 
 * nng_mtx_alloc
 #+begin_src til
-ext_proc nng_mtx_alloc(_arg: Dynamic) returns shallow I32
+ext_proc nng_mtx_alloc(mut _arg: Dynamic) returns shallow I32
 #+end_src
 
 * nng_mtx_free
 #+begin_src til
-ext_proc nng_mtx_free(_arg: nng_mtx)
+ext_proc nng_mtx_free(mut _arg: nng_mtx)
 #+end_src
 
 * nng_mtx_lock
 #+begin_src til
-ext_proc nng_mtx_lock(_arg: nng_mtx)
+ext_proc nng_mtx_lock(mut _arg: nng_mtx)
 #+end_src
 
 * nng_mtx_unlock
 #+begin_src til
-ext_proc nng_mtx_unlock(_arg: nng_mtx)
+ext_proc nng_mtx_unlock(mut _arg: nng_mtx)
 #+end_src
 
 * nng_cv
@@ -2373,32 +2373,32 @@ namespace:
 
 * nng_cv_alloc
 #+begin_src til
-ext_proc nng_cv_alloc(_arg: Dynamic, _arg: nng_mtx) returns shallow I32
+ext_proc nng_cv_alloc(mut _arg: Dynamic, mut _arg: nng_mtx) returns shallow I32
 #+end_src
 
 * nng_cv_free
 #+begin_src til
-ext_proc nng_cv_free(_arg: nng_cv)
+ext_proc nng_cv_free(mut _arg: nng_cv)
 #+end_src
 
 * nng_cv_wait
 #+begin_src til
-ext_proc nng_cv_wait(_arg: nng_cv)
+ext_proc nng_cv_wait(mut _arg: nng_cv)
 #+end_src
 
 * nng_cv_until
 #+begin_src til
-ext_proc nng_cv_until(_arg: nng_cv, shallow _arg: U64) returns shallow I32
+ext_proc nng_cv_until(mut _arg: nng_cv, shallow _arg: U64) returns shallow I32
 #+end_src
 
 * nng_cv_wake
 #+begin_src til
-ext_proc nng_cv_wake(_arg: nng_cv)
+ext_proc nng_cv_wake(mut _arg: nng_cv)
 #+end_src
 
 * nng_cv_wake1
 #+begin_src til
-ext_proc nng_cv_wake1(_arg: nng_cv)
+ext_proc nng_cv_wake1(mut _arg: nng_cv)
 #+end_src
 
 * nng_dialer_get_url
@@ -2413,116 +2413,116 @@ ext_proc nng_listener_get_url(shallow _arg: nng_listener, _arg: Dynamic) returns
 
 * nng_bus0_open
 #+begin_src til
-ext_proc nng_bus0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_bus0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_bus0_open_raw
 #+begin_src til
-ext_proc nng_bus0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_bus0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pair0_open
 #+begin_src til
-ext_proc nng_pair0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_pair0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pair0_open_raw
 #+begin_src til
-ext_proc nng_pair0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_pair0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pair1_open
 #+begin_src til
-ext_proc nng_pair1_open(sock: nng_socket) returns shallow I32
+ext_proc nng_pair1_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pair1_open_raw
 #+begin_src til
-ext_proc nng_pair1_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_pair1_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pair1_open_poly
 #+begin_src til
-ext_proc nng_pair1_open_poly(sock: nng_socket) returns shallow I32
+ext_proc nng_pair1_open_poly(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_push0_open
 #+begin_src til
-ext_proc nng_push0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_push0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_push0_open_raw
 #+begin_src til
-ext_proc nng_push0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_push0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pull0_open
 #+begin_src til
-ext_proc nng_pull0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_pull0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pull0_open_raw
 #+begin_src til
-ext_proc nng_pull0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_pull0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pub0_open
 #+begin_src til
-ext_proc nng_pub0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_pub0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_pub0_open_raw
 #+begin_src til
-ext_proc nng_pub0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_pub0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_sub0_open
 #+begin_src til
-ext_proc nng_sub0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_sub0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_sub0_open_raw
 #+begin_src til
-ext_proc nng_sub0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_sub0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_req0_open
 #+begin_src til
-ext_proc nng_req0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_req0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_req0_open_raw
 #+begin_src til
-ext_proc nng_req0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_req0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_rep0_open
 #+begin_src til
-ext_proc nng_rep0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_rep0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_rep0_open_raw
 #+begin_src til
-ext_proc nng_rep0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_rep0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_surveyor0_open
 #+begin_src til
-ext_proc nng_surveyor0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_surveyor0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_surveyor0_open_raw
 #+begin_src til
-ext_proc nng_surveyor0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_surveyor0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_respondent0_open
 #+begin_src til
-ext_proc nng_respondent0_open(sock: nng_socket) returns shallow I32
+ext_proc nng_respondent0_open(mut sock: nng_socket) returns shallow I32
 #+end_src
 
 * nng_respondent0_open_raw
 #+begin_src til
-ext_proc nng_respondent0_open_raw(sock: nng_socket) returns shallow I32
+ext_proc nng_respondent0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
 
