@@ -2070,6 +2070,17 @@ scope_free := func(own s: Scope) {
     // bytes leaked.
     own s.payload_aliases.delete(false)
     memset(s.payload_aliases, 0, Map.size())
+    // #227 follow-up: same treatment for ref_primitive_ptrs (added by
+    // 1e0be62). Like payload_aliases above, every scope_new() defaulted
+    // this field to an empty Map.new(Str, Dynamic) -- two malloc'd Vec
+    // backing buffers that scope_free never reclaimed, leaking ~2 allocs
+    // per scope. That was the interpret/translate ASAN regression.
+    // delete(false) frees the Str keys and both backing Vecs; the stored
+    // Dynamic values are borrowed source pointers (Map.set already freed
+    // the transient holder at insert time), so default_delete leaving
+    // them untouched is exactly right -- do NOT free them here.
+    own s.ref_primitive_ptrs.delete(false)
+    memset(s.ref_primitive_ptrs, 0, Map.size())
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // (ELEM_FN) stores raw pointer values; deref + reinterpret-as
