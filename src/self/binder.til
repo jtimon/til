@@ -978,7 +978,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
         }
         mut a := pp
         while a.lt(e).and(bind_is_ws(params_view.byte_at(a))) { a = a.add(1) }
-        mut b := trim_right(params_view, a, e)
+        b := trim_right(params_view, a, e)
         if a.lt(b) {
             if range_eq_lit(params_view, a, b, "void").not() {
                 if range_eq_lit(params_view, a, b, "...") { failed = true; break }

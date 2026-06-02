@@ -33,7 +33,7 @@ main := proc() {
 
     mut running := false
     mut frame := 0
-    mut speed := 6
+    speed := 6
     mut generation := 0
 
     while !WindowShouldClose() {

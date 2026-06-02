@@ -22,23 +22,31 @@ capture := proc(cmd: Str) returns Str {
 parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     sum_start := summary.find("SUMMARY:")
     if sum_start.eq(-1) { return }
-    tail := summary.substr(sum_start.to_usize(), summary.len().sub(sum_start.to_usize()))
+    // Narrow to the single SUMMARY line; ASAN dumps can be megabytes
+    // long, and walking the full string byte-by-byte via substr(idx, 1)
+    // is quadratic.
+    sum_start_u := sum_start.to_usize()
+    rest := summary.len().sub(sum_start_u)
+    nl_off := summary.substr(sum_start_u, rest).find("\n")
+    mut line_len : USize = rest
+    if nl_off.neq(-1) { line_len = nl_off.to_usize() }
+    tail := summary.substr(sum_start_u, line_len)
 
     byte_pos := tail.find(" byte(s)")
+    if byte_pos.eq(-1) { return }
     mut bstart : I64 = byte_pos.sub(1)
     while bstart.gte(0) {
-        c := tail.substr(bstart.to_usize(), 1)
-        if c.eq(" ") { break }
+        if tail.byte_at(bstart.to_usize()).eq(' ') { break }
         bstart = bstart.sub(1)
     }
     num_str := tail.substr(bstart.add(1).to_usize(), byte_pos.sub(bstart).sub(1).to_usize())
     bytes = num_str.to_i64()
 
     alloc_pos := tail.find(" allocation(s)")
+    if alloc_pos.eq(-1) { return }
     bstart = alloc_pos.sub(1)
     while bstart.gte(0) {
-        c := tail.substr(bstart.to_usize(), 1)
-        if c.eq(" ") { break }
+        if tail.byte_at(bstart.to_usize()).eq(' ') { break }
         bstart = bstart.sub(1)
     }
     num_str2 := tail.substr(bstart.add(1).to_usize(), alloc_pos.sub(bstart).sub(1).to_usize())

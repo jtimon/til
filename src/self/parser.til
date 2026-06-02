@@ -499,7 +499,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     is_ext := c_tag.len().gt(0)
     if is_ext.not() { advance(p) }
 
-    mut def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
+    def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
     if is_ext {
         switch def.node_type {
         case NodeType.StructDef(sdd):
@@ -558,7 +558,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             }
             ns_doc := p.pending_doc.clone()
             p.pending_doc = ""
-            mut ns_value := parse_expression(p)
+            ns_value := parse_expression(p)
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 til_type = til_type_from_explicit_type(ns_explicit_type),
@@ -594,7 +594,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             }
             f_doc := p.pending_doc.clone()
             p.pending_doc = ""
-            mut f_value := parse_expression(p)
+            f_value := parse_expression(p)
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
                 redundant_mut = f_redundant_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
@@ -621,7 +621,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p)
 
-    mut def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
+    def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     expect_token(p, TokenType.LBrace)
 
     saved_doc := p.pending_doc.clone()
@@ -668,7 +668,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             }
             ns_doc := p.pending_doc.clone()
             p.pending_doc = ""
-            mut ns_value := parse_expression(p)
+            ns_value := parse_expression(p)
             mut ns_dd := Declaration(name = ns_name,
                 is_mut = ns_is_mut, explicit_type = ns_explicit_type,
                 til_type = til_type_from_explicit_type(ns_explicit_type),
@@ -861,7 +861,7 @@ parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U3
 make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, rhs: Expr) returns Expr {
     mut callee := Expr.new(field_access_node(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
-    mut call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
+    call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
     Expr.add_child(call, own callee)
     Expr.add_child(call, own rhs.clone())
     return call
@@ -1230,7 +1230,7 @@ priv parse_multiplicative := proc(mut p: Parser) returns Expr {
         mut method := "mul"
         if op.type.is(TokenType.Slash) { method = "div" }
         if op.type.is(TokenType.Percent) { method = "mod" }
-        mut rhs := parse_primary(p)
+        rhs := parse_primary(p)
         e = make_binop_call(e, method, op_line, op_col, rhs)
     }
     return e
@@ -1245,7 +1245,7 @@ parse_additive := proc(mut p: Parser) returns Expr {
         ref op : Token = advance(p)
         mut method := "add"
         if op.type.is(TokenType.Minus) { method = "sub" }
-        mut rhs := parse_multiplicative(p)
+        rhs := parse_multiplicative(p)
         e = make_binop_call(e, method, op_line, op_col, rhs)
     }
     return e
@@ -1266,7 +1266,7 @@ parse_comparison := proc(mut p: Parser) returns Expr {
         else if op.type.is(TokenType.LtEq) { method = "lte" }
         else if op.type.is(TokenType.Gt) { method = "gt" }
         else if op.type.is(TokenType.GtEq) { method = "gte" }
-        mut rhs := parse_additive(p)
+        rhs := parse_additive(p)
         e = make_binop_call(e, method, op_line, op_col, rhs)
     }
     return e
@@ -1279,7 +1279,7 @@ parse_bitand := proc(mut p: Parser) returns Expr {
         op_line := peek_line(p)
         op_col := peek_col(p)
         advance(p)
-        mut rhs := parse_comparison(p)
+        rhs := parse_comparison(p)
         e = make_binop_call(e, "band", op_line, op_col, rhs)
     }
     return e
@@ -1292,7 +1292,7 @@ parse_bitxor := proc(mut p: Parser) returns Expr {
         op_line := peek_line(p)
         op_col := peek_col(p)
         advance(p)
-        mut rhs := parse_bitand(p)
+        rhs := parse_bitand(p)
         e = make_binop_call(e, "bxor", op_line, op_col, rhs)
     }
     return e
@@ -1305,7 +1305,7 @@ parse_bitor := proc(mut p: Parser) returns Expr {
         op_line := peek_line(p)
         op_col := peek_col(p)
         advance(p)
-        mut rhs := parse_bitxor(p)
+        rhs := parse_bitxor(p)
         e = make_binop_call(e, "bor", op_line, op_col, rhs)
     }
     return e
@@ -1318,7 +1318,7 @@ parse_logical_and := proc(mut p: Parser) returns Expr {
         op_line := peek_line(p)
         op_col := peek_col(p)
         advance(p)
-        mut rhs := parse_bitor(p)
+        rhs := parse_bitor(p)
         e = make_binop_call(e, "and", op_line, op_col, rhs)
     }
     return e
@@ -1331,7 +1331,7 @@ parse_logical_or := proc(mut p: Parser) returns Expr {
         op_line := peek_line(p)
         op_col := peek_col(p)
         advance(p)
-        mut rhs := parse_logical_and(p)
+        rhs := parse_logical_and(p)
         e = make_binop_call(e, "or", op_line, op_col, rhs)
     }
     return e
@@ -1697,7 +1697,7 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
         advance(p)
         is_priv = true
     }
-    mut stmt := parse_statement_body(p)
+    stmt := parse_statement_body(p)
     if is_priv {
         switch stmt.node_type {
         case NodeType.Decl(dd):

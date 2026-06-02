@@ -16,7 +16,7 @@ run := proc(cmd: Str) returns I64 {
 list_dir := proc(dir: Str) returns Vec {
     mut files := Vec.new(Str)
     tmpf := "tmp/_issues_ls"
-    mut cmd := format("ls ", dir, " > ", tmpf, " 2>/dev/null")
+    cmd := format("ls ", dir, " > ", tmpf, " 2>/dev/null")
     run(cmd)
     content := File.readfile(tmpf)
     if content.is_empty() { return files }

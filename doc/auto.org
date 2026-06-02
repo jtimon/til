@@ -249,7 +249,7 @@
 
    #+begin_src til
    Counter := struct {
-       mut val : I64 = 0
+       val : I64 = 0
    namespace:
        add := func(a: Counter, b: Counter) returns Counter {
            return Counter(val = a.val.add(b.val))

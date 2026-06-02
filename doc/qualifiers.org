@@ -2,6 +2,41 @@
 
 Complete mapping of til qualifiers to generated C, by context.
 
+** Mutability rule (~mut~ vs ~const~)
+
+   til picks the most common mutability per context as the default,
+   and the opposite keyword is rejected as redundant. The split is
+   symmetric:
+
+   | Context             | Default | Opt-out keyword | Redundant keyword (rejected) |
+   |---------------------+---------+-----------------+------------------------------|
+   | Local               | const   | ~mut~           | ~const~                      |
+   | Parameter           | const   | ~mut~           | ~const~                      |
+   | Namespace decl      | const   | ~mut~           | ~const~                      |
+   | Struct field        | mut     | ~const~         | ~mut~                        |
+   | Enum variant payload| mut     | ~const~         | ~mut~                        |
+
+   In every row, only the non-default keyword carries information,
+   and the typer/parser rejects the redundant one with a "redundant
+   '<kw>' on <context>: <context>s are <default> by default; drop it"
+   message. Diagnostics are tested by
+   ~test/qualifier_const_local_error.til~,
+   ~test/qualifier_const_param_error.til~,
+   ~test/qualifier_const_namespace_error.til~,
+   ~test/qualifier_mut_field_error.til~, and
+   ~test/qualifier_mut_payload_error.til~.
+
+   Issue #164 adds the third leg: a non-redundant ~mut~ on a local
+   that the body never uses to write is also flagged. The detector
+   counts these as writes: a direct assignment (~name = ...~), a
+   field-chain assignment (~name.f = ...~), a UFCS method call on
+   the name (~name.method(args)~), passing the name to a callee
+   parameter declared ~mut~ or ~own~, the name as the source of a
+   ~case V(p):~ ref-mut payload binding, and the name as the source
+   of a ~ref mut~ declaration (a launder use that requires the
+   source to be ~mut~). The diagnostic targets locals today;
+   params/namespace decls are step 2.
+
 ** Arguments (function/proc parameters)
 
 | til                       | C                | semantics                            |

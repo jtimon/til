@@ -36,7 +36,7 @@ namespace:
             return Vec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_kind = ELEM_FN)
         }
-        mut sz : USize = dyn_size_of(elem_type)
+        sz : USize = dyn_size_of(elem_type)
         return Vec(data = malloc(sz), cap = 1,
                    elem_size = sz, elem_kind = ELEM_BOXED,
                    elem_clone = dyn_fn(elem_type, "clone"),

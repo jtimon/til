@@ -332,7 +332,7 @@ DynAliasHolder := struct {
 }
 
 test_dyn_alias_struct_field := test() {
-    mut h := DynAliasHolder()
+    h := DynAliasHolder()
     assert(__LOC__, is_null(h.a))
     assert(__LOC__, is_null(h.b))
 }

@@ -213,10 +213,12 @@ namespace:
         if needle.count.gt(self.count) { return -1 }
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
-            for j in 0..needle.count {
+            mut j : USize = 0
+            while j.lt(needle.count) {
                 ref ac : I8 = self.get(i.add(j))
                 ref bc : I8 = needle.get(j)
-                if ac.neq(bc) { found = false }
+                if ac.neq(bc) { found = false; break }
+                j = j.add(1)
             }
             if found { return i.to_i64() }
         }

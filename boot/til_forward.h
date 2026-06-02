@@ -568,6 +568,8 @@ typedef struct TypeBinding {
     Expr *func_def;
     Bool is_builtin;
     Bool used;
+    Bool written;
+    Bool mut_explicit;
     Str orig_name;
 } TypeBinding;
 
@@ -1505,12 +1507,14 @@ void priv___src_self_typer_til__collect_switch_case_bindings(Context * ctx, Expr
 void infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void check_unused_params(TypeScope * func_scope, Expr * expr, Context * ctx);
 void check_unused_locals(TypeScope * scope, Str * path, Context * ctx);
+void check_unused_mut_locals(TypeScope * scope, Str * path, Context * ctx);
 I32 check_unused_priv_top_level(TypeScope * scope, Context * ctx);
 I32 check_unused_priv_members_in_program(Expr * program, Str * path, Context * ctx);
 void narrow_return_literal(TypeScope * scope, Expr * rv, Context * ctx);
 void infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
+void mark_field_assign_root_written(TypeScope * scope, Expr * obj);
 void infer_field_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 void infer_while_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 Bool infer_decl_type_def(TypeScope * scope, Expr * stmt, Context * ctx);

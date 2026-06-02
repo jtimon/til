@@ -1906,7 +1906,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         fname := fad.name
         ref obj : Expr = e.child(0)
         ref rhs_fa : Expr = e.child(1)
-        mut did_save_old := fad.save_old_delete
+        did_save_old := fad.save_old_delete
         mut old_ctype := ""
         if did_save_old {
             old_ctype = c_type_name(rhs_fa.expr_til_type(), til_type_name(rhs_fa.expr_til_type()), ctx)

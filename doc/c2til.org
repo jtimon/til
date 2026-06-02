@@ -253,12 +253,12 @@ typedef struct { Point center; int r; } Circle;       // inline
 
 #+begin_src til
 Line := struct {
-    own mut start := Point()    // heap-allocated, owned
-    own mut end := Point()
+    own start := Point()        // heap-allocated, owned
+    own end := Point()
 }
 Circle := struct {
-    mut center := Point()       // inline (no own)
-    mut r := 0
+    center := Point()           // inline (no own)
+    r := 0
 }
 #+end_src
 
@@ -273,10 +273,10 @@ static int point_count = 0;
 
 #+begin_src til
 Point := struct {
-    mut x := 0
-    mut y := 0
+    x := 0
+    y := 0
     namespace:
-    mut count := 0              // static member
+    mut count := 0              // static member (namespace decls are const-by-default)
     sum := func(self: Point) returns I64 {
         return self.x.add(self.y)
     }
@@ -664,7 +664,7 @@ Expr *result = *(Expr **)Map_get(&m, &key);
 
 #+begin_src til
 // til: box struct wraps the pointer
-ExprPtrBox := struct { ref mut ptr : Expr = NULL }
+ExprPtrBox := struct { ref ptr : Expr = NULL }
 
 m := Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
 box := ExprPtrBox(ptr = body)

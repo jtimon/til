@@ -262,7 +262,7 @@ test_anon_enum_payload := test() {
 // value built from one literal matches a `switch` case built from another
 // -- including payload extraction.
 test_anon_enum_switch := test() {
-    mut c := enum { Red, Green, Blue }.Green
+    c := enum { Red, Green, Blue }.Green
     switch c {
     case enum { Red, Green, Blue }.Red:
         assert_eq(__LOC__, 0, 1)
@@ -350,7 +350,7 @@ test_anon_enum_param_type := test() {
 }
 
 test_anon_local_decl_type := test() {
-    mut p: struct { x: I64 = 0 } = struct { x: I64 = 0 }(x=9)
+    p: struct { x: I64 = 0 } = struct { x: I64 = 0 }(x=9)
     assert_eq(__LOC__, p.x, 9)
 }
 

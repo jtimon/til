@@ -115,7 +115,7 @@ rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_fu
     case NodeType.Ident(arg_name):
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
         if type_binding_is_type_token(b).not() { return }
-        mut replacement := arg.make_til_type_expr(b.type)
+        replacement := arg.make_til_type_expr(b.type)
         move(arg, replacement, Expr.size())
         infer_expr(scope, arg, in_func, ctx)
     case:
@@ -1008,6 +1008,12 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
                         }
                     case:
                     }
+                    // #164: passing an Ident as `own` consumes the binding
+                    // (ownership transfer). The source's `mut` is what
+                    // keeps the binding from auto-aliasing into a ref, so
+                    // count this as a write-through.
+                    ref mut own_arg_b : TypeBinding = scope.get_binding(an.ident_name())
+                    if own_arg_b.is_null().not() { own_arg_b.written = true }
                 case:
                 }
             }
@@ -1450,6 +1456,20 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
             ptype_t := type_from_name(ptype, scope, ctx)
             rewrite_til_type_arg(scope, e.child(ci), ptype_t, in_func, ctx)
             narrow_dynamic(e.child(ci), ptype_t)
+            // #164: arg passed to a `mut` param may be written through.
+            if param1.is_mut {
+                ref arg_e : Expr = e.child(ci)
+                switch arg_e.node_type {
+                case NodeType.Ident(arg_id):
+                    ref mut arg_b : TypeBinding = scope.get_binding(ident_name(arg_id))
+                    if is_null(arg_b).not() { arg_b.written = true }
+                case NodeType.FieldAccess:
+                    if arg_e.children.len().gt(0) {
+                        mark_field_assign_root_written(scope, arg_e.child(0))
+                    }
+                case:
+                }
+            }
             ci = ci.add(1)
             pi = pi.add(1)
         }
@@ -1822,7 +1842,7 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             new_children.push_take(e.children, i)
         }
         e.children = new_children
-        ref mut fa2 : Expr = e.child(0)
+        ref fa2 : Expr = e.child(0)
         switch fa2.node_type {
         case NodeType.FieldAccess(_m2):
             method = _m2.field_access_name()
@@ -2063,6 +2083,10 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                             }
                         case:
                         }
+                        // #164: see infer_and_validate_fcall_args -- own
+                        // arg consumes the binding, count as written.
+                        ref mut own_arg_b2 : TypeBinding = scope.get_binding(an.ident_name())
+                        if own_arg_b2.is_null().not() { own_arg_b2.written = true }
                     case:
                     }
                 }
@@ -2326,7 +2350,7 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         e.set_expr_til_type(target_type)
         return
     }
-    mut replacement := e.child(2).make_til_type_expr(target_type)
+    replacement := e.child(2).make_til_type_expr(target_type)
     move(e.child(2), replacement, Expr.size())
     infer_expr(scope, e.child(2), in_func, ctx)
     e.set_expr_til_type(target_type)
@@ -2389,6 +2413,18 @@ infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32,
 }
 
 infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
+    // #164: a UFCS receiver `obj.method(args)` is conservatively treated
+    // as "written" -- the namespace method may mutate it via `mut self`
+    // (e.g. `Str.push_str(mut self: Str, s: Str)`), and the UFCS rewrite
+    // turns into a callee_bind=NULL path that infer_and_validate_fcall_args
+    // exits early on, so the precise pp2.is_mut check below won't fire
+    // for namespace methods. Done before all dispatch.
+    if e.children.len().gt(0) {
+        ref c0_w : Expr = e.child(0)
+        if c0_w.node_type.is(NodeType.FieldAccess).and(c0_w.children.len().gt(0)) {
+            mark_field_assign_root_written(scope, c0_w.child(0))
+        }
+    }
     if e.child(0).node_type.is(NodeType.FieldAccess) {
         if infer_field_access_fcall(scope, e, in_func, ctx) { return }
     }
@@ -3175,6 +3211,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             check_ref_function_returns(func_scope, expr, ctx)
             check_unused_params(func_scope, expr, ctx)
             check_unused_locals(func_scope, ctx.path, ctx)
+            check_unused_mut_locals(func_scope, ctx.path, ctx)
         }
         TypeScope.delete(own func_scope)
     case:
@@ -3221,6 +3258,37 @@ check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if ctx.throw_used_local_names.has(b.name) { continue }
         if b.used { continue }
         type_error_at(path, b.line, b.col, "unused variable '".concat(b.name).concat("'"), ctx)
+    }
+}
+
+// #164: a `mut` local that is never written through (no `name = ...`,
+// no `name.f = ...`) is a redundant qualifier -- the `mut` is a small
+// lie about the local's effective shape. Flag it. Scoped to locals only
+// for now (params are excluded: chain-walker cursors that take a `mut`
+// param and only rebind it via `param = param.next` are still legal
+// under the current language because `ref mut x : T = src` rejects
+// immutable sources -- dropping the `mut` would require the language
+// to distinguish "rebindable local pointer" from "write-through ref
+// mut"; tracked separately on #164).
+check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
+    for bi in 0..scope.bindings.len() {
+        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        if b.is_param { continue }
+        if b.is_builtin { continue }
+        if b.is_type_alias { continue }
+        if is_null(b.struct_def).not() { continue }
+        if is_null(b.func_def).not() { continue }
+        if b.name.len().eq(0) { continue }
+        if b.name.starts_with("_") { continue }
+        if b.name.starts_with("hoisted__") { continue }
+        // Payload-alias bindings (`case V(p):`) are typer-synthesized; the
+        // user did not lexically write `mut` on `p`. Skip them so writes to
+        // the source via `p = ...` (handled elsewhere) are the only signal.
+        if b.is_alias { continue }
+        if b.mut_explicit.not() { continue }
+        if b.written { continue }
+        type_error_at(path, b.line, b.col,
+            "redundant 'mut' on local '".concat(b.name).concat("': never written through; drop the 'mut'"), ctx)
     }
 }
 
@@ -3420,12 +3488,14 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
     garbager_destroy_body(ctx, stmt.child(1), then_scope)
     check_unused_locals(then_scope, ctx.path, ctx)
+    check_unused_mut_locals(then_scope, ctx.path, ctx)
     TypeScope.delete(own then_scope)
     if stmt.children.len().gt(2) {
         else_scope := TypeScope(parent = scope)
         infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt.child(2), else_scope)
         check_unused_locals(else_scope, ctx.path, ctx)
+        check_unused_mut_locals(else_scope, ctx.path, ctx)
         TypeScope.delete(own else_scope)
     }
     stmt.set_expr_til_type(Type.None)
@@ -3497,6 +3567,22 @@ infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, 
     }
 }
 
+// #164: walk a FieldAssign's LHS chain (`a.b.c = ...`) down to the root
+// Ident and mark its binding as written, so the unused-mut check
+// recognises that `a` was effectively mutated.
+mark_field_assign_root_written := func(scope: TypeScope, obj: Expr) {
+    switch obj.node_type {
+    case NodeType.Ident(root_id):
+        ref mut rb : TypeBinding = scope.get_binding(ident_name(root_id))
+        if is_null(rb).not() { rb.written = true }
+    case NodeType.FieldAccess:
+        if obj.children.len().gt(0) {
+            mark_field_assign_root_written(scope, obj.child(0))
+        }
+    case:
+    }
+}
+
 infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     infer_expr(scope, stmt.child(1), in_func, ctx)
@@ -3511,6 +3597,9 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         UNREACHABLE(__LOC__)
         return
     }
+    // #164: walk to the root identifier of the obj chain and mark it
+    // written. `a.b.c = ...` writes the root `a` (transitively).
+    mark_field_assign_root_written(scope, obj)
     obj_sname := til_type_name(obj.expr_til_type())
     if obj_sname.len().gt(0) {
         ref sdef : Expr = scope.get_struct(obj_sname)
@@ -3669,6 +3758,7 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
     garbager_destroy_body(ctx, stmt.child(1), while_scope)
     check_unused_locals(while_scope, ctx.path, ctx)
+    check_unused_mut_locals(while_scope, ctx.path, ctx)
     TypeScope.delete(own while_scope)
     stmt.set_expr_til_type(Type.None)
 }
@@ -3940,6 +4030,10 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
         }
         scope.set(sdecl.name, stmt.expr_til_type(), FuncType.None, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
+        // #164: snapshot the source-level `mut` keyword here, before any
+        // later typer machinery (array/vec literal rewrite, alias
+        // promotion etc.) auto-promotes is_mut.
+        decl_b.mut_explicit = sdecl.is_mut
         decl_b.used = sdecl.used
         if ctx.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
         decl_b.is_priv = sdecl.is_priv
@@ -3996,10 +4090,15 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
             if sdecl.is_mut {
                 switch rhs.node_type {
                 case NodeType.Ident(_rid):
-                    ref _rb : TypeBinding = scope.get_binding(_rid.ident_name())
+                    ref mut _rb : TypeBinding = scope.get_binding(_rid.ident_name())
                     if _rb.is_null().not().and(_rb.is_mut.not()) {
                         stmt.type_error("'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
                     }
+                    // #164: a `ref mut` binding launders mutability from the
+                    // source. The source's `mut` is what makes this legal,
+                    // so don't flag it as redundant even if the source name
+                    // is never directly written through.
+                    if _rb.is_null().not() { _rb.written = true }
                 case:
                 }
             }
@@ -4228,6 +4327,17 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         }
                                         payload_const := enum_variant_payload_const(enum_def, vt_tag)
                                         bind_is_mut := source_mut.and(payload_const.not())
+                                        // #164: a ref-mut payload binding allows writes that
+                                        // propagate back into the source's payload memory, so
+                                        // treat the source as conservatively written.
+                                        if bind_is_mut {
+                                            switch sw_ref.node_type {
+                                            case NodeType.Ident(sw_idn2):
+                                                ref mut sw_b2 : TypeBinding = scope.get_binding(ident_name(sw_idn2))
+                                                if is_null(sw_b2).not() { sw_b2.written = true }
+                                            case:
+                                            }
+                                        }
                                         mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col, bind_is_mut)
 
                                         mut old := Vec.new(Expr)
@@ -4305,7 +4415,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
-                                        mut inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
+                                        inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
 
                                         // Recurse on the nested pattern; bindings prepend to case_body
                                         // and use ~get_payload(sw_ref, payload_type)~ as their root.
@@ -4660,7 +4770,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
             has_guard = true
             body_idx = 2
         }
-        ref mut match_expr : Expr = case_node.child(0)
+        ref match_expr : Expr = case_node.child(0)
         ref mut case_body : Expr = case_node.child(body_idx)
         validate_struct_pattern_rest(scope, match_expr, ctx)
         if saw_default {
@@ -6729,7 +6839,7 @@ priv process_throw_catch_in_body := proc(
                         scan_decl = scan_decl.sub(1)
                     }
                     for nui in 0..new_ch.len() {
-                        ref mut nstmt : Expr = new_ch[nui]
+                        ref nstmt : Expr = new_ch[nui]
                         switch nstmt.node_type {
                         case NodeType.Decl(ndd):
                             if ndd.name.eq(idn.name.clone()) { ndd.used = true }
@@ -6899,7 +7009,7 @@ process_throw_catch_in_func_body := proc(
         vec_str_push_uniq(types_to_declare, ft)
     }
 
-    mut root_body := body.clone()
+    root_body := body.clone()
     process_throw_catch_in_body(ctx, body, root_body, fdef_throws, pending, seen, types_to_declare, ctx.path, return_type, return_own_type)
 
     // Final body-level validation: leftover pending types must be
@@ -7006,6 +7116,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt, block_scope)
         check_unused_locals(block_scope, ctx.path, ctx)
+        check_unused_mut_locals(block_scope, ctx.path, ctx)
         TypeScope.delete(own block_scope)
     case NodeType.While:
         infer_while_stmt(scope, stmt, in_func, returns_ref, ctx)
@@ -7039,6 +7150,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
             garbager_destroy_body(ctx, body_expr, catch_scope)
             check_unused_locals(catch_scope, ctx.path, ctx)
+            check_unused_mut_locals(catch_scope, ctx.path, ctx)
             TypeScope.delete(own catch_scope)
         } else {
             stmt.type_error("catch must have 3 children: var, type, body", ctx)
@@ -7299,7 +7411,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
         ref rhs : Expr = lifted.child(0)
         switch rhs.node_type {
         case NodeType.FuncDef(fdef):
-            mut rt := Type.None
+            rt := Type.None
             scope.set(sdecl.name, rt, fdef.func_type, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = lifted.child(0)
@@ -7607,6 +7719,13 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
         stmt.set_expr_til_type(existing)
     } else if rhs.expr_til_type().is(existing).not().and(rhs.expr_til_type().is(Type.Unknown).not()) {
         stmt.type_error("'".concat(aname).concat("' assignment type mismatch"), ctx)
+    }
+    // #164: record that this binding was written through. Done before
+    // the ScopeFind.Found read below because get_binding returns a ref
+    // so the write actually persists (find returns Value semantics).
+    {
+        ref mut ab_w : TypeBinding = scope.get_binding(aname)
+        if is_null(ab_w).not() { ab_w.written = true }
     }
     sf_assign := scope.find(aname)
     mut is_ref_target := false
@@ -9173,7 +9292,7 @@ hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: V
         call.add_child(own a)
         call.add_child(own stmt.child(0).clone())
         tname := type_to_name(ab.type)
-        mut sz_call := make_ns_call(tname, "size", usize_type(scope, ctx), stmt)
+        sz_call := make_ns_call(tname, "size", usize_type(scope, ctx), stmt)
         mut sz := hoist_to_temp(ctx, sz_call, hoisted, scope, false)
         call.add_child(own sz)
         stmt = call

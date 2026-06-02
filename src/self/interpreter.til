@@ -90,7 +90,7 @@ namespace:
                 ref s : Str = to_ptr(self.data)
                 if s.count.to_i64().gt(0) {
                     if s.c_str.is_null().not() {
-                        mut cloned_str := s.clone()
+                        cloned_str := s.clone()
                         // Replace c_str with the freshly malloc'd clone
                         // and update cap so the clone OWNS its buffer.
                         // Preserving the original cap (e.g. CAP_VIEW from
@@ -133,7 +133,7 @@ namespace:
                         ref s : Str = ptr_add(self.data, foff.to_u64())
                         if s.count.to_i64().gt(0) {
                             if s.c_str.is_null().not() {
-                                mut cloned_str := s.clone()
+                                cloned_str := s.clone()
                                 write_ptr(ptr_add(dst_data, foff.to_u64()), cloned_str.c_str)
                                 // Update cap to count so the clone owns
                                 // its freshly malloc'd buffer (mirrors
@@ -152,7 +152,7 @@ namespace:
                                     ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
                                     if ei_ref.is_null().not() {
                                         ref ei : EnumInstance = ei_ref
-                                        mut cloned_ei := ei.clone()
+                                        cloned_ei := ei.clone()
                                         heap_ei : Dynamic = malloc(EnumInstance.size())
                                         move(heap_ei, cloned_ei, EnumInstance.size())
                                         write_ptr(ptr_add(dst_data, foff.to_u64()), heap_ei)
@@ -244,7 +244,7 @@ namespace:
             return EnumInstance(enum_name = self.enum_name,
                                 data = NULL, data_size = self.data_size, borrowed = false)
         }
-        mut pdata : Dynamic = malloc(self.data_size)
+        pdata : Dynamic = malloc(self.data_size)
         memcpy(pdata, self.data, self.data_size)
         return EnumInstance(enum_name = self.enum_name,
                             data = pdata, data_size = self.data_size, borrowed = false)
@@ -484,7 +484,7 @@ val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_
     if alloc_size.lt(8) {
         alloc_size = 8
     }
-    mut data : U8 = calloc(1, alloc_size)
+    data : U8 = calloc(1, alloc_size)
     memcpy(data, etag, 4)
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
@@ -680,7 +680,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                     case Value.Func(eptr):
                                         ref edef : Expr = deref(eptr)
                                         if edef.node_type.is(NodeType.EnumDef) {
-                                            mut total_size : I32 = ctx_total_size(sname, ctx)
+                                            total_size : I32 = ctx_total_size(sname, ctx)
                                             tag := enum_variant_tag(edef, fname.field_access_name())
                                             if tag.cast(I64).gte(0) {
                                                 if enum_has_payloads(edef) {
@@ -799,7 +799,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
             }
             if tdef.node_type.is(NodeType.EnumDef) {
                 if enum_has_payloads(tdef) {
-                    mut total_size : I32 = ctx_total_size(type_name, ctx)
+                    total_size : I32 = ctx_total_size(type_name, ctx)
                     ref ei : EnumInstance = deref(p)
                     if ei.is_null() { return val_enum_simple(type_name, 0, total_size) }
                     ref etag_ref : Dynamic = ei.data
@@ -1831,7 +1831,7 @@ needs_widen := func(val: Value, ptype: Str) returns Bool {
 }
 
 shallow_copy_value := func(v: Value) returns shallow Value {
-    mut r := Value.None
+    r := Value.None
     memcpy(r, v, Value.size())
     return r
 }
@@ -1879,7 +1879,7 @@ box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: B
 
 make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool, ctx: Context) returns shallow Value {
     mut r := Value.None
-    mut tag : I32 = 10
+    tag : I32 = 10
     memcpy(r, tag, 4)
     switch r {
     case Value.Struct(payload):
@@ -2033,7 +2033,7 @@ scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
     memset(v, 0, Binding.size())
     write_ptr(v, name)
     write_ptr(ptr_add(v, 8), cell)
-    mut local_flag := true
+    local_flag := true
     memcpy(ptr_add(v, 16), local_flag, Bool.size())
     s.bindings.set(own k, own v)
 }
@@ -2507,7 +2507,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         if edef_lookup.node_type.is(NodeType.EnumDef) {
             ref edef : Expr = edef_lookup
             if enum_has_payloads(edef) {
-                mut total_size : I32 = ctx_total_size(ftype, ctx)
+                total_size : I32 = ctx_total_size(ftype, ctx)
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }
@@ -2645,7 +2645,7 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
             .or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    mut val := val_none()
+                    val := val_none()
                     memcpy(val, 9, 4)
                     write_ptr(ptr_add(val, 8), stmt.child(0))
                     scope_set_owned(global, dd.name, val)
@@ -2673,7 +2673,7 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
                         if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
                             switch stmt.node_type {
                             case NodeType.Decl(dd):
-                                mut val := val_none()
+                                val := val_none()
                                 memcpy(val, 9, 4)
                                 write_ptr(ptr_add(val, 8), sdef)
                                 scope_set_owned(global, dd.name, val)
@@ -2893,7 +2893,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
 
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
     ffi_reset(lp.ctx)
-    mut empty := Expr.new(NodeType.Body, 0, 0)
+    empty := Expr.new(NodeType.Body, 0, 0)
     ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
     if ffi_rc.cast(I64).eq(0).not() { return ffi_rc }
     if lp.skip_core.not() {

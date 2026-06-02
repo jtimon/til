@@ -1298,7 +1298,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                     // variable.
                     if si.borrowed.not() { must_free_pdata = true }
                 case Value.Enum(ei):
-                    mut cloned_ei := ei.clone()
+                    cloned_ei := ei.clone()
                     pdata = to_ptr(cloned_ei.data)
                     psz = cloned_ei.data_size.cast(I32)
                     must_free_pdata = true
@@ -1307,15 +1307,15 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Func(f):    pdata = to_ptr(f); psz = 8
                 case:
                 }
-                mut total_size : I32 = ctx_total_size(enum_name, ctx)
-                mut tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
+                total_size : I32 = ctx_total_size(enum_name, ctx)
+                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
                 move(result, tmp, Value.size())
                 if must_free_pdata {
                     free(own pdata)
                 }
             } else {
-                mut total_size : I32 = ctx_total_size(enum_name, ctx)
-                mut tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
+                total_size : I32 = ctx_total_size(enum_name, ctx)
+                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
                 move(result, tmp, Value.size())
             }
             return true
@@ -1402,10 +1402,10 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
         ref payload : Dynamic = val_to_ptr(narrowed)
         memcpy(dst, payload, sz.to_u64())
     } else if tn.eq("F32") {
-        mut tmp : F32 = value_to_f32(v)
+        tmp : F32 = value_to_f32(v)
         memcpy(dst, tmp, 4)
     } else {
-        mut tmp : U64 = value_to_u64(v)
+        tmp : U64 = value_to_u64(v)
         memcpy(dst, tmp, sz.to_u64())
     }
     return true
@@ -1600,7 +1600,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         // Store in ctx.ffi_map. Own a clone of the name so callers can pass
         // either AST-owned strings or locally-allocated ones (e.g. format
         // results) without bespoke ownership dances.
-        mut key_str := name.clone()
+        key_str := name.clone()
         key : Dynamic = malloc(Str.size())
         move(key, key_str, Str.size())
         val : Dynamic = malloc(FFIEntry.size())

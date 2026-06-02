@@ -1,0 +1,5 @@
+mode script
+
+Box := struct {
+    mut x := 0
+}

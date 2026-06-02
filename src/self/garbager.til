@@ -278,7 +278,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             if holder_name.len().eq(0) { continue }
             // source side: the FieldAssign RHS, if an Ident, names the
             // local whose lifetime we extend.
-            ref mut value : Expr = stmt.child(1)
+            ref value : Expr = stmt.child(1)
             mut src_name := ""
             switch value.node_type {
             case NodeType.Ident(_sn): src_name = _sn.ident_name()
@@ -290,7 +290,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
             // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
             // src). Without aliasing analysis we can't pin a tighter bound,
             // so keep src alive through scope exit.
-            mut body_last := body.children.len().sub(1).cast(I32)
+            body_last := body.children.len().sub(1).cast(I32)
             for local : LocalInfo in locals {
                 if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
                     local.last_use = body_last

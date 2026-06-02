@@ -20,6 +20,19 @@ TypeBinding := struct {
     ref func_def : Expr = NULL
     is_builtin := false
     used := false
+    // #164: set when the binding is written through -- direct `name = ...`,
+    // `name.f = ...`, etc. Combined with mut_explicit, lets
+    // check_unused_mut_locals flag `mut` locals that are never written and
+    // suggest dropping the keyword.
+    written := false
+    // #164: true when the source declaration used the lexical `mut`
+    // keyword. The typer auto-promotes some bindings (array/vec literal
+    // rewrites) to is_mut=true even when the user wrote `:=`; flagging
+    // those would produce a confusing "redundant 'mut' on local 'X'"
+    // diagnostic where there is no source-level 'mut' to drop.
+    // mut_explicit is set exactly at the typer's Decl handler from
+    // sdecl.is_mut.
+    mut_explicit := false
     // Issue #93: mirror of Declaration.orig_name -- non-empty means
     // init_declarations_unit hoisted this decl from a function body and
     // the unused-priv check should report it in source terms (original
@@ -1017,7 +1030,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
         if has_payloads.not() {
             for j in 0..variant_names.len() {
                 ref vname : Str = variant_names[j]
-                mut lit := Expr.new(literal_num_node(j.to_str()), line, col)
+                lit := Expr.new(literal_num_node(j.to_str()), line, col)
                 evc_edd.ns_decls.push(own Declaration(name = vname.clone(), default_value = lit))
             }
             return
@@ -2895,7 +2908,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
         nm := idn.ident_name()
         if subs.has(nm) {
             ref repl_expr : Expr = subs[nm]
-            mut cloned := repl_expr.clone()
+            cloned := repl_expr.clone()
             move(e, cloned, Expr.size())
             // The replacement now occupies `e`; children of the original
             // Ident were none, so no further recursion at this node.
@@ -3228,7 +3241,7 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
 
 // Run the global init steps that require a full program view.
 init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
-    mut errors : I32 = 0
+    errors : I32 = 0
 
     // Single AST walk: bucket struct and enum decls for post-walk work,
     // and bucket func/value decls in case global generation steps added

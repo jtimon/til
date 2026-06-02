@@ -289,7 +289,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 // sufficient for I64/Bool/Str/struct payloads. Nested-enum
                 // payloads currently bail (synthetic src skips the
                 // intercept and the default Value.Enum case returns NULL).
-                mut payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
+                payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
                 ref payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
                 if payload_expr.is_null() { return NULL }
                 ref vname2 : Str = edd2.variants[etag2.to_usize()]
@@ -360,7 +360,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
             // before constructing the LiteralStr to keep the invariant
             // consistent.
             escaped := str_to_source_form(sv)
-            mut e := Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
+            e := Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
             return e
         }
         // Non-Str struct: reconstruct a positional POD-struct constructor
@@ -402,7 +402,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
             return NULL
         }
     case Value.Boolean(b):
-        mut e := Expr.new(NodeType.Literal(Literal.Bool(b.clone())), src.line, src.col)
+        e := Expr.new(NodeType.Literal(Literal.Bool(b.clone())), src.line, src.col)
         return e
     case:
         return NULL
@@ -1065,7 +1065,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
-            mut snapshot_fd := ctx.precomp_known.clone()
+            snapshot_fd := ctx.precomp_known.clone()
             fold_subtree(scope, child, ctx)
             // Free payloads of every entry in `known` (both inherited
             // and inner-fold-added) before dropping the Map. Map.delete
@@ -1246,7 +1246,7 @@ precomp_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context)
             if is_def {
                 // Register the def in the fold scope: Value.Func tag=9,
                 // data = pointer to child(0).
-                mut val := val_none()
+                val := val_none()
                 memcpy(val, 9, 4)
                 write_ptr(ptr_add(val, 8), rhs)
                 scope_set_owned(global, dd.name, val)
@@ -1269,9 +1269,9 @@ precomp_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context)
 // CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
 // CAP_LIT  = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
 precomp_register_core_constants := func(mut global: Scope) {
-    mut cap_view_val := val_u32(4294967294)
+    cap_view_val := val_u32(4294967294)
     scope_set_owned(global, "CAP_VIEW", cap_view_val)
-    mut cap_lit_val := val_u32(4294967295)
+    cap_lit_val := val_u32(4294967295)
     scope_set_owned(global, "CAP_LIT", cap_lit_val)
 }
 

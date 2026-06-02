@@ -21,8 +21,8 @@ check(nng_dial(sub, url.c_str, nng_dialer(id = 0.to_u32()), 0.to_i32()), "dial")
 // means no more messages are pending, so stop.
 mut nrecv := 0
 while true {
-    mut rbuf := Str.with_capacity(256.to_usize())
-    mut sz : USize = 256.to_usize()
+    rbuf := Str.with_capacity(256.to_usize())
+    sz : USize = 256.to_usize()
     rc := nng_recv(sub, rbuf.c_str, sz, 0.to_i32())
     if rc.neq(0.to_i32()) { break }
     println(format("received: ", read_cstr(rbuf.c_str)))

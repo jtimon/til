@@ -1,0 +1,7 @@
+mode script
+
+Foo := struct {
+    x := 0
+namespace:
+    const HELP := 42
+}

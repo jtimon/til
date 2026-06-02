@@ -530,7 +530,7 @@ main := proc(args: ..Str) {
               format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 131,
+    add_count(tests, "typer_errors", "typer", "error:", 133,
                format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
@@ -550,6 +550,12 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_mut_payload_error", "parser",
               "on variant payload: payloads are mutable by default", 1,
               format(til_bin, " interpret test/qualifier_mut_payload_error.til"))
+    add_count(tests, "qualifier_mut_field_error", "typer",
+              "on struct field", 1,
+              format(til_bin, " interpret test/qualifier_mut_field_error.til"))
+    add_count(tests, "qualifier_const_namespace_error", "parser",
+              "on namespace declaration: namespace decls are immutable by default", 1,
+              format(til_bin, " interpret test/qualifier_const_namespace_error.til"))
     add_count(tests, "const_payload_error", "typer",
               "cannot assign to immutable variable", 1,
               format(til_bin, " interpret test/const_payload_error.til"))
