@@ -3376,3 +3376,62 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
 }
 
 // sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls
+
+// True iff `variant_name` is a payload-less variant of `enum_def`.
+enum_variant_is_payload_less := func(enum_def: Expr, variant_name: Str) returns Bool {
+    if variant_name.len().eq(0) { return false }
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for j in 0..edd.variants.len() {
+            ref vn : Str = edd.variants[j]
+            if vn.eq(variant_name) {
+                idx := j.to_i64()
+                ref pts : Map = edd.payload_types
+                if pts.has(idx).not() { return true }
+                ref pt : Str = pts[idx]
+                return pt.len().eq(0)
+            }
+        }
+    case:
+    }
+    return false
+}
+
+// Returns the receiver type name if `e` is `<Type>.clone(arg)`, else "".
+clone_call_type_name := func(e: Expr) returns Str {
+    if e.node_type.is(NodeType.FCall).not() { return "" }
+    if e.children.len().lt(2) { return "" }
+    ref callee : Expr = e.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
+    mut is_clone := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(m): is_clone = m.field_access_name().eq("clone")
+    case:
+    }
+    if is_clone.not() { return "" }
+    if callee.children.len().eq(0) { return "" }
+    ref recv : Expr = callee.child(0)
+    if recv.node_type.is(NodeType.Ident).not() { return "" }
+    switch recv.node_type {
+    case NodeType.Ident(n): return n.ident_name()
+    case: return ""
+    }
+}
+
+// AST-only half of is_pod_enum_clone_call / is_pod_enum_clone_wrap.
+// Caller resolves the enum def their own way (builder via Context,
+// garbager via TypeScope) and passes it here.
+is_pod_enum_clone_of := func(e: Expr, edef: Expr) returns Bool {
+    if edef.is_null() { return false }
+    if edef.node_type.is(NodeType.EnumDef).not() { return false }
+    if enum_has_payloads(edef).not() { return true }
+    ref arg : Expr = e.child(1)
+    if arg.node_type.is(NodeType.FieldAccess).not() { return false }
+    if arg.expr_til_type().is(Type.Enum).not() { return false }
+    mut vname := ""
+    switch arg.node_type {
+    case NodeType.FieldAccess(vn): vname = vn.field_access_name()
+    case:
+    }
+    return enum_variant_is_payload_less(edef, vname)
+}
