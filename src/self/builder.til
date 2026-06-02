@@ -4428,6 +4428,26 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
     return 0
 }
 
+// Anchor each "vendor/..." token in a space-separated path list at
+// root_dir. target_ffi_lib / target_gui_libs return relative paths
+// (hardcoded into src/self/targets.til) -- fine when cwd is the source
+// tree, broken when the compiler is invoked from any other directory
+// (e.g. building a program against an installed til). The leading
+// token has no space prefix; everything after gets matched on the
+// " vendor/" boundary so substrings inside other tokens don't trip
+// the replace.
+absolutize_vendor_paths := func(s: Str, root_dir: Str) returns Str {
+    if root_dir.len().eq(0) { return s.clone() }
+    if s.len().eq(0) { return "" }
+    mut result : Str = s.clone()
+    if result.starts_with("vendor/") {
+        result = format(root_dir, "/", s)
+    }
+    space_vendor := " vendor/"
+    space_root_vendor := format(" ", root_dir, "/vendor/")
+    return result.replace(space_vendor, space_root_vendor)
+}
+
 compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
@@ -4597,11 +4617,19 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
 
     // Per-target system + ffi + (gui) link flags. Tables in
     // src/self/targets.til. mode_auto_import is "gui" iff the program
-    // declared mode gui.
+    // declared mode gui. target_*_lib() returns hardcoded "vendor/..."
+    // relative paths -- in the in-tree build cwd is the source tree so
+    // those resolve naturally, but a `til` invoked from any other
+    // directory (e.g. a program built against an installed compiler)
+    // needs them anchored at compiler_root, which is what
+    // absolutize_vendor_paths does.
+    root_for_vendor := ext_c_path.strip_suffix("/src/c/ext.c")
     sys_libs := target_system_libs(target)
-    ffi_lib  := target_ffi_lib(target)
+    ffi_lib  := absolutize_vendor_paths(target_ffi_lib(target), root_for_vendor)
     mut gui_part := ""
-    if mode_auto_import.eq("gui") { gui_part = format(" ", target_gui_libs(target)) }
+    if mode_auto_import.eq("gui") {
+        gui_part = format(" ", absolutize_vendor_paths(target_gui_libs(target), root_for_vendor))
+    }
 
     cmd := compiler.format(extra, werr, asan_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
@@ -6747,30 +6775,42 @@ priv BuildPaths := struct {
 derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
     mut paths := BuildPaths()
 
+    // Source the substr range from lp.path directly (a parameter struct
+    // field the typer leaves alone) rather than an intermediate `basename`
+    // local. The previous shape went: clone lp.path -> reassign to a
+    // substr view -> substr again -> use. The typer's ASAP-delete fired
+    // on `basename` between the inner substr and the subsequent read,
+    // freeing the buffer the inner view was pointing into. For the
+    // in-tree path (e.g. "src/til.til") basename ended up as a CAP_VIEW
+    // whose delete is a no-op, hiding the bug; for short out-of-tree
+    // paths (e.g. "hello_cli.til") basename was an owned clone and the
+    // free was real -- the dangling view then produced garbage in
+    // paths.c_path / paths.h_path / ... and blocked builds outside the
+    // source tree. Computing offsets relative to lp.path and going
+    // through "".concat materializes paths.name as a freshly-malloc'd
+    // heap Str independent of any intermediate.
     last_slash := lp.path.rfind("/")
-    mut basename := lp.path
+    mut name_start : USize = 0
     if last_slash.gte(0) {
-        last_slash_u : USize = last_slash.to_usize()
-        basename = lp.path.substr(last_slash_u.add(1), lp.path.len().sub(last_slash_u).sub(1))
+        name_start = last_slash.to_usize().add(1)
     }
-    mut name_len := basename.len()
-    if basename.ends_with(".til") {
+    mut name_len := lp.path.len().sub(name_start)
+    if lp.path.ends_with(".til") {
         name_len = name_len.sub(4)
     }
-    name := basename.substr(0, name_len)
-    paths.name = name.clone()
+    paths.name = "".concat(lp.path.substr(name_start, name_len))
 
-    mut c_path := format("gen/til/", name, ".c")
+    mut c_path := format("gen/til/", paths.name, ".c")
     if custom_c.len().gt(0) { c_path = custom_c.clone() }
-    mut bin_path := format("bin/", name, executable_extension(target))
+    mut bin_path := format("bin/", paths.name, executable_extension(target))
     if custom_bin.len().gt(0) { bin_path = custom_bin.clone() }
 
     paths.c_path = c_path
     paths.bin_path = bin_path
     paths.fwd_path = forward_header_path(c_path)
-    paths.h_path = format("gen/til/", name, ".h")
-    paths.til_path = format("gen/til/", name, ".til")
-    paths.py_path = format("gen/til/", name, ".py")
+    paths.h_path = format("gen/til/", paths.name, ".h")
+    paths.til_path = format("gen/til/", paths.name, ".til")
+    paths.py_path = format("gen/til/", paths.name, ".py")
     paths.do_lib = lp.cur_mode.is_library
     return paths
 }
@@ -6889,6 +6929,37 @@ is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns Bool {
     return lp.path.ends_with("/src/til.til")
 }
 
+// Vendor artifacts are installed at the same relative paths the in-tree
+// link() directives and import() statements use (src/til.til,
+// src/modes/gui.til, src/self/dispatch.til, examples/raylib.til), so
+// resolve_link_path's compiler_root fallback and the importer's relative
+// resolver both find them with no source-side changes. The libffi
+// path matches the arch triplet hardcoded in src/self/dispatch.til;
+// cross-platform (macos-arm64 etc.) widening rides with #152's per-
+// target work.
+install_vendor_libs := proc(root: Str, dst_root: Str) returns I32 {
+    mut rc := install_file(
+        root.concat("/vendor/raylib/src/libraylib.a"),
+        dst_root.concat("/vendor/raylib/src/libraylib.a"),
+        "install bundled raylib static library")
+    if rc.neq(0) { return rc }
+    rc = install_file(
+        root.concat("/vendor/tinyfiledialogs/libtinyfd.a"),
+        dst_root.concat("/vendor/tinyfiledialogs/libtinyfd.a"),
+        "install bundled tinyfd static library")
+    if rc.neq(0) { return rc }
+    rc = install_file(
+        root.concat("/vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"),
+        dst_root.concat("/vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"),
+        "install bundled libffi static library")
+    if rc.neq(0) { return rc }
+    rc = install_tree(
+        root.concat("/vendor/bindings"),
+        dst_root.concat("/vendor/bindings"),
+        "install bundled vendor til bindings")
+    return rc
+}
+
 install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I32 {
     root := builder_compiler_root(lp)
     dst_root := support_root(prefix)
@@ -6902,7 +6973,7 @@ install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I32 {
     if rc.neq(0) { return rc }
     rc = install_tree(root.concat("/boot"), dst_root.concat("/boot"), "install compiler boot files")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/lib"), dst_root.concat("/lib"), "install bundled dependency tree")
+    rc = install_vendor_libs(root, dst_root)
     if rc.neq(0) { return rc }
     return 0
 }
