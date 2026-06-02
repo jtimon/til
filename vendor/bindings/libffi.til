@@ -180,21 +180,21 @@ ffi_raw := Dynamic  // typedef union from C, opaque here
 
 ffi_java_raw := ffi_raw
 
-ffi_raw_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, mut avalue : ffi_raw) {}
+ffi_raw_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, mut rvalue : Dynamic, mut avalue : ffi_raw) {}
 
-ffi_ptrarray_to_raw := ext_proc(mut cif : ffi_cif, args : Dynamic, mut raw : ffi_raw) {}
-ffi_raw_to_ptrarray := ext_proc(mut cif : ffi_cif, mut raw : ffi_raw, args : Dynamic) {}
+ffi_ptrarray_to_raw := ext_proc(mut cif : ffi_cif, mut args : Dynamic, mut raw : ffi_raw) {}
+ffi_raw_to_ptrarray := ext_proc(mut cif : ffi_cif, mut raw : ffi_raw, mut args : Dynamic) {}
 ffi_raw_size := ext_proc(mut cif : ffi_cif) returns shallow USize {}
 
 /* This is analogous to the raw API, except it uses Java parameter
    packing, even on 64-bit machines.  I.e. on 64-bit machines longs
    and doubles are followed by an empty 64-bit word.  */
 
-ffi_java_raw_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, mut avalue : ffi_java_raw) {}
+ffi_java_raw_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, mut rvalue : Dynamic, mut avalue : ffi_java_raw) {}
 
-ffi_java_ptrarray_to_raw := ext_proc(mut cif : ffi_cif, args : Dynamic, mut raw : ffi_java_raw) {}
+ffi_java_ptrarray_to_raw := ext_proc(mut cif : ffi_cif, mut args : Dynamic, mut raw : ffi_java_raw) {}
 
-ffi_java_raw_to_ptrarray := ext_proc(mut cif : ffi_cif, mut raw : ffi_java_raw, args : Dynamic) {}
+ffi_java_raw_to_ptrarray := ext_proc(mut cif : ffi_cif, mut raw : ffi_java_raw, mut args : Dynamic) {}
 
 ffi_java_raw_size := ext_proc(mut cif : ffi_cif) returns shallow USize {}
 
@@ -202,36 +202,36 @@ ffi_java_raw_size := ext_proc(mut cif : ffi_cif) returns shallow USize {}
 
 ffi_closure := ext_struct("") {}  // opaque: unsupported field shape
 
-ffi_closure_alloc := ext_proc(shallow size : USize, code : Dynamic) returns Dynamic {}
-ffi_closure_free := ext_proc(_arg : Dynamic) {}
+ffi_closure_alloc := ext_proc(shallow size : USize, mut code : Dynamic) returns Dynamic {}
+ffi_closure_free := ext_proc(mut _arg : Dynamic) {}
 
-ffi_prep_closure_loc := ext_proc(mut _arg : ffi_closure, mut _arg : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
+ffi_prep_closure_loc := ext_proc(mut _arg : ffi_closure, mut _arg : ffi_cif, fun : Dynamic, mut user_data : Dynamic, mut codeloc : Dynamic) returns shallow ffi_status {}
 
 ffi_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
 
 ffi_java_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
 
-ffi_prep_raw_closure := ext_proc(mut _arg : ffi_raw_closure, mut cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
+ffi_prep_raw_closure := ext_proc(mut _arg : ffi_raw_closure, mut cif : ffi_cif, fun : Dynamic, mut user_data : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_raw_closure_loc := ext_proc(mut _arg : ffi_raw_closure, mut cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
+ffi_prep_raw_closure_loc := ext_proc(mut _arg : ffi_raw_closure, mut cif : ffi_cif, fun : Dynamic, mut user_data : Dynamic, mut codeloc : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_java_raw_closure := ext_proc(mut _arg : ffi_java_raw_closure, mut cif : ffi_cif, fun : Dynamic, user_data : Dynamic) returns shallow ffi_status {}
+ffi_prep_java_raw_closure := ext_proc(mut _arg : ffi_java_raw_closure, mut cif : ffi_cif, fun : Dynamic, mut user_data : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_java_raw_closure_loc := ext_proc(mut _arg : ffi_java_raw_closure, mut cif : ffi_cif, fun : Dynamic, user_data : Dynamic, codeloc : Dynamic) returns shallow ffi_status {}
+ffi_prep_java_raw_closure_loc := ext_proc(mut _arg : ffi_java_raw_closure, mut cif : ffi_cif, fun : Dynamic, mut user_data : Dynamic, mut codeloc : Dynamic) returns shallow ffi_status {}
 
 ffi_go_closure := ext_struct("") {}  // opaque: unsupported field shape
 
 ffi_prep_go_closure := ext_proc(mut _arg : ffi_go_closure, mut _arg : ffi_cif, fun : Dynamic) returns shallow ffi_status {}
 
-ffi_call_go := ext_proc(mut cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic, closure : Dynamic) {}
+ffi_call_go := ext_proc(mut cif : ffi_cif, fn : Dynamic, mut rvalue : Dynamic, mut avalue : Dynamic, mut closure : Dynamic) {}
 
 /* ---- Public interface definition -------------------------------------- */
 
-ffi_prep_cif := ext_proc(mut cif : ffi_cif, shallow abi : ffi_abi, shallow nargs : U32, mut rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
+ffi_prep_cif := ext_proc(mut cif : ffi_cif, shallow abi : ffi_abi, shallow nargs : U32, mut rtype : ffi_type, mut atypes : Dynamic) returns shallow ffi_status {}
 
-ffi_prep_cif_var := ext_proc(mut cif : ffi_cif, shallow abi : ffi_abi, shallow nfixedargs : U32, shallow ntotalargs : U32, mut rtype : ffi_type, atypes : Dynamic) returns shallow ffi_status {}
+ffi_prep_cif_var := ext_proc(mut cif : ffi_cif, shallow abi : ffi_abi, shallow nfixedargs : U32, shallow ntotalargs : U32, mut rtype : ffi_type, mut atypes : Dynamic) returns shallow ffi_status {}
 
-ffi_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, rvalue : Dynamic, avalue : Dynamic) {}
+ffi_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, mut rvalue : Dynamic, mut avalue : Dynamic) {}
 
 ffi_get_struct_offsets := ext_proc(shallow abi : ffi_abi, mut struct_type : ffi_type, mut offsets : USize) returns shallow ffi_status {}
 

@@ -1094,6 +1094,13 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
                         params_buf.push_str(" : ")
                         push_til_base(params_buf, p_base_view)
                     } else if p_ptrs.eq(1).and(p_is_void) {
+                        // `void *` maps to Dynamic, which is still a Ref at the
+                        // FFI boundary: a non-mut Dynamic emits `const void *`,
+                        // a mut one emits `void *`. So honour the C const the
+                        // same way as a typed pointer -- a non-const `void *`
+                        // (e.g. an output buffer the callee writes) becomes
+                        // `mut`, a `const void *` stays the read-only default.
+                        if p_pointee_const.not() { params_buf.push_str("mut ") }
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : Dynamic")
                     } else if p_ptrs.eq(1) {
@@ -1102,6 +1109,9 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
                         params_buf.push_str(" : ")
                         push_til_base(params_buf, params_view.substr(p_base_off, p_base_len))
                     } else {
+                        // Multi-level pointer (`T **`, ...) also maps to the
+                        // Dynamic Ref; same const-driven mut rule as above.
+                        if p_pointee_const.not() { params_buf.push_str("mut ") }
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : Dynamic")
                     }

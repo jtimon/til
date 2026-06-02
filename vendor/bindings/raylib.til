@@ -983,14 +983,14 @@ SetTraceLogCallback := ext_proc(callback : TraceLogCallback) {}
 
 // Memory management, using internal allocators
 MemAlloc := ext_proc(shallow size : U32) returns Dynamic {}
-MemRealloc := ext_proc(ptr : Dynamic, shallow size : U32) returns Dynamic {}
-MemFree := ext_proc(ptr : Dynamic) {}
+MemRealloc := ext_proc(mut ptr : Dynamic, shallow size : U32) returns Dynamic {}
+MemFree := ext_proc(mut ptr : Dynamic) {}
 
 // File system management functions
 LoadFileData := ext_proc(fileName : I8, mut dataSize : I32) returns ref I8 {}
 UnloadFileData := ext_proc(mut data : U8) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-SaveFileData := ext_proc(fileName : I8, data : Dynamic, shallow dataSize : I32) returns shallow Bool {}
+SaveFileData := ext_proc(fileName : I8, mut data : Dynamic, shallow dataSize : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportDataAsCode := ext_proc(data : U8, shallow dataSize : I32, fileName : I8) returns shallow Bool {}
 LoadFileText := ext_proc(fileName : I8) returns ref I8 {}
@@ -1383,8 +1383,8 @@ ColorAlpha := ext_func(shallow color : Color, shallow alpha : F32) returns shall
 ColorAlphaBlend := ext_func(shallow dst : Color, shallow src : Color, shallow tint : Color) returns shallow Color {}
 ColorLerp := ext_func(shallow color1 : Color, shallow color2 : Color, shallow factor : F32) returns shallow Color {}
 GetColor := ext_func(shallow hexValue : U32) returns shallow Color {}
-GetPixelColor := ext_func(srcPtr : Dynamic, shallow format : I32) returns shallow Color {}
-SetPixelColor := ext_proc(dstPtr : Dynamic, shallow color : Color, shallow format : I32) {}
+GetPixelColor := ext_func(mut srcPtr : Dynamic, shallow format : I32) returns shallow Color {}
+SetPixelColor := ext_proc(mut dstPtr : Dynamic, shallow color : Color, shallow format : I32) {}
 GetPixelDataSize := ext_func(shallow width : I32, shallow height : I32, shallow format : I32) returns shallow I32 {}
 
 //------------------------------------------------------------------------------------
@@ -1400,7 +1400,7 @@ LoadFontFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : 
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsFontValid := ext_func(shallow font : Font) returns shallow Bool {}
 LoadFontData := ext_proc(fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32, shallow type : I32, mut glyphCount : I32) returns ref GlyphInfo {}
-GenImageFontAtlas := ext_proc(glyphs : GlyphInfo, glyphRecs : Dynamic, shallow glyphCount : I32, shallow fontSize : I32, shallow padding : I32, shallow packMethod : I32) returns shallow Image {}
+GenImageFontAtlas := ext_proc(glyphs : GlyphInfo, mut glyphRecs : Dynamic, shallow glyphCount : I32, shallow fontSize : I32, shallow padding : I32, shallow packMethod : I32) returns shallow Image {}
 UnloadFontData := ext_proc(mut glyphs : GlyphInfo, shallow glyphCount : I32) {}
 UnloadFont := ext_proc(shallow font : Font) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
@@ -1438,7 +1438,7 @@ CodepointToUTF8 := ext_func(shallow codepoint : I32, mut utf8Size : I32) returns
 // WARNING 1: Most of these functions use internal static buffers[], it's recommended to store returned data on user-side for re-use
 // WARNING 2: Some strings allocate memory internally for the returned strings, those strings must be free by user using MemFree()
 LoadTextLines := ext_func(text : I8, mut count : I32) returns Dynamic {}
-UnloadTextLines := ext_proc(text : Dynamic, shallow lineCount : I32) {}
+UnloadTextLines := ext_proc(mut text : Dynamic, shallow lineCount : I32) {}
 TextCopy := ext_func(mut dst : I8, src : I8) returns shallow I32 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 TextIsEqual := ext_func(text1 : I8, text2 : I8) returns shallow Bool {}
@@ -1449,7 +1449,7 @@ GetTextBetween := ext_func(text : I8, begin : I8, end : I8) returns ref I8 {}
 TextReplace := ext_func(text : I8, search : I8, replacement : I8) returns ref I8 {}
 TextReplaceBetween := ext_func(text : I8, begin : I8, end : I8, replacement : I8) returns ref I8 {}
 TextInsert := ext_func(text : I8, insert : I8, shallow position : I32) returns ref I8 {}
-TextJoin := ext_func(textList : Dynamic, shallow count : I32, delimiter : I8) returns ref I8 {}
+TextJoin := ext_func(mut textList : Dynamic, shallow count : I32, delimiter : I8) returns ref I8 {}
 TextSplit := ext_func(text : I8, shallow delimiter : I8, mut count : I32) returns Dynamic {}
 TextAppend := ext_proc(mut text : I8, append : I8, mut position : I32) {}
 TextFindIndex := ext_func(text : I8, search : I8) returns shallow I32 {}
