@@ -67,7 +67,9 @@ typedef enum {
     Literal_TAG_Str,
     Literal_TAG_Num,
     Literal_TAG_Bool,
-    Literal_TAG_Null
+    Literal_TAG_Null,
+    Literal_TAG_MapLit,
+    Literal_TAG_SetLit
 } Literal_tag;
 typedef struct Literal Literal;
 typedef enum {
@@ -89,8 +91,6 @@ typedef enum {
     NodeType_TAG_NamedArg,
     NodeType_TAG_Break,
     NodeType_TAG_Continue,
-    NodeType_TAG_MapLit,
-    NodeType_TAG_SetLit,
     NodeType_TAG_Switch,
     NodeType_TAG_Case,
     NodeType_TAG_NoDefaultArg,
@@ -1178,6 +1178,8 @@ Bool NodeType_is_literal_str(NodeType * self);
 Bool NodeType_is_literal_num(NodeType * self);
 Bool NodeType_is_literal_bool(NodeType * self);
 Bool NodeType_is_literal_null(NodeType * self);
+Bool NodeType_is_map_lit(NodeType * self);
+Bool NodeType_is_set_lit(NodeType * self);
 Bool NodeType_is_nonnull_literal(NodeType * self);
 Bool NodeType_is(NodeType * self, NodeType * other);
 void NodeType_delete(NodeType * self, Bool call_free);

@@ -1026,7 +1026,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mut first := parse_expression(p)
         if check(p, TokenType.Colon) {
             // Map literal
-            e = Expr.new(NodeType.MapLit, t_line, t_col)
+            e = Expr.new(NodeType.Literal(Literal.MapLit), t_line, t_col)
             e.add_child(own first)
             advance(p) // consume ':'
             e.add_child(own parse_expression(p))
@@ -1039,7 +1039,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             }
         } else {
             // Set literal
-            e = Expr.new(NodeType.SetLit, t_line, t_col)
+            e = Expr.new(NodeType.Literal(Literal.SetLit), t_line, t_col)
             e.add_child(own first)
             if check(p, TokenType.Comma) { advance(p) }
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
