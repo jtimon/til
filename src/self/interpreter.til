@@ -112,7 +112,7 @@ namespace:
                 // needed.
             } else {
                 for dd : Declaration in sdef_data.fields {
-                    foff := dd.field_offset
+                    foff := ctx_field_layout(self.struct_name, dd.name, self.ctx).offset
                     ref ftype : Str = dd.explicit_type
                     ref nested_def : Expr = field_nested_def(dd, self.ctx)
                     if dd.own_type.is(OwnType.Own) {
@@ -160,7 +160,7 @@ namespace:
                                 } else {
                                     mut temp_decl := dd
                                     temp_decl.own_type = OwnType.Shallow
-                                    val := read_field(self.data, temp_decl, self.ctx)
+                                    val := read_field(self.data, temp_decl, foff, self.ctx)
                                     mut cloned_val := val.clone()
                                     switch cloned_val {
                                     case Value.Enum(cei):
@@ -728,7 +728,9 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 interp_error(e, format("no field '", fname.field_access_name(), "'"), ctx)
                 exit(1)
             }
-            return read_field(si.data, fdecl, ctx)
+            sname_stable := til_type_name(e.child(0).expr_til_type())
+            fl := ctx_field_layout(sname_stable, fname.field_access_name(), ctx)
+            return read_field(si.data, fdecl, fl.offset, ctx)
         case:
             UNREACHABLE(__LOC__)
             return val_none()
@@ -1160,6 +1162,19 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
             } else {
                 ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.child(0))
                 ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.child(0))
+                mut cur_sname : Str = ""
+                switch stmt.child(0).node_type {
+                case NodeType.Ident(obj_ident):
+                    ref obj_cell : Cell = scope_get(scope, obj_ident.ident_name())
+                    if obj_cell.is_null().not() {
+                        switch obj_cell.val {
+                        case Value.Struct(obj_si):
+                            cur_sname = obj_si.struct_name
+                        case:
+                        }
+                    }
+                case:
+                }
                 // Chain walking for nested field access (e.g. a.b.c = val)
                 if stmt.child(0).node_type.is(NodeType.FieldAccess) {
                     ref mut cur : Expr = stmt.child(0)
@@ -1176,18 +1191,21 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                             case Value.Struct(si):
                                 base = to_ptr(si.data)
                                 cur_sdef = si.struct_def
+                                cur_sname = si.struct_name
                                 // For simplicity, handle depth=1 (most common: a.field = val)
                                 if depth.eq(1) {
                                     switch stmt.child(0).node_type {
                                     case NodeType.FieldAccess(fa_name):
                                             ref fd : Declaration = find_field_decl(cur_sdef, fa_name.field_access_name())
                                         if fd.is_null().not() {
+                                            fa_off := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx).offset
                                             if fd.own_type.is(OwnType.Shallow).not() {
-                                                base = deref(ptr_add(base, fd.field_offset.to_u64()))
+                                                base = deref(ptr_add(base, fa_off.to_u64()))
                                             } else {
-                                                base = ptr_add(base, fd.field_offset.to_u64())
+                                                base = ptr_add(base, fa_off.to_u64())
                                             }
                                             cur_sdef = field_nested_def(fd, ctx)
+                                            cur_sname = fd.explicit_type
                                         }
                                     case:
                                     }
@@ -1207,7 +1225,8 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                     exit(1)
                 }
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname)
-                write_field(base, fdecl, val, ctx)
+                wf_fl := ctx_field_layout(cur_sname, fname, ctx)
+                write_field(base, fdecl, wf_fl.offset, wf_fl.size, val, ctx)
                 if move_src.is_null().not() {
                     if move_src.val.is(Value.Func).not() {
                         memcpy(move_src.val, val_none(), Value.size())
@@ -1582,7 +1601,8 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         case:
                             val = eval_expr(scope, arg, ctx)
                         }
-                        write_field(si_inst.data, fdd, val, ctx)
+                        ctor_fl := ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
+                        write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -2261,15 +2281,18 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     sz := ctx_total_size(ctx.cached_array_name, ctx)
     inst_data : Dynamic = calloc(1, sz.to_u64())
     ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
-    write_field(inst_data, ba_data_d, Value.Ref(data), ctx)
+    ba_data_fl := ctx_field_layout(ctx.cached_array_name, "data", ctx)
+    write_field(inst_data, ba_data_d, ba_data_fl.offset, ba_data_fl.size, Value.Ref(data), ctx)
     ref ba_cap_d : Declaration = find_field_decl(ctx.cached_array_def, "cap")
-    write_field(inst_data, ba_cap_d, val_u32(count.to_i64()), ctx)
+    ba_cap_fl := ctx_field_layout(ctx.cached_array_name, "cap", ctx)
+    write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, val_u32(count.to_i64()), ctx)
     ref ba_esz_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_size")
-    write_field(inst_data, ba_esz_d, val_u32(esz.cast(I64)), ctx)
+    ba_esz_fl := ctx_field_layout(ctx.cached_array_name, "elem_size", ctx)
+    write_field(inst_data, ba_esz_d, ba_esz_fl.offset, ba_esz_fl.size, val_u32(esz.cast(I64)), ctx)
     ref clone_fn : Value = ns_get(elem_type, "clone", ctx)
-    if clone_fn.is_null().not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); write_field(inst_data, ba_ec_d, shallow_copy_value(clone_fn), ctx) }
+    if clone_fn.is_null().not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); ba_ec_fl := ctx_field_layout(ctx.cached_array_name, "elem_clone", ctx); write_field(inst_data, ba_ec_d, ba_ec_fl.offset, ba_ec_fl.size, shallow_copy_value(clone_fn), ctx) }
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
-    if delete_fn.is_null().not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); write_field(inst_data, ba_ed_d, shallow_copy_value(delete_fn), ctx) }
+    if delete_fn.is_null().not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); ba_ed_fl := ctx_field_layout(ctx.cached_array_name, "elem_delete", ctx); write_field(inst_data, ba_ed_d, ba_ed_fl.offset, ba_ed_fl.size, shallow_copy_value(delete_fn), ctx) }
     return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
 }
 
@@ -2432,8 +2455,8 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
 
 ENUM_PAYLOAD_OFFSET : USize = 8
 
-read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns shallow Value {
-    ref ptr : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
+read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: I32, ctx: Context) returns shallow Value {
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset.to_u64())
     // Resolve the field's type name. For own/ref enum fields the typer
     // sometimes leaves explicit_type empty -- recover the enum name from
     // til_type when available so the enum branch below applies regardless
@@ -2536,20 +2559,20 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
-    ref ptr2 : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
+    ref ptr2 : Dynamic = ptr_add(inst_data, field_offset.to_u64())
     if ftype.len().gt(0) {
         ref stored : Dynamic = deref(ptr2)
         if stored.is_null().not() { return Value.Func(stored) }
     }
     // Fallback
-    ref ptr3 : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
+    ref ptr3 : Dynamic = ptr_add(inst_data, field_offset.to_u64())
     ref fi : I64 = ptr3
     return val_i64(fi)
 }
 
-write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value, ctx: Context) {
-    ref ptr : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
-    fsz := dd.field_size
+write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: I32, field_size: I32, val: Value, ctx: Context) {
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset.to_u64())
+    fsz := field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
     // of own_type; let the unified switch below allocate the heap instance.
     mut is_enum_field := false

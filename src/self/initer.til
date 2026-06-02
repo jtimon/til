@@ -718,7 +718,7 @@ priv is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Boo
     return false
 }
 
-gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
+gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
 
@@ -927,7 +927,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
                 // to pass self where the no-arg size() expects none.
                 // sdd.total_struct_size is already set by the earlier
                 // layout-computation pass.
-                sz_text := sdd.total_struct_size.to_str()
+                sz_text := ctx_total_size(sname, ctx).to_str()
 
                 mut hash_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
                 mut size_lit := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
@@ -959,12 +959,6 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope) {
         }
     case:
         UNREACHABLE(__LOC__)
-    }
-}
-
-generate_missing_struct_clones_and_deletes := func(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        gen_struct_clone_delete_for_stmt(stmt, scope)
     }
 }
 
@@ -1818,7 +1812,7 @@ register_function_definitions := func(ctx: Context, program: Expr, scope: TypeSc
     }
 }
 
-gen_struct_size_method_for_stmt := func(stmt: Expr) {
+gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
     if def.node_type.is(NodeType.StructDef).not() { return }
@@ -1844,7 +1838,7 @@ gen_struct_size_method_for_stmt := func(stmt: Expr) {
         }
         if has_size { return }
 
-        sz_text := sz_sdd.total_struct_size.to_str()
+        sz_text := ctx_total_size(sname, ctx).to_str()
 
         mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
         mut size_expr := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
@@ -1864,12 +1858,6 @@ gen_struct_size_method_for_stmt := func(stmt: Expr) {
         sz_sdd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
     case:
         UNREACHABLE(__LOC__)
-    }
-}
-
-generate_struct_size_methods := func(program: Expr) {
-    for stmt : Expr in program.children {
-        gen_struct_size_method_for_stmt(stmt)
     }
 }
 
@@ -1920,12 +1908,6 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
         esz_edd.ns_decls.push(own Declaration(name = "size", default_value = func_def))
     case:
         UNREACHABLE(__LOC__)
-    }
-}
-
-generate_enum_size_methods := proc(program: Expr, scope: TypeScope, ctx: Context) {
-    for stmt : Expr in program.children {
-        gen_enum_size_method_for_stmt(stmt, scope, ctx)
     }
 }
 
@@ -2006,11 +1988,6 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
             UNREACHABLE(__LOC__)
         }
     }
-}
-
-generate_size_methods := proc(program: Expr, scope: TypeScope, ctx: Context) {
-    generate_struct_size_methods(program)
-    generate_enum_size_methods(program, scope, ctx)
 }
 
 gen_cmp_derived_for_stmt := func(stmt: Expr) {
@@ -2369,8 +2346,6 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             }
 
             offset = align_up(offset, falign)
-            fd.field_offset = offset
-            fd.field_size = fsz
             sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name))
             if falign.gt(max_align) { max_align = falign }
             offset = offset.add(fsz)
@@ -2378,7 +2353,6 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 
         sl.total_size = align_up(offset, max_align)
         if sl.total_size.eq(0) { sl.total_size = 1 }
-        struct_meta.total_struct_size = sl.total_size
         ctx.struct_layouts.set(own name.clone(), own sl)
     case:
         UNREACHABLE(__LOC__)
@@ -2439,7 +2413,6 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
             total = total.add(max_payload_size)
         }
         total = align_up(total, max_payload_align)
-        edd.total_enum_size = total
         ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = total))
         return total
     case:
@@ -2456,6 +2429,34 @@ ctx_total_size := func(name: Str, ctx: Context) returns I32 {
     if ctx.struct_layouts.has(name).not() { return 0 }
     ref sl : StructLayout = ctx.struct_layouts[name]
     return sl.total_size
+}
+
+// Issue #147 step 4: per-field layout lookup. Walks the parent struct's
+// definition to find ~field_name~'s index, then returns the FieldLayout
+// (offset, size, struct_name) from ctx.struct_layouts. Returns the zero
+// FieldLayout when the parent or field isn't registered, matching what
+// the AST field_offset / field_size used to default to.
+ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns FieldLayout {
+    if sname.len().eq(0).or(field_name.len().eq(0)) { return FieldLayout() }
+    if ctx.struct_layouts.has(sname).not() { return FieldLayout() }
+    ref sl : StructLayout = ctx.struct_layouts[sname]
+    ref tdef : Expr = lookup_interp_type_def(sname, ctx)
+    if tdef.is_null() { return FieldLayout() }
+    switch tdef.node_type {
+    case NodeType.StructDef(sdd):
+        for i in 0..sdd.fields.len() {
+            ref fd : Declaration = sdd.fields[i]
+            if fd.name.eq(field_name) {
+                if i.lt(sl.fields.len()) {
+                    ref fl : FieldLayout = sl.fields[i]
+                    return FieldLayout(offset = fl.offset, size = fl.size, struct_name = fl.struct_name.clone())
+                }
+                return FieldLayout()
+            }
+        }
+    case:
+    }
+    return FieldLayout()
 }
 
 
@@ -2590,7 +2591,7 @@ init_declarations := proc(ctx: Context, program: Expr, scope: TypeScope) returns
     }
     for si : U32 in struct_idxs {
         ref stmt : Expr = program.child(si)
-        gen_struct_clone_delete_for_stmt(stmt, scope)
+        gen_struct_clone_delete_for_stmt(stmt, scope, ctx)
     }
     for ai : U32 in alias_idxs {
         ref stmt : Expr = program.child(ai)
@@ -3273,7 +3274,7 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // and cmp/unity methodgen all moved to type_decls_file (the
     // typer's first sweep) as part of #147 step 3-4 / #174 work.
     for si : U32 in struct_idxs {
-        gen_struct_clone_delete_for_stmt(program.child(si), scope)
+        gen_struct_clone_delete_for_stmt(program.child(si), scope, ctx)
     }
     for ei : U32 in enum_idxs {
         gen_missing_enum_clone_for_stmt(program.child(ei), scope)

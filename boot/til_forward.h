@@ -354,8 +354,6 @@ typedef struct Declaration {
     Bool used;
     OwnType own_type;
     Type til_type;
-    I32 field_offset;
-    I32 field_size;
     Expr *default_value;
     Str orig_name;
 } Declaration;
@@ -402,7 +400,6 @@ typedef struct FieldAccessData {
 
 
 typedef struct StructDef {
-    I32 total_struct_size;
     Vec fields;
     Vec ns_decls;
     Str c_tag;
@@ -413,7 +410,6 @@ typedef struct EnumDef {
     Vec ns_decls;
     Vec variants;
     Map payload_types;
-    I32 total_enum_size;
     Vec payload_consts;
 } EnumDef;
 
@@ -1352,7 +1348,7 @@ Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 I32 register_struct_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 Str * priv___src_self_initer_til__field_inferred_type_name(Declaration * fd);
 Bool priv___src_self_initer_til__is_pod_type_for_clone(Str * type_name, TypeScope * scope);
-void gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope);
+void gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 I32 register_enum_definition(Context * ctx, Expr * stmt, TypeScope * scope);
 void collect_enum_variants(Expr * enum_def, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
 void priv___src_self_initer_til__generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
@@ -1368,7 +1364,7 @@ void register_funcsig_alias_for_stmt(Context * ctx, Expr * stmt, TypeScope * sco
 void register_type_alias_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void register_top_level_value_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void register_function_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
-void gen_struct_size_method_for_stmt(Expr * stmt);
+void gen_struct_size_method_for_stmt(Expr * stmt, Context * ctx);
 void gen_enum_size_method_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 void gen_unity_derived_for_stmt(Expr * stmt);
 void gen_cmp_derived_for_stmt(Expr * stmt);
@@ -1376,6 +1372,7 @@ void compute_struct_layout(Str * name, Expr * struct_def, TypeScope * scope, Con
 void type_size_align(Str * ftype, TypeScope * scope, Context * ctx, I32 * sz, I32 * al);
 I32 compute_enum_layout(Str * name, Expr * enum_def, TypeScope * scope, Context * ctx);
 I32 ctx_total_size(Str * name, Context * ctx);
+FieldLayout * ctx_field_layout(Str * sname, Str * field_name, Context * ctx);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
 Bool priv___src_self_initer_til__init_is_lift_target(Expr * stmt);
 Str * priv___src_self_initer_til__init_lookup_name(Map * renamings, Str * name);
@@ -2081,8 +2078,8 @@ Value make_str_value_view(void * data, U32 len, Context * ctx);
 Value make_str_value_own(void * data, U32 len, Context * ctx);
 Str str_view(Value v);
 Declaration * find_field_decl(Expr * struct_def, Str * fname);
-Value read_field(void * inst_data, Declaration * dd, Context * ctx);
-void write_field(void * inst_data, Declaration * dd, Value * val, Context * ctx);
+Value read_field(void * inst_data, Declaration * dd, I32 field_offset, Context * ctx);
+void write_field(void * inst_data, Declaration * dd, I32 field_offset, I32 field_size, Value * val, Context * ctx);
 void interpret_register_defs(Scope * global, Expr * prog);
 void interpret_register_aliases(Scope * global, Expr * prog);
 void interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);

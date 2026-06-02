@@ -7565,7 +7565,7 @@ type_decls_file := proc(path: Str, ctx: Context) returns I32 {
                 compute_struct_layout(d.name, rhs, ctx.scope, ctx)
             case:
             }
-            gen_struct_size_method_for_stmt(stmt)
+            gen_struct_size_method_for_stmt(stmt, ctx)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             switch stmt.node_type {
             case NodeType.Decl(d):
