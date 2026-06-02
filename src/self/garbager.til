@@ -50,61 +50,12 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns Bool {
     return false
 }
 
-// Mirrors builder.til's is_pod_enum_clone_call so collect_scope_locals
-// can mark the destination local as is_heap=false. Two acceptance shapes:
-//   - the whole enum is POD (no variant carries a payload), OR
-//   - the arg is a ns FieldAccess to a payload-less variant of an
-//     otherwise-payload-carrying enum (e.g. Token.Eof in
-//     `enum { Num: I64, Name: Str, Eof }`).
+// Mirrors builder.til's is_pod_enum_clone_call; resolves the enum def
+// via TypeScope instead of Context.
 priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().lt(2) { return false }
-    ref callee : Expr = e.child(0)
-    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
-    mut is_clone := false
-    switch callee.node_type {
-    case NodeType.FieldAccess(m): is_clone = m.field_access_name().eq("clone")
-    case:
-    }
-    if is_clone.not() { return false }
-    if callee.children.len().eq(0) { return false }
-    ref type_id : Expr = callee.child(0)
-    if type_id.node_type.is(NodeType.Ident).not() { return false }
-    mut tname := ""
-    switch type_id.node_type {
-    case NodeType.Ident(n): tname = n.ident_name()
-    case:
-    }
+    tname := clone_call_type_name(e)
     if tname.len().eq(0) { return false }
-    ref edef : Expr = scope.get_struct(tname)
-    if edef.is_null() { return false }
-    if edef.node_type.is(NodeType.EnumDef).not() { return false }
-    if enum_has_payloads(edef).not() { return true }
-    // Enum has payloads -- only accept when the clone arg is a specific
-    // payload-less variant FieldAccess.
-    ref arg : Expr = e.child(1)
-    if arg.node_type.is(NodeType.FieldAccess).not() { return false }
-    if arg.expr_til_type().is(Type.Enum).not() { return false }
-    mut vname := ""
-    switch arg.node_type {
-    case NodeType.FieldAccess(vn): vname = vn.field_access_name()
-    case:
-    }
-    if vname.len().eq(0) { return false }
-    switch edef.node_type {
-    case NodeType.EnumDef(edd):
-        for j in 0..edd.variants.len() {
-            ref vn2 : Str = edd.variants[j]
-            if vn2.eq(vname) {
-                idx := j.to_i64()
-                if edd.payload_types.has(idx).not() { return true }
-                ref pt : Str = edd.payload_types[idx]
-                return pt.len().eq(0)
-            }
-        }
-    case:
-    }
-    return false
+    return is_pod_enum_clone_of(e, scope.get_struct(tname))
 }
 
 collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec) {

@@ -234,72 +234,32 @@ is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     return true
 }
 
-// True when `variant_name` is a payload-less variant of `enum_name`
-// (the variant carries only a tag, no inner data).  Used by the
-// POD-enum clone-wrap shortcut to permit value-copy even when the
-// enum has *other* variants with payloads.
-priv variant_is_payload_less := func(enum_name: Str, variant_name: Str, ctx: Context) returns Bool {
-    if enum_name.len().eq(0) { return false }
-    if variant_name.len().eq(0) { return false }
-    ref ed : Expr = find_struct_def(enum_name, ctx)
-    if ed.is_null() { return false }
-    if ed.node_type.is(NodeType.EnumDef).not() { return false }
-    switch ed.node_type {
-    case NodeType.EnumDef(edd):
-        for j in 0..edd.variants.len() {
-            ref vn : Str = edd.variants[j]
-            if vn.eq(variant_name) {
-                idx := j.to_i64()
-                if edd.payload_types.has(idx).not() { return true }
-                ref pt : Str = edd.payload_types[idx]
-                return pt.len().eq(0)
-            }
-        }
-    case:
-    }
-    return false
+// Matches the typer-emitted `<Enum>.clone(<value>)` wrap around Ident /
+// FieldAccess RHSes of Enum type. True when the wrap can be skipped
+// (whole enum is POD, or the clone arg is a payload-less variant of
+// an otherwise-payload-carrying enum).
+priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
+    tname := clone_call_type_name(e)
+    if tname.len().eq(0) { return false }
+    return is_pod_enum_clone_of(e, find_struct_def(tname, ctx))
 }
 
-// Match the typer-emitted `<Enum>.clone(<value>)` wrap that
-// finalize_decl_binding inserts around Ident / FieldAccess RHSes of
-// Enum type.  Returns true when the wrap can safely be skipped:
-//   - the whole enum is POD (no variant has a payload), OR
-//   - the clone arg is a ns FieldAccess to a payload-less variant
-//     of an otherwise-payload-carrying enum (e.g. `Token.Eof` where
-//     Token also has `Num: I64` and `Name: Str`).
-// Callers can then emit `(Enum){.tag = ENUM_TAG_Variant}` directly.
-priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().lt(2) { return false }
-    ref callee : Expr = e.child(0)
-    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
-    mut is_clone := false
-    switch callee.node_type {
-    case NodeType.FieldAccess(m): is_clone = m.field_access_name().eq("clone")
-    case:
+// Emit the clone arg as `(T){.tag = T_TAG_X}` when it's a ns-Enum
+// variant FieldAccess; otherwise fall back to emit_deref.
+priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+    ref pe_arg : Expr = e.child(1)
+    if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.expr_til_type().is(Type.Enum)) {
+        switch pe_arg.node_type {
+        case NodeType.FieldAccess(pe_vn):
+            ref pe_obj : Expr = pe_arg.child(0)
+            pe_sname := til_type_name(pe_obj.expr_til_type())
+            f.write("("); f.write(pe_sname); f.write("){.tag = ")
+            f.write(pe_sname); f.write("_TAG_"); f.write(pe_vn.field_access_name()); f.write("}")
+            return
+        case:
+        }
     }
-    if is_clone.not() { return false }
-    if callee.children.len().eq(0) { return false }
-    ref type_id : Expr = callee.child(0)
-    if type_id.node_type.is(NodeType.Ident).not() { return false }
-    mut tname := ""
-    switch type_id.node_type {
-    case NodeType.Ident(n): tname = n.ident_name()
-    case:
-    }
-    if is_pod_enum(tname, ctx) { return true }
-    // Enum has payloads -- bypass only when the clone arg is a
-    // specific payload-less variant access.
-    ref arg : Expr = e.child(1)
-    if arg.node_type.is(NodeType.FieldAccess).not() { return false }
-    if builder_fa_is_ns(arg, ctx).not() { return false }
-    if arg.expr_til_type().is(Type.Enum).not() { return false }
-    mut vname := ""
-    switch arg.node_type {
-    case NodeType.FieldAccess(vn): vname = vn.field_access_name()
-    case:
-    }
-    return variant_is_payload_less(tname, vname, ctx)
+    emit_deref(f, pe_arg, depth, ctx)
 }
 
 // A POD struct has only Shallow-owned fields that are themselves
@@ -1419,20 +1379,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // so we don't produce the cosmetic `(*&...)`
                         // round-trip that emit_deref would generate.
                         f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
-                        ref pe_arg : Expr = rhs.child(1)
-                        mut pe_inlined := false
-                        if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.expr_til_type().is(Type.Enum)) {
-                            switch pe_arg.node_type {
-                            case NodeType.FieldAccess(pe_vn):
-                                ref pe_obj : Expr = pe_arg.child(0)
-                                pe_sname := til_type_name(pe_obj.expr_til_type())
-                                f.write("("); f.write(pe_sname); f.write("){.tag = ")
-                                f.write(pe_sname); f.write("_TAG_"); f.write(pe_vn.field_access_name()); f.write("}")
-                                pe_inlined = true
-                            case:
-                            }
-                        }
-                        if pe_inlined.not() { emit_deref(f, pe_arg, depth, ctx) }
+                        emit_pod_enum_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
@@ -1451,35 +1398,11 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                     } else if is_pod_enum_clone_call(rhs, ctx).and(is_global.not()) {
-                        // POD enum clone wrap, heap-Decl variant: the
-                        // typer wraps `c := Color.Red` as
-                        // `c := Color.clone(Color.Red)` for ownership
-                        // semantics. The can_hoist branch above turns
-                        // it into a stack value when can_hoist is true;
-                        // here can_hoist is false (e.g. ASAP / outer-
-                        // scope mut) but the underlying enum is still
-                        // payload-less, so the value-vs-heap distinction
-                        // is purely about the destructor call. Emit as a
-                        // stack value and register with stack_locals so
-                        // the eventual delete uses call_free=false --
-                        // payload-less Color_delete is a no-op when
-                        // call_free is false, so no malloc is needed.
-                        // Same emit shape as the can_hoist branch.
+                        // POD-enum heap-Decl variant: emit as stack
+                        // value, garbager skips heap-promote, delete
+                        // gets elided by is_noop_delete_stmt.
                         f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
-                        ref pe_arg : Expr = rhs.child(1)
-                        mut pe_inlined := false
-                        if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.expr_til_type().is(Type.Enum)) {
-                            switch pe_arg.node_type {
-                            case NodeType.FieldAccess(pe_vn):
-                                ref pe_obj : Expr = pe_arg.child(0)
-                                pe_sname := til_type_name(pe_obj.expr_til_type())
-                                f.write("("); f.write(pe_sname); f.write("){.tag = ")
-                                f.write(pe_sname); f.write("_TAG_"); f.write(pe_vn.field_access_name()); f.write("}")
-                                pe_inlined = true
-                            case:
-                            }
-                        }
-                        if pe_inlined.not() { emit_deref(f, pe_arg, depth, ctx) }
+                        emit_pod_enum_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
@@ -1830,6 +1753,13 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     f.write(aname).write(" = ")
                     emit_expr(f, rhs, depth, ctx)
                     f.write("; }\n")
+                } else if is_pod_enum_clone_call(rhs, ctx) {
+                    // POD-enum stack-local Assign: old destructor is a
+                    // no-op (call_free=false), new value is the variant
+                    // literal -- skip the clone wrap and rebind.
+                    f.write(aname); f.write(" = ")
+                    emit_pod_enum_clone_arg(f, rhs, depth, ctx)
+                    f.write(";\n")
                 } else {
                     f.write("{ ").write(ctype).write(" *_new = (").write(ctype).write(" *)")
                     emit_expr(f, rhs, depth, ctx)
@@ -1933,6 +1863,13 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
                 f.write(fname); f.write(" = "); emit_expr(f, rhs_fa, depth, ctx); f.write(";\n")
+            } else if is_pod_enum_clone_call(rhs_fa, ctx) {
+                // POD-enum FieldAssign: skip the malloc-copy-free wrapper.
+                emit_expr(f, obj, depth, ctx)
+                if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
+                f.write(fname); f.write(" = ")
+                emit_pod_enum_clone_arg(f, rhs_fa, depth, ctx)
+                f.write(";\n")
             } else {
                 ftype := c_type_name(rhs_fa.expr_til_type(), til_type_name(rhs_fa.expr_til_type()), ctx)
                 f.write("{ "); f.write(ftype); f.write(" *_fa = "); emit_expr(f, rhs_fa, depth, ctx); f.write("; ")
