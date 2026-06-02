@@ -257,7 +257,7 @@ retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: S
     alias_binding.alias_target = target_name.clone()
 }
 
-retarget_loaded_aliases := func(mut lp: LoadedProgram) {
+retarget_loaded_aliases := func(lp: LoadedProgram) {
     retarget_alias_binding(lp.ctx.scope, "UPtr", target_uptr_name(lp.target))
     retarget_alias_binding(lp.ctx.scope, "USize", target_usize_name(lp.target))
 }

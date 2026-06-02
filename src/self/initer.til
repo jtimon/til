@@ -2926,7 +2926,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
 // switch-case destructure binding) so the typer carries the Map<I64,Str>
 // type info into the payload-types subscript without the
 // throws-inference mixing OutOfBounds (Vec) into KeyNotFound (Map).
-priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map) {
+priv init_subst_struct_params := func(sdef: StructDef, subs: Map) {
     for mut fd : Declaration in sdef.fields {
         new_type := init_subst_ident_name(subs, fd.explicit_type)
         if new_type.len().gt(0) {

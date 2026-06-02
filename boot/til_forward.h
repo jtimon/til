@@ -1504,6 +1504,7 @@ Str * priv___src_self_typer_til__lookup_variant_payload_type(TypeScope * scope, 
 void priv___src_self_typer_til__collect_switch_case_bindings(Context * ctx, Expr * e);
 void infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void check_unused_params(TypeScope * func_scope, Expr * expr, Context * ctx);
+void check_unused_mut_params(TypeScope * func_scope, Expr * expr, Str * path, Context * ctx);
 void check_unused_locals(TypeScope * scope, Str * path, Context * ctx);
 void check_unused_mut_locals(TypeScope * scope, Str * path, Context * ctx);
 I32 check_unused_priv_top_level(TypeScope * scope, Context * ctx);

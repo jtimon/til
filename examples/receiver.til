@@ -16,8 +16,8 @@ check(nng_dial(cli, url.c_str, dlr, 0.to_i32()), "dial")
 // Receive into a Str's own heap buffer (freed when rbuf goes out of
 // scope), passing rbuf.c_str as the void* destination. nng writes the
 // actual byte count back through sz (a size_t out-param).
-rbuf := Str.with_capacity(256.to_usize())
-sz : USize = 256.to_usize()
+mut rbuf := Str.with_capacity(256.to_usize())
+mut sz : USize = 256.to_usize()
 check(nng_recv(cli, rbuf.c_str, sz, 0.to_i32()), "recv")
 println(format("received: ", read_cstr(rbuf.c_str)))
 

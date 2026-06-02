@@ -156,6 +156,13 @@ bad_ref_fn := func(a: I64) returns ref I64 {
     return b
 }
 
+// #164 step 2: redundant 'mut' on a parameter that is never written
+// through (no `p = ...`, no `p.f = ...`, never passed to a mut/own/
+// Dynamic callee). The body only reads it.
+terr_redundant_mut_param := func(mut redundant_p: I64) returns I64 {
+    return redundant_p
+}
+
 // cannot return ref variable from non-ref function; use .clone() or 'returns ref'
 TERR_ARR := array("I64", 1, 2, 3)
 bad_ret_ref := func(i: I64) returns I64 {

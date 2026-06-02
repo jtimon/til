@@ -26,16 +26,28 @@ Complete mapping of til qualifiers to generated C, by context.
    ~test/qualifier_mut_field_error.til~, and
    ~test/qualifier_mut_payload_error.til~.
 
-   Issue #164 adds the third leg: a non-redundant ~mut~ on a local
+   Issue #164 adds the third leg: a ~mut~ local OR ~mut~ parameter
    that the body never uses to write is also flagged. The detector
    counts these as writes: a direct assignment (~name = ...~), a
    field-chain assignment (~name.f = ...~), a UFCS method call on
-   the name (~name.method(args)~), passing the name to a callee
-   parameter declared ~mut~ or ~own~, the name as the source of a
+   the name (~name.method(args)~), passing the name (or one of its
+   fields) to a callee parameter declared ~mut~/~own~ or typed
+   ~Dynamic~ (a raw pointer the callee may write through, e.g.
+   ~move~/~memcpy~/~write_ptr~), the name as the source of a
    ~case V(p):~ ref-mut payload binding, and the name as the source
    of a ~ref mut~ declaration (a launder use that requires the
-   source to be ~mut~). The diagnostic targets locals today;
-   params/namespace decls are step 2.
+   source to be ~mut~).
+
+   Note that ~mut~ only governs the binding and its direct fields
+   (~p = ...~, ~p.f = ...~). Mutating state reachable *through* a
+   non-mut binding -- a child element via a ~for x in p.children~
+   loop variable, or the buffer behind a pointer field -- does not
+   require ~mut~ on the binding, so such params are correctly
+   flagged as redundant. The diagnostic is intentionally conservative
+   on the write side: it would rather miss a redundant ~mut~ (e.g. a
+   binding only passed to a read-only ~Dynamic~ param like ~is_null~)
+   than wrongly reject a ~mut~ that is actually needed. Namespace
+   declarations are not yet covered.
 
 ** Arguments (function/proc parameters)
 

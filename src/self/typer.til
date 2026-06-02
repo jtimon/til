@@ -1457,7 +1457,10 @@ infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind
             rewrite_til_type_arg(scope, e.child(ci), ptype_t, in_func, ctx)
             narrow_dynamic(e.child(ci), ptype_t)
             // #164: arg passed to a `mut` param may be written through.
-            if param1.is_mut {
+            // A `Dynamic` param is an untyped raw pointer the callee can
+            // write through (move/memcpy/memset/write_ptr all take Dynamic
+            // dests), so treat those conservatively as writes too.
+            if param1.is_mut.or(ptype_t.is(Type.Dynamic)) {
                 ref arg_e : Expr = e.child(ci)
                 switch arg_e.node_type {
                 case NodeType.Ident(arg_id):
@@ -2100,6 +2103,22 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                         arg.type_error("cannot pass null to 'shallow' parameter", ctx)
                     }
                 }
+                // #164: namespace-method arg passed to a `mut` (or Dynamic)
+                // param may be written through -- mirror the regular-call
+                // path in infer_and_validate_fcall_args.
+                pp_t := type_from_name(pp.explicit_type, scope, ctx)
+                if pp.is_mut.or(pp_t.is(Type.Dynamic)) {
+                    switch arg.node_type {
+                    case NodeType.Ident(an_w):
+                        ref mut mp_b : TypeBinding = scope.get_binding(an_w.ident_name())
+                        if mp_b.is_null().not() { mp_b.written = true }
+                    case NodeType.FieldAccess:
+                        if arg.children.len().gt(0) {
+                            mark_field_assign_root_written(scope, arg.child(0))
+                        }
+                    case:
+                    }
+                }
             }
         }
         mut rt := Type.None
@@ -2564,13 +2583,13 @@ infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx
     }
 }
 
-infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+infer_map_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx: Context) {
     for e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
 }
 
-infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+infer_set_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx: Context) {
     for e_i : Expr in expr.children {
         infer_expr(scope, e_i, in_func, ctx)
     }
@@ -3210,6 +3229,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         if macro_is_template.not() {
             check_ref_function_returns(func_scope, expr, ctx)
             check_unused_params(func_scope, expr, ctx)
+            check_unused_mut_params(func_scope, expr, ctx.path, ctx)
             check_unused_locals(func_scope, ctx.path, ctx)
             check_unused_mut_locals(func_scope, ctx.path, ctx)
         }
@@ -3233,6 +3253,37 @@ check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
             if pb.used.not() {
                 expr.type_error("unused parameter '".concat(param.name).concat("'"), ctx)
             }
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+// #164 step 2: a `mut` parameter that the body never writes through
+// (no `param = ...`, no `param.f = ...`, never passed as the mut/own
+// argument of another callee) is a redundant qualifier. Same `written`
+// tracking as check_unused_mut_locals, but iterates the FuncDef's own
+// params (locals are skipped via is_param in the step-1 check, so the
+// two passes don't overlap). Called once per function -- params live on
+// the func_scope only, not on the if/while/block inner scopes.
+check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: Str, ctx: Context) {
+    switch expr.node_type {
+    case NodeType.FuncDef(fdef):
+        if fdef.func_type.is(FuncType.ExtFunc) { return }
+        if fdef.func_type.is(FuncType.ExtProc) { return }
+        // Auto-generated bodies (clone/delete/size/enum eq/to_str/...) are
+        // typer-emitted; the user cannot edit their signatures, so a
+        // redundant `mut` there is not actionable.
+        if fdef.auto_generated { return }
+        for param : Declaration in fdef.params {
+            if param.is_mut.not() { continue }
+            if param.name.len().eq(0) { continue }
+            if param.name.starts_with("_") { continue }
+            ref pb : TypeBinding = func_scope.get_binding(param.name)
+            if pb.is_null() { continue }
+            if pb.written { continue }
+            type_error_at(path, pb.line, pb.col,
+                "redundant 'mut' on parameter '".concat(param.name).concat("': never written through; drop the 'mut'"), ctx)
         }
     case:
         UNREACHABLE(__LOC__)

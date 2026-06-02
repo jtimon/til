@@ -14,13 +14,25 @@
    bindings are skipped because the `mut` keyword is synthesised by
    the typer, not written by the user.
 
-   Step 2 (TODO): extend the same machinery to params. The chain-walker
-   examples in the issue body all live on params, so until step 2 lands
-   those cannot drop the `mut` qualifier without losing the laundering
-   check. The infrastructure is in place; the remaining work is to
-   call a sibling `check_unused_mut_params` from the same six
-   ~check_unused_locals~ sites and add a skip for ~is_param~ to the
-   step-1 check (already done -- locals-only).
+   Step 2 (LANDED): the typer flags redundant `mut` on parameters via
+   ~check_unused_mut_params~, called once per function right after
+   ~check_unused_params~ (params live on the func_scope only, not on
+   the inner if/while/block scopes). It uses the same ~written~
+   tracking as the locals check; ext_func/ext_proc and auto-generated
+   bodies are skipped. Three write-detection gaps in the step-1
+   machinery were closed so genuine mutations aren't misflagged:
+   (a) args passed to a ~Dynamic~ parameter (raw-pointer write-through:
+   ~move~/~memcpy~/~memset~/~write_ptr~) now mark the arg's root
+   binding written, in both the regular-call and namespace-method-call
+   paths; (b) the namespace-method-call path (~Type.method(arg)~) now
+   mirrors the regular path's mut-arg marking, which it previously
+   lacked. The self-host sweep dropped ~mut~ from 22 parameters
+   (chain-walker cursors in garbager.til, ~infer_map_lit_expr~/
+   ~infer_set_lit_expr~, ~eval_body~, etc.) -- exactly the laundering
+   "small lies" this issue set out to remove.
+
+   Step 3 (TODO): namespace declarations. These live at module/struct
+   scope, not in a function body, so they need a separate pass.
 
 After [[./161.org][#161]] the typer rejects `ref mut x : T = src` when `src` is
    immutable. The simplest way to fix the existing chain-walker

@@ -243,7 +243,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_prog
     }
 }
 
-extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeScope) {
+extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec, scope: TypeScope) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
@@ -374,7 +374,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, mut locals: Vec, scope: TypeS
     }
 }
 
-check_use_after_own_transfer := proc(body: Expr, mut locals: Vec, ctx: Context) {
+check_use_after_own_transfer := proc(body: Expr, locals: Vec, ctx: Context) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.child(local.last_use.to_usize())
@@ -454,7 +454,7 @@ insert_exit_deletes := proc(mut body: Expr, mut live: Vec, return_only: Bool) {
     body.children.move_from(new_ch)
 }
 
-insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, stmt_idx: U32) {
+insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec, stmt_idx: U32) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() { return }
@@ -485,7 +485,7 @@ insert_nested_exit_deletes := proc(stmt: Expr, mut locals: Vec, stmt_idx: U32) {
     }
 }
 
-insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: Vec, stmt_idx: U32, mut new_ch: Vec) {
+insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, locals: Vec, stmt_idx: U32, mut new_ch: Vec) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -515,7 +515,7 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
     }
 }
 
-insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec) {
+insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -664,7 +664,7 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut
     }
 }
 
-insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
+insert_assign_delete := func(mut stmt: Expr, locals: Vec, mut new_ch: Vec) {
     switch stmt.node_type {
     case NodeType.Assign(ad):
         vname := ad.name
@@ -692,7 +692,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
     }
 }
 
-promote_own_transferred_locals := func(ctx: Context, mut body: Expr, mut locals: Vec) {
+promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0) { continue }
         ref stmt : Expr = body.child(local.decl_index.cast(U32))
@@ -791,7 +791,7 @@ priv branch_unconditionally_transfers := func(branch: Expr, name: Str, scope: Ty
 // Str local can hold a borrowed view on the non-transfer path, and deleting
 // that frees the source's buffer. Vec/Set/Map/struct/enum locals are always
 // genuinely heap when owned, so they are safe to sink.
-priv sink_conditional_transfer_deletes := func(mut body: Expr, mut locals: Vec, scope: TypeScope, ctx: Context) {
+priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec, scope: TypeScope, ctx: Context) {
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.decl_index.lt(0) { continue }

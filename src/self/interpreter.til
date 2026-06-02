@@ -886,7 +886,7 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
     }
 }
 
-eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
+eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
         if c.has_return { return }
@@ -2318,7 +2318,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     }
 }
 
-interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, program: Expr) {
+interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
     if ctx.ns_inited.not() {
         ctx.ns_fields = Map.new(Str, Value)
         ctx.ns_keys = Vec.new(Dynamic)
