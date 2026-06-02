@@ -4585,7 +4585,7 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     return 0
 }
 
-compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool) returns I32 {
+compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -4604,6 +4604,20 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     if asan {
         werr = " -Wno-all"
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
+    }
+
+    // --prof: -finstrument-functions makes gcc emit __cyg_profile_func_enter/
+    // exit hooks at every function boundary; the runtime that accumulates and
+    // reports per-function counts/time lives in src/c/ext.c. Linux/-rdynamic
+    // only (the ext.c runtime is #ifndef _WIN32), so skip it for Windows.
+    // The exit hook is appended on the return path, so for til functions that
+    // end in a noreturn call (panic/exit) gcc then mis-fires
+    // -Werror=return-type ("control reaches end of non-void function"). The
+    // non-prof build validates return-type strictly, so relax just that check
+    // for instrumented builds.
+    mut prof_flags := ""
+    if prof.and(target.is(Target.WindowsX64).not()) {
+        prof_flags = " -finstrument-functions -Wno-error=return-type"
     }
 
     // Extract directory from ext_c_path for -I flag
@@ -4633,7 +4647,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
             // Skip -include forward.h for src/c/ files
             mut fwd_flag := format(" -include ", fwd_path)
             if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
-            obj_cmd := compiler.format(extra, werr, asan_flags, " -I", ext_dir,
+            obj_cmd := compiler.format(extra, werr, asan_flags, prof_flags, " -I", ext_dir,
                 fwd_flag, ifl, " -c ", file,
                 " -o ", user_obj)
 
@@ -4674,7 +4688,7 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     mut gui_part := ""
     if mode_auto_import.eq("gui") { gui_part = format(" ", target_gui_libs(target)) }
 
-    cmd := compiler.format(extra, werr, asan_flags, " -g", dyn_flag, " -I", ext_dir,
+    cmd := compiler.format(extra, werr, asan_flags, prof_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
         " ", ffi_lib, gui_part, " ", sys_libs)
@@ -6895,11 +6909,11 @@ print_translate_success := proc(paths: BuildPaths) {
     }
 }
 
-compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool) returns I32 {
+compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof)
 }
 
 cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {
@@ -6910,11 +6924,11 @@ cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns 
     return result
 }
 
-cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
+cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
-    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan) }
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0).and(paths.do_lib) {
         print_translate_success(paths)
         println(format("Generated: gen/lib/lib", paths.name, ".so"))
@@ -6982,7 +6996,7 @@ print_install_success := proc(path: Str) {
     println(format("Installed: ", path))
 }
 
-cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
+cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     mut install_prefix := install_prefix_in
     if install_prefix.len().eq(0) {
         install_prefix = default_install_prefix()
@@ -6991,7 +7005,7 @@ cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, c
     paths := derive_build_paths(lp, "", "", target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
-    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan) }
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.neq(0) { return result }
 
     if paths.do_lib {
@@ -7041,14 +7055,14 @@ asan_child_prefix := func(asan: Bool) returns Str {
     return ""
 }
 
-cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, asan: Bool) returns I32 {
+cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if lp.cur_mode.is_library {
         panic(__LOC__, "cannot run a library -- use translate or build")
     }
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
-    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan) }
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0) {
         mut cmd := asan_child_prefix(asan).concat(paths.bin_path)
         for uarg : Str in user_argv {
@@ -7062,12 +7076,12 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
 // Compile and run a test binary. Forces do_lib=false so library-mode
 // files still produce an executable -- emit_test_main is gated on
 // lp.run_tests, so the C output has a real main().
-cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
+cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
     paths.do_lib = false
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
-    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan) }
+    if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0) { result = system_cmd(asan_child_prefix(asan).concat(paths.bin_path)) }
     return result
 }

@@ -82,15 +82,65 @@ callsite rather than guessing. examples/bench_hashmap.til remains the
 microbench for Map vs HashMap in isolation; this profile tells you which of
 those the compiler actually leans on.
 
+** Per-function profile: ~til build --prof~
+
+Builds the program with gcc's ~-finstrument-functions~ so the binary records,
+per function, the exact call count and inclusive/self time, and dumps a top-N
+table to stderr at exit. It mirrors ~--asan~: the flag instruments the OUTPUT
+binary, so to profile the compiler you build the compiler with ~--prof~ and
+then run it (just like bin/til_asan):
+
+  : bin/til build --prof -o bin/til_prof src/til.til
+  : bin/til_prof translate src/til.til         # profile the self-host front end
+  : bin/til_prof translate test/maps.til        # ... or a smaller, faster input
+
+At exit the run prints to stderr. For example, the compiler translating
+test/maps.til (955 functions instrumented), abridged:
+
+  : === til --prof: 955 functions instrumented, top 25 by self time ===
+  : function                                  calls      self_ms     total_ms
+  : U32_lt                                160347524    17354.498    24855.638
+  : Str_cmp                                14237012    11869.279    60576.116
+  : Str_get                                62732599     6872.202    27090.862
+  : I64_eq                               247455392     5675.768     5675.768
+  : Map_has                                 1896577     2135.753    27714.352
+  : expr_uses_var                           2231231     1487.129   284891.618
+  : Map_get                                  513717     1301.395    18107.891
+  : ...
+
+That one run already answers the issue's "pick the hot Maps" question:
+Map_has / Map_get sit near the top, and Str_cmp (14M calls -- how a Map
+compares string keys) dominates inclusive time, a concrete callsite for #234
+/ a HashSet swap rather than a guess. expr_uses_var is the typer's hottest
+walk. Columns: exact call count, self time (exclusive of callees), inclusive
+total.
+Set ~TIL_PROF_TOP=N~ for a different row count (0 = all). Names are the C
+symbols, which are the til function names -- the build links ~-rdynamic~ and
+the profiler resolves addresses with dladdr -- so the profile reads at the til
+source level and survives refactors that move code between C files. That is
+the point: it tells you which til functions and which Map/Vec/Str helpers the
+compiler actually leans on.
+
+Caveats: the call counts are exact and the most useful signal. ~self_ms~ of
+tiny hot leaf functions (I64_add, Str_get) is inflated by the two
+clock_gettime calls the instrumentation adds per call, so read self time as a
+rough guide, not a microbenchmark. The instrumentation slows the run
+substantially (every call hits a per-thread stack + the clock), so prefer a
+representative input over the full ~translate src/til.til~ when iterating, and
+expect a profiled self-host build to take noticeably longer than the bare one.
+Linux only (the runtime in src/c/ext.c is ~#ifndef _WIN32~); ~--prof~ is
+ignored when cross-compiling to Windows. The call stack is per-thread but the
+counters are not locked, so the numbers are exact only for the single-threaded
+self-host build.
+
 ** Roadmap (remaining #237 stretch goals)
 
-Shipped here: the sample-profile recipe (above) and the build-time regression
-harness (~make profile~). Still open, each shippable on its own:
+Shipped: the sample-profile recipe (perf / callgrind), the build-time
+regression harness (~make profile~), and the per-function ~--prof~ profiler
+above. Still open, each shippable on its own:
 
-  - Per-function CPU + alloc counters baked into the compiler under an opt-in
-    flag (~bin/til build --prof src/til.til~ emits N calls / total ns / self
-    ns per til function at end of run).
   - Allocation profile: which call sites malloc the most, which Vec is the
-    worst grow-and-realloc offender.
+    worst grow-and-realloc offender. (~--prof~ gives call counts and time but
+    not bytes allocated per site.)
   - A small table per release of the slowest 10 til functions and the
     suspected fix, inlined back into the issue tracker / docs.

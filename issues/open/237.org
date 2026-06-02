@@ -20,12 +20,15 @@
     callgrind via ~valgrind --tool=callgrind~, or whatever's easiest
     to reproduce on the dev box). Commit the recipe so reruns are a
     one-liner, not folklore. -> recipe in doc/profiling.org.
-  - Per-function CPU + alloc counters baked into the compiler under
-    an opt-in flag (~bin/til build --prof src/til.til~ emits a
-    summary at end of run -- N calls, total ns, self ns). Cheaper
-    than perf to run, attributed at the til source level rather than
-    at C symbols, and survives across refactors that move code
-    between C translation units.
+  - [DONE] Per-function CPU counters baked into the compiler under an
+    opt-in flag (~bin/til build --prof~ instruments the output via
+    gcc -finstrument-functions; the run emits N calls / self ms /
+    total ms per til function at exit). Attributed at the til source
+    level (C symbol names resolved with dladdr over -rdynamic) and
+    survives refactors that move code between C translation units. ->
+    runtime in src/c/ext.c, --prof flag wired through
+    src/self/builder.til + src/til.til, docs in doc/profiling.org. The
+    "alloc counters" half is the separate Allocation-profile bullet.
   - Allocation profile (which call sites mallocs the most, which Vec
     is the worst grow-and-realloc offender). Map.set / HashMap.set
     only matters in the context of what dominates allocs around it.
@@ -40,13 +43,13 @@
     suspected fix, so #234 / #235 / a HashMap-for-X swap has a real
     callsite to point at.
 
-  Progress: the sample-profile recipe (perf+flamegraph / callgrind) and
-  the build-time regression harness (~make profile~) have shipped --
-  see doc/profiling.org and examples/prof_selfhost.til. That covers
-  goals (a) pick hot Maps, (b) catch regressions, (c) keep the perf
-  story honest. Remaining (each still shippable on its own): the
-  in-compiler per-function CPU+alloc ~--prof~ flag, the allocation
-  profile, and the per-release slowest-10 table.
+  Progress: shipped so far -- the sample-profile recipe (perf+flamegraph
+  / callgrind), the build-time regression harness (~make profile~), and
+  the per-function ~--prof~ CPU/call profiler (see doc/profiling.org,
+  examples/prof_selfhost.til, src/c/ext.c). That covers goals (a) pick
+  hot Maps, (b) catch regressions, (c) keep the perf story honest.
+  Remaining (each still shippable on its own): the allocation profile
+  (bytes per call site) and the per-release slowest-10 table.
 
   None of this is the bottleneck today; this is for "when we look
   back in a year and the compiler is twice as slow because nobody was

@@ -1182,3 +1182,132 @@ Str *til_str_left(const Str *s, U64 n) {
     return result;
 }
 
+// --- `til build --prof`: per-function CPU + call profiler ---
+//
+// Active only in binaries compiled with -finstrument-functions, which
+// `til build --prof` adds (mirroring how --asan adds -fsanitize=address).
+// gcc then inserts __cyg_profile_func_enter/exit at every function
+// boundary; we accumulate per-function call counts and inclusive/self
+// time, and dump a top-N table to stderr at exit (atexit). Function names
+// are resolved with dladdr -- looked up via dlsym(RTLD_DEFAULT) so we do
+// not depend on _GNU_SOURCE -- and the build links -rdynamic, so the til
+// function names show through as the C symbol names (Map_set, Vec_push,
+// the typer_* helpers, ...). Set TIL_PROF_TOP=N to change the row count
+// (0 = all). Not built on Windows; intended for the single-threaded
+// self-host build, so the stats counters are not lock-protected (the call
+// stack is per-thread, so multithreaded programs will not crash but their
+// counters may race).
+#ifndef _WIN32
+
+typedef struct {
+    const char *dli_fname;
+    void       *dli_fbase;
+    const char *dli_sname;
+    void       *dli_saddr;
+} TilDlInfo;
+
+#define TIL_PROF_SLOTS (1u << 17)   // open-addressed by function pointer
+#define TIL_PROF_STACK (1u << 14)   // max instrumented call depth
+
+typedef struct {
+    void *fn;                       // NULL = empty slot
+    unsigned long long calls;
+    unsigned long long total_ns;    // inclusive (self + callees)
+    unsigned long long self_ns;     // exclusive
+} TilProfSlot;
+
+typedef struct {
+    unsigned idx;
+    unsigned long long start;
+    unsigned long long child_ns;
+} TilProfFrame;
+
+static TilProfSlot til_prof_slots[TIL_PROF_SLOTS];
+static __thread TilProfFrame til_prof_stack[TIL_PROF_STACK];
+static __thread unsigned til_prof_depth;
+static int til_prof_registered;
+
+static unsigned long long til_prof_now(void) __attribute__((no_instrument_function));
+static unsigned long long til_prof_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (unsigned long long)ts.tv_sec * 1000000000ULL + (unsigned long long)ts.tv_nsec;
+}
+
+static unsigned til_prof_slot(void *fn) __attribute__((no_instrument_function));
+static unsigned til_prof_slot(void *fn) {
+    unsigned h = (unsigned)(((uintptr_t)fn >> 4) * 2654435761u) & (TIL_PROF_SLOTS - 1u);
+    for (unsigned i = 0; i < TIL_PROF_SLOTS; i++) {
+        unsigned j = (h + i) & (TIL_PROF_SLOTS - 1u);
+        if (til_prof_slots[j].fn == fn) return j;
+        if (til_prof_slots[j].fn == NULL) { til_prof_slots[j].fn = fn; return j; }
+    }
+    return 0;   // table full: should not happen with the headroom above
+}
+
+static int til_prof_cmp(const void *a, const void *b) __attribute__((no_instrument_function));
+static int til_prof_cmp(const void *a, const void *b) {
+    const TilProfSlot *x = *(const TilProfSlot *const *)a;
+    const TilProfSlot *y = *(const TilProfSlot *const *)b;
+    if (y->self_ns > x->self_ns) return 1;
+    if (y->self_ns < x->self_ns) return -1;
+    return 0;
+}
+
+static void til_prof_report(void) __attribute__((no_instrument_function));
+static void til_prof_report(void) {
+    static const TilProfSlot *order[TIL_PROF_SLOTS];
+    unsigned n = 0;
+    for (unsigned i = 0; i < TIL_PROF_SLOTS; i++) {
+        if (til_prof_slots[i].fn && til_prof_slots[i].calls) order[n++] = &til_prof_slots[i];
+    }
+    qsort(order, n, sizeof(order[0]), til_prof_cmp);
+
+    unsigned want = 20;
+    const char *env = getenv("TIL_PROF_TOP");
+    if (env) want = (unsigned)strtoul(env, NULL, 10);
+    if (want == 0 || want > n) want = n;
+
+    typedef int (*til_dladdr_fn)(const void *, TilDlInfo *);
+    til_dladdr_fn pdladdr = (til_dladdr_fn)dlsym(RTLD_DEFAULT, "dladdr");
+
+    fprintf(stderr, "\n=== til --prof: %u functions instrumented, top %u by self time ===\n", n, want);
+    fprintf(stderr, "%-48s %14s %12s %12s\n", "function", "calls", "self_ms", "total_ms");
+    for (unsigned i = 0; i < want; i++) {
+        const TilProfSlot *s = order[i];
+        const char *name = "(unknown)";
+        TilDlInfo info;
+        if (pdladdr && pdladdr(s->fn, &info) && info.dli_sname) name = info.dli_sname;
+        fprintf(stderr, "%-48s %14llu %12.3f %12.3f\n",
+                name, s->calls, (double)s->self_ns / 1e6, (double)s->total_ns / 1e6);
+    }
+}
+
+void __cyg_profile_func_enter(void *this_fn, void *call_site) __attribute__((no_instrument_function));
+void __cyg_profile_func_enter(void *this_fn, void *call_site) {
+    (void)call_site;
+    if (!til_prof_registered) { til_prof_registered = 1; atexit(til_prof_report); }
+    if (til_prof_depth >= TIL_PROF_STACK) return;
+    unsigned idx = til_prof_slot(this_fn);
+    til_prof_slots[idx].calls++;
+    TilProfFrame *f = &til_prof_stack[til_prof_depth++];
+    f->idx = idx;
+    f->start = til_prof_now();
+    f->child_ns = 0;
+}
+
+void __cyg_profile_func_exit(void *this_fn, void *call_site) __attribute__((no_instrument_function));
+void __cyg_profile_func_exit(void *this_fn, void *call_site) {
+    (void)this_fn;
+    (void)call_site;
+    if (til_prof_depth == 0) return;
+    TilProfFrame *f = &til_prof_stack[--til_prof_depth];
+    unsigned long long incl = til_prof_now() - f->start;
+    til_prof_slots[f->idx].total_ns += incl;
+    til_prof_slots[f->idx].self_ns  += incl - f->child_ns;
+    if (til_prof_depth > 0) til_prof_stack[til_prof_depth - 1].child_ns += incl;
+}
+
+#endif // !_WIN32
+
+
