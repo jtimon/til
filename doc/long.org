@@ -57,18 +57,26 @@ for Ident/FieldAccess Struct-typed RHSes.  When ~read_field~ returns,
 -- the returned ~StructInstance.struct_name~ now points at freed
 memory.
 
-Today's auto-gen ~Line_clone~ never trips this because it wraps each
-field in ~Point.clone(self.start)~, producing an owning ~Value.Struct~
-that the caller copies into the new ~Line~'s start slot immediately,
-before ~ftype~ is freed.  Try to skip the ~.clone()~ wrap (recursive
-POD struct clone-skip in ~initer.til:is_pod_type_for_clone~) and the
-borrowed ~Value.Struct~ flows through ~write_field~'s deep-clone path
-(~val.clone()~ -> ~StructInstance.clone~ -> ~Str_eq~ on the dangling
-~struct_name~), which is the use-after-free ASAN catches in
+Today's auto-gen ~Line_clone~ never trips this in the interpreter
+because the AST for each field wraps the read in
+~Point.clone(self.start)~, producing an owning ~Value.Struct~ that
+the caller copies into the new ~Line~'s start slot immediately,
+before ~ftype~ is freed.  Try to skip the ~.clone()~ wrap at the
+TIL/AST level (recursive POD struct clone-skip in
+~initer.til:is_pod_type_for_clone~) and the borrowed ~Value.Struct~
+flows through ~write_field~'s deep-clone path (~val.clone()~ ->
+~StructInstance.clone~ -> ~Str_eq~ on the dangling ~struct_name~),
+which is the use-after-free ASAN catches in
 ~test/structs.til:test_clone~ once recursive POD is enabled.
 
 Compiled path is fine -- C-level struct copy doesn't care about the
-~struct_name~ pointer's validity at that moment.
+~struct_name~ pointer's validity at that moment.  The builder skips
+the ~Point_clone~ wrap on POD-struct ~.clone()~ at C emit time
+(~is_pod_struct_user_clone~), including the FieldAccess-receiver
+case inside auto-gen ~Line_clone~ bodies (~hoisted__Point =
+*self->start~).  That doesn't trigger the UAF because the AST the
+interpreter walks still has the ~.clone()~ wrap -- only the C emit
+is shortcut.
 
 Long-term answer: ~StructInstance~ should OWN its ~struct_name~ (or
 the interpreter should pull the name from a longer-lived source like

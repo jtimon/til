@@ -246,9 +246,9 @@ priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
 
 // Matches user-written `<value>.clone()` where the typer's expansion
 // lands `<value>` as e.child(1) and the callee's receiver carries the
-// POD-struct type. Only fires when the arg is a stack-local Ident
-// (struct value, not heap pointer) so the emit can value-copy with
-// a plain `<aname> = <arg>;`.
+// POD-struct type. Fires when the arg is an Ident of a stack_local /
+// param (struct value) or a FieldAccess (struct field, possibly
+// pointer-typed -- caller derefs explicitly).
 priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
@@ -266,13 +266,27 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     tname := til_type_name(recv.expr_til_type())
     if is_pod_struct(tname, ctx).not() { return false }
     ref arg : Expr = e.child(1)
-    if arg.node_type.is(NodeType.Ident).not() { return false }
-    mut aname := ""
     switch arg.node_type {
-    case NodeType.Ident(an): aname = an.ident_name()
+    case NodeType.Ident(an):
+        aname := an.ident_name()
+        return is_stack_local(aname, ctx).or(is_current_func_param(aname, ctx))
+    case NodeType.FieldAccess:
+        return true
     case:
+        return false
     }
-    return is_stack_local(aname, ctx).or(is_current_func_param(aname, ctx))
+}
+
+// Emit the POD-struct user-clone arg as a struct value: dereference
+// pointer-typed FieldAccesses, otherwise emit as-is (Idents map to
+// stack-locals, params, or globals which emit_expr renders as values).
+priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+    ref arg : Expr = e.child(1)
+    if arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(arg, ctx)) {
+        f.write("*"); emit_expr(f, arg, depth, ctx)
+        return
+    }
+    emit_expr(f, arg, depth, ctx)
 }
 
 // Emit the clone arg as `(T){.tag = T_TAG_X}` when it's a ns-Enum
@@ -1440,7 +1454,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     } else if is_pod_struct_user_clone(rhs, ctx).and(is_global.not()) {
                         // POD-struct `.clone()`: emit a struct value-copy.
                         f.write(ctype); f.write(" "); f.write(dd.name); f.write(" = ")
-                        emit_deref(f, rhs.child(1), depth, ctx)
+                        emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
                         ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
@@ -1801,7 +1815,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 } else if is_pod_struct_user_clone(rhs, ctx) {
                     // POD-struct stack-local Assign: value-copy, no wrap.
                     f.write(aname); f.write(" = ")
-                    emit_deref(f, rhs.child(1), depth, ctx)
+                    emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
                     f.write(";\n")
                 } else {
                     f.write("{ ").write(ctype).write(" *_new = (").write(ctype).write(" *)")
@@ -1918,7 +1932,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
                 f.write(fname); f.write(" = ")
-                emit_deref(f, rhs_fa.child(1), depth, ctx)
+                emit_pod_struct_user_clone_arg(f, rhs_fa, depth, ctx)
                 f.write(";\n")
             } else {
                 ftype := c_type_name(rhs_fa.expr_til_type(), til_type_name(rhs_fa.expr_til_type()), ctx)

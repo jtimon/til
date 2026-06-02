@@ -1813,6 +1813,7 @@ Bool is_primitive_type(Str * name);
 Bool is_pod_enum(Str * enum_name, Context * ctx);
 Bool priv___src_self_builder_til__is_pod_enum_clone_call(Expr * e, Context * ctx);
 Bool priv___src_self_builder_til__is_pod_struct_user_clone(Expr * e, Context * ctx);
+void priv___src_self_builder_til__emit_pod_struct_user_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_pod_enum_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
 Bool is_pod_struct(Str * struct_name, Context * ctx);
 Bool is_funcsig_type(Str * name, Context * ctx);
