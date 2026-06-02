@@ -47,7 +47,6 @@
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
-*** [[./open/236.org][#236]] File-level `mut X : HashFn = fn` decl emits the rhs as a shadowing local
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
@@ -74,5 +73,4 @@
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
-*** [[./open/234.org][#234]] Extend hash benchmark with a second fast hash alongside fnv1a
 *** [[./open/237.org][#237]] Advanced profiling for the self-host build

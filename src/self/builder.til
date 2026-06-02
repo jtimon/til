@@ -1288,7 +1288,14 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 is_typedef = true
             }
         }
-        if is_typedef { f.write(ct); f.write(" "); f.write(dd.name); f.write(" = ") }
+        // Issue #236: a script-global FuncPtr decl already has its
+        // `void * X;` emitted by emit_globals; the init in main() must
+        // be a plain assignment so we don't shadow it with a local
+        // (which trips -Werror=unused-variable and leaves the global
+        // unset). Same gate the non-FuncPtr branch below uses.
+        is_global_fp := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
+        if is_global_fp { f.write(dd.name); f.write(" = ") }
+        else if is_typedef { f.write(ct); f.write(" "); f.write(dd.name); f.write(" = ") }
         else { f.write(ct); f.write(dd.name); f.write(" = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
     } else if rhs.node_type.is(NodeType.FuncDef) {

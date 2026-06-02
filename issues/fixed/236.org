@@ -1,0 +1,70 @@
+# priority: low
+** FIXED #236 File-level `mut X : HashFn = fn` decl emits the rhs as a shadowing local
+
+  *** What landed
+
+  Root cause was in ~src/self/builder.til:emit_stmt_decl~. The
+  non-FuncPtr Decl branch already checked
+  ~is_value_global(dd.name, ctx).and(ctx.in_func_def.not())~ before
+  deciding whether to emit a plain assignment in main() or a fresh
+  declaration with type prefix; the FuncPtr-typed branch a few lines
+  above didn't, so a file-level ~mut MY : HashFn = fnv1a~ always got
+  re-emitted as ~HashFn MY = (void *)fnv1a;~ inside main(), shadowing
+  the ~void * MY;~ that ~emit_globals~ had already laid down.
+
+  Fix: gate the FuncPtr emit branch on the same ~is_value_global~ /
+  ~in_func_def.not()~ pair. When true (the file-level case), emit
+  ~MY = (void *)fnv1a;~ -- a plain assignment into the existing
+  global -- instead of a shadowing local decl.
+
+  Added ~test/file_level_funcptr.til~ wired into ~src/tests.til~ to
+  cover both the default-after-decl path and the after-swap path;
+  both pass in interpret and compile mode, full suite is 138/138.
+
+  Original issue body kept below for context.
+
+  *** Original
+
+  Sibling bug to the two that the HashMap.HASHER work uncovered
+  (typer auto-shallow on FuncPtr params, loader BFS walking
+  non-FuncDef ns_decl defaults). Both of those landed; this one is
+  the only remaining piece keeping a *file-level* mutable funcptr
+  alias from working:
+
+  #+begin_src til
+  mut HASHMAP_HASHER : HashFn = fnv1a
+  #+end_src
+
+  At file scope this trips a typer/builder bug -- the rhs is emitted
+  as a function-local that shadows the global, and
+  ~-Werror=unused-variable~ rejects the resulting C. Workaround that
+  shipped: lift the decl into ~HashMap~'s namespace
+  (~HashMap.HASHER~), where the same shape works fine once the
+  loader/typer fixes are in.
+
+  Why open the issue if the namespace form works: a user who wants a
+  PROCESS-wide swappable hasher *without* binding it to a single
+  type's namespace currently can't write it at file scope. That
+  shows up the moment a second hash-using container lands (HashSet,
+  ContentTable, ...) and the project wants one shared global
+  hasher across them.
+
+  Repro: drop the namespace decl, restore a file-level ~mut HASHMAP_HASHER
+  : HashFn = fnv1a~ at the top of ~src/std/hashmap.til~, point ~hash_key~
+  at it, build. Expected: success. Actual: ~-Werror=unused-variable~
+  on the generated local, or ~undefined variable 'fnv1a'~ at the
+  init site.
+
+  Likely culprits to look at:
+
+  - ~src/self/typer.til~ -- whatever folds a file-level ~mut X :
+    FuncPtr = Y~ default into a local binding instead of leaving Y
+    as the global's initializer.
+  - ~src/self/builder.til~ -- the codegen path that decides whether
+    to emit ~static X = Y;~ vs ~X = Y;~ in ~main()~. The namespace
+    form goes through the latter and works; file-level should too.
+
+  Closing criteria: a file-level ~mut PROC_HASHER : HashFn = fnv1a~
+  decl at the top of any lib compiles and is swappable from another
+  file, with a test under ~test/~ covering both the default and the
+  swap.

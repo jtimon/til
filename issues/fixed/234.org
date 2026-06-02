@@ -1,0 +1,49 @@
+# priority: low
+** FIXED #234 Extend hash benchmark with a second fast hash alongside fnv1a
+
+  *** What landed
+
+  - ~lib/hash.til~ grew ~knuth_bytes~ -- same xor-then-mul loop shape
+    as ~fnv1a~ but with ~KNUTH_MULT~ (Knuth's golden-ratio multiplier)
+    instead of ~FNV_PRIME~ and a zero seed instead of ~FNV_OFFSET~.
+    Keeping the loop identical isolates the constant choice.
+  - ~examples/bench_hashmap.til~ now imports ~lib/hash~ and swaps
+    ~HashMap.HASHER~ between ~fnv1a~ and ~knuth_bytes~ around each
+    ~HashMap~ row, so every N reports Map / HashMap fnv1a / HashMap
+    knuth back-to-back.
+  - ~HashMap.HASHER~'s doc in ~src/std/hashmap.til~ now spells out why
+    ~fnv1a~ stays the default: at N=10000 the two hashers are within
+    1-2% of each other on both I64 and Str keys; no clear winner, and
+    FNV-1a's parameters are tuned for byte-level mixing.
+
+  Original issue body kept below for context.
+
+  *** Original
+
+  ~lib/hash.til~ ships exactly one byte-level hash today: ~fnv1a~
+  (FNV-1a, what ~HashMap.HASHER~ defaults to). The microbench in
+  ~examples/bench_hashmap.til~ measures ~Map~ vs ~HashMap~ but only
+  ever exercises FNV-1a -- so there's nothing in-tree to compare
+  ~HashMap.HASHER = fnv1a~ against when deciding whether a swap is
+  worth it.
+
+  Pick one other cheap, multiplicative-arithmetic-only hash that fits
+  til today (no shl/shr, no SIMD -- see the file-level comment in
+  ~lib/hash.til~) and add it under a name that matches the algorithm
+  (~xxh3~ probably won't fit without bit-rotation ext_funcs; Knuth /
+  ~hash_u64~ is already there but only takes a single ~U64~ word, not a
+  buffer; what Mojo's stdlib currently uses for ~Dict~ is worth a
+  glance). Then:
+
+  - Wire the second function into ~examples/bench_hashmap.til~ as a
+    ~HashMap.HASHER~ swap and run the same Str-keys + I64-keys mix on
+    both, reporting ns/op side by side.
+  - If the alternative wins on either workload by a real margin, flip
+    the default in ~src/std/hashmap.til~ and update the doc comment on
+    ~HashMap.HASHER~; otherwise leave FNV-1a as the default and keep
+    both implementations so callers can pick.
+
+  No language work needed -- this is purely a lib/hash.til + bench
+  addition. Closing criteria: the bench reports two implementations,
+  and either the default stays (with a one-line "why" comment) or
+  flips with a justification in the commit message.

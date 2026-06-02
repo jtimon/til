@@ -30,7 +30,11 @@ HashMap := struct {
 namespace:
     /// Byte-hashing algorithm every HashMap forwards to per-key. Swap
     /// this before constructing any HashMap if you want a different
-    /// algorithm process-wide; the change is global.
+    /// algorithm process-wide; the change is global. fnv1a is the
+    /// default because the bench (examples/bench_hashmap.til) finds it
+    /// within 1-2% of lib/hash.til's knuth_bytes on both I64 and Str
+    /// keys -- no clear winner, and FNV-1a's parameters are tuned for
+    /// byte-level mixing rather than single-word hashing.
     mut HASHER : HashFn = fnv1a
 
     new_type_names := func(key_type: Str, val_type: Str) returns HashMap {
