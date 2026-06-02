@@ -1860,7 +1860,7 @@ generate_struct_size_methods := func(program: Expr) {
     }
 }
 
-gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
+gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
     if def.node_type.is(NodeType.EnumDef).not() { return }
@@ -1885,7 +1885,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
     if has_size { return }
 
-    sz_text := compute_enum_layout(def, scope).to_str()
+    sz_text := compute_enum_layout(sname, def, scope, ctx).to_str()
 
     mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
     mut size_expr := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
@@ -1910,9 +1910,9 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope) {
     }
 }
 
-generate_enum_size_methods := proc(program: Expr, scope: TypeScope) {
+generate_enum_size_methods := proc(program: Expr, scope: TypeScope, ctx: Context) {
     for stmt : Expr in program.children {
-        gen_enum_size_method_for_stmt(stmt, scope)
+        gen_enum_size_method_for_stmt(stmt, scope, ctx)
     }
 }
 
@@ -1995,9 +1995,9 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
     }
 }
 
-generate_size_methods := proc(program: Expr, scope: TypeScope) {
+generate_size_methods := proc(program: Expr, scope: TypeScope, ctx: Context) {
     generate_struct_size_methods(program)
-    generate_enum_size_methods(program, scope)
+    generate_enum_size_methods(program, scope, ctx)
 }
 
 gen_cmp_derived_for_stmt := func(stmt: Expr) {
@@ -2230,17 +2230,22 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
     }
 }
 
-compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
+compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope, ctx: Context) {
+    if ctx.struct_layouts.has(name) { return }
+    // Set sentinel so nested recursion into self-referential types
+    // (e.g. linked-list-style struct with a ref field of its own type)
+    // sees a non-empty entry and short-circuits.
+    ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = 1))
     switch struct_def.node_type {
     case NodeType.StructDef(struct_meta):
-        if struct_meta.total_struct_size.gt(0) { return }
-
         mut offset : I32 = 0
         mut max_align : I32 = 1
+        mut sl := StructLayout()
 
         for mut fd : Declaration in struct_meta.fields {
             mut fsz : I32 = 0
             mut falign : I32 = 0
+            mut field_struct_name := ""
 
             if fd.own_type.is(OwnType.Shallow).not() {
                 fsz = 8
@@ -2335,17 +2340,14 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                 else {
                     ref nested_def : Expr = scope.get_struct(ftype)
                     if nested_def.is_null().not().and(nested_def.node_type.is(NodeType.EnumDef)) {
-                        fsz = compute_enum_layout(nested_def, scope)
+                        fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
                         if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
+                        field_struct_name = ftype.clone()
                     } else if nested_def.is_null().not() {
-                        compute_struct_layout(nested_def, scope)
-                        switch nested_def.node_type {
-                        case NodeType.StructDef(nested_meta):
-                            fsz = nested_meta.total_struct_size
-                        case:
-                            UNREACHABLE(__LOC__)
-                        }
+                        compute_struct_layout(ftype, nested_def, scope, ctx)
+                        fsz = ctx_total_size(ftype, ctx)
                         falign = 8
+                        field_struct_name = ftype.clone()
                     } else {
                         fsz = 8
                         falign = 8
@@ -2356,14 +2358,15 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
             offset = align_up(offset, falign)
             fd.field_offset = offset
             fd.field_size = fsz
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name))
             if falign.gt(max_align) { max_align = falign }
             offset = offset.add(fsz)
         }
 
-        struct_meta.total_struct_size = align_up(offset, max_align)
-        if struct_meta.total_struct_size.eq(0) {
-            struct_meta.total_struct_size = 1
-        }
+        sl.total_size = align_up(offset, max_align)
+        if sl.total_size.eq(0) { sl.total_size = 1 }
+        struct_meta.total_struct_size = sl.total_size
+        ctx.struct_layouts.set(own name.clone(), own sl)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -2371,7 +2374,7 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
 
 // Compute size and alignment for a TIL type name.
 // For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
-type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) {
+type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: I32, mut al: I32) {
     if ftype.eq("I64") { sz = 8; al = 8; return }
     if ftype.eq("U64") { sz = 8; al = 8; return }
     if ftype.eq("F32") { sz = 4; al = 4; return }
@@ -2387,12 +2390,12 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     ref nested : Expr = scope.get_struct(ftype)
     if nested.is_null() { sz = 8; al = 8; return }
     switch nested.node_type {
-    case NodeType.StructDef(_nm):
-        compute_struct_layout(nested, scope)
-        sz = _nm.total_struct_size
+    case NodeType.StructDef:
+        compute_struct_layout(ftype, nested, scope, ctx)
+        sz = ctx_total_size(ftype, ctx)
         al = 8
     case NodeType.EnumDef:
-        sz = compute_enum_layout(nested, scope)
+        sz = compute_enum_layout(ftype, nested, scope, ctx)
         al = 8
     case:
         sz = 8
@@ -2400,13 +2403,12 @@ type_size_align := proc(ftype: Str, scope: TypeScope, mut sz: I32, mut al: I32) 
     }
 }
 
-compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
+compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns I32 {
+    if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
+    // Set sentinel before recursing to break self-referential cycles.
+    ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = 4))
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        if edd.total_enum_size.gt(0) { return edd.total_enum_size }
-        // Set sentinel before recursing to break self-referential cycles.
-        edd.total_enum_size = 4
-
         mut max_payload_size : I32 = 0
         mut max_payload_align : I32 = 4
         for vi in 0..edd.variants.len() {
@@ -2414,7 +2416,7 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
             if vt.len().eq(0) { continue }
             mut psz : I32 = 0
             mut palign : I32 = 0
-            type_size_align(vt, scope, psz, palign)
+            type_size_align(vt, scope, ctx, psz, palign)
             if psz.gt(max_payload_size) { max_payload_size = psz }
             if palign.gt(max_payload_align) { max_payload_align = palign }
         }
@@ -2425,6 +2427,7 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
         }
         total = align_up(total, max_payload_align)
         edd.total_enum_size = total
+        ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = total))
         return total
     case:
         UNREACHABLE(__LOC__)
@@ -2432,11 +2435,6 @@ compute_enum_layout := proc(enum_def: Expr, scope: TypeScope) returns I32 {
     }
 }
 
-// Issue #147 step 3: snapshot a struct's just-computed layout (AST fields
-// already filled by compute_struct_layout) into ctx.struct_layouts.
-// struct_name is set for fields whose type resolves to a non-primitive
-// struct/enum via ctx.interp_type_defs, matching the population rule the
-// removed Declaration.field_struct_def used.
 // Issue #147 step 4: lookup helper for the struct/enum total size out of
 // ctx.struct_layouts. Returns 0 when the name is unregistered (which
 // downstream code already handles as "unknown size / fall back").
@@ -2447,53 +2445,6 @@ ctx_total_size := func(name: Str, ctx: Context) returns I32 {
     return sl.total_size
 }
 
-record_struct_layout := func(ctx: Context, name: Str, sdef: Expr) {
-    switch sdef.node_type {
-    case NodeType.StructDef(sm):
-        mut sl := StructLayout(total_size = sm.total_struct_size)
-        for fd : Declaration in sm.fields {
-            mut flx := FieldLayout(offset = fd.field_offset, size = fd.field_size)
-            if is_primitive(fd.til_type).not() {
-                if lookup_interp_type_def(fd.explicit_type, ctx).is_null().not() {
-                    flx.struct_name = fd.explicit_type.clone()
-                }
-            }
-            sl.fields.push(own flx)
-        }
-        ctx.struct_layouts.set(own name.clone(), own sl)
-    case:
-    }
-}
-
-record_enum_layout := func(ctx: Context, name: Str, edef: Expr) {
-    switch edef.node_type {
-    case NodeType.EnumDef(em):
-        ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = em.total_enum_size))
-    case:
-    }
-}
-
-compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).node_type.is(NodeType.StructDef).not() { continue }
-        mut sname := ""
-        switch stmt.node_type {
-        case NodeType.Decl(_sd):
-            sname = _sd.name
-        case:
-            UNREACHABLE(__LOC__)
-            continue
-        }
-        if sname.eq("Dynamic") { continue }
-        compute_struct_layout(stmt.child(0), scope)
-    }
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
-        compute_enum_layout(stmt.child(0), scope)
-    }
-}
 
 infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Type) returns Bool {
     ref rhs : Expr = stmt.child(0)
