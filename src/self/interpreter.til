@@ -2044,10 +2044,21 @@ scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
     }
     cell : Dynamic = malloc(Cell.size())
     memcpy(cell, val, Value.size())
-    // Build Str view key: copy name then set cap to CAP_VIEW
+    // Build an OWNED Str key: clone name's bytes so the key does NOT alias
+    // the caller's buffer. The precomp fold scope (precomp_imported's
+    // `global`) is shared across every unit's process_body and outlives AST
+    // mutation: process_body folds, then frees DCE'd `hoisted__` Decls via
+    // Vec.move_from. A view key (cap = CAP_VIEW into name's buffer) would
+    // dangle once that Decl's name is freed, corrupting later Map_has
+    // lookups -- a non-deterministic heap-use-after-free in Str_cmp that
+    // surfaced as intermittent "X is undefined" during self-compilation.
+    kbuf : Dynamic = malloc(name.count.add(1))
+    memcpy(kbuf, name.c_str, name.count)
+    memset(ptr_add(kbuf, name.count), 0, 1)
     k : Dynamic = malloc(Str.size())
     memcpy(k, name, Str.size())
-    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size())
+    write_ptr(k, kbuf)
+    memcpy(ptr_add(k, 12), name.count, U32.size())
     // Build Binding: {name_ptr, cell_ptr, cell_is_local=1}
     v : Dynamic = malloc(Binding.size())
     memset(v, 0, Binding.size())

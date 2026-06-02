@@ -1,0 +1,46 @@
+# priority: high
+** OPEN #241 precomp fold scope keys alias freed AST names -> non-deterministic build UAF
+
+   `make clean && make` (and `make clean && make test`) fails
+   non-deterministically with `error: <name> is undefined` -- the name and
+   source location vary between runs (e.g. `ident_node` at typer.til:79,
+   precomp.til:882, typer.til:4207). On unmodified master a clean build fails
+   roughly 1 in 3 times; adding source perturbs the rate. A "successful"
+   build can also silently miscompile.
+
+   *** Root cause (ASAN-confirmed heap-use-after-free)
+
+   The error text comes from the AST interpreter (interpreter.til, "X is
+   undefined"), which runs during precomp constant-folding. `til build`
+   folds pure calls like `ident_node("Type")` at compile time via
+   `try_eval_call -> scope_get -> Map_has -> Str_cmp`.
+
+   `scope_set_owned` (interpreter.til) built each fold-scope `Map` key as a
+   non-owning Str *view* (`cap = CAP_VIEW`) whose `c_str` aliased the
+   caller's `name` buffer -- i.e. an AST Declaration's name. The precomp
+   fold scope (`global` in `precomp_imported`) is built once and shared
+   across every unit's `process_body`. `process_body` folds a unit, then its
+   DCE drops orphaned `hoisted__` Decls via `body.children.move_from(keep)`,
+   which frees those Decls' name buffers. A later unit's fold then does a
+   `scope_get` whose `Map_has` binary-search compares against the now-freed
+   view key -> heap-use-after-free in `Str_cmp`. ASLR makes the corrupted
+   compare intermittently report "not found", so a plain global decl like
+   `ident_node` surfaces as "undefined" at an arbitrary call site.
+
+   ASAN stacks (til_boot compiled with -fsanitize=address, self-compiling
+   src/til.til):
+   - alloc:  Str_clone <- hoist_to_temp (the hoisted temp's name)
+   - free:   Str_delete <- Declaration_delete <- Expr_delete <-
+             Vec_move_from <- process_body
+   - use:    Str_cmp <- Map_has <- scope_get <- try_eval_call <-
+             fold_subtree <- process_body
+
+   *** Fix
+
+   Make scopes own their keys: `scope_set_owned` now clones `name`'s bytes
+   into the key buffer (cap = count) instead of aliasing the caller's buffer
+   with a CAP_VIEW key. Scope keys must not depend on AST node lifetime,
+   because precomp folds while the AST is being mutated/freed.
+
+   Verified: fixed `bin/til` self-builds 0/8 failures (was ~1/3); ASAN
+   self-compile run clean (no UAF) after the fix; full `make test` green.
