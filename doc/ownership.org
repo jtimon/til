@@ -1,0 +1,355 @@
+* Ownership and ASAP Destruction
+
+Companion to [[file:./qualifiers.org][doc/qualifiers.org]]. That file maps each
+qualifier to its generated C *shape*; this file describes each qualifier's
+*lifetime* -- who owns a value, and exactly when its destructor runs.
+
+The two are the same axis seen from two sides:
+
+  - qualifiers.org: ~own arg: T~ -> ~T *arg~ (a pointer).
+  - ownership.org:  ~own arg: T~ -> the callee now owns it and its ASAP
+    pass frees it at the callee's last use.
+
+The model is deliberately close to Mojo (see "Relation to Mojo"): a value
+has exactly one owner, and the compiler destroys it As Soon As Possible --
+at the owner's last use, not at scope end. The implementation is the
+garbager (pipeline step 5, [[file:../src/self/garbager.til][src/self/garbager.til]]),
+invoked once per body from the typer.
+
+** The model in one paragraph
+
+Every owned value has exactly one owner at a time. The garbager runs a
+per-binding live-range analysis (~collect_scope_locals~) and inserts the
+destructor call at the owner's *last use*, before any reassignment, and on
+every early-exit edge (return / break / continue). A *borrow* (~ref~) never
+destroys what it points at; instead the borrow EXTENDS the owner's lifetime
+so the owner outlives the borrow (~extend_ref_local_lifetimes~). Transferring
+ownership -- passing a value as an ~own~ argument, or assigning it into an
+~own~ field -- makes the garbager stand down for that owner (it is now the
+new owner's job). Using a value after its ownership was transferred is a
+compile error (~check_use_after_own_transfer~). After the pass, every owned
+local has exactly one destructor call on every path that leaves its scope.
+
+** Destructor forms
+
+The garbager only ever emits three things (see ~make_delete_call~ /
+~make_free_call~ in [[file:../src/self/typer.til][typer.til]]):
+
+| form                        | for                              | meaning                                       |
+|-----------------------------+----------------------------------+-----------------------------------------------|
+| ~Type.delete(own x, true)~  | heap-owned aggregate             | run field destructors, then ~free~ the box    |
+| ~Type.delete(x, false)~     | inline / stack value             | run field destructors only; nothing to free   |
+| ~free(own x)~               | raw ~Dynamic~, or orphan wrapper | ~free~ the pointer, NO inner destructor        |
+
+~call_free~ is the whole game for aggregates. A heap box (own local, own
+field, returned value) is freed with ~call_free=true~. An *inline* value (a
+~Shallow~ field living contiguously inside its parent, or a stack-allocated
+local) uses ~call_free=false~: its sub-fields are reclaimed but the storage
+itself belongs to the parent / the stack and must not be freed. Getting this
+bit wrong is a free-of-stack-pointer crash one way and a leak the other.
+
+Scalars (I8..I64, U8..U64, F32, Bool) need no destruction: their auto-generated
+~delete~ is a no-op and the pass suppresses the call. Only compound types
+(~Str~, structs, enums, ~Vec~/~Map~/~Set~/...) and raw ~Dynamic~ carry heap.
+
+** Destruction by context and qualifier
+
+Read this together with qualifiers.org's identical four-context split. "Who
+frees it" is the new column.
+
+*** Arguments
+
+| til               | ownership      | who destroys the argument                                   |
+|-------------------+----------------+-------------------------------------------------------------|
+| ~arg: T~          | borrowed (Ref) | nobody here -- the caller still owns it; callee must NOT free|
+| ~mut arg: T~      | mutable borrow | nobody here -- caller still owns it                         |
+| ~own arg: T~      | transferred    | the CALLEE -- its ASAP pass frees it at the callee's last use|
+| ~shallow arg: T~  | value copy     | callee frees the inner fields of its copy (~call_free=false~); the caller still owns and frees the original |
+
+The default is ~Ref~ (borrow), so a function that takes ~x: T~ promises not
+to free ~x~. To take ownership you must write ~own~. Auto-shallow primitives
+(#223) are ~shallow~ even without the keyword: passed by value, the callee's
+copy is a register/stack scalar with nothing to free.
+
+*** Returns
+
+| til                    | ownership          | who destroys the result                          |
+|------------------------+--------------------+--------------------------------------------------|
+| ~returns T~            | owned by caller    | the CALLER's ASAP pass, at the caller's last use |
+| ~returns shallow T~    | owned value (stack)| caller owns the stack value; inner fields freed at its last use |
+| ~returns ref T~        | borrowed           | NOBODY frees it via the return -- it aliases data owned elsewhere; caller must NOT free |
+
+~returns ref T~ is the return-side borrow and the most dangerous: the callee
+must guarantee the referent outlives the call (it cannot point at a local
+that the callee's own ASAP pass is about to free). ~Vec.get~, ~Map.val_ptr~,
+~scope_get~ and friends are ~returns ref~ -- their results are pointers INTO
+a container and must never be passed to ~free~/~delete~.
+
+*** Locals
+
+| til                       | ownership                  | destruction                                              |
+|---------------------------+----------------------------+----------------------------------------------------------|
+| ~x := expr~ (scalar)      | owned stack value          | none (scalar no-op)                                      |
+| ~x := expr~ (aggregate)   | owned, heap (promoted Own) | ~Type.delete(own x, true)~ at last use / scope end       |
+| ~mut x := expr~           | same as above              | same; plus the OLD value is freed before each reassignment|
+| ~ref x : T = expr~        | borrowed                   | none (~skip_scope_delete~); the SOURCE's lifetime is extended to cover x |
+| ~ref mut x : T = expr~    | mutable borrow             | same as ~ref~                                            |
+| ~buf : Dynamic = malloc~  | owned raw pointer          | NOT tracked -- you must ~free(own buf)~ or transfer it    |
+
+The aggregate-local promotion is the workhorse: a plain ~x := Foo()~ starts
+~Shallow~ but ~promote_own_transferred_locals~ flips owned aggregates to
+~Own~/heap so they get a real ~delete~. Three shapes are deliberately KEPT
+stack (~is_heap=false~, ~call_free=false~), because the builder emits them as
+stack values, so freeing them would touch a stack pointer:
+
+  1. a ~Str~-literal RHS (~s := "hi"~) -- stack compound literal,
+  2. an FCall whose callee ~returns shallow T~,
+  3. a POD-enum clone wrap (~c := Color.clone(Color.Red)~).
+
+~ref~ locals are the borrow case: they own nothing, so they are skipped --
+but the thing they borrow from must not die first. ~extend_ref_local_lifetimes~
+walks ~ref x := src~ and ~holder.f = src~ (ref-field assign) and pushes
+~src~'s ~last_use~ out to cover the borrower. This is exactly Mojo's "if there
+are existing references to a value, Mojo extends the lifetime of the owner."
+
+*** Fields
+
+| til                   | ownership            | destruction (inside the parent's auto-generated ~delete~) |
+|-----------------------+----------------------+-----------------------------------------------------------|
+| ~field := default~    | inline (Shallow)     | ~FieldType.delete(field, false)~ -- inline, not freed     |
+| ~own field := ...~    | owned heap pointer   | ~FieldType.delete(own field, true)~ -- separate box freed |
+| ~ref field : T = NULL~| borrowed pointer     | NOT freed -- the field aliases data the holder doesn't own |
+
+A struct's auto-generated ~delete~ deletes each field by its own_type and
+then frees the struct box. Non-~own~ fields are contiguous in the parent's
+allocation, which is why they delete with ~call_free=false~ (see
+[[file:./facts.org][doc/facts.org]]). A ~ref~ field is a borrow -- the
+holder must not free it, and the borrowed source's lifetime must be managed
+elsewhere (the ~holder.f = src~ extension above).
+
+** What counts as an ownership transfer
+
+The garbager stands down on a local exactly when ~expr_transfers_own~ says so
+(see typer.til). The cases:
+
+  - Passing the local as an ~own~ argument to any call (~fcall_has_own_arg~).
+    This includes the synthesized ~free(own x)~ / ~Type.delete(own x, ...)~.
+  - ~FieldAssign~ into an ~own~ field (~holder.f = x~ where ~f~ is ~own~).
+
+NOT a transfer (the local keeps its ownership and still needs its own delete):
+
+  - Assign into a ~ref~ field (~holder.f = x~, ~f : ref~): a borrow. The old
+    "not Shallow" check got this wrong and leaked ~x~'s wrapper (issue #109).
+  - Assign into a ~Shallow~ field (~Type(field = x)~ ctor, value-copy): the
+    field bit-copies ~*x~ and the field's destructor frees the inner data,
+    but ~x~'s heap WRAPPER is now an orphan. The garbager emits a bare
+    ~free(x)~ for this one shape (~transfer_is_shallow_field_value_copy~ +
+    ~insert_post_stmt_deletes~). This is the single subtlest case in the
+    whole pass -- a value-copy is "half a transfer."
+
+Use-after-transfer (~last_use > own_transfer~) is reported as
+"use of 'x' after ownership transfer" with a clone suggestion.
+
+** Conditional transfer
+
+If a local is transferred inside ONE branch of an ~if~, the other branch
+never frees it -- a leak. ~sink_conditional_transfer_deletes~ detects "exactly
+one branch unconditionally transfers, local unused after the if" and sinks the
+delete into the non-transferring branch. It only ever ADDS a delete on a path
+where the local is provably still owned, so it cannot double-free.
+
+Excluded from sinking: ~Str~ (its CAP_LIT/CAP_VIEW heap/view duality means a
+~Str~ local may hold a borrowed view on the non-transfer path -- freeing it
+would free the source's buffer), and params (a ~delete~ method's ~self~ does
+~if call_free { free(own self) }~, a conditional self-transfer; sinking would
+re-free on the ~call_free=false~ path).
+
+** Relation to Mojo
+
+til's model is a close cousin of Mojo's value semantics, chosen on purpose:
+
+  - ASAP destruction. Mojo "destroys values using an ASAP policy ... uses
+    static analysis at compile-time to determine the last use of a value.
+    At that point, it immediately ends the value's lifetime and calls the
+    implicit __del__()." til does the same with ~last_use~ + ~make_delete_call~.
+  - Single owner. Both enforce one owner at a time and destroy at end of owner
+    lifetime.
+  - Argument conventions line up: Mojo ~borrowed~/~read~ == til default ~Ref~;
+    Mojo ~inout~/~mut~ == til ~mut~; Mojo ~owned~ == til ~own~.
+  - Transfer. Mojo's ~^~ transfer operator "disables the call to __del__" for
+    the source; til's ~own~ at a call site is the same -- ~expr_transfers_own~
+    makes the source's ASAP stand down.
+  - Lifetime extension. Mojo "extends the lifetime of the owner" when
+    references exist; til's ~extend_ref_local_lifetimes~ is the same idea.
+
+Differences worth noting: til has no ~^~ sigil -- ~own~ at the parameter
+declaration plus the call site carries it, and ownership of a plain local is
+inferred/promoted rather than copy-by-default. til also has the ~Dynamic~
+escape hatch (raw pointers) that Mojo does not, and ~Shallow~ is a first-class
+qualifier (Mojo's value-copy is implicit via ~Copyable~).
+
+** Manual free / delete: legitimate vs smell
+
+Because the garbager inserts every destructor automatically, a HAND-WRITTEN
+~free(own x)~ or ~X.delete(...)~ in normal til code is a signal that deserves
+a second look. It is one of two things:
+
+*** Legitimate (the garbager genuinely cannot see it)
+
+  1. ~Dynamic~ locals. The garbager opts out of raw pointers entirely (there
+     is no type to call ~delete~ on). A ~buf : Dynamic = malloc(...)~ MUST be
+     hand-freed with ~free(own buf)~ or transferred to an ~own~ arg/field.
+     This is documented in qualifiers.org and is correct by design.
+  2. Manual-memory islands: heap graphs reached only through ~Dynamic~ and
+     stored in ~Dynamic~-valued containers, whose element ~delete~ is the
+     no-op ~default_delete~. ~Map(K, Dynamic)~ and ~Vec(Dynamic)~ do NOT free
+     their values on teardown -- so whoever puts a heap pointer in there owns
+     a manual free. The interpreter's runtime is built from these.
+  3. Inside a hand-written ~clone~ / ~delete~ / ~move~ implementation (the
+     container destructors themselves -- ~Vec.delete~, ~Map.delete~, etc.).
+     These ARE the destructors the garbager calls; they are allowed to free.
+
+*** Smell (a garbager gap, or a wrong manual implementation)
+
+  - A manual ~delete~/~free~ on a NORMALLY-TYPED owned local or field that the
+    garbager already tracks: at best redundant (double work), at worst a
+    double-free once the garbager also emits one. If you find one, either the
+    value should not have been hand-managed, or it reveals a case the garbager
+    mis-classifies.
+  - A manual free that compensates for a transfer the garbager gets wrong.
+    The ~Shallow~-field value-copy wrapper leak (#109) was exactly this: the
+    right fix was to teach ~insert_post_stmt_deletes~ to emit the ~free~, not
+    to sprinkle a manual one at every ctor call site.
+  - A wrong hand-written ~delete~: forgets a field, frees a borrowed ~ref~
+    field, or uses the wrong ~call_free~. These leak or crash and the garbager
+    cannot save you -- it trusts your ~delete~.
+
+*** Audit procedure
+
+For each hand-written ~free~/~delete~ outside the garbager and the container
+destructors, classify it:
+
+  1. Is the argument a ~Dynamic~ or a value pulled out of a ~Dynamic~-valued
+     container? -> legitimate island; document WHY in a comment.
+  2. Is it inside a type's own ~clone~/~delete~/~move~? -> legitimate; check it
+     covers every owning field with the right ~call_free~.
+  3. Otherwise -> SMELL. Check whether the garbager already emits a delete for
+     the same value (double-free / redundancy), or whether a transfer is
+     mis-classified. Prefer fixing the garbager over keeping the manual call.
+
+** Known manual-memory islands (audit targets)
+
+These are the ~Dynamic~-pointer graphs and ~Dynamic~-valued containers where
+the garbager is blind and leaks have historically hidden. Audit each for a
+matching free on every path:
+
+  - Interpreter ~Scope~ ([[file:../src/self/interpreter.til][interpreter.til]]):
+    ~bindings : Map(Str, Binding)~, ~ref_primitive_ptrs : Map(Str, Dynamic)~,
+    ~payload_aliases : Map(Str, Str)~, ~box_owned_dynamics : Vec~. ~scope_free~
+    must tear down each by hand -- a forgotten one is a per-scope leak (the
+    ~ref_primitive_ptrs~ regression, and the earlier ~payload_aliases~ one,
+    were both this exact omission).
+  - ~Cell.val~ and ~Value~ payloads (~StructInstance.data~ / ~EnumInstance.data~
+    are raw ~Dynamic~): freed by ~scope_free~ / ~cleanup_value_payload~ /
+    ~free_value_full~. ~cleanup_value_payload~ keys off ~struct_name == "Str"~;
+    a ~Str~ value built with an empty ~struct_name~ slips the check and leaks
+    (documented at [[file:../src/self/loader.til][loader.til]] precomp_imported).
+  - ~Context~ side tables that hold ~Dynamic~ (~func_defs~, ~struct_def_exprs~,
+    ~local_fn_sigs~ are ~Map(Str, Dynamic)~): these store BORROWED AST pointers,
+    so their no-op element delete is correct -- but that also means anything
+    that ever stored an OWNED clone there would leak silently. Verify they only
+    ever hold borrows.
+  - ~malloc~'d holders/boxes created to thread a value through a
+    ~Dynamic~-valued container (the ~ref_primitive_ptrs~ holder, the
+    ~box_scalar_to_dynamic~ boxes): each needs an explicit free at container
+    teardown, since the container's element delete is a no-op.
+
+The standing rule: every ~Dynamic~ that escapes into a container or a long-lived
+struct is a manual-memory contract. Grep for ~Map.new(~ ... ~, Dynamic)~ and
+~Vec.new(Dynamic)~ to find them; each one is an island the garbager cannot
+reclaim for you.
+
+** Audit results (first full sweep)
+
+Swept every hand-written ~delete~/~clone~ override and every ~Dynamic~-valued
+container, applying the procedure above. Result: the destructors are CLEAN
+except for one documented case; the remaining leak is concentrated there.
+
+*** Hand-written destructors -- all complete except two
+
+| destructor                          | verdict                                                        |
+|-------------------------------------+----------------------------------------------------------------|
+| ~Str~/~Vec~/~Map~/~Set~/~Tuple~/~Array~/~HashMap~ ~.delete~ | COMPLETE -- every owning field freed, ~ref~/scalar fields skipped, ~call_free~ threaded right. (~HashMap~ installs typed Vecs via ~new_type_names~, so its ~Vec.new(Dynamic)~ defaults are overridden and inner keys/values DO get freed.) |
+| ~scope_free~ (~Scope~)              | COMPLETE after the ~ref_primitive_ptrs~ fix -- all 5 fields; ~parent~ is a borrow, correctly skipped. |
+| ~Value.clone~                       | COMPLETE -- every variant covered (exhaustive switch); ~Struct~/~Enum~ carry explicit workaround-frees that compensate for the two no-op deletes below. |
+| ~StructInstance.delete~             | DELIBERATE no-op: leaks ~own data~ (+ inline Str ~c_str~).     |
+| ~EnumInstance.delete~               | DELIBERATE no-op: leaks ~own data~.                            |
+
+The ~StructInstance~/~EnumInstance~ no-op deletes are THE dominant runtime
+leak (they back the ~make_str_value~ / ~StructInstance_clone~ groups in the
+ASAN report). They are no-ops on purpose: interpreter sites copy a ~Value~
+with ~memcpy(dst, val, Value.size())~, so ~dst~ and ~val~ SHARE the ~.data~
+pointer and BOTH have a destructor scheduled -- a deep delete double-frees.
+
+*** Dynamic-valued containers -- no leak
+
+The ~Map(Str, Dynamic)~ islands on ~Context~ (~interp_type_defs~,
+~struct_def_exprs~, ~func_defs~, ~dispatch_map~, ~ffi_struct_defs~,
+~local_fn_sigs~) and ~ns_keys~ (~Vec(Dynamic)~) do NOT leak: ~Context_delete~
+is AUTO-GENERATED and deletes every field, the per-entry ~malloc~'d cell is a
+transient that ~Map.set~ consumes (~memcpy~ the pointer out, then
+~free(own val)~), and the stored values are BORROWED AST pointers (no-op
+element delete is correct). The ~ref_primitive_ptrs~ leak was NOT this class
+-- it was a HAND-WRITTEN teardown (~scope_free~) forgetting a field, which the
+auto-generated path never does. Lesson: the smell is hand-written teardown,
+not the ~Dynamic~ container itself.
+
+*** The one fix worth doing: StructInstance/EnumInstance .data
+
+This is the dominant leak and the only real destructor bug. Two of the TODO's
+own premises are now STALE and the fix is more bounded than it reads:
+
+  - ~EnumInstance~ ALREADY has a ~borrowed~ field (and sites already construct
+    it ~borrowed = true~ for aliases, e.g. interpreter.til ~reinterpret~ paths).
+    The delete's TODO ("needs a ~borrowed~ field ... grows past the 40-byte
+    Value payload union") is stale: the field exists, and ~EnumInstance~
+    (~enum_name~+~data~+~data_size~+~borrowed~ ~= 24~ bytes) is well under the
+    union's 40 (set by ~StructInstance~). The delete was simply never updated.
+  - ~StructInstance~ also already has ~borrowed~, and its deep ~clone~ already
+    sets ~borrowed = true~ on the inline aliases it builds.
+
+The remaining blocker is bounded: ~~12 ~memcpy(_, _, Value.size())~ sites plus
+~~21 ~shallow_copy_value~ uses copy a ~Value~ whose ~StructInstance~/
+~EnumInstance~ payload then has ~borrowed = false~ on BOTH copies. Plan:
+
+  1. Make both deletes free ~own data~ when ~borrowed.not()~ (the ~Str~-payload
+     ~c_str~ too), mirroring ~Vec.delete~.
+  2. At every ~Value~-copy / ~shallow_copy_value~ / ~scope_set_owned~ site,
+     make exactly one copy the owner: either ~move()~ the bytes (null the
+     source) or set the non-owning copy ~borrowed = true~.
+  3. Drop the now-redundant workaround-frees in ~Value.clone~ and the
+     end-of-life patching in ~cleanup_value_payload~ where they become
+     double-frees.
+  4. Verify with the full ~--asan~ suite (137 tests) -- it catches the
+     double-free / use-after-free the TODO warns about at the exact site, so
+     the audit is empirical: any site that still aliases without a ~borrowed~
+     mark fails loudly.
+
+This is a coordinated change across the interpreter, not a one-liner, but it
+is the single highest-value leak fix left and the infrastructure (the
+~borrowed~ flags) is already half in place.
+
+** Sources
+
+  - Mojo, "Value destruction" (ASAP, last-use destruction, __del__):
+    https://docs.modular.com/mojo/manual/lifecycle/death/
+  - Mojo, "Ownership" (borrowed/inout/owned conventions, ^ transfer):
+    https://docs.modular.com/mojo/manual/values/ownership/
+  - Mojo, "Deep dive into ownership in Mojo":
+    https://www.modular.com/blog/deep-dive-into-ownership-in-mojo
+  - til implementation: [[file:../src/self/garbager.til][src/self/garbager.til]]
+    (the ASAP pass), [[file:../src/self/typer.til][typer.til]]
+    (~make_delete_call~, ~make_free_call~, ~expr_transfers_own~, ~fa_own_type~),
+    [[file:./qualifiers.org][doc/qualifiers.org]] (the C-shape companion),
+    [[file:./pipeline.org][doc/pipeline.org]] step 5,
+    [[file:./facts.org][doc/facts.org]] (own/ref/delete facts).
