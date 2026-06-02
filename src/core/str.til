@@ -243,6 +243,11 @@ namespace:
     /// Return a new Str with all occurrences of `from` replaced by `to`.
     replace := func(self: Str, from: Str, to: Str) returns Str {
         if from.count.eq(0) { return self.clone() }
+        // `from` longer than the whole string -> no match possible. Guard
+        // first: both loop bounds below compute `self.count.sub(from.count)`,
+        // which would underflow USize to a huge value when from.count >
+        // self.count.
+        if from.count.gt(self.count) { return self.clone() }
         mut matches : USize = 0
         mut start : USize = 0
         while start.lte(self.count.sub(from.count)) {

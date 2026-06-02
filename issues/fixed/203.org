@@ -1,5 +1,36 @@
 # priority: medium
-** OPEN #203 bindings_gen: parse_decl_shape returns corrupt Str on real headers
+** FIXED #203 bindings_gen: parse_decl_shape returns corrupt Str on real headers
+
+   Resolved. The generator was rewritten long ago into ~src/self/binder.til~
+   (the ~til bindings~ subcommand); ~parse_decl_shape~/~DeclShape~ and the
+   proc-vs-func ~func~ hang workaround no longer exist -- every helper is a
+   plain ~func~ using ~Str.with_capacity~ + ~push_str~ and view-based byte
+   iteration, so no owned ~Str~ traverses a function boundary on the
+   field/function path.
+
+   One residual instance of the underlying miscompilation survived in
+   ~emit_function~: ~sig = sig.substr(0, sig.len().sub(1)).clone()~ (stripping a
+   trailing ~;~). Reassigning a heap-backed local from a substring view of
+   *itself* is miscompiled -- the typer hoists the view-returning ~substr~ into
+   a temp aliasing ~sig~, and ~sig~'s buffer is freed before the clone copies
+   from that view (same root bug worked around in ~format_unit_doc_org~ /
+   ~til_doc_out_path~ in builder.til). The corrupted ~sig~ made ~find("(")~
+   return -1, so ~emit_function~ silently dropped every function whose ~);~
+   ended the line with no trailing comment -- e.g. ~tinyfd_messageBox~ and
+   ~tinyfd_arrayDialog~. The strip was unnecessary (~find("(")~ / ~rfind(")")~
+   locate the parameter list regardless and nothing reads past ~)~), so it was
+   removed. ~til bindings~ now regenerates tinyfd / libffi / nng / raylib with
+   no hang and no garbage; the tinyfd output matches the hand-curated
+   ~vendor/bindings/tinyfd.til~ except for the deliberate ~ext_proc~ hand-edits.
+
+   Also hardened ~Str.replace~ (issue point below): it now returns
+   ~self.clone()~ up front when ~from.count > self.count~, avoiding the
+   ~self.count.sub(from.count)~ USize underflow in both loop bounds.
+
+   The general codegen use-after-free for ~x = x.substr(...).clone()~ remains
+   (the established convention is to avoid the self-reassign, as done here and
+   in builder.til); tracking that separately is left for a dedicated codegen
+   issue.
 
    Follow-up to the WIP commit on
    ~claude/auto-generate-bindings-YTPOd~ that rewrote
