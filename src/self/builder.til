@@ -6953,6 +6953,11 @@ install_vendor_libs := proc(root: Str, dst_root: Str) returns I32 {
         dst_root.concat("/vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"),
         "install bundled libffi static library")
     if rc.neq(0) { return rc }
+    rc = install_file(
+        root.concat("/vendor/nng/libnng.a"),
+        dst_root.concat("/vendor/nng/libnng.a"),
+        "install bundled nng static library")
+    if rc.neq(0) { return rc }
     rc = install_tree(
         root.concat("/vendor/bindings"),
         dst_root.concat("/vendor/bindings"),
@@ -6964,6 +6969,8 @@ install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I32 {
     root := builder_compiler_root(lp)
     dst_root := support_root(prefix)
     mut rc := install_tree(root.concat("/src/core"), dst_root.concat("/src/core"), "install compiler core sources")
+    if rc.neq(0) { return rc }
+    rc = install_tree(root.concat("/src/std"), dst_root.concat("/src/std"), "install compiler std sources")
     if rc.neq(0) { return rc }
     rc = install_tree(root.concat("/lib"), dst_root.concat("/lib"), "install compiler library sources")
     if rc.neq(0) { return rc }
