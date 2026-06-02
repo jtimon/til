@@ -36,7 +36,6 @@ typedef enum {
 } Type_tag;
 typedef struct Type Type;
 typedef enum {
-    FuncType_TAG_None,
     FuncType_TAG_Func,
     FuncType_TAG_Proc,
     FuncType_TAG_Test,
@@ -549,7 +548,6 @@ typedef struct priv___src_self_parser_til__Parser {
 typedef struct TypeBinding {
     Str name;
     Type type;
-    FuncType func_type;
     Bool is_mut;
     Bool is_priv;
     Str path;
@@ -559,6 +557,7 @@ typedef struct TypeBinding {
     OwnType own_type;
     Bool is_alias;
     Bool is_type_alias;
+    Bool is_func_decl;
     Str alias_target;
     Expr *struct_def;
     Expr *func_def;
@@ -1327,10 +1326,11 @@ Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, Type * type, FuncType func_type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
+void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool call_free);
 U32 TypeScope_size(void);
+FuncType binding_func_type(TypeBinding * b);
 ImportUnit * ImportUnit_clone(ImportUnit * self);
 void ImportUnit_delete(ImportUnit * self, Bool call_free);
 U32 ImportUnit_size(void);

@@ -1649,7 +1649,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                         ref fdd : Declaration = d_j
                         ref fdef : Expr = fdd.default_value
                         if fdef.is_null() { continue }
-                        mut fd_func_type := FuncType.None
+                        mut fd_func_type := FuncType.Func
                         switch fdef.node_type {
                         case NodeType.FuncDef(fd):
                             fd_func_type = fd.func_type
