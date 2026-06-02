@@ -164,7 +164,7 @@ namespace:
                                     mut cloned_val := val.clone()
                                     switch cloned_val {
                                     case Value.Enum(cei):
-                                        memcpy(ptr_add(dst_data, foff.to_u64()), cei.data, cei.data_size.to_u64())
+                                        memcpy(ptr_add(dst_data, foff.to_u64()), cei.data, cei.data_size)
                                         free(own cei.data)
                                         cei.data = NULL
                                     case:
@@ -229,7 +229,7 @@ namespace:
 EnumInstance := struct {
     ref enum_name : Str = NULL
     own data : U8 = 0
-    data_size : I32 = 0
+    data_size : USize = 0
     borrowed := false
 namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns Bool {
@@ -244,8 +244,8 @@ namespace:
             return EnumInstance(enum_name = self.enum_name,
                                 data = NULL, data_size = self.data_size, borrowed = false)
         }
-        mut pdata : Dynamic = malloc(self.data_size.to_usize())
-        memcpy(pdata, self.data, self.data_size.to_usize())
+        mut pdata : Dynamic = malloc(self.data_size)
+        memcpy(pdata, self.data, self.data_size)
         return EnumInstance(enum_name = self.enum_name,
                             data = pdata, data_size = self.data_size, borrowed = false)
     }
@@ -477,7 +477,7 @@ val_bool := func(v: Bool) returns shallow Value {
     return Value.Boolean(v)
 }
 
-ENUM_PAYLOAD_OFFSET : I32 = 8
+ENUM_PAYLOAD_OFFSET : USize = 8
 
 val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: I32, total_enum_size: I32) returns shallow Value {
     mut alloc_size := total_enum_size
@@ -488,10 +488,10 @@ val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_
     memcpy(data, etag, 4)
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
-            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.to_u64()), payload_data, payload_size.to_u64())
+            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET), payload_data, payload_size.to_u64())
         }
     }
-    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
+    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size.cast(U32)))
 }
 
 val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: I32) returns shallow Value {
@@ -804,10 +804,11 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                     if ei.is_null() { return val_enum_simple(type_name, 0, total_size) }
                     ref etag_ref : Dynamic = ei.data
                     ref etag : I32 = etag_ref
-                    psz := ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
-                    mut psz_final := psz
-                    if psz.cast(I64).lt(0) { psz_final = 0 }
-                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64()), psz_final, total_size)
+                    mut psz_final : USize = 0
+                    if ei.data_size.gte(ENUM_PAYLOAD_OFFSET) {
+                        psz_final = ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
+                    }
+                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET), psz_final.cast(I32), total_size)
                 }
                 ref etag : I32 = p
                 return val_i32(etag.cast(I64))
@@ -1033,7 +1034,7 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                         switch enum_cell.val {
                         case Value.Enum(ei):
                             if ei.data.is_null().not() {
-                                ref dest : Dynamic = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
+                                ref dest : Dynamic = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
                                 switch new_val {
                                 case Value.Int(iv):
                                     if type_name.eq("I64") { write_i64(dest, iv) }
@@ -1113,7 +1114,7 @@ eval_body := proc(scope: Scope, mut body: Expr, mut ctx: Context) {
                                         // before overwriting. Skipped for now to keep
                                         // the case body simple; produces a bounded leak
                                         // per nested-enum payload write under interp.
-                                        copy_sz := new_ei.data_size.to_u64()
+                                        copy_sz := new_ei.data_size
                                         heap_ei : Dynamic = malloc(EnumInstance.size())
                                         memcpy(heap_ei, new_ei, EnumInstance.size())
                                         if copy_sz.gt(0) {
@@ -2429,7 +2430,7 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
     }
 }
 
-ENUM_PAYLOAD_OFFSET : I32 = 8
+ENUM_PAYLOAD_OFFSET : USize = 8
 
 read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns shallow Value {
     ref ptr : Dynamic = ptr_add(inst_data, dd.field_offset.to_u64())
@@ -2502,9 +2503,9 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }
-                    return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size, borrowed = true))
+                    return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size.cast(U32), borrowed = true))
                 }
-                return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size, borrowed = true))
+                return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size.cast(U32), borrowed = true))
             }
             ref itag : I32 = ptr
             return val_i32(itag.cast(I64))
@@ -2606,21 +2607,21 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, val: Value, ctx: Co
             memcpy(ptr, si.data, fsz.to_u64())
         }
     case Value.Enum(ei):
-        mut total := ei.data_size
-        if total.cast(I64).lt(8) { total = 8 }
+        mut total : USize = ei.data_size
+        if total.lt(8) { total = 8 }
         if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
             heap_ei : Dynamic = malloc(EnumInstance.size())
             memcpy(heap_ei, ei, EnumInstance.size())
             // Deep-copy the data buffer
-            new_data : Dynamic = malloc(total.to_u64())
-            memcpy(new_data, ei.data, total.to_u64())
+            new_data : Dynamic = malloc(total)
+            memcpy(new_data, ei.data, total)
             // Write data pointer into the heap EnumInstance. After dropping the
             // dead enum_def field, EnumInstance is { enum_name(0..8),
             // data(8..16), data_size(16..) } so the data slot is at offset 8.
             write_ptr(ptr_add(heap_ei, 8), new_data)
             write_ptr(ptr, heap_ei)
         } else {
-            memcpy(ptr, ei.data, total.to_u64())
+            memcpy(ptr, ei.data, total)
         }
     case Value.Ref(pv):     write_ptr(ptr, deref(pv))
     case Value.Dynamic(pv): write_ptr(ptr, deref(pv))

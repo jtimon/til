@@ -900,7 +900,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
-            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
+            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
             r = make_str_value(payload.c_str, payload.count, ctx)
             return true
         }
@@ -909,7 +909,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
-            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
+            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
             r = make_str_value(payload2.c_str, payload2.count, ctx)
             return true
         }
@@ -930,7 +930,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
-            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.to_u64())
+            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
             r = make_str_value(payload3.c_str, payload3.count, ctx)
             return true
         }
@@ -1300,7 +1300,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case Value.Enum(ei):
                     mut cloned_ei := ei.clone()
                     pdata = to_ptr(cloned_ei.data)
-                    psz = cloned_ei.data_size
+                    psz = cloned_ei.data_size.cast(I32)
                     must_free_pdata = true
                 case Value.Ref(p):     pdata = to_ptr(p); psz = 8
                 case Value.Dynamic(p): pdata = to_ptr(p); psz = 8

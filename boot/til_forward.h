@@ -661,7 +661,7 @@ typedef struct StructInstance {
 typedef struct EnumInstance {
     Str *enum_name;
     U8 *data;
-    I32 data_size;
+    U32 data_size;
     Bool borrowed;
 } EnumInstance;
 
@@ -2387,8 +2387,8 @@ extern Str BoolName;
 extern I32 PTR_SIZE_BYTES;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
-extern I32 ENUM_PAYLOAD_OFFSET;
-extern I32 ENUM_PAYLOAD_OFFSET;
+extern U32 ENUM_PAYLOAD_OFFSET;
+extern U32 ENUM_PAYLOAD_OFFSET;
 extern I64 FFI_TYPE_VOID;
 extern I64 FFI_TYPE_INT;
 extern I64 FFI_TYPE_FLOAT;
