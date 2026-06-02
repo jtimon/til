@@ -1,5 +1,5 @@
 # priority: low
-** WIP #237 Advanced profiling for the self-host build
+** FIXED #237 Advanced profiling for the self-host build
 
   ~examples/bench_hashmap.til~ tells us HashMap vs Map as standalone
   containers; it doesn't tell us where any change inside the
@@ -29,27 +29,33 @@
     runtime in src/c/ext.c, --prof flag wired through
     src/self/builder.til + src/til.til, docs in doc/profiling.org. The
     "alloc counters" half is the separate Allocation-profile bullet.
-  - Allocation profile (which call sites mallocs the most, which Vec
-    is the worst grow-and-realloc offender). Map.set / HashMap.set
-    only matters in the context of what dominates allocs around it.
+  - [DONE] Allocation profile (which call sites mallocs the most, which
+    Vec is the worst grow-and-realloc offender). -> ~--prof~ (unless
+    ~--asan~) wraps malloc/calloc/realloc via -Wl,--wrap and prints a
+    second "top by bytes allocated" table. On test/maps.til it puts
+    Str_clone first (90 MB) with Vec_push / Vec_clone as the
+    grow-and-realloc offenders.
   - [DONE] A simple regression harness: record one run's totals.csv-style
     profile to ~doc/totals.csv~ neighbours so a CI / merger
     invocation can flag "self-host build got 10% slower since last
     merge" without a human having to remember to time it. ->
     ~make profile~ (examples/prof_selfhost.til) records to
     doc/selfhost_build.csv and flags >10% regressions.
-  - Inline the result back into the issue tracker / docs: a small
-    table per release of the slowest 10 til functions and the
-    suspected fix, so #234 / #235 / a HashMap-for-X swap has a real
-    callsite to point at.
+  - [DONE] Inline the result back into the issue tracker / docs: a small
+    table per release of the slowest 10 til functions and the suspected
+    fix, so #234 / #235 / a HashMap-for-X swap has a real callsite to
+    point at. -> "Hot functions snapshot" table in doc/profiling.org.
 
-  Progress: shipped so far -- the sample-profile recipe (perf+flamegraph
-  / callgrind), the build-time regression harness (~make profile~), and
-  the per-function ~--prof~ CPU/call profiler (see doc/profiling.org,
-  examples/prof_selfhost.til, src/c/ext.c). That covers goals (a) pick
-  hot Maps, (b) catch regressions, (c) keep the perf story honest.
-  Remaining (each still shippable on its own): the allocation profile
-  (bytes per call site) and the per-release slowest-10 table.
+  Done: all five stretch goals shipped.
+  - Sample-profile recipe (perf+flamegraph / callgrind) and the
+    build-time regression harness (~make profile~, examples/prof_selfhost.til,
+    records to doc/selfhost_build.csv and flags >10% regressions).
+  - Per-function ~--prof~ profiler: CPU/call counts (self/total ms) plus a
+    bytes-allocated table; runtime in src/c/ext.c, flag wired through
+    src/self/builder.til + src/til.til.
+  - "Hot functions snapshot" table + the full recipe in doc/profiling.org.
+  Covers goals (a) pick hot Maps, (b) catch regressions, (c) keep the perf
+  story honest.
 
   None of this is the bottleneck today; this is for "when we look
   back in a year and the compiler is twice as slow because nobody was
