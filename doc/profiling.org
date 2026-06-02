@@ -1,0 +1,96 @@
+* Profiling the self-host build (issue #237)
+
+The canonical macro-bench is:
+
+  : time bin/til build src/til.til
+
+That gives one wall-clock number and forgets it. This doc adds two
+reproducible tools on top of it: a regression harness (is the build getting
+slower over time?) and a sample profile (where does the time actually go?).
+
+** Regression harness: ~make profile~
+
+  : make profile
+
+Runs examples/prof_selfhost.til, which times ~bin/til build src/til.til~
+over a few iterations, keeps the best (min) wall-clock ms and the peak RSS,
+and appends a row to doc/selfhost_build.csv keyed by the current git commit:
+
+  : commit,build_ms,peak_rss_kb
+  : b67ee8f,1234,114236
+
+On every run it compares the new best against the previously recorded row
+and prints one of:
+
+  - ~REGRESSION: N% slower than last recorded run ...~   (more than 10% slower)
+  - ~improved: N% faster ...~                            (more than 10% faster)
+  - ~within noise vs last recorded run ...~              (otherwise)
+
+So a CI / merger invocation can flag "self-host build got 10% slower since
+last merge" without a human remembering to time it. doc/selfhost_build.csv
+is a totals.csv-style neighbour: it is created on first run and meant to be
+committed and accumulated, one row per measured commit.
+
+The harness takes optional args -- ~prof_selfhost [iters] [target.til]~ --
+so the same recipe profiles any ~til build~, not just the compiler:
+
+  : bin/til run examples/prof_selfhost.til 5 examples/plot.til
+
+Defaults: iters=3, target=src/til.til. The first (cold-cache) build is
+discarded by best-of-N, so there is no separate warm-up pass. Output goes to
+a throwaway binary (tmp/prof_til) so the live bin/til is never clobbered.
+
+** Sample profile: where the time goes
+
+~bin/til build~ compiles the generated C with ~-g~ and no ~-O~, so there is
+no inlining and every til function shows up as a C symbol with the same
+name (Map_set, Vec_push, Str_eq, the typer_* helpers, ...). A plain C-level
+profile therefore reads back at the til source level and survives refactors
+that move code between C translation units -- exactly what #237 asks for.
+
+*** Option A: perf + flamegraph (Linux, when perf is available)
+
+  : perf record -F 997 -g --call-graph dwarf -o tmp/perf.data -- \
+  :     bin/til build -o tmp/prof_til src/til.til
+  : perf script -i tmp/perf.data | stackcollapse-perf.pl | \
+  :     flamegraph.pl > tmp/selfhost.svg
+
+Open tmp/selfhost.svg in a browser; the widest frames are the hot functions.
+stackcollapse-perf.pl / flamegraph.pl ship with Brendan Gregg's FlameGraph
+repo. perf may need ~sysctl kernel.perf_event_paranoid=1~.
+
+Quick text top-N without the flamegraph tooling:
+
+  : perf record -F 997 -g -o tmp/perf.data -- bin/til build -o tmp/prof_til src/til.til
+  : perf report -i tmp/perf.data --stdio --sort=overhead -n | head -40
+
+*** Option B: callgrind (portable, no perf permissions needed)
+
+  : valgrind --tool=callgrind --callgrind-out-file=tmp/callgrind.out \
+  :     bin/til build -o tmp/prof_til src/til.til
+  : callgrind_annotate tmp/callgrind.out | head -60
+
+callgrind counts instructions (deterministic, no sampling noise) but runs
+~20-50x slower than native, so prefer a smaller target while iterating, e.g.
+examples/plot.til. Open tmp/callgrind.out in kcachegrind for a call-graph view.
+
+** Picking hot Maps / alloc offenders
+
+Use the flamegraph / callgrind top-N to find which Map / HashMap / Vec call
+sites dominate, then point #234 / #235 / a HashMap-for-X swap at the concrete
+callsite rather than guessing. examples/bench_hashmap.til remains the
+microbench for Map vs HashMap in isolation; this profile tells you which of
+those the compiler actually leans on.
+
+** Roadmap (remaining #237 stretch goals)
+
+Shipped here: the sample-profile recipe (above) and the build-time regression
+harness (~make profile~). Still open, each shippable on its own:
+
+  - Per-function CPU + alloc counters baked into the compiler under an opt-in
+    flag (~bin/til build --prof src/til.til~ emits N calls / total ns / self
+    ns per til function at end of run).
+  - Allocation profile: which call sites malloc the most, which Vec is the
+    worst grow-and-realloc offender.
+  - A small table per release of the slowest 10 til functions and the
+    suspected fix, inlined back into the issue tracker / docs.

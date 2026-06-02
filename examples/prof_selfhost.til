@@ -1,0 +1,151 @@
+mode cli
+
+import("../src/std/sys")
+
+// Self-host build profiler + regression harness (issue #237).
+//
+// The canonical macro-bench `time bin/til build src/til.til` only gives one
+// number and forgets it. This harness times that same self-host build over a
+// few iterations, keeps the best (min) wall-clock ms and the peak RSS, records
+// them to doc/selfhost_build.csv keyed by the current git commit, and flags
+// when the build got noticeably slower than the previously recorded run.
+//
+// Run via `make profile` (or `bin/til run examples/prof_selfhost.til`).
+// To see WHERE the time goes (a sample profile / flamegraph), follow the
+// recipe in doc/profiling.org.
+
+TIL_BIN := "bin/til"
+OUT_BIN := "tmp/prof_til"      // throwaway output: never clobber the live bin/til
+TARGET := "src/til.til"
+BUILD_LOG := "tmp/prof_build.log"
+CSV := "doc/selfhost_build.csv"
+HEADER := "commit,build_ms,peak_rss_kb"
+ITERS := 3
+SLOW_PCT := 10                 // flag a regression when >10% slower than last run
+
+PhaseResult := struct {
+    status := -1
+    ms := 0
+    mem := 0                   // peak RSS in bytes
+}
+
+// Spawn `cmd`, poll its RSS for the peak, return status + wall ms + peak RSS.
+// Mirrors run_phase in src/test_runner.til.
+run_phase := proc(cmd: Str) returns PhaseResult {
+    start := clock_ms()
+    pid := spawn_cmd(cmd)
+    mut mem := 0
+    while true {
+        rss := current_rss_bytes(pid).cast(I64)
+        if rss.gt(mem) { mem = rss }
+        status := check_cmd_status(pid)
+        if status.neq(-1) {
+            return PhaseResult(status = status, ms = clock_ms().sub(start), mem = mem)
+        }
+        sleep_ms(10)
+    }
+}
+
+build_cmd := func(target: Str) returns Str {
+    return format(TIL_BIN, " build -o ", OUT_BIN, " ", target, " > ", BUILD_LOG, " 2>&1")
+}
+
+git_short_commit := proc() returns Str {
+    mut hash : Str = ""
+    run_cmd(hash, "git", "rev-parse", "--short", "HEAD")
+    return hash.replace("\n", "")
+}
+
+// build_ms from the last recorded row of the CSV, or -1 if none / unreadable.
+previous_build_ms := func() returns I64 {
+    if file_mtime(CSV).lt(0) { return -1 }
+    content := File.readfile(CSV)
+    lines := content.split("\n")
+    mut last : Str = ""
+    for ln : Str in lines {
+        t := ln.trim()
+        if t.is_empty().not().and(t.eq(HEADER).not()) {
+            last = t.clone()
+        }
+    }
+    if last.is_empty() { return -1 }
+    cols := last.split(",")
+    mut idx := 0
+    mut ms : I64 = -1
+    for col : Str in cols {
+        if idx.eq(1) { ms = col.trim().to_i64() }
+        idx = idx.add(1)
+    }
+    return ms
+}
+
+append_row := proc(row: Str) {
+    mut content : Str = ""
+    if file_mtime(CSV).lt(0) {
+        content = format(HEADER, "\n", row, "\n")
+    } else {
+        mut base := File.readfile(CSV)
+        if base.ends_with("\n").not() { base = format(base, "\n") }
+        content = format(base, row, "\n")
+    }
+    File.writefile(CSV, content)
+}
+
+// Usage: prof_selfhost [iters] [target.til]
+// Defaults: iters=3, target=src/til.til (the self-host macro-bench). A
+// custom target lets the same harness profile any `til build` (the Makefile
+// notes the build recipe is "reusable for any .til program").
+main := proc(args: ..Str) {
+    mut iters := ITERS
+    mut target := TARGET.clone()
+    if args.len().gte(1) {
+        ref a0 : Str = args[0]
+        iters = a0.to_i64()
+    }
+    if args.len().gte(2) {
+        ref a1 : Str = args[1]
+        target = a1.clone()
+    }
+    if iters.lt(1) { iters = 1 }
+
+    println("self-host build profiler (issue #237)")
+    println("  cmd: ", TIL_BIN, " build ", target, "   iters: ", iters.to_str())
+
+    // The first (cold-cache) build is naturally discarded by best-of-N when
+    // iters >= 2, so no separate warm-up pass is needed.
+    mut best_ms : I64 = -1
+    mut peak_kb : I64 = 0
+    for i in 0..iters {
+        r := run_phase(build_cmd(target))
+        if r.status.neq(0) {
+            println("FAIL: build exited ", r.status.to_str(), " (see ", BUILD_LOG, ")")
+            exit(1)
+        }
+        kb := r.mem.div(1024)
+        println("  iter ", i.add(1).to_str(), "/", iters.to_str(), ": ", r.ms.to_str(), " ms, ", kb.to_str(), " KB peak RSS")
+        if best_ms.lt(0).or(r.ms.lt(best_ms)) { best_ms = r.ms }
+        if kb.gt(peak_kb) { peak_kb = kb }
+    }
+
+    commit := git_short_commit()
+    println("")
+    println("best of ", iters.to_str(), ": ", best_ms.to_str(), " ms, ", peak_kb.to_str(), " KB peak RSS  (", commit, ")")
+
+    prev := previous_build_ms()
+    if prev.gt(0) {
+        delta := best_ms.sub(prev)
+        pct := delta.mul(100).div(prev)
+        if pct.gt(SLOW_PCT) {
+            println("REGRESSION: ", pct.to_str(), "% slower than last recorded run (", prev.to_str(), " ms)")
+        } else if pct.lt(0.sub(SLOW_PCT)) {
+            println("improved: ", 0.sub(pct).to_str(), "% faster than last recorded run (", prev.to_str(), " ms)")
+        } else {
+            println("within noise vs last recorded run (", prev.to_str(), " ms, ", pct.to_str(), "%)")
+        }
+    } else {
+        println("no previous run recorded; this is the baseline")
+    }
+
+    append_row(format(commit, ",", best_ms.to_str(), ",", peak_kb.to_str()))
+    println("recorded -> ", CSV)
+}

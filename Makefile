@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass profile
 
 all: bin/til
 
@@ -216,6 +216,17 @@ doc: bin/til
 	bin/til doc src/til.til
 	bin/til run examples/uml.til
 
+# --- Self-host build profiler / regression harness (issue #237) ---
+#
+# Times `bin/til build src/til.til` (the canonical self-host macro-bench)
+# over a few iterations via examples/prof_selfhost.til, records the best
+# wall-clock ms + peak RSS to doc/selfhost_build.csv keyed by commit, and
+# flags when the build got >10% slower than the previously recorded run.
+# Run on demand (NOT part of `make test`). For a sample profile that shows
+# WHERE the time goes (flamegraph / callgrind), see doc/profiling.org.
+profile: bin/til
+	bin/til run examples/prof_selfhost.til
+
 install: bin/til
 	bin/til install src/til.til
 # Shared writable scratch dir for targets that need it (test_repl_help
@@ -283,6 +294,7 @@ help:
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
+	echo "make profile        Time the self-host build + record/flag regressions (doc/profiling.org)"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"
 	echo ""
