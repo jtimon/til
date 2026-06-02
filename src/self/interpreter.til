@@ -480,18 +480,18 @@ val_bool := func(v: Bool) returns shallow Value {
 ENUM_PAYLOAD_OFFSET : USize = 8
 
 val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: I32, total_enum_size: I32) returns shallow Value {
-    mut alloc_size := total_enum_size
+    mut alloc_size : USize = total_enum_size.cast(USize)
     if alloc_size.lt(8) {
         alloc_size = 8
     }
-    mut data : U8 = calloc(1, alloc_size.to_u64())
+    mut data : U8 = calloc(1, alloc_size)
     memcpy(data, etag, 4)
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET), payload_data, payload_size.to_u64())
         }
     }
-    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size.cast(U32)))
+    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
 }
 
 val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: I32) returns shallow Value {
@@ -2503,9 +2503,9 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }
-                    return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size.cast(U32), borrowed = true))
+                    return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size.cast(USize), borrowed = true))
                 }
-                return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size.cast(U32), borrowed = true))
+                return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size.cast(USize), borrowed = true))
             }
             ref itag : I32 = ptr
             return val_i32(itag.cast(I64))
