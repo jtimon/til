@@ -1318,7 +1318,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 
         // FuncPtr field: stored function may be ext_func from another type
         if callee_expr.expr_til_type().is(Type.FuncPtr) {
-            mut fp_func_type := FuncType.None
+            mut fp_func_type := FuncType.Func
             switch func_def.node_type {
             case NodeType.FuncDef(fp_fdef):
                 fp_func_type = fp_fdef.func_type
@@ -1351,7 +1351,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             }
         }
         // Direct ext_func namespace method -- dispatch by flat name
-        mut fdef_func_type := FuncType.None
+        mut fdef_func_type := FuncType.Func
         switch func_def.node_type {
         case NodeType.FuncDef(fdef_ns):
             fdef_func_type = fdef_ns.func_type

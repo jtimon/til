@@ -174,7 +174,7 @@ dyn_type_to_str := ext_func(type: Type) returns Str {}
 // --- FuncType enum ---
 /// Classifies a til function declaration: func, proc, test, macro, or external.
 FuncType := enum {
-    None, Func, Proc, Test, Macro, ExtFunc, ExtProc,
+    Func, Proc, Test, Macro, ExtFunc, ExtProc,
 }
 
 /// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
@@ -747,7 +747,6 @@ set_fcall_til_type := func(mut fcall: Expr, shallow t: Type) {
 // a func cannot call a proc.)
 func_type_variant_name := func(ft: FuncType) returns Str {
     switch ft {
-    case FuncType.None:    return "None"
     case FuncType.Func:    return "Func"
     case FuncType.Proc:    return "Proc"
     case FuncType.Test:    return "Test"
@@ -865,7 +864,6 @@ func_type_name := func(ft: FuncType) returns Str {
     case FuncType.Macro:   return "macro"
     case FuncType.ExtFunc: return "ext_func"
     case FuncType.ExtProc: return "ext_proc"
-    case: return "?"
     }
 }
 

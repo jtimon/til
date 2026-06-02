@@ -566,10 +566,12 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         if callee_name.len().eq(0) { return false }
         ref cb : TypeBinding = scope.get_binding(callee_name)
         if cb.is_null() { return false }
-        if cb.func_type.is(FuncType.Proc).or(cb.func_type.is(FuncType.ExtProc)) {
+        if cb.is_func_decl.not() { return false }
+        cb_ft := binding_func_type(cb)
+        if cb_ft.is(FuncType.Proc).or(cb_ft.is(FuncType.ExtProc)) {
             return false
         }
-        if cb.func_type.is(FuncType.Macro).or(cb.func_type.is(FuncType.Func)).or(cb.func_type.is(FuncType.ExtFunc)) {
+        if cb_ft.is(FuncType.Macro).or(cb_ft.is(FuncType.Func)).or(cb_ft.is(FuncType.ExtFunc)) {
             for ai in 1..e.children.len() {
                 if e.child(ai).expr_is_comptime(scope).not() { return false }
             }
@@ -627,10 +629,16 @@ try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
                     ref top_param : Declaration = top_fdef.params[0]
                     ref first_param : Str = top_param.explicit_type
                     if first_param.len().gt(0) {
-                        is_free_func := top.func_type.is(FuncType.Func)
-                        .or(top.func_type.is(FuncType.ExtFunc))
-                        .or(top.func_type.is(FuncType.Proc))
-                        .or(top.func_type.is(FuncType.ExtProc))
+                        // Only a genuine free-function *declaration* is
+                        // UFCS-callable; a func-pointer value bound to the
+                        // same sig (is_func_decl false) must not match, even
+                        // though the sig's own FuncDef is a Func.
+                        top_ft := binding_func_type(top)
+                        is_free_func := top.is_func_decl.and(
+                            top_ft.is(FuncType.Func)
+                            .or(top_ft.is(FuncType.ExtFunc))
+                            .or(top_ft.is(FuncType.Proc))
+                            .or(top_ft.is(FuncType.ExtProc)))
                         if type_name.len().gt(0) {
                             if first_param.eq(type_name) {
                                 ufcs_match = 1
@@ -685,7 +693,9 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
         if cb.is_null() { return NULL }
         if cb.type.is(Type.FuncPtr).not() { return NULL }
         if cb.func_def.is_null() { return NULL }
-        if cb.func_type.is(FuncType.None) {
+        // A func-pointer value (not a function declaration) carries a
+        // signature func_def: hand it back directly.
+        if cb.is_func_decl.not() {
             return cb.func_def
         }
         switch cb.func_def.node_type {
@@ -1573,7 +1583,9 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     }
     if fn_type.is(Type.FuncPtr) {
         if callee_bind.is_null().not() {
-            if callee_bind.func_type.is(FuncType.None) {
+            // A FuncPtr-typed binding that is a function-pointer value (not a
+            // function/sig declaration) is called through its signature.
+            if callee_bind.is_func_decl.not() {
                 ref callee0 : Expr = e.child(0)
                 callee0.set_expr_til_type(Type.FuncPtr)
                 if callee_bind.func_def.is_null().not() {
@@ -2512,7 +2524,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
     if name.eq("free") { check_free_managed_local(scope, e, ctx) }
     // Issue #191: macro calls require all arguments to be comptime-known.
     if callee_bind.is_null().not() {
-        if callee_bind.func_type.is(FuncType.Macro) {
+        if binding_func_type(callee_bind).is(FuncType.Macro) {
             for ai in 1..e.children.len() {
                 if e.child(ai).expr_is_comptime(scope).not() {
                     e.child(ai).type_error("macro argument must be known at compile time", ctx)
@@ -2721,7 +2733,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     fd.til_type =fd.default_value.expr_til_type()
                 }
             }
-            inner.set(fd.name, fd.til_type, FuncType.None, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type)
+            inner.set(fd.name, fd.til_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type)
             if fd.til_type.is(Type.FuncPtr) {
                 ref mut _fb : TypeBinding = inner.get_binding(fd.name)
                 if fd.default_value.is_null().not() {
@@ -2767,9 +2779,10 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                 tc_rt = type_from_name(tc_fd.return_type, inner, ctx)
             }
             tc_nd.til_type =tc_rt.clone()
-            inner.set(tc_nd.name, tc_rt, tc_fd.func_type, false, ctx.path, 0, 0, false, OwnType.Shallow)
+            inner.set(tc_nd.name, tc_rt, false, ctx.path, 0, 0, false, OwnType.Shallow)
             ref mut tc_fb : TypeBinding = inner.get_binding(tc_nd.name)
             tc_fb.func_def = tc_nd.default_value
+            tc_fb.is_func_decl = true
             if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)) {
                 tc_fb.is_builtin = true
             }
@@ -3119,12 +3132,12 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
                 is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
                 if is_ext_va.not() { param.own_type = OwnType.Own }
-                func_scope.set(param.name, Type.Struct("Array"), FuncType.None, false, ctx.path, expr.line, expr.col, true, param.own_type)
+                func_scope.set(param.name, Type.Struct("Array"), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else if i.cast(I32).eq(fdef.kwargs_index) {
                 // Same rationale as variadic above.
                 is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
-                func_scope.set(param.name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, expr.line, expr.col, true, param.own_type)
+                func_scope.set(param.name, Type.Struct("DynMap"), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else {
                 // Issue #223 step 1/3: a primitive (step 1) or small value-shaped
                 // struct (step 3) param is passed by value (shallow) even without
@@ -3138,7 +3151,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                 if auto_shallow_ok.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
                     param.own_type = OwnType.Shallow
                 }
-                func_scope.set(param.name, pt, FuncType.None, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
+                func_scope.set(param.name, pt, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
                 ref mut pb : TypeBinding = func_scope.get_binding(param.name)
                 if pt.is(Type.FuncPtr) {
                     sf_fsb := scope.find(ptn)
@@ -3864,7 +3877,7 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         else if sname.eq("StructDef") { is_builtin = false }
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
-        scope.set(sname, builtin_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
@@ -3904,9 +3917,10 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
             is_bodyless := stmt.child(0).children.len().eq(0)
             mut binding_type := rt
             if is_bodyless { binding_type = Type.FuncPtr }
-            scope.set(sdecl.name, binding_type, fdef.func_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, binding_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
+            fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
             if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)) {
@@ -4079,7 +4093,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
                 stmt.type_error("no need for 'own' on local '".concat(sdecl.name).concat("'; locals are owned by default"), ctx)
             }
         }
-        scope.set(sdecl.name, stmt.expr_til_type(), FuncType.None, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, stmt.expr_til_type(), sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
         // #164: snapshot the source-level `mut` keyword here, before any
         // later typer machinery (array/vec literal rewrite, alias
@@ -7461,11 +7475,12 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
     case NodeType.Decl(sdecl):
         ref rhs : Expr = lifted.child(0)
         switch rhs.node_type {
-        case NodeType.FuncDef(fdef):
+        case NodeType.FuncDef:
             rt := Type.None
-            scope.set(sdecl.name, rt, fdef.func_type, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, rt, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = lifted.child(0)
+            fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
         case:
         }
@@ -8781,7 +8796,7 @@ desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: V
                     vec_name := "_vec_".concat(ctx.coll_counter.to_str())
                     ctx.coll_counter++
                     mut vec_decl := fcall.build_builtin_vec_decl(scope, elem_type, vec_name, ctx)
-                    scope.set(vec_name, Type.Struct("Vec"), FuncType.None, true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
+                    scope.set(vec_name, Type.Struct("Vec"), true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                     new_ch.push(own vec_decl)
                     for j in 0..count {
                         mut push_call := fcall.build_builtin_vec_push(scope, vec_name, j)
@@ -8793,7 +8808,7 @@ desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: V
                 arr_name := "_array_".concat(ctx.coll_counter.to_str())
                 ctx.coll_counter++
                 mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
-                scope.set(arr_name, Type.Struct("Array"), FuncType.None, false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
+                scope.set(arr_name, Type.Struct("Array"), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
                     mut setter := build_variadic_array_set(fcall, scope, arr_name, 2, j, ctx)
@@ -8843,7 +8858,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
                     dd.is_mut = true
                 case:
                 }
-                scope.set(var_name, Type.Struct("Vec"), FuncType.None, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+                scope.set(var_name, Type.Struct("Vec"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own vec_decl)
                 for j in 0..count {
                     mut push_call := rhs.build_builtin_vec_push(scope, var_name, j)
@@ -8862,7 +8877,7 @@ desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope
                 count : U32 = rhs.children.len().sub(2)
                 mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
                 arr_decl.set_expr_til_type(Type.Struct("Array"))
-                scope.set(var_name, Type.Struct("Array"), FuncType.None, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+                scope.set(var_name, Type.Struct("Array"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
                     mut setter := build_variadic_array_set(rhs, scope, var_name, 2, j, ctx)
@@ -8930,7 +8945,7 @@ desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     decl.set_expr_til_type(Type.Struct("Set"))
     decl.add_child(own new_call)
 
-    scope.set(var_name, Type.Struct("Set"), FuncType.None, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(var_name, Type.Struct("Set"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
 
     new_ch.push(own decl)
 
@@ -9021,7 +9036,7 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     decl.set_expr_til_type(Type.Struct("Map"))
     decl.add_child(own new_call)
 
-    scope.set(var_name, Type.Struct("Map"), FuncType.None, true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(var_name, Type.Struct("Map"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
 
     new_ch.push(own decl)
 
@@ -9106,7 +9121,7 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
                         va_name := "_va_Array_".concat(ctx.va_counter.to_str())
                         ctx.va_counter++
                         mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
-                        scope.set(va_name, Type.Struct("Array"), FuncType.None, false, ctx.path, line, col, false, OwnType.Own)
+                        scope.set(va_name, Type.Struct("Array"), false, ctx.path, line, col, false, OwnType.Own)
                         new_ch.push(own va_decl)
                         for j in 0..vc {
                             mut setter := build_variadic_array_set(e, scope, va_name, vi, j, ctx)
@@ -9124,7 +9139,7 @@ process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mu
                 kw_name := "_kw".concat(ctx.kw_counter.to_str())
                 ctx.kw_counter++
                 kw_decl := build_kwargs_dynmap_decl(e, kw_name)
-                scope.set(kw_name, Type.Struct("DynMap"), FuncType.None, false, ctx.path, e.line, e.col, false, OwnType.Shallow)
+                scope.set(kw_name, Type.Struct("DynMap"), false, ctx.path, e.line, e.col, false, OwnType.Shallow)
                 new_ch.push(own kw_decl)
                 for j in 0..kc {
                     ref named_arg : Expr = e.child(ki.add(j.cast(I32)).to_usize())
@@ -10371,7 +10386,7 @@ hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: 
 
     mut ident := Expr.new(ident_node(tname), val.line, val.col)
     ident.set_expr_til_type(val.expr_til_type())
-    scope.set(tname, val.expr_til_type(), FuncType.None, false, ctx.path, val.line, val.col, false, OwnType.Shallow)
+    scope.set(tname, val.expr_til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname)
     switch decl.node_type {
     case NodeType.Decl(dd):

@@ -5,7 +5,6 @@ import("parser")
 TypeBinding := struct {
     name := ""
     type := Type.Unknown
-    func_type := FuncType.None
     is_mut := false
     is_priv := false
     path := ""
@@ -15,6 +14,12 @@ TypeBinding := struct {
     own_type := OwnType.Shallow
     is_alias := false
     is_type_alias := false
+    // True when the binding denotes a function or function-signature
+    // *declaration*, as opposed to a function-pointer *value* (a local,
+    // param, or struct field of FuncPtr type). The actual func kind lives
+    // on func_def; this only records "is this a declaration", which a
+    // func-ptr value's copied func_def cannot tell us on its own.
+    is_func_decl := false
     alias_target := ""
     ref struct_def : Expr = NULL
     ref func_def : Expr = NULL
@@ -122,9 +127,7 @@ namespace:
         return Type.Unknown
     }
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
-        ref b : TypeBinding = self.get_binding(name)
-        if b.is_null().not() { return b.func_type }
-        return FuncType.None
+        return binding_func_type(self.get_binding(name))
     }
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
         if self.bindings.has(name) {
@@ -142,14 +145,13 @@ namespace:
         return false
     }
     set := func(mut self: TypeScope, name: Str, type: Type,
-        shallow func_type: FuncType, is_mut: Bool,
+        is_mut: Bool,
         path: Str,
         line: U32, col: U32,
         is_param: Bool, shallow own_type: OwnType) {
             if self.bindings.has(name) {
                 ref mut b : TypeBinding = self.bindings[name]
                 b.type = type
-                b.func_type = func_type
                 b.is_mut = is_mut
                 // path/line/col are declaration-site identity. Don't
                 // overwrite them on re-registration: init_declarations_global
@@ -161,12 +163,28 @@ namespace:
                 return
             }
             nb := TypeBinding(name = name.clone(), type = type.clone(),
-                func_type = func_type, is_mut = is_mut,
+                is_mut = is_mut,
                 path = path.clone(),
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
             self.bindings.set(own name.clone(), own nb)
         }
+}
+
+// A binding's func kind lives on its func_def FuncDef node, so derive it
+// rather than caching a copy on TypeBinding. Non-function bindings have no
+// func_def; return Func (the only callers test Proc/ExtProc/Test/Macro,
+// none of which a non-function answers yes to, and FuncPtr-typed callees
+// skip those checks entirely).
+binding_func_type := func(b: TypeBinding) returns shallow FuncType {
+    if b.is_null() { return FuncType.Func }
+    if b.func_def.is_null().not() {
+        switch b.func_def.node_type {
+        case NodeType.FuncDef(fd): return fd.func_type
+        case:
+        }
+    }
+    return FuncType.Func
 }
 
 ImportUnit := struct {
@@ -631,7 +649,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
 
-        scope.set(sname, builtin_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(sname)
         b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
@@ -981,7 +999,7 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         case:
         }
 
-        scope.set(ename, Type.Enum(ename.clone()), FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(ename, Type.Enum(ename.clone()), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut b : TypeBinding = scope.get_binding(ename)
         b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
@@ -1603,9 +1621,10 @@ register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeSco
     if stmt.child(0).children.len().neq(0) { return }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
         fb.func_def = stmt.child(0)
+        fb.is_func_decl = true
     case:
         UNREACHABLE(__LOC__)
     }
@@ -1641,10 +1660,11 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
                     return
                 }
             }
-            scope.set(sdecl.name, target.type, target.func_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.struct_def = target.struct_def
             ab.func_def = target.func_def
+            ab.is_func_decl = target.is_func_decl
             ab.is_builtin = target.is_builtin
             ab.is_type_alias = true
             if target.alias_target.is_empty() {
@@ -1664,7 +1684,7 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
             til_type := til_type_from_explicit_type(target_name)
             if til_type.is(Type.Unknown) { return }
             if til_type.is(Type.Custom) { return }
-            scope.set(sdecl.name, til_type, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.is_type_alias = true
             ab.alias_target = target_name
@@ -1708,7 +1728,7 @@ register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
 
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, t, FuncType.None, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set(sdecl.name, t, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name)
         tlv_b.is_priv = sdecl.is_priv
         tlv_b.orig_name = sdecl.orig_name.clone()
@@ -1731,9 +1751,10 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if def.children.len().eq(0) {
-            scope.set(sdecl.name, Type.FuncPtr, FuncType.None, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
+            fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
             return
@@ -1790,9 +1811,10 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
             if fdef.return_type.len().gt(0) {
                 rt = init_type_from_explicit_type(fdef.return_type, scope)
             }
-            scope.set(sdecl.name, rt, ft, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.func_def = stmt.child(0)
+            fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
             if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
