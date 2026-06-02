@@ -862,7 +862,7 @@ MaximizeWindow := ext_proc() {}
 MinimizeWindow := ext_proc() {}
 RestoreWindow := ext_proc() {}
 SetWindowIcon := ext_proc(shallow image : Image) {}
-SetWindowIcons := ext_proc(images : Image, shallow count : I32) {}
+SetWindowIcons := ext_proc(mut images : Image, shallow count : I32) {}
 SetWindowTitle := ext_proc(title : I8) {}
 SetWindowPosition := ext_proc(shallow x : I32, shallow y : I32) {}
 SetWindowMonitor := ext_proc(shallow monitor : I32) {}
@@ -970,7 +970,7 @@ WaitTime := ext_proc(shallow seconds : F32) {}
 SetRandomSeed := ext_proc(shallow seed : U32) {}
 GetRandomValue := ext_proc(shallow min : I32, shallow max : I32) returns shallow I32 {}
 LoadRandomSequence := ext_proc(shallow count : U32, shallow min : I32, shallow max : I32) returns ref I32 {}
-UnloadRandomSequence := ext_proc(sequence : I32) {}
+UnloadRandomSequence := ext_proc(mut sequence : I32) {}
 
 // Misc. functions
 TakeScreenshot := ext_proc(fileName : I8) {}
@@ -987,14 +987,14 @@ MemRealloc := ext_proc(ptr : Dynamic, shallow size : U32) returns Dynamic {}
 MemFree := ext_proc(ptr : Dynamic) {}
 
 // File system management functions
-LoadFileData := ext_proc(fileName : I8, dataSize : I32) returns ref I8 {}
-UnloadFileData := ext_proc(data : U8) {}
+LoadFileData := ext_proc(fileName : I8, mut dataSize : I32) returns ref I8 {}
+UnloadFileData := ext_proc(mut data : U8) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 SaveFileData := ext_proc(fileName : I8, data : Dynamic, shallow dataSize : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportDataAsCode := ext_proc(data : U8, shallow dataSize : I32, fileName : I8) returns shallow Bool {}
 LoadFileText := ext_proc(fileName : I8) returns ref I8 {}
-UnloadFileText := ext_proc(text : I8) {}
+UnloadFileText := ext_proc(mut text : I8) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 SaveFileText := ext_proc(fileName : I8, text : I8) returns shallow Bool {}
 
@@ -1044,21 +1044,21 @@ GetDirectoryFileCount := ext_proc(dirPath : I8) returns shallow I32 {}
 GetDirectoryFileCountEx := ext_proc(basePath : I8, filter : I8, shallow scanSubdirs : Bool) returns shallow I32 {}
 
 // Compression/Encoding functionality
-CompressData := ext_func(data : U8, shallow dataSize : I32, compDataSize : I32) returns ref I8 {}
-DecompressData := ext_func(compData : U8, shallow compDataSize : I32, dataSize : I32) returns ref I8 {}
-EncodeDataBase64 := ext_func(data : U8, shallow dataSize : I32, outputSize : I32) returns ref I8 {}
-DecodeDataBase64 := ext_func(text : I8, outputSize : I32) returns ref I8 {}
-ComputeCRC32 := ext_func(data : U8, shallow dataSize : I32) returns shallow I32 {}
-ComputeMD5 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
-ComputeSHA1 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
-ComputeSHA256 := ext_func(data : U8, shallow dataSize : I32) returns ref I32 {}
+CompressData := ext_func(data : U8, shallow dataSize : I32, mut compDataSize : I32) returns ref I8 {}
+DecompressData := ext_func(compData : U8, shallow compDataSize : I32, mut dataSize : I32) returns ref I8 {}
+EncodeDataBase64 := ext_func(data : U8, shallow dataSize : I32, mut outputSize : I32) returns ref I8 {}
+DecodeDataBase64 := ext_func(text : I8, mut outputSize : I32) returns ref I8 {}
+ComputeCRC32 := ext_func(mut data : U8, shallow dataSize : I32) returns shallow I32 {}
+ComputeMD5 := ext_func(mut data : U8, shallow dataSize : I32) returns ref I32 {}
+ComputeSHA1 := ext_func(mut data : U8, shallow dataSize : I32) returns ref I32 {}
+ComputeSHA256 := ext_func(mut data : U8, shallow dataSize : I32) returns ref I32 {}
 
 // Automation events functionality
 LoadAutomationEventList := ext_proc(fileName : I8) returns shallow AutomationEventList {}
 UnloadAutomationEventList := ext_proc(shallow list : AutomationEventList) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportAutomationEventList := ext_proc(shallow list : AutomationEventList, fileName : I8) returns shallow Bool {}
-SetAutomationEventList := ext_proc(list : AutomationEventList) {}
+SetAutomationEventList := ext_proc(mut list : AutomationEventList) {}
 SetAutomationEventBaseFrame := ext_proc(shallow frame : I32) {}
 StartAutomationEventRecording := ext_proc() {}
 StopAutomationEventRecording := ext_proc() {}
@@ -1146,8 +1146,8 @@ GetGesturePinchAngle := ext_proc() returns shallow F32 {}
 //------------------------------------------------------------------------------------
 // Camera System Functions (Module: rcamera)
 //------------------------------------------------------------------------------------
-UpdateCamera := ext_proc(camera : Camera, shallow mode : I32) {}
-UpdateCameraPro := ext_proc(camera : Camera, shallow movement : Vector3, shallow rotation : Vector3, shallow zoom : F32) {}
+UpdateCamera := ext_proc(mut camera : Camera, shallow mode : I32) {}
+UpdateCameraPro := ext_proc(mut camera : Camera, shallow movement : Vector3, shallow rotation : Vector3, shallow zoom : F32) {}
 
 //------------------------------------------------------------------------------------
 // Basic Shapes Drawing Functions (Module: shapes)
@@ -1240,7 +1240,7 @@ CheckCollisionPointLine := ext_func(shallow point : Vector2, shallow p1 : Vector
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 CheckCollisionPointPoly := ext_func(shallow point : Vector2, points : Vector2, shallow pointCount : I32) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
-CheckCollisionLines := ext_func(shallow startPos1 : Vector2, shallow endPos1 : Vector2, shallow startPos2 : Vector2, shallow endPos2 : Vector2, collisionPoint : Vector2) returns shallow Bool {}
+CheckCollisionLines := ext_func(shallow startPos1 : Vector2, shallow endPos1 : Vector2, shallow startPos2 : Vector2, shallow endPos2 : Vector2, mut collisionPoint : Vector2) returns shallow Bool {}
 GetCollisionRec := ext_func(shallow rec1 : Rectangle, shallow rec2 : Rectangle) returns shallow Rectangle {}
 
 //------------------------------------------------------------------------------------
@@ -1251,8 +1251,8 @@ GetCollisionRec := ext_func(shallow rec1 : Rectangle, shallow rec2 : Rectangle) 
 // NOTE: These functions do not require GPU access
 LoadImage := ext_proc(fileName : I8) returns shallow Image {}
 LoadImageRaw := ext_proc(fileName : I8, shallow width : I32, shallow height : I32, shallow format : I32, shallow headerSize : I32) returns shallow Image {}
-LoadImageAnim := ext_proc(fileName : I8, frames : I32) returns shallow Image {}
-LoadImageAnimFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32, frames : I32) returns shallow Image {}
+LoadImageAnim := ext_proc(fileName : I8, mut frames : I32) returns shallow Image {}
+LoadImageAnimFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32, mut frames : I32) returns shallow Image {}
 LoadImageFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32) returns shallow Image {}
 LoadImageFromTexture := ext_proc(shallow texture : Texture2D) returns shallow Image {}
 LoadImageFromScreen := ext_proc() returns shallow Image {}
@@ -1261,7 +1261,7 @@ IsImageValid := ext_func(shallow image : Image) returns shallow Bool {}
 UnloadImage := ext_proc(shallow image : Image) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportImage := ext_proc(shallow image : Image, fileName : I8) returns shallow Bool {}
-ExportImageToMemory := ext_proc(shallow image : Image, fileType : I8, fileSize : I32) returns ref I8 {}
+ExportImageToMemory := ext_proc(shallow image : Image, fileType : I8, mut fileSize : I32) returns ref I8 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportImageAsCode := ext_proc(shallow image : Image, fileName : I8) returns shallow Bool {}
 
@@ -1282,62 +1282,62 @@ ImageFromImage := ext_func(shallow image : Image, shallow rec : Rectangle) retur
 ImageFromChannel := ext_func(shallow image : Image, shallow selectedChannel : I32) returns shallow Image {}
 ImageText := ext_func(text : I8, shallow fontSize : I32, shallow color : Color) returns shallow Image {}
 ImageTextEx := ext_func(shallow font : Font, text : I8, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) returns shallow Image {}
-ImageFormat := ext_proc(image : Image, shallow newFormat : I32) {}
-ImageToPOT := ext_proc(image : Image, shallow fill : Color) {}
-ImageCrop := ext_proc(image : Image, shallow crop : Rectangle) {}
-ImageAlphaCrop := ext_proc(image : Image, shallow threshold : F32) {}
-ImageAlphaClear := ext_proc(image : Image, shallow color : Color, shallow threshold : F32) {}
-ImageAlphaMask := ext_proc(image : Image, shallow alphaMask : Image) {}
-ImageAlphaPremultiply := ext_proc(image : Image) {}
-ImageBlurGaussian := ext_proc(image : Image, shallow blurSize : I32) {}
-ImageKernelConvolution := ext_proc(image : Image, kernel : F32, shallow kernelSize : I32) {}
-ImageResize := ext_proc(image : Image, shallow newWidth : I32, shallow newHeight : I32) {}
-ImageResizeNN := ext_proc(image : Image, shallow newWidth : I32, shallow newHeight : I32) {}
-ImageResizeCanvas := ext_proc(image : Image, shallow newWidth : I32, shallow newHeight : I32, shallow offsetX : I32, shallow offsetY : I32, shallow fill : Color) {}
-ImageMipmaps := ext_proc(image : Image) {}
-ImageDither := ext_proc(image : Image, shallow rBpp : I32, shallow gBpp : I32, shallow bBpp : I32, shallow aBpp : I32) {}
-ImageFlipVertical := ext_proc(image : Image) {}
-ImageFlipHorizontal := ext_proc(image : Image) {}
-ImageRotate := ext_proc(image : Image, shallow degrees : I32) {}
-ImageRotateCW := ext_proc(image : Image) {}
-ImageRotateCCW := ext_proc(image : Image) {}
-ImageColorTint := ext_proc(image : Image, shallow color : Color) {}
-ImageColorInvert := ext_proc(image : Image) {}
-ImageColorGrayscale := ext_proc(image : Image) {}
-ImageColorContrast := ext_proc(image : Image, shallow contrast : F32) {}
-ImageColorBrightness := ext_proc(image : Image, shallow brightness : I32) {}
-ImageColorReplace := ext_proc(image : Image, shallow color : Color, shallow replace : Color) {}
+ImageFormat := ext_proc(mut image : Image, shallow newFormat : I32) {}
+ImageToPOT := ext_proc(mut image : Image, shallow fill : Color) {}
+ImageCrop := ext_proc(mut image : Image, shallow crop : Rectangle) {}
+ImageAlphaCrop := ext_proc(mut image : Image, shallow threshold : F32) {}
+ImageAlphaClear := ext_proc(mut image : Image, shallow color : Color, shallow threshold : F32) {}
+ImageAlphaMask := ext_proc(mut image : Image, shallow alphaMask : Image) {}
+ImageAlphaPremultiply := ext_proc(mut image : Image) {}
+ImageBlurGaussian := ext_proc(mut image : Image, shallow blurSize : I32) {}
+ImageKernelConvolution := ext_proc(mut image : Image, kernel : F32, shallow kernelSize : I32) {}
+ImageResize := ext_proc(mut image : Image, shallow newWidth : I32, shallow newHeight : I32) {}
+ImageResizeNN := ext_proc(mut image : Image, shallow newWidth : I32, shallow newHeight : I32) {}
+ImageResizeCanvas := ext_proc(mut image : Image, shallow newWidth : I32, shallow newHeight : I32, shallow offsetX : I32, shallow offsetY : I32, shallow fill : Color) {}
+ImageMipmaps := ext_proc(mut image : Image) {}
+ImageDither := ext_proc(mut image : Image, shallow rBpp : I32, shallow gBpp : I32, shallow bBpp : I32, shallow aBpp : I32) {}
+ImageFlipVertical := ext_proc(mut image : Image) {}
+ImageFlipHorizontal := ext_proc(mut image : Image) {}
+ImageRotate := ext_proc(mut image : Image, shallow degrees : I32) {}
+ImageRotateCW := ext_proc(mut image : Image) {}
+ImageRotateCCW := ext_proc(mut image : Image) {}
+ImageColorTint := ext_proc(mut image : Image, shallow color : Color) {}
+ImageColorInvert := ext_proc(mut image : Image) {}
+ImageColorGrayscale := ext_proc(mut image : Image) {}
+ImageColorContrast := ext_proc(mut image : Image, shallow contrast : F32) {}
+ImageColorBrightness := ext_proc(mut image : Image, shallow brightness : I32) {}
+ImageColorReplace := ext_proc(mut image : Image, shallow color : Color, shallow replace : Color) {}
 LoadImageColors := ext_func(shallow image : Image) returns ref Color {}
-LoadImagePalette := ext_func(shallow image : Image, shallow maxPaletteSize : I32, colorCount : I32) returns ref Color {}
-UnloadImageColors := ext_proc(colors : Color) {}
-UnloadImagePalette := ext_proc(colors : Color) {}
+LoadImagePalette := ext_func(shallow image : Image, shallow maxPaletteSize : I32, mut colorCount : I32) returns ref Color {}
+UnloadImageColors := ext_proc(mut colors : Color) {}
+UnloadImagePalette := ext_proc(mut colors : Color) {}
 GetImageAlphaBorder := ext_func(shallow image : Image, shallow threshold : F32) returns shallow Rectangle {}
 GetImageColor := ext_func(shallow image : Image, shallow x : I32, shallow y : I32) returns shallow Color {}
 
 // Image drawing functions
 // NOTE: Image software-rendering functions (CPU)
-ImageClearBackground := ext_proc(dst : Image, shallow color : Color) {}
-ImageDrawPixel := ext_proc(dst : Image, shallow posX : I32, shallow posY : I32, shallow color : Color) {}
-ImageDrawPixelV := ext_proc(dst : Image, shallow position : Vector2, shallow color : Color) {}
-ImageDrawLine := ext_proc(dst : Image, shallow startPosX : I32, shallow startPosY : I32, shallow endPosX : I32, shallow endPosY : I32, shallow color : Color) {}
-ImageDrawLineV := ext_proc(dst : Image, shallow start : Vector2, shallow end : Vector2, shallow color : Color) {}
-ImageDrawLineEx := ext_proc(dst : Image, shallow start : Vector2, shallow end : Vector2, shallow thick : I32, shallow color : Color) {}
-ImageDrawCircle := ext_proc(dst : Image, shallow centerX : I32, shallow centerY : I32, shallow radius : I32, shallow color : Color) {}
-ImageDrawCircleV := ext_proc(dst : Image, shallow center : Vector2, shallow radius : I32, shallow color : Color) {}
-ImageDrawCircleLines := ext_proc(dst : Image, shallow centerX : I32, shallow centerY : I32, shallow radius : I32, shallow color : Color) {}
-ImageDrawCircleLinesV := ext_proc(dst : Image, shallow center : Vector2, shallow radius : I32, shallow color : Color) {}
-ImageDrawRectangle := ext_proc(dst : Image, shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}
-ImageDrawRectangleV := ext_proc(dst : Image, shallow position : Vector2, shallow size : Vector2, shallow color : Color) {}
-ImageDrawRectangleRec := ext_proc(dst : Image, shallow rec : Rectangle, shallow color : Color) {}
-ImageDrawRectangleLines := ext_proc(dst : Image, shallow rec : Rectangle, shallow thick : I32, shallow color : Color) {}
-ImageDrawTriangle := ext_proc(dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
-ImageDrawTriangleEx := ext_proc(dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow c1 : Color, shallow c2 : Color, shallow c3 : Color) {}
-ImageDrawTriangleLines := ext_proc(dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
-ImageDrawTriangleFan := ext_proc(dst : Image, points : Vector2, shallow pointCount : I32, shallow color : Color) {}
-ImageDrawTriangleStrip := ext_proc(dst : Image, points : Vector2, shallow pointCount : I32, shallow color : Color) {}
-ImageDraw := ext_proc(dst : Image, shallow src : Image, shallow srcRec : Rectangle, shallow dstRec : Rectangle, shallow tint : Color) {}
-ImageDrawText := ext_proc(dst : Image, text : I8, shallow posX : I32, shallow posY : I32, shallow fontSize : I32, shallow color : Color) {}
-ImageDrawTextEx := ext_proc(dst : Image, shallow font : Font, text : I8, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
+ImageClearBackground := ext_proc(mut dst : Image, shallow color : Color) {}
+ImageDrawPixel := ext_proc(mut dst : Image, shallow posX : I32, shallow posY : I32, shallow color : Color) {}
+ImageDrawPixelV := ext_proc(mut dst : Image, shallow position : Vector2, shallow color : Color) {}
+ImageDrawLine := ext_proc(mut dst : Image, shallow startPosX : I32, shallow startPosY : I32, shallow endPosX : I32, shallow endPosY : I32, shallow color : Color) {}
+ImageDrawLineV := ext_proc(mut dst : Image, shallow start : Vector2, shallow end : Vector2, shallow color : Color) {}
+ImageDrawLineEx := ext_proc(mut dst : Image, shallow start : Vector2, shallow end : Vector2, shallow thick : I32, shallow color : Color) {}
+ImageDrawCircle := ext_proc(mut dst : Image, shallow centerX : I32, shallow centerY : I32, shallow radius : I32, shallow color : Color) {}
+ImageDrawCircleV := ext_proc(mut dst : Image, shallow center : Vector2, shallow radius : I32, shallow color : Color) {}
+ImageDrawCircleLines := ext_proc(mut dst : Image, shallow centerX : I32, shallow centerY : I32, shallow radius : I32, shallow color : Color) {}
+ImageDrawCircleLinesV := ext_proc(mut dst : Image, shallow center : Vector2, shallow radius : I32, shallow color : Color) {}
+ImageDrawRectangle := ext_proc(mut dst : Image, shallow posX : I32, shallow posY : I32, shallow width : I32, shallow height : I32, shallow color : Color) {}
+ImageDrawRectangleV := ext_proc(mut dst : Image, shallow position : Vector2, shallow size : Vector2, shallow color : Color) {}
+ImageDrawRectangleRec := ext_proc(mut dst : Image, shallow rec : Rectangle, shallow color : Color) {}
+ImageDrawRectangleLines := ext_proc(mut dst : Image, shallow rec : Rectangle, shallow thick : I32, shallow color : Color) {}
+ImageDrawTriangle := ext_proc(mut dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
+ImageDrawTriangleEx := ext_proc(mut dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow c1 : Color, shallow c2 : Color, shallow c3 : Color) {}
+ImageDrawTriangleLines := ext_proc(mut dst : Image, shallow v1 : Vector2, shallow v2 : Vector2, shallow v3 : Vector2, shallow color : Color) {}
+ImageDrawTriangleFan := ext_proc(mut dst : Image, points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+ImageDrawTriangleStrip := ext_proc(mut dst : Image, points : Vector2, shallow pointCount : I32, shallow color : Color) {}
+ImageDraw := ext_proc(mut dst : Image, shallow src : Image, shallow srcRec : Rectangle, shallow dstRec : Rectangle, shallow tint : Color) {}
+ImageDrawText := ext_proc(mut dst : Image, text : I8, shallow posX : I32, shallow posY : I32, shallow fontSize : I32, shallow color : Color) {}
+ImageDrawTextEx := ext_proc(mut dst : Image, shallow font : Font, text : I8, shallow position : Vector2, shallow fontSize : F32, shallow spacing : F32, shallow tint : Color) {}
 
 // Texture loading functions
 // NOTE: These functions require GPU access
@@ -1355,7 +1355,7 @@ UpdateTexture := ext_proc(shallow texture : Texture2D, pixels : Dynamic) {}
 UpdateTextureRec := ext_proc(shallow texture : Texture2D, shallow rec : Rectangle, pixels : Dynamic) {}
 
 // Texture configuration functions
-GenTextureMipmaps := ext_proc(texture : Texture2D) {}
+GenTextureMipmaps := ext_proc(mut texture : Texture2D) {}
 SetTextureFilter := ext_proc(shallow texture : Texture2D, shallow filter : I32) {}
 SetTextureWrap := ext_proc(shallow texture : Texture2D, shallow wrap : I32) {}
 
@@ -1399,9 +1399,9 @@ LoadFontFromImage := ext_proc(shallow image : Image, shallow key : Color, shallo
 LoadFontFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsFontValid := ext_func(shallow font : Font) returns shallow Bool {}
-LoadFontData := ext_proc(fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32, shallow type : I32, glyphCount : I32) returns ref GlyphInfo {}
+LoadFontData := ext_proc(fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32, shallow type : I32, mut glyphCount : I32) returns ref GlyphInfo {}
 GenImageFontAtlas := ext_proc(glyphs : GlyphInfo, glyphRecs : Dynamic, shallow glyphCount : I32, shallow fontSize : I32, shallow padding : I32, shallow packMethod : I32) returns shallow Image {}
-UnloadFontData := ext_proc(glyphs : GlyphInfo, shallow glyphCount : I32) {}
+UnloadFontData := ext_proc(mut glyphs : GlyphInfo, shallow glyphCount : I32) {}
 UnloadFont := ext_proc(shallow font : Font) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportFontAsCode := ext_proc(shallow font : Font, fileName : I8) returns shallow Bool {}
@@ -1425,21 +1425,21 @@ GetGlyphAtlasRec := ext_func(shallow font : Font, shallow codepoint : I32) retur
 
 // Text codepoints management functions (unicode characters)
 LoadUTF8 := ext_func(codepoints : I32, shallow length : I32) returns ref I8 {}
-UnloadUTF8 := ext_proc(text : I8) {}
-LoadCodepoints := ext_func(text : I8, count : I32) returns ref I32 {}
-UnloadCodepoints := ext_proc(codepoints : I32) {}
+UnloadUTF8 := ext_proc(mut text : I8) {}
+LoadCodepoints := ext_func(text : I8, mut count : I32) returns ref I32 {}
+UnloadCodepoints := ext_proc(mut codepoints : I32) {}
 GetCodepointCount := ext_func(text : I8) returns shallow I32 {}
-GetCodepoint := ext_func(text : I8, codepointSize : I32) returns shallow I32 {}
-GetCodepointNext := ext_func(text : I8, codepointSize : I32) returns shallow I32 {}
-GetCodepointPrevious := ext_func(text : I8, codepointSize : I32) returns shallow I32 {}
-CodepointToUTF8 := ext_func(shallow codepoint : I32, utf8Size : I32) returns ref I8 {}
+GetCodepoint := ext_func(text : I8, mut codepointSize : I32) returns shallow I32 {}
+GetCodepointNext := ext_func(text : I8, mut codepointSize : I32) returns shallow I32 {}
+GetCodepointPrevious := ext_func(text : I8, mut codepointSize : I32) returns shallow I32 {}
+CodepointToUTF8 := ext_func(shallow codepoint : I32, mut utf8Size : I32) returns ref I8 {}
 
 // Text strings management functions (no UTF-8 strings, only byte chars)
 // WARNING 1: Most of these functions use internal static buffers[], it's recommended to store returned data on user-side for re-use
 // WARNING 2: Some strings allocate memory internally for the returned strings, those strings must be free by user using MemFree()
-LoadTextLines := ext_func(text : I8, count : I32) returns Dynamic {}
+LoadTextLines := ext_func(text : I8, mut count : I32) returns Dynamic {}
 UnloadTextLines := ext_proc(text : Dynamic, shallow lineCount : I32) {}
-TextCopy := ext_func(dst : I8, src : I8) returns shallow I32 {}
+TextCopy := ext_func(mut dst : I8, src : I8) returns shallow I32 {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 TextIsEqual := ext_func(text1 : I8, text2 : I8) returns shallow Bool {}
 TextLength := ext_func(text : I8) returns shallow I32 {}
@@ -1450,8 +1450,8 @@ TextReplace := ext_func(text : I8, search : I8, replacement : I8) returns ref I8
 TextReplaceBetween := ext_func(text : I8, begin : I8, end : I8, replacement : I8) returns ref I8 {}
 TextInsert := ext_func(text : I8, insert : I8, shallow position : I32) returns ref I8 {}
 TextJoin := ext_func(textList : Dynamic, shallow count : I32, delimiter : I8) returns ref I8 {}
-TextSplit := ext_func(text : I8, shallow delimiter : I8, count : I32) returns Dynamic {}
-TextAppend := ext_proc(text : I8, append : I8, position : I32) {}
+TextSplit := ext_func(text : I8, shallow delimiter : I8, mut count : I32) returns Dynamic {}
+TextAppend := ext_proc(mut text : I8, append : I8, mut position : I32) {}
 TextFindIndex := ext_func(text : I8, search : I8) returns shallow I32 {}
 TextToUpper := ext_func(text : I8) returns ref I8 {}
 TextToLower := ext_func(text : I8) returns ref I8 {}
@@ -1513,13 +1513,13 @@ DrawBillboardRec := ext_proc(shallow camera : Camera, shallow texture : Texture2
 DrawBillboardPro := ext_proc(shallow camera : Camera, shallow texture : Texture2D, shallow source : Rectangle, shallow position : Vector3, shallow up : Vector3, shallow size : Vector2, shallow origin : Vector2, shallow rotation : F32, shallow tint : Color) {}
 
 // Mesh management functions
-UploadMesh := ext_proc(mesh : Mesh, shallow dynamic : Bool) {}
+UploadMesh := ext_proc(mut mesh : Mesh, shallow dynamic : Bool) {}
 UpdateMeshBuffer := ext_proc(shallow mesh : Mesh, shallow index : I32, data : Dynamic, shallow dataSize : I32, shallow offset : I32) {}
 UnloadMesh := ext_proc(shallow mesh : Mesh) {}
 DrawMesh := ext_proc(shallow mesh : Mesh, shallow material : Material, shallow transform : Matrix) {}
 DrawMeshInstanced := ext_proc(shallow mesh : Mesh, shallow material : Material, transforms : Matrix, shallow instances : I32) {}
 GetMeshBoundingBox := ext_func(shallow mesh : Mesh) returns shallow BoundingBox {}
-GenMeshTangents := ext_proc(mesh : Mesh) {}
+GenMeshTangents := ext_proc(mut mesh : Mesh) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 ExportMesh := ext_proc(shallow mesh : Mesh, fileName : I8) returns shallow Bool {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
@@ -1539,19 +1539,19 @@ GenMeshHeightmap := ext_func(shallow heightmap : Image, shallow size : Vector3) 
 GenMeshCubicmap := ext_func(shallow cubicmap : Image, shallow cubeSize : Vector3) returns shallow Mesh {}
 
 // Material loading/unloading functions
-LoadMaterials := ext_proc(fileName : I8, materialCount : I32) returns ref Material {}
+LoadMaterials := ext_proc(fileName : I8, mut materialCount : I32) returns ref Material {}
 LoadMaterialDefault := ext_proc() returns shallow Material {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsMaterialValid := ext_func(shallow material : Material) returns shallow Bool {}
 UnloadMaterial := ext_proc(shallow material : Material) {}
-SetMaterialTexture := ext_proc(material : Material, shallow mapType : I32, shallow texture : Texture2D) {}
-SetModelMeshMaterial := ext_proc(model : Model, shallow meshId : I32, shallow materialId : I32) {}
+SetMaterialTexture := ext_proc(mut material : Material, shallow mapType : I32, shallow texture : Texture2D) {}
+SetModelMeshMaterial := ext_proc(mut model : Model, shallow meshId : I32, shallow materialId : I32) {}
 
 // Model animations loading/unloading functions
-LoadModelAnimations := ext_proc(fileName : I8, animCount : I32) returns ref ModelAnimation {}
+LoadModelAnimations := ext_proc(fileName : I8, mut animCount : I32) returns ref ModelAnimation {}
 UpdateModelAnimation := ext_proc(shallow model : Model, shallow anim : ModelAnimation, shallow frame : F32) {}
 UpdateModelAnimationEx := ext_proc(shallow model : Model, shallow animA : ModelAnimation, shallow frameA : F32, shallow animB : ModelAnimation, shallow frameB : F32, shallow blend : F32) {}
-UnloadModelAnimations := ext_proc(animations : ModelAnimation, shallow animCount : I32) {}
+UnloadModelAnimations := ext_proc(mut animations : ModelAnimation, shallow animCount : I32) {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 
 IsModelAnimationValid := ext_func(shallow model : Model, shallow anim : ModelAnimation) returns shallow Bool {}
 
@@ -1611,10 +1611,10 @@ SetSoundVolume := ext_proc(shallow sound : Sound, shallow volume : F32) {}
 SetSoundPitch := ext_proc(shallow sound : Sound, shallow pitch : F32) {}
 SetSoundPan := ext_proc(shallow sound : Sound, shallow pan : F32) {}
 WaveCopy := ext_func(shallow wave : Wave) returns shallow Wave {}
-WaveCrop := ext_proc(wave : Wave, shallow initFrame : I32, shallow finalFrame : I32) {}
-WaveFormat := ext_proc(wave : Wave, shallow sampleRate : I32, shallow sampleSize : I32, shallow channels : I32) {}
+WaveCrop := ext_proc(mut wave : Wave, shallow initFrame : I32, shallow finalFrame : I32) {}
+WaveFormat := ext_proc(mut wave : Wave, shallow sampleRate : I32, shallow sampleSize : I32, shallow channels : I32) {}
 LoadWaveSamples := ext_func(shallow wave : Wave) returns ref F32 {}
-UnloadWaveSamples := ext_proc(samples : F32) {}
+UnloadWaveSamples := ext_proc(mut samples : F32) {}
 
 // Music management functions
 LoadMusicStream := ext_proc(fileName : I8) returns shallow Music {}
@@ -1725,23 +1725,23 @@ DetachAudioMixedProcessor := ext_proc(processor : AudioCallback) {}
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
 
-GetCameraForward := ext_func(camera : Camera) returns shallow Vector3 {}
-GetCameraUp := ext_func(camera : Camera) returns shallow Vector3 {}
-GetCameraRight := ext_func(camera : Camera) returns shallow Vector3 {}
+GetCameraForward := ext_func(mut camera : Camera) returns shallow Vector3 {}
+GetCameraUp := ext_func(mut camera : Camera) returns shallow Vector3 {}
+GetCameraRight := ext_func(mut camera : Camera) returns shallow Vector3 {}
 
 // Camera movement
-CameraMoveForward := ext_proc(camera : Camera, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
-CameraMoveUp := ext_proc(camera : Camera, shallow distance : F32) {}
-CameraMoveRight := ext_proc(camera : Camera, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
-CameraMoveToTarget := ext_proc(camera : Camera, shallow delta : F32) {}
+CameraMoveForward := ext_proc(mut camera : Camera, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
+CameraMoveUp := ext_proc(mut camera : Camera, shallow distance : F32) {}
+CameraMoveRight := ext_proc(mut camera : Camera, shallow distance : F32, shallow moveInWorldPlane : Bool) {}
+CameraMoveToTarget := ext_proc(mut camera : Camera, shallow delta : F32) {}
 
 // Camera rotation
-CameraYaw := ext_proc(camera : Camera, shallow angle : F32, shallow rotateAroundTarget : Bool) {}
-CameraPitch := ext_proc(camera : Camera, shallow angle : F32, shallow lockView : Bool, shallow rotateAroundTarget : Bool, shallow rotateUp : Bool) {}
-CameraRoll := ext_proc(camera : Camera, shallow angle : F32) {}
+CameraYaw := ext_proc(mut camera : Camera, shallow angle : F32, shallow rotateAroundTarget : Bool) {}
+CameraPitch := ext_proc(mut camera : Camera, shallow angle : F32, shallow lockView : Bool, shallow rotateAroundTarget : Bool, shallow rotateUp : Bool) {}
+CameraRoll := ext_proc(mut camera : Camera, shallow angle : F32) {}
 
-GetCameraViewMatrix := ext_func(camera : Camera) returns shallow Matrix {}
-GetCameraProjectionMatrix := ext_func(camera : Camera, shallow aspect : F32) returns shallow Matrix {}
+GetCameraViewMatrix := ext_func(mut camera : Camera) returns shallow Matrix {}
+GetCameraProjectionMatrix := ext_func(mut camera : Camera, shallow aspect : F32) returns shallow Matrix {}
 
 /***********************************************************************************
 *

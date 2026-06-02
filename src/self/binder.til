@@ -904,9 +904,13 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
     sig = sig.replace(" __attribute__((noreturn))", "")
     sig = sig.replace("__attribute__((noreturn)) ", "")
     if sig.len().eq(0) { return false }
-    if sig.byte_at(sig.len().sub(1)).eq(';') {
-        sig = sig.substr(0, sig.len().sub(1)).clone()
-    }
+    // A trailing `;` (the declaration terminator) is left on `sig`
+    // intentionally. It sits after the closing `)` (cp below) and is
+    // never read by the return-type / name / parameter parsing, all of
+    // which works within `[0, cp]`. We deliberately do NOT strip it with
+    // `sig = sig.substr(...).clone()`: re-binding `sig` from a Str-
+    // returning helper here corrupts its heap buffer (issue #203) and
+    // every subsequent byte read returns garbage.
     op := sig.find("(")
     cp := sig.rfind(")")
     if op.eq(-1).or(cp.eq(-1)) { return false }
@@ -1010,6 +1014,16 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
                     mut p_prev_end : USize = 0
                     mut p_base_first : USize = 0
                     mut p_base_set := false
+                    // C args are mutable-by-default; til args are const
+                    // (read-only borrow) by default. A non-const pointer arg
+                    // (`T *p`) lets the callee modify the pointee, so it maps
+                    // to a `mut` ref. A const pointee (`const T *p`) stays the
+                    // default read-only borrow. We flag a const that appears
+                    // before the first `*` (p_ptrs == 0): that const qualifies
+                    // the pointee. A const after the `*` is top-level (the
+                    // pointer itself), which til args are already immutable
+                    // about, so it does not affect the `mut` decision.
+                    mut p_pointee_const := false
                     mut t := a
                     while t.lt(b) {
                         ref c : I8 = params_view.byte_at(t)
@@ -1023,8 +1037,12 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
                         }
                         word_end := skip_word(params_view, t)
                         if word_end.eq(t) { failed = true; break }
-                        if range_eq_lit(params_view, t, word_end, "const")
-                        .or(range_eq_lit(params_view, t, word_end, "volatile"))
+                        if range_eq_lit(params_view, t, word_end, "const") {
+                            if p_ptrs.eq(0) { p_pointee_const = true }
+                            t = word_end
+                            continue
+                        }
+                        if range_eq_lit(params_view, t, word_end, "volatile")
                         .or(range_eq_lit(params_view, t, word_end, "restrict"))
                         .or(range_eq_lit(params_view, t, word_end, "__restrict"))
                         .or(range_eq_lit(params_view, t, word_end, "__restrict__")) {
@@ -1079,6 +1097,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : Dynamic")
                     } else if p_ptrs.eq(1) {
+                        if p_pointee_const.not() { params_buf.push_str("mut ") }
                         if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
                         params_buf.push_str(" : ")
                         push_til_base(params_buf, params_view.substr(p_base_off, p_base_len))

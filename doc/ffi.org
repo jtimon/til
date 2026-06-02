@@ -49,10 +49,14 @@ in the output and ask:
 
 2. *Does the C function take a pointer arg that it stores or
    frees?*  By default the binder emits ~shallow~ for primitives
-   and ~ref~ (= borrowed) for compound types.  If the C side
-   takes ownership of the buffer, change the arg to ~own~ -- til
-   will then transfer the heap allocation across the call and
-   not try to free it on this side.
+   passed by value.  For a single-level pointer arg it follows the
+   C ~const~ qualifier: a ~const T *p~ (read-only pointee) maps to
+   the borrowed default ~p : T~, while a non-const ~T *p~ maps to
+   ~mut p : T~ (a mutable borrow -- C args are mutable unless
+   ~const~, til args are immutable unless ~mut~, so the generator
+   bridges the two).  If the C side takes ownership of the buffer,
+   change the arg to ~own~ -- til will then transfer the heap
+   allocation across the call and not try to free it on this side.
 
 3. *Does the C function return a pointer the caller does not
    own?*  raylib's ~GetMonitorName~, ~GetClipboardText~,
@@ -84,7 +88,8 @@ layer.
 | Reads/mutates global state, returns void   | ~ext_proc(args) {}~                                         |
 | Reads/mutates global state, returns value  | ~ext_proc(args) returns shallow T {}~                       |
 | Takes ownership of a heap pointer arg      | ~ext_proc(own buf : T)~ or ~ext_func(own buf : T) ...~      |
-| Borrows a pointer arg (read-only or scratch)| ~ext_*(buf : T)~ (default; ~ref~ keyword is redundant)     |
+| Borrows a ~const T *~ pointer arg (read-only)| ~ext_*(buf : T)~ (default; ~ref~ keyword is redundant)    |
+| Mutates a non-const ~T *~ pointer arg       | ~ext_*(mut buf : T)~ (the generator's default for non-const)|
 | Returns an internal pointer (do not free)  | ~ext_*(...) returns ref T {}~                               |
 | Returns a heap pointer the caller owns     | ~ext_*(...) returns T {}~ (default; ~own~ keyword redundant) |
 
@@ -159,8 +164,9 @@ which must be re-applied after regeneration:
    ~nng.h~, and reference ~NNG_DECL~/~nng_socket~ without including
    ~nng.h~ -- so they do not preprocess standalone.  Re-append the
    hand-written "Protocol constructors" block (each is
-   ~ext_proc(sock : nng_socket) returns shallow I32 {}~, taking the
-   socket out-parameter by address).
+   ~ext_proc(mut sock : nng_socket) returns shallow I32 {}~, taking
+   the socket out-parameter by address -- ~mut~ because the call
+   writes the socket through that non-const pointer).
 
 Useful workflow:
 

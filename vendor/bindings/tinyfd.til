@@ -136,7 +136,7 @@ tinyfd_openFileDialog := ext_proc(aTitle : I8, aDefaultPathAndFile : I8, shallow
 tinyfd_selectFolderDialog := ext_proc(aTitle : I8, aDefaultPath : I8) returns ref I8 {}
   /* returns NULL on cancel */
 
-tinyfd_colorChooser := ext_proc(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : U8, aoResultRGB : U8) returns ref I8 {}
+tinyfd_colorChooser := ext_proc(aTitle : I8, aDefaultHexRGB : I8, aDefaultRGB : U8, mut aoResultRGB : U8) returns ref I8 {}
   /* returns the hexcolor as a string "#FF0000" */
   /* aoResultRGB also contains the result */
   /* aDefaultRGB is used only if aDefaultHexRGB is NULL */
