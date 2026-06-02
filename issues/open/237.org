@@ -54,3 +54,52 @@
   None of this is the bottleneck today; this is for "when we look
   back in a year and the compiler is twice as slow because nobody was
   watching".
+
+*** Finding: where HashMap would (and would not) help the self-host build
+
+  Ran ~til build --prof~ over ~translate test/maps.til~ (974 functions
+  instrumented) to answer the original "is HashMap worth using inside
+  the compiler" question. Top of the table by call count / inclusive ms:
+
+  | function              |      calls | total_ms | note                      |
+  |-----------------------+------------+----------+---------------------------|
+  | Str_cmp               | 14,167,952 |    56648 | Map binary-search compares|
+  | Map_has               |  1,887,542 |    26034 | ~7.4 Str_cmp per lookup   |
+  | Map_get               |    513,733 |    17085 |                           |
+  | Map_key_ptr           |  9,059,302 |     1345 | Map binary-search internal|
+  | TypeScope_get_struct  |  1,489,589 |   108275 | scope-chain walk          |
+
+  14.2M Str_cmp / 1.9M Map_has ~= 7.4 compares per lookup -> the lookups
+  that dominate hit a ~2^7.4 ~= 170-entry Map. That is the typer's
+  root/global ~TypeScope.bindings~ (every top-level + core decl),
+  walked by ~get_binding~ / ~get_struct~ for essentially every
+  identifier. No compiler-wide Map (~ctx.struct_def_exprs~,
+  ~ctx.func_defs~, ~ctx.dispatch_map~, ~ctx.ffi_map~, ~ctx.imported~,
+  the scavenger's ~top~ / ~core_top~) appears anywhere near the top --
+  they are one-shot, load-time, and cold. So the obvious "swap a big
+  global Map" targets are NOT where the time goes.
+
+  The hot Map is ~TypeScope.bindings~, and a drop-in HashMap swap there
+  is the wrong move for two concrete reasons:
+
+  - Construction cost. ~HashMap.new~ pre-allocates HASHMAP_INIT_BUCKETS
+    (16) bucket slots + a nexts Vec. A TypeScope is created for every
+    function and block, the vast majority holding a handful of locals
+    that take 1-2 Str_cmp to search. Paying a 16-slot allocation on
+    each of those millions of short-lived scopes to save ~one compare
+    is a likely net regression -- exactly the "small Maps lose to the
+    binary-search Map's locality" caveat in src/std/hashmap.til.
+  - API surface. ~TypeScope.bindings~ is iterated by dense index via
+    ~Map.val_ptr~ / ~Map.key_ptr~ in garbager.til and typer.til, and
+    read via the throwing bang-subscript ~bindings[name]~. HashMap has
+    no index iteration today and ~HashMap.get~ does not throw, so the
+    swap is invasive across initer/typer/garbager, not a one-liner.
+
+  Conclusion: it is NOT worth a blanket HashMap swap in the compiler's
+  own build path as things stand. The only hot Map is the scope-binding
+  table, and the win there is gated on a map that is cheap to construct
+  empty and only promotes to hashing past a size threshold (e.g. start
+  as the binary-search Map, promote to HashMap once entries exceed
+  ~32). That adaptive/threshold-promoted scope map -- not a drop-in
+  swap -- is the real follow-up; filed conceptually here so the next
+  attempt starts from the data rather than a guess.

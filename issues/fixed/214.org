@@ -1,0 +1,166 @@
+# priority: low
+** FIXED #214 Unordered HashMap for big tables where key order does not matter
+
+  *** What landed
+
+  The HashMap container shipped end-to-end (~src/std/hashmap.til~,
+  swap-remove ~HashMap.remove~, ~HashMap.hasher~ namespace decl with
+  hot-swap, ~fnv1a~ / ~knuth_bytes~ in lib/hash.til, microbench in
+  examples/bench_hashmap.til). The originally-listed remaining
+  bullets all landed too:
+
+  - Removal -- swap-remove (no tombstones) shipped with chain-link
+    rewrites; test/hashmaps.til covers add/remove/reinsert cycles.
+  - Benchmark target -- examples/bench_hashmap.til times Map vs
+    HashMap (fnv1a and knuth_bytes) at N=1000/10000/100000 on both
+    I64 and Str keys, see issue #234.
+  - Migration -- empirically NOT worth a swap inside the self-host
+    compiler today. Profiled via ~til build --prof~ (issue #237) on
+    ~translate test/maps.til~ (974 functions instrumented). The hot
+    Map is the typer's root TypeScope.bindings (~170 entries, walked
+    by get_binding/get_struct for nearly every identifier); every
+    compiler-wide Map (struct_def_exprs, func_defs, dispatch_map,
+    ffi_map, ctx.imported, the scavenger's top/core_top) is
+    one-shot/cold. A drop-in HashMap swap of TypeScope.bindings would
+    regress -- HashMap.new pre-allocates 16 buckets and a TypeScope
+    is created per function/block (mostly a handful of locals,
+    1-2 compares to search), exactly the "small Maps lose" caveat in
+    src/std/hashmap.til. It also needs an invasive API port
+    (Map.val_ptr/key_ptr index iteration, throwing bang-subscript
+    [name]) since HashMap has neither. Detailed numbers + reasoning
+    were also appended to issue #237.
+
+  Robin-hood vs linear probing is intentionally deferred -- separate
+  chaining is what shipped, not worth the bookkeeping for the first
+  cut. Revisit if a future migration lands a HashMap on a workload
+  where the worst-case probe distance actually matters.
+
+  *** How to re-check whether HashMap is worth it in self (recipe)
+
+  Run this whenever you suspect the answer might have flipped (the
+  compiler grew a new Map-heavy pass, ctx.struct_def_exprs got hot,
+  TypeScope.bindings entries climbed well past ~1000 at the root,
+  etc.). Everything below assumes a clean build at the master tip.
+
+  **** Step 1: build a profiled compiler (one-shot)
+
+  : bin/til build --prof -o bin/til_prof src/til.til
+
+  See ~doc/profiling.org~ for the ~til build --prof~ design (gcc's
+  ~-finstrument-functions~ + a dladdr resolver in src/c/ext.c that
+  prints a top-N table to stderr at exit). The prof binary is
+  otherwise identical to ~bin/til~; instrumentation overhead is real
+  (every call hits a per-thread stack + a clock), so prefer a
+  representative-but-small input over translating ~src/til.til~ itself
+  when iterating.
+
+  **** Step 2: profile a representative input
+
+  : TIL_PROF_TOP=40 bin/til_prof translate test/maps.til 2>&1 | head -50
+
+  ~test/maps.til~ exercises the Map-on-Str path, runs in seconds even
+  instrumented, and gave the conclusive numbers below. Larger inputs
+  (translate ~src/til.til~ itself) show the same shape but take a long
+  time under instrumentation; only reach for them if test/maps.til's
+  signal is ambiguous. ~TIL_PROF_TOP=N~ controls row count (0 = all).
+
+  **** Step 3: read the top-N table
+
+  Look for these signals in the printed table (columns: calls,
+  self_ms, total_ms):
+
+  1. ~Map_has~ / ~Map_get~ / ~Map_set~ near the top by call count or
+     inclusive (~total_ms~) time. If yes, Maps are at least visible on
+     the radar. If no, there is no Map work to optimise.
+  2. ~Str_cmp~ near the top by inclusive time. That is the comparator
+     inside the binary search; if Map_has dominates and Str_cmp is
+     huge, the Str-keyed Maps are the ones to look at.
+  3. Implied per-lookup compare count = Str_cmp.calls / Map_has.calls.
+     That is ~= log2(N_typical) for binary-search Maps; if it lands
+     above 6 or so the typical-hit Map is bigger than ~64 entries and
+     HashMap will start beating it on per-lookup cost.
+
+  Run on master at ~21153c7~ (~translate test/maps.til~, 974
+  functions) for reference:
+
+  | function              |      calls | total_ms |
+  |-----------------------+------------+----------|
+  | Str_cmp               | 14,167,952 |    56648 |
+  | Map_has               |  1,887,542 |    26034 |
+  | Map_get               |    513,733 |    17085 |
+  | Map_key_ptr           |  9,059,302 |     1345 |
+  | TypeScope_get_struct  |  1,489,589 |   108275 |
+
+  14.2M Str_cmp / 1.9M Map_has = 7.5 compares per lookup -> implied
+  N ~= 170. That is the TypeScope root scope, walked from
+  get_binding / get_struct, and it is the ONLY Map hot enough to
+  matter.
+
+  **** Step 4: decide whether to migrate
+
+  A migration is worth attempting when ALL THREE hold:
+
+  - The candidate Map appears in the top by inclusive ~total_ms~ (not
+    just self_ms -- the per-call cost can be tiny but still matter
+    through sheer call volume).
+  - The implied typical-N is well above the std/hashmap.til crossover
+    (call it 32). Below that, HashMap loses to Map's cache locality
+    plus the cost of pre-allocating 16 buckets per HashMap.new.
+  - The container is CONSTRUCTED rarely (one HashMap.new per build or
+    per pass, not per function/block). If a Map is created per
+    short-lived scope, the construction overhead probably swamps the
+    per-lookup savings -- this is what kills the TypeScope swap in
+    its current shape.
+
+  If those three line up, fork a Two-pass: branch, change the one
+  ~Map.new(...)~ site to ~HashMap.new(...)~, port the API surface
+  (throwing-bang-subscript ~m[key]~ -> ~m.get(key)~ since HashMap.get
+  panics rather than throws; any ~Map.val_ptr~ / ~Map.key_ptr~ index
+  loops -> rewrite against ~m.keys[i]!~ / ~m.values[i]!~), then
+  re-profile with the same recipe. ~make profile~ writing
+  ~doc/selfhost_build.csv~ records before/after wallclock so the win
+  is visible at the merger level too.
+
+  Latent emit bug to expect when the migration attempt is retried:
+  a struct namespace data decl (~mut HashMap.hasher : HashFn = fnv1a~)
+  reaches the generated forward header via emit_struct_typedef and
+  is written as a plain `void * HashMap_hasher;` instead of `extern
+  void * HashMap_hasher;`. As long as nothing on the self-host
+  src/til.til transitive imports references HashMap that's fine
+  (nothing makes the boot/til_forward.h side define the symbol);
+  the moment you ~import("../std/hashmap")~ from inside src/self/*
+  the link fails with "multiple definition of HashMap_hasher". The
+  fix is small (thread a `header_extern` flag through
+  ~topo_emit_struct_enum_defs~ / ~emit_struct_typedef~ in
+  src/self/builder.til; write ~extern~ in the forward header path,
+  keep the bare definition in the monolithic emit) but was not
+  upstreamed because the swap that exposed it was reverted. Catch
+  this once and the same path covers any future
+  ~mut TheContainer.thing : SomeFn = default~ namespace decl.
+
+  Original issue body kept below for context.
+
+  *** Original
+
+  `Map` in [[file:../../src/core/map.til][src/core/map.til]] is a sorted-array
+  ordered map: every `set` does a binary search and then a `memmove` of the
+  suffix to keep keys in `cmp` order, every `get` / `has` is a binary search.
+  That's O(log n) per lookup and O(n) per insert in the worst case (the
+  memmove cost dominates once n is large).
+
+  For many of `bin/til`'s internal tables the key order is irrelevant -- we
+  only ever ask "is this name bound?" or "fetch the binding for this name".
+  The places that actually iterate in key order are rare. On big tables
+  (typer scope chains, the symbol table, the dyn dispatch tables, etc.) the
+  binary search + memmove cost is paid on every lookup and every insert,
+  even though we never observe the ordering it buys us.
+
+  *** Resolved bug workarounds
+
+  - 64-bit Knuth / FNV-1a constants in [[file:../../lib/hash.til][lib/hash.til]] and Str.hash
+    (issue #219 fix: builder now emits the ULL suffix).
+  - All `to_ptr(...)` wraps in [[file:../../src/std/hashmap.til][src/std/hashmap.til]] dropped
+    (issue #217 fix: scalar args to Dynamic params autobox in interp).
+  - `ref val_slot : Dynamic = self.values.get(slot_idx)` restored
+    (issue #218 fix: function-pointer dispatch no longer applies
+    own-semantics across the bridge).

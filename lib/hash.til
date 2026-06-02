@@ -5,9 +5,10 @@ mode lib
 // the low bits themselves.
 //
 // "Cheap" means a small constant amount of arithmetic per input byte
-// (or per fixed-width input) and no allocations. til exposes mul / xor
-// on U64 but not shl / shr, so multiplicative hashes (Knuth, FNV-1a)
-// are the natural fit; bit-rotation hashes would need an ext_func.
+// (or per fixed-width input) and no allocations. til exposes mul and
+// the bitwise methods bxor / band / bor on U64 but not shl / shr, so
+// multiplicative hashes (Knuth, FNV-1a) are the natural fit;
+// bit-rotation hashes would need an ext_func.
 
 // Knuth's 64-bit golden-ratio multiplier (2^64 / phi). Materialised
 // via `0.sub(N)` because the unsigned constant 11400714819323198485
