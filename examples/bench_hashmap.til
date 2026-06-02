@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/hashmap")
+import("../lib/hash")
 
 // Microbench for Map vs HashMap. Reports wall-clock ms for insert,
 // has, and get over N keys, for both I64 and Str key types. Run via
@@ -27,7 +28,7 @@ bench_map_i64 := func(n: I64) returns Vec {
     t2 := clock_ms()
     mut sum : I64 = 0
     for i in 0..n {
-        ref v : I64 = m.get(i)
+        ref v : I64 = m.get(i)!
         sum = sum.add(v)
     }
     t_get := clock_ms().sub(t2)
@@ -81,7 +82,7 @@ bench_map_str := func(n: I64) returns Vec {
     m := Map.new(Str, I64)
     t0 := clock_ms()
     for i in 0..n {
-        ref k : Str = keys.get(i.to_usize())
+        ref k : Str = keys.get(i.to_usize())!
         m.set(own k.clone(), own i.mul(2))
     }
     t_ins := clock_ms().sub(t0)
@@ -89,7 +90,7 @@ bench_map_str := func(n: I64) returns Vec {
     t1 := clock_ms()
     mut hits : I64 = 0
     for i in 0..n {
-        ref k : Str = keys.get(i.to_usize())
+        ref k : Str = keys.get(i.to_usize())!
         if m.has(k) { hits = hits.add(1) }
     }
     t_has := clock_ms().sub(t1)
@@ -97,8 +98,8 @@ bench_map_str := func(n: I64) returns Vec {
     t2 := clock_ms()
     mut sum : I64 = 0
     for i in 0..n {
-        ref k : Str = keys.get(i.to_usize())
-        ref v : I64 = m.get(k)
+        ref k : Str = keys.get(i.to_usize())!
+        ref v : I64 = m.get(k)!
         sum = sum.add(v)
     }
     t_get := clock_ms().sub(t2)
@@ -120,7 +121,7 @@ bench_hashmap_str := func(n: I64) returns Vec {
     m := HashMap.new(Str, I64)
     t0 := clock_ms()
     for i in 0..n {
-        ref k : Str = keys.get(i.to_usize())
+        ref k : Str = keys.get(i.to_usize())!
         m.set(own k.clone(), own i.mul(2))
     }
     t_ins := clock_ms().sub(t0)
@@ -128,7 +129,7 @@ bench_hashmap_str := func(n: I64) returns Vec {
     t1 := clock_ms()
     mut hits : I64 = 0
     for i in 0..n {
-        ref k : Str = keys.get(i.to_usize())
+        ref k : Str = keys.get(i.to_usize())!
         if m.has(k) { hits = hits.add(1) }
     }
     t_has := clock_ms().sub(t1)
@@ -136,7 +137,7 @@ bench_hashmap_str := func(n: I64) returns Vec {
     t2 := clock_ms()
     mut sum : I64 = 0
     for i in 0..n {
-        ref k : Str = keys.get(i.to_usize())
+        ref k : Str = keys.get(i.to_usize())!
         ref v : I64 = m.get(k)
         sum = sum.add(v)
     }
@@ -151,20 +152,26 @@ bench_hashmap_str := func(n: I64) returns Vec {
 }
 
 print_row := proc(label: Str, r: Vec) {
-    ref t_ins : I64 = r.get(0.to_usize())
-    ref t_has : I64 = r.get(1.to_usize())
-    ref t_get : I64 = r.get(2.to_usize())
-    ref hits  : I64 = r.get(3.to_usize())
+    ref t_ins : I64 = r.get(0.to_usize())!
+    ref t_has : I64 = r.get(1.to_usize())!
+    ref t_get : I64 = r.get(2.to_usize())!
+    ref hits  : I64 = r.get(3.to_usize())!
     println(label, " ins=", t_ins.to_str(), "ms has=", t_has.to_str(), "ms get=", t_get.to_str(), "ms hits=", hits.to_str())
 }
 
 run_size := proc(n: I64) {
     println("--- N=", n.to_str(), " I64 keys ---")
-    print_row("Map     ", bench_map_i64(n))
-    print_row("HashMap ", bench_hashmap_i64(n))
+    print_row("Map           ", bench_map_i64(n))
+    HashMap.HASHER = fnv1a
+    print_row("HashMap fnv1a ", bench_hashmap_i64(n))
+    HashMap.HASHER = knuth_bytes
+    print_row("HashMap knuth ", bench_hashmap_i64(n))
     println("--- N=", n.to_str(), " Str keys ---")
-    print_row("Map     ", bench_map_str(n))
-    print_row("HashMap ", bench_hashmap_str(n))
+    print_row("Map           ", bench_map_str(n))
+    HashMap.HASHER = fnv1a
+    print_row("HashMap fnv1a ", bench_hashmap_str(n))
+    HashMap.HASHER = knuth_bytes
+    print_row("HashMap knuth ", bench_hashmap_str(n))
 }
 
 main := proc() {

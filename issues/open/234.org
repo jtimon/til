@@ -1,5 +1,5 @@
 # priority: low
-** OPEN #234 Extend hash benchmark with a second fast hash alongside fnv1a
+** WIP #234 Extend hash benchmark with a second fast hash alongside fnv1a
 
   ~lib/hash.til~ ships exactly one byte-level hash today: ~fnv1a~
   (FNV-1a, what ~HashMap.HASHER~ defaults to). The microbench in
