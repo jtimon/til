@@ -512,6 +512,8 @@ Literal := enum {
     Num: LiteralNumData,
     Bool: Bool,
     Null,
+    MapLit,
+    SetLit,
 }
 
 /// AST node kind. Each variant carries an optional payload (struct, string, bool).
@@ -534,8 +536,6 @@ NodeType := enum {
     NamedArg: Str,
     Break,
     Continue,
-    MapLit,
-    SetLit,
     Switch,
     Case,
     NoDefaultArg,
@@ -568,6 +568,12 @@ namespace:
     }
     is_literal_null := func(self: NodeType) returns Bool {
         switch self { case NodeType.Literal(Literal.Null): return true case: return false }
+    }
+    is_map_lit := func(self: NodeType) returns Bool {
+        switch self { case NodeType.Literal(Literal.MapLit): return true case: return false }
+    }
+    is_set_lit := func(self: NodeType) returns Bool {
+        switch self { case NodeType.Literal(Literal.SetLit): return true case: return false }
     }
     // Any literal except Null: the str/num/bool constants. Hoisting and
     // redundant-clone checks treat these as inlinable values while Null
@@ -680,8 +686,8 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Assign:
         if e.children.len().eq(0) { return Type.Unknown }
         return e.child(0).expr_til_type()
-    case NodeType.MapLit:      return Type.Struct("Map")
-    case NodeType.SetLit:      return Type.Struct("Set")
+    case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
+    case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
     case NodeType.NamedArg:
         if e.children.len().eq(0) { return Type.Unknown }
         return e.child(0).expr_til_type()
@@ -789,8 +795,8 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.NamedArg(s):    return format("NamedArg ", s)
     case NodeType.Break:          return "Break"
     case NodeType.Continue:       return "Continue"
-    case NodeType.MapLit:         return "MapLit"
-    case NodeType.SetLit:         return "SetLit"
+    case NodeType.Literal(Literal.MapLit):         return "MapLit"
+    case NodeType.Literal(Literal.SetLit):         return "SetLit"
     case NodeType.Switch:         return "Switch"
     case NodeType.Case:           return "Case"
     case NodeType.NoDefaultArg:   return "NoDefaultArg"
@@ -845,8 +851,8 @@ node_name := func(data: NodeType) returns Str {
     case NodeType.NamedArg:    return "named_arg"
     case NodeType.Break:       return "break"
     case NodeType.Continue:    return "continue"
-    case NodeType.MapLit:      return "map_lit"
-    case NodeType.SetLit:      return "set_lit"
+    case NodeType.Literal(Literal.MapLit):      return "map_lit"
+    case NodeType.Literal(Literal.SetLit):      return "set_lit"
     case NodeType.Switch:      return "switch"
     case NodeType.Case:        return "case"
     case NodeType.Throw:       return "throw"

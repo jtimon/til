@@ -2547,8 +2547,8 @@ priv infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Con
     case NodeType.EnumDef:     infer_type_def_expr(scope, expr, ctx)
     case NodeType.FCall:       infer_fcall_expr(scope, expr, in_func, ctx)
     case NodeType.FieldAccess: infer_field_access_expr(scope, expr, in_func, ctx)
-    case NodeType.MapLit:      infer_map_lit_expr(scope, expr, in_func, ctx)
-    case NodeType.SetLit:      infer_set_lit_expr(scope, expr, in_func, ctx)
+    case NodeType.Literal(Literal.MapLit):      infer_map_lit_expr(scope, expr, in_func, ctx)
+    case NodeType.Literal(Literal.SetLit):      infer_set_lit_expr(scope, expr, in_func, ctx)
     case NodeType.NamedArg:    infer_named_arg_expr(scope, expr, in_func, ctx)
     case:
         expr.set_expr_til_type(Type.Unknown)
@@ -9185,8 +9185,8 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
         if owns_scope.neq(0) {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                 ref rhs : Expr = stmt.child(0)
-                if rhs.node_type.is(NodeType.SetLit) { has_set_lit = true }
-                if rhs.node_type.is(NodeType.MapLit) { has_map_lit = true }
+                if rhs.node_type.is_set_lit() { has_set_lit = true }
+                if rhs.node_type.is_map_lit() { has_map_lit = true }
             }
             if has_array_vec.not() {
                 if find_array_vec_fcall(stmt).is_null().not() { has_array_vec = true }
@@ -9229,11 +9229,11 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
         if has_desugar {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                 ref rhs : Expr = stmt.child(0)
-                if has_set_lit.and(rhs.node_type.is(NodeType.SetLit)) {
+                if has_set_lit.and(rhs.node_type.is_set_lit()) {
                     if desugar_set_literal_decl(stmt, temp_ch, scope, ctx) {
                         stmt_handled = true
                     }
-                } else if has_map_lit.and(rhs.node_type.is(NodeType.MapLit)) {
+                } else if has_map_lit.and(rhs.node_type.is_map_lit()) {
                     if desugar_map_literal_decl(stmt, temp_ch, scope, ctx) {
                         stmt_handled = true
                     }
