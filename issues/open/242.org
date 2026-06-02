@@ -1,0 +1,112 @@
+# priority: medium
+** OPEN #242 Allow struct fields without a default value (mandatory at instantiation)
+
+   Today every struct field MUST carry a default value. The parser
+   enforces it: a field is ~name := value~ or ~name : Type = value~,
+   and both branches end in ~expect_token(p, TokenType.ColonEq)~
+   ([[file:../../src/self/parser.til:591][src/self/parser.til:591]],
+   ~:593~). Because every field has a default, every field is optional
+   at instantiation and the constructor uses the named-argument
+   convention borrowed from optional function arguments
+   ([[file:../../src/self/typer.til:1131][src/self/typer.til:1131]]).
+   Omitted fields are back-filled from their default
+   (~fld_d.default_value.clone()~,
+   [[file:../../src/self/typer.til:1135][src/self/typer.til:1135-1141]]).
+
+   We want to KEEP that behaviour for fields that have a default, but
+   ALSO allow a field to be declared with no default. A field with no
+   default becomes a *required* argument at literal instantiation, and
+   -- since there is no expression to infer from -- its type MUST be
+   given explicitly.
+
+*** Example
+
+    Today (all fields default, all optional):
+
+    : Abc := struct {
+    :    a : U16 = 0
+    :    b := ""
+    :    c := -1
+    : }
+    : abc := Abc()            // legal: a=0, b="", c=-1
+
+    Proposed (b has no default):
+
+    : Abc := struct {
+    :    a : U16 = 0
+    :    b : Str              // no default -> required, type mandatory
+    :    c := -1
+    : }
+    : abc := Abc()            // ILLEGAL: missing required field 'b'
+    : abc := Abc(b = "x")     // legal: a=0, b="x", c=-1
+
+*** Semantics
+
+    - A field with a default keeps current behaviour: optional, type
+      inferred from the default when no ~: Type~ is written.
+    - A field with NO default:
+      - is mandatory -- the struct literal must pass it by name, or it
+        is a type error;
+      - requires an explicit ~: Type~ annotation. No default means no
+        expression to infer from, so ~name~ alone (no type, no value)
+        is itself an error.
+    - Named-argument-only instantiation is unchanged
+      ([[file:../../src/self/typer.til:1131][typer.til:1131]]).
+
+*** Implementation sketch (touch points)
+
+    1. *Parser*
+       ([[file:../../src/self/parser.til:585][src/self/parser.til:585-604]]).
+       Allow a field to end after ~: Type~ with no ~=~/~:=~ and no
+       ~parse_expression~. The ~else~ branch at ~:592-594~ (no explicit
+       type) must still require ~:=~ -- a bare ~name~ with neither type
+       nor default stays illegal. Mark the resulting ~Declaration~ as
+       having no default (e.g. a null/absent ~default_value~ rather
+       than a synthesised one).
+
+    2. *AST / Declaration*
+       ([[file:../../src/core/ast.til:188][src/core/ast.til:188-212]]).
+       ~default_value : Expr~ must be able to represent "absent".
+       There is already ~fd.default_value.is_null()~ handling in the
+       typer ([[file:../../src/self/typer.til:2731][typer.til:2731-2735]]),
+       so a null Expr is the natural sentinel; confirm clone/destroy
+       paths are null-safe.
+
+    3. *Typer -- field type resolution*
+       ([[file:../../src/self/typer.til:2719][src/self/typer.til:2719-2735]]).
+       The inference fallback only runs when ~default_value~ is
+       non-null. For a field with no default and no ~explicit_type~,
+       emit a clear error ("field 'b' has no default value, so it needs
+       an explicit type: 'b : Type'").
+
+    4. *Typer -- literal instantiation back-fill*
+       ([[file:../../src/self/typer.til:1135][src/self/typer.til:1135-1141]]).
+       The loop that fills unfilled slots from defaults must instead
+       error for a required (no-default) field that was not supplied:
+       "missing required field 'b' in 'Abc(...)'". Only fields WITH a
+       default get back-filled.
+
+    5. *ref-field default check*
+       ([[file:../../src/self/typer.til:850][src/self/typer.til:850-858]]).
+       ~check_ref_field_owned_default~ assumes a default exists; make it
+       a no-op (or skip) when there is no default.
+
+*** Open questions
+
+    - Error wording / location: report missing-required-field at the
+      ~Abc(...)~ call site; report missing-type at the field decl.
+    - Does any existing struct in the tree rely on "all fields
+      optional"? This change is backward compatible (defaults still
+      work), so existing code should be unaffected; new no-default
+      fields are opt-in.
+    - Interaction with positional vs named: instantiation stays
+      named-only, so required fields are just "named args that must be
+      present".
+
+*** Tests to add
+
+    - Struct with a no-default field; ~Abc()~ is a type error; supplying
+      it by name compiles and round-trips the value.
+    - No-default field without an explicit type is a type error.
+    - Mixed struct (some default, some required): omitting a defaulted
+      field is fine, omitting a required one errors.
