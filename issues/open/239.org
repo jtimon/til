@@ -1,0 +1,69 @@
+# priority: high
+** OPEN #239 Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
+
+   ~StructInstance~ ([[file:../../src/self/interpreter.til][src/self/interpreter.til]]) and
+   ~EnumInstance~ store the type name as ~ref Str~ -- a borrow. til
+   has no lifetime checker for ~ref~, so storing a borrow that
+   outlives the borrowee is silently accepted and only surfaces as a
+   UAF (heap-use-after-free reported by ASAN, or stale-bytes garbled
+   names in release).
+
+   Concrete recurrences uncovered to date:
+
+   - ~read_field~ used ~mut ftype := dd.explicit_type~. The cloned
+     local's destructor ran at function return, freeing the c_str
+     that the returned ~Value.Struct~ / ~Value.Enum~ still
+     referenced. Fixed in commit ~d6c3554~ by re-rooting the borrow
+     at ~ctx.scope.get_binding(ftype).name~ for the own-struct,
+     ref-struct, and enum-field branches.
+
+   - ~resolve_ptr_to_struct~, called from the FieldAccess eval site,
+     stores the ~obj_sname~ argument into ~si.struct_name~. The
+     caller obtains ~obj_sname~ by pattern-matching the case arms
+     of an ~obj_expr.expr_til_type()~ result. The Type payload's
+     destructor runs on case-arm exit and frees the inner Str, but
+     the returned ~Value.Struct~ keeps the now-freed pointer in
+     ~si.struct_name~. Master never dereferenced ~struct_name~
+     through this path so the bug stayed hidden; #147 step 4
+     (commit ~5372e3c~) introduced a ~ctx_field_layout(si.struct_name,
+     ...)~ call there and ASAN immediately surfaced the UAF. Worked
+     around in 5372e3c by reading the stable name from
+     ~til_type_name(e.child(0).expr_til_type())~ at the call site
+     (clones the Str), but the ~ref~ field itself is still primed for
+     the next caller to make the same mistake.
+
+   Both fixes are workarounds at the call site. The field type stays
+   ~ref Str~; every construction site (~make_struct_value~,
+   ~resolve_ptr_to_struct~, ~reinterpret_ptr_value~, struct
+   constructors, payload extractors) has to remember to pass in a
+   long-lived Str, and there's nothing in the compiler that flags
+   the bad cases.
+
+   Remediation options, in order of cost:
+
+   1. *Change the field to owned ~Str~ on StructInstance and
+      EnumInstance*. Every construct call already has the name in
+      hand; cloning at construction is one extra ~Str.clone()~ per
+      Value, in a code path where Values are routinely cloned for
+      other reasons. Memory bump is bounded by the number of live
+      instances. Eliminates the class of bug.
+
+   2. *Audit + canonicalise via ~ctx.scope.get_binding(name).name~*
+      at every construction site, matching the ~d6c3554~ template.
+      Keeps the ~ref~ field cheap but turns "every constructor must
+      pass a program-lifetime Str" into a written-down rule that
+      reviewers can enforce. Worse than (1) because it still relies
+      on every author getting it right.
+
+   3. *Add a borrow-checker / lifetime annotation for ~ref~ fields*.
+      Out of scope for this issue. The pattern is too narrow to
+      motivate the language work on its own; tracked here for the
+      record.
+
+   Option (1) is the recommended fix. Once landed, drop the
+   ~til_type_name(...)~ clone reintroduced at the FieldAccess site
+   in 5372e3c and the equivalent ~ctx.scope.get_binding(ftype).name~
+   gymnastics in ~read_field~.
+
+   See [[./147.org][#147]] step 4 status notes for the FieldAccess
+   discovery context.

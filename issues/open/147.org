@@ -79,6 +79,23 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      thread-local fields in interpreter / builder / typer were
      migrated to Context fields; module-scope-only ref-NULL carve-out
      is gone.
+   - Step 3 -- ~Context.struct_layouts~ landed (commit ~88723f1~),
+     populated alongside the AST layout fields during init so step 4
+     could drop them.
+   - Step 4 -- AST layout caches dropped. ~Declaration.field_struct_def~
+     went first (commit ~2417f71~), and ~Declaration.field_offset~ /
+     ~field_size~ + ~StructDef.total_struct_size~ /
+     ~EnumDef.total_enum_size~ followed (commit ~5372e3c~). Readers
+     route through ~ctx.struct_layouts~ via the ~ctx_total_size~ /
+     ~ctx_field_layout~ helpers; ~read_field~ / ~write_field~ take the
+     resolved offset (and size, for writes) as explicit parameters.
+     The defensive ~resolve_field_struct_defs~ /
+     ~reregister_field_struct_defs~ walks went with the field.
+     One UAF was uncovered in the process at the FieldAccess eval
+     site: ~resolve_ptr_to_struct~ stores a ~ref Str~ borrowed from a
+     case-arm Type payload, which the surrounding switch deletes on
+     its way out, leaving ~si.struct_name~ dangling for any subsequent
+     dereference. See [[./239.org][#239]] for the pattern + remediation plan.
 
    Partial:
 
@@ -107,12 +124,6 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
 
    Not started (the substantive work that remains):
 
-   - Step 3 -- ~Context.struct_layouts~. ~[[./165.org][#165]]~ step 3 explicitly calls
-     this out as a sub-goal of the rstil-style declaration-order-free
-     init.
-   - Step 4 -- remove ~Declaration.field_offset~ /
-     ~field_size~ / ~field_struct_def~ and ~StructDef.total_struct_size~
-     / ~EnumDef.total_enum_size~. Blocked on step 3.
    - Step 11 (stretch) -- *done* (via ~[[./206.org][#206]]~). ~Expr.til_type~ removed;
      ~expr_til_type~ is now a pure function of ~node_type~ + payload
      (no per-Expr storage). The hybrid path won: per-variant type
@@ -136,11 +147,11 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | Struct       | til (now)                                                                                                              | rstil                                                          |
    |--------------+------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------|
    | ~Expr~       | 5 fields: ~node_type, til_type, children, line, col~                                                                   | 4 fields: ~node_type, params, line, col~                       |
-   | ~Declaration~ | 10 fields: ~name, doc, explicit_type, is_mut, own_type, til_type, field_offset, field_size, field_struct_def, default_value~ | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
+   | ~Declaration~ | 11 fields: ~name, doc, explicit_type, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name~ (post step 4: ~field_offset~, ~field_size~, ~field_struct_def~ gone -- layout in ~ctx.struct_layouts~) | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
    | ~Context~    | 10 fields: ~mode, path, path_modes, imported, imports_init_done, imports_typer_done, imports_precomp_done, imports_eval_done, scope, is_repl~ | ~19 fields: mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_precomp_func, precomp_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
    | ~FCallData~  | 5 fields (post step 7): ~is_splat, does_throw, is_bang, own_args, til_type~. Counts and indices for variadic/kwargs are derived via scope helpers (fcall_kwargs_count, fcall_variadic_count, fcall_kwargs_index_via_scope, fcall_variadic_index_via_scope). | 2 fields: ~does_throw, is_bang~                                |
-   | ~StructDef~  | 4 fields: ~total_struct_size, fields, ns_decls, c_tag~                                                                 | 3 fields: ~members, default_values, ns~                        |
-   | ~EnumDef~    | 4 fields: ~ns_decls, variants, payload_types, total_enum_size~                                                         | 3 fields: ~variants, methods, ns~                              |
+   | ~StructDef~  | 3 fields: ~fields, ns_decls, c_tag~ (post step 4: ~total_struct_size~ gone -- total in ~ctx.struct_layouts~)            | 3 fields: ~members, default_values, ns~                        |
+   | ~EnumDef~    | 4 fields: ~ns_decls, variants, payload_types, payload_consts~ (post step 4: ~total_enum_size~ gone -- total in ~ctx.struct_layouts~) | 3 fields: ~variants, methods, ns~                              |
 
 *** Audit (read/write site counts; remaining dangerous refs after ~fn_sig~ removal)
 
@@ -148,33 +159,19 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
 
    | Field                              | Writes | Reads | Notes                                                                                  |
    |------------------------------------+--------+-------+----------------------------------------------------------------------------------------|
-   | ~Declaration.field_struct_def~     |      5 |   ~20 | initer x4 + typer x1 writes; reads in interpreter (~16), dispatch (2), loader (2), typer (1) |
    | ~TypeBinding.struct_def~           |      6 |   ~30 | initer + typer write; reads spread across initer/typer/interpreter/dispatch                  |
    | ~TypeBinding.func_def~             |    ~14 |   ~50 | most reads in typer (callee resolution); initer also reads heavily                           |
 
-   The dangling-ref hazard is empirically real: two defensive AST walks
-   exist solely to re-resolve ~field_struct_def~ pointers after a clone
-   invalidated them.
+   ~Declaration.field_struct_def~ is gone as of step 4 (commit
+   ~2417f71~); the defensive ~resolve_field_struct_defs~ /
+   ~reregister_field_struct_defs~ walks went with it.
+   ~TypeBinding.struct_def~ / ~TypeBinding.func_def~ remain as the
+   next big purge.
 
-   - ~resolve_field_struct_defs~, called from
-     [[file:../../src/self/loader.til][src/self/loader.til]] after hoisting.
-   - ~reregister_field_struct_defs~ in
-     [[file:../../src/self/typer.til][src/self/typer.til]] after typer rebuilds.
+   First-move ranking (smallest -> biggest), now that steps 3/4/7
+   are done:
 
-   The ~fn_sig~ -> ~TypeBinding.func_def~ round-trip pathology that
-   used to feed one dangerous ref into another is gone with ~fn_sig~.
-   ~TypeBinding.func_def~ is still on the table as the next big purge.
-
-   First-move ranking (smallest -> biggest), now that step 7 is done:
-
-   1. *Declaration.field_struct_def* (~20 reads). Forces step 3
-      (~Context.struct_layouts~) + step 4. Biggest architectural payoff
-      because it also kills ~resolve_field_struct_defs~ /
-      ~reregister_field_struct_defs~ defensive walks. Needs an
-      ~enum_layouts~ map alongside (current state already has
-      ~EnumDef.total_enum_size~ matched against
-      ~StructDef.total_struct_size~).
-   2. *TypeBinding.struct_def* / *TypeBinding.func_def* (~80 reads
+   1. *TypeBinding.struct_def* / *TypeBinding.func_def* (~80 reads
       combined). Largest scope. Discipline: store the name on the
       binding, look up via ~scope.get_struct(name)~ /
       ~scope.lookup_func(name)~ at read time. Needed to fully purge

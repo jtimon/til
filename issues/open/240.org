@@ -1,0 +1,55 @@
+# priority: low
+** OPEN #240 Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
+
+   The self-hosted builder swaps ~-Werror~ for ~-Wno-all~ whenever
+   ~--asan~ is passed
+   ([[file:../../src/self/builder.til:4518][src/self/builder.til:4518]],
+   ~:4602~). The comment cites "the asan pass occasionally surfaces
+   additional warnings" and says it matches the historical Makefile
+   recipe.
+
+   Verified empirically: running ~cc -Wall -Wextra -Werror~ on
+   ~boot/til.c~ produces 0 warnings; adding ~-fsanitize=address
+   -fno-omit-frame-pointer~ produces 34 ~-Werror=return-type~ errors
+   of the form "control reaches end of non-void function". Each fires
+   on a generated function whose body ends with an if/else where both
+   branches return, followed by a trailing destructor call before the
+   closing brace. Example at ~boot/til.c:12440-12456~ (the
+   ~UNREACHABLE(__LOC__)~ branch emits a panic call + a return + a
+   trailing ~OutOfBounds_delete(...)~ before ~}~).
+
+   Without ASAN, GCC's flow analysis proves the if/else is
+   exhaustive. ~-fsanitize=address~ inserts ~__asan_*~ runtime hooks
+   around every memory op, which mutates the CFG enough that GCC
+   can no longer see the exhaustiveness and warns. ~-Wno-all~ is
+   the blunt instrument that suppresses it -- it disables the
+   entire ~-Wall~ set, not just ~-Wreturn-type~.
+
+   Fix options:
+
+   1. *Mark ~UNREACHABLE~ as noreturn at C codegen time*. The til
+      definition in ~src/core/exit.til~ is a regular ~func~ that
+      calls ~panic~ -> ~exit(1)~; the C declaration emitted by the
+      builder doesn't carry ~__attribute__((noreturn))~. Teach the
+      codegen (or hand-write the runtime header) to mark ~panic~,
+      ~exit~, ~UNREACHABLE~, and ~TODO~ noreturn. GCC will then drop
+      the falls-through-end analysis for these functions, and
+      ~-Wreturn-type~ stops firing on the synthesized branches that
+      end in ~UNREACHABLE~.
+   2. *Emit a trailing ~return _default_;~ after ~UNREACHABLE~* in
+      non-void emit paths. Adds dead C code but works without runtime
+      attribute support.
+   3. *Soften ~-Wno-all~ to ~-Wno-return-type~* for ASAN builds. Keeps
+      coverage of the rest of ~-Wall~ but pretends the warning is
+      legitimate. Worst of the three.
+
+   Option (1) is the recommended fix. Once landed, drop the ~werr =
+   " -Wno-all"~ swap in both ~compile_lib~ and the executable build
+   path in ~src/self/builder.til~ so ASAN builds run under the same
+   ~-Werror~ as non-ASAN.
+
+   Same ~-Wno-all~ also appears for ~bin/til_debug~ in
+   ~Makefile:151~; that path uses ~boot/til.c~ directly with
+   ~-O0 -g~ (no ASAN) so it's likely orthogonal, but worth
+   confirming whether ~-O0~ alone trips the same warning before
+   committing to drop it there too.
