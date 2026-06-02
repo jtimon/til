@@ -263,12 +263,12 @@ proc infer_named_arg_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32
 
 * infer_map_lit_expr
 #+begin_src til
-proc infer_map_lit_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
+proc infer_map_lit_expr(scope: TypeScope, expr: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
 * infer_set_lit_expr
 #+begin_src til
-proc infer_set_lit_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
+proc infer_set_lit_expr(scope: TypeScope, expr: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
 * infer_type_def_expr
@@ -311,9 +311,19 @@ proc infer_func_def_expr(scope: TypeScope, mut expr: Expr, mut ctx: Context)
 proc check_unused_params(func_scope: TypeScope, expr: Expr, ctx: Context)
 #+end_src
 
+* check_unused_mut_params
+#+begin_src til
+proc check_unused_mut_params(func_scope: TypeScope, expr: Expr, path: Str, ctx: Context)
+#+end_src
+
 * check_unused_locals
 #+begin_src til
 proc check_unused_locals(scope: TypeScope, path: Str, ctx: Context)
+#+end_src
+
+* check_unused_mut_locals
+#+begin_src til
+proc check_unused_mut_locals(scope: TypeScope, path: Str, ctx: Context)
 #+end_src
 
 * check_unused_priv_top_level
@@ -344,6 +354,11 @@ proc infer_if_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shall
 * infer_field_access_expr
 #+begin_src til
 proc infer_field_access_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
+#+end_src
+
+* mark_field_assign_root_written
+#+begin_src til
+func mark_field_assign_root_written(scope: TypeScope, obj: Expr)
 #+end_src
 
 * infer_field_assign_stmt

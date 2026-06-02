@@ -463,7 +463,7 @@ proc compile_lib(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, 
 
 * compile_c
 #+begin_src til
-proc compile_c(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, shallow asan: Bool) returns shallow I32
+proc compile_c(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * register_funcsig_prog
@@ -633,7 +633,7 @@ proc print_translate_success(paths: priv___src_self_builder_til__BuildPaths)
 
 * compile_ast
 #+begin_src til
-proc compile_ast(lp: LoadedProgram, paths: priv___src_self_builder_til__BuildPaths, target: Target, cc_override: Str, shallow asan: Bool) returns shallow I32
+proc compile_ast(lp: LoadedProgram, paths: priv___src_self_builder_til__BuildPaths, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * cmd_translate
@@ -643,7 +643,7 @@ proc cmd_translate(lp: LoadedProgram, custom_c: Str, target: Target) returns sha
 
 * cmd_build
 #+begin_src til
-proc cmd_build(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, shallow asan: Bool) returns shallow I32
+proc cmd_build(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * default_install_prefix
@@ -693,7 +693,7 @@ proc print_install_success(path: Str)
 
 * cmd_install
 #+begin_src til
-proc cmd_install(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, shallow asan: Bool) returns shallow I32
+proc cmd_install(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * asan_child_prefix
@@ -703,12 +703,12 @@ func asan_child_prefix(shallow asan: Bool) returns Str
 
 * cmd_run
 #+begin_src til
-proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, shallow asan: Bool) returns shallow I32
+proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * cmd_test_build_run
 #+begin_src til
-proc cmd_test_build_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, shallow asan: Bool) returns shallow I32
+proc cmd_test_build_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * format_unit_doc_org

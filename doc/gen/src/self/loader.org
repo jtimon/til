@@ -86,7 +86,7 @@ func retarget_alias_binding(scope: TypeScope, alias_name: Str, target_name: Str)
 
 * retarget_loaded_aliases
 #+begin_src til
-func retarget_loaded_aliases(mut lp: LoadedProgram)
+func retarget_loaded_aliases(lp: LoadedProgram)
 #+end_src
 
 * precomp_imported

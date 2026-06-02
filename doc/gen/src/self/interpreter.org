@@ -261,7 +261,7 @@ func resolve_field_assign_sdef(scope: Scope, obj_expr: Expr) returns ref Expr
 
 * eval_body
 #+begin_src til
-proc eval_body(scope: Scope, mut body: Expr, mut ctx: Context)
+proc eval_body(scope: Scope, body: Expr, mut ctx: Context)
 #+end_src
 
 * eval_call
@@ -381,7 +381,7 @@ func populate_cached_aggregate_defs(mut ctx: Context, program: Expr)
 
 * interpreter_init_ns
 #+begin_src til
-proc interpreter_init_ns(mut ctx: Context, mut global: Scope, program: Expr)
+proc interpreter_init_ns(mut ctx: Context, global: Scope, program: Expr)
 #+end_src
 
 * ns_get
@@ -426,12 +426,12 @@ ENUM_PAYLOAD_OFFSET is a U32
 
 * read_field
 #+begin_src til
-func read_field(inst_data: Dynamic, dd: Declaration, ctx: Context) returns shallow Value
+func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: I32, ctx: Context) returns shallow Value
 #+end_src
 
 * write_field
 #+begin_src til
-func write_field(mut inst_data: Dynamic, dd: Declaration, val: Value, ctx: Context)
+func write_field(mut inst_data: Dynamic, dd: Declaration, shallow field_offset: I32, shallow field_size: I32, val: Value, ctx: Context)
 #+end_src
 
 * interpret_register_defs

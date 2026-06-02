@@ -6,7 +6,6 @@
 struct TypeBinding {
     mut name : Str
     mut type : Type
-    mut func_type : FuncType
     mut is_mut : Bool
     mut is_priv : Bool
     mut path : Str
@@ -16,11 +15,14 @@ struct TypeBinding {
     mut own_type : OwnType
     mut is_alias : Bool
     mut is_type_alias : Bool
+    mut is_func_decl : Bool
     mut alias_target : Str
     ref mut struct_def : Expr
     ref mut func_def : Expr
     mut is_builtin : Bool
     mut used : Bool
+    mut written : Bool
+    mut mut_explicit : Bool
     mut orig_name : Str
 namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns shallow Bool
@@ -65,11 +67,16 @@ namespace:
     func get_func_type(self: TypeScope, name: Str) returns shallow FuncType
     func get_struct(self: TypeScope, name: Str) returns ref Expr
     func is_mut(self: TypeScope, name: Str) returns shallow Bool
-    func set(mut self: TypeScope, name: Str, type: Type, shallow func_type: FuncType, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
+    func set(mut self: TypeScope, name: Str, type: Type, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, shallow call_free: Bool)
     func size() returns shallow U32
 }
+#+end_src
+
+* binding_func_type
+#+begin_src til
+func binding_func_type(b: TypeBinding) returns shallow FuncType
 #+end_src
 
 * ImportUnit
@@ -211,12 +218,7 @@ proc register_struct_def_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope) re
 
 * gen_struct_clone_delete_for_stmt
 #+begin_src til
-func gen_struct_clone_delete_for_stmt(stmt: Expr, scope: TypeScope)
-#+end_src
-
-* generate_missing_struct_clones_and_deletes
-#+begin_src til
-func generate_missing_struct_clones_and_deletes(program: Expr, scope: TypeScope)
+func gen_struct_clone_delete_for_stmt(stmt: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * register_enum_definition
@@ -321,12 +323,7 @@ func register_function_definitions(ctx: Context, program: Expr, scope: TypeScope
 
 * gen_struct_size_method_for_stmt
 #+begin_src til
-func gen_struct_size_method_for_stmt(stmt: Expr)
-#+end_src
-
-* generate_struct_size_methods
-#+begin_src til
-func generate_struct_size_methods(program: Expr)
+func gen_struct_size_method_for_stmt(stmt: Expr, ctx: Context)
 #+end_src
 
 * gen_enum_size_method_for_stmt
@@ -334,19 +331,9 @@ func generate_struct_size_methods(program: Expr)
 proc gen_enum_size_method_for_stmt(stmt: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
-* generate_enum_size_methods
-#+begin_src til
-proc generate_enum_size_methods(program: Expr, scope: TypeScope, ctx: Context)
-#+end_src
-
 * gen_unity_derived_for_stmt
 #+begin_src til
 func gen_unity_derived_for_stmt(stmt: Expr)
-#+end_src
-
-* generate_size_methods
-#+begin_src til
-proc generate_size_methods(program: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * gen_cmp_derived_for_stmt
@@ -372,6 +359,11 @@ proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Conte
 * ctx_total_size
 #+begin_src til
 func ctx_total_size(name: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* ctx_field_layout
+#+begin_src til
+func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns FieldLayout
 #+end_src
 
 * infer_top_level_decl_type

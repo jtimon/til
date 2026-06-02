@@ -13,12 +13,12 @@ func collect_scope_locals(ctx: Context, body: Expr, scope: TypeScope, shallow is
 
 * extend_ref_local_lifetimes
 #+begin_src til
-func extend_ref_local_lifetimes(mut body: Expr, mut locals: Vec, scope: TypeScope)
+func extend_ref_local_lifetimes(mut body: Expr, locals: Vec, scope: TypeScope)
 #+end_src
 
 * check_use_after_own_transfer
 #+begin_src til
-proc check_use_after_own_transfer(body: Expr, mut locals: Vec, ctx: Context)
+proc check_use_after_own_transfer(body: Expr, locals: Vec, ctx: Context)
 #+end_src
 
 * insert_exit_deletes
@@ -28,27 +28,27 @@ proc insert_exit_deletes(mut body: Expr, mut live: Vec, shallow return_only: Boo
 
 * insert_nested_exit_deletes
 #+begin_src til
-proc insert_nested_exit_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32)
+proc insert_nested_exit_deletes(stmt: Expr, locals: Vec, shallow stmt_idx: U32)
 #+end_src
 
 * insert_exit_deletes_into_stmt
 #+begin_src til
-func insert_exit_deletes_into_stmt(stmt: Expr, body_stmts: Vec, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec)
+func insert_exit_deletes_into_stmt(stmt: Expr, body_stmts: Vec, locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec)
 #+end_src
 
 * insert_post_stmt_deletes
 #+begin_src til
-func insert_post_stmt_deletes(stmt: Expr, mut locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec)
+func insert_post_stmt_deletes(stmt: Expr, locals: Vec, shallow stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec)
 #+end_src
 
 * insert_assign_delete
 #+begin_src til
-func insert_assign_delete(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec)
+func insert_assign_delete(mut stmt: Expr, locals: Vec, mut new_ch: Vec)
 #+end_src
 
 * promote_own_transferred_locals
 #+begin_src til
-func promote_own_transferred_locals(ctx: Context, mut body: Expr, mut locals: Vec)
+func promote_own_transferred_locals(ctx: Context, mut body: Expr, locals: Vec)
 #+end_src
 
 * insert_free_calls

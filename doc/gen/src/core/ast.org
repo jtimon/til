@@ -107,7 +107,6 @@ Classifies a til function declaration: func, proc, test, macro, or external.
 
 #+begin_src til
 enum FuncType {
-    None
     Func
     Proc
     Test
@@ -115,7 +114,6 @@ enum FuncType {
     ExtFunc
     ExtProc
 namespace:
-    None
     Func
     Proc
     Test
@@ -166,8 +164,6 @@ struct Declaration {
     mut used : Bool
     mut own_type : OwnType
     mut til_type : Type
-    mut field_offset : I32
-    mut field_size : I32
     own mut default_value : Expr
     mut orig_name : Str
 namespace:
@@ -326,11 +322,13 @@ func get_own_arg(fcall: Expr, shallow arg_index: U32) returns shallow Bool
 #+end_src
 
 * StructDef
-Struct definition: field declarations, namespace methods, total size.
+Struct definition: field declarations, namespace methods, c_tag.
+Issue #147 step 4: total_struct_size dropped from the AST in favour
+of ctx.struct_layouts[name].total_size, populated by
+compute_struct_layout at typer time.
 
 #+begin_src til
 struct StructDef {
-    mut total_struct_size : I32
     mut fields : Vec
     mut ns_decls : Vec
     mut c_tag : Str
@@ -346,13 +344,15 @@ namespace:
 
 * EnumDef
 Enum definition: variants, payload types, namespace methods.
+Issue #147 step 4: total_enum_size dropped from the AST in favour
+of ctx.struct_layouts[name].total_size, populated by
+compute_enum_layout at typer time.
 
 #+begin_src til
 struct EnumDef {
     mut ns_decls : Vec
     mut variants : Vec
     mut payload_types : Map
-    mut total_enum_size : I32
     mut payload_consts : Vec
 namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
@@ -472,11 +472,15 @@ enum Literal {
     Num: LiteralNumData
     Bool: Bool
     Null
+    MapLit
+    SetLit
 namespace:
     ext_func Str(own val: Str) returns Literal
     ext_func Num(own val: LiteralNumData) returns Literal
     ext_func Bool(val: Bool) returns Literal
     ext_func Null() returns Literal
+    ext_func MapLit() returns Literal
+    ext_func SetLit() returns Literal
     func is(self: Literal, other: Literal) returns shallow Bool
     func eq(self: Literal, other: Literal) returns shallow Bool
     func delete(own self: Literal, shallow call_free: Bool)
@@ -509,8 +513,6 @@ enum NodeType {
     NamedArg: Str
     Break
     Continue
-    MapLit
-    SetLit
     Switch
     Case
     NoDefaultArg
@@ -522,6 +524,8 @@ namespace:
     func is_literal_num(self: NodeType) returns shallow Bool
     func is_literal_bool(self: NodeType) returns shallow Bool
     func is_literal_null(self: NodeType) returns shallow Bool
+    func is_map_lit(self: NodeType) returns shallow Bool
+    func is_set_lit(self: NodeType) returns shallow Bool
     func is_nonnull_literal(self: NodeType) returns shallow Bool
     ext_func Body() returns NodeType
     ext_func Literal(own val: Literal) returns NodeType
@@ -541,8 +545,6 @@ namespace:
     ext_func NamedArg(own val: Str) returns NodeType
     ext_func Break() returns NodeType
     ext_func Continue() returns NodeType
-    ext_func MapLit() returns NodeType
-    ext_func SetLit() returns NodeType
     ext_func Switch() returns NodeType
     ext_func Case() returns NodeType
     ext_func NoDefaultArg() returns NodeType

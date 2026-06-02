@@ -106,7 +106,6 @@
 *** I8
 *** Primitive:Primitive
 ** FuncType: EnumDef
-*** None
 *** Func
 *** Proc
 *** Test
@@ -127,8 +126,6 @@
 *** used := false
 *** own_type := OwnType.Shallow
 *** til_type := Type.Unknown
-*** field_offset : I32 = 0
-*** field_size : I32 = 0
 *** own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
 *** orig_name := ""
 ** FunctionDef: StructDef
@@ -157,7 +154,6 @@
 *** name := ""
 *** til_type := Type.Unknown
 ** StructDef: StructDef
-*** total_struct_size : I32 = 0
 *** fields := Vec.new(Declaration)
 *** ns_decls := Vec.new(Declaration)
 *** c_tag := ""
@@ -165,7 +161,6 @@
 *** ns_decls := Vec.new(Declaration)
 *** variants := Vec.new(Str)
 *** payload_types : Map = Map.new(I64, Str)
-*** total_enum_size : I32 = 0
 *** payload_consts := Vec.new(Bool)
 ** FieldLayout: StructDef
 *** offset : I32 = 0
@@ -190,6 +185,8 @@
 *** Num:LiteralNumData
 *** Bool:Bool
 *** Null
+*** MapLit
+*** SetLit
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -209,8 +206,6 @@
 *** NamedArg:Str
 *** Break
 *** Continue
-*** MapLit
-*** SetLit
 *** Switch
 *** Case
 *** NoDefaultArg
@@ -235,7 +230,6 @@
 ** TypeBinding: StructDef
 *** name := ""
 *** type := Type.Unknown
-*** func_type := FuncType.None
 *** is_mut := false
 *** is_priv := false
 *** path := ""
@@ -245,11 +239,14 @@
 *** own_type := OwnType.Shallow
 *** is_alias := false
 *** is_type_alias := false
+*** is_func_decl := false
 *** alias_target := ""
 *** ref struct_def : Expr = NULL
 *** ref func_def : Expr = NULL
 *** is_builtin := false
 *** used := false
+*** written := false
+*** mut_explicit := false
 *** orig_name := ""
 ** ScopeFind: EnumDef
 *** NotFound

@@ -69,6 +69,7 @@ struct CliArgs {
     mut path_idx : U32
     mut early_return : Bool
     mut asan : Bool
+    mut prof : Bool
     own mut extra_modes
 namespace:
     func clone(self: CliArgs) returns CliArgs
