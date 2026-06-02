@@ -2458,6 +2458,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         ref nd_own : Expr = field_nested_def(dd, ctx)
         if nd_own.is_null().not() {
             ref owned : Dynamic = deref(ptr)
+            ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
+            if bnd.is_null().not() {
+                return make_struct_value(bnd.name, nd_own, owned, true, ctx)
+            }
             return make_struct_value(ftype, nd_own, owned, true, ctx)
         }
         ref owned2 : Dynamic = deref(ptr)
@@ -2471,6 +2475,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
         ref nd_ref : Expr = field_nested_def(dd, ctx)
         if nd_ref.is_null().not() {
             ref rp : Dynamic = deref(ptr)
+            ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
+            if bnd.is_null().not() {
+                return make_struct_value(bnd.name, nd_ref, rp, true, ctx)
+            }
             return make_struct_value(ftype, nd_ref, rp, true, ctx)
         }
         ref rp2 : Dynamic = deref(ptr)
@@ -2505,6 +2513,11 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }
                     return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size.cast(USize), borrowed = true))
                 }
+                ref bnd_enum : TypeBinding = ctx.scope.get_binding(ftype)
+                if bnd_enum.is_null().not() {
+                    ref bnd_enum_name : Str = bnd_enum.name
+                    return Value.Enum(EnumInstance(enum_name = bnd_enum_name, data = to_ptr(ptr), data_size = total_size.cast(USize), borrowed = true))
+                }
                 return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size.cast(USize), borrowed = true))
             }
             ref itag : I32 = ptr
@@ -2515,12 +2528,6 @@ read_field := func(inst_data: Dynamic, dd: Declaration, ctx: Context) returns sh
     ref sdef3 : Expr = lookup_interp_type_def(ftype, ctx)
     if sdef3.is_null().not() {
         if sdef3.node_type.is(NodeType.StructDef) {
-            // Use the scope binding's owned `name` rather than the
-            // local `ftype` -- ftype is a clone whose destructor runs
-            // at function return, and make_struct_value stores the
-            // pointer in StructInstance.struct_name (a `ref` field).
-            // The binding lives in scope.bindings for the program's
-            // lifetime, so its name is a stable long-lived source.
             ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
             if bnd.is_null().not() {
                 return make_struct_value(bnd.name, sdef3, ptr, true, ctx)
