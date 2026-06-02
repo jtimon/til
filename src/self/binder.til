@@ -904,13 +904,10 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
     sig = sig.replace(" __attribute__((noreturn))", "")
     sig = sig.replace("__attribute__((noreturn)) ", "")
     if sig.len().eq(0) { return false }
-    // A trailing `;` (the declaration terminator) is left on `sig`
-    // intentionally. It sits after the closing `)` (cp below) and is
-    // never read by the return-type / name / parameter parsing, all of
-    // which works within `[0, cp]`. We deliberately do NOT strip it with
-    // `sig = sig.substr(...).clone()`: re-binding `sig` from a Str-
-    // returning helper here corrupts its heap buffer (issue #203) and
-    // every subsequent byte read returns garbage.
+    // The trailing `;` (declaration terminator) is left on `sig`: it
+    // sits after the closing `)` (cp below) and is never read -- the
+    // return-type / name / parameter parsing all works within `[0, cp]`
+    // -- so there is nothing to strip.
     op := sig.find("(")
     cp := sig.rfind(")")
     if op.eq(-1).or(cp.eq(-1)) { return false }
