@@ -28,7 +28,7 @@
   one before touching ~src/std/hashmap.til~. None of this is final
   yet -- the firm deliverable is the vendor dep plus a working
   sha256d-of-bytes call from til. Picking the interface shape and
-  whether ~HashMap.HASHER~ ever points at sha256d is the open part.
+  whether ~HashMap.hasher~ ever points at sha256d is the open part.
 
   Bench coverage from #234 should grow to include the crypto hash so
   the order-of-magnitude cost gap (FNV-1a vs SHA-256d) is visible

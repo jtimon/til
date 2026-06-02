@@ -162,15 +162,15 @@ print_row := proc(label: Str, r: Vec) {
 run_size := proc(n: I64) {
     println("--- N=", n.to_str(), " I64 keys ---")
     print_row("Map           ", bench_map_i64(n))
-    HashMap.HASHER = fnv1a
+    HashMap.hasher = fnv1a
     print_row("HashMap fnv1a ", bench_hashmap_i64(n))
-    HashMap.HASHER = knuth_bytes
+    HashMap.hasher = knuth_bytes
     print_row("HashMap knuth ", bench_hashmap_i64(n))
     println("--- N=", n.to_str(), " Str keys ---")
     print_row("Map           ", bench_map_str(n))
-    HashMap.HASHER = fnv1a
+    HashMap.hasher = fnv1a
     print_row("HashMap fnv1a ", bench_hashmap_str(n))
-    HashMap.HASHER = knuth_bytes
+    HashMap.hasher = knuth_bytes
     print_row("HashMap knuth ", bench_hashmap_str(n))
 }
 

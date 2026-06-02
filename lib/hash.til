@@ -62,7 +62,7 @@ fnv1a := func(data: Dynamic, n: USize) returns U64 {
 // multiplier (KNUTH_MULT) and a zero seed. FNV's constants are tuned
 // specifically for byte-level mixing; Knuth's are tuned for single-
 // word integer hashing. Keeping the loop shape identical isolates
-// the choice of constants -- swap HashMap.HASHER between fnv1a and
+// the choice of constants -- swap HashMap.hasher between fnv1a and
 // knuth_bytes in examples/bench_hashmap.til to see whether either
 // wins on the workloads we actually run.
 knuth_bytes := func(data: Dynamic, n: USize) returns U64 {
