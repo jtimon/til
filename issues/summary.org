@@ -47,7 +47,6 @@
 *** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
-*** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/234.org][#234]] Extend hash benchmark with a second fast hash alongside fnv1a
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/236.org][#236]] File-level `mut X : HashFn = fn` decl emits the rhs as a shadowing local
@@ -77,3 +76,4 @@
 *** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
 *** [[./open/214.org][#214]] Unordered HashMap for big tables where key order does not matter
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
+*** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)

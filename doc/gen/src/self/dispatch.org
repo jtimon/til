@@ -1,19 +1,6 @@
 #+TITLE: src/self/dispatch.til
 #+OPTIONS: toc:t
 
-* priv___src_self_dispatch_til__ExtStr
-#+begin_src til
-struct priv___src_self_dispatch_til__ExtStr {
-    ref mut data : U8
-    mut count : U32
-    mut cap : U32
-namespace:
-    func clone(self: priv___src_self_dispatch_til__ExtStr) returns priv___src_self_dispatch_til__ExtStr
-    func delete(own self: priv___src_self_dispatch_til__ExtStr, shallow call_free: Bool)
-    func size() returns shallow U32
-}
-#+end_src
-
 * FFIEntry
 #+begin_src til
 struct FFIEntry {
@@ -56,11 +43,6 @@ namespace:
 * ffi_reset
 #+begin_src til
 proc ffi_reset(ctx: Context)
-#+end_src
-
-* priv___src_self_dispatch_til__ffi_type_ref
-#+begin_src til
-func priv___src_self_dispatch_til__ffi_type_ref(name: Str) returns ref ffi_type
 #+end_src
 
 * ffi_alloc_cif
@@ -163,21 +145,6 @@ func uptr_ffi_type(ctx: Context) returns ref ffi_type
 func usize_ffi_type(ctx: Context) returns ref ffi_type
 #+end_src
 
-* priv___src_self_dispatch_til__value_to_f32
-#+begin_src til
-func priv___src_self_dispatch_til__value_to_f32(v: Value) returns shallow F32
-#+end_src
-
-* priv___src_self_dispatch_til__value_variant_name
-#+begin_src til
-func priv___src_self_dispatch_til__value_variant_name(v: Value) returns Str
-#+end_src
-
-* priv___src_self_dispatch_til__narrow_bool_arg
-#+begin_src til
-proc priv___src_self_dispatch_til__narrow_bool_arg(s: Scope, e: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
 * h_Bool_and
 #+begin_src til
 proc h_Bool_and(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
@@ -228,11 +195,6 @@ proc h_U32_from_i64(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shall
 proc h_cast(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
-* priv___src_self_dispatch_til__h_print_single
-#+begin_src til
-proc priv___src_self_dispatch_til__h_print_single(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
-#+end_src
-
 * h_print_flush
 #+begin_src til
 proc h_print_flush(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns shallow Bool
@@ -276,11 +238,6 @@ proc h_dyn_fn(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Boo
 * h_dyn_size_of
 #+begin_src til
 proc h_dyn_size_of(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_dispatch_til__str_to_owned_value
-#+begin_src til
-func priv___src_self_dispatch_til__str_to_owned_value(src: Str, ctx: Context) returns shallow Value
 #+end_src
 
 * interp_lookup_struct
@@ -408,16 +365,6 @@ func h_get_thread_count(_s: Scope, _e: Expr, mut r: Value) returns shallow Bool
 proc h_cfile_open(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
-* priv___src_self_dispatch_til__known_ffi_type
-#+begin_src til
-func priv___src_self_dispatch_til__known_ffi_type(type_name: Str, ctx: Context) returns ref ffi_type
-#+end_src
-
-* priv___src_self_dispatch_til__shallow_ffi_type
-#+begin_src til
-func priv___src_self_dispatch_til__shallow_ffi_type(type_name: Str, ctx: Context) returns ref ffi_type
-#+end_src
-
 * field_ffi_type
 #+begin_src til
 func field_ffi_type(dd: Declaration, ctx: Context) returns ref ffi_type
@@ -496,16 +443,6 @@ func ffi_decode_scalar(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) 
 * ffi_call_ret_struct_def
 #+begin_src til
 func ffi_call_ret_struct_def(fe: FFIEntry, ctx: Context) returns ref Expr
-#+end_src
-
-* priv___src_self_dispatch_til__ffi_shallow_type_info
-#+begin_src til
-func priv___src_self_dispatch_til__ffi_shallow_type_info(atype: Dynamic, mut type_name: Str, mut size: I32) returns shallow Bool
-#+end_src
-
-* priv___src_self_dispatch_til__ffi_write_shallow_arg
-#+begin_src til
-func priv___src_self_dispatch_til__ffi_write_shallow_arg(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic, ctx: Context) returns shallow Bool
 #+end_src
 
 * ext_dispatch_ffi

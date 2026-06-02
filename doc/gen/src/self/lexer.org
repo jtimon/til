@@ -201,19 +201,9 @@ func is_alnum(shallow c: I8) returns shallow Bool
 func tok_name(type: TokenType) returns Str
 #+end_src
 
-* priv___src_self_lexer_til__lookup_single_char
-#+begin_src til
-func priv___src_self_lexer_til__lookup_single_char(shallow c: I8) returns shallow TokenType
-#+end_src
-
 * lookup_two_char
 #+begin_src til
 func lookup_two_char(shallow c: I8, shallow c2: I8) returns shallow TokenType
-#+end_src
-
-* priv___src_self_lexer_til__lookup_keyword
-#+begin_src til
-func priv___src_self_lexer_til__lookup_keyword(word: Str) returns TokenType
 #+end_src
 
 * tokenize

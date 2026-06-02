@@ -694,6 +694,21 @@ func def_ns_decls(sdef: Expr) returns ref Vec
 func enum_has_payloads(enum_def: Expr) returns shallow Bool
 #+end_src
 
+* enum_variant_is_payload_less
+#+begin_src til
+func enum_variant_is_payload_less(enum_def: Expr, variant_name: Str) returns shallow Bool
+#+end_src
+
+* clone_call_type_name
+#+begin_src til
+func clone_call_type_name(e: Expr) returns Str
+#+end_src
+
+* is_pod_enum_clone_of
+#+begin_src til
+func is_pod_enum_clone_of(e: Expr, edef: Expr) returns shallow Bool
+#+end_src
+
 * enum_variant_tag
 #+begin_src til
 func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32

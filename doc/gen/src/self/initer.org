@@ -169,11 +169,6 @@ namespace:
 }
 #+end_src
 
-* priv___src_self_initer_til__align_up
-#+begin_src til
-func priv___src_self_initer_til__align_up(shallow offset: I32, shallow align: I32) returns shallow I32
-#+end_src
-
 * precomp_classify_stmt
 #+begin_src til
 func precomp_classify_stmt(stmt: Expr, ctx: Context)
@@ -214,16 +209,6 @@ func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
 proc register_struct_def_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
-* priv___src_self_initer_til__field_inferred_type_name
-#+begin_src til
-func priv___src_self_initer_til__field_inferred_type_name(fd: Declaration) returns Str
-#+end_src
-
-* priv___src_self_initer_til__is_pod_type_for_clone
-#+begin_src til
-func priv___src_self_initer_til__is_pod_type_for_clone(type_name: Str, scope: TypeScope) returns shallow Bool
-#+end_src
-
 * gen_struct_clone_delete_for_stmt
 #+begin_src til
 func gen_struct_clone_delete_for_stmt(stmt: Expr, scope: TypeScope)
@@ -242,16 +227,6 @@ proc register_enum_definition(ctx: Context, stmt: Expr, scope: TypeScope) return
 * collect_enum_variants
 #+begin_src til
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool)
-#+end_src
-
-* priv___src_self_initer_til__generate_enum_variant_constructors
-#+begin_src til
-func priv___src_self_initer_til__generate_enum_variant_constructors(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope)
-#+end_src
-
-* priv___src_self_initer_til__generate_enum_is_method
-#+begin_src til
-func priv___src_self_initer_til__generate_enum_is_method(enum_def: Expr, ename: Str, shallow line: U32, shallow col: U32)
 #+end_src
 
 * generate_enum_eq_method
@@ -422,86 +397,6 @@ func infer_top_level_decl_type(stmt: Expr, scope: TypeScope, mut out_type: Type)
 * init_declarations
 #+begin_src til
 proc init_declarations(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
-* priv___src_self_initer_til__init_is_lift_target
-#+begin_src til
-func priv___src_self_initer_til__init_is_lift_target(stmt: Expr) returns shallow Bool
-#+end_src
-
-* priv___src_self_initer_til__init_lookup_name
-#+begin_src til
-func priv___src_self_initer_til__init_lookup_name(renamings: Map, name: Str) returns Str
-#+end_src
-
-* priv___src_self_initer_til__init_rename_ident_in_place
-#+begin_src til
-func priv___src_self_initer_til__init_rename_ident_in_place(mut e: Expr, renamings: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_rename_decl_in_place
-#+begin_src til
-func priv___src_self_initer_til__init_rename_decl_in_place(mut dd: Declaration, renamings: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_rewrite_refs
-#+begin_src til
-proc priv___src_self_initer_til__init_rewrite_refs(mut e: Expr, renamings: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_lift_in_body
-#+begin_src til
-proc priv___src_self_initer_til__init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
-#+end_src
-
-* priv___src_self_initer_til__init_lift_in_ns_decls
-#+begin_src til
-proc priv___src_self_initer_til__init_lift_in_ns_decls(mut def: Expr, parent_prefix: Str, mut top_level: Vec)
-#+end_src
-
-* priv___src_self_initer_til__init_recurse_into_subbodies
-#+begin_src til
-proc priv___src_self_initer_til__init_recurse_into_subbodies(mut body: Expr, parent_prefix: Str, mut top_level: Vec)
-#+end_src
-
-* priv___src_self_initer_til__init_recurse_into_expr
-#+begin_src til
-proc priv___src_self_initer_til__init_recurse_into_expr(mut e: Expr, parent_prefix: Str, mut top_level: Vec)
-#+end_src
-
-* priv___src_self_initer_til__init_subst_ident_name
-#+begin_src til
-func priv___src_self_initer_til__init_subst_ident_name(subs: Map, name: Str) returns Str
-#+end_src
-
-* priv___src_self_initer_til__init_substitute_idents
-#+begin_src til
-func priv___src_self_initer_til__init_substitute_idents(mut e: Expr, subs: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_subst_struct_params
-#+begin_src til
-func priv___src_self_initer_til__init_subst_struct_params(mut sdef: StructDef, subs: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_subst_enum_params
-#+begin_src til
-func priv___src_self_initer_til__init_subst_enum_params(mut edef: EnumDef, subs: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_subst_func_params
-#+begin_src til
-func priv___src_self_initer_til__init_subst_func_params(mut fdd: FunctionDef, subs: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_substitute_type_params
-#+begin_src til
-func priv___src_self_initer_til__init_substitute_type_params(mut def: Expr, subs: Map)
-#+end_src
-
-* priv___src_self_initer_til__init_expand_type_gen_macros
-#+begin_src til
-func priv___src_self_initer_til__init_expand_type_gen_macros(mut program: Expr)
 #+end_src
 
 * init_declarations_unit

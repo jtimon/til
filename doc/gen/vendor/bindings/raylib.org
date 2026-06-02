@@ -569,19 +569,9 @@ namespace:
 ConfigFlags
 #+end_src
 
-* hoisted__I64_55958
-#+begin_src til
-hoisted__I64_55958 is a I64
-#+end_src
-
 * FLAG_VSYNC_HINT
 #+begin_src til
 FLAG_VSYNC_HINT is a I32
-#+end_src
-
-* hoisted__I64_55959
-#+begin_src til
-hoisted__I64_55959 is a I64
 #+end_src
 
 * FLAG_FULLSCREEN_MODE
@@ -589,19 +579,9 @@ hoisted__I64_55959 is a I64
 FLAG_FULLSCREEN_MODE is a I32
 #+end_src
 
-* hoisted__I64_55960
-#+begin_src til
-hoisted__I64_55960 is a I64
-#+end_src
-
 * FLAG_WINDOW_RESIZABLE
 #+begin_src til
 FLAG_WINDOW_RESIZABLE is a I32
-#+end_src
-
-* hoisted__I64_55961
-#+begin_src til
-hoisted__I64_55961 is a I64
 #+end_src
 
 * FLAG_WINDOW_UNDECORATED
@@ -609,19 +589,9 @@ hoisted__I64_55961 is a I64
 FLAG_WINDOW_UNDECORATED is a I32
 #+end_src
 
-* hoisted__I64_55962
-#+begin_src til
-hoisted__I64_55962 is a I64
-#+end_src
-
 * FLAG_WINDOW_HIDDEN
 #+begin_src til
 FLAG_WINDOW_HIDDEN is a I32
-#+end_src
-
-* hoisted__I64_55963
-#+begin_src til
-hoisted__I64_55963 is a I64
 #+end_src
 
 * FLAG_WINDOW_MINIMIZED
@@ -629,19 +599,9 @@ hoisted__I64_55963 is a I64
 FLAG_WINDOW_MINIMIZED is a I32
 #+end_src
 
-* hoisted__I64_55964
-#+begin_src til
-hoisted__I64_55964 is a I64
-#+end_src
-
 * FLAG_WINDOW_MAXIMIZED
 #+begin_src til
 FLAG_WINDOW_MAXIMIZED is a I32
-#+end_src
-
-* hoisted__I64_55965
-#+begin_src til
-hoisted__I64_55965 is a I64
 #+end_src
 
 * FLAG_WINDOW_UNFOCUSED
@@ -649,19 +609,9 @@ hoisted__I64_55965 is a I64
 FLAG_WINDOW_UNFOCUSED is a I32
 #+end_src
 
-* hoisted__I64_55966
-#+begin_src til
-hoisted__I64_55966 is a I64
-#+end_src
-
 * FLAG_WINDOW_TOPMOST
 #+begin_src til
 FLAG_WINDOW_TOPMOST is a I32
-#+end_src
-
-* hoisted__I64_55967
-#+begin_src til
-hoisted__I64_55967 is a I64
 #+end_src
 
 * FLAG_WINDOW_ALWAYS_RUN
@@ -669,19 +619,9 @@ hoisted__I64_55967 is a I64
 FLAG_WINDOW_ALWAYS_RUN is a I32
 #+end_src
 
-* hoisted__I64_55968
-#+begin_src til
-hoisted__I64_55968 is a I64
-#+end_src
-
 * FLAG_WINDOW_TRANSPARENT
 #+begin_src til
 FLAG_WINDOW_TRANSPARENT is a I32
-#+end_src
-
-* hoisted__I64_55969
-#+begin_src til
-hoisted__I64_55969 is a I64
 #+end_src
 
 * FLAG_WINDOW_HIGHDPI
@@ -689,19 +629,9 @@ hoisted__I64_55969 is a I64
 FLAG_WINDOW_HIGHDPI is a I32
 #+end_src
 
-* hoisted__I64_55970
-#+begin_src til
-hoisted__I64_55970 is a I64
-#+end_src
-
 * FLAG_WINDOW_MOUSE_PASSTHROUGH
 #+begin_src til
 FLAG_WINDOW_MOUSE_PASSTHROUGH is a I32
-#+end_src
-
-* hoisted__I64_55971
-#+begin_src til
-hoisted__I64_55971 is a I64
 #+end_src
 
 * FLAG_BORDERLESS_WINDOWED_MODE
@@ -709,19 +639,9 @@ hoisted__I64_55971 is a I64
 FLAG_BORDERLESS_WINDOWED_MODE is a I32
 #+end_src
 
-* hoisted__I64_55972
-#+begin_src til
-hoisted__I64_55972 is a I64
-#+end_src
-
 * FLAG_MSAA_4X_HINT
 #+begin_src til
 FLAG_MSAA_4X_HINT is a I32
-#+end_src
-
-* hoisted__I64_55973
-#+begin_src til
-hoisted__I64_55973 is a I64
 #+end_src
 
 * FLAG_INTERLACED_HINT
@@ -734,19 +654,9 @@ FLAG_INTERLACED_HINT is a I32
 TraceLogLevel
 #+end_src
 
-* hoisted__I64_55974
-#+begin_src til
-hoisted__I64_55974 is a I64
-#+end_src
-
 * LOG_ALL
 #+begin_src til
 LOG_ALL is a I32
-#+end_src
-
-* hoisted__I64_55975
-#+begin_src til
-hoisted__I64_55975 is a I64
 #+end_src
 
 * LOG_TRACE
@@ -754,19 +664,9 @@ hoisted__I64_55975 is a I64
 LOG_TRACE is a I32
 #+end_src
 
-* hoisted__I64_55976
-#+begin_src til
-hoisted__I64_55976 is a I64
-#+end_src
-
 * LOG_DEBUG
 #+begin_src til
 LOG_DEBUG is a I32
-#+end_src
-
-* hoisted__I64_55977
-#+begin_src til
-hoisted__I64_55977 is a I64
 #+end_src
 
 * LOG_INFO
@@ -774,19 +674,9 @@ hoisted__I64_55977 is a I64
 LOG_INFO is a I32
 #+end_src
 
-* hoisted__I64_55978
-#+begin_src til
-hoisted__I64_55978 is a I64
-#+end_src
-
 * LOG_WARNING
 #+begin_src til
 LOG_WARNING is a I32
-#+end_src
-
-* hoisted__I64_55979
-#+begin_src til
-hoisted__I64_55979 is a I64
 #+end_src
 
 * LOG_ERROR
@@ -794,19 +684,9 @@ hoisted__I64_55979 is a I64
 LOG_ERROR is a I32
 #+end_src
 
-* hoisted__I64_55980
-#+begin_src til
-hoisted__I64_55980 is a I64
-#+end_src
-
 * LOG_FATAL
 #+begin_src til
 LOG_FATAL is a I32
-#+end_src
-
-* hoisted__I64_55981
-#+begin_src til
-hoisted__I64_55981 is a I64
 #+end_src
 
 * LOG_NONE
@@ -819,19 +699,9 @@ LOG_NONE is a I32
 KeyboardKey
 #+end_src
 
-* hoisted__I64_55982
-#+begin_src til
-hoisted__I64_55982 is a I64
-#+end_src
-
 * KEY_NULL
 #+begin_src til
 KEY_NULL is a I32
-#+end_src
-
-* hoisted__I64_55983
-#+begin_src til
-hoisted__I64_55983 is a I64
 #+end_src
 
 * KEY_APOSTROPHE
@@ -839,19 +709,9 @@ hoisted__I64_55983 is a I64
 KEY_APOSTROPHE is a I32
 #+end_src
 
-* hoisted__I64_55984
-#+begin_src til
-hoisted__I64_55984 is a I64
-#+end_src
-
 * KEY_COMMA
 #+begin_src til
 KEY_COMMA is a I32
-#+end_src
-
-* hoisted__I64_55985
-#+begin_src til
-hoisted__I64_55985 is a I64
 #+end_src
 
 * KEY_MINUS
@@ -859,19 +719,9 @@ hoisted__I64_55985 is a I64
 KEY_MINUS is a I32
 #+end_src
 
-* hoisted__I64_55986
-#+begin_src til
-hoisted__I64_55986 is a I64
-#+end_src
-
 * KEY_PERIOD
 #+begin_src til
 KEY_PERIOD is a I32
-#+end_src
-
-* hoisted__I64_55987
-#+begin_src til
-hoisted__I64_55987 is a I64
 #+end_src
 
 * KEY_SLASH
@@ -879,19 +729,9 @@ hoisted__I64_55987 is a I64
 KEY_SLASH is a I32
 #+end_src
 
-* hoisted__I64_55988
-#+begin_src til
-hoisted__I64_55988 is a I64
-#+end_src
-
 * KEY_ZERO
 #+begin_src til
 KEY_ZERO is a I32
-#+end_src
-
-* hoisted__I64_55989
-#+begin_src til
-hoisted__I64_55989 is a I64
 #+end_src
 
 * KEY_ONE
@@ -899,19 +739,9 @@ hoisted__I64_55989 is a I64
 KEY_ONE is a I32
 #+end_src
 
-* hoisted__I64_55990
-#+begin_src til
-hoisted__I64_55990 is a I64
-#+end_src
-
 * KEY_TWO
 #+begin_src til
 KEY_TWO is a I32
-#+end_src
-
-* hoisted__I64_55991
-#+begin_src til
-hoisted__I64_55991 is a I64
 #+end_src
 
 * KEY_THREE
@@ -919,19 +749,9 @@ hoisted__I64_55991 is a I64
 KEY_THREE is a I32
 #+end_src
 
-* hoisted__I64_55992
-#+begin_src til
-hoisted__I64_55992 is a I64
-#+end_src
-
 * KEY_FOUR
 #+begin_src til
 KEY_FOUR is a I32
-#+end_src
-
-* hoisted__I64_55993
-#+begin_src til
-hoisted__I64_55993 is a I64
 #+end_src
 
 * KEY_FIVE
@@ -939,19 +759,9 @@ hoisted__I64_55993 is a I64
 KEY_FIVE is a I32
 #+end_src
 
-* hoisted__I64_55994
-#+begin_src til
-hoisted__I64_55994 is a I64
-#+end_src
-
 * KEY_SIX
 #+begin_src til
 KEY_SIX is a I32
-#+end_src
-
-* hoisted__I64_55995
-#+begin_src til
-hoisted__I64_55995 is a I64
 #+end_src
 
 * KEY_SEVEN
@@ -959,19 +769,9 @@ hoisted__I64_55995 is a I64
 KEY_SEVEN is a I32
 #+end_src
 
-* hoisted__I64_55996
-#+begin_src til
-hoisted__I64_55996 is a I64
-#+end_src
-
 * KEY_EIGHT
 #+begin_src til
 KEY_EIGHT is a I32
-#+end_src
-
-* hoisted__I64_55997
-#+begin_src til
-hoisted__I64_55997 is a I64
 #+end_src
 
 * KEY_NINE
@@ -979,19 +779,9 @@ hoisted__I64_55997 is a I64
 KEY_NINE is a I32
 #+end_src
 
-* hoisted__I64_55998
-#+begin_src til
-hoisted__I64_55998 is a I64
-#+end_src
-
 * KEY_SEMICOLON
 #+begin_src til
 KEY_SEMICOLON is a I32
-#+end_src
-
-* hoisted__I64_55999
-#+begin_src til
-hoisted__I64_55999 is a I64
 #+end_src
 
 * KEY_EQUAL
@@ -999,19 +789,9 @@ hoisted__I64_55999 is a I64
 KEY_EQUAL is a I32
 #+end_src
 
-* hoisted__I64_56000
-#+begin_src til
-hoisted__I64_56000 is a I64
-#+end_src
-
 * KEY_A
 #+begin_src til
 KEY_A is a I32
-#+end_src
-
-* hoisted__I64_56001
-#+begin_src til
-hoisted__I64_56001 is a I64
 #+end_src
 
 * KEY_B
@@ -1019,19 +799,9 @@ hoisted__I64_56001 is a I64
 KEY_B is a I32
 #+end_src
 
-* hoisted__I64_56002
-#+begin_src til
-hoisted__I64_56002 is a I64
-#+end_src
-
 * KEY_C
 #+begin_src til
 KEY_C is a I32
-#+end_src
-
-* hoisted__I64_56003
-#+begin_src til
-hoisted__I64_56003 is a I64
 #+end_src
 
 * KEY_D
@@ -1039,19 +809,9 @@ hoisted__I64_56003 is a I64
 KEY_D is a I32
 #+end_src
 
-* hoisted__I64_56004
-#+begin_src til
-hoisted__I64_56004 is a I64
-#+end_src
-
 * KEY_E
 #+begin_src til
 KEY_E is a I32
-#+end_src
-
-* hoisted__I64_56005
-#+begin_src til
-hoisted__I64_56005 is a I64
 #+end_src
 
 * KEY_F
@@ -1059,19 +819,9 @@ hoisted__I64_56005 is a I64
 KEY_F is a I32
 #+end_src
 
-* hoisted__I64_56006
-#+begin_src til
-hoisted__I64_56006 is a I64
-#+end_src
-
 * KEY_G
 #+begin_src til
 KEY_G is a I32
-#+end_src
-
-* hoisted__I64_56007
-#+begin_src til
-hoisted__I64_56007 is a I64
 #+end_src
 
 * KEY_H
@@ -1079,19 +829,9 @@ hoisted__I64_56007 is a I64
 KEY_H is a I32
 #+end_src
 
-* hoisted__I64_56008
-#+begin_src til
-hoisted__I64_56008 is a I64
-#+end_src
-
 * KEY_I
 #+begin_src til
 KEY_I is a I32
-#+end_src
-
-* hoisted__I64_56009
-#+begin_src til
-hoisted__I64_56009 is a I64
 #+end_src
 
 * KEY_J
@@ -1099,19 +839,9 @@ hoisted__I64_56009 is a I64
 KEY_J is a I32
 #+end_src
 
-* hoisted__I64_56010
-#+begin_src til
-hoisted__I64_56010 is a I64
-#+end_src
-
 * KEY_K
 #+begin_src til
 KEY_K is a I32
-#+end_src
-
-* hoisted__I64_56011
-#+begin_src til
-hoisted__I64_56011 is a I64
 #+end_src
 
 * KEY_L
@@ -1119,19 +849,9 @@ hoisted__I64_56011 is a I64
 KEY_L is a I32
 #+end_src
 
-* hoisted__I64_56012
-#+begin_src til
-hoisted__I64_56012 is a I64
-#+end_src
-
 * KEY_M
 #+begin_src til
 KEY_M is a I32
-#+end_src
-
-* hoisted__I64_56013
-#+begin_src til
-hoisted__I64_56013 is a I64
 #+end_src
 
 * KEY_N
@@ -1139,19 +859,9 @@ hoisted__I64_56013 is a I64
 KEY_N is a I32
 #+end_src
 
-* hoisted__I64_56014
-#+begin_src til
-hoisted__I64_56014 is a I64
-#+end_src
-
 * KEY_O
 #+begin_src til
 KEY_O is a I32
-#+end_src
-
-* hoisted__I64_56015
-#+begin_src til
-hoisted__I64_56015 is a I64
 #+end_src
 
 * KEY_P
@@ -1159,19 +869,9 @@ hoisted__I64_56015 is a I64
 KEY_P is a I32
 #+end_src
 
-* hoisted__I64_56016
-#+begin_src til
-hoisted__I64_56016 is a I64
-#+end_src
-
 * KEY_Q
 #+begin_src til
 KEY_Q is a I32
-#+end_src
-
-* hoisted__I64_56017
-#+begin_src til
-hoisted__I64_56017 is a I64
 #+end_src
 
 * KEY_R
@@ -1179,19 +879,9 @@ hoisted__I64_56017 is a I64
 KEY_R is a I32
 #+end_src
 
-* hoisted__I64_56018
-#+begin_src til
-hoisted__I64_56018 is a I64
-#+end_src
-
 * KEY_S
 #+begin_src til
 KEY_S is a I32
-#+end_src
-
-* hoisted__I64_56019
-#+begin_src til
-hoisted__I64_56019 is a I64
 #+end_src
 
 * KEY_T
@@ -1199,19 +889,9 @@ hoisted__I64_56019 is a I64
 KEY_T is a I32
 #+end_src
 
-* hoisted__I64_56020
-#+begin_src til
-hoisted__I64_56020 is a I64
-#+end_src
-
 * KEY_U
 #+begin_src til
 KEY_U is a I32
-#+end_src
-
-* hoisted__I64_56021
-#+begin_src til
-hoisted__I64_56021 is a I64
 #+end_src
 
 * KEY_V
@@ -1219,19 +899,9 @@ hoisted__I64_56021 is a I64
 KEY_V is a I32
 #+end_src
 
-* hoisted__I64_56022
-#+begin_src til
-hoisted__I64_56022 is a I64
-#+end_src
-
 * KEY_W
 #+begin_src til
 KEY_W is a I32
-#+end_src
-
-* hoisted__I64_56023
-#+begin_src til
-hoisted__I64_56023 is a I64
 #+end_src
 
 * KEY_X
@@ -1239,19 +909,9 @@ hoisted__I64_56023 is a I64
 KEY_X is a I32
 #+end_src
 
-* hoisted__I64_56024
-#+begin_src til
-hoisted__I64_56024 is a I64
-#+end_src
-
 * KEY_Y
 #+begin_src til
 KEY_Y is a I32
-#+end_src
-
-* hoisted__I64_56025
-#+begin_src til
-hoisted__I64_56025 is a I64
 #+end_src
 
 * KEY_Z
@@ -1259,19 +919,9 @@ hoisted__I64_56025 is a I64
 KEY_Z is a I32
 #+end_src
 
-* hoisted__I64_56026
-#+begin_src til
-hoisted__I64_56026 is a I64
-#+end_src
-
 * KEY_LEFT_BRACKET
 #+begin_src til
 KEY_LEFT_BRACKET is a I32
-#+end_src
-
-* hoisted__I64_56027
-#+begin_src til
-hoisted__I64_56027 is a I64
 #+end_src
 
 * KEY_BACKSLASH
@@ -1279,19 +929,9 @@ hoisted__I64_56027 is a I64
 KEY_BACKSLASH is a I32
 #+end_src
 
-* hoisted__I64_56028
-#+begin_src til
-hoisted__I64_56028 is a I64
-#+end_src
-
 * KEY_RIGHT_BRACKET
 #+begin_src til
 KEY_RIGHT_BRACKET is a I32
-#+end_src
-
-* hoisted__I64_56029
-#+begin_src til
-hoisted__I64_56029 is a I64
 #+end_src
 
 * KEY_GRAVE
@@ -1299,19 +939,9 @@ hoisted__I64_56029 is a I64
 KEY_GRAVE is a I32
 #+end_src
 
-* hoisted__I64_56030
-#+begin_src til
-hoisted__I64_56030 is a I64
-#+end_src
-
 * KEY_SPACE
 #+begin_src til
 KEY_SPACE is a I32
-#+end_src
-
-* hoisted__I64_56031
-#+begin_src til
-hoisted__I64_56031 is a I64
 #+end_src
 
 * KEY_ESCAPE
@@ -1319,19 +949,9 @@ hoisted__I64_56031 is a I64
 KEY_ESCAPE is a I32
 #+end_src
 
-* hoisted__I64_56032
-#+begin_src til
-hoisted__I64_56032 is a I64
-#+end_src
-
 * KEY_ENTER
 #+begin_src til
 KEY_ENTER is a I32
-#+end_src
-
-* hoisted__I64_56033
-#+begin_src til
-hoisted__I64_56033 is a I64
 #+end_src
 
 * KEY_TAB
@@ -1339,19 +959,9 @@ hoisted__I64_56033 is a I64
 KEY_TAB is a I32
 #+end_src
 
-* hoisted__I64_56034
-#+begin_src til
-hoisted__I64_56034 is a I64
-#+end_src
-
 * KEY_BACKSPACE
 #+begin_src til
 KEY_BACKSPACE is a I32
-#+end_src
-
-* hoisted__I64_56035
-#+begin_src til
-hoisted__I64_56035 is a I64
 #+end_src
 
 * KEY_INSERT
@@ -1359,19 +969,9 @@ hoisted__I64_56035 is a I64
 KEY_INSERT is a I32
 #+end_src
 
-* hoisted__I64_56036
-#+begin_src til
-hoisted__I64_56036 is a I64
-#+end_src
-
 * KEY_DELETE
 #+begin_src til
 KEY_DELETE is a I32
-#+end_src
-
-* hoisted__I64_56037
-#+begin_src til
-hoisted__I64_56037 is a I64
 #+end_src
 
 * KEY_RIGHT
@@ -1379,19 +979,9 @@ hoisted__I64_56037 is a I64
 KEY_RIGHT is a I32
 #+end_src
 
-* hoisted__I64_56038
-#+begin_src til
-hoisted__I64_56038 is a I64
-#+end_src
-
 * KEY_LEFT
 #+begin_src til
 KEY_LEFT is a I32
-#+end_src
-
-* hoisted__I64_56039
-#+begin_src til
-hoisted__I64_56039 is a I64
 #+end_src
 
 * KEY_DOWN
@@ -1399,19 +989,9 @@ hoisted__I64_56039 is a I64
 KEY_DOWN is a I32
 #+end_src
 
-* hoisted__I64_56040
-#+begin_src til
-hoisted__I64_56040 is a I64
-#+end_src
-
 * KEY_UP
 #+begin_src til
 KEY_UP is a I32
-#+end_src
-
-* hoisted__I64_56041
-#+begin_src til
-hoisted__I64_56041 is a I64
 #+end_src
 
 * KEY_PAGE_UP
@@ -1419,19 +999,9 @@ hoisted__I64_56041 is a I64
 KEY_PAGE_UP is a I32
 #+end_src
 
-* hoisted__I64_56042
-#+begin_src til
-hoisted__I64_56042 is a I64
-#+end_src
-
 * KEY_PAGE_DOWN
 #+begin_src til
 KEY_PAGE_DOWN is a I32
-#+end_src
-
-* hoisted__I64_56043
-#+begin_src til
-hoisted__I64_56043 is a I64
 #+end_src
 
 * KEY_HOME
@@ -1439,19 +1009,9 @@ hoisted__I64_56043 is a I64
 KEY_HOME is a I32
 #+end_src
 
-* hoisted__I64_56044
-#+begin_src til
-hoisted__I64_56044 is a I64
-#+end_src
-
 * KEY_END
 #+begin_src til
 KEY_END is a I32
-#+end_src
-
-* hoisted__I64_56045
-#+begin_src til
-hoisted__I64_56045 is a I64
 #+end_src
 
 * KEY_CAPS_LOCK
@@ -1459,19 +1019,9 @@ hoisted__I64_56045 is a I64
 KEY_CAPS_LOCK is a I32
 #+end_src
 
-* hoisted__I64_56046
-#+begin_src til
-hoisted__I64_56046 is a I64
-#+end_src
-
 * KEY_SCROLL_LOCK
 #+begin_src til
 KEY_SCROLL_LOCK is a I32
-#+end_src
-
-* hoisted__I64_56047
-#+begin_src til
-hoisted__I64_56047 is a I64
 #+end_src
 
 * KEY_NUM_LOCK
@@ -1479,19 +1029,9 @@ hoisted__I64_56047 is a I64
 KEY_NUM_LOCK is a I32
 #+end_src
 
-* hoisted__I64_56048
-#+begin_src til
-hoisted__I64_56048 is a I64
-#+end_src
-
 * KEY_PRINT_SCREEN
 #+begin_src til
 KEY_PRINT_SCREEN is a I32
-#+end_src
-
-* hoisted__I64_56049
-#+begin_src til
-hoisted__I64_56049 is a I64
 #+end_src
 
 * KEY_PAUSE
@@ -1499,19 +1039,9 @@ hoisted__I64_56049 is a I64
 KEY_PAUSE is a I32
 #+end_src
 
-* hoisted__I64_56050
-#+begin_src til
-hoisted__I64_56050 is a I64
-#+end_src
-
 * KEY_F1
 #+begin_src til
 KEY_F1 is a I32
-#+end_src
-
-* hoisted__I64_56051
-#+begin_src til
-hoisted__I64_56051 is a I64
 #+end_src
 
 * KEY_F2
@@ -1519,19 +1049,9 @@ hoisted__I64_56051 is a I64
 KEY_F2 is a I32
 #+end_src
 
-* hoisted__I64_56052
-#+begin_src til
-hoisted__I64_56052 is a I64
-#+end_src
-
 * KEY_F3
 #+begin_src til
 KEY_F3 is a I32
-#+end_src
-
-* hoisted__I64_56053
-#+begin_src til
-hoisted__I64_56053 is a I64
 #+end_src
 
 * KEY_F4
@@ -1539,19 +1059,9 @@ hoisted__I64_56053 is a I64
 KEY_F4 is a I32
 #+end_src
 
-* hoisted__I64_56054
-#+begin_src til
-hoisted__I64_56054 is a I64
-#+end_src
-
 * KEY_F5
 #+begin_src til
 KEY_F5 is a I32
-#+end_src
-
-* hoisted__I64_56055
-#+begin_src til
-hoisted__I64_56055 is a I64
 #+end_src
 
 * KEY_F6
@@ -1559,19 +1069,9 @@ hoisted__I64_56055 is a I64
 KEY_F6 is a I32
 #+end_src
 
-* hoisted__I64_56056
-#+begin_src til
-hoisted__I64_56056 is a I64
-#+end_src
-
 * KEY_F7
 #+begin_src til
 KEY_F7 is a I32
-#+end_src
-
-* hoisted__I64_56057
-#+begin_src til
-hoisted__I64_56057 is a I64
 #+end_src
 
 * KEY_F8
@@ -1579,19 +1079,9 @@ hoisted__I64_56057 is a I64
 KEY_F8 is a I32
 #+end_src
 
-* hoisted__I64_56058
-#+begin_src til
-hoisted__I64_56058 is a I64
-#+end_src
-
 * KEY_F9
 #+begin_src til
 KEY_F9 is a I32
-#+end_src
-
-* hoisted__I64_56059
-#+begin_src til
-hoisted__I64_56059 is a I64
 #+end_src
 
 * KEY_F10
@@ -1599,19 +1089,9 @@ hoisted__I64_56059 is a I64
 KEY_F10 is a I32
 #+end_src
 
-* hoisted__I64_56060
-#+begin_src til
-hoisted__I64_56060 is a I64
-#+end_src
-
 * KEY_F11
 #+begin_src til
 KEY_F11 is a I32
-#+end_src
-
-* hoisted__I64_56061
-#+begin_src til
-hoisted__I64_56061 is a I64
 #+end_src
 
 * KEY_F12
@@ -1619,19 +1099,9 @@ hoisted__I64_56061 is a I64
 KEY_F12 is a I32
 #+end_src
 
-* hoisted__I64_56062
-#+begin_src til
-hoisted__I64_56062 is a I64
-#+end_src
-
 * KEY_LEFT_SHIFT
 #+begin_src til
 KEY_LEFT_SHIFT is a I32
-#+end_src
-
-* hoisted__I64_56063
-#+begin_src til
-hoisted__I64_56063 is a I64
 #+end_src
 
 * KEY_LEFT_CONTROL
@@ -1639,19 +1109,9 @@ hoisted__I64_56063 is a I64
 KEY_LEFT_CONTROL is a I32
 #+end_src
 
-* hoisted__I64_56064
-#+begin_src til
-hoisted__I64_56064 is a I64
-#+end_src
-
 * KEY_LEFT_ALT
 #+begin_src til
 KEY_LEFT_ALT is a I32
-#+end_src
-
-* hoisted__I64_56065
-#+begin_src til
-hoisted__I64_56065 is a I64
 #+end_src
 
 * KEY_LEFT_SUPER
@@ -1659,19 +1119,9 @@ hoisted__I64_56065 is a I64
 KEY_LEFT_SUPER is a I32
 #+end_src
 
-* hoisted__I64_56066
-#+begin_src til
-hoisted__I64_56066 is a I64
-#+end_src
-
 * KEY_RIGHT_SHIFT
 #+begin_src til
 KEY_RIGHT_SHIFT is a I32
-#+end_src
-
-* hoisted__I64_56067
-#+begin_src til
-hoisted__I64_56067 is a I64
 #+end_src
 
 * KEY_RIGHT_CONTROL
@@ -1679,19 +1129,9 @@ hoisted__I64_56067 is a I64
 KEY_RIGHT_CONTROL is a I32
 #+end_src
 
-* hoisted__I64_56068
-#+begin_src til
-hoisted__I64_56068 is a I64
-#+end_src
-
 * KEY_RIGHT_ALT
 #+begin_src til
 KEY_RIGHT_ALT is a I32
-#+end_src
-
-* hoisted__I64_56069
-#+begin_src til
-hoisted__I64_56069 is a I64
 #+end_src
 
 * KEY_RIGHT_SUPER
@@ -1699,19 +1139,9 @@ hoisted__I64_56069 is a I64
 KEY_RIGHT_SUPER is a I32
 #+end_src
 
-* hoisted__I64_56070
-#+begin_src til
-hoisted__I64_56070 is a I64
-#+end_src
-
 * KEY_KB_MENU
 #+begin_src til
 KEY_KB_MENU is a I32
-#+end_src
-
-* hoisted__I64_56071
-#+begin_src til
-hoisted__I64_56071 is a I64
 #+end_src
 
 * KEY_KP_0
@@ -1719,19 +1149,9 @@ hoisted__I64_56071 is a I64
 KEY_KP_0 is a I32
 #+end_src
 
-* hoisted__I64_56072
-#+begin_src til
-hoisted__I64_56072 is a I64
-#+end_src
-
 * KEY_KP_1
 #+begin_src til
 KEY_KP_1 is a I32
-#+end_src
-
-* hoisted__I64_56073
-#+begin_src til
-hoisted__I64_56073 is a I64
 #+end_src
 
 * KEY_KP_2
@@ -1739,19 +1159,9 @@ hoisted__I64_56073 is a I64
 KEY_KP_2 is a I32
 #+end_src
 
-* hoisted__I64_56074
-#+begin_src til
-hoisted__I64_56074 is a I64
-#+end_src
-
 * KEY_KP_3
 #+begin_src til
 KEY_KP_3 is a I32
-#+end_src
-
-* hoisted__I64_56075
-#+begin_src til
-hoisted__I64_56075 is a I64
 #+end_src
 
 * KEY_KP_4
@@ -1759,19 +1169,9 @@ hoisted__I64_56075 is a I64
 KEY_KP_4 is a I32
 #+end_src
 
-* hoisted__I64_56076
-#+begin_src til
-hoisted__I64_56076 is a I64
-#+end_src
-
 * KEY_KP_5
 #+begin_src til
 KEY_KP_5 is a I32
-#+end_src
-
-* hoisted__I64_56077
-#+begin_src til
-hoisted__I64_56077 is a I64
 #+end_src
 
 * KEY_KP_6
@@ -1779,19 +1179,9 @@ hoisted__I64_56077 is a I64
 KEY_KP_6 is a I32
 #+end_src
 
-* hoisted__I64_56078
-#+begin_src til
-hoisted__I64_56078 is a I64
-#+end_src
-
 * KEY_KP_7
 #+begin_src til
 KEY_KP_7 is a I32
-#+end_src
-
-* hoisted__I64_56079
-#+begin_src til
-hoisted__I64_56079 is a I64
 #+end_src
 
 * KEY_KP_8
@@ -1799,19 +1189,9 @@ hoisted__I64_56079 is a I64
 KEY_KP_8 is a I32
 #+end_src
 
-* hoisted__I64_56080
-#+begin_src til
-hoisted__I64_56080 is a I64
-#+end_src
-
 * KEY_KP_9
 #+begin_src til
 KEY_KP_9 is a I32
-#+end_src
-
-* hoisted__I64_56081
-#+begin_src til
-hoisted__I64_56081 is a I64
 #+end_src
 
 * KEY_KP_DECIMAL
@@ -1819,19 +1199,9 @@ hoisted__I64_56081 is a I64
 KEY_KP_DECIMAL is a I32
 #+end_src
 
-* hoisted__I64_56082
-#+begin_src til
-hoisted__I64_56082 is a I64
-#+end_src
-
 * KEY_KP_DIVIDE
 #+begin_src til
 KEY_KP_DIVIDE is a I32
-#+end_src
-
-* hoisted__I64_56083
-#+begin_src til
-hoisted__I64_56083 is a I64
 #+end_src
 
 * KEY_KP_MULTIPLY
@@ -1839,19 +1209,9 @@ hoisted__I64_56083 is a I64
 KEY_KP_MULTIPLY is a I32
 #+end_src
 
-* hoisted__I64_56084
-#+begin_src til
-hoisted__I64_56084 is a I64
-#+end_src
-
 * KEY_KP_SUBTRACT
 #+begin_src til
 KEY_KP_SUBTRACT is a I32
-#+end_src
-
-* hoisted__I64_56085
-#+begin_src til
-hoisted__I64_56085 is a I64
 #+end_src
 
 * KEY_KP_ADD
@@ -1859,19 +1219,9 @@ hoisted__I64_56085 is a I64
 KEY_KP_ADD is a I32
 #+end_src
 
-* hoisted__I64_56086
-#+begin_src til
-hoisted__I64_56086 is a I64
-#+end_src
-
 * KEY_KP_ENTER
 #+begin_src til
 KEY_KP_ENTER is a I32
-#+end_src
-
-* hoisted__I64_56087
-#+begin_src til
-hoisted__I64_56087 is a I64
 #+end_src
 
 * KEY_KP_EQUAL
@@ -1879,19 +1229,9 @@ hoisted__I64_56087 is a I64
 KEY_KP_EQUAL is a I32
 #+end_src
 
-* hoisted__I64_56088
-#+begin_src til
-hoisted__I64_56088 is a I64
-#+end_src
-
 * KEY_BACK
 #+begin_src til
 KEY_BACK is a I32
-#+end_src
-
-* hoisted__I64_56089
-#+begin_src til
-hoisted__I64_56089 is a I64
 #+end_src
 
 * KEY_MENU
@@ -1899,19 +1239,9 @@ hoisted__I64_56089 is a I64
 KEY_MENU is a I32
 #+end_src
 
-* hoisted__I64_56090
-#+begin_src til
-hoisted__I64_56090 is a I64
-#+end_src
-
 * KEY_VOLUME_UP
 #+begin_src til
 KEY_VOLUME_UP is a I32
-#+end_src
-
-* hoisted__I64_56091
-#+begin_src til
-hoisted__I64_56091 is a I64
 #+end_src
 
 * KEY_VOLUME_DOWN
@@ -1924,19 +1254,9 @@ KEY_VOLUME_DOWN is a I32
 MouseButton
 #+end_src
 
-* hoisted__I64_56092
-#+begin_src til
-hoisted__I64_56092 is a I64
-#+end_src
-
 * MOUSE_BUTTON_LEFT
 #+begin_src til
 MOUSE_BUTTON_LEFT is a I32
-#+end_src
-
-* hoisted__I64_56093
-#+begin_src til
-hoisted__I64_56093 is a I64
 #+end_src
 
 * MOUSE_BUTTON_RIGHT
@@ -1944,19 +1264,9 @@ hoisted__I64_56093 is a I64
 MOUSE_BUTTON_RIGHT is a I32
 #+end_src
 
-* hoisted__I64_56094
-#+begin_src til
-hoisted__I64_56094 is a I64
-#+end_src
-
 * MOUSE_BUTTON_MIDDLE
 #+begin_src til
 MOUSE_BUTTON_MIDDLE is a I32
-#+end_src
-
-* hoisted__I64_56095
-#+begin_src til
-hoisted__I64_56095 is a I64
 #+end_src
 
 * MOUSE_BUTTON_SIDE
@@ -1964,29 +1274,14 @@ hoisted__I64_56095 is a I64
 MOUSE_BUTTON_SIDE is a I32
 #+end_src
 
-* hoisted__I64_56096
-#+begin_src til
-hoisted__I64_56096 is a I64
-#+end_src
-
 * MOUSE_BUTTON_EXTRA
 #+begin_src til
 MOUSE_BUTTON_EXTRA is a I32
 #+end_src
 
-* hoisted__I64_56097
-#+begin_src til
-hoisted__I64_56097 is a I64
-#+end_src
-
 * MOUSE_BUTTON_FORWARD
 #+begin_src til
 MOUSE_BUTTON_FORWARD is a I32
-#+end_src
-
-* hoisted__I64_56098
-#+begin_src til
-hoisted__I64_56098 is a I64
 #+end_src
 
 * MOUSE_BUTTON_BACK
@@ -1999,19 +1294,9 @@ MOUSE_BUTTON_BACK is a I32
 MouseCursor
 #+end_src
 
-* hoisted__I64_56099
-#+begin_src til
-hoisted__I64_56099 is a I64
-#+end_src
-
 * MOUSE_CURSOR_DEFAULT
 #+begin_src til
 MOUSE_CURSOR_DEFAULT is a I32
-#+end_src
-
-* hoisted__I64_56100
-#+begin_src til
-hoisted__I64_56100 is a I64
 #+end_src
 
 * MOUSE_CURSOR_ARROW
@@ -2019,19 +1304,9 @@ hoisted__I64_56100 is a I64
 MOUSE_CURSOR_ARROW is a I32
 #+end_src
 
-* hoisted__I64_56101
-#+begin_src til
-hoisted__I64_56101 is a I64
-#+end_src
-
 * MOUSE_CURSOR_IBEAM
 #+begin_src til
 MOUSE_CURSOR_IBEAM is a I32
-#+end_src
-
-* hoisted__I64_56102
-#+begin_src til
-hoisted__I64_56102 is a I64
 #+end_src
 
 * MOUSE_CURSOR_CROSSHAIR
@@ -2039,19 +1314,9 @@ hoisted__I64_56102 is a I64
 MOUSE_CURSOR_CROSSHAIR is a I32
 #+end_src
 
-* hoisted__I64_56103
-#+begin_src til
-hoisted__I64_56103 is a I64
-#+end_src
-
 * MOUSE_CURSOR_POINTING_HAND
 #+begin_src til
 MOUSE_CURSOR_POINTING_HAND is a I32
-#+end_src
-
-* hoisted__I64_56104
-#+begin_src til
-hoisted__I64_56104 is a I64
 #+end_src
 
 * MOUSE_CURSOR_RESIZE_EW
@@ -2059,19 +1324,9 @@ hoisted__I64_56104 is a I64
 MOUSE_CURSOR_RESIZE_EW is a I32
 #+end_src
 
-* hoisted__I64_56105
-#+begin_src til
-hoisted__I64_56105 is a I64
-#+end_src
-
 * MOUSE_CURSOR_RESIZE_NS
 #+begin_src til
 MOUSE_CURSOR_RESIZE_NS is a I32
-#+end_src
-
-* hoisted__I64_56106
-#+begin_src til
-hoisted__I64_56106 is a I64
 #+end_src
 
 * MOUSE_CURSOR_RESIZE_NWSE
@@ -2079,29 +1334,14 @@ hoisted__I64_56106 is a I64
 MOUSE_CURSOR_RESIZE_NWSE is a I32
 #+end_src
 
-* hoisted__I64_56107
-#+begin_src til
-hoisted__I64_56107 is a I64
-#+end_src
-
 * MOUSE_CURSOR_RESIZE_NESW
 #+begin_src til
 MOUSE_CURSOR_RESIZE_NESW is a I32
 #+end_src
 
-* hoisted__I64_56108
-#+begin_src til
-hoisted__I64_56108 is a I64
-#+end_src
-
 * MOUSE_CURSOR_RESIZE_ALL
 #+begin_src til
 MOUSE_CURSOR_RESIZE_ALL is a I32
-#+end_src
-
-* hoisted__I64_56109
-#+begin_src til
-hoisted__I64_56109 is a I64
 #+end_src
 
 * MOUSE_CURSOR_NOT_ALLOWED
@@ -2114,19 +1354,9 @@ MOUSE_CURSOR_NOT_ALLOWED is a I32
 GamepadButton
 #+end_src
 
-* hoisted__I64_56110
-#+begin_src til
-hoisted__I64_56110 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_UNKNOWN
 #+begin_src til
 GAMEPAD_BUTTON_UNKNOWN is a I32
-#+end_src
-
-* hoisted__I64_56111
-#+begin_src til
-hoisted__I64_56111 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_LEFT_FACE_UP
@@ -2134,19 +1364,9 @@ hoisted__I64_56111 is a I64
 GAMEPAD_BUTTON_LEFT_FACE_UP is a I32
 #+end_src
 
-* hoisted__I64_56112
-#+begin_src til
-hoisted__I64_56112 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_LEFT_FACE_RIGHT
 #+begin_src til
 GAMEPAD_BUTTON_LEFT_FACE_RIGHT is a I32
-#+end_src
-
-* hoisted__I64_56113
-#+begin_src til
-hoisted__I64_56113 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_LEFT_FACE_DOWN
@@ -2154,19 +1374,9 @@ hoisted__I64_56113 is a I64
 GAMEPAD_BUTTON_LEFT_FACE_DOWN is a I32
 #+end_src
 
-* hoisted__I64_56114
-#+begin_src til
-hoisted__I64_56114 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_LEFT_FACE_LEFT
 #+begin_src til
 GAMEPAD_BUTTON_LEFT_FACE_LEFT is a I32
-#+end_src
-
-* hoisted__I64_56115
-#+begin_src til
-hoisted__I64_56115 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_RIGHT_FACE_UP
@@ -2174,19 +1384,9 @@ hoisted__I64_56115 is a I64
 GAMEPAD_BUTTON_RIGHT_FACE_UP is a I32
 #+end_src
 
-* hoisted__I64_56116
-#+begin_src til
-hoisted__I64_56116 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_RIGHT_FACE_RIGHT
 #+begin_src til
 GAMEPAD_BUTTON_RIGHT_FACE_RIGHT is a I32
-#+end_src
-
-* hoisted__I64_56117
-#+begin_src til
-hoisted__I64_56117 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_RIGHT_FACE_DOWN
@@ -2194,19 +1394,9 @@ hoisted__I64_56117 is a I64
 GAMEPAD_BUTTON_RIGHT_FACE_DOWN is a I32
 #+end_src
 
-* hoisted__I64_56118
-#+begin_src til
-hoisted__I64_56118 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_RIGHT_FACE_LEFT
 #+begin_src til
 GAMEPAD_BUTTON_RIGHT_FACE_LEFT is a I32
-#+end_src
-
-* hoisted__I64_56119
-#+begin_src til
-hoisted__I64_56119 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_LEFT_TRIGGER_1
@@ -2214,19 +1404,9 @@ hoisted__I64_56119 is a I64
 GAMEPAD_BUTTON_LEFT_TRIGGER_1 is a I32
 #+end_src
 
-* hoisted__I64_56120
-#+begin_src til
-hoisted__I64_56120 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_LEFT_TRIGGER_2
 #+begin_src til
 GAMEPAD_BUTTON_LEFT_TRIGGER_2 is a I32
-#+end_src
-
-* hoisted__I64_56121
-#+begin_src til
-hoisted__I64_56121 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_RIGHT_TRIGGER_1
@@ -2234,19 +1414,9 @@ hoisted__I64_56121 is a I64
 GAMEPAD_BUTTON_RIGHT_TRIGGER_1 is a I32
 #+end_src
 
-* hoisted__I64_56122
-#+begin_src til
-hoisted__I64_56122 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_RIGHT_TRIGGER_2
 #+begin_src til
 GAMEPAD_BUTTON_RIGHT_TRIGGER_2 is a I32
-#+end_src
-
-* hoisted__I64_56123
-#+begin_src til
-hoisted__I64_56123 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_MIDDLE_LEFT
@@ -2254,19 +1424,9 @@ hoisted__I64_56123 is a I64
 GAMEPAD_BUTTON_MIDDLE_LEFT is a I32
 #+end_src
 
-* hoisted__I64_56124
-#+begin_src til
-hoisted__I64_56124 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_MIDDLE
 #+begin_src til
 GAMEPAD_BUTTON_MIDDLE is a I32
-#+end_src
-
-* hoisted__I64_56125
-#+begin_src til
-hoisted__I64_56125 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_MIDDLE_RIGHT
@@ -2274,19 +1434,9 @@ hoisted__I64_56125 is a I64
 GAMEPAD_BUTTON_MIDDLE_RIGHT is a I32
 #+end_src
 
-* hoisted__I64_56126
-#+begin_src til
-hoisted__I64_56126 is a I64
-#+end_src
-
 * GAMEPAD_BUTTON_LEFT_THUMB
 #+begin_src til
 GAMEPAD_BUTTON_LEFT_THUMB is a I32
-#+end_src
-
-* hoisted__I64_56127
-#+begin_src til
-hoisted__I64_56127 is a I64
 #+end_src
 
 * GAMEPAD_BUTTON_RIGHT_THUMB
@@ -2299,19 +1449,9 @@ GAMEPAD_BUTTON_RIGHT_THUMB is a I32
 GamepadAxis
 #+end_src
 
-* hoisted__I64_56128
-#+begin_src til
-hoisted__I64_56128 is a I64
-#+end_src
-
 * GAMEPAD_AXIS_LEFT_X
 #+begin_src til
 GAMEPAD_AXIS_LEFT_X is a I32
-#+end_src
-
-* hoisted__I64_56129
-#+begin_src til
-hoisted__I64_56129 is a I64
 #+end_src
 
 * GAMEPAD_AXIS_LEFT_Y
@@ -2319,19 +1459,9 @@ hoisted__I64_56129 is a I64
 GAMEPAD_AXIS_LEFT_Y is a I32
 #+end_src
 
-* hoisted__I64_56130
-#+begin_src til
-hoisted__I64_56130 is a I64
-#+end_src
-
 * GAMEPAD_AXIS_RIGHT_X
 #+begin_src til
 GAMEPAD_AXIS_RIGHT_X is a I32
-#+end_src
-
-* hoisted__I64_56131
-#+begin_src til
-hoisted__I64_56131 is a I64
 #+end_src
 
 * GAMEPAD_AXIS_RIGHT_Y
@@ -2339,19 +1469,9 @@ hoisted__I64_56131 is a I64
 GAMEPAD_AXIS_RIGHT_Y is a I32
 #+end_src
 
-* hoisted__I64_56132
-#+begin_src til
-hoisted__I64_56132 is a I64
-#+end_src
-
 * GAMEPAD_AXIS_LEFT_TRIGGER
 #+begin_src til
 GAMEPAD_AXIS_LEFT_TRIGGER is a I32
-#+end_src
-
-* hoisted__I64_56133
-#+begin_src til
-hoisted__I64_56133 is a I64
 #+end_src
 
 * GAMEPAD_AXIS_RIGHT_TRIGGER
@@ -2364,19 +1484,9 @@ GAMEPAD_AXIS_RIGHT_TRIGGER is a I32
 MaterialMapIndex
 #+end_src
 
-* hoisted__I64_56134
-#+begin_src til
-hoisted__I64_56134 is a I64
-#+end_src
-
 * MATERIAL_MAP_ALBEDO
 #+begin_src til
 MATERIAL_MAP_ALBEDO is a I32
-#+end_src
-
-* hoisted__I64_56135
-#+begin_src til
-hoisted__I64_56135 is a I64
 #+end_src
 
 * MATERIAL_MAP_METALNESS
@@ -2384,19 +1494,9 @@ hoisted__I64_56135 is a I64
 MATERIAL_MAP_METALNESS is a I32
 #+end_src
 
-* hoisted__I64_56136
-#+begin_src til
-hoisted__I64_56136 is a I64
-#+end_src
-
 * MATERIAL_MAP_NORMAL
 #+begin_src til
 MATERIAL_MAP_NORMAL is a I32
-#+end_src
-
-* hoisted__I64_56137
-#+begin_src til
-hoisted__I64_56137 is a I64
 #+end_src
 
 * MATERIAL_MAP_ROUGHNESS
@@ -2404,19 +1504,9 @@ hoisted__I64_56137 is a I64
 MATERIAL_MAP_ROUGHNESS is a I32
 #+end_src
 
-* hoisted__I64_56138
-#+begin_src til
-hoisted__I64_56138 is a I64
-#+end_src
-
 * MATERIAL_MAP_OCCLUSION
 #+begin_src til
 MATERIAL_MAP_OCCLUSION is a I32
-#+end_src
-
-* hoisted__I64_56139
-#+begin_src til
-hoisted__I64_56139 is a I64
 #+end_src
 
 * MATERIAL_MAP_EMISSION
@@ -2424,19 +1514,9 @@ hoisted__I64_56139 is a I64
 MATERIAL_MAP_EMISSION is a I32
 #+end_src
 
-* hoisted__I64_56140
-#+begin_src til
-hoisted__I64_56140 is a I64
-#+end_src
-
 * MATERIAL_MAP_HEIGHT
 #+begin_src til
 MATERIAL_MAP_HEIGHT is a I32
-#+end_src
-
-* hoisted__I64_56141
-#+begin_src til
-hoisted__I64_56141 is a I64
 #+end_src
 
 * MATERIAL_MAP_CUBEMAP
@@ -2444,29 +1524,14 @@ hoisted__I64_56141 is a I64
 MATERIAL_MAP_CUBEMAP is a I32
 #+end_src
 
-* hoisted__I64_56142
-#+begin_src til
-hoisted__I64_56142 is a I64
-#+end_src
-
 * MATERIAL_MAP_IRRADIANCE
 #+begin_src til
 MATERIAL_MAP_IRRADIANCE is a I32
 #+end_src
 
-* hoisted__I64_56143
-#+begin_src til
-hoisted__I64_56143 is a I64
-#+end_src
-
 * MATERIAL_MAP_PREFILTER
 #+begin_src til
 MATERIAL_MAP_PREFILTER is a I32
-#+end_src
-
-* hoisted__I64_56144
-#+begin_src til
-hoisted__I64_56144 is a I64
 #+end_src
 
 * MATERIAL_MAP_BRDF
@@ -2479,19 +1544,9 @@ MATERIAL_MAP_BRDF is a I32
 ShaderLocationIndex
 #+end_src
 
-* hoisted__I64_56145
-#+begin_src til
-hoisted__I64_56145 is a I64
-#+end_src
-
 * SHADER_LOC_VERTEX_POSITION
 #+begin_src til
 SHADER_LOC_VERTEX_POSITION is a I32
-#+end_src
-
-* hoisted__I64_56146
-#+begin_src til
-hoisted__I64_56146 is a I64
 #+end_src
 
 * SHADER_LOC_VERTEX_TEXCOORD01
@@ -2499,19 +1554,9 @@ hoisted__I64_56146 is a I64
 SHADER_LOC_VERTEX_TEXCOORD01 is a I32
 #+end_src
 
-* hoisted__I64_56147
-#+begin_src til
-hoisted__I64_56147 is a I64
-#+end_src
-
 * SHADER_LOC_VERTEX_TEXCOORD02
 #+begin_src til
 SHADER_LOC_VERTEX_TEXCOORD02 is a I32
-#+end_src
-
-* hoisted__I64_56148
-#+begin_src til
-hoisted__I64_56148 is a I64
 #+end_src
 
 * SHADER_LOC_VERTEX_NORMAL
@@ -2519,19 +1564,9 @@ hoisted__I64_56148 is a I64
 SHADER_LOC_VERTEX_NORMAL is a I32
 #+end_src
 
-* hoisted__I64_56149
-#+begin_src til
-hoisted__I64_56149 is a I64
-#+end_src
-
 * SHADER_LOC_VERTEX_TANGENT
 #+begin_src til
 SHADER_LOC_VERTEX_TANGENT is a I32
-#+end_src
-
-* hoisted__I64_56150
-#+begin_src til
-hoisted__I64_56150 is a I64
 #+end_src
 
 * SHADER_LOC_VERTEX_COLOR
@@ -2539,19 +1574,9 @@ hoisted__I64_56150 is a I64
 SHADER_LOC_VERTEX_COLOR is a I32
 #+end_src
 
-* hoisted__I64_56151
-#+begin_src til
-hoisted__I64_56151 is a I64
-#+end_src
-
 * SHADER_LOC_MATRIX_MVP
 #+begin_src til
 SHADER_LOC_MATRIX_MVP is a I32
-#+end_src
-
-* hoisted__I64_56152
-#+begin_src til
-hoisted__I64_56152 is a I64
 #+end_src
 
 * SHADER_LOC_MATRIX_VIEW
@@ -2559,19 +1584,9 @@ hoisted__I64_56152 is a I64
 SHADER_LOC_MATRIX_VIEW is a I32
 #+end_src
 
-* hoisted__I64_56153
-#+begin_src til
-hoisted__I64_56153 is a I64
-#+end_src
-
 * SHADER_LOC_MATRIX_PROJECTION
 #+begin_src til
 SHADER_LOC_MATRIX_PROJECTION is a I32
-#+end_src
-
-* hoisted__I64_56154
-#+begin_src til
-hoisted__I64_56154 is a I64
 #+end_src
 
 * SHADER_LOC_MATRIX_MODEL
@@ -2579,19 +1594,9 @@ hoisted__I64_56154 is a I64
 SHADER_LOC_MATRIX_MODEL is a I32
 #+end_src
 
-* hoisted__I64_56155
-#+begin_src til
-hoisted__I64_56155 is a I64
-#+end_src
-
 * SHADER_LOC_MATRIX_NORMAL
 #+begin_src til
 SHADER_LOC_MATRIX_NORMAL is a I32
-#+end_src
-
-* hoisted__I64_56156
-#+begin_src til
-hoisted__I64_56156 is a I64
 #+end_src
 
 * SHADER_LOC_VECTOR_VIEW
@@ -2599,19 +1604,9 @@ hoisted__I64_56156 is a I64
 SHADER_LOC_VECTOR_VIEW is a I32
 #+end_src
 
-* hoisted__I64_56157
-#+begin_src til
-hoisted__I64_56157 is a I64
-#+end_src
-
 * SHADER_LOC_COLOR_DIFFUSE
 #+begin_src til
 SHADER_LOC_COLOR_DIFFUSE is a I32
-#+end_src
-
-* hoisted__I64_56158
-#+begin_src til
-hoisted__I64_56158 is a I64
 #+end_src
 
 * SHADER_LOC_COLOR_SPECULAR
@@ -2619,19 +1614,9 @@ hoisted__I64_56158 is a I64
 SHADER_LOC_COLOR_SPECULAR is a I32
 #+end_src
 
-* hoisted__I64_56159
-#+begin_src til
-hoisted__I64_56159 is a I64
-#+end_src
-
 * SHADER_LOC_COLOR_AMBIENT
 #+begin_src til
 SHADER_LOC_COLOR_AMBIENT is a I32
-#+end_src
-
-* hoisted__I64_56160
-#+begin_src til
-hoisted__I64_56160 is a I64
 #+end_src
 
 * SHADER_LOC_MAP_ALBEDO
@@ -2639,19 +1624,9 @@ hoisted__I64_56160 is a I64
 SHADER_LOC_MAP_ALBEDO is a I32
 #+end_src
 
-* hoisted__I64_56161
-#+begin_src til
-hoisted__I64_56161 is a I64
-#+end_src
-
 * SHADER_LOC_MAP_METALNESS
 #+begin_src til
 SHADER_LOC_MAP_METALNESS is a I32
-#+end_src
-
-* hoisted__I64_56162
-#+begin_src til
-hoisted__I64_56162 is a I64
 #+end_src
 
 * SHADER_LOC_MAP_NORMAL
@@ -2659,19 +1634,9 @@ hoisted__I64_56162 is a I64
 SHADER_LOC_MAP_NORMAL is a I32
 #+end_src
 
-* hoisted__I64_56163
-#+begin_src til
-hoisted__I64_56163 is a I64
-#+end_src
-
 * SHADER_LOC_MAP_ROUGHNESS
 #+begin_src til
 SHADER_LOC_MAP_ROUGHNESS is a I32
-#+end_src
-
-* hoisted__I64_56164
-#+begin_src til
-hoisted__I64_56164 is a I64
 #+end_src
 
 * SHADER_LOC_MAP_OCCLUSION
@@ -2679,19 +1644,9 @@ hoisted__I64_56164 is a I64
 SHADER_LOC_MAP_OCCLUSION is a I32
 #+end_src
 
-* hoisted__I64_56165
-#+begin_src til
-hoisted__I64_56165 is a I64
-#+end_src
-
 * SHADER_LOC_MAP_EMISSION
 #+begin_src til
 SHADER_LOC_MAP_EMISSION is a I32
-#+end_src
-
-* hoisted__I64_56166
-#+begin_src til
-hoisted__I64_56166 is a I64
 #+end_src
 
 * SHADER_LOC_MAP_HEIGHT
@@ -2699,19 +1654,9 @@ hoisted__I64_56166 is a I64
 SHADER_LOC_MAP_HEIGHT is a I32
 #+end_src
 
-* hoisted__I64_56167
-#+begin_src til
-hoisted__I64_56167 is a I64
-#+end_src
-
 * SHADER_LOC_MAP_CUBEMAP
 #+begin_src til
 SHADER_LOC_MAP_CUBEMAP is a I32
-#+end_src
-
-* hoisted__I64_56168
-#+begin_src til
-hoisted__I64_56168 is a I64
 #+end_src
 
 * SHADER_LOC_MAP_IRRADIANCE
@@ -2719,19 +1664,9 @@ hoisted__I64_56168 is a I64
 SHADER_LOC_MAP_IRRADIANCE is a I32
 #+end_src
 
-* hoisted__I64_56169
-#+begin_src til
-hoisted__I64_56169 is a I64
-#+end_src
-
 * SHADER_LOC_MAP_PREFILTER
 #+begin_src til
 SHADER_LOC_MAP_PREFILTER is a I32
-#+end_src
-
-* hoisted__I64_56170
-#+begin_src til
-hoisted__I64_56170 is a I64
 #+end_src
 
 * SHADER_LOC_MAP_BRDF
@@ -2739,19 +1674,9 @@ hoisted__I64_56170 is a I64
 SHADER_LOC_MAP_BRDF is a I32
 #+end_src
 
-* hoisted__I64_56171
-#+begin_src til
-hoisted__I64_56171 is a I64
-#+end_src
-
 * SHADER_LOC_VERTEX_BONEIDS
 #+begin_src til
 SHADER_LOC_VERTEX_BONEIDS is a I32
-#+end_src
-
-* hoisted__I64_56172
-#+begin_src til
-hoisted__I64_56172 is a I64
 #+end_src
 
 * SHADER_LOC_VERTEX_BONEWEIGHTS
@@ -2759,19 +1684,9 @@ hoisted__I64_56172 is a I64
 SHADER_LOC_VERTEX_BONEWEIGHTS is a I32
 #+end_src
 
-* hoisted__I64_56173
-#+begin_src til
-hoisted__I64_56173 is a I64
-#+end_src
-
 * SHADER_LOC_MATRIX_BONETRANSFORMS
 #+begin_src til
 SHADER_LOC_MATRIX_BONETRANSFORMS is a I32
-#+end_src
-
-* hoisted__I64_56174
-#+begin_src til
-hoisted__I64_56174 is a I64
 #+end_src
 
 * SHADER_LOC_VERTEX_INSTANCETRANSFORM
@@ -2784,19 +1699,9 @@ SHADER_LOC_VERTEX_INSTANCETRANSFORM is a I32
 ShaderUniformDataType
 #+end_src
 
-* hoisted__I64_56175
-#+begin_src til
-hoisted__I64_56175 is a I64
-#+end_src
-
 * SHADER_UNIFORM_FLOAT
 #+begin_src til
 SHADER_UNIFORM_FLOAT is a I32
-#+end_src
-
-* hoisted__I64_56176
-#+begin_src til
-hoisted__I64_56176 is a I64
 #+end_src
 
 * SHADER_UNIFORM_VEC2
@@ -2804,19 +1709,9 @@ hoisted__I64_56176 is a I64
 SHADER_UNIFORM_VEC2 is a I32
 #+end_src
 
-* hoisted__I64_56177
-#+begin_src til
-hoisted__I64_56177 is a I64
-#+end_src
-
 * SHADER_UNIFORM_VEC3
 #+begin_src til
 SHADER_UNIFORM_VEC3 is a I32
-#+end_src
-
-* hoisted__I64_56178
-#+begin_src til
-hoisted__I64_56178 is a I64
 #+end_src
 
 * SHADER_UNIFORM_VEC4
@@ -2824,19 +1719,9 @@ hoisted__I64_56178 is a I64
 SHADER_UNIFORM_VEC4 is a I32
 #+end_src
 
-* hoisted__I64_56179
-#+begin_src til
-hoisted__I64_56179 is a I64
-#+end_src
-
 * SHADER_UNIFORM_INT
 #+begin_src til
 SHADER_UNIFORM_INT is a I32
-#+end_src
-
-* hoisted__I64_56180
-#+begin_src til
-hoisted__I64_56180 is a I64
 #+end_src
 
 * SHADER_UNIFORM_IVEC2
@@ -2844,19 +1729,9 @@ hoisted__I64_56180 is a I64
 SHADER_UNIFORM_IVEC2 is a I32
 #+end_src
 
-* hoisted__I64_56181
-#+begin_src til
-hoisted__I64_56181 is a I64
-#+end_src
-
 * SHADER_UNIFORM_IVEC3
 #+begin_src til
 SHADER_UNIFORM_IVEC3 is a I32
-#+end_src
-
-* hoisted__I64_56182
-#+begin_src til
-hoisted__I64_56182 is a I64
 #+end_src
 
 * SHADER_UNIFORM_IVEC4
@@ -2864,19 +1739,9 @@ hoisted__I64_56182 is a I64
 SHADER_UNIFORM_IVEC4 is a I32
 #+end_src
 
-* hoisted__I64_56183
-#+begin_src til
-hoisted__I64_56183 is a I64
-#+end_src
-
 * SHADER_UNIFORM_UINT
 #+begin_src til
 SHADER_UNIFORM_UINT is a I32
-#+end_src
-
-* hoisted__I64_56184
-#+begin_src til
-hoisted__I64_56184 is a I64
 #+end_src
 
 * SHADER_UNIFORM_UIVEC2
@@ -2884,29 +1749,14 @@ hoisted__I64_56184 is a I64
 SHADER_UNIFORM_UIVEC2 is a I32
 #+end_src
 
-* hoisted__I64_56185
-#+begin_src til
-hoisted__I64_56185 is a I64
-#+end_src
-
 * SHADER_UNIFORM_UIVEC3
 #+begin_src til
 SHADER_UNIFORM_UIVEC3 is a I32
 #+end_src
 
-* hoisted__I64_56186
-#+begin_src til
-hoisted__I64_56186 is a I64
-#+end_src
-
 * SHADER_UNIFORM_UIVEC4
 #+begin_src til
 SHADER_UNIFORM_UIVEC4 is a I32
-#+end_src
-
-* hoisted__I64_56187
-#+begin_src til
-hoisted__I64_56187 is a I64
 #+end_src
 
 * SHADER_UNIFORM_SAMPLER2D
@@ -2919,19 +1769,9 @@ SHADER_UNIFORM_SAMPLER2D is a I32
 ShaderAttributeDataType
 #+end_src
 
-* hoisted__I64_56188
-#+begin_src til
-hoisted__I64_56188 is a I64
-#+end_src
-
 * SHADER_ATTRIB_FLOAT
 #+begin_src til
 SHADER_ATTRIB_FLOAT is a I32
-#+end_src
-
-* hoisted__I64_56189
-#+begin_src til
-hoisted__I64_56189 is a I64
 #+end_src
 
 * SHADER_ATTRIB_VEC2
@@ -2939,19 +1779,9 @@ hoisted__I64_56189 is a I64
 SHADER_ATTRIB_VEC2 is a I32
 #+end_src
 
-* hoisted__I64_56190
-#+begin_src til
-hoisted__I64_56190 is a I64
-#+end_src
-
 * SHADER_ATTRIB_VEC3
 #+begin_src til
 SHADER_ATTRIB_VEC3 is a I32
-#+end_src
-
-* hoisted__I64_56191
-#+begin_src til
-hoisted__I64_56191 is a I64
 #+end_src
 
 * SHADER_ATTRIB_VEC4
@@ -2964,19 +1794,9 @@ SHADER_ATTRIB_VEC4 is a I32
 PixelFormat
 #+end_src
 
-* hoisted__I64_56192
-#+begin_src til
-hoisted__I64_56192 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_GRAYSCALE
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_GRAYSCALE is a I32
-#+end_src
-
-* hoisted__I64_56193
-#+begin_src til
-hoisted__I64_56193 is a I64
 #+end_src
 
 * PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA
@@ -2984,19 +1804,9 @@ hoisted__I64_56193 is a I64
 PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA is a I32
 #+end_src
 
-* hoisted__I64_56194
-#+begin_src til
-hoisted__I64_56194 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_R5G6B5
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_R5G6B5 is a I32
-#+end_src
-
-* hoisted__I64_56195
-#+begin_src til
-hoisted__I64_56195 is a I64
 #+end_src
 
 * PIXELFORMAT_UNCOMPRESSED_R8G8B8
@@ -3004,19 +1814,9 @@ hoisted__I64_56195 is a I64
 PIXELFORMAT_UNCOMPRESSED_R8G8B8 is a I32
 #+end_src
 
-* hoisted__I64_56196
-#+begin_src til
-hoisted__I64_56196 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_R5G5B5A1
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_R5G5B5A1 is a I32
-#+end_src
-
-* hoisted__I64_56197
-#+begin_src til
-hoisted__I64_56197 is a I64
 #+end_src
 
 * PIXELFORMAT_UNCOMPRESSED_R4G4B4A4
@@ -3024,19 +1824,9 @@ hoisted__I64_56197 is a I64
 PIXELFORMAT_UNCOMPRESSED_R4G4B4A4 is a I32
 #+end_src
 
-* hoisted__I64_56198
-#+begin_src til
-hoisted__I64_56198 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_R8G8B8A8
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 is a I32
-#+end_src
-
-* hoisted__I64_56199
-#+begin_src til
-hoisted__I64_56199 is a I64
 #+end_src
 
 * PIXELFORMAT_UNCOMPRESSED_R32
@@ -3044,19 +1834,9 @@ hoisted__I64_56199 is a I64
 PIXELFORMAT_UNCOMPRESSED_R32 is a I32
 #+end_src
 
-* hoisted__I64_56200
-#+begin_src til
-hoisted__I64_56200 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_R32G32B32
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_R32G32B32 is a I32
-#+end_src
-
-* hoisted__I64_56201
-#+begin_src til
-hoisted__I64_56201 is a I64
 #+end_src
 
 * PIXELFORMAT_UNCOMPRESSED_R32G32B32A32
@@ -3064,19 +1844,9 @@ hoisted__I64_56201 is a I64
 PIXELFORMAT_UNCOMPRESSED_R32G32B32A32 is a I32
 #+end_src
 
-* hoisted__I64_56202
-#+begin_src til
-hoisted__I64_56202 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_R16
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_R16 is a I32
-#+end_src
-
-* hoisted__I64_56203
-#+begin_src til
-hoisted__I64_56203 is a I64
 #+end_src
 
 * PIXELFORMAT_UNCOMPRESSED_R16G16B16
@@ -3084,19 +1854,9 @@ hoisted__I64_56203 is a I64
 PIXELFORMAT_UNCOMPRESSED_R16G16B16 is a I32
 #+end_src
 
-* hoisted__I64_56204
-#+begin_src til
-hoisted__I64_56204 is a I64
-#+end_src
-
 * PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
 #+begin_src til
 PIXELFORMAT_UNCOMPRESSED_R16G16B16A16 is a I32
-#+end_src
-
-* hoisted__I64_56205
-#+begin_src til
-hoisted__I64_56205 is a I64
 #+end_src
 
 * PIXELFORMAT_COMPRESSED_DXT1_RGB
@@ -3104,19 +1864,9 @@ hoisted__I64_56205 is a I64
 PIXELFORMAT_COMPRESSED_DXT1_RGB is a I32
 #+end_src
 
-* hoisted__I64_56206
-#+begin_src til
-hoisted__I64_56206 is a I64
-#+end_src
-
 * PIXELFORMAT_COMPRESSED_DXT1_RGBA
 #+begin_src til
 PIXELFORMAT_COMPRESSED_DXT1_RGBA is a I32
-#+end_src
-
-* hoisted__I64_56207
-#+begin_src til
-hoisted__I64_56207 is a I64
 #+end_src
 
 * PIXELFORMAT_COMPRESSED_DXT3_RGBA
@@ -3124,19 +1874,9 @@ hoisted__I64_56207 is a I64
 PIXELFORMAT_COMPRESSED_DXT3_RGBA is a I32
 #+end_src
 
-* hoisted__I64_56208
-#+begin_src til
-hoisted__I64_56208 is a I64
-#+end_src
-
 * PIXELFORMAT_COMPRESSED_DXT5_RGBA
 #+begin_src til
 PIXELFORMAT_COMPRESSED_DXT5_RGBA is a I32
-#+end_src
-
-* hoisted__I64_56209
-#+begin_src til
-hoisted__I64_56209 is a I64
 #+end_src
 
 * PIXELFORMAT_COMPRESSED_ETC1_RGB
@@ -3144,19 +1884,9 @@ hoisted__I64_56209 is a I64
 PIXELFORMAT_COMPRESSED_ETC1_RGB is a I32
 #+end_src
 
-* hoisted__I64_56210
-#+begin_src til
-hoisted__I64_56210 is a I64
-#+end_src
-
 * PIXELFORMAT_COMPRESSED_ETC2_RGB
 #+begin_src til
 PIXELFORMAT_COMPRESSED_ETC2_RGB is a I32
-#+end_src
-
-* hoisted__I64_56211
-#+begin_src til
-hoisted__I64_56211 is a I64
 #+end_src
 
 * PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA
@@ -3164,19 +1894,9 @@ hoisted__I64_56211 is a I64
 PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA is a I32
 #+end_src
 
-* hoisted__I64_56212
-#+begin_src til
-hoisted__I64_56212 is a I64
-#+end_src
-
 * PIXELFORMAT_COMPRESSED_PVRT_RGB
 #+begin_src til
 PIXELFORMAT_COMPRESSED_PVRT_RGB is a I32
-#+end_src
-
-* hoisted__I64_56213
-#+begin_src til
-hoisted__I64_56213 is a I64
 #+end_src
 
 * PIXELFORMAT_COMPRESSED_PVRT_RGBA
@@ -3184,19 +1904,9 @@ hoisted__I64_56213 is a I64
 PIXELFORMAT_COMPRESSED_PVRT_RGBA is a I32
 #+end_src
 
-* hoisted__I64_56214
-#+begin_src til
-hoisted__I64_56214 is a I64
-#+end_src
-
 * PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA
 #+begin_src til
 PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA is a I32
-#+end_src
-
-* hoisted__I64_56215
-#+begin_src til
-hoisted__I64_56215 is a I64
 #+end_src
 
 * PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA
@@ -3209,19 +1919,9 @@ PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA is a I32
 TextureFilter
 #+end_src
 
-* hoisted__I64_56216
-#+begin_src til
-hoisted__I64_56216 is a I64
-#+end_src
-
 * TEXTURE_FILTER_POINT
 #+begin_src til
 TEXTURE_FILTER_POINT is a I32
-#+end_src
-
-* hoisted__I64_56217
-#+begin_src til
-hoisted__I64_56217 is a I64
 #+end_src
 
 * TEXTURE_FILTER_BILINEAR
@@ -3229,19 +1929,9 @@ hoisted__I64_56217 is a I64
 TEXTURE_FILTER_BILINEAR is a I32
 #+end_src
 
-* hoisted__I64_56218
-#+begin_src til
-hoisted__I64_56218 is a I64
-#+end_src
-
 * TEXTURE_FILTER_TRILINEAR
 #+begin_src til
 TEXTURE_FILTER_TRILINEAR is a I32
-#+end_src
-
-* hoisted__I64_56219
-#+begin_src til
-hoisted__I64_56219 is a I64
 #+end_src
 
 * TEXTURE_FILTER_ANISOTROPIC_4X
@@ -3249,19 +1939,9 @@ hoisted__I64_56219 is a I64
 TEXTURE_FILTER_ANISOTROPIC_4X is a I32
 #+end_src
 
-* hoisted__I64_56220
-#+begin_src til
-hoisted__I64_56220 is a I64
-#+end_src
-
 * TEXTURE_FILTER_ANISOTROPIC_8X
 #+begin_src til
 TEXTURE_FILTER_ANISOTROPIC_8X is a I32
-#+end_src
-
-* hoisted__I64_56221
-#+begin_src til
-hoisted__I64_56221 is a I64
 #+end_src
 
 * TEXTURE_FILTER_ANISOTROPIC_16X
@@ -3274,19 +1954,9 @@ TEXTURE_FILTER_ANISOTROPIC_16X is a I32
 TextureWrap
 #+end_src
 
-* hoisted__I64_56222
-#+begin_src til
-hoisted__I64_56222 is a I64
-#+end_src
-
 * TEXTURE_WRAP_REPEAT
 #+begin_src til
 TEXTURE_WRAP_REPEAT is a I32
-#+end_src
-
-* hoisted__I64_56223
-#+begin_src til
-hoisted__I64_56223 is a I64
 #+end_src
 
 * TEXTURE_WRAP_CLAMP
@@ -3294,19 +1964,9 @@ hoisted__I64_56223 is a I64
 TEXTURE_WRAP_CLAMP is a I32
 #+end_src
 
-* hoisted__I64_56224
-#+begin_src til
-hoisted__I64_56224 is a I64
-#+end_src
-
 * TEXTURE_WRAP_MIRROR_REPEAT
 #+begin_src til
 TEXTURE_WRAP_MIRROR_REPEAT is a I32
-#+end_src
-
-* hoisted__I64_56225
-#+begin_src til
-hoisted__I64_56225 is a I64
 #+end_src
 
 * TEXTURE_WRAP_MIRROR_CLAMP
@@ -3319,19 +1979,9 @@ TEXTURE_WRAP_MIRROR_CLAMP is a I32
 CubemapLayout
 #+end_src
 
-* hoisted__I64_56226
-#+begin_src til
-hoisted__I64_56226 is a I64
-#+end_src
-
 * CUBEMAP_LAYOUT_AUTO_DETECT
 #+begin_src til
 CUBEMAP_LAYOUT_AUTO_DETECT is a I32
-#+end_src
-
-* hoisted__I64_56227
-#+begin_src til
-hoisted__I64_56227 is a I64
 #+end_src
 
 * CUBEMAP_LAYOUT_LINE_VERTICAL
@@ -3339,29 +1989,14 @@ hoisted__I64_56227 is a I64
 CUBEMAP_LAYOUT_LINE_VERTICAL is a I32
 #+end_src
 
-* hoisted__I64_56228
-#+begin_src til
-hoisted__I64_56228 is a I64
-#+end_src
-
 * CUBEMAP_LAYOUT_LINE_HORIZONTAL
 #+begin_src til
 CUBEMAP_LAYOUT_LINE_HORIZONTAL is a I32
 #+end_src
 
-* hoisted__I64_56229
-#+begin_src til
-hoisted__I64_56229 is a I64
-#+end_src
-
 * CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR
 #+begin_src til
 CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR is a I32
-#+end_src
-
-* hoisted__I64_56230
-#+begin_src til
-hoisted__I64_56230 is a I64
 #+end_src
 
 * CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE
@@ -3374,29 +2009,14 @@ CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE is a I32
 FontType
 #+end_src
 
-* hoisted__I64_56231
-#+begin_src til
-hoisted__I64_56231 is a I64
-#+end_src
-
 * FONT_DEFAULT
 #+begin_src til
 FONT_DEFAULT is a I32
 #+end_src
 
-* hoisted__I64_56232
-#+begin_src til
-hoisted__I64_56232 is a I64
-#+end_src
-
 * FONT_BITMAP
 #+begin_src til
 FONT_BITMAP is a I32
-#+end_src
-
-* hoisted__I64_56233
-#+begin_src til
-hoisted__I64_56233 is a I64
 #+end_src
 
 * FONT_SDF
@@ -3409,19 +2029,9 @@ FONT_SDF is a I32
 BlendMode
 #+end_src
 
-* hoisted__I64_56234
-#+begin_src til
-hoisted__I64_56234 is a I64
-#+end_src
-
 * BLEND_ALPHA
 #+begin_src til
 BLEND_ALPHA is a I32
-#+end_src
-
-* hoisted__I64_56235
-#+begin_src til
-hoisted__I64_56235 is a I64
 #+end_src
 
 * BLEND_ADDITIVE
@@ -3429,19 +2039,9 @@ hoisted__I64_56235 is a I64
 BLEND_ADDITIVE is a I32
 #+end_src
 
-* hoisted__I64_56236
-#+begin_src til
-hoisted__I64_56236 is a I64
-#+end_src
-
 * BLEND_MULTIPLIED
 #+begin_src til
 BLEND_MULTIPLIED is a I32
-#+end_src
-
-* hoisted__I64_56237
-#+begin_src til
-hoisted__I64_56237 is a I64
 #+end_src
 
 * BLEND_ADD_COLORS
@@ -3449,19 +2049,9 @@ hoisted__I64_56237 is a I64
 BLEND_ADD_COLORS is a I32
 #+end_src
 
-* hoisted__I64_56238
-#+begin_src til
-hoisted__I64_56238 is a I64
-#+end_src
-
 * BLEND_SUBTRACT_COLORS
 #+begin_src til
 BLEND_SUBTRACT_COLORS is a I32
-#+end_src
-
-* hoisted__I64_56239
-#+begin_src til
-hoisted__I64_56239 is a I64
 #+end_src
 
 * BLEND_ALPHA_PREMULTIPLY
@@ -3469,19 +2059,9 @@ hoisted__I64_56239 is a I64
 BLEND_ALPHA_PREMULTIPLY is a I32
 #+end_src
 
-* hoisted__I64_56240
-#+begin_src til
-hoisted__I64_56240 is a I64
-#+end_src
-
 * BLEND_CUSTOM
 #+begin_src til
 BLEND_CUSTOM is a I32
-#+end_src
-
-* hoisted__I64_56241
-#+begin_src til
-hoisted__I64_56241 is a I64
 #+end_src
 
 * BLEND_CUSTOM_SEPARATE
@@ -3494,19 +2074,9 @@ BLEND_CUSTOM_SEPARATE is a I32
 Gesture
 #+end_src
 
-* hoisted__I64_56242
-#+begin_src til
-hoisted__I64_56242 is a I64
-#+end_src
-
 * GESTURE_NONE
 #+begin_src til
 GESTURE_NONE is a I32
-#+end_src
-
-* hoisted__I64_56243
-#+begin_src til
-hoisted__I64_56243 is a I64
 #+end_src
 
 * GESTURE_TAP
@@ -3514,19 +2084,9 @@ hoisted__I64_56243 is a I64
 GESTURE_TAP is a I32
 #+end_src
 
-* hoisted__I64_56244
-#+begin_src til
-hoisted__I64_56244 is a I64
-#+end_src
-
 * GESTURE_DOUBLETAP
 #+begin_src til
 GESTURE_DOUBLETAP is a I32
-#+end_src
-
-* hoisted__I64_56245
-#+begin_src til
-hoisted__I64_56245 is a I64
 #+end_src
 
 * GESTURE_HOLD
@@ -3534,19 +2094,9 @@ hoisted__I64_56245 is a I64
 GESTURE_HOLD is a I32
 #+end_src
 
-* hoisted__I64_56246
-#+begin_src til
-hoisted__I64_56246 is a I64
-#+end_src
-
 * GESTURE_DRAG
 #+begin_src til
 GESTURE_DRAG is a I32
-#+end_src
-
-* hoisted__I64_56247
-#+begin_src til
-hoisted__I64_56247 is a I64
 #+end_src
 
 * GESTURE_SWIPE_RIGHT
@@ -3554,19 +2104,9 @@ hoisted__I64_56247 is a I64
 GESTURE_SWIPE_RIGHT is a I32
 #+end_src
 
-* hoisted__I64_56248
-#+begin_src til
-hoisted__I64_56248 is a I64
-#+end_src
-
 * GESTURE_SWIPE_LEFT
 #+begin_src til
 GESTURE_SWIPE_LEFT is a I32
-#+end_src
-
-* hoisted__I64_56249
-#+begin_src til
-hoisted__I64_56249 is a I64
 #+end_src
 
 * GESTURE_SWIPE_UP
@@ -3574,29 +2114,14 @@ hoisted__I64_56249 is a I64
 GESTURE_SWIPE_UP is a I32
 #+end_src
 
-* hoisted__I64_56250
-#+begin_src til
-hoisted__I64_56250 is a I64
-#+end_src
-
 * GESTURE_SWIPE_DOWN
 #+begin_src til
 GESTURE_SWIPE_DOWN is a I32
 #+end_src
 
-* hoisted__I64_56251
-#+begin_src til
-hoisted__I64_56251 is a I64
-#+end_src
-
 * GESTURE_PINCH_IN
 #+begin_src til
 GESTURE_PINCH_IN is a I32
-#+end_src
-
-* hoisted__I64_56252
-#+begin_src til
-hoisted__I64_56252 is a I64
 #+end_src
 
 * GESTURE_PINCH_OUT
@@ -3609,19 +2134,9 @@ GESTURE_PINCH_OUT is a I32
 CameraMode
 #+end_src
 
-* hoisted__I64_56253
-#+begin_src til
-hoisted__I64_56253 is a I64
-#+end_src
-
 * CAMERA_CUSTOM
 #+begin_src til
 CAMERA_CUSTOM is a I32
-#+end_src
-
-* hoisted__I64_56254
-#+begin_src til
-hoisted__I64_56254 is a I64
 #+end_src
 
 * CAMERA_FREE
@@ -3629,29 +2144,14 @@ hoisted__I64_56254 is a I64
 CAMERA_FREE is a I32
 #+end_src
 
-* hoisted__I64_56255
-#+begin_src til
-hoisted__I64_56255 is a I64
-#+end_src
-
 * CAMERA_ORBITAL
 #+begin_src til
 CAMERA_ORBITAL is a I32
 #+end_src
 
-* hoisted__I64_56256
-#+begin_src til
-hoisted__I64_56256 is a I64
-#+end_src
-
 * CAMERA_FIRST_PERSON
 #+begin_src til
 CAMERA_FIRST_PERSON is a I32
-#+end_src
-
-* hoisted__I64_56257
-#+begin_src til
-hoisted__I64_56257 is a I64
 #+end_src
 
 * CAMERA_THIRD_PERSON
@@ -3664,19 +2164,9 @@ CAMERA_THIRD_PERSON is a I32
 CameraProjection
 #+end_src
 
-* hoisted__I64_56258
-#+begin_src til
-hoisted__I64_56258 is a I64
-#+end_src
-
 * CAMERA_PERSPECTIVE
 #+begin_src til
 CAMERA_PERSPECTIVE is a I32
-#+end_src
-
-* hoisted__I64_56259
-#+begin_src til
-hoisted__I64_56259 is a I64
 #+end_src
 
 * CAMERA_ORTHOGRAPHIC
@@ -3689,29 +2179,14 @@ CAMERA_ORTHOGRAPHIC is a I32
 NPatchLayout
 #+end_src
 
-* hoisted__I64_56260
-#+begin_src til
-hoisted__I64_56260 is a I64
-#+end_src
-
 * NPATCH_NINE_PATCH
 #+begin_src til
 NPATCH_NINE_PATCH is a I32
 #+end_src
 
-* hoisted__I64_56261
-#+begin_src til
-hoisted__I64_56261 is a I64
-#+end_src
-
 * NPATCH_THREE_PATCH_VERTICAL
 #+begin_src til
 NPATCH_THREE_PATCH_VERTICAL is a I32
-#+end_src
-
-* hoisted__I64_56262
-#+begin_src til
-hoisted__I64_56262 is a I64
 #+end_src
 
 * NPATCH_THREE_PATCH_HORIZONTAL

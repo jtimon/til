@@ -1,31 +1,9 @@
 #+TITLE: src/self/garbager.til
 #+OPTIONS: toc:t
 
-* priv___src_self_garbager_til__LocalInfo
-#+begin_src til
-struct priv___src_self_garbager_til__LocalInfo {
-    ref mut name : Str
-    mut type : Type
-    mut decl_index : I32
-    mut last_use : I32
-    mut own_transfer : I32
-    mut skip_scope_delete : Bool
-    mut is_heap : Bool
-namespace:
-    func clone(self: priv___src_self_garbager_til__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
-    func delete(own self: priv___src_self_garbager_til__LocalInfo, shallow call_free: Bool)
-    func size() returns shallow U32
-}
-#+end_src
-
 * alias_used_in_stmts
 #+begin_src til
 func alias_used_in_stmts(stmts: Vec, name: Str, expr: Expr) returns shallow Bool
-#+end_src
-
-* priv___src_self_garbager_til__is_pod_enum_clone_wrap
-#+begin_src til
-func priv___src_self_garbager_til__is_pod_enum_clone_wrap(e: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * collect_scope_locals
@@ -71,16 +49,6 @@ func insert_assign_delete(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec)
 * promote_own_transferred_locals
 #+begin_src til
 func promote_own_transferred_locals(ctx: Context, mut body: Expr, mut locals: Vec)
-#+end_src
-
-* priv___src_self_garbager_til__branch_unconditionally_transfers
-#+begin_src til
-func priv___src_self_garbager_til__branch_unconditionally_transfers(branch: Expr, name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_garbager_til__sink_conditional_transfer_deletes
-#+begin_src til
-func priv___src_self_garbager_til__sink_conditional_transfer_deletes(mut body: Expr, mut locals: Vec, scope: TypeScope, ctx: Context)
 #+end_src
 
 * insert_free_calls

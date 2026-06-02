@@ -6,41 +6,6 @@
 ext_func system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
-* priv___src_self_builder_til__CollectionInfo
-#+begin_src til
-struct priv___src_self_builder_til__CollectionInfo {
-    ref mut type_name : Str
-    mut is_vec : I32
-namespace:
-    func clone(self: priv___src_self_builder_til__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
-    func delete(own self: priv___src_self_builder_til__CollectionInfo, shallow call_free: Bool)
-    func size() returns shallow U32
-}
-#+end_src
-
-* priv___src_self_builder_til__DynCallInfo
-#+begin_src til
-struct priv___src_self_builder_til__DynCallInfo {
-    ref mut method : Str
-    mut nargs : I32
-    mut has_return : Bool
-namespace:
-    func clone(self: priv___src_self_builder_til__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
-    func delete(own self: priv___src_self_builder_til__DynCallInfo, shallow call_free: Bool)
-    func size() returns shallow U32
-}
-#+end_src
-
-* priv___src_self_builder_til__is_dyn_call_name
-#+begin_src til
-func priv___src_self_builder_til__is_dyn_call_name(name: Str, mut has_ret: Bool) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__resolve_local_fn_sig
-#+begin_src til
-func priv___src_self_builder_til__resolve_local_fn_sig(ctx: Context, name: Str) returns ref Expr
-#+end_src
-
 * resolve_decl_fn_sig
 #+begin_src til
 func resolve_decl_fn_sig(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns ref Expr
@@ -49,21 +14,6 @@ func resolve_decl_fn_sig(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Cont
 * fcall_fn_sig
 #+begin_src til
 func fcall_fn_sig(fcall: Expr, ctx: Context) returns ref Expr
-#+end_src
-
-* priv___src_self_builder_til__is_stack_local
-#+begin_src til
-func priv___src_self_builder_til__is_stack_local(name: Str, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__is_current_func_param
-#+begin_src til
-func priv___src_self_builder_til__is_current_func_param(name: Str, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__is_value_global
-#+begin_src til
-func priv___src_self_builder_til__is_value_global(name: Str, ctx: Context) returns shallow Bool
 #+end_src
 
 * is_ref_global
@@ -91,16 +41,6 @@ func is_primitive_type(name: Str) returns shallow Bool
 func is_pod_enum(enum_name: Str, ctx: Context) returns shallow Bool
 #+end_src
 
-* priv___src_self_builder_til__variant_is_payload_less
-#+begin_src til
-func priv___src_self_builder_til__variant_is_payload_less(enum_name: Str, variant_name: Str, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__is_pod_enum_clone_call
-#+begin_src til
-func priv___src_self_builder_til__is_pod_enum_clone_call(e: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
 * is_pod_struct
 #+begin_src til
 func is_pod_struct(struct_name: Str, ctx: Context) returns shallow Bool
@@ -116,29 +56,9 @@ func is_funcsig_type(name: Str, ctx: Context) returns shallow Bool
 func is_ext_h_type(name: Str) returns shallow Bool
 #+end_src
 
-* is_skip_ext_decl
-#+begin_src til
-func is_skip_ext_decl(name: Str) returns shallow Bool
-#+end_src
-
-* is_scalar_method_type
-#+begin_src til
-func is_scalar_method_type(name: Str) returns shallow Bool
-#+end_src
-
 * is_exported_top_level_global
 #+begin_src til
 func is_exported_top_level_global(stmt: Expr) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__find_struct_def
-#+begin_src til
-func priv___src_self_builder_til__find_struct_def(name: Str, ctx: Context) returns ref Expr
-#+end_src
-
-* priv___src_self_builder_til__find_callee_fdef
-#+begin_src til
-func priv___src_self_builder_til__find_callee_fdef(name: Str, ctx: Context) returns ref Expr
 #+end_src
 
 * fa_struct_name
@@ -146,19 +66,9 @@ func priv___src_self_builder_til__find_callee_fdef(name: Str, ctx: Context) retu
 func fa_struct_name(e: Expr) returns Str
 #+end_src
 
-* priv___src_self_builder_til__builder_fa_is_ptr_with_fname
-#+begin_src til
-func priv___src_self_builder_til__builder_fa_is_ptr_with_fname(sname: Str, fname: Str, ctx: Context) returns shallow Bool
-#+end_src
-
 * builder_fa_is_ptr
 #+begin_src til
 func builder_fa_is_ptr(e: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__builder_fa_is_ns_with_fname
-#+begin_src til
-func priv___src_self_builder_til__builder_fa_is_ns_with_fname(e: Expr, sname: Str, fname: Str, ctx: Context) returns shallow Bool
 #+end_src
 
 * builder_fa_is_ns
@@ -206,19 +116,9 @@ func callee_param_is_uptr(callee_name: Str, shallow arg_index: U32, ctx: Context
 func callee_param_is_own(callee_name: Str, shallow arg_index: U32, ctx: Context) returns shallow Bool
 #+end_src
 
-* priv___src_self_builder_til__fcall_is_shallow_return
-#+begin_src til
-func priv___src_self_builder_til__fcall_is_shallow_return(fcall: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
 * fcall_returns_dynamic
 #+begin_src til
 func fcall_returns_dynamic(fcall: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__til_type_to_c
-#+begin_src til
-func priv___src_self_builder_til__til_type_to_c(shallow t: Type) returns Str
 #+end_src
 
 * extern_decl_ctype
@@ -261,29 +161,9 @@ proc emit_usize(f: File, shallow v: U32) returns ref File
 proc emit_i32(f: File, shallow v: I32) returns ref File
 #+end_src
 
-* priv___src_self_builder_til__emit_indent
-#+begin_src til
-proc priv___src_self_builder_til__emit_indent(f: File, shallow depth: I32) returns ref File
-#+end_src
-
-* priv___src_self_builder_til__c_lit_byte_count
-#+begin_src til
-func priv___src_self_builder_til__c_lit_byte_count(s: Str) returns shallow U32
-#+end_src
-
-* priv___src_self_builder_til__collect_ident_refs
-#+begin_src til
-proc priv___src_self_builder_til__collect_ident_refs(e: Expr, mut refs: Set)
-#+end_src
-
 * emit_til_default
 #+begin_src til
 proc emit_til_default(f: File, shallow t: Type)
-#+end_src
-
-* callee_return_ctype
-#+begin_src til
-ext_func callee_return_ctype(callee_name: Str) returns Str
 #+end_src
 
 * param_ctype
@@ -294,11 +174,6 @@ func param_ctype(fd: FunctionDef, shallow i: U32, ctx: Context) returns Str
 * emit_param_list
 #+begin_src til
 proc emit_param_list(f: File, fdef: Expr, shallow with_names: Bool, shallow for_ext_decl: Bool, ctx: Context)
-#+end_src
-
-* priv___src_self_builder_til__collect_dyn_methods
-#+begin_src til
-proc priv___src_self_builder_til__collect_dyn_methods(e: Expr, mut methods: Vec)
 #+end_src
 
 * collect_collection_builtins
@@ -316,11 +191,6 @@ proc emit_field(f: File, var: Str, field: Str, ctx: Context)
 func get_stack_local_ctype(name: Str, ctx: Context) returns ref Str
 #+end_src
 
-* resolve_ident_ctype
-#+begin_src til
-func resolve_ident_ctype(ident: Str, ttype: Type, sname: Str, ctx: Context) returns Str
-#+end_src
-
 * resolve_callee_name
 #+begin_src til
 ext_func resolve_callee_name(fcall: Expr) returns Str
@@ -329,11 +199,6 @@ ext_func resolve_callee_name(fcall: Expr) returns Str
 * resolve_callee_name
 #+begin_src til
 func resolve_callee_name(fcall: Expr) returns Str
-#+end_src
-
-* callee_return_ctype
-#+begin_src til
-func callee_return_ctype(callee_name: Str, ctx: Context) returns Str
 #+end_src
 
 * fcall_return_ctype
@@ -354,16 +219,6 @@ proc collect_unsafe_to_hoist(ctx: Context, body: Expr)
 * collect_dyn_has_methods
 #+begin_src til
 proc collect_dyn_has_methods(e: Expr, mut methods: Vec)
-#+end_src
-
-* priv___src_self_builder_til__fcall_is_struct_ctor
-#+begin_src til
-func priv___src_self_builder_til__fcall_is_struct_ctor(e: Expr) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__pod_ctor_args_are_safe
-#+begin_src til
-func priv___src_self_builder_til__pod_ctor_args_are_safe(ctor: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * emit_pod_compound_literal
@@ -396,16 +251,6 @@ proc emit_return_box(f: File, e: Expr, shallow depth: I32, ctx: Context)
 proc emit_stmt_return(f: File, e: Expr, shallow depth: I32, ctx: Context)
 #+end_src
 
-* priv___src_self_builder_til__is_noop_delete_stmt
-#+begin_src til
-func priv___src_self_builder_til__is_noop_delete_stmt(e: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_builder_til__emit_stmt
-#+begin_src til
-proc priv___src_self_builder_til__emit_stmt(f: File, e: Expr, shallow depth: I32, ctx: Context)
-#+end_src
-
 * emit_fcall_funcptr_cast
 #+begin_src til
 proc emit_fcall_funcptr_cast(f: File, e: Expr, sig: Expr)
@@ -426,11 +271,6 @@ proc emit_str_lit_expr(f: File, s: Str)
 proc emit_expr(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File
 #+end_src
 
-* priv___src_self_builder_til__emit_body
-#+begin_src til
-proc priv___src_self_builder_til__emit_body(f: File, body: Expr, shallow depth: I32, ctx: Context)
-#+end_src
-
 * emit_ctor_fields
 #+begin_src til
 proc emit_ctor_fields(f: File, var: Str, ctor: Expr, shallow depth: I32, ctx: Context)
@@ -446,44 +286,9 @@ proc emit_ns_inits(f: File, shallow depth: I32, lp: LoadedProgram)
 proc emit_body_scoped(f: File, body: Expr, shallow depth: I32, ctx: Context)
 #+end_src
 
-* priv___src_self_builder_til__emit_deref
-#+begin_src til
-proc priv___src_self_builder_til__emit_deref(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File
-#+end_src
-
 * emit_as_ptr
 #+begin_src til
 proc emit_as_ptr(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, ctx: Context) returns ref File
-#+end_src
-
-* emit_usize_ref
-#+begin_src til
-proc emit_usize_ref(f: File, e: Expr, shallow depth: I32, ctx: Context)
-#+end_src
-
-* emit_uptr_ref
-#+begin_src til
-proc emit_uptr_ref(f: File, e: Expr, shallow depth: I32, ctx: Context)
-#+end_src
-
-* priv___src_self_builder_til__cli_view_box
-#+begin_src til
-func priv___src_self_builder_til__cli_view_box(ctype: Str, conv: Str, arg: Str) returns Str
-#+end_src
-
-* priv___src_self_builder_til__cli_box_expr
-#+begin_src til
-func priv___src_self_builder_til__cli_box_expr(ttype: Str, arg: Str) returns Str
-#+end_src
-
-* priv___src_self_builder_til__emit_cli_parse_value
-#+begin_src til
-proc priv___src_self_builder_til__emit_cli_parse_value(f: File, ind: Str, ttype: Str, var: Str, arg: Str)
-#+end_src
-
-* emit_cli_parse_arg
-#+begin_src til
-proc emit_cli_parse_arg(f: File, pname: Str, ptype: Str, shallow argi: I32)
 #+end_src
 
 * emit_func_def
@@ -529,11 +334,6 @@ proc topo_emit_struct_enum_defs_lp(f: File, mut emitted: Set, lp: LoadedProgram)
 * func_return_ctype
 #+begin_src til
 func func_return_ctype(fd: FunctionDef, ctx: Context) returns Str
-#+end_src
-
-* priv___src_self_builder_til__emit_func_forward_decl
-#+begin_src til
-proc priv___src_self_builder_til__emit_func_forward_decl(f: File, name: Str, fdef: Expr, shallow top_level: Bool, ctx: Context)
 #+end_src
 
 * emit_funcsig_typedef
@@ -741,44 +541,14 @@ proc emit_dyn_fn_wrappers(f: File, lp: LoadedProgram)
 proc emit_dyn_size_of_body(f: File, lp: LoadedProgram)
 #+end_src
 
-* priv___src_self_builder_til__emit_struct_field_branch_for_stmt
-#+begin_src til
-proc priv___src_self_builder_til__emit_struct_field_branch_for_stmt(f: File, stmt: Expr, shallow kind: I32)
-#+end_src
-
-* priv___src_self_builder_til__emit_struct_field_branches
-#+begin_src til
-proc priv___src_self_builder_til__emit_struct_field_branches(f: File, shallow kind: I32, lp: LoadedProgram)
-#+end_src
-
 * emit_struct_introspection_bodies
 #+begin_src til
 proc emit_struct_introspection_bodies(f: File, lp: LoadedProgram)
 #+end_src
 
-* priv___src_self_builder_til__emit_enum_variant_branch_for_stmt
-#+begin_src til
-proc priv___src_self_builder_til__emit_enum_variant_branch_for_stmt(f: File, stmt: Expr, shallow kind: I32)
-#+end_src
-
-* priv___src_self_builder_til__emit_enum_variant_branches
-#+begin_src til
-proc priv___src_self_builder_til__emit_enum_variant_branches(f: File, shallow kind: I32, lp: LoadedProgram)
-#+end_src
-
 * emit_enum_introspection_bodies
 #+begin_src til
 proc emit_enum_introspection_bodies(f: File, lp: LoadedProgram)
-#+end_src
-
-* priv___src_self_builder_til__emit_funcsig_branch_for_stmt
-#+begin_src til
-proc priv___src_self_builder_til__emit_funcsig_branch_for_stmt(f: File, stmt: Expr, shallow kind: I32)
-#+end_src
-
-* priv___src_self_builder_til__emit_funcsig_branches
-#+begin_src til
-proc priv___src_self_builder_til__emit_funcsig_branches(f: File, shallow kind: I32, lp: LoadedProgram)
 #+end_src
 
 * emit_funcsig_introspection_bodies
@@ -789,16 +559,6 @@ proc emit_funcsig_introspection_bodies(f: File, lp: LoadedProgram)
 * emit_tag_case
 #+begin_src til
 proc emit_tag_case(f: File, tag: Str, name: Str)
-#+end_src
-
-* priv___src_self_builder_til__dyn_type_str_display
-#+begin_src til
-func priv___src_self_builder_til__dyn_type_str_display(vn: Str) returns Str
-#+end_src
-
-* priv___src_self_builder_til__find_loaded_enum_variants
-#+begin_src til
-func priv___src_self_builder_til__find_loaded_enum_variants(ename: Str, mut variant_names: Vec, mut variant_types: Vec, lp: LoadedProgram) returns shallow Bool
 #+end_src
 
 * emit_dyn_type_to_str_body
@@ -856,25 +616,6 @@ proc emit_lib_init(f: File, lp: LoadedProgram)
 proc build(mode: Mode, shallow run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns shallow I32
 #+end_src
 
-* priv___src_self_builder_til__BuildPaths
-#+begin_src til
-struct priv___src_self_builder_til__BuildPaths {
-    mut name : Str
-    mut c_path : Str
-    mut bin_path : Str
-    mut fwd_path : Str
-    mut h_path : Str
-    mut til_path : Str
-    mut py_path : Str
-    mut do_lib : Bool
-namespace:
-    func clone(self: priv___src_self_builder_til__BuildPaths) returns priv___src_self_builder_til__BuildPaths
-    func delete(own self: priv___src_self_builder_til__BuildPaths, shallow call_free: Bool)
-    func hash(self: priv___src_self_builder_til__BuildPaths, hasher: HashFn) returns shallow U64
-    func size() returns shallow U32
-}
-#+end_src
-
 * derive_build_paths
 #+begin_src til
 func derive_build_paths(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns priv___src_self_builder_til__BuildPaths
@@ -883,11 +624,6 @@ func derive_build_paths(lp: LoadedProgram, custom_bin: Str, custom_c: Str, targe
 * make_build_dirs
 #+begin_src til
 func make_build_dirs(paths: priv___src_self_builder_til__BuildPaths)
-#+end_src
-
-* priv___src_self_builder_til__translate_ast
-#+begin_src til
-proc priv___src_self_builder_til__translate_ast(lp: LoadedProgram, paths: priv___src_self_builder_til__BuildPaths) returns shallow I32
 #+end_src
 
 * print_translate_success

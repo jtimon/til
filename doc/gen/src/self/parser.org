@@ -1,29 +1,6 @@
 #+TITLE: src/self/parser.til
 #+OPTIONS: toc:t
 
-* priv___src_self_parser_til__Parser
-#+begin_src til
-struct priv___src_self_parser_til__Parser {
-    mut tokens : Vec
-    mut pos : U32
-    mut path : Str
-    mut fn_sig_decls : Vec
-    mut anon_decls : Vec
-    mut anon_cache : Map
-    mut pending_doc : Str
-namespace:
-    func clone(self: priv___src_self_parser_til__Parser) returns priv___src_self_parser_til__Parser
-    func delete(own self: priv___src_self_parser_til__Parser, shallow call_free: Bool)
-    func hash(self: priv___src_self_parser_til__Parser, hasher: HashFn) returns shallow U64
-    func size() returns shallow U32
-}
-#+end_src
-
-* priv___src_self_parser_til__peek
-#+begin_src til
-func priv___src_self_parser_til__peek(p: priv___src_self_parser_til__Parser) returns ref Token
-#+end_src
-
 * advance
 #+begin_src til
 func advance(mut p: priv___src_self_parser_til__Parser) returns ref Token
@@ -64,36 +41,6 @@ func til_type_from_explicit_type(name: Str) returns Type
 anon_struct_counter is a I64
 #+end_src
 
-* priv___src_self_parser_til__anon_decl_key
-#+begin_src til
-func priv___src_self_parser_til__anon_decl_key(d: Declaration) returns Str
-#+end_src
-
-* priv___src_self_parser_til__anon_def_key
-#+begin_src til
-func priv___src_self_parser_til__anon_def_key(def: Expr) returns Str
-#+end_src
-
-* priv___src_self_parser_til__anon_lift
-#+begin_src til
-func priv___src_self_parser_til__anon_lift(mut p: priv___src_self_parser_til__Parser, own def: Expr, shallow line: U32, shallow col: U32) returns Str
-#+end_src
-
-* priv___src_self_parser_til__parse_type_ref
-#+begin_src til
-proc priv___src_self_parser_til__parse_type_ref(mut p: priv___src_self_parser_til__Parser) returns Str
-#+end_src
-
-* priv___src_self_parser_til__parse_fn_signature
-#+begin_src til
-func priv___src_self_parser_til__parse_fn_signature(mut p: priv___src_self_parser_til__Parser, shallow line: U32, shallow col: U32) returns Str
-#+end_src
-
-* priv___src_self_parser_til__parse_block
-#+begin_src til
-proc priv___src_self_parser_til__parse_block(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
 * parse_func_def
 #+begin_src til
 proc parse_func_def(mut p: priv___src_self_parser_til__Parser) returns Expr
@@ -122,11 +69,6 @@ func make_binop_call(lhs: Expr, method: Str, shallow op_line: U32, shallow op_co
 * parse_primary
 #+begin_src til
 proc parse_primary(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* priv___src_self_parser_til__parse_multiplicative
-#+begin_src til
-proc priv___src_self_parser_til__parse_multiplicative(mut p: priv___src_self_parser_til__Parser) returns Expr
 #+end_src
 
 * parse_additive
@@ -177,11 +119,6 @@ proc parse_statement_ident(mut p: priv___src_self_parser_til__Parser, shallow is
 * drain_doc_comments
 #+begin_src til
 func drain_doc_comments(mut p: priv___src_self_parser_til__Parser)
-#+end_src
-
-* priv___src_self_parser_til__parse_statement
-#+begin_src til
-proc priv___src_self_parser_til__parse_statement(mut p: priv___src_self_parser_til__Parser) returns Expr
 #+end_src
 
 * parse_statement_body

@@ -26,26 +26,6 @@ func precomp_has_func(ctx: Context, name: Str) returns shallow Bool
 func is_side_effecting_name(name: Str) returns shallow Bool
 #+end_src
 
-* priv___src_self_precomp_til__hex_digit_value
-#+begin_src til
-func priv___src_self_precomp_til__hex_digit_value(shallow b: I8) returns shallow U8
-#+end_src
-
-* priv___src_self_precomp_til__from_source_form
-#+begin_src til
-func priv___src_self_precomp_til__from_source_form(s: Str) returns Str
-#+end_src
-
-* priv___src_self_precomp_til__needs_source_escape
-#+begin_src til
-func priv___src_self_precomp_til__needs_source_escape(s: Str) returns shallow Bool
-#+end_src
-
-* priv___src_self_precomp_til__str_to_source_form
-#+begin_src til
-func priv___src_self_precomp_til__str_to_source_form(s: Str) returns Str
-#+end_src
-
 * value_to_expr
 #+begin_src til
 func value_to_expr(shallow val: Value, src: Expr, ctx: Context) returns ref Expr
@@ -74,11 +54,6 @@ proc body_has_local(body: Expr, name: Str) returns shallow Bool
 * func_uses_unknown_globals
 #+begin_src til
 proc func_uses_unknown_globals(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set, ctx: Context) returns shallow Bool
-#+end_src
-
-* priv___src_self_precomp_til__extract_trivial_literal_return
-#+begin_src til
-func priv___src_self_precomp_til__extract_trivial_literal_return(fdef: Expr) returns ref Expr
 #+end_src
 
 * ns_lookup_flat
@@ -129,11 +104,6 @@ proc fold_subtree(scope: Scope, mut e: Expr, ctx: Context)
 * process_body
 #+begin_src til
 proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
-#+end_src
-
-* priv___src_self_precomp_til__expr_uses_var_p
-#+begin_src til
-func priv___src_self_precomp_til__expr_uses_var_p(e: Expr, name: Str, ctx: Context) returns shallow Bool
 #+end_src
 
 * precomp_register_fold_scope

@@ -6,24 +6,9 @@
 ext_func realpath_str(path: Str) returns Str
 #+end_src
 
-* priv___src_self_loader_til__str_left
-#+begin_src til
-func priv___src_self_loader_til__str_left(s: Str, shallow n: U32) returns Str
-#+end_src
-
-* priv___src_self_loader_til__normalize_mode_name
-#+begin_src til
-func priv___src_self_loader_til__normalize_mode_name(mode_name: Str) returns Str
-#+end_src
-
 * display_path
 #+begin_src til
 func display_path(p: Str, cwd: Str) returns Str
-#+end_src
-
-* priv___src_self_loader_til__require_mode
-#+begin_src til
-func priv___src_self_loader_til__require_mode(path: Str, mode_name: Str) returns ref Mode
 #+end_src
 
 * forward_header_path
@@ -34,11 +19,6 @@ func forward_header_path(path: Str) returns Str
 * dir_of
 #+begin_src til
 func dir_of(abs: Str) returns Str
-#+end_src
-
-* compiler_root
-#+begin_src til
-func compiler_root(ext_c_path: Str) returns Str
 #+end_src
 
 * resolve_link_path
@@ -63,11 +43,6 @@ namespace:
 * resolve_import_disps
 #+begin_src til
 func resolve_import_disps(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec
-#+end_src
-
-* priv___src_self_loader_til__extract_one_import
-#+begin_src til
-func priv___src_self_loader_til__extract_one_import(mut imp_stmt: Expr, path: Str, mut paths: Vec)
 #+end_src
 
 * extract_imports
@@ -119,19 +94,6 @@ func retarget_loaded_aliases(mut lp: LoadedProgram)
 proc precomp_imported(mut lp: LoadedProgram)
 #+end_src
 
-* priv___src_self_loader_til__DeclRef
-#+begin_src til
-struct priv___src_self_loader_til__DeclRef {
-    mut path : Str
-    mut idx : U32
-namespace:
-    func clone(self: priv___src_self_loader_til__DeclRef) returns priv___src_self_loader_til__DeclRef
-    func delete(own self: priv___src_self_loader_til__DeclRef, shallow call_free: Bool)
-    func hash(self: priv___src_self_loader_til__DeclRef, hasher: HashFn) returns shallow U64
-    func size() returns shallow U32
-}
-#+end_src
-
 * find_ns_decl_fdef_imported
 #+begin_src til
 func find_ns_decl_fdef_imported(ctx: Context, top: Map, name: Str) returns ref Expr
@@ -140,11 +102,6 @@ func find_ns_decl_fdef_imported(ctx: Context, top: Map, name: Str) returns ref E
 * scavenge_visited_imported
 #+begin_src til
 func scavenge_visited_imported(lp: LoadedProgram) returns Set
-#+end_src
-
-* priv___src_self_loader_til__cli_arg_type_supported
-#+begin_src til
-func priv___src_self_loader_til__cli_arg_type_supported(name: Str) returns shallow Bool
 #+end_src
 
 * validate_cli_main
@@ -270,21 +227,6 @@ func build_doc_init_line(packed_info: Str, packed_docs: Str) returns Str
 * doc_init_src_line
 #+begin_src til
 func doc_init_src_line(core_ast: Expr, user_ast: Expr, scope: TypeScope) returns Str
-#+end_src
-
-* loaded_add_lflag
-#+begin_src til
-func loaded_add_lflag(mut lp: LoadedProgram, lib: Str)
-#+end_src
-
-* priv___src_self_loader_til__desugar_one_import
-#+begin_src til
-func priv___src_self_loader_til__desugar_one_import(mut imp_stmt: Expr, mut new_ch: Vec, shallow is_decl_rhs: Bool, decl_name: Str, shallow is_mut: Bool, shallow decl_line: U32, shallow decl_col: U32, ctx: Context, resolved_path: Str) returns shallow Bool
-#+end_src
-
-* priv___src_self_loader_til__desugar_namespace_imports
-#+begin_src til
-func priv___src_self_loader_til__desugar_namespace_imports(mut iu: ImportUnit, ctx: Context)
 #+end_src
 
 * init_and_type_program

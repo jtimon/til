@@ -20,11 +20,6 @@ namespace:
 }
 #+end_src
 
-* priv___src_self_targets_til__lang_to_str
-#+begin_src til
-func priv___src_self_targets_til__lang_to_str(lang: Lang) returns Str
-#+end_src
-
 * Target
 #+begin_src til
 enum Target {
@@ -32,6 +27,8 @@ enum Target {
     LinuxArm64
     LinuxRiscv64
     LinuxX86
+    LinuxArm32
+    LinuxRiscv32
     WindowsX64
     MacosX64
     MacosArm64
@@ -42,6 +39,8 @@ namespace:
     LinuxArm64
     LinuxRiscv64
     LinuxX86
+    LinuxArm32
+    LinuxRiscv32
     WindowsX64
     MacosX64
     MacosArm64
@@ -59,16 +58,6 @@ namespace:
 * target_from_str
 #+begin_src til
 func target_from_str(s: Str) returns Target
-#+end_src
-
-* priv___src_self_targets_til__target_to_str
-#+begin_src til
-func priv___src_self_targets_til__target_to_str(target: Target) returns Str
-#+end_src
-
-* priv___src_self_targets_til__target_is_32bit
-#+begin_src til
-func priv___src_self_targets_til__target_is_32bit(target: Target) returns shallow Bool
 #+end_src
 
 * target_uptr_name
@@ -96,11 +85,6 @@ func is_lang_supported_for_target(lang: Lang, target: Target) returns shallow Bo
 func validate_lang_for_target(lang: Lang, target: Target)
 #+end_src
 
-* is_clang
-#+begin_src til
-func is_clang(cmd: Str) returns shallow Bool
-#+end_src
-
 * toolchain_command
 #+begin_src til
 func toolchain_command(target: Target, lang: Lang) returns Str
@@ -109,16 +93,6 @@ func toolchain_command(target: Target, lang: Lang) returns Str
 * target_prefix_args
 #+begin_src til
 func target_prefix_args(target: Target) returns Str
-#+end_src
-
-* common_warning_flags
-#+begin_src til
-func common_warning_flags() returns Str
-#+end_src
-
-* clang_warning_flags
-#+begin_src til
-func clang_warning_flags() returns Str
 #+end_src
 
 * toolchain_extra_args

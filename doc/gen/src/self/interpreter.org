@@ -21,16 +21,6 @@ proc interp_error(e: Expr, msg: Str, ctx: Context)
 proc interp_lang_error(e: Expr, msg: Str, ctx: Context)
 #+end_src
 
-* priv___src_self_interpreter_til__field_nested_def
-#+begin_src til
-func priv___src_self_interpreter_til__field_nested_def(dd: Declaration, ctx: Context) returns ref Expr
-#+end_src
-
-* priv___src_self_interpreter_til__struct_def_shallow_safe
-#+begin_src til
-func priv___src_self_interpreter_til__struct_def_shallow_safe(sdef_data: StructDef, ctx: Context) returns shallow Bool
-#+end_src
-
 * StructInstance
 #+begin_src til
 struct StructInstance {
@@ -53,7 +43,7 @@ namespace:
 struct EnumInstance {
     ref mut enum_name : Str
     own mut data : U8
-    mut data_size : I32
+    mut data_size : U32
     mut borrowed : Bool
 namespace:
     func eq(a: EnumInstance, b: EnumInstance) returns shallow Bool
@@ -140,6 +130,7 @@ struct Scope {
     mut bindings : Map
     ref mut parent : Scope
     mut payload_aliases : Map
+    mut ref_primitive_ptrs : Map
     mut box_owned_dynamics : Vec
 namespace:
     func clone(self: Scope) returns Scope
@@ -210,7 +201,7 @@ func val_bool(shallow v: Bool) returns shallow Value
 
 * ENUM_PAYLOAD_OFFSET
 #+begin_src til
-ENUM_PAYLOAD_OFFSET is a I32
+ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
 * val_enum_flat
@@ -243,19 +234,9 @@ func value_ptr_view(v: Value) returns ref Dynamic
 func is_value_ptr(v: Value) returns shallow Bool
 #+end_src
 
-* priv___src_self_interpreter_til__resolve_ptr_to_struct
-#+begin_src til
-func priv___src_self_interpreter_til__resolve_ptr_to_struct(mut obj: Value, scope: Scope, obj_sname: Str, ctx: Context)
-#+end_src
-
 * eval_expr
 #+begin_src til
 proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
-#+end_src
-
-* priv___src_self_interpreter_til__lookup_type_def_helper
-#+begin_src til
-func priv___src_self_interpreter_til__lookup_type_def_helper(type_name: Str, scope: Scope, ctx: Context) returns ref Expr
 #+end_src
 
 * reinterpret_ptr_value
@@ -296,17 +277,6 @@ func free_value(shallow v: Value)
 * cleanup_value_payload
 #+begin_src til
 func cleanup_value_payload(shallow v: Value)
-#+end_src
-
-* priv___src_self_interpreter_til__DynPtrBox
-#+begin_src til
-struct priv___src_self_interpreter_til__DynPtrBox {
-    own mut p : U8
-namespace:
-    func clone(self: priv___src_self_interpreter_til__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
-    func delete(own self: priv___src_self_interpreter_til__DynPtrBox, shallow call_free: Bool)
-    func size() returns shallow U32
-}
 #+end_src
 
 * free_value_full
@@ -354,6 +324,16 @@ func scope_new(parent: Scope) returns Scope
 func scope_get_payload_alias(mut s: Scope, name: Str) returns Str
 #+end_src
 
+* interp_is_primitive_type_name
+#+begin_src til
+func interp_is_primitive_type_name(name: Str) returns shallow Bool
+#+end_src
+
+* scope_get_ref_primitive_ptr
+#+begin_src til
+func scope_get_ref_primitive_ptr(mut s: Scope, name: Str) returns ref Dynamic
+#+end_src
+
 * scope_set_owned
 #+begin_src til
 func scope_set_owned(mut s: Scope, name: Str, val: Value)
@@ -367,11 +347,6 @@ func scope_set_borrowed(mut s: Scope, name: Str, cell: Cell)
 * scope_free
 #+begin_src til
 func scope_free(own s: Scope)
-#+end_src
-
-* priv___src_self_interpreter_til__interp_fa_is_ns_with_fname
-#+begin_src til
-func priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns shallow Bool
 #+end_src
 
 * interp_fa_is_ns_inner
@@ -407,11 +382,6 @@ func populate_cached_aggregate_defs(mut ctx: Context, program: Expr)
 * interpreter_init_ns
 #+begin_src til
 proc interpreter_init_ns(mut ctx: Context, mut global: Scope, program: Expr)
-#+end_src
-
-* priv___src_self_interpreter_til__ns_qname
-#+begin_src til
-func priv___src_self_interpreter_til__ns_qname(sname: Str, fname: Str) returns Str
 #+end_src
 
 * ns_get
@@ -451,7 +421,7 @@ func find_field_decl(struct_def: Expr, fname: Str) returns ref Declaration
 
 * ENUM_PAYLOAD_OFFSET
 #+begin_src til
-ENUM_PAYLOAD_OFFSET is a I32
+ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
 * read_field
@@ -482,11 +452,6 @@ func interpret_copy_alias_ns(prog: Expr, global: Scope, ctx: Context)
 * interpret
 #+begin_src til
 proc interpret(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32
-#+end_src
-
-* priv___src_self_interpreter_til__interpret_units
-#+begin_src til
-proc priv___src_self_interpreter_til__interpret_units(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns shallow I32
 #+end_src
 
 * cmd_interpret

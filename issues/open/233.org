@@ -1,5 +1,5 @@
 # priority: medium
-** OPEN #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
+** WIP #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 
 *   Current state:
     - /// doc comments: plain text, no markup, no metadata.

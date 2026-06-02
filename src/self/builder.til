@@ -7023,28 +7023,40 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                info := format_decl_info(stmt, scope)
-                chunk_cap : USize = dd.name.len()
-                    .add(dd.doc.len())
-                    .add(info.len())
-                    .add(64)
-                mut chunk := Str.with_capacity(chunk_cap)
-                chunk.push_str("* ")
-                chunk.push_str(dd.name)
-                chunk.push_str("\n")
-                if dd.doc.is_empty().not() {
-                    chunk.push_str(dd.doc)
-                    if dd.doc.ends_with("\n").not() { chunk.push_str("\n") }
+                // Hide compiler-internal and private decls. hoisted__
+                // names are constfolder temps; priv___ names are the
+                // mangler's output for `priv` decls that got lifted
+                // out of a function body; `is_priv` is the explicit
+                // `priv` keyword. None of them are public API and all
+                // three were leaking into the bare org-mode output
+                // before -- see issue #233's "Current state" notes.
+                doc_hide := dd.name.starts_with("hoisted__")
+                    .or(dd.name.starts_with("priv___"))
+                    .or(dd.is_priv)
+                if doc_hide.not() {
+                    info := format_decl_info(stmt, scope)
+                    chunk_cap : USize = dd.name.len()
+                        .add(dd.doc.len())
+                        .add(info.len())
+                        .add(64)
+                    mut chunk := Str.with_capacity(chunk_cap)
+                    chunk.push_str("* ")
+                    chunk.push_str(dd.name)
                     chunk.push_str("\n")
+                    if dd.doc.is_empty().not() {
+                        chunk.push_str(dd.doc)
+                        if dd.doc.ends_with("\n").not() { chunk.push_str("\n") }
+                        chunk.push_str("\n")
+                    }
+                    if info.is_empty().not() {
+                        chunk.push_str("#+begin_src til\n")
+                        chunk.push_str(info)
+                        if info.ends_with("\n").not() { chunk.push_str("\n") }
+                        chunk.push_str("#+end_src\n\n")
+                    }
+                    total = total.add(chunk.len())
+                    chunks.push(own chunk)
                 }
-                if info.is_empty().not() {
-                    chunk.push_str("#+begin_src til\n")
-                    chunk.push_str(info)
-                    if info.ends_with("\n").not() { chunk.push_str("\n") }
-                    chunk.push_str("#+end_src\n\n")
-                }
-                total = total.add(chunk.len())
-                chunks.push(own chunk)
             case:
                 UNREACHABLE(__LOC__)
             }
