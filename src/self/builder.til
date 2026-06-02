@@ -7078,12 +7078,12 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 // One headline per top-level Decl, with the /// doc text and a kind/signature
 // info block (reusing format_decl_info for the rich rendering).
 format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns Str {
-    // Read the substring from `unit_path` (the parameter), not from a
-    // self-reassigned `title`: `title = title.substr(...).clone()` is
-    // miscompiled (the hoisted substr view aliases title's freed buffer).
+    // Strip a leading "./" via a self-reassign from a substring of `title`.
+    // This (`title = title.substr(...).clone()`) is compiled correctly since
+    // issue #238 fixed the asap-destruction delete-ordering / clone-elision.
     mut title := unit_path.clone()
-    if unit_path.starts_with("./") {
-        title = unit_path.substr(2, unit_path.len().sub(2)).clone()
+    if title.starts_with("./") {
+        title = title.substr(2, title.len().sub(2)).clone()
     }
     // First pass: render each Decl's chunk separately. format_decl_info
     // already sizes its returned Str to fit, so we don't need to pre-size
@@ -7143,17 +7143,15 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
 
 // "src/core/vec.til" -> "doc/gen/src/core/vec.org"
 til_doc_out_path := func(unit_path: Str) returns Str {
-    // Compute the trim bounds and take a single substring from the
-    // parameter. Reassigning a heap-backed local from a substring of
-    // *itself* (`name = name.substr(...).clone()`) is miscompiled: the
-    // typer hoists the view-returning substr into a temp aliasing the
-    // local, and the local's buffer is freed before the clone copies from
-    // that view. Reading from the un-reassigned `unit_path` avoids it.
-    mut start : USize = 0
-    mut end := unit_path.len()
-    if unit_path.starts_with("./") { start = 2 }
-    if unit_path.ends_with(".til") { end = end.sub(4) }
-    name := unit_path.substr(start, end.sub(start)).clone()
+    // Trim a leading "./" and a trailing ".til" via self-reassigns from
+    // substrings of `name`. `name = name.substr(...).clone()` is compiled
+    // correctly since issue #238 fixed the asap-destruction delete-ordering /
+    // clone-elision (the typer hoists the view-returning substr into a temp
+    // aliasing the local; the fix keeps the clone and orders the old-value
+    // delete after it).
+    mut name := unit_path.clone()
+    if name.starts_with("./") { name = name.substr(2, name.len().sub(2)).clone() }
+    if name.ends_with(".til") { name = name.substr(0, name.len().sub(4)).clone() }
     return format("doc/gen/", name, ".org")
 }
 
