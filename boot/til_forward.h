@@ -1676,6 +1676,9 @@ priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInf
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 U32 priv___src_self_garbager_til__LocalInfo_size(void);
 Bool alias_used_in_stmts(Vec * stmts, Str * name, Expr * expr);
+Vec * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec * preceding);
+Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec * preceding);
+Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec * preceding);
 Bool priv___src_self_garbager_til__is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
 void extend_ref_local_lifetimes(Expr * body, Vec * locals, TypeScope * scope);
@@ -1683,7 +1686,7 @@ void check_use_after_own_transfer(Expr * body, Vec * locals, Context * ctx);
 void insert_exit_deletes(Expr * body, Vec * live, Bool return_only);
 void insert_nested_exit_deletes(Expr * stmt, Vec * locals, U32 stmt_idx);
 void insert_exit_deletes_into_stmt(Expr * stmt, Vec * body_stmts, Vec * locals, U32 stmt_idx, Vec * new_ch);
-void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new_ch, TypeScope * scope);
+void insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new_ch, TypeScope * scope, Vec * preceding);
 void insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
 void promote_own_transferred_locals(Context * ctx, Expr * body, Vec * locals);
 Bool priv___src_self_garbager_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);

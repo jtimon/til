@@ -50,6 +50,67 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns Bool {
     return false
 }
 
+// Issue #238: the typer's hoist pass can lift a view-returning subexpression
+// of an assignment's RHS (e.g. `vname.substr(...)`) into a `hoisted__` temp
+// that ALIASES vname's heap buffer, emitted as a statement BEFORE the assign.
+// The textual RHS then only names the temp, so expr_uses_var(rhs, vname) no
+// longer sees the dependency. If we miss it, insert_assign_delete emits the
+// old-value delete too early and the RHS clone copies from vname's freed
+// buffer (a use-after-free; manifests as garbage bytes).
+//
+// Walk the already-emitted preceding statements, taint every `hoisted__`
+// binding whose initializer (transitively) reads vname, then report a
+// dependency if the RHS reads vname directly or any tainted temp.
+// Names of `hoisted__` temps among `preceding` whose initializer
+// (transitively) reads `target`. Such a temp may hold a non-owning *view*
+// into target's heap buffer (e.g. `target.substr(...)`), so any later use is
+// really a use of target's storage.
+priv collect_hoist_taint := func(target: Str, preceding: Vec) returns Vec {
+    mut tainted := Vec.new(Str)
+    mut changed := true
+    while changed {
+        changed = false
+        for pst : Expr in preceding {
+            if pst.children.len().lt(1) { continue }
+            mut hname := ""
+            switch pst.node_type {
+            case NodeType.Decl(dd): hname = dd.name
+            case NodeType.Assign(ad): hname = ad.name
+            case:
+            }
+            if hname.starts_with("hoisted__").not() { continue }
+            mut already := false
+            for t : Str in tainted { if t.eq(hname) { already = true } }
+            if already { continue }
+            ref init : Expr = pst.child(0)
+            mut dep := expr_uses_var(init, target)
+            if dep.not() {
+                for t : Str in tainted { if expr_uses_var(init, t) { dep = true } }
+            }
+            if dep { tainted.push(own hname.clone()); changed = true }
+        }
+    }
+    return tainted
+}
+
+priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec) returns Bool {
+    if expr_uses_var(rhs, vname) { return true }
+    tainted := collect_hoist_taint(vname, preceding)
+    for t : Str in tainted {
+        if expr_uses_var(rhs, t) { return true }
+    }
+    return false
+}
+
+priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec) returns Bool {
+    if varname.starts_with("hoisted__").not() { return false }
+    tainted := collect_hoist_taint(target, preceding)
+    for t : Str in tainted {
+        if t.eq(varname) { return true }
+    }
+    return false
+}
+
 // Mirrors builder.til's is_pod_enum_clone_call; resolves the enum def
 // via TypeScope instead of Context.
 priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
@@ -454,7 +515,7 @@ insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, mut locals: V
     }
 }
 
-insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut new_ch: Vec, scope: TypeScope) {
+insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -561,7 +622,14 @@ insert_post_stmt_deletes := func(stmt: Expr, mut locals: Vec, stmt_idx: U32, mut
                         ref clone_arg : Expr = assign_rhs.child(1)
                         switch clone_arg.node_type {
                         case NodeType.Ident(clone_arg_name):
-                            if clone_arg_name.ident_name().eq(local.name) {
+                            // Issue #238: never move a clone-arg that is a
+                            // hoisted view aliasing the assign target. The
+                            // clone is what decouples `target = target.substr(
+                            // ...).clone()` from target's own freed buffer;
+                            // moving the view instead would alias the deleted
+                            // old value.
+                            if clone_arg_name.ident_name().eq(local.name)
+                                .and(var_aliases_target(local.name, assign_target, preceding).not()) {
                                 mut bare_ident := Expr.new(ident_node(local.name), assign_rhs.line, assign_rhs.col)
                                 bare_ident.set_expr_til_type(local.type.clone())
                                 ref slot_assign : Expr = stmt.children[0]
@@ -604,7 +672,7 @@ insert_assign_delete := func(mut stmt: Expr, mut locals: Vec, mut new_ch: Vec) {
             if local.name.eq(vname).not() { continue }
             if is_aggregate(local.type) {
                 ref rhs : Expr = stmt.child(0)
-                if expr_uses_var(rhs, vname) {
+                if rhs_depends_on_var(rhs, vname, new_ch) {
                     ad.save_old_delete = true
                     stmt.set_expr_til_type(local.type.clone())
                 } else {
@@ -786,7 +854,7 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sc
         insert_nested_exit_deletes(stmt, locals_vec, i)
         insert_assign_delete(stmt, locals_vec, new_ch)
         mut post_deletes := Vec.new(Expr)
-        insert_post_stmt_deletes(stmt, locals_vec, i, post_deletes, scope)
+        insert_post_stmt_deletes(stmt, locals_vec, i, post_deletes, scope, new_ch)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)
     }

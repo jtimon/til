@@ -1,0 +1,84 @@
+# priority: medium
+** FIXED #238 codegen: `x = x.substr(...).clone()` frees x before the clone reads the view
+
+   Fixed in the asap-destruction pass (src/self/garbager.til). Two
+   interacting passes mishandled the self-reassign-from-view:
+
+   1. ~insert_assign_delete~ delegates the old-value delete to the builder's
+      safe ~save_old_delete~ path only when ~expr_uses_var(rhs, vname)~, but
+      the typer's hoist pass had already lifted ~vname.substr(...)~ into a
+      ~hoisted__~ temp, so the RHS no longer named vname and a separately-
+      inserted pre-delete freed vname's buffer before the clone ran. Added
+      ~collect_hoist_taint~ / ~rhs_depends_on_var~ to see through hoisted
+      temps that (transitively) read vname, so the assign now routes through
+      the RHS-first ~save_old_delete~ ordering.
+
+   2. With ~save_old_delete~ set, the clone-to-bare move optimization in
+      ~insert_post_stmt_deletes~ then elided the ~.clone()~ (moving the view
+      instead), re-introducing the alias. Added ~var_aliases_target~ so the
+      move opt never moves a clone-arg that is a hoisted view aliasing the
+      assign target. ~insert_post_stmt_deletes~ now also receives the real
+      preceding-statement list (it previously only saw the post-delete
+      accumulator).
+
+   Emitted C is now correctly ordered:
+   ~{ Str *_new = Str_clone(view); Str_delete(&s, ...); s = *_new; }~.
+
+   Regression tests: ~test_self_substr_reassign~ and ~test_self_replace~ in
+   test/strings.til. The existing hand-routed workarounds
+   (~format_unit_doc_org~ / ~til_doc_out_path~ in builder.til, ~emit_function~
+   in binder.til) are now redundant but left in place; they remain correct.
+
+   Root cause behind issue #203. Reassigning a heap-backed local from a
+   substring *view of itself* is miscompiled: the old-value delete is
+   emitted *before* the RHS clone copies from the view, so the clone reads
+   freed memory and `x` ends up as garbage bytes.
+
+   Minimal repro:
+
+   #+begin_src til
+   mode script
+   mut s := Str.with_capacity(32)
+   s.push_str("int foo ( int x ) ;")
+   s = s.substr(0, s.len().sub(1)).clone()
+   println("[", s, "]")
+   // prints e.g. [int foo ( int x ) ] with a literal init, but
+   // [<garbage>) ] when s is a grown Str.with_capacity buffer
+   #+end_src
+
+   The emitted C shows the ordering bug (`s` grown via with_capacity):
+
+   #+begin_src c
+   Str *hoisted__Str_4612 = Str_substr(&s, 0, 18);          // view INTO s's buffer
+   Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = s; _oa; }), 1);  // frees s's buffer
+   { Str *_hp = (Str *)Str_clone(hoisted__Str_4612); s = *_hp; free(_hp); } // clone reads freed view
+   #+end_src
+
+   The substr view is hoisted into a temp aliasing `s`, then the old-value
+   `Str_delete(s, call_free=1)` runs, then `Str_clone(view)` copies from the
+   now-freed buffer. The fix is to fully materialize the RHS (clone any
+   views) *before* deleting the old LHS value -- i.e. emit the old-value
+   delete after the RHS is evaluated into the new buffer, the way the
+   stack-local `{ Str *_new = ...; Str_delete(&aname,...); aname = *_new; }`
+   path already does.
+
+   Whether it triggers depends on the LHS storage: a string-literal-backed
+   local is unaffected (its `.cap == TIL_CAP_LIT` buffer isn't freed), but a
+   grown `Str.with_capacity` + `push_str` buffer is freed and corrupts.
+
+   *** Current workarounds (all avoid the self-reassign)
+
+   - ~format_unit_doc_org~ and ~til_doc_out_path~ in src/self/builder.til
+     (read from the un-reassigned parameter / compute indices and take one
+     substr).
+   - ~emit_function~ in src/self/binder.til (dropped the pointless trailing-
+     `;` strip; see #203).
+
+   *** Why medium priority
+
+   Silent data corruption is serious, but the pattern is avoidable and is
+   now avoided everywhere it was known to bite. A dedicated codegen fix in
+   the Assign lowering (src/self/builder.til, the `is_hoisted` + FCall and
+   non-stack-local branches) would remove the footgun so callers don't have
+   to hand-route around it. Relates to #209 (stack-vs-heap Str delete
+   decision in the builder).

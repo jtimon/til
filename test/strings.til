@@ -252,3 +252,40 @@ test_mut_param_concat := test() {
     greet(s)
     assert_eq_str(__LOC__, s, "hello world")
 }
+
+// Issue #238: reassigning a heap-backed local from a substring VIEW of itself
+// (`s = s.substr(...).clone()`). The substr view aliases s's buffer; the old-
+// value delete must run AFTER the clone copies from the view, and the clone
+// must not be elided into a move. Use a grown with_capacity buffer (a literal
+// is CAP_LIT and never freed, so it would hide the bug).
+test_self_substr_reassign := test() {
+    mut s := Str.with_capacity(32)
+    s.push_str("int foo ( int x ) ;")
+    s = s.substr(0, s.len().sub(1)).clone()
+    assert_eq_str(__LOC__, s, "int foo ( int x ) ")
+
+    mut t := Str.with_capacity(16)
+    t.push_str("abcdefgh")
+    t = t.substr(2, 4).clone()
+    assert_eq_str(__LOC__, t, "cdef")
+
+    // Repeated self-reassign from a view.
+    mut u := Str.with_capacity(16)
+    u.push_str("hello world")
+    u = u.substr(0, 5).clone()
+    u = u.substr(1, 3).clone()
+    assert_eq_str(__LOC__, u, "ell")
+}
+
+// Issue #203 point 4 / #238: Str.replace on a grown buffer, including a `from`
+// longer than the whole string (the `self.count.sub(from.count)` USize
+// underflow guard) and a self-reassign through replace.
+test_self_replace := test() {
+    mut s := Str.with_capacity(32)
+    s.push_str("hello world foo")
+    s = s.replace("foo", "bar")
+    assert_eq_str(__LOC__, s, "hello world bar")
+
+    assert_eq_str(__LOC__, "ab".replace("abcdef", "x"), "ab")
+    assert_eq_str(__LOC__, "".replace("abc", "x"), "")
+}
