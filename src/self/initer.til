@@ -28,11 +28,11 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
         if sname.eq("I64") { builtin_type = Type.Primitive(Primitive.I64); is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
+        else if sname.eq("U8") { builtin_type = Type.Primitive(Primitive.U8); is_builtin = true }
+        else if sname.eq("I8") { builtin_type = Type.Primitive(Primitive.I8); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
+        else if sname.eq("I32") { builtin_type = Type.Primitive(Primitive.I32); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
         else if sname.eq("USize") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }

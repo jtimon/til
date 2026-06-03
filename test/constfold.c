@@ -834,7 +834,6 @@ Str * Str_with_capacity(U32 n) {
     U64 hoisted__U64_872 = 1ULL;
     (void)hoisted__U64_872;
     memset(buf, hoisted__I32_871, hoisted__U64_872);
-    I32_delete(&hoisted__I32_871, 0);
     I64 hoisted__I64_873 = 0;
     (void)hoisted__I64_873;
     Str *hoisted__Str_874 = malloc(sizeof(Str));
@@ -902,7 +901,6 @@ void Str_push_str(Str * self, Str * s) {
     U64 hoisted__U64_895 = 1ULL;
     (void)hoisted__U64_895;
     memset(hoisted__v_893, hoisted__I32_894, hoisted__U64_895);
-    I32_delete(&hoisted__I32_894, 0);
 }
 
 Str * Str_clone(Str * val) {
@@ -920,7 +918,6 @@ Str * Str_clone(Str * val) {
     U64 hoisted__U64_900 = 1ULL;
     (void)hoisted__U64_900;
     memset(hoisted__v_898, hoisted__I32_899, hoisted__U64_900);
-    I32_delete(&hoisted__I32_899, 0);
     Str *hoisted__Str_901 = malloc(sizeof(Str));
     hoisted__Str_901->c_str = new_data;
     hoisted__Str_901->count = val->count;
@@ -1039,7 +1036,6 @@ Str * I64_to_str(I64 val) {
         U64 hoisted__U64_1500 = 1ULL;
         (void)hoisted__U64_1500;
         memset(hoisted__v_1498, hoisted__I32_1499, hoisted__U64_1500);
-        I32_delete(&hoisted__I32_1499, 0);
         I64 hoisted__I64_1501 = 1;
         (void)hoisted__I64_1501;
         I64 hoisted__I64_1502 = 1;
@@ -1138,7 +1134,6 @@ Str * I64_to_str(I64 val) {
         U64 hoisted__U64_1525 = 1ULL;
         (void)hoisted__U64_1525;
         memcpy(hoisted__v_1523, &hoisted__U8_1524, hoisted__U64_1525);
-        U8_delete(&hoisted__U8_1524, 0);
         I64 hoisted__I64_1526 = 10;
         (void)hoisted__I64_1526;
         I64 hoisted__I64_1527 = I64_div(v, hoisted__I64_1526);
@@ -1158,7 +1153,6 @@ Str * I64_to_str(I64 val) {
     U64 hoisted__U64_1539 = 1ULL;
     (void)hoisted__U64_1539;
     memset(hoisted__v_1537, hoisted__I32_1538, hoisted__U64_1539);
-    I32_delete(&hoisted__I32_1538, 0);
     Str *hoisted__Str_1540 = malloc(sizeof(Str));
     hoisted__Str_1540->c_str = buf;
     hoisted__Str_1540->count = total;

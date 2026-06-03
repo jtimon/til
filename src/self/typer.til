@@ -57,8 +57,8 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.Unknown:   variant_name = "Unknown"
     case Type.None:      variant_name = "None"
     case Type.Primitive(Primitive.I64):       primitive_variant = "I64"
-    case Type.Primitive(Primitive.U8):        variant_name = "U8"
-    case Type.Primitive(Primitive.I8):        variant_name = "I8"
+    case Type.Primitive(Primitive.U8):        primitive_variant = "U8"
+    case Type.Primitive(Primitive.I8):        primitive_variant = "I8"
     case Type.Primitive(Primitive.I16):       primitive_variant = "I16"
     case Type.Primitive(Primitive.U16):       primitive_variant = "U16"
     case Type.Primitive(Primitive.I32):       primitive_variant = "I32"
@@ -4158,11 +4158,11 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         mut is_builtin := false
         if is_enum { builtin_type = Type.Enum(sname.clone()) }
         if sname.eq("I64") { builtin_type = Type.Primitive(Primitive.I64); is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
+        else if sname.eq("U8") { builtin_type = Type.Primitive(Primitive.U8); is_builtin = true }
+        else if sname.eq("I8") { builtin_type = Type.Primitive(Primitive.I8); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
+        else if sname.eq("I32") { builtin_type = Type.Primitive(Primitive.I32); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
         else if sname.eq("F32") { builtin_type = Type.Primitive(Primitive.F32); is_builtin = true }
@@ -8297,7 +8297,7 @@ is_integral_numeric_type := func(t: Type) returns Bool {
 }
 
 type_ctor_consumes := func(t: Type) returns Bool {
-    // Issue #205: primitives modelled as Type.Struct("I32") / Type.Struct("U8")
+    // Issue #205: primitives may still arrive as Type.Struct("I32") / Type.Struct("U8")
     // are value types -- a ctor field default of `0` with explicit type I32
     // shouldn't trigger "own" semantics. Without this short-circuit, the
     // generic Type.Struct case below pulls them into set_own_arg in
@@ -8475,11 +8475,11 @@ type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Context
 
 type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
-    if name.eq("U8")   { return Type.Struct("U8") }
-    if name.eq("I8")   { return Type.Struct("I8") }
+    if name.eq("U8")   { return Type.Primitive(Primitive.U8) }
+    if name.eq("I8")   { return Type.Primitive(Primitive.I8) }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
-    if name.eq("I32")  { return Type.Struct("I32") }
+    if name.eq("I32")  { return Type.Primitive(Primitive.I32) }
     if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
     if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
     if name.eq("F32")  { return Type.Primitive(Primitive.F32) }
@@ -9707,7 +9707,7 @@ hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: V
         if ab.is_param.not() { return }
         if ab.is_mut.not() { return }
         // Issue #205: only rewrite for compound aggregates -- primitives
-        // (incl. those modelled as Type.Struct("I32")) keep value semantics
+        // (incl. those still arriving as Type.Struct("I32")) keep value semantics
         // and don't need the swap dance.
         if is_aggregate(ab.type).not() { return }
 
@@ -10644,7 +10644,7 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
 // expr_til_type derives Type.Struct("Str") and Type.Primitive(Primitive.Bool) for LiteralStr
 // and LiteralBool directly from node_type, so this function only needs
 // to handle the two variants with non-trivial inference: LiteralNum's
-// I64-default-unless-already-narrowed (parser writes Type.Struct("U8") for char
+// I64-default-unless-already-narrowed (parser writes Type.Primitive(Primitive.U8) for char
 // literals) and LiteralNull's initial Type.Dynamic (narrow_dynamic may
 // mutate it post-write, so the field is still authoritative for that
 // variant).

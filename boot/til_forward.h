@@ -870,6 +870,7 @@ typedef struct Context {
     Set precomp_macros;
     Set precomp_funcs;
     Map precomp_known;
+    Set precomp_assigned;
     Bool has_return;
     Bool has_break;
     Bool has_continue;
@@ -1741,6 +1742,7 @@ Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void garbager_destroy(Context * ctx);
 void precomp_clear_known(Context * ctx);
 void precomp_reset_state(Context * ctx);
+void collect_assign_targets(Expr * e, Set * names);
 Bool precomp_has_macro(Context * ctx, Str * name);
 Bool precomp_has_func(Context * ctx, Str * name);
 Bool is_side_effecting_name(Str * name);

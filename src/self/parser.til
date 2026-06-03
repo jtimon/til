@@ -72,11 +72,11 @@ peek_col := func(p: Parser) returns U32 { return peek(p).col }
 // keeping the name already provided by the user.
 til_type_from_explicit_type := func(name: Str) returns Type {
     if name.eq("I64")     { return Type.Primitive(Primitive.I64) }
-    if name.eq("U8")      { return Type.Struct("U8") }
-    if name.eq("I8")      { return Type.Struct("I8") }
+    if name.eq("U8")      { return Type.Primitive(Primitive.U8) }
+    if name.eq("I8")      { return Type.Primitive(Primitive.I8) }
     if name.eq("I16")     { return Type.Primitive(Primitive.I16) }
     if name.eq("U16")     { return Type.Primitive(Primitive.U16) }
-    if name.eq("I32")     { return Type.Struct("I32") }
+    if name.eq("I32")     { return Type.Primitive(Primitive.I32) }
     if name.eq("U32")     { return Type.Primitive(Primitive.U32) }
     if name.eq("U64")     { return Type.Primitive(Primitive.U64) }
     if name.eq("F32")     { return Type.Primitive(Primitive.F32) }
@@ -948,7 +948,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if ch.len().gt(0) { byte_val = ch.get(0).cast(I64) }
         }
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
-        e.set_expr_til_type(Type.Struct("U8"))
+        e.set_expr_til_type(Type.Primitive(Primitive.U8))
         e_set = true
     }
     if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {

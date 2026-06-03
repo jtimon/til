@@ -186,6 +186,10 @@ Context := struct {
     precomp_macros := Set.new(Str)
     precomp_funcs := Set.new(Str)
     precomp_known := Map.new(Str, Value)
+    // Names that are the target of an assignment somewhere (so their value
+    // is not a compile-time constant -- a mut local reassigned in a loop is
+    // NOT foldable). Guards the scope-read fold in try_eval_call.
+    precomp_assigned := Set.new(Str)
 
     // Interpreter runtime state, moved off module globals (same
     // direct-on-Context approach as the precomp tables above). The
@@ -511,11 +515,11 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
-    if name.eq("U8")   { return Type.Struct("U8") }
-    if name.eq("I8")   { return Type.Struct("I8") }
+    if name.eq("U8")   { return Type.Primitive(Primitive.U8) }
+    if name.eq("I8")   { return Type.Primitive(Primitive.I8) }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
-    if name.eq("I32")  { return Type.Struct("I32") }
+    if name.eq("I32")  { return Type.Primitive(Primitive.I32) }
     if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
     if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
     if name.eq("USize") { return Type.Primitive(Primitive.U32) }

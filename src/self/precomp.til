@@ -14,6 +14,26 @@ precomp_reset_state := func(mut ctx: Context) {
     precomp_clear_known(ctx)
     Set.clear(ctx.precomp_macros)
     Set.clear(ctx.precomp_funcs)
+    Set.clear(ctx.precomp_assigned)
+}
+
+// Collect every variable name that is the target of an assignment in the
+// subtree, into `names`. Such a variable is reassigned, so its value is
+// NOT a compile-time constant and must not be folded from the precomp
+// interpreter scope (a mut loop counter would otherwise fold to its
+// initial value). Descends into nested FuncDef bodies too -- the set is a
+// conservative program-wide blocklist, which only ever suppresses an
+// optimisation (the scope-read fold), never macro folding via precomp_known.
+collect_assign_targets := proc(e: Expr, mut names: Set) {
+    if e.is_null() { return }
+    switch e.node_type {
+    case NodeType.Assign(ad):
+        names.add(own ad.name.clone())
+    case:
+    }
+    for i in 0..e.children.len() {
+        collect_assign_targets(e.child(i), names)
+    }
 }
 
 precomp_has_macro := func(ctx: Context, name: Str) returns Bool {
@@ -315,11 +335,11 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         return e
     case Value.Byte(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Struct("U8"))
+        e.set_expr_til_type(Type.Primitive(Primitive.U8))
         return e
     case Value.Sbyte(x):
         mut e := Expr.new(literal_num_node(x.cast(I64).to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Struct("I8"))
+        e.set_expr_til_type(Type.Primitive(Primitive.I8))
         return e
     case Value.Short(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
@@ -331,7 +351,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         return e
     case Value.Int32(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Struct("I32"))
+        e.set_expr_til_type(Type.Primitive(Primitive.I32))
         return e
     case Value.Uint32(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
@@ -804,12 +824,15 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         ref arg : Expr = fcall.child(i.add(1))
         mut arg_val := val_none()
         mut arg_is_known := is_known(ctx, arg, arg_val)
-        // Issue #191: also check interpreter scope for arg values
+        // Issue #191: also check interpreter scope for arg values. Skip
+        // names that are assigned somewhere -- their scope value is just
+        // the precomp interpreter's last write (e.g. a mut loop counter's
+        // initial value), not the runtime value, so folding it is unsound.
         if arg_is_known.not() {
             switch arg.node_type {
             case NodeType.Ident(arg_id):
                 ref cell : Cell = scope_get(scope, arg_id.ident_name())
-                if cell.is_null().not() {
+                if cell.is_null().not().and(ctx.precomp_assigned.has(arg_id.ident_name()).not()) {
                     switch cell.val {
                     case Value.Int(iv):
                         mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
@@ -818,12 +841,12 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         continue
                     case Value.Byte(bv):
                         mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Struct("U8"))
+                        lit.set_expr_til_type(Type.Primitive(Primitive.U8))
                         ec.add_child(own lit)
                         continue
                     case Value.Sbyte(bv):
                         mut lit := Expr.new(literal_num_node(bv.cast(I64).to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Struct("I8"))
+                        lit.set_expr_til_type(Type.Primitive(Primitive.I8))
                         ec.add_child(own lit)
                         continue
                     case Value.Short(sv):
@@ -838,7 +861,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         continue
                     case Value.Int32(iv):
                         mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Struct("I32"))
+                        lit.set_expr_til_type(Type.Primitive(Primitive.I32))
                         ec.add_child(own lit)
                         continue
                     case Value.Uint32(uv):
@@ -1124,8 +1147,12 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // (which would dangle when the FuncDef restore frees them).
         switch child.node_type {
         case NodeType.Decl(dd):
+            // Don't track a variable that is assigned somewhere: even if its
+            // `mut` flag was cleared (e.g. by a redundant-mut pass), a
+            // reassigned variable is not a compile-time constant.
             if dd.is_mut.not()
             .and(dd.own_type.is(OwnType.Ref).not())
+            .and(ctx.precomp_assigned.has(dd.name).not())
             .and(child.children.len().gt(0)) {
                 track_literal_known_only(dd.name, child.child(0), ctx)
             }
@@ -1135,6 +1162,13 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
 }
 
 process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
+    // Record every assignment target in the whole unit up front so the
+    // scope-read fold in try_eval_call never treats a reassigned variable
+    // (e.g. a mut loop counter) as a comptime constant. Only done at the
+    // top-level entry; the walk descends into all nested func bodies.
+    if at_global {
+        collect_assign_targets(body, ctx.precomp_assigned)
+    }
     // Walk statement-by-statement so top-level non-mut Decls get bound
     // in the precomp interpreter scope as soon as their RHS folds to a
     // literal. This mirrors rstil's EvalHeap::insert_primitive flow and
@@ -1168,6 +1202,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         case NodeType.Decl(dd):
             if dd.is_mut { continue }
             if dd.own_type.is(OwnType.Ref) { continue }
+            if ctx.precomp_assigned.has(dd.name) { continue }
             track_literal(scope, dd.name, rhs, ctx)
         case:
         }
