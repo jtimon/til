@@ -47,3 +47,32 @@ fn_identity := func(own x: I64) returns I64 {
 test_own_params := test() {
     assert_eq(__LOC__, fn_identity(own 100), 100)
 }
+
+// --- merged from test/ufcs.til ---
+
+// Test universal UFCS: a.f(b) resolves to top-level f(a, b)
+
+double := func(x: I64) returns I64 { return x.mul(2) }
+
+test_basic := test() {
+    assert(__LOC__, 5.double().eq(10))
+    assert(__LOC__, 0.double().eq(0))
+}
+
+test_println := test() {
+    "hello from ufcs".println()
+}
+
+test_format := test() {
+    s := "result: ".format(42.to_str())
+    assert(__LOC__, s.eq("result: 42"))
+}
+
+greet := func(name: Str) returns Str {
+    return "hello, ".format(name)
+}
+
+test_user_func := test() {
+    s := "world".greet()
+    assert(__LOC__, s.eq("hello, world"))
+}
