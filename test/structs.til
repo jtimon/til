@@ -127,6 +127,43 @@ test_mixed_required_optional := test() {
     assert_eq_str(__LOC__, m.label, "hi")
 }
 
+// #242 follow-up: an `own` struct-typed field (required, or defaulted)
+// must round-trip and deep-clone on both backends. Regression test for
+// the builder emitting `Inner_clone(self->b)` (pointer) where the POD
+// clone takes a value -- the field is now dereferenced.
+OwnInner := struct { v := 0 }
+
+OwnReq := struct {
+    own item : OwnInner
+    tag := 0
+}
+
+OwnReqMixed := struct {
+    own a : OwnInner
+    own b : OwnInner = OwnInner(v = 99)
+}
+
+test_own_required_field := test() {
+    h := OwnReq(item = OwnInner(v = 7))
+    assert_eq(__LOC__, h.item.v, 7)
+    assert_eq(__LOC__, h.tag, 0)
+}
+
+test_own_required_mixed := test() {
+    m := OwnReqMixed(a = OwnInner(v = 1))
+    assert_eq(__LOC__, m.a.v, 1)
+    assert_eq(__LOC__, m.b.v, 99)
+}
+
+test_own_field_clone := test() {
+    h := OwnReq(item = OwnInner(v = 5))
+    h2 := h.clone()
+    // Deep clone: mutating the copy must not touch the original.
+    h2.item.v = 9
+    assert_eq(__LOC__, h.item.v, 5)
+    assert_eq(__LOC__, h2.item.v, 9)
+}
+
 test_independence := test() {
     a := Point()
     b := Point()

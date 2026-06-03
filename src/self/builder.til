@@ -290,6 +290,24 @@ priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: C
     emit_expr(f, arg, depth, ctx)
 }
 
+// #242 follow-up: emit an argument bound to a by-value (shallow) param.
+// An own/ref struct field is stored as a pointer, so it must be
+// dereferenced to hand over the value; every other shape goes through
+// emit_deref. Without this, an own/ref struct field passed by value --
+// including to the auto-generated `<T>_clone(<T> self)` and to any
+// plain function taking the field's POD type by value -- emits the raw
+// pointer where a value is expected, which is a C type error.
+// Dynamic / FuncPtr fields are already value-like (void *), so they are
+// left to emit_deref untouched.
+priv emit_value_param_arg := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
+    if e.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(e, ctx))
+        .and(e.expr_til_type().is(Type.Dynamic).not())
+        .and(e.expr_til_type().is(Type.FuncPtr).not()) {
+        return f.write("*").emit_expr(e, depth, ctx)
+    }
+    return emit_deref(f, e, depth, ctx)
+}
+
 // Emit the clone arg as `(T){.tag = T_TAG_X}` when it's a ns-Enum
 // variant FieldAccess; otherwise fall back to emit_deref.
 priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
@@ -2220,7 +2238,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                 for i in 1..e.children.len() {
                     if i.gt(1) { f.write(", ") }
                     if callee_param_is_shallow(flat, i.sub(1), ctx) {
-                        emit_deref(f, e.child(i), depth, ctx)
+                        emit_value_param_arg(f, e.child(i), depth, ctx)
                     } else if callee_param_is_usize(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
                         f.write("USIZE_REF(").emit_deref(e.child(i), depth, ctx).write(")")
                     } else if callee_param_is_uptr(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
@@ -2396,7 +2414,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                 for i in 1..e.children.len() {
                     if i.gt(1) { f.write(", ") }
                     if callee_param_is_shallow(name.ident_name(), i.sub(1), ctx) {
-                        emit_deref(f, e.child(i), depth, ctx)
+                        emit_value_param_arg(f, e.child(i), depth, ctx)
                     } else if callee_param_is_usize(name.ident_name(), i.sub(1), ctx).and(callee_param_is_own(name.ident_name(), i.sub(1), ctx).not()) {
                         f.write("USIZE_REF(").emit_deref(e.child(i), depth, ctx).write(")")
                     } else if callee_param_is_uptr(name.ident_name(), i.sub(1), ctx).and(callee_param_is_own(name.ident_name(), i.sub(1), ctx).not()) {
