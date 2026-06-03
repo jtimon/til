@@ -538,7 +538,8 @@ struct TokenType {
 
 typedef struct Token {
     TokenType type;
-    Str text;
+    U32 start;
+    U32 len;
     U32 line;
     U32 col;
 } Token;
@@ -552,6 +553,7 @@ typedef struct priv___src_self_parser_til__Parser {
     Vec anon_decls;
     Map anon_cache;
     Str pending_doc;
+    Str source;
 } priv___src_self_parser_til__Parser;
 
 
@@ -1284,13 +1286,14 @@ TokenType priv___src_self_lexer_til__lookup_single_char(I8 c);
 TokenType lookup_two_char(I8 c, I8 c2);
 TokenType * priv___src_self_lexer_til__lookup_keyword(Str * word, Map * kw);
 U32 priv___src_self_lexer_til__scan_to_eol(Str * src, U32 from, U32 src_len);
-void priv___src_self_lexer_til__push_tok(Vec * tokens, TokenType * type, Str * text, U32 line, U32 col);
+void priv___src_self_lexer_til__push_tok(Vec * tokens, TokenType * type, U32 start, U32 len, U32 line, U32 col);
 Vec * tokenize(Str * src, Str * path);
 priv___src_self_parser_til__Parser * priv___src_self_parser_til__Parser_clone(priv___src_self_parser_til__Parser * self);
 void priv___src_self_parser_til__Parser_delete(priv___src_self_parser_til__Parser * self, Bool call_free);
 U64 priv___src_self_parser_til__Parser_hash(priv___src_self_parser_til__Parser * self, HashFn hasher);
 U32 priv___src_self_parser_til__Parser_size(void);
 Token * priv___src_self_parser_til__peek(priv___src_self_parser_til__Parser * p);
+Str * priv___src_self_parser_til__tok_text(priv___src_self_parser_til__Parser * p, Token * t);
 Token * advance(priv___src_self_parser_til__Parser * p);
 Bool check(priv___src_self_parser_til__Parser * p, TokenType * type);
 Token * expect_token(priv___src_self_parser_til__Parser * p, TokenType * type);
@@ -1330,7 +1333,7 @@ Expr * priv___src_self_parser_til__parse_statement(priv___src_self_parser_til__P
 Expr * priv___src_self_parser_til__parse_case_head(priv___src_self_parser_til__Parser * p);
 Expr * parse_switch(priv___src_self_parser_til__Parser * p);
 Expr * parse_statement_body(priv___src_self_parser_til__Parser * p);
-Expr * parse(Vec * tokens, Str * path, Str * mode_out);
+Expr * parse(Vec * tokens, Str * source, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U32 TypeBinding_size(void);

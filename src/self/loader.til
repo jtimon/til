@@ -189,7 +189,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             source := File.readfile(abs)
             tokens := tokenize(source, disp)
             mut sub_mode := ""
-            sub_ast := parse(tokens, disp, sub_mode)
+            sub_ast := parse(tokens, source, disp, sub_mode)
             sub_mode = normalize_mode_name(sub_mode)
             ref sub_mode_def : Mode = require_mode(disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
@@ -772,7 +772,7 @@ load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     source := File.readfile(abs_path)
     tokens := tokenize(source, disp)
     mut mode_str := ""
-    ast := parse(tokens, disp, mode_str)
+    ast := parse(tokens, source, disp, mode_str)
     mode_str = normalize_mode_name(mode_str)
     if mode_str.eq("mode").not() {
         panic(__LOC__, "file '", disp, "' is not a 'mode mode' file")
@@ -884,7 +884,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     source_auto := File.readfile(abs_auto)
                     tokens_auto := tokenize(source_auto, disp_auto)
                     mut mode_auto := ""
-                    ast_auto := parse(tokens_auto, disp_auto, mode_auto)
+                    ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto)
                     mode_auto = normalize_mode_name(mode_auto)
                     ref mode_auto_def : Mode = require_mode(disp_auto, mode_auto)
                     context_register_path_mode(lp.ctx, disp_auto, mode_auto_def)
@@ -928,7 +928,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     core_source := File.readfile(core_path)
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
-    core_ast := parse(core_tokens, core_disp, core_mode_str)
+    core_ast := parse(core_tokens, core_source, core_disp, core_mode_str)
     ref core_mode : Mode = require_mode(core_disp, core_mode_str)
     context_register_path_mode(lp.ctx, core_disp, core_mode)
 
@@ -958,7 +958,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    user_ast := parse(tokens, path, mode_str)
+    user_ast := parse(tokens, source, path, mode_str)
     imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(path, mode_str)
@@ -1007,7 +1007,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         mode_source := File.readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
-        mode_ast := parse(mode_tokens, mode_disp, mode_mode)
+        mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode)
         mode_mode = normalize_mode_name(mode_mode)
         ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
         context_register_path_mode(lp.ctx, mode_disp, mode_mode_def)

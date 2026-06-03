@@ -8,7 +8,7 @@ import("../src/self/parser")
 parse_src := proc(src: Str) returns Expr {
     tokens := tokenize(src, "test")
     mut mode_str := ""
-    return parse(tokens, "test", mode_str)
+    return parse(tokens, src, "test", mode_str)
 }
 
 test_empty := proc() {

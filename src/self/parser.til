@@ -21,11 +21,23 @@ priv Parser := struct {
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     pending_doc := ""
+    // Owned copy of the lexed source. Tokens store only byte ranges
+    // (start/len); tok_text materialises a token's text as a transient
+    // view into this buffer. Owning it (vs borrowing the caller's source)
+    // keeps the views valid for the whole parse regardless of when the
+    // caller frees its own copy.
+    source := ""
 }
 
 priv peek := func(p: Parser) returns ref Token {
     ref t : Token = p.tokens[p.pos]
     return t
+}
+
+// Materialise a token's text as a transient view into the parser's owned
+// source buffer. The view must be cloned by callers that store it.
+priv tok_text := func(p: Parser, t: Token) returns Str {
+    return p.source.substr(t.start, t.len)
 }
 
 advance := func(mut p: Parser) returns ref Token {
@@ -44,7 +56,7 @@ expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
-            ": expected '", tok_name(type), "', found '", t.text, "'")
+            ": expected '", tok_name(type), "', found '", tok_text(p, t), "'")
     }
     return advance(p)
 }
@@ -54,9 +66,9 @@ expect_text := func(mut p: Parser, type: TokenType) returns Str {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
-            ": expected '", tok_name(type), "', found '", t.text, "'")
+            ": expected '", tok_name(type), "', found '", tok_text(p, t), "'")
     }
-    text := t.text.clone()
+    text := tok_text(p, t).clone()
     advance(p)
     return text
 }
@@ -931,11 +943,11 @@ parse_primary := proc(mut p: Parser) returns Expr {
     switch t.type {
     case TokenType.StringTok:
         advance(p)
-        e = Expr.new(NodeType.Literal(Literal.Str(t.text.clone())), t_line, t_col)
+        e = Expr.new(NodeType.Literal(Literal.Str(tok_text(p, t).clone())), t_line, t_col)
         e_set = true
     case TokenType.Number:
         advance(p)
-        e = Expr.new(literal_num_node(t.text), t_line, t_col)
+        e = Expr.new(literal_num_node(tok_text(p, t)), t_line, t_col)
         e_set = true
     case TokenType.Minus:
         // Unary minus: -N (literal) parses as a single negative numeric
@@ -947,7 +959,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                e = Expr.new(literal_num_node("-".concat(num_tok.text)), t_line, t_col)
+                e = Expr.new(literal_num_node("-".concat(tok_text(p, num_tok))), t_line, t_col)
                 e_set = true
             } else {
                 advance(p) // consume '-'
@@ -972,7 +984,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
     case TokenType.Char:
         advance(p)
         // Parse char literal to byte value
-        ch := t.text
+        ch := tok_text(p, t)
         mut byte_val := 0
         if ch.len().gt(0).and(ch.get(0).eq('\\')) {
             if ch.len().gt(1) {
@@ -1005,7 +1017,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         e_set = true
     case TokenType.Ident:
         advance(p)
-        name := t.text.clone()
+        name := tok_text(p, t).clone()
         // Compile-time directives
         if name.eq("__LOC__") {
             e = Expr.new(NodeType.Literal(Literal.Str(format(p.path, ":", t_line.to_str(), ":", t_col.to_str()))), t_line, t_col)
@@ -1053,7 +1065,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.LParen) {
             advance(p)
             ref tag_tok : Token = expect_token(p, TokenType.StringTok)
-            tag = tag_tok.text.clone()
+            tag = tok_text(p, tag_tok).clone()
             if tag.len().eq(0) { tag = "@anon" }
             expect_token(p, TokenType.RParen)
         }
@@ -1139,7 +1151,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
 
     if e_set.not() {
         panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-            ": unexpected token '", t.text, "'")
+            ": unexpected token '", tok_text(p, t), "'")
     }
 
     // Field access chain: e.field or e.method(args). Subscript a[b]
@@ -1571,9 +1583,9 @@ drain_doc_comments := func(mut p: Parser) {
     while check(p, TokenType.DocComment) {
         ref t : Token = peek(p)
         if p.pending_doc.is_empty() {
-            p.pending_doc = t.text.clone()
+            p.pending_doc = tok_text(p, t).clone()
         } else {
-            p.pending_doc = p.pending_doc.format("\n", t.text)
+            p.pending_doc = p.pending_doc.format("\n", tok_text(p, t))
         }
         advance(p)
     }
@@ -1852,19 +1864,19 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     }
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-        ": expected statement, found '", t.text, "'")
+        ": expected statement, found '", tok_text(p, t), "'")
     return Expr.new(NodeType.Body, 0, 0) // unreachable
 }
 
 // parse: entry point
-parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
-    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone())
+parse := proc(tokens: Vec, source: Str, path: Str, mut mode_out: Str) returns Expr {
+    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.clone())
 
     // Parse optional mode declaration
-    if check(p, TokenType.Ident).and(peek(p).text.eq("mode")) {
+    if check(p, TokenType.Ident).and(tok_text(p, peek(p)).eq("mode")) {
         advance(p)
         if check(p, TokenType.Ident).or(check(p, TokenType.KwTest)) {
-            mode_out = peek(p).text.clone()
+            mode_out = tok_text(p, peek(p)).clone()
             advance(p)
         } else {
             expect_token(p, TokenType.Ident)

@@ -51,12 +51,16 @@ TokenType := enum {
 }
 
 // --- Token struct ---
-// C Token uses start pointer + len (zero-copy into source buffer).
-// til Token uses text: Str (copied substring). Simpler memory model.
-
+// Zero-copy: a token stores the byte range [start, start+len) of its text
+// within the source buffer instead of a copied Str. The parser recovers
+// the text on demand as a transient view (src.substr(start, len)) from a
+// source it owns, so tokens carry no heap allocation and no dangling
+// pointer into the lexer's source. For literals the range is the content
+// span (string contents without quotes, /// doc text without the prefix).
 Token := struct {
     const type := TokenType.Eof
-    const text := ""
+    const start : USize = 0
+    const len : USize = 0
     const line : U32 = 0
     const col : U32 = 0
 }
@@ -266,14 +270,16 @@ priv scan_to_eol := func(src: Str, from: USize, src_len: USize) returns USize {
 // --- push_tok ---
 // Appends a Token to the vector. Centralises the construction so the
 // line/col plumbing is written once instead of at every emit site.
+// `start`/`len` record the token text's byte range in the source buffer.
 
-priv push_tok := func(mut tokens: Vec, type: TokenType, text: Str, line: U32, col: U32) {
-    tokens.push(own Token(type = type, text = text.clone(), line = line, col = col))
+priv push_tok := func(mut tokens: Vec, type: TokenType, start: USize, len: USize, line: U32, col: U32) {
+    tokens.push(own Token(type = type, start = start, len = len, line = line, col = col))
 }
 
 // --- Tokenizer ---
 // Strict translation of C tokenize(). Uses integer index instead of
-// char pointer. Token.text is a copied Str instead of pointer+len.
+// char pointer. Each Token records the byte range of its text within
+// `src` (start/len) rather than copying it.
 
 tokenize := proc(src: Str, path: Str) returns Vec {
     mut tokens := Vec.new(Token)
@@ -318,8 +324,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                             text_start = text_start.add(1)
                         }
                         text_end := scan_to_eol(src, text_start, src_len)
-                        line_text := src.substr(text_start, text_end.sub(text_start))
-                        push_tok(tokens, TokenType.DocComment, line_text, line, col)
+                        push_tok(tokens, TokenType.DocComment, text_start, text_end.sub(text_start), line, col)
                         pos = text_end
                         continue
                     }
@@ -359,7 +364,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 }
             }
             // Plain '/' operator (slash at EOF or not a comment)
-            push_tok(tokens, lookup_single_char(c), src.substr(start, 1), line, col)
+            push_tok(tokens, lookup_single_char(c), start, 1, line, col)
             pos++
             continue
 
@@ -379,10 +384,10 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
                 pos++
-                push_tok(tokens, TokenType.StringTok, src.substr(start.add(1), pos.sub(start).sub(2)), line, col)
+                push_tok(tokens, TokenType.StringTok, start.add(1), pos.sub(start).sub(2), line, col)
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
-                push_tok(tokens, TokenType.Error, src.substr(start, pos.sub(start)), line, col)
+                push_tok(tokens, TokenType.Error, start, pos.sub(start), line, col)
             }
             continue
 
@@ -395,11 +400,11 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             pos++
             if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
-                push_tok(tokens, TokenType.Char, src.substr(ch_start, pos.sub(ch_start)), line, col)
+                push_tok(tokens, TokenType.Char, ch_start, pos.sub(ch_start), line, col)
                 pos++
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
-                push_tok(tokens, TokenType.Error, src.substr(start, pos.sub(start)), line, col)
+                push_tok(tokens, TokenType.Error, start, pos.sub(start), line, col)
             }
             continue
 
@@ -419,7 +424,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                     }
                 }
             }
-            push_tok(tokens, TokenType.Number, src.substr(start, pos.sub(start)), line, col)
+            push_tok(tokens, TokenType.Number, start, pos.sub(start), line, col)
             continue
 
         // Identifiers/keywords (alpha) and operators
@@ -431,7 +436,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                     pos++
                 }
                 word := src.substr(start, pos.sub(start))
-                push_tok(tokens, lookup_keyword(word, kw_map), word, line, col)
+                push_tok(tokens, lookup_keyword(word, kw_map), start, pos.sub(start), line, col)
                 continue
             }
 
@@ -442,14 +447,14 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
                     ref c3 : I8 = src.byte_at(pos.add(2))
                     if c3.eq('.') {
-                        push_tok(tokens, TokenType.DotDotDot, src.substr(start, 3), line, col)
+                        push_tok(tokens, TokenType.DotDotDot, start, 3, line, col)
                         pos = pos.add(3)
                         continue
                     }
                 }
                 two := lookup_two_char(c, c2)
                 if two.is(TokenType.Eof).not() {
-                    push_tok(tokens, two, src.substr(start, 2), line, col)
+                    push_tok(tokens, two, start, 2, line, col)
                     pos = pos.add(2)
                     continue
                 }
@@ -458,20 +463,20 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             // Single-character tokens
             single := lookup_single_char(c)
             if single.is(TokenType.Eof).not() {
-                push_tok(tokens, single, src.substr(start, 1), line, col)
+                push_tok(tokens, single, start, 1, line, col)
                 pos++
                 continue
             }
 
             // Unknown character
             println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
-            push_tok(tokens, TokenType.Error, src.substr(start, 1), line, col)
+            push_tok(tokens, TokenType.Error, start, 1, line, col)
             pos++
         }
     }
 
     // EOF
     col : U32 = pos.sub(line_start).add(1)
-    push_tok(tokens, TokenType.Eof, "", line, col)
+    push_tok(tokens, TokenType.Eof, pos, 0, line, col)
     return tokens
 }
