@@ -1,4 +1,5 @@
 mode lib
+import("context")
 
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.

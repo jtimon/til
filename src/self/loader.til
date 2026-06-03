@@ -1,4 +1,5 @@
 mode lib
+import("context")
 
 import("parser")
 import("modes")

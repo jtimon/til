@@ -1,0 +1,712 @@
+mode lib
+
+import("parser")
+
+TypeBinding := struct {
+    name := ""
+    type := Type.Unknown
+    is_mut := false
+    is_priv := false
+    path := ""
+    line : U32 = 0
+    col : U32 = 0
+    is_param := false
+    own_type := OwnType.Shallow
+    is_alias := false
+    is_type_alias := false
+    // True when the binding denotes a function or function-signature
+    // *declaration*, as opposed to a function-pointer *value* (a local,
+    // param, or struct field of FuncPtr type). The actual func kind lives
+    // on func_def; this only records "is this a declaration", which a
+    // func-ptr value's copied func_def cannot tell us on its own.
+    is_func_decl := false
+    alias_target := ""
+    ref struct_def : Expr = NULL
+    ref func_def : Expr = NULL
+    is_builtin := false
+    used := false
+    // #164: set when the binding is written through -- direct `name = ...`,
+    // `name.f = ...`, etc. Combined with mut_explicit, lets
+    // check_unused_mut_locals flag `mut` locals that are never written and
+    // suggest dropping the keyword.
+    written := false
+    // #164: true when the source declaration used the lexical `mut`
+    // keyword. The typer auto-promotes some bindings (array/vec literal
+    // rewrites) to is_mut=true even when the user wrote `:=`; flagging
+    // those would produce a confusing "redundant 'mut' on local 'X'"
+    // diagnostic where there is no source-level 'mut' to drop.
+    // mut_explicit is set exactly at the typer's Decl handler from
+    // sdecl.is_mut.
+    mut_explicit := false
+    // Issue #93: mirror of Declaration.orig_name -- non-empty means
+    // init_declarations_unit hoisted this decl from a function body and
+    // the unused-priv check should report it in source terms (original
+    // name + enclosing parent) rather than as a synthetic mangled name.
+    orig_name := ""
+namespace:
+    eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
+        return a.name.eq(b.name)
+    }
+    to_str := func(self: TypeBinding) returns Str {
+        if self.name.is_null() { return "TypeBinding" }
+        return self.name.clone()
+    }
+}
+
+ScopeFind := enum { NotFound, Found: TypeBinding }
+
+TypeScope := struct {
+    bindings := Map.new(Str, TypeBinding)
+    ref parent : TypeScope = NULL
+namespace:
+    get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
+        if self.bindings.has(name) {
+            ref b : TypeBinding = self.bindings[name]
+            return b
+        }
+        if self.parent.is_null().not() {
+            ref pb : TypeBinding = self.parent.get_binding(name)
+            return pb
+        }
+        return NULL
+    }
+    find := func(self: TypeScope, name: Str) returns ScopeFind {
+        ref b : TypeBinding = self.get_binding(name)
+        if b.is_null().not() {
+            return ScopeFind.Found(b.clone())
+        }
+        return ScopeFind.NotFound
+    }
+    get_type := func(self: TypeScope, name: Str) returns Type {
+        ref b : TypeBinding = self.get_binding(name)
+        if b.is_null().not() { return b.type.clone() }
+        return Type.Unknown
+    }
+    get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
+        return binding_func_type(self.get_binding(name))
+    }
+    get_struct := func(self: TypeScope, name: Str) returns ref Expr {
+        if self.bindings.has(name) {
+            ref b : TypeBinding = self.bindings[name]
+            if b.struct_def.is_null().not() { return b.struct_def }
+        }
+        if self.parent.is_null().not() {
+            return self.parent.get_struct(name)
+        }
+        return NULL
+    }
+    is_mut := func(self: TypeScope, name: Str) returns Bool {
+        ref b : TypeBinding = self.get_binding(name)
+        if b.is_null().not() { return b.is_mut }
+        return false
+    }
+    set := func(mut self: TypeScope, name: Str, type: Type,
+        is_mut: Bool,
+        path: Str,
+        line: U32, col: U32,
+        is_param: Bool, shallow own_type: OwnType) {
+            if self.bindings.has(name) {
+                ref mut b : TypeBinding = self.bindings[name]
+                b.type = type
+                b.is_mut = is_mut
+                // path/line/col are declaration-site identity. Don't
+                // overwrite them on re-registration: init_declarations_global
+                // re-runs across all units with a stale initer_path and
+                // would otherwise relocate priv bindings to the wrong file
+                // (issue #179 step 1 cross-file check needs the original).
+                b.is_param = is_param
+                b.own_type = own_type
+                return
+            }
+            nb := TypeBinding(name = name.clone(), type = type.clone(),
+                is_mut = is_mut,
+                path = path.clone(),
+                line = line, col = col,
+                is_param = is_param, own_type = own_type)
+            self.bindings.set(own name.clone(), own nb)
+        }
+}
+
+// A binding's func kind lives on its func_def FuncDef node, so derive it
+// rather than caching a copy on TypeBinding. Non-function bindings have no
+// func_def; return Func (the only callers test Proc/ExtProc/Test/Macro,
+// none of which a non-function answers yes to, and FuncPtr-typed callees
+// skip those checks entirely).
+binding_func_type := func(b: TypeBinding) returns shallow FuncType {
+    if b.is_null() { return FuncType.Func }
+    if b.func_def.is_null().not() {
+        switch b.func_def.node_type {
+        case NodeType.FuncDef(fd): return fd.func_type
+        case:
+        }
+    }
+    return FuncType.Func
+}
+
+ImportUnit := struct {
+    mode_str := ""
+    mode := Mode()
+    own ast := Expr.new(NodeType.Body, 0, 0)
+    imports := Vec.new(Str)
+}
+
+Context := struct {
+    mode := Mode()
+    path := ""
+    path_modes := Map.new(Str, Mode)
+
+    // Import tracking (rstil-style). Map path -> (mode, ast).
+    imported := Map.new(Str, ImportUnit)
+    imports_init_done := Set.new(Str)
+    // Two-sweep typer (issue #174 / #147 step 3-4 prep). The typer
+    // recursion is split into a decls-first sweep (struct/enum decls,
+    // methodgen, layout) and a bodies sweep (function body
+    // type-checking). The decls sweep produces all method-name
+    // bindings before any body type-checks, so the Vec/Str/I64 method
+    // cycle that #174 catalogues is broken: bodies in either
+    // direction always see the other's methods. Each sweep has its
+    // own per-file memo Set.
+    imports_typer_decls_done := Set.new(Str)
+    imports_typer_bodies_done := Set.new(Str)
+    imports_precomp_done := Set.new(Str)
+    imports_eval_done := Set.new(Str)
+
+    scope := TypeScope()
+    is_repl := false
+
+    // Issue #147 step 3: struct/enum layouts keyed by type name. Populated
+    // by record_struct_layout / record_enum_layout after compute_*_layout
+    // fills the AST fields. Readers still use the AST fields for now; they
+    // migrate to this map in step 4.
+    struct_layouts := Map.new(Str, StructLayout)
+
+    // Precomp state moved off module globals. The same Context crosses
+    // imported files and later phases, so these three tables live here
+    // directly rather than as a separate module-global side store.
+    precomp_macros := Set.new(Str)
+    precomp_funcs := Set.new(Str)
+    precomp_known := Map.new(Str, Value)
+
+    // Interpreter runtime state, moved off module globals (same
+    // direct-on-Context approach as the precomp tables above). The
+    // control-flow flags and return slot drive eval_body /
+    // eval_user_func; ns_fields/ns_keys hold static struct fields keyed
+    // `<Type>.<field>`; ns_inited guards their one-time (re)creation.
+    has_return := false
+    has_break := false
+    has_continue := false
+    return_value := Value.None
+    ns_fields := Map.new(Str, Value)
+    ns_keys := Vec.new(Dynamic)
+    ns_inited := false
+
+    // True while the typer is inferring a struct/enum namespace member
+    // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
+    // test() decls at the namespace level even though scope.parent is
+    // the type's inner scope, while still rejecting test() decls
+    // inside arbitrary nested function bodies.
+    typing_namespace_member := false
+
+    // #178 first table: per-function-emission cache of FuncPtr local
+    // signatures, populated by the builder when it emits a FuncPtr-typed
+    // decl, read back when fcall_fn_sig needs to resolve a FuncPtr local
+    // call. Currently swapped at emit_func_def boundaries to scope it
+    // per emission. The eventual rstil-style direction is to populate
+    // this from the typer (keyed by function name) so the builder reads
+    // without a per-emit reset; this commit only moves the storage.
+    local_fn_sigs := Map.new(Str, Dynamic)
+
+    // #178 builder lookup tables migrated from module-globals. Populated
+    // at build registration time, read throughout codegen.
+    func_defs := Map.new(Str, Dynamic)
+    struct_def_exprs := Map.new(Str, Dynamic)
+    funcsig_names := Set.new(Str)
+    script_globals := Set.new(Str)
+    ref_globals := Set.new(Str)
+
+    // Issue #198: typer-owned error-type registries, moved off
+    // module-level globals so they live on the same Context that
+    // crosses unit boundaries. throw_type_registry is the integer-tag
+    // table used by tag_for_type; throws_names/throws_per is the
+    // Decl-name -> throws-types map used by inject_throw_args_in_body.
+    throw_type_registry := Vec.new(Str)
+    throws_names_global := Vec.new(Str)
+    throws_per_global := Vec.new(Vec)
+
+    // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
+    // temps emitted when hoisting nested `f()!` calls. Lives on
+    // ctx so the same Context that already threads the throws
+    // registries also owns the matching temp counter.
+    bang_counter : I64 = 0
+
+    // Type-qualified throws lookup: throws_names_global stores method
+    // throws under "Type.method" keys (free functions stay bare). To
+    // resolve the receiver type of a `recv.method(...)` call site at
+    // lowering time (before infer_body runs), the throw/catch walk
+    // seeds this map with the current function's param-name -> type-name
+    // bindings. Local receivers are resolved by scanning the body's
+    // Decls (guess_local_type); the global scope handles the static
+    // `Type.method(...)` form.
+    lowering_param_types := Map.new(Str, Str)
+
+    // Two typer-scope flags shared with garbager: typer_in_main_func is
+    // set while infer_func_def_expr is checking main(), so the garbager
+    // helpers can give main()'s non-Own params a scope-end delete (no
+    // caller frees them); typer_in_shallow_return is set when the
+    // current function returns `shallow T`, so the garbager keeps a
+    // would-be-moved struct local Shallow for the codegen.
+    typer_in_shallow_return : Bool = false
+    typer_in_main_func : Bool = false
+
+    // Resolved declared return type name of the function currently being
+    // type-checked (empty when none / not in a func). infer_return_stmt
+    // reads it to narrow a bare numeric literal return value to the
+    // declared numeric type, mirroring the call-argument narrowing in
+    // validate_fcall_arg. Saved+restored around each func body.
+    typer_return_type_name : Str = ""
+
+    // Monotonically-increasing builder counter for synthesised
+    // constructor temp names (`_ctor_<N>`). The codegen never
+    // resets this -- it just needs unique names across the whole
+    // emission, so a single ctx-owned counter is sufficient.
+    ctor_seq : I32 = 0
+
+    // Builder emission-state flags. in_func_def is true while
+    // emit_func_def is emitting a function body, so emit_stmt_decl
+    // knows a Decl is a local (not a header global); in_main_func is
+    // true while emitting main()'s body so emit_stmt_return can
+    // append `return 0;` after the user code.
+    in_func_def : Bool = false
+    in_main_func : Bool = false
+
+    // Typer proc/func validation: proc_def_depth counts the nesting
+    // depth of `proc` definitions currently being typed (>0 means we
+    // are inside one), and proc_calls_count tallies proc/ext_proc
+    // call sites seen in the active proc body. infer_func_def_expr
+    // saves+restores both around each body so a proc that contains
+    // no proc-calls trips the "should be a func" diagnostic.
+    proc_calls_count : I32 = 0
+    proc_def_depth : I32 = 0
+
+    // Typer unique-name generators. Each counter mints a fresh
+    // suffix for a different family of synthesised temps that the
+    // typer emits during desugar/hoist passes: hoist_counter for
+    // generic hoists (`hoisted__<T>_<N>`, `_wcond_Bool_<N>`,
+    // `_sw_<T>_<N>`, ...), va_counter for variadic-Array packs
+    // (`_va_Array_<N>`), kw_counter for keyword-arg DynMaps
+    // (`_kw<N>`), coll_counter for vec/array literal hoists
+    // (`_vec_<N>`, `_array_<N>`). They never reset -- they only
+    // need to mint unique-across-program names.
+    hoist_counter : I32 = 0
+    va_counter : I32 = 0
+    kw_counter : I32 = 0
+    coll_counter : I32 = 0
+
+    // Remaining typer-phase scratch, moved off module globals. errors is
+    // the per-unit type-error counter (reset and returned by
+    // type_check_unit / type_check); current_type_name / current_top_func_name
+    // track the type/function whose body is being typed (for the priv
+    // access checks); auto_gen_depth counts nesting of auto-generated
+    // FuncDef bodies so the unused-priv-member check ignores boilerplate
+    // reads; throw_used_local_names tracks err-slot locals referenced
+    // while lowering throw/catch. (typer_path is not duplicated here --
+    // it was always a copy of ctx.path.)
+    errors : I32 = 0
+    current_type_name := ""
+    current_top_func_name := ""
+    auto_gen_depth : I32 = 0
+    throw_used_local_names := Set.new(Str)
+
+    // #178 builder per-function transients. The builder resets these on
+    // entering each function body and reads them throughout that body's
+    // emission. emit_func_def is not actually recursive (the typer lifts
+    // nested funcs to top level), so a per-emit reset is sufficient.
+    stack_locals := Set.new(Str)
+    stack_local_types := Map.new(Str, Str)
+    unsafe_to_hoist := Set.new(Str)
+    ref_locals := Set.new(Str)
+    // #220: names of decls made inside the current function body. Inside a
+    // function every `:=` decl is a local (is_global/is_rg are gated on
+    // in_func_def.not()), but stack_locals/ref_locals only capture a subset
+    // of emit paths -- own-heap pointer locals (`Type *m = malloc(...)`) and
+    // Dynamic locals (`void *tmp = ...`) were untracked. A local that shadows
+    // a script global of the same name then inherited the global's value
+    // classification and codegen emitted `.`/`&`/value-return against a
+    // pointer. Recorded for every in-function decl; consulted only by
+    // is_value_global/is_ref_global so the effect is limited to the
+    // global-vs-local decision.
+    ptr_locals := Set.new(Str)
+    // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
+    // separately so emit_deref can typed-cast a Dynamic-declared
+    // local when the typer's narrow_dynamic has retyped a use of it
+    // to a concrete primitive (`not(x)`, `y.add(x)`, etc.). Without
+    // the cast the codegen would emit `DEREF(x)` on a `void *`,
+    // which is invalid C.
+    ref_dyn_locals := Set.new(Str)
+    ref current_fdef : Expr = NULL
+
+    // #177 interpreter caches for well-known core types, populated during
+    // interpret_register_defs by interpret_register_struct_defs and read
+    // back by make_str_value / build_array_from_argv. These were the
+    // remaining six module-scope ref-mut + NULL globals after #178.
+    ref cached_str_def : Expr = NULL
+    ref cached_str_name : Str = NULL
+    ref cached_array_def : Expr = NULL
+    ref cached_array_name : Str = NULL
+    ref cached_vec_def : Expr = NULL
+    ref cached_vec_name : Str = NULL
+
+    // Interpreter type-def registry: maps every struct/enum name to its
+    // AST def Expr. Populated by interpreter_init_ns, read via
+    // lookup_interp_type_def. This is the rstil-style "external type
+    // map" that lets struct/enum values carry only a heap pointer +
+    // type name and recover their layout by name lookup. Stored as
+    // Map(Str, Dynamic) of malloc'd cells holding the Expr pointer
+    // (same encoding as struct_def_exprs / func_defs) so the field type
+    // stays in scope at the Context definition in this file.
+    interp_type_defs := Map.new(Str, Dynamic)
+
+    // Dispatch / FFI runtime state (previously module-level globals in
+    // dispatch.til). FFIEntry / FFITypePtrBox are defined in dispatch.til
+    // but resolve here via whole-program merge (same as ns_fields' Value).
+    // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
+    // these maps to fresh, so Context's auto-delete only ever frees empty
+    // containers -- no double free of the libffi allocations.
+    dispatch_map := Map.new(Str, Dynamic)
+    dispatch_inited := false
+    ffi_map := Map.new(Str, FFIEntry)
+    ffi_map_inited := false
+    ffi_loaded := false
+    ffi_struct_defs := Map.new(Str, Dynamic)
+    ffi_type_cache := Vec.new(FFITypePtrBox)
+    ffi_type_cache_inited := false
+}
+
+// --- Helpers moved from initer.til ---
+
+priv_c_name := func(path: Str, name: Str) returns Str {
+    mut buf := Str.with_capacity(path.len().add(name.len()).add(16))
+    buf.push_str("priv__")
+    mut last_was_underscore := false
+    mut i : USize = 0
+    while i.lt(path.len()) {
+        ref c : I8 = path.byte_at(i)
+        is_alnum := c.gte('a').and(c.lte('z'))
+            .or(c.gte('A').and(c.lte('Z')))
+            .or(c.gte('0').and(c.lte('9')))
+        if is_alnum {
+            buf.push_str(path.substr(i, 1))
+            last_was_underscore = false
+        } else {
+            if last_was_underscore.not() {
+                buf.push_str("_")
+                last_was_underscore = true
+            }
+        }
+        i = i.add(1)
+    }
+    buf.push_str("__")
+    buf.push_str(name)
+    return buf
+}
+
+align_up := func(offset: I32, align: I32) returns I32 {
+    return offset.add(align).sub(1).band(align.sub(1).bxor(-1))
+}
+
+precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
+    if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
+    switch stmt.child(0).node_type {
+    case NodeType.FuncDef(fd):
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if fd.func_type.is(FuncType.Macro) {
+                ctx.precomp_macros.add(own dd.name.clone())
+            } else if fd.func_type.is(FuncType.Func)
+                .or(fd.func_type.is(FuncType.ExtFunc)) {
+                ctx.precomp_funcs.add(own dd.name.clone())
+            }
+        case:
+        }
+    case NodeType.StructDef(sdd_data):
+        switch stmt.node_type {
+        case NodeType.Decl(sdd):
+            for d_j : Declaration in sdd_data.ns_decls {
+                ref fdd : Declaration = d_j
+                ref fdef : Expr = fdd.default_value
+                switch fdef.node_type {
+                case NodeType.FuncDef(ffd):
+                    qname := sdd.name.format("_", fdd.name)
+                    if ffd.func_type.is(FuncType.Macro) {
+                        ctx.precomp_macros.add(own qname)
+                    } else if ffd.func_type.is(FuncType.Func)
+                        .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        ctx.precomp_funcs.add(own qname)
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    case NodeType.EnumDef(pc_edd):
+        switch stmt.node_type {
+        case NodeType.Decl(sdd):
+            for d_j : Declaration in pc_edd.ns_decls {
+                ref nsd : Declaration = d_j
+                if nsd.default_value.is_null() { continue }
+                switch nsd.default_value.node_type {
+                case NodeType.FuncDef(ffd):
+                    qname := sdd.name.format("_", nsd.name)
+                    if ffd.func_type.is(FuncType.Macro) {
+                        ctx.precomp_macros.add(own qname)
+                    } else if ffd.func_type.is(FuncType.Func)
+                        .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        ctx.precomp_funcs.add(own qname)
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    case:
+    }
+}
+
+make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32) returns Expr {
+    mut acc := Expr.new(field_access_node(method), line, col)
+    acc.add_child(own recv)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own acc)
+    return call
+}
+
+make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32) returns Expr {
+    mut gp := Expr.new(ident_node("get_payload"), line, col)
+    mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    gc.add_child(own gp)
+    gc.add_child(own arg)
+    gc.set_expr_til_type(payload_type)
+    return gc
+}
+
+make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, line: U32, col: U32) returns Expr {
+    mut iv := Expr.new(ident_node("is"), line, col)
+    mut arg_id := Expr.new(ident_node(arg_name), line, col)
+    mut et := Expr.new(ident_node(ename), line, col)
+    mut vr := Expr.new(field_access_node(vname), line, col)
+    vr.add_child(own et)
+    mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    is_call.add_child(own iv)
+    is_call.add_child(own arg_id)
+    is_call.add_child(own vr)
+    return is_call
+}
+
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Expr {
+    mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref, is_mut = is_mut)), line, col)
+    decl.add_child(own gc)
+    return decl
+}
+
+type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
+    if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
+    if name.eq("U8")   { return Type.Struct("U8") }
+    if name.eq("I8")   { return Type.Struct("I8") }
+    if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
+    if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
+    if name.eq("I32")  { return Type.Struct("I32") }
+    if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
+    if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
+    if name.eq("USize") { return Type.Primitive(Primitive.U32) }
+    if name.eq("Str")  { return Type.Struct("Str") }
+    if name.eq("Bool") { return Type.Primitive(Primitive.Bool) }
+    if name.eq("StructDef") { return Type.Struct("StructDef") }
+    if name.eq("EnumDef") { return Type.Struct("EnumDef") }
+    if name.eq("Dynamic")   { return Type.Dynamic }
+    if scope.is_null().not() {
+        ref b : TypeBinding = scope.get_binding(name)
+        if b.is_null().not() {
+            if b.is_type_alias {
+                if b.alias_target.is_empty().not() {
+                    return type_from_name_init(b.alias_target, scope)
+                }
+            }
+            if b.is_builtin {
+                if b.struct_def.is_null().not() { return b.type }
+            }
+            if b.func_def.is_null().not() {
+                if b.func_def.children.len().eq(0) {
+                    return Type.FuncPtr
+                }
+            }
+        }
+        ref sdef : Expr = scope.get_struct(name)
+        if sdef.is_null().not() {
+            if sdef.node_type.is(NodeType.EnumDef) {
+                return Type.Enum(name.clone())
+            }
+            return Type.Struct(name.clone())
+        }
+    }
+    return Type.Unknown
+}
+
+init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
+    mut resolved := name.clone()
+    ref b : TypeBinding = scope.get_binding(name)
+    if b.is_null().not() {
+        if b.is_type_alias {
+            if b.alias_target.is_empty().not() {
+                resolved = b.alias_target.clone()
+            }
+        }
+    }
+    resolved_type := type_from_name_init(resolved, scope)
+    if resolved_type.is(Type.Unknown).not() {
+        return resolved_type
+    }
+    return til_type_from_explicit_type(resolved)
+}
+
+field_inferred_type_name := func(fd: Declaration) returns Str {
+    if fd.explicit_type.len().gt(0) { return fd.explicit_type.clone() }
+    if fd.default_value.is_null() { return "" }
+    ref def_val : Expr = fd.default_value
+    switch def_val.node_type {
+    case NodeType.Literal(Literal.Num):  return "I64"
+    case NodeType.Literal(Literal.Bool): return "Bool"
+    case NodeType.Literal(Literal.Str):  return "Str"
+    case NodeType.FCall:
+        if def_val.children.len().eq(0) { return "" }
+        ref callee : Expr = def_val.child(0)
+        switch callee.node_type {
+        case NodeType.Ident(cn): return cn.ident_name()
+        case:
+        }
+    case:
+    }
+    return ""
+}
+
+is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
+    if type_name.len().eq(0) { return false }
+    t := type_from_name_init(type_name, scope)
+    if is_primitive(t) { return true }
+    if t.is(Type.FuncPtr) { return true }
+    if scope.is_null() { return false }
+    ref sdef : Expr = scope.get_struct(type_name)
+    if sdef.is_null() { return false }
+    switch sdef.node_type {
+    case NodeType.StructDef(sdd):
+        if sdd.fields.len().eq(0) { return false }
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Own) { return false }
+            if fd.own_type.is(OwnType.Ref) { continue }
+            ftn := field_inferred_type_name(fd)
+            if is_pod_type_for_clone(ftn, scope).not() { return false }
+        }
+        return true
+    case NodeType.EnumDef(edd):
+        for j in 0..edd.variants.len() {
+            idx := j.to_i64()
+            if edd.payload_types.has(idx) {
+                ref pt : Str = edd.payload_types[idx]
+                if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
+            }
+        }
+        return true
+    case:
+    }
+    return false
+}
+
+// --- Helpers moved from ast.til ---
+
+// Self-compiler AST inspection helpers.
+
+is_decl_with_child := func(stmt: Expr) returns Bool {
+    return stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0))
+}
+
+is_struct_or_enum := func(stmt: Expr) returns Bool {
+    if is_decl_with_child(stmt).not() { return false }
+    ref def : Expr = stmt.child(0)
+    return def.node_type.is(NodeType.StructDef).or(def.node_type.is(NodeType.EnumDef))
+}
+
+is_func_decl := func(stmt: Expr) returns Bool {
+    if is_decl_with_child(stmt).not() { return false }
+    return stmt.child(0).node_type.is(NodeType.FuncDef)
+}
+
+is_def := func(stmt: Expr) returns Bool {
+    if is_decl_with_child(stmt).not() { return false }
+    ref def : Expr = stmt.child(0)
+    return def.node_type.is(NodeType.FuncDef)
+    .or(def.node_type.is(NodeType.StructDef))
+    .or(def.node_type.is(NodeType.EnumDef))
+}
+
+def_ns_decls := func(sdef: Expr) returns ref Vec {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        return sd.ns_decls
+    case NodeType.EnumDef(ed):
+        return ed.ns_decls
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
+enum_has_payloads := func(enum_def: Expr) returns Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        return edd.payload_types.len().gt(0)
+    case:
+        UNREACHABLE(__LOC__)
+        return false
+    }
+}
+
+enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for i in 0..edd.variants.len() {
+            ref vn : Str = edd.variants[i]
+            if vn.eq(variant_name) { return i.cast(I32) }
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return -1
+}
+
+enum_variant_type := func(enum_def: Expr, tag: I32) returns Str {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        idx := tag.cast(I64)
+        if edd.payload_types.has(idx) {
+            ref pt : Str = edd.payload_types[idx]
+            return pt.clone()
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return ""
+}
+
+enum_variant_payload_const := func(enum_def: Expr, tag: I32) returns Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        tag_u := tag.cast(U32)
+        if tag_u.lt(edd.payload_consts.len()) {
+            ref pc : Bool = edd.payload_consts[tag_u]
+            if pc { return true }
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    return false
+}

@@ -1,4 +1,5 @@
 mode lib
+import("context")
 
 // Asap destruction phase. See doc/pipeline.org step 5 and issue #204.
 //

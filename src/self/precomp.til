@@ -1,4 +1,5 @@
 mode lib
+import("context")
 
 // Precomp: constant folding for macros and pure functions
 precomp_clear_known := func(mut ctx: Context) {
