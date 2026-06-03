@@ -76,6 +76,7 @@ typedef enum {
     Literal_TAG_SetLit
 } Literal_tag;
 typedef struct Literal Literal;
+typedef struct MatchData MatchData;
 typedef enum {
     NodeType_TAG_Body,
     NodeType_TAG_Literal,
@@ -96,6 +97,7 @@ typedef enum {
     NodeType_TAG_Break,
     NodeType_TAG_Continue,
     NodeType_TAG_Switch,
+    NodeType_TAG_Match,
     NodeType_TAG_Case,
     NodeType_TAG_NoDefaultArg,
     NodeType_TAG_Throw,
@@ -459,6 +461,11 @@ struct Literal {
     } data;
 };
 
+typedef struct MatchData {
+    Type til_type;
+} MatchData;
+
+
 struct NodeType {
     NodeType_tag tag;
     union {
@@ -474,6 +481,7 @@ struct NodeType {
         FieldAssignData FieldAssign;
         ForInData ForIn;
         Str NamedArg;
+        MatchData Match;
     } data;
 };
 
@@ -1178,6 +1186,10 @@ U32 ForInData_size(void);
 void Literal_delete(Literal * self, Bool call_free);
 Literal * Literal_clone(Literal * self);
 U32 Literal_size(void);
+MatchData * MatchData_clone(MatchData * self);
+void MatchData_delete(MatchData * self, Bool call_free);
+U64 MatchData_hash(MatchData * self, HashFn hasher);
+U32 MatchData_size(void);
 Bool NodeType_is_literal_str(NodeType * self);
 Bool NodeType_is_literal_num(NodeType * self);
 Bool NodeType_is_literal_bool(NodeType * self);
@@ -1496,6 +1508,13 @@ void infer_cast_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 Bool infer_funcptr_call_via_cast(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
+void infer_match_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
+Type * match_arm_value_type(TypeScope * scope, Expr * case_node, Expr * subj, I32 in_func, Context * ctx);
+Bool stmt_contains_match(Expr * e);
+U32 lower_matches_in_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+void replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec * pre);
+Str * lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec * pre);
+void splice_stmts_before(Expr * body, U32 idx, Vec * pre);
 void infer_ident_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void infer_named_arg_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void infer_map_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);

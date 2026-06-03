@@ -1067,6 +1067,44 @@ parse_primary := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.RParen)
         e_set = true
     }
+    // Issue #244: `match` is the value-producing selection form. Same arm
+    // syntax as `switch`, but each arm body is a single expression and the
+    // whole `match` yields a value. Returns directly (bypassing the postfix
+    // chain) -- use `(match ...).method()` if a postfix is needed.
+    if e_set.not().and(t.type.is(TokenType.KwMatch)) {
+        advance(p)
+        mut node := Expr.new(NodeType.Match(MatchData()), t_line, t_col)
+        node.add_child(own parse_expression(p))
+        expect_token(p, TokenType.LBrace)
+        while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+            expect_token(p, TokenType.KwCase)
+            mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
+            if check(p, TokenType.Colon).not() {
+                cn.add_child(own parse_expression(p))
+                // Optional guard `case <pattern> if <expr>:`, as in switch.
+                if check(p, TokenType.KwIf) {
+                    advance(p)
+                    cn.add_child(own parse_expression(p))
+                }
+            }
+            expect_token(p, TokenType.Colon)
+            // Arm body is a single value-expression, wrapped in a Body so the
+            // arm shape matches a switch Case (lets the typer reuse the switch
+            // desugar). Block-valued arms are deferred (issue #244).
+            mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+            cb.add_child(own parse_expression(p))
+            cn.add_child(own cb)
+            node.add_child(own cn)
+        }
+        expect_token(p, TokenType.RBrace)
+        return node
+    }
+    // Issue #244: `switch` is statement-only. Reaching it here means it was
+    // written in value position (e.g. `x := switch ...`). Point at `match`.
+    if e_set.not().and(t.type.is(TokenType.KwSwitch)) {
+        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+            ": switch is a statement and yields no value; use 'match' to select a value")
+    }
 
     if e_set.not() {
         panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
@@ -1948,6 +1986,13 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         cn.add_child(own Expr.new(ident_node(type_name), ty_line, ty_col))
         cn.add_child(own body)
         return cn
+    }
+
+    // Issue #244: `match` yields a value, so it cannot stand alone as a
+    // statement (its value would be discarded). Point at `switch`.
+    if t.type.is(TokenType.KwMatch) {
+        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+            ": match yields a value that is unused here; use 'switch' for arms that run statements")
     }
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),

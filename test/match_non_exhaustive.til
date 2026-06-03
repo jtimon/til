@@ -1,0 +1,13 @@
+mode test
+
+# Issue #244: a match must yield a value on every path. A non-enum subject
+# with no `case:` default cannot be exhaustive.
+
+test_non_exhaustive := test() {
+    n := 9
+    s := match n {
+    case 1: "a"
+    case 2: "b"
+    }
+    assert_eq_str(__LOC__, s, "a")
+}

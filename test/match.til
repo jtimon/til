@@ -1,0 +1,145 @@
+mode test
+
+# Issue #244: `match` is the expression form of selection. `switch` stays
+# statement-only; `match` yields a value usable anywhere an expression is.
+
+Color := enum { Red, Green, Blue }
+Token := enum { Num: I64, Name: Str, Eof }
+
+# --- match as an initializer over an enum (exhaustive, no default) ---
+test_match_enum_to_str := test() {
+    c := Color.Green
+    name := match c {
+    case Color.Red:   "red"
+    case Color.Green: "green"
+    case Color.Blue:  "blue"
+    }
+    assert_eq_str(__LOC__, name, "green")
+}
+
+# --- every arm reached, value selected correctly ---
+test_match_each_arm := test() {
+    mut out := ""
+    out = out.concat(match Color.Red   { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
+    out = out.concat(match Color.Green { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
+    out = out.concat(match Color.Blue  { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
+    assert_eq_str(__LOC__, out, "rgb")
+}
+
+# --- payload binding; integer result ---
+test_match_payload := test() {
+    t := Token.Num(42)
+    n := match t {
+    case Token.Num(v):  v
+    case Token.Name(s): s.len().to_i64()
+    case Token.Eof:     -1
+    }
+    assert_eq(__LOC__, n, 42)
+}
+
+test_match_payload_str := test() {
+    t := Token.Name("hello")
+    s := match t {
+    case Token.Num(v):  v.to_str()
+    case Token.Name(n): n
+    case Token.Eof:     "eof"
+    }
+    assert_eq_str(__LOC__, s, "hello")
+}
+
+# --- guard arm: a failed guard falls through to the next arm ---
+test_match_guard := test() {
+    n := 5
+    s := match n {
+    case 5 if false: "no"
+    case 5:          "yes"
+    case:            "other"
+    }
+    assert_eq_str(__LOC__, s, "yes")
+}
+
+# --- default `case:` on a non-enum subject ---
+test_match_default := test() {
+    n := 7
+    s := match n {
+    case 1: "one"
+    case 2: "two"
+    case:   "many"
+    }
+    assert_eq_str(__LOC__, s, "many")
+}
+
+# --- match in return position ---
+classify := func(c: Color) returns Str {
+    return match c {
+    case Color.Red:   "r"
+    case Color.Green: "g"
+    case Color.Blue:  "b"
+    }
+}
+
+test_match_return := test() {
+    assert_eq_str(__LOC__, classify(Color.Blue), "b")
+}
+
+# --- match as the RHS of an assignment to an existing mut ---
+test_match_assign := test() {
+    mut s := "init"
+    s = match Color.Red {
+    case Color.Red:   "red"
+    case Color.Green: "green"
+    case Color.Blue:  "blue"
+    }
+    assert_eq_str(__LOC__, s, "red")
+}
+
+# --- match as a function argument ---
+greet := func(s: Str) returns Str {
+    return "hi-".concat(s)
+}
+
+test_match_arg := test() {
+    out := greet(match Color.Green {
+    case Color.Red:   "r"
+    case Color.Green: "g"
+    case Color.Blue:  "b"
+    })
+    assert_eq_str(__LOC__, out, "hi-g")
+}
+
+# --- nested match (a match in another match's arm) ---
+test_match_nested := test() {
+    c := Color.Green
+    n := 1
+    s := match c {
+    case Color.Red:   "red"
+    case Color.Green: match n {
+        case 1: "green-one"
+        case:   "green-other"
+        }
+    case Color.Blue:  "blue"
+    }
+    assert_eq_str(__LOC__, s, "green-one")
+}
+
+# --- two matches in one statement ---
+test_match_two_in_stmt := test() {
+    a := match Color.Red   { case Color.Red: 1 case Color.Green: 2 case Color.Blue: 3 }
+    b := match Color.Blue  { case Color.Red: 1 case Color.Green: 2 case Color.Blue: 3 }
+    assert_eq(__LOC__, a.add(b), 4)
+}
+
+# --- match used inside a switch arm (statement context) still works ---
+test_match_in_switch := test() {
+    c := Color.Green
+    mut label := ""
+    switch c {
+    case Color.Red:
+        label = "red"
+    case Color.Green:
+        label = match c { case Color.Green: "still-green" case: "?" }
+    case Color.Blue:
+        label = "blue"
+    }
+    assert_eq_str(__LOC__, label, "still-green")
+}

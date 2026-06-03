@@ -50,7 +50,6 @@
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/240.org][#240]] Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
-*** [[./open/244.org][#244]] Add `match` as an expression form (switch stays statement-only), with cross-suggesting errors
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

@@ -399,6 +399,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/constfold.til", flags)
     add_mode(tests, "test/strings.til", flags)
     add_mode(tests, "test/enums.til", flags)
+    add_mode(tests, "test/match.til", flags)
     add_mode(tests, "test/dynamic.til", flags)
     add_mode(tests, "test/maps.til", flags)
     add_mode(tests, "test/hashes.til", flags)
@@ -579,6 +580,19 @@ main := proc(args: ..Str) {
     add_count(tests, "enum_switch_missing_case_build", "typer",
               "non-exhaustive switch on enum", 4,
               format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"))
+    // Issue #244: match/switch cross-suggesting errors and match exhaustiveness.
+    add_count(tests, "match_switch_in_value", "parser",
+              "is a statement and yields no value", 1,
+              format(til_bin, " interpret test/match_switch_in_value.til"))
+    add_count(tests, "match_value_unused", "parser",
+              "yields a value that is unused here", 1,
+              format(til_bin, " interpret test/match_value_unused.til"))
+    add_count(tests, "match_arms_differ", "typer",
+              "match arms have incompatible types", 1,
+              format(til_bin, " interpret test/match_arms_differ.til"))
+    add_count(tests, "match_non_exhaustive", "typer",
+              "non-exhaustive match", 1,
+              format(til_bin, " interpret test/match_non_exhaustive.til"))
     // A main() param whose type can't be parsed from a CLI argument is
     // rejected up front (validate_cli_main) on both backends.
     add_count(tests, "cli_unsupported_main_interp", "typer",

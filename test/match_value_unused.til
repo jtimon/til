@@ -1,0 +1,13 @@
+mode test
+
+# Issue #244: `match` yields a value; using it as a bare statement throws the
+# value away and must point the user at `switch`.
+
+Color := enum { Red, Green }
+
+test_value_unused := test() {
+    match Color.Red {
+    case Color.Red:   1
+    case Color.Green: 2
+    }
+}

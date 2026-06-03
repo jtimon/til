@@ -139,10 +139,55 @@ remaining piece is freeing the OLD inner ~EnumInstance~ at the slot
 before overwriting -- a bounded per-write leak under interp; flagged
 as a follow-up.
 
+* match: the expression form (issue #244)
+
+~switch~ is statement-only: each arm runs statements and the whole
+~switch~ yields no value. ~match~ is its expression counterpart -- each
+arm is a single value-expression and the whole ~match~ yields a value,
+so it can appear anywhere an expression can (initializers, call
+arguments, ~return~, an assignment RHS, another match's arm):
+
+#+begin_src til
+name := match c {
+case Color.Red:   "red"
+case Color.Green: "green"
+case Color.Blue:  "blue"
+}
+#+end_src
+
+~match~ reuses the whole ~switch~ machinery: the same ~case <pattern>:~
+arms, payload bindings (~case Token.Num(v):~), guards
+(~case <pattern> if <expr>:~), and a bare ~case:~ default. Rules that
+differ from ~switch~:
+
+- *All arms must yield the same type* -- that common type is the type of
+  the match. A mismatch is reported as "match arms have incompatible
+  types: 'X' vs 'Y'".
+- *Exhaustive on every path* -- a match must produce a value no matter
+  what. An enum subject must cover every variant (same check ~switch~
+  already enforces); any other subject must supply a ~case:~ default.
+
+Lowering (typer): a ~match~ is rewritten to a result temp plus a
+synthetic ~switch~ whose every arm assigns the arm's value to the temp
+(~mut _m := <default>; switch subj { case P: _m = v ... }~). The temp
+declaration and switch are spliced in as statements just before the
+enclosing statement, and the match node is replaced by an ~_m~
+reference. The synthetic switch then goes through the ordinary switch
+desugar, so nested matches, guards, bindings and enum-exhaustiveness all
+fall out of the existing code (see ~infer_match_expr~ /
+~lower_one_match~ in ~src/self/typer.til~).
+
+Cross-suggesting errors steer each keyword to its role:
+- ~x := switch ...~ (switch in value position) -> "switch is a statement
+  and yields no value; use 'match' to select a value".
+- a bare ~match ...~ statement -> "match yields a value that is unused
+  here; use 'switch' for arms that run statements".
+
 * Current tests to extend
 
 Main reference file:
 - ~test/enums.til~
+- ~test/match.til~ (issue #244: match as an expression)
 
 Good follow-up coverage:
 - ~is~ on no-payload enums

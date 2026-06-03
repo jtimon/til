@@ -1,0 +1,14 @@
+mode test
+
+# Issue #244: `switch` is statement-only. Using it in value position must
+# point the user at `match`.
+
+Color := enum { Red, Green }
+
+test_switch_in_value := test() {
+    x := switch Color.Red {
+    case Color.Red:   1
+    case Color.Green: 2
+    }
+    assert_eq(__LOC__, x, 1)
+}

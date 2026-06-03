@@ -2592,9 +2592,218 @@ priv infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Con
     case NodeType.Literal(Literal.MapLit):      infer_map_lit_expr(scope, expr, in_func, ctx)
     case NodeType.Literal(Literal.SetLit):      infer_set_lit_expr(scope, expr, in_func, ctx)
     case NodeType.NamedArg:    infer_named_arg_expr(scope, expr, in_func, ctx)
+    case NodeType.Match:       infer_match_expr(scope, expr, in_func, ctx)
     case:
         expr.set_expr_til_type(Type.Unknown)
     }
+}
+
+// Issue #244: type a `match` expression by computing the common arm type.
+// Each arm body is a single value-expression; the whole match yields that
+// type. The actual lowering (result temp + synthetic switch) happens at the
+// statement level in lower_matches_in_stmt; here we only set the node's type
+// so enclosing decls/args/returns/nested-matches see it. The common type is
+// taken from the first arm; the synthetic switch's per-arm assignment then
+// enforces that every other arm agrees (a mismatch surfaces as an assign
+// type error). Arm values are type-checked on a throwaway clone so the real
+// arm nodes stay pristine for the desugar that re-infers them.
+infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+    if expr.children.len().eq(0) { expr.set_expr_til_type(Type.Unknown); return }
+    ref subj : Expr = expr.child(0)
+    infer_expr(scope, subj, in_func, ctx)
+    // The match's type is the common arm type. Take it from the first arm and
+    // check the rest agree, so a mismatch is reported clearly here (rather than
+    // surfacing later as a temp-named assignment error from the lowering).
+    mut result_t := Type.Unknown
+    mut has_t := false
+    mut reported := false
+    for ci in 1..expr.children.len() {
+        arm_t := match_arm_value_type(scope, expr.child(ci), subj, in_func, ctx)
+        if has_t.not() {
+            result_t = arm_t
+            has_t = true
+        } else if reported.not().and(arm_t.is(Type.Unknown).not()).and(result_t.is(Type.Unknown).not()).and(arm_t.eq(result_t).not()) {
+            expr.child(ci).type_error("match arms have incompatible types: '".concat(type_to_name(result_t)).concat("' vs '").concat(type_to_name(arm_t)).concat("'; all arms must yield the same type"), ctx)
+            reported = true
+        }
+    }
+    // A match must yield a value on every path. An enum subject's synthetic
+    // switch enforces variant exhaustiveness; for any other resolved subject
+    // type, require an explicit `case:` default to cover the remaining values.
+    subj_t := subj.expr_til_type()
+    if subj_t.is(Type.Enum).not().and(subj_t.is(Type.Custom).not()).and(subj_t.is(Type.Unknown).not()) {
+        mut has_default := false
+        for di in 1..expr.children.len() {
+            if expr.child(di).children.len().eq(1) { has_default = true }
+        }
+        if has_default.not() {
+            expr.type_error("non-exhaustive match; add a 'case:' default arm to cover the remaining values", ctx)
+        }
+    }
+    expr.set_expr_til_type(result_t)
+}
+
+// Type of one match arm's value-expression. Clones the arm body (so the real
+// node is untouched), prepends the pattern's payload bindings via the shared
+// switch helper, infers the bindings, then infers the value expression.
+match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, ctx: Context) returns Type {
+    arm_scope := TypeScope(parent = scope)
+    mut body_idx : U32 = 0
+    mut has_pattern := false
+    if case_node.children.len().eq(1) {
+        body_idx = 0                 // default `case:` -- child(0) is the Body
+    } else if case_node.children.len().eq(3) {
+        body_idx = 2                 // guarded -- [pattern, guard, Body]
+        has_pattern = true
+    } else {
+        body_idx = 1                 // [pattern, Body]
+        has_pattern = true
+    }
+    mut trial := case_node.child(body_idx).clone()
+    if has_pattern {
+        sw_ref := subj.clone()
+        make_switch_case_condition(arm_scope, trial, case_node.child(0), sw_ref, case_node.line, case_node.col)
+    }
+    mut t := Type.Unknown
+    if trial.children.len().gt(0) {
+        last_idx := trial.children.len().sub(1)
+        mut k : U32 = 0
+        while k.lt(last_idx) {
+            infer_body_stmt(arm_scope, trial, k, in_func, 0, 0, 0, ctx)
+            k++
+        }
+        infer_expr(arm_scope, trial.child(last_idx), in_func, ctx)
+        t = trial.child(last_idx).expr_til_type()
+    }
+    TypeScope.delete(own arm_scope)
+    return t
+}
+
+// True if `e` contains a Match node reachable without crossing into a nested
+// block/definition (those sub-bodies are lowered when infer_body recurses
+// into them). Stops at a Match (its arms are handled by lowering, not here).
+stmt_contains_match := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.Match:     return true
+    case NodeType.Body:      return false
+    case NodeType.FuncDef:   return false
+    case NodeType.StructDef: return false
+    case NodeType.EnumDef:   return false
+    case:
+    }
+    for c : Expr in e.children {
+        if stmt_contains_match(c) { return true }
+    }
+    return false
+}
+
+// Lower every top-level Match in body.child(stmt_idx) into a result temp plus
+// a synthetic Switch (reusing the entire switch desugar), spliced as new
+// statements before stmt_idx. Each Match node is replaced in place by an Ident
+// referencing its result temp. Returns the number of statements inserted, so
+// the caller can advance past them to type-check the now-match-free statement.
+lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns U32 {
+    mut pre := Vec.new(Expr)
+    ref mut stmt : Expr = body.child(stmt_idx)
+    replace_matches_rec(scope, stmt, in_func, in_loop, returns_ref, ctx, pre)
+    inserted := pre.len()
+    splice_stmts_before(body, stmt_idx, pre)
+    Vec.delete(own pre, true)
+    return inserted
+}
+
+// Walk `node`, replacing each top-level Match child with an Ident to its
+// lowered result temp and collecting the temp's setup statements into `pre`.
+// Does not descend into a Match (its arms are lowered by lower_one_match's own
+// infer_body pass) nor into nested blocks/definitions (handled separately).
+replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec) {
+    switch node.node_type {
+    case NodeType.Body:      return
+    case NodeType.FuncDef:   return
+    case NodeType.StructDef: return
+    case NodeType.EnumDef:   return
+    case:
+    }
+    mut ci : U32 = 0
+    while ci.lt(node.children.len()) {
+        if node.child(ci).node_type.is(NodeType.Match) {
+            infer_match_expr(scope, node.child(ci), in_func, ctx)
+            mname := lower_one_match(scope, node.child(ci), in_func, in_loop, returns_ref, ctx, pre)
+            mut id := Expr.new(ident_node(mname), node.child(ci).line, node.child(ci).col)
+            id.set_expr_til_type(node.child(ci).expr_til_type())
+            node.children.set(ci, own id)
+        } else {
+            replace_matches_rec(scope, node.child(ci), in_func, in_loop, returns_ref, ctx, pre)
+        }
+        ci++
+    }
+}
+
+// Build the lowering for one (already-typed) Match: a `mut _m := default(T)`
+// temp plus a synthetic Switch whose every arm assigns the arm's value to the
+// temp. The block is inferred here (declaring the temp in `scope` and reusing
+// infer_switch_stmt to desugar + type the dispatch, including any nested
+// matches in arm values), then its statements are appended to `pre`. Returns
+// the temp's name.
+lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec) returns Str {
+    line := match_node.line
+    col := match_node.col
+    result_t := match_node.expr_til_type()
+    tname := type_to_name(result_t)
+    mname := "_m_".concat(type_prefix(result_t)).concat("_").concat(ctx.hoist_counter.to_str())
+    ctx.hoist_counter++
+
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, explicit_type = tname.clone(), til_type = result_t.clone())), line, col)
+    decl.add_child(own make_default_value_expr(tname, line, col))
+
+    mut sw := Expr.new(NodeType.Switch, line, col)
+    sw.add_child(own match_node.child(0).clone())
+    for ci in 1..match_node.children.len() {
+        ref case_node : Expr = match_node.child(ci)
+        mut new_case := Expr.new(NodeType.Case, case_node.line, case_node.col)
+        mut body_idx : U32 = 0
+        if case_node.children.len().eq(1) {
+            body_idx = 0
+        } else if case_node.children.len().eq(3) {
+            new_case.add_child(own case_node.child(0).clone())
+            new_case.add_child(own case_node.child(1).clone())
+            body_idx = 2
+        } else {
+            new_case.add_child(own case_node.child(0).clone())
+            body_idx = 1
+        }
+        ref vbody : Expr = case_node.child(body_idx)
+        mut assign_body := Expr.new(NodeType.Body, vbody.line, vbody.col)
+        mut assign := Expr.new(NodeType.Assign(AssignData(name = mname.clone())), vbody.line, vbody.col)
+        assign.add_child(own vbody.child(0).clone())
+        assign_body.add_child(own assign)
+        new_case.add_child(own assign_body)
+        sw.add_child(own new_case)
+    }
+
+    mut block := Expr.new(NodeType.Body, line, col)
+    block.add_child(own decl)
+    block.add_child(own sw)
+    infer_body(scope, block, in_func, 0, in_loop, returns_ref, 0, ctx)
+    for bi in 0..block.children.len() {
+        pre.push_take(block.children, bi)
+    }
+    return mname
+}
+
+// Insert `pre`'s statements into body.children just before index `idx`,
+// preserving order. Mirrors the rebuild used by body_pre_passes.
+splice_stmts_before := func(mut body: Expr, idx: U32, mut pre: Vec) {
+    if pre.len().eq(0) { return }
+    mut old := Vec.new(Expr)
+    old.move_from(body.children)
+    mut nw := Vec.new(Expr)
+    for j in 0..idx { nw.push_take(old, j) }
+    for k in 0..pre.len() { nw.push_take(pre, k) }
+    for j in idx..old.len() { nw.push_take(old, j) }
+    body.children.move_from(nw)
+    Vec.delete(own nw, true)
+    Vec.delete(own old, true)
 }
 
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
@@ -7197,6 +7406,20 @@ is_compile_directive := func(e: Expr) returns Bool {
 }
 
 infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
+    // Issue #244: a bare `match` as a statement throws its value away.
+    if body.child(i).node_type.is(NodeType.Match) {
+        ref mut bare_match : Expr = body.child(i)
+        bare_match.type_error("match yields a value that is unused here; use 'switch' for arms that run statements", ctx)
+        bare_match.set_expr_til_type(Type.None)
+        return
+    }
+    // Issue #244: lower any match nested in this statement into a result temp
+    // plus a synthetic switch, spliced before it. `i` is advanced past the
+    // inserted statements so the now-match-free statement is type-checked next.
+    if stmt_contains_match(body.child(i)) {
+        inserted := lower_matches_in_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
+        i = i.add(inserted)
+    }
     ref mut stmt : Expr = body.child(i)
     if is_compile_directive(stmt) { stmt.set_expr_til_type(Type.None); return }
     switch stmt.node_type {
@@ -7830,7 +8053,12 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
         rhs.set_expr_til_type(existing)
         stmt.set_expr_til_type(existing)
     } else if rhs.expr_til_type().is(existing).not().and(rhs.expr_til_type().is(Type.Unknown).not()) {
-        stmt.type_error("'".concat(aname).concat("' assignment type mismatch"), ctx)
+        // Issue #244: a `_m_*` target is a synthesized match result temp; an
+        // arm-type mismatch was already reported cleanly by infer_match_expr,
+        // so don't also surface the internal temp name here.
+        if aname.starts_with("_m_").not() {
+            stmt.type_error("'".concat(aname).concat("' assignment type mismatch"), ctx)
+        }
     }
     // #164: record that this binding was written through. Done before
     // the ScopeFind.Found read below because get_binding returns a ref

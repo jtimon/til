@@ -1,0 +1,150 @@
+# priority: medium
+** FIXED #244 Add `match` as an expression form (switch stays statement-only), with cross-suggesting errors
+
+   *** What landed
+
+   - Parser (~src/self/parser.til~): ~match~ parses in ~parse_primary~ so
+     it works in any expression position; each arm body is a single
+     value-expression (block-valued arms deferred). ~switch~ in value
+     position and a bare ~match~ statement each panic with a message
+     pointing at the other keyword.
+   - AST (~src/core/ast.til~): new ~NodeType.Match~ with ~MatchData~
+     carrying the computed result type.
+   - Typer (~src/self/typer.til~): ~infer_match_expr~ computes the common
+     arm type (and reports arm-type mismatch / non-enum non-exhaustive
+     match); ~lower_matches_in_stmt~ / ~lower_one_match~ rewrite each
+     match to a result temp plus a synthetic ~switch~ (reusing the entire
+     switch desugar -- conditions, payload bindings, guards, enum
+     exhaustiveness) spliced before the enclosing statement.
+   - Tests: ~test/match.til~ (12 cases, both backends) plus four
+     diagnostics (~test/match_switch_in_value.til~,
+     ~test/match_value_unused.til~, ~test/match_arms_differ.til~,
+     ~test/match_non_exhaustive.til~). Doc: ~doc/enums.org~.
+
+   Known minor follow-ups: a non-exhaustive ENUM match is reported by the
+   synthetic switch as "non-exhaustive switch on enum 'X'" (says switch,
+   not match); enum-typed match results rely on ~TypeName()~ as the temp's
+   placeholder default.
+
+   til borrows Rust's two-way selection but splits it by SYNTAX instead of
+   by Rust's "everything is an expression" rule:
+
+   - `switch` -- STATEMENT only. Each arm is a block of statements; the
+     whole `switch` yields no value
+     ([[file:../../src/core/ast.til:709][NodeType.Switch types to Type.None]]).
+     This is what exists today.
+   - `match`  -- EXPRESSION only (NEW). Each arm is a single expression;
+     the whole `match` yields a value and can appear anywhere an
+     expression can: initializers, call arguments, `return`, etc.
+
+   Rust's `match` is both because Rust is expression-based; til is not, so
+   we keep the two roles in two keywords. `match` is ALREADY a reserved
+   keyword (`KwMatch` in
+   [[file:../../src/self/lexer.til:43][src/self/lexer.til:43]], `:149`,
+   `:247`) but is currently unwired -- no new token is needed.
+
+*** Why
+
+    Today there is no way to write a value-producing selection inline. You
+    must declare a mutable, then assign inside each switch arm:
+
+    : mut name := ""
+    : switch c {
+    : case Color.Red:   name = "red"
+    : case Color.Green: name = "green"
+    : case Color.Blue:  name = "blue"
+    : }
+
+    `match` collapses that to an initializer:
+
+    : name := match c {
+    : case Color.Red:   "red"
+    : case Color.Green: "green"
+    : case Color.Blue:  "blue"
+    : }
+
+*** Semantics
+
+    - `match` arms are EXPRESSIONS, not statement blocks. Every arm must
+      yield a value, and all arms must share one type -- that common type
+      is the type of the whole `match`. Mismatched arm types are a type
+      error (same family as an if/else whose branches disagree).
+    - `match` reuses the existing arm machinery: `case <pattern>:`,
+      payload binding (`case Token.Num(n):`), guards
+      (`case <pattern> if <expr>:`, #199), and a bare `case:` default arm.
+    - Exhaustiveness: same rule switch already enforces (#200). Because a
+      `match` MUST produce a value on every path, a non-exhaustive `match`
+      with no `case:` default is an error.
+    - `switch` is unchanged: statement arms, yields nothing, exhaustiveness
+      governed by the existing rules.
+
+*** Cross-suggesting errors (the key deliverable)
+
+    Using one form where the other belongs must produce a TARGETED error
+    that names the right keyword -- not a generic parse failure:
+
+    1. `switch` in value position -- e.g. `x := switch c { ... }`, or a
+       `switch` passed as an argument. Error:
+       : switch is a statement and yields no value; use 'match' to select a value
+
+    2. `match` in statement position -- its value is discarded (a bare
+       `match c { ... }` on its own line, result unused). Error:
+       : match yields a value that is unused here; use 'switch' for arms that run statements
+
+    Each wrong use points at the other form. This is the "clear error
+    types suggesting you may want the other one" requirement.
+
+*** Implementation sketch (touch points)
+
+    1. *Lexer*: nothing -- `KwMatch` already exists
+       ([[file:../../src/self/lexer.til:247][src/self/lexer.til:247]]).
+
+    2. *AST*: add `NodeType.Match` alongside `NodeType.Switch`
+       (src/core/ast.til). Unlike Switch (`Type.None` at
+       [[file:../../src/core/ast.til:709][ast.til:709]]), a Match's type
+       is the common arm type, resolved by the typer.
+
+    3. *Parser*: add a `parse_match` reachable from `parse_expression` /
+       `parse_primary` (so it nests in initializers and arguments), built
+       by analogy to the switch parser in `parse_statement_body`
+       ([[file:../../src/self/parser.til:1844][src/self/parser.til:1844-1873]])
+       -- but each arm body parses a single `parse_expression`, NOT a
+       `NodeType.Body` of statements. `switch` stays only in
+       `parse_statement_body`.
+
+    4. *Typer*: add `infer_match_expr` modelled on `infer_switch_stmt`
+       ([[file:../../src/self/typer.til:7188][typer.til:7188]] dispatch,
+       and the `infer_switch_stmt` callee). Reuse the pattern / guard /
+       exhaustiveness checks; ADD the all-arms-share-a-type check and set
+       the Match node's type to that common type.
+
+    5. *Errors*:
+       - When `parse_expression` encounters `KwSwitch`, raise error (1)
+         instead of falling through to a generic "unexpected token".
+       - In the statement walk (`parse_statement_body` /
+         `infer_*_stmt`), when a `Match` node sits in statement position
+         with its value unused, emit error (2).
+
+    6. *Codegen / interp*: lower `Match` to the same dispatch as `Switch`,
+       but each arm evaluates to a value written into the result temporary
+       (mirrors how an if-expression lowers to a value).
+
+*** Tests to add
+
+    - `match` as an initializer over a simple enum; round-trips each arm.
+    - `match` with payload binding and a guard arm.
+    - Non-exhaustive `match` with no `case:` -> error.
+    - Arms with mismatched types -> error.
+    - `x := switch ...` -> error (1), naming `match`.
+    - Bare `match` whose value is unused -> error (2), naming `switch`.
+    - `switch` still works unchanged as a statement.
+
+*** Open questions
+
+    - Should a `match` arm allow a brace block ending in an expression
+      (`case A: { ...stmts...; value }`) for arms that need a local
+      computation, like Rust's block-valued arms? Or keep arms to a single
+      expression and push anything bigger into a helper func? Leaning
+      single-expression first; block-valued arms can follow later.
+    - Exact error wording and reported source location (call site vs the
+      keyword token).

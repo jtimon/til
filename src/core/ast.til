@@ -533,6 +533,15 @@ Literal := enum {
     SetLit,
 }
 
+/// Payload for NodeType.Match: a `match` expression yields a value, so
+/// the typer records the common arm type here (mirrors FCallData.til_type).
+MatchData := struct {
+    til_type := Type.Unknown
+namespace:
+    eq := func(a: MatchData, b: MatchData) returns Bool { return a.til_type.eq(b.til_type) }
+    to_str := func(_self: MatchData) returns Str { return "" }
+}
+
 /// AST node kind. Each variant carries an optional payload (struct, string, bool).
 NodeType := enum {
     Body,
@@ -554,6 +563,12 @@ NodeType := enum {
     Break,
     Continue,
     Switch,
+    // Issue #244: `match` is the expression form of `switch`. Same arm
+    // shape as Switch ([subject, Case...]), but each Case body is a
+    // single value-expression and the whole node yields a value (the
+    // common arm type, stored in MatchData). The typer lowers a Match to
+    // a result temp + a synthetic Switch that assigns each arm's value.
+    Match: MatchData,
     Case,
     NoDefaultArg,
     // Issue #198: error handling. Throw has 1 child (the thrown
@@ -723,6 +738,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Break:       return Type.None
     case NodeType.Continue:    return Type.None
     case NodeType.Switch:      return Type.None
+    case NodeType.Match(md):   return md.til_type.clone()
     case NodeType.Case:        return Type.None
     case NodeType.NoDefaultArg:return Type.Unknown
     case NodeType.Throw:
@@ -748,6 +764,8 @@ set_expr_til_type := func(mut e: Expr, shallow t: Type) {
         fd.til_type = t
     case NodeType.ForIn(fd):
         fd.til_type = t
+    case NodeType.Match(md):
+        md.til_type = t
     case NodeType.Throw:
         if e.children.len().gt(0) {
             e.child(0).set_expr_til_type(t)
@@ -815,6 +833,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.Literal(Literal.MapLit):         return "MapLit"
     case NodeType.Literal(Literal.SetLit):         return "SetLit"
     case NodeType.Switch:         return "Switch"
+    case NodeType.Match:          return "Match"
     case NodeType.Case:           return "Case"
     case NodeType.NoDefaultArg:   return "NoDefaultArg"
     case NodeType.Throw:          return "Throw"
@@ -871,6 +890,7 @@ node_name := func(data: NodeType) returns Str {
     case NodeType.Literal(Literal.MapLit):      return "map_lit"
     case NodeType.Literal(Literal.SetLit):      return "set_lit"
     case NodeType.Switch:      return "switch"
+    case NodeType.Match:       return "match"
     case NodeType.Case:        return "case"
     case NodeType.Throw:       return "throw"
     case NodeType.Catch:       return "catch"
