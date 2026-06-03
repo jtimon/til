@@ -26,19 +26,17 @@ Complete mapping of til qualifiers to generated C, by context.
    ~test/qualifier_mut_field_error.til~, and
    ~test/qualifier_mut_payload_error.til~.
 
-   Issue #164 adds the third leg: a ~mut~ local, ~mut~ parameter,
-   or ~priv mut~ namespace declaration that the body (or, for ns
-   decls, the declaring file) never uses to write is also flagged.
-   The detector counts these as writes: a direct assignment
-   (~name = ...~), a field-chain assignment (~name.f = ...~), a UFCS
-   method call on the name (~name.method(args)~), passing the name
-   (or one of its fields) to a callee parameter declared ~mut~/~own~
-   or typed ~Dynamic~ (a raw pointer the callee may write through,
-   e.g. ~move~/~memcpy~/~write_ptr~), the name as the source of a
+   Issue #164 adds the third leg: a ~mut~ local or ~mut~ parameter
+   that the body never uses to write is also flagged. The detector
+   counts these as writes: a direct assignment (~name = ...~), a
+   field-chain assignment (~name.f = ...~), a UFCS method call on
+   the name (~name.method(args)~), passing the name (or one of its
+   fields) to a callee parameter declared ~mut~/~own~ or typed
+   ~Dynamic~ (a raw pointer the callee may write through, e.g.
+   ~move~/~memcpy~/~write_ptr~), the name as the source of a
    ~case V(p):~ ref-mut payload binding, and the name as the source
    of a ~ref mut~ declaration (a launder use that requires the
-   source to be ~mut~). Namespace declarations additionally record
-   a write when a ~Type.member = ...~ FieldAssign type-checks.
+   source to be ~mut~).
 
    Note that ~mut~ only governs the binding and its direct fields
    (~p = ...~, ~p.f = ...~). Mutating state reachable *through* a
@@ -50,12 +48,17 @@ Complete mapping of til qualifiers to generated C, by context.
    binding only passed to a read-only ~Dynamic~ param like ~is_null~)
    than wrongly reject a ~mut~ that is actually needed.
 
-   Namespace decls are flagged only when both ~priv~ and ~mut~ are
-   present and no write is seen in the declaring file. ~priv~ blocks
-   downstream consumers from writing, so the single-file view is
-   complete; a public ~mut~ ns decl (e.g. ~HashMap.hasher~) is left
-   alone because a downstream consumer may legitimately write it
-   even when the library itself does not.
+   Globals -- top-level ~mut foo := ...~ at module scope AND
+   namespace decls like ~mut Type.foo := ...~ -- are NOT flagged.
+   Both shapes describe shared mutable state accessible to every
+   consumer of the declaring file; a write may live in a downstream
+   importer that this build doesn't load, and trying to detect that
+   either ties the diagnostic to which files happened to be included
+   in a given build (false positives in library-only builds) or
+   forces designed-mutation knobs into per-instance fields that
+   bloat every instance with a function-pointer slot (unacceptable
+   for ~HashMap~). Same reasoning as ~mut~ on top-level globals,
+   which we have always left alone.
 
 ** Arguments (function/proc parameters)
 

@@ -163,18 +163,6 @@ terr_redundant_mut_param := func(mut redundant_p: I64) returns I64 {
     return redundant_p
 }
 
-// #164 step 3: redundant 'mut' on a priv namespace declaration that
-// nothing in the declaring file writes through. Public `mut` ns_decls
-// are NOT flagged (they describe a knob exposed to downstream callers).
-TerrNsRedundantMut := struct {
-    x := 0
-namespace:
-    priv mut never_set := 0
-    get_x := func(self: TerrNsRedundantMut) returns I64 { return self.x }
-    peek_priv := func() returns I64 { return TerrNsRedundantMut.never_set }
-}
-
-
 // cannot return ref variable from non-ref function; use .clone() or 'returns ref'
 TERR_ARR := array("I64", 1, 2, 3)
 bad_ret_ref := func(i: I64) returns I64 {
