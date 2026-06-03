@@ -11,11 +11,23 @@ enum Primitive {
     U16
     I8
     U8
+    U32
+    I32
+    U64
+    I64
+    F32
+    Bool
 namespace:
     I16
     U16
     I8
     U8
+    U32
+    I32
+    U64
+    I64
+    F32
+    Bool
     func is(self: Primitive, other: Primitive) returns shallow Bool
     func eq(self: Primitive, other: Primitive) returns shallow Bool
     func delete(own self: Primitive, shallow call_free: Bool)
@@ -33,12 +45,6 @@ types (Struct/Enum/Custom) and is tag-only for builtins.
 enum Type {
     Unknown
     None
-    I64
-    I32
-    U32
-    U64
-    F32
-    Bool
     Struct: Str
     StructDef
     Enum: Str
@@ -54,12 +60,6 @@ namespace:
     func eq(a: Type, b: Type) returns shallow Bool
     ext_func Unknown() returns Type
     ext_func None() returns Type
-    ext_func I64() returns Type
-    ext_func I32() returns Type
-    ext_func U32() returns Type
-    ext_func U64() returns Type
-    ext_func F32() returns Type
-    ext_func Bool() returns Type
     ext_func Struct(own val: Str) returns Type
     ext_func StructDef() returns Type
     ext_func Enum(own val: Str) returns Type
@@ -162,6 +162,7 @@ struct Declaration {
     mut redundant_mut : Bool
     mut is_priv : Bool
     mut used : Bool
+    mut written : Bool
     mut own_type : OwnType
     mut til_type : Type
     own mut default_value : Expr
@@ -490,6 +491,23 @@ namespace:
 }
 #+end_src
 
+* MatchData
+Payload for NodeType.Match: a `match` expression yields a value, so
+the typer records the common arm type here (mirrors FCallData.til_type).
+
+#+begin_src til
+struct MatchData {
+    mut til_type : Type
+namespace:
+    func eq(a: MatchData, b: MatchData) returns shallow Bool
+    func to_str(_self: MatchData) returns Str
+    func clone(self: MatchData) returns MatchData
+    func delete(own self: MatchData, shallow call_free: Bool)
+    func hash(self: MatchData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 * NodeType
 AST node kind. Each variant carries an optional payload (struct, string, bool).
 
@@ -514,6 +532,7 @@ enum NodeType {
     Break
     Continue
     Switch
+    Match: MatchData
     Case
     NoDefaultArg
     Throw
@@ -546,6 +565,7 @@ namespace:
     ext_func Break() returns NodeType
     ext_func Continue() returns NodeType
     ext_func Switch() returns NodeType
+    ext_func Match(own val: MatchData) returns NodeType
     ext_func Case() returns NodeType
     ext_func NoDefaultArg() returns NodeType
     ext_func Throw() returns NodeType
@@ -664,50 +684,5 @@ func fcall_kwargs_count(fcall: Expr) returns shallow U32
 * fcall_variadic_count
 #+begin_src til
 func fcall_variadic_count(fcall: Expr, shallow nparam: U32, shallow callee_has_kwargs: Bool) returns shallow U32
-#+end_src
-
-* is_decl_with_child
-#+begin_src til
-func is_decl_with_child(stmt: Expr) returns shallow Bool
-#+end_src
-
-* is_struct_or_enum
-#+begin_src til
-func is_struct_or_enum(stmt: Expr) returns shallow Bool
-#+end_src
-
-* is_func_decl
-#+begin_src til
-func is_func_decl(stmt: Expr) returns shallow Bool
-#+end_src
-
-* is_def
-#+begin_src til
-func is_def(stmt: Expr) returns shallow Bool
-#+end_src
-
-* def_ns_decls
-#+begin_src til
-func def_ns_decls(sdef: Expr) returns ref Vec
-#+end_src
-
-* enum_has_payloads
-#+begin_src til
-func enum_has_payloads(enum_def: Expr) returns shallow Bool
-#+end_src
-
-* enum_variant_tag
-#+begin_src til
-func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
-#+end_src
-
-* enum_variant_type
-#+begin_src til
-func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
-#+end_src
-
-* enum_variant_payload_const
-#+begin_src til
-func enum_variant_payload_const(enum_def: Expr, shallow tag: I32) returns shallow Bool
 #+end_src
 

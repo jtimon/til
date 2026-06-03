@@ -251,6 +251,41 @@ proc infer_funcptr_call_via_cast(scope: TypeScope, mut e: Expr, shallow in_func:
 proc infer_fcall_expr(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
+* infer_match_expr
+#+begin_src til
+proc infer_match_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
+#+end_src
+
+* match_arm_value_type
+#+begin_src til
+proc match_arm_value_type(scope: TypeScope, case_node: Expr, subj: Expr, shallow in_func: I32, ctx: Context) returns Type
+#+end_src
+
+* stmt_contains_match
+#+begin_src til
+func stmt_contains_match(e: Expr) returns shallow Bool
+#+end_src
+
+* lower_matches_in_stmt
+#+begin_src til
+proc lower_matches_in_stmt(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context) returns shallow U32
+#+end_src
+
+* replace_matches_rec
+#+begin_src til
+proc replace_matches_rec(scope: TypeScope, mut node: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context, mut pre: Vec)
+#+end_src
+
+* lower_one_match
+#+begin_src til
+proc lower_one_match(scope: TypeScope, match_node: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context, mut pre: Vec) returns Str
+#+end_src
+
+* splice_stmts_before
+#+begin_src til
+func splice_stmts_before(mut body: Expr, shallow idx: U32, mut pre: Vec)
+#+end_src
+
 * infer_ident_expr
 #+begin_src til
 proc infer_ident_expr(scope: TypeScope, mut expr: Expr, ctx: Context)
@@ -334,6 +369,11 @@ proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow
 * check_unused_priv_members_in_program
 #+begin_src til
 proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* check_unused_mut_ns_decls_in_program
+#+begin_src til
+proc check_unused_mut_ns_decls_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * narrow_return_literal
@@ -774,6 +814,11 @@ func hoist_param_swap_assign(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec,
 * fcall_variant_ctor_arg_is_own
 #+begin_src til
 func fcall_variant_ctor_arg_is_own(expr: Expr, shallow i: U32, scope: TypeScope) returns shallow Bool
+#+end_src
+
+* is_enum_variant_ctor_with_payload
+#+begin_src til
+func is_enum_variant_ctor_with_payload(expr: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * hoist_expr

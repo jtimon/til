@@ -121,6 +121,11 @@ proc parse_statement_ident(mut p: priv___src_self_parser_til__Parser, shallow is
 func drain_doc_comments(mut p: priv___src_self_parser_til__Parser)
 #+end_src
 
+* parse_switch
+#+begin_src til
+proc parse_switch(mut p: priv___src_self_parser_til__Parser) returns Expr
+#+end_src
+
 * parse_statement_body
 #+begin_src til
 proc parse_statement_body(mut p: priv___src_self_parser_til__Parser) returns Expr

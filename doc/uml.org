@@ -87,15 +87,15 @@
 *** U16
 *** I8
 *** U8
+*** U32
+*** I32
+*** U64
+*** I64
+*** F32
+*** Bool
 ** Type: EnumDef
 *** Unknown
 *** None
-*** I64
-*** I32
-*** U32
-*** U64
-*** F32
-*** Bool
 *** Struct:Str
 *** StructDef
 *** Enum:Str
@@ -124,6 +124,7 @@
 *** redundant_mut := false
 *** is_priv := false
 *** used := false
+*** written := false
 *** own_type := OwnType.Shallow
 *** til_type := Type.Unknown
 *** own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
@@ -187,6 +188,8 @@
 *** Null
 *** MapLit
 *** SetLit
+** MatchData: StructDef
+*** til_type := Type.Unknown
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -207,6 +210,7 @@
 *** Break
 *** Continue
 *** Switch
+*** Match:MatchData
 *** Case
 *** NoDefaultArg
 *** Throw
@@ -227,112 +231,6 @@
 *** anon_cache := Map.new(Str, Str)
 *** pending_doc := ""
 * initer
-** TypeBinding: StructDef
-*** name := ""
-*** type := Type.Unknown
-*** is_mut := false
-*** is_priv := false
-*** path := ""
-*** line : U32 = 0
-*** col : U32 = 0
-*** is_param := false
-*** own_type := OwnType.Shallow
-*** is_alias := false
-*** is_type_alias := false
-*** is_func_decl := false
-*** alias_target := ""
-*** ref struct_def : Expr = NULL
-*** ref func_def : Expr = NULL
-*** is_builtin := false
-*** used := false
-*** written := false
-*** mut_explicit := false
-*** orig_name := ""
-** ScopeFind: EnumDef
-*** NotFound
-*** Found:TypeBinding }
-** TypeScope: StructDef
-*** bindings := Map.new(Str, TypeBinding)
-*** ref parent : TypeScope = NULL
-** ImportUnit: StructDef
-*** mode_str := ""
-*** mode := Mode()
-*** own ast := Expr.new(NodeType.Body, 0, 0)
-*** imports := Vec.new(Str)
-** Context: StructDef
-*** mode := Mode()
-*** path := ""
-*** path_modes := Map.new(Str, Mode)
-*** imported := Map.new(Str, ImportUnit)
-*** imports_init_done := Set.new(Str)
-*** imports_typer_decls_done := Set.new(Str)
-*** imports_typer_bodies_done := Set.new(Str)
-*** imports_precomp_done := Set.new(Str)
-*** imports_eval_done := Set.new(Str)
-*** scope := TypeScope()
-*** is_repl := false
-*** struct_layouts := Map.new(Str, StructLayout)
-*** precomp_macros := Set.new(Str)
-*** precomp_funcs := Set.new(Str)
-*** precomp_known := Map.new(Str, Value)
-*** has_return := false
-*** has_break := false
-*** has_continue := false
-*** return_value := Value.None
-*** ns_fields := Map.new(Str, Value)
-*** ns_keys := Vec.new(Dynamic)
-*** ns_inited := false
-*** typing_namespace_member := false
-*** local_fn_sigs := Map.new(Str, Dynamic)
-*** func_defs := Map.new(Str, Dynamic)
-*** struct_def_exprs := Map.new(Str, Dynamic)
-*** funcsig_names := Set.new(Str)
-*** script_globals := Set.new(Str)
-*** ref_globals := Set.new(Str)
-*** throw_type_registry := Vec.new(Str)
-*** throws_names_global := Vec.new(Str)
-*** throws_per_global := Vec.new(Vec)
-*** bang_counter : I64 = 0
-*** lowering_param_types := Map.new(Str, Str)
-*** typer_in_shallow_return : Bool = false
-*** typer_in_main_func : Bool = false
-*** typer_return_type_name : Str = ""
-*** ctor_seq : I32 = 0
-*** in_func_def : Bool = false
-*** in_main_func : Bool = false
-*** proc_calls_count : I32 = 0
-*** proc_def_depth : I32 = 0
-*** hoist_counter : I32 = 0
-*** va_counter : I32 = 0
-*** kw_counter : I32 = 0
-*** coll_counter : I32 = 0
-*** errors : I32 = 0
-*** current_type_name := ""
-*** current_top_func_name := ""
-*** auto_gen_depth : I32 = 0
-*** throw_used_local_names := Set.new(Str)
-*** stack_locals := Set.new(Str)
-*** stack_local_types := Map.new(Str, Str)
-*** unsafe_to_hoist := Set.new(Str)
-*** ref_locals := Set.new(Str)
-*** ptr_locals := Set.new(Str)
-*** ref_dyn_locals := Set.new(Str)
-*** ref current_fdef : Expr = NULL
-*** ref cached_str_def : Expr = NULL
-*** ref cached_str_name : Str = NULL
-*** ref cached_array_def : Expr = NULL
-*** ref cached_array_name : Str = NULL
-*** ref cached_vec_def : Expr = NULL
-*** ref cached_vec_name : Str = NULL
-*** interp_type_defs := Map.new(Str, Dynamic)
-*** dispatch_map := Map.new(Str, Dynamic)
-*** dispatch_inited := false
-*** ffi_map := Map.new(Str, FFIEntry)
-*** ffi_map_inited := false
-*** ffi_loaded := false
-*** ffi_struct_defs := Map.new(Str, Dynamic)
-*** ffi_type_cache := Vec.new(FFITypePtrBox)
-*** ffi_type_cache_inited := false
 * typer
 ** CtorArg: EnumDef
 *** Unfilled
