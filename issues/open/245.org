@@ -1,0 +1,233 @@
+# priority: high
+** OPEN #245 Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
+
+   Attempted #239 option 1 (change ~StructInstance.struct_name~ and
+   ~EnumInstance.enum_name~ from ~ref Str~ to owned ~Str~).
+   Compiles, but breaks two interpreter tests with reproducible UAFs
+   under ASAN. The failure modes pinpoint a deeper ownership-model
+   problem that #239 alone can't fix.
+
+   Cross-refs: [[./147.org][#147]] (AST-as-cache antipattern: the
+   ~ref Str~ field is one of the dangerous AST-borrowing refs),
+   [[./109.org][#109]] (some interpreter "leaks" today are values
+   that can't be safely freed because shallow-copy aliasing means
+   freeing one would dangle the others).
+
+*** Reproducer
+
+    On the merged tip (~94db775~), patch:
+
+    : @@ -61,7 +61,7 @@ StructInstance := struct {
+    : -    ref struct_name : Str = NULL
+    : +    struct_name := ""
+    : @@ -229,7 +229,7 @@ EnumInstance := struct {
+    : -    ref enum_name : Str = NULL
+    : +    enum_name := ""
+
+    plus the matching ~.is_null()~ -> ~.len().eq(0)~ swap in
+    ~to_str~ and ~.clone()~ at the few direct constructor sites
+    where the typer flags ~use after ownership transfer~
+    (~StructInstance(struct_name = ftype, ...)~ and
+    ~EnumInstance(enum_name = ei.enum_name, ...)~). The typer
+    correctly rejects every move-then-use of ~ftype~ /
+    ~ei.enum_name~.
+
+    Result: ~make test~ goes from 139/139 to 137/139:
+
+    - ~FAIL (interp): test/enums.til~ -- mutation through a nested
+      enum payload binding doesn't propagate. The follow-up
+      ~switch q { case NestedInner.A(n): ... }~ misses on the
+      written ~NestedInner.A(99)~ and falls through to the default
+      ("wrong inner variant" sentinel).
+    - ~FAIL (interp): test/own_fields.til~ -- all tests pass, then
+      segfault at interpreter shutdown.
+
+*** Failure 1: own_fields.til segfault
+
+    ASAN trace (relevant frames):
+
+    : ==ERROR: AddressSanitizer: heap-use-after-free
+    : READ of size 117193840 at 0x... thread T0
+    :   #0 memcpy
+    :   #1 Str_clone gen/til/til.c:5917
+    :   #2 read_field gen/til/til.c:183405
+    :   #3 eval_expr gen/til/til.c:176293
+    :   ...
+    :
+    : freed by thread T0 here:
+    :   #0 free
+    :   #1 Str_delete gen/til/til.c:5939
+    :   #2 eval_expr gen/til/til.c:176119
+    :   #3 eval_call gen/til/til.c:179377
+    :   ...
+    :
+    : previously allocated by thread T0 here:
+    :   #0 malloc
+    :   #1 Str_clone gen/til/til.c:5916
+    :   #2 ident_name gen/til/til.c:9666
+    :   #3 eval_expr gen/til/til.c:176010
+    :   ...
+
+    Translation of the trace into source terms:
+
+    1. ~eval_expr~ via ~ident_name~ allocates a fresh Str (the
+       6-byte alloc the trace surfaces).
+    2. That Str eventually lands in an ~EnumInstance.enum_name~
+       (an owned field, post-patch).
+    3. ~Str_delete~ runs on a sibling Str through ~eval_expr~ ->
+       ~eval_call~ -- which is the same memory because some
+       ~shallow_copy_value~ memcpy along the way aliased the
+       ~enum_name~ field's ~c_str~ pointer.
+    4. Subsequent ~read_field~ (one of the patched
+       ~EnumInstance(enum_name = ei.enum_name.clone(), ...)~
+       sites) tries to clone the now-freed Str. The freed
+       region's ~count~ field is garbage, so the clone's
+       ~memcpy~ reads 117 MB. Boom.
+
+    The 117 MB size is the giveaway: the freed Str slot was
+    reused for an unrelated allocation, and its byte layout (in
+    particular the ~count~ field) is no longer a valid string
+    length.
+
+*** Failure 2: enums.til nested-enum payload mutation
+
+    Different observation point, same root. ASAN trace:
+
+    : ==ERROR: AddressSanitizer: heap-use-after-free
+    : READ of size 4 at 0x... thread T0
+    :   #0 reinterpret_ptr_value gen/til/til.c:176637
+    :   #1 eval_body gen/til/til.c:177111
+    :   ...
+    :
+    : freed by thread T0 here:
+    :   #0 free
+    :   #1 scope_free gen/til/til.c:181301
+    :   #2 eval_body gen/til/til.c:178009
+    :   ...
+
+    Source-level: the test mutates an enum payload via
+    ~case NestedOuter.Wrap(p): p = NestedInner.A(99)~. The write
+    constructs a temporary ~EnumInstance(enum_name = "NestedInner".clone(), ...)~
+    and memcpys it into the parent enum's payload slot. The two
+    EnumInstance bytes (temporary and destination) now share the
+    same ~c_str~ pointer in ~enum_name~ via the memcpy. When the
+    enclosing scope ends, ~scope_free~ frees the temporary's
+    storage (including ~enum_name.c_str~). The next read of the
+    destination's ~enum_name~ (via ~reinterpret_ptr_value~ ->
+    ~val_enum_flat~) sees a freed Str, the inner ~switch q { case
+    NestedInner.A(n): ... }~ fails to match, and the test reports
+    "wrong inner variant".
+
+*** Why the model can't accommodate owned fields here
+
+    Two interacting pieces of the interpreter machinery make
+    owned heap fields on ~StructInstance~ / ~EnumInstance~
+    unsafe:
+
+    1. *~shallow_copy_value~ is a literal ~memcpy~.* It's used
+       all over the interpreter to byte-transfer Values across
+       returns, payload writes, and enum reinterpret paths. The
+       generated code looks like:
+
+       : Value hoisted__Value_X = val_enum_flat(ei->enum_name, ...);
+
+       with ~ei~ a borrowed ~EnumInstance~ pointer. ~val_enum_flat~
+       does ~enum_name = enum_name~ assignment internally; the
+       net effect is a memcpy that duplicates the ~Str~ struct
+       (including ~c_str~). With owned ~Str~ semantics, the two
+       resulting Values both "own" the same ~c_str~. The first
+       destructor frees it, the rest dangle. (Failure mode 2.)
+
+    2. *Stale ~ref EnumInstance~ borrows already exist.* Failure
+       mode 1's allocation site
+       (~ident_name~) and free site (~eval_expr~ via ~eval_call~)
+       are in the same call chain; the dereference site
+       (~read_field~) reads through a borrowed
+       ~ref ei : EnumInstance = deref(ptr)~ whose underlying
+       storage was freed by call-scope teardown. Before this
+       patch the field was a ~ref Str~ rooted at long-lived
+       scope-binding storage, so even when ~ei~ was stale the
+       Str read was still valid. Owning the field exposes the
+       underlying stale-~ei~ UAF that was previously masked.
+
+*** Relationship to #109
+
+    Some of the interpreter leaks tracked under #109 are
+    suspected to be Values that *should* be freed but currently
+    aren't, precisely because freeing them would dangle aliased
+    copies under (1). Said differently: today's intentional
+    leaks are how the interpreter avoids today's would-be UAFs.
+    Fixing the ownership model unlocks freeing those Values,
+    which feeds back into closing #109.
+
+*** Relationship to #147
+
+    #147's "dangerous AST refs" catalog (in
+    [[./147.org][#147]]'s Audit section) names
+    ~Declaration.field_struct_def~ (already removed),
+    ~TypeBinding.struct_def~, and ~TypeBinding.func_def~ as the
+    next purge targets. ~StructInstance.struct_name~ /
+    ~EnumInstance.enum_name~ are the same shape -- a borrow
+    field with no checker support -- and #239 was meant to be
+    the small win that proved out the "own it" remediation
+    template before the ~TypeBinding~ work. The investigation
+    here shows the small win is not in fact small: it requires
+    fixing the Value-level ownership model first.
+
+*** Path forward (in increasing scope)
+
+    1. *Land #239 option 2 (audit + canonicalise via
+       ~ctx.scope.get_binding(name).name~)* at every
+       StructInstance / EnumInstance construction site.
+       Keeps the ~ref Str~ field; enforces a written rule
+       that authors pass program-lifetime Strs. ~d6c3554~
+       did this for ~read_field~'s own / ref / enum branches;
+       extend to ~resolve_ptr_to_struct~ (still uses
+       ~obj_sname~ from a dying case payload), ~make_struct_value~
+       internals, and the direct ~StructInstance(...)~ /
+       ~EnumInstance(...)~ constructor calls. Mechanical;
+       leaves the field type alone; doesn't fix the broader
+       Value-model gap but does close the surfaced UAFs.
+
+    2. *Replace ~shallow_copy_value~ with a clone-aware copy
+       for Value.Struct / Value.Enum* -- deep-clone the
+       struct_name / enum_name Str on copy. Then the owned-
+       field model from #239 option 1 can land safely. Cost:
+       audit every ~returns shallow Value~ caller to see
+       which ones still need byte-transfer vs deep clone;
+       some legitimately want byte-transfer (move semantics).
+       Probably wants a separate ~clone_value~ primitive and
+       the call sites get retargeted.
+
+    3. *Intern type names in a single Context-side table*,
+       drop the per-instance ~struct_name~ / ~enum_name~ field
+       entirely, store an index instead. Type names are
+       already routinely interned in ~ctx.scope.bindings~ via
+       string equality lookup; promoting that to an explicit
+       intern table is mostly bookkeeping. Largest scope but
+       eliminates the field, not just makes it safer.
+
+    Recommend (1) for the immediate close of the surfaced
+    UAFs (and as the natural extension of master's ~d6c3554~
+    template), with (2) or (3) tracked as the longer-term
+    fix that #239 option 1 would actually depend on.
+
+*** Where the boot/til.c lines map (for future debugging)
+
+    On the ~94db775~ + #239-attempt boot, the ASAN traces map
+    to:
+
+    - ~gen/til/til.c:183405~ -- the patched ~Str_clone~ inside
+      ~EnumInstance(enum_name = ei.enum_name.clone(), ...)~ in
+      ~read_field~ (~src/self/interpreter.til:2545~ on the
+      attempt branch).
+    - ~gen/til/til.c:176637~ -- ~val_enum_flat(ei->enum_name, ...)~
+      in ~reinterpret_ptr_value~
+      (~src/self/interpreter.til:~ around the get_payload
+      reinterpret path).
+    - ~gen/til/til.c:176119~ -- the Str_delete that frees
+      what the read above reuses; an ordinary
+      ~Str_delete~ inside an ~eval_expr~ cleanup block.
+
+    Boot line numbers will drift; re-run the ASAN compiler on
+    a fresh patch to refresh.

@@ -1,6 +1,13 @@
 # priority: high
 ** OPEN #109 Fix memory leaks (make test_asan clean)
 
+Related: [[./245.org][#245]] catalogs an ownership-model gap on
+  ~StructInstance~ / ~EnumInstance~ that's suspected to mask a
+  subset of the leaks tracked here -- some Values today can't be
+  safely freed because ~shallow_copy_value~ aliasing would dangle
+  the copy. Closing #245 unlocks freeing those Values, which feeds
+  back into the per-test compiler-leak baseline below.
+
 Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
   no test is failing.  ~bin/til_asan~ (the ASAN-instrumented compiler)
   builds and the suite runs with ~--asan~ threaded through to every

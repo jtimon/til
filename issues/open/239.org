@@ -39,6 +39,16 @@
    long-lived Str, and there's nothing in the compiler that flags
    the bad cases.
 
+   *Update (post-investigation, see [[./245.org][#245]]):* option 1
+   below ("own the Str") was attempted and surfaced two reproducible
+   ASAN heap-use-after-free crashes in the interpreter. The Value
+   model's ~shallow_copy_value~ memcpy semantics (and stale
+   ~ref EnumInstance~ borrows that today survive only because their
+   ~enum_name~ field points at long-lived storage) make naive
+   ownership of the Str field unsafe. See #245 for the full ASAN
+   trace and the dependency analysis. Recommended path forward is
+   option 2 below until #245 lands the Value-model fix.
+
    Remediation options, in order of cost:
 
    1. *Change the field to owned ~Str~ on StructInstance and
@@ -47,6 +57,7 @@
       Value, in a code path where Values are routinely cloned for
       other reasons. Memory bump is bounded by the number of live
       instances. Eliminates the class of bug.
+      *Blocked on #245* -- requires the Value-model fix first.
 
    2. *Audit + canonicalise via ~ctx.scope.get_binding(name).name~*
       at every construction site, matching the ~d6c3554~ template.
@@ -60,10 +71,18 @@
       motivate the language work on its own; tracked here for the
       record.
 
-   Option (1) is the recommended fix. Once landed, drop the
+   *Revised recommendation (post-#245):* land (2) now to close the
+   UAFs at the surfaced construction sites (extends master's
+   ~d6c3554~ template to ~resolve_ptr_to_struct~ and the direct
+   ~StructInstance(...)~ / ~EnumInstance(...)~ constructors). Track
+   (1) under #245 as the dependent follow-on once the Value model
+   supports owned heap fields.
+
+   Once (1) eventually lands (post-#245), drop the
    ~til_type_name(...)~ clone reintroduced at the FieldAccess site
    in 5372e3c and the equivalent ~ctx.scope.get_binding(ftype).name~
-   gymnastics in ~read_field~.
+   gymnastics in ~read_field~ -- the owned field will make the
+   workarounds redundant.
 
    See [[./147.org][#147]] step 4 status notes for the FieldAccess
    discovery context.
