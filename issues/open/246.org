@@ -1,0 +1,107 @@
+# priority: low
+** OPEN #246 Slim down the cross-phase ~Context~ toward the rstil shape
+
+Companion to [[./247.org][#247]] (move layout facts off the AST). #246 = Context
+carries phase-local scratch; #247 = the AST carries non-syntax layout
+facts. They meet at ~Context.struct_layouts~ -- see the cross-dep notes
+in the plan below.
+
+~Context~ in ~src/self/initer.til~ (initer.til:197) has grown to ~66
+fields. One ~Context~ value threads ~ref~/mut through every phase
+(init -> typer -> desugar -> garbager -> precomp -> eval/builder), and
+over time each phase has parked its private scratch state directly on
+it. The struct is now a grab-bag of unrelated lifetimes:
+
+  - genuine cross-phase caches / bookkeeping (keep on Context):
+    ~mode~, ~path~, ~path_modes~, ~scope~, ~imported~,
+    ~imports_*_done~ memo sets, ~struct_layouts~, ~interp_type_defs~,
+    ~func_defs~, ~struct_def_exprs~, ~funcsig_names~.
+  - precomp tables: ~precomp_macros~, ~precomp_funcs~, ~precomp_known~.
+  - interpreter runtime flags + slots: ~has_return~, ~has_break~,
+    ~has_continue~, ~return_value~, ~ns_fields~, ~ns_keys~, ~ns_inited~,
+    the six ~cached_*~ refs, ~dispatch_*~ / ~ffi_*~ FFI state.
+  - typer-only scratch: ~typing_namespace_member~,
+    ~typer_in_shallow_return~, ~typer_in_main_func~,
+    ~typer_return_type_name~, ~proc_calls_count~, ~proc_def_depth~,
+    ~hoist_counter~/~va_counter~/~kw_counter~/~coll_counter~,
+    ~errors~, ~current_type_name~, ~current_top_func_name~,
+    ~auto_gen_depth~, ~throw_used_local_names~, ~lowering_param_types~,
+    ~throw_type_registry~, ~throws_names_global~, ~throws_per_global~,
+    ~bang_counter~.
+  - builder-only emission transients: ~local_fn_sigs~, ~in_func_def~,
+    ~in_main_func~, ~ctor_seq~, ~stack_locals~, ~stack_local_types~,
+    ~unsafe_to_hoist~, ~ref_locals~, ~ref_dyn_locals~, ~current_fdef~,
+    ~script_globals~, ~ref_globals~.
+
+Most of these were comment-documented as moved off "module-level
+globals" -- the move to Context was correct (a module global cannot
+cross imported units), but it dumped per-phase scratch onto the
+shared object instead of into a per-phase home.
+
+*** What rstil does differently
+
+See [[../../doc/rstil/context.org][doc/rstil/context.org]]. rstil's ~Context~ (Rust, ~src/rs/init.rs~)
+stays small:
+
+  - ~mode_def~, ~path~ (current position, save/restore discipline)
+  - ~scope_stack~ -- the one real cache (declaration index)
+  - import bookkeeping: ~imported_asts~, ~imported_modes~, and four
+    per-phase ~imports_*_done~ sets (marked at entry, circular-safe)
+  - a small set of precomp + anon-def counters
+
+Crucially, rstil's *per-function analysis state* (the moral equivalent
+of our ~stack_locals~, ~used_symbols~, shadowing tracking, consumed
+symbols) lives on ~ScopeStack~, where it is naturally unwound by
+~push~/~pop~ instead of being manually saved+restored on a long-lived
+Context. And runtime eval state lives in ~EvalHeap~, not on Context.
+
+*** Incremental plan (not one commit)
+
+1. Move per-function typer scratch onto ~TypeScope~ (our ~scope~)
+   so it is pushed/popped with the scope rather than saved/restored
+   by hand. Candidates: ~current_type_name~, ~current_top_func_name~,
+   ~typer_return_type_name~, ~proc_calls_count~, ~proc_def_depth~,
+   ~auto_gen_depth~, ~throw_used_local_names~, ~lowering_param_types~.
+2. Move builder per-function emission transients into a dedicated
+   builder-local struct (created per ~emit_func_def~) instead of
+   reset-in-place fields on Context: ~stack_locals~,
+   ~stack_local_types~, ~unsafe_to_hoist~, ~ref_locals~,
+   ~ref_dyn_locals~, ~in_func_def~, ~in_main_func~, ~current_fdef~.
+   - CROSS-DEP with #247 step 3: these builder paths also read layout
+     off the AST today. Let #247 migrate a given builder consumer's
+     layout reads to ~ctx.struct_layouts~ *before* this step relocates
+     that consumer's other scratch, so each commit moves one thing.
+3. Group the interpreter runtime state (~has_return~/~has_break~/
+   ~has_continue~/~return_value~ + ~ns_*~ + ~cached_*~) into an
+   eval-state struct, the way rstil keeps it in ~EvalHeap~.
+   - Same CROSS-DEP with #247 step 3 for the interpreter's layout reads.
+4. Group FFI/dispatch state (~dispatch_*~, ~ffi_*~) into one
+   ~FfiState~ field. (No #247 interaction.)
+5. Keep the genuine cross-phase caches on ~Context~ -- import memo sets,
+   ~imported~, ~func_defs~ / ~struct_def_exprs~ / ~interp_type_defs~,
+   and ~struct_layouts~. That is what Context is *for*.
+   - CROSS-DEP with #247 step 4: ~struct_layouts~ must be a fully
+     populated, sole-source cross-phase cache here before #247 can
+     delete the duplicated layout fields from the AST. #247 step 4
+     lands *after* this step settles the cache.
+
+End state: a ~Context~ whose fields are all things that legitimately
+must survive across phases/units, with phase-local scratch owned by
+the phase (or by the scope it belongs to). This is mostly mechanical
+but touches initer/typer/builder/interpreter, so it should land in
+small, individually-tested steps, not one mega-commit.
+
+*** Ordering with #247
+
+Rough interleave: #246 steps 1-3 and #247 steps 1-3 can proceed in
+parallel per-consumer (do #247's layout-read migration on a consumer
+just before #246 relocates that consumer's scratch). Then #246 step 5
+(settle ~struct_layouts~ as the sole cache) must precede #247 step 4
+(delete the AST layout fields). #246 step 4 (FFI) and #247 step 5
+(drop the map for on-demand compute) are independent tails.
+
+Note: the monotonic unique-name counters (~ctor_seq~, ~hoist_counter~,
+~va_counter~, ~kw_counter~, ~coll_counter~, ~bang_counter~) are
+program-global by design (they only need uniqueness across the whole
+emission); they can stay on Context or move to a single shared
+counter, but they are not the bloat to prioritise.

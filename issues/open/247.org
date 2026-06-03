@@ -1,0 +1,82 @@
+# priority: low
+** OPEN #247 Move layout facts off AST nodes, rstil-style (pairs with #246)
+
+Companion to [[./246.org][#246]] (Context slimming). Where #246 is about *Context*
+carrying phase-local scratch, this issue is about the *AST* carrying
+data that is not syntax: memory-layout facts that rstil never stores on
+the tree at all.
+
+See [[../../doc/rstil/ast.org][doc/rstil/ast.org]] and [[../../doc/rstil/context.org][doc/rstil/context.org]]. In rstil the AST
+(~src/rs/ast.rs~ / ~src/core/ast.til~ there) is pure syntax: ~Expr~ =
+node_type + params + line/col, and the payload structs (~Declaration~,
+~StructDef~, ~EnumDef~, ...) hold only declared members and types.
+Layout -- field offsets, field sizes, total type size -- is *not*
+stored anywhere; ~Context~ recomputes it on demand from the cached
+struct/enum defs (~get_type_size~, ~calculate_field_offset~,
+~get_field_offset~). rstil deliberately removed its earlier
+~map_instance_fields~ precomputation (their Bug #160) for this reason.
+
+Our AST (~src/core/ast.til~) instead hangs layout facts directly on the
+syntax nodes:
+
+  - ~Declaration.field_offset~ / ~field_size~ / ~field_struct_def~
+  - ~StructDef.total_struct_size~
+  - ~EnumDef.total_enum_size~
+
+Issue #147 already started the migration (steps 3-4): a parallel
+~Context.struct_layouts~ map (keyed by type name) is populated by
+~compute_struct_layout~ / ~compute_enum_layout~ at typer time, and some
+readers (e.g. enum total size) already read the map instead of the AST
+field. The work is *half done* -- both the AST fields and the map exist,
+and most readers still hit the AST fields.
+
+*** Desired end state (rstil-aligned)
+
+Layout lives in exactly one place off the syntax tree, and the AST def
+nodes carry only declared structure. Two acceptable shapes:
+
+  a. keep ~Context.struct_layouts~ as the single source of truth
+     (a precomputed cache populated once in the init/typer sweep), or
+  b. go fully rstil and drop the stored map too, computing layout
+     on demand from the cached defs.
+
+(b) is the purest rstil shape, but (a) is the smaller move and matches
+where #147 already points. Recommend (a) first; (b) is a later
+optional follow-up.
+
+*** Incremental plan
+
+1. Inventory every read of ~Declaration.field_offset~ / ~field_size~ /
+   ~field_struct_def~ / ~StructDef.total_struct_size~ /
+   ~EnumDef.total_enum_size~ across initer/typer/builder/interpreter.
+2. Confirm ~compute_*_layout~ populates ~ctx.struct_layouts~ with every
+   fact those readers need (per-field FieldLayout + whole-type
+   StructLayout). Fill gaps if any.
+3. Migrate readers to ~ctx.struct_layouts~ one consumer at a time
+   (typer, then builder, then interpreter), testing after each.
+   - NOTE (cross-dep): the builder/interpreter readers here are the
+     same code paths #246 step 2/3 moves off Context; do the layout
+     read migration on a given consumer *before* #246 relocates that
+     consumer's other scratch, so each step has one moving part.
+4. Once no reader touches them, delete the AST layout fields
+   (~Declaration.field_offset/size/struct_def~,
+   ~StructDef.total_struct_size~, ~EnumDef.total_enum_size~). This is
+   the step that actually slims the AST.
+   - DEPENDS ON #246: ~Context.struct_layouts~ must be a legitimate,
+     fully-populated cross-phase cache before the AST fields can go;
+     #246 keeps ~struct_layouts~ on Context as a "genuine cache"
+     (its step 5), so #247 step 4 lands *after* #246 has settled the
+     Context's cache surface.
+5. (Optional, rstil-pure) Replace the stored ~struct_layouts~ with
+   on-demand ~get_type_size~ / ~calculate_field_offset~ helpers over
+   the cached defs, dropping the map entirely.
+
+*** Out of scope / not "bloat"
+
+Our AST has genuine node kinds rstil lacks and that should stay:
+~Match~/~MatchData~ (#244), ~Throw~/~Catch~ error lowering (#198),
+~RestPattern~ (#36), ~FieldAccess~/~FieldAssign~ split,
+~NoDefaultArg~. The per-node ~*Data~ wrapper structs (IdentData,
+FCallData, ...) are a syntax-representation choice, not layout bloat;
+aligning those with rstil's inline payloads is not part of this issue.
+The single concrete divergence worth fixing is layout-on-the-AST.
