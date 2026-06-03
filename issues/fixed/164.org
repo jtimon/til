@@ -31,25 +31,26 @@
    ~infer_set_lit_expr~, ~eval_body~, etc.) -- exactly the laundering
    "small lies" this issue set out to remove.
 
-   Step 3 (LANDED): namespace declarations -- but only the ~priv mut~
-   shape. ~check_unused_mut_ns_decls_in_program~ walks every loaded
-   file's program right after the priv-member walker; for each
-   StructDef / EnumDef ns_decl that is both ~priv~ and ~mut~ and
-   whose ~written~ flag (a new field on ~Declaration~, set at the
-   FieldAssign-to-ns_decl site in ~infer_field_assign_stmt~) was
-   never flipped, the diagnostic fires.
+   Step 3 (RECONSIDERED, NOT DONE): namespace declarations. A first
+   pass landed (priv-only) and a follow-up extended it to public
+   ~mut~ ns_decls via a cross-file walk. Both shipped, both reverted
+   here. The cross-file follow-up forced ~HashMap.hasher~ from a
+   shared namespace knob into a per-instance field, bloating every
+   ~HashMap~ with an 8-byte function-pointer slot -- unacceptable
+   overhead for a knob most consumers never touch. The priv-only
+   pass had no self-host hits and didn't reveal a bug class worth a
+   diagnostic on its own. The right mental model: a ~mut~ namespace
+   declaration is a global, just like top-level ~mut foo := ...~,
+   and globals are shared mutable state every consumer can write.
+   The unused-mut detector has always left top-level globals alone
+   for the same reason -- a write may live in a downstream importer
+   the build doesn't load -- so namespace decls should match.
+   No check; no ~Declaration.written~ field; no fixture.
 
-   Public ~mut~ ns_decls are NOT flagged: they describe an exposed
-   mutation point (e.g. ~HashMap.hasher~, where the library leaves a
-   knob open even when it doesn't turn the knob itself), and the
-   single-file view a typer walk has can't see writes from downstream
-   consumers. ~priv mut~ has no such ambiguity -- ~priv~ blocks all
-   downstream access, so absence of an in-file write proves the
-   ~mut~ is dead.
-
-   Self-host sweep: zero -- no ~priv mut~ ns_decls were found.
-
-   Done. Closing the issue.
+   Done. The two legs that stayed (locals + params) are the ones
+   the issue body actually motivated: the chain-walker cursors live
+   on params, and the laundering-by-~mut~ pattern lives on locals.
+   Globals are out of scope. Closing the issue.
 
 After [[./161.org][#161]] the typer rejects `ref mut x : T = src` when `src` is
    immutable. The simplest way to fix the existing chain-walker

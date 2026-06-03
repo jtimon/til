@@ -165,12 +165,6 @@ Declaration := struct {
     redundant_mut := false
     is_priv := false
     used := false
-    // #164 step 3: set when a namespace declaration is written through
-    // (`Type.member = ...`). Mirrors TypeBinding.written but on the
-    // Declaration itself so the post-typing walker can flag a redundant
-    // `mut` on ns_decls. Meaningless for fields/locals/params (the
-    // step-1/2 detector tracks those via TypeBinding).
-    written := false
     own_type := OwnType.Shallow
     til_type := Type.Unknown
     own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)

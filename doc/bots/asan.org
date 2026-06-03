@@ -5,5 +5,5 @@ Updated by examples/merge_commit.til.
 
 | Channel   | Bytes    | Allocs   | Delta           |
 |-----------+----------+----------+-----------------|
-| interpret | 131546   | 23249    | -0.3% / 0.0%     |
-| translate | 130051   | 22300    | -2.2% / -0.6%     |
+| interpret | 131100   | 23226    | -0.3% / 0.0%     |
+| translate | 129912   | 22290    | -0.1% / 0.0%     |
