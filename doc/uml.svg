@@ -98,30 +98,30 @@
   <text x="58" y="1630" class="line">const col : U32 = 0</text>
   <rect x="342" y="24" width="580" height="3414" rx="14" ry="14" class="panel"/>
   <text x="362" y="62" class="panel-label">ast</text>
-  <rect x="362" y="88" width="172" height="82" rx="10" ry="10" class="box"/>
+  <rect x="362" y="88" width="172" height="118" rx="10" ry="10" class="box"/>
   <text x="376" y="126" class="title">Primitive: EnumDef</text>
   <text x="376" y="144" class="line">I16</text>
   <text x="376" y="162" class="line">U16</text>
-  <rect x="362" y="188" width="180" height="388" rx="10" ry="10" class="box"/>
-  <text x="376" y="226" class="title">Type: EnumDef</text>
-  <text x="376" y="244" class="line">Unknown</text>
-  <text x="376" y="262" class="line">None</text>
-  <text x="376" y="280" class="line">I64</text>
-  <text x="376" y="298" class="line">U8</text>
-  <text x="376" y="316" class="line">I32</text>
-  <text x="376" y="334" class="line">U32</text>
-  <text x="376" y="352" class="line">U64</text>
-  <text x="376" y="370" class="line">F32</text>
-  <text x="376" y="388" class="line">Bool</text>
-  <text x="376" y="406" class="line">Struct:Str</text>
-  <text x="376" y="424" class="line">StructDef</text>
-  <text x="376" y="442" class="line">Enum:Str</text>
-  <text x="376" y="460" class="line">EnumDef</text>
-  <text x="376" y="478" class="line">FuncDef</text>
-  <text x="376" y="496" class="line">FuncPtr</text>
-  <text x="376" y="514" class="line">Dynamic</text>
-  <text x="376" y="532" class="line">Custom:Str</text>
-  <text x="376" y="550" class="line">I8</text>
+  <text x="376" y="180" class="line">I8</text>
+  <text x="376" y="198" class="line">U8</text>
+  <rect x="362" y="224" width="180" height="352" rx="10" ry="10" class="box"/>
+  <text x="376" y="262" class="title">Type: EnumDef</text>
+  <text x="376" y="280" class="line">Unknown</text>
+  <text x="376" y="298" class="line">None</text>
+  <text x="376" y="316" class="line">I64</text>
+  <text x="376" y="334" class="line">I32</text>
+  <text x="376" y="352" class="line">U32</text>
+  <text x="376" y="370" class="line">U64</text>
+  <text x="376" y="388" class="line">F32</text>
+  <text x="376" y="406" class="line">Bool</text>
+  <text x="376" y="424" class="line">Struct:Str</text>
+  <text x="376" y="442" class="line">StructDef</text>
+  <text x="376" y="460" class="line">Enum:Str</text>
+  <text x="376" y="478" class="line">EnumDef</text>
+  <text x="376" y="496" class="line">FuncDef</text>
+  <text x="376" y="514" class="line">FuncPtr</text>
+  <text x="376" y="532" class="line">Dynamic</text>
+  <text x="376" y="550" class="line">Custom:Str</text>
   <text x="376" y="568" class="line">Primitive:Primitive</text>
   <rect x="362" y="594" width="164" height="154" rx="10" ry="10" class="box"/>
   <text x="376" y="632" class="title">FuncType: EnumDef</text>

@@ -9,9 +9,13 @@ I16 first because it has the smallest call-site surface.
 enum Primitive {
     I16
     U16
+    I8
+    U8
 namespace:
     I16
     U16
+    I8
+    U8
     func is(self: Primitive, other: Primitive) returns shallow Bool
     func eq(self: Primitive, other: Primitive) returns shallow Bool
     func delete(own self: Primitive, shallow call_free: Bool)
@@ -30,7 +34,6 @@ enum Type {
     Unknown
     None
     I64
-    U8
     I32
     U32
     U64
@@ -44,7 +47,6 @@ enum Type {
     FuncPtr
     Dynamic
     Custom: Str
-    I8
     Primitive: Primitive
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
@@ -53,7 +55,6 @@ namespace:
     ext_func Unknown() returns Type
     ext_func None() returns Type
     ext_func I64() returns Type
-    ext_func U8() returns Type
     ext_func I32() returns Type
     ext_func U32() returns Type
     ext_func U64() returns Type
@@ -67,7 +68,6 @@ namespace:
     ext_func FuncPtr() returns Type
     ext_func Dynamic() returns Type
     ext_func Custom(own val: Str) returns Type
-    ext_func I8() returns Type
     ext_func Primitive(own val: Primitive) returns Type
     func is(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, shallow call_free: Bool)

@@ -85,11 +85,12 @@
 ** Primitive: EnumDef
 *** I16
 *** U16
+*** I8
+*** U8
 ** Type: EnumDef
 *** Unknown
 *** None
 *** I64
-*** U8
 *** I32
 *** U32
 *** U64
@@ -103,7 +104,6 @@
 *** FuncPtr
 *** Dynamic
 *** Custom:Str
-*** I8
 *** Primitive:Primitive
 ** FuncType: EnumDef
 *** Func
