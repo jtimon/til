@@ -107,6 +107,27 @@ test_match_arg := test() {
     assert_eq_str(__LOC__, out, "hi-g")
 }
 
+# --- match yielding an enum value (result temp default is a first variant) ---
+test_match_enum_result := test() {
+    n := 2
+    c := match n {
+    case 1: Color.Red
+    case 2: Color.Green
+    case:   Color.Blue
+    }
+    assert_eq_str(__LOC__, c.to_str(), "Green")
+}
+
+# --- match yielding a payload-carrying enum ---
+test_match_enum_payload_result := test() {
+    n := 0
+    t := match n {
+    case 0: Token.Num(7)
+    case:   Token.Eof
+    }
+    assert_eq_str(__LOC__, t.to_str(), "Num(7)")
+}
+
 # --- nested match (a match in another match's arm) ---
 test_match_nested := test() {
     c := Color.Green

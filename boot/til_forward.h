@@ -1579,7 +1579,7 @@ Str * priv___src_self_typer_til__err_slot_name(Str * t);
 Expr * priv___src_self_typer_til__make_int_lit(I64 n, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_typed_mut_decl(Str * name, Str * type_name, Expr * init, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_assign_stmt(Str * name, Expr * rhs, U32 line, U32 col);
-Expr * priv___src_self_typer_til__make_default_value_expr(Str * type_name, U32 line, U32 col);
+Expr * priv___src_self_typer_til__make_default_value_expr(TypeScope * scope, Str * type_name, U32 line, U32 col);
 I64 priv___src_self_typer_til__tag_for_type(Context * ctx, Str * type_name, Vec * _type_to_tag_names);
 void priv___src_self_typer_til__register_throw_type(Context * ctx, Str * name);
 Expr * priv___src_self_typer_til__make_if_kind_eq_zero_wrap(Expr * stmt, U32 line, U32 col);
@@ -1607,7 +1607,7 @@ Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_
 void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 child_idx, Expr * body, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
 void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
 void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
-void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type, OwnType * return_own_type);
+void process_throw_catch_in_func_body(TypeScope * scope, Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type, OwnType * return_own_type);
 Bool is_compile_directive(Expr * e);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void reregister_scope_defs(Expr * body, TypeScope * scope);

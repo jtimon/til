@@ -1,0 +1,51 @@
+# priority: low
+** OPEN #251 Decide whether match arms may be brace blocks ending in a value
+
+   Today a `match` arm body is a single value-expression (issue #244):
+
+   : name := match c {
+   : case Color.Red:   "red"
+   : case Color.Green: "green"
+   : case Color.Blue:  "blue"
+   : }
+
+   An arm that needs a local computation must push it into a helper func --
+   there is no `case A: { ...statements...; value }` form (Rust's
+   block-valued arm). This issue is to DECIDE whether til should allow that,
+   not a commitment to build it.
+
+*** The question
+
+    Should a match arm accept a brace block whose final expression is the
+    arm's value, e.g.
+
+    : kind := match tok {
+    : case Token.Num(n): {
+    :     mut s := n.to_str()
+    :     s = s.concat("!")
+    :     s
+    : }
+    : case Token.Eof: "eof"
+    : }
+
+    Arguments for: parity with `switch` arms (which already run statement
+    lists) and with Rust; avoids helper-func boilerplate for non-trivial
+    arms.
+
+    Arguments against / open points:
+    - til has no "block expression" elsewhere; introducing "last expr of a
+      block is its value" only inside match arms is a new, localized rule.
+      Does it pull in the same idea for `if`/plain blocks, or stay
+      match-only?
+    - The lowering already wraps each arm value into `result_temp = <value>`
+      and shares the switch desugar (issue #244). A block-valued arm would
+      lower to `{ ...stmts...; result_temp = <last expr> }` -- mechanically
+      small, but the parser must distinguish a block body from a single
+      expression, and ownership/scoping of arm-locals needs a once-over.
+    - Interaction with guards (`case P if g: { ... }`) and with the bare
+      `case:` default.
+
+*** Status: undecided
+
+    No decision made. If we say no, close as cancelled with a note that arms
+    stay single-expression. If yes, this becomes the implementation issue.

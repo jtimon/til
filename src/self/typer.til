@@ -2618,25 +2618,16 @@ infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Co
     if expr.children.len().eq(0) { expr.set_expr_til_type(Type.Unknown); return }
     ref subj : Expr = expr.child(0)
     infer_expr(scope, subj, in_func, ctx)
-    // The match's type is the common arm type. Take it from the first arm and
-    // check the rest agree, so a mismatch is reported clearly here (rather than
-    // surfacing later as a temp-named assignment error from the lowering).
+    // The match's type is its first arm's value type. We only need that one
+    // arm typed here (to declare the result temp); arm-type agreement and
+    // exhaustiveness then fall out of the shared switch desugar -- each arm is
+    // lowered to `_m = <value>`, so a disagreeing arm trips the assignment
+    // type-check (reported in match terms, see infer_assign_stmt) and missing
+    // coverage trips infer_switch_stmt. No second walk over the arms here.
     mut result_t := Type.Unknown
-    mut has_t := false
-    mut reported := false
-    for ci in 1..expr.children.len() {
-        arm_t := match_arm_value_type(scope, expr.child(ci), subj, in_func, ctx)
-        if has_t.not() {
-            result_t = arm_t
-            has_t = true
-        } else if reported.not().and(arm_t.is(Type.Unknown).not()).and(result_t.is(Type.Unknown).not()).and(arm_t.eq(result_t).not()) {
-            expr.child(ci).type_error("match arms have incompatible types: '".concat(type_to_name(result_t)).concat("' vs '").concat(type_to_name(arm_t)).concat("'; all arms must yield the same type"), ctx)
-            reported = true
-        }
+    if expr.children.len().gt(1) {
+        result_t = match_arm_value_type(scope, expr.child(1), subj, in_func, ctx)
     }
-    // Arm-type agreement is the one check unique to match (switch arms have no
-    // type). Exhaustiveness -- enum and non-enum alike -- is enforced by the
-    // shared switch desugar (infer_switch_stmt) once the match is lowered.
     expr.set_expr_til_type(result_t)
 }
 
@@ -2752,7 +2743,7 @@ lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loo
     ctx.hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, explicit_type = tname.clone(), til_type = result_t.clone())), line, col)
-    decl.add_child(own make_default_value_expr(tname, line, col))
+    decl.add_child(own make_default_value_expr(scope, tname, line, col))
 
     // Clone the match and tag it with the result temp; the shared switch
     // desugar (infer_switch_stmt, reached via infer_body) turns its arms into
@@ -3454,7 +3445,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             // by make_switch_case_condition), so the throw/catch walk
             // can't see their explicit_type via the body-Decl scan.
             collect_switch_case_bindings(ctx, expr.child(0))
-            process_throw_catch_in_func_body(ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
+            process_throw_catch_in_func_body(scope, ctx, expr.child(0), fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         if macro_is_template.not() {
             infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
@@ -5268,12 +5259,15 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
                 msg = msg.concat(" ").concat(mp)
             }
             stmt.type_error(msg, ctx)
-        } else if any_guard.not().and(has_first_if).and(has_last_case_body) {
+        } else if is_match.not().and(any_guard.not()).and(has_first_if).and(has_last_case_body) {
             // Exhaustive enum switch, no `case:`, no guards: attach a clone
             // of the last case body as the chain's terminal else so C sees
             // an unconditional return path. By exhaustiveness the duplicate
             // body never runs at the source level; it exists purely so the
-            // generated C compiles under -Wreturn-type.
+            // generated C compiles under -Wreturn-type. A match never needs
+            // this: its result temp is default-initialized, so every path
+            // already has a value, and duplicating the last arm would just
+            // re-run (and re-diagnose) that arm's `_m = <value>` assign.
             attach_switch_default_body(first_if, last_case_body)
         }
     }
@@ -5592,7 +5586,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
             mut slot_decl := Expr.new(NodeType.Decl(Declaration(name = slot_name.clone(),
                 explicit_type = gtn.clone(), til_type = til_type_from_explicit_type(gtn),
                 is_mut = true)), line, col)
-            slot_decl.add_child(own make_default_value_expr(gtn, line, col))
+            slot_decl.add_child(own make_default_value_expr(scope, gtn, line, col))
             block.add_child(own slot_decl)
         }
     }
@@ -6068,7 +6062,7 @@ priv make_assign_stmt := func(name: Str, rhs: Expr, line: U32, col: U32) returns
     return a
 }
 
-priv make_default_value_expr := func(type_name: Str, line: U32, col: U32) returns Expr {
+priv make_default_value_expr := func(scope: TypeScope, type_name: Str, line: U32, col: U32) returns Expr {
     if type_name.eq("Str") { return Expr.new(NodeType.Literal(Literal.Str("")), line, col) }
     if type_name.eq("Bool") { return Expr.new(NodeType.Literal(Literal.Bool(false)), line, col) }
     if type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("I8")).or(type_name.eq("I16"))
@@ -6081,6 +6075,48 @@ priv make_default_value_expr := func(type_name: Str, line: U32, col: U32) return
     if type_name.eq("Dynamic").or(type_name.eq("Ptr")) {
         return Expr.new(NodeType.Literal(Literal.Null), line, col)
     }
+    // Enums have no zero-arg constructor (`Color()` is not valid), so a plain
+    // `TypeName()` would crash constructor inference. Synthesize a first
+    // variant instead -- preferring a payload-less one, else variant 0 with a
+    // default payload. The value is only ever a placeholder on an
+    // overwritten/unreachable path (a match result temp, a throw fallback), so
+    // any valid variant will do.
+    ref edef : Expr = scope.get_struct(type_name)
+    if edef.is_null().not() {
+        switch edef.node_type {
+        case NodeType.EnumDef(edd):
+            mut chosen_name := ""
+            mut chosen_tag : I32 = 0
+            mut found_nopayload := false
+            mut vi : USize = 0
+            while vi.lt(edd.variants.len()).and(found_nopayload.not()) {
+                if edd.payload_types.has(vi.to_i64()).not() {
+                    ref vn : Str = edd.variants[vi]
+                    chosen_name = vn.clone()
+                    chosen_tag = vi.cast(I32)
+                    found_nopayload = true
+                }
+                vi = vi.add(1)
+            }
+            if found_nopayload.not().and(edd.variants.len().gt(0)) {
+                ref v0 : Str = edd.variants[0]
+                chosen_name = v0.clone()
+                chosen_tag = 0
+            }
+            mut tident := Expr.new(ident_node(type_name), line, col)
+            mut vref := Expr.new(field_access_node(chosen_name), line, col)
+            vref.add_child(own tident)
+            if found_nopayload { return vref }
+            payload_t := enum_variant_type(edef, chosen_tag)
+            mut vcall := Expr.new(NodeType.FCall(FCallData()), line, col)
+            vcall.add_child(own vref)
+            vcall.add_child(own make_default_value_expr(scope, payload_t, line, col))
+            return vcall
+        case:
+        }
+    }
+    // Struct (or unresolved name): a zero-arg constructor works because every
+    // struct field carries a default.
     mut tident := Expr.new(ident_node(type_name), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
     call.add_child(own tident)
@@ -7372,6 +7408,7 @@ priv process_throw_catch_in_body := proc(
 // types touched and (for throwing functions) appends a fallback
 // return so all C paths return.
 process_throw_catch_in_func_body := proc(
+    scope: TypeScope,
     mut ctx: Context,
     mut body: Expr,
     fdef_throws: Vec,
@@ -7442,7 +7479,7 @@ process_throw_catch_in_func_body := proc(
         }
         if is_param.not() {
             new_ch.push(own make_typed_mut_decl(err_slot_name(tn), tn,
-                make_default_value_expr(tn, line, col), line, col))
+                make_default_value_expr(scope, tn, line, col), line, col))
         }
     }
     for j in 0..old.len() {
@@ -7458,7 +7495,7 @@ process_throw_catch_in_func_body := proc(
         if return_own_type.is(OwnType.Ref) {
             ret.add_child(own Expr.new(NodeType.Literal(Literal.Null), line, col))
         } else {
-            ret.add_child(own make_default_value_expr(return_type, line, col))
+            ret.add_child(own make_default_value_expr(scope, return_type, line, col))
         }
         new_ch.push(own ret)
     }
@@ -8139,10 +8176,13 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
         rhs.set_expr_til_type(existing)
         stmt.set_expr_til_type(existing)
     } else if rhs.expr_til_type().is(existing).not().and(rhs.expr_til_type().is(Type.Unknown).not()) {
-        // Issue #244: a `_m_*` target is a synthesized match result temp; an
-        // arm-type mismatch was already reported cleanly by infer_match_expr,
-        // so don't also surface the internal temp name here.
-        if aname.starts_with("_m_").not() {
+        // Issue #244: a `_m_*` target is a lowered match arm (`_m = <value>`),
+        // so a type mismatch here means the arms disagree -- report it in match
+        // terms (the temp's type is the first arm's). This is where match's
+        // arm-agreement check lives now, riding the shared assignment path.
+        if aname.starts_with("_m_") {
+            stmt.type_error("match arms have incompatible types: '".concat(type_to_name(existing)).concat("' vs '").concat(type_to_name(rhs.expr_til_type())).concat("'; all arms must yield the same type"), ctx)
+        } else {
             stmt.type_error("'".concat(aname).concat("' assignment type mismatch"), ctx)
         }
     }
