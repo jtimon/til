@@ -78,68 +78,67 @@ is_alnum := func(c: I8) returns Bool {
     return is_alpha(c).or(is_digit(c))
 }
 
-// --- Keyword table ---
+// --- Keyword map ---
 // Single source of truth for the keyword <-> TokenType mapping. Both
 // lookup_keyword (source spelling -> TokenType) and tok_name's keyword
-// branch (TokenType -> source spelling) scan this one table, so the two
-// directions can never drift. Mirrors the C version's Keyword[] array.
+// branch (TokenType -> source spelling) consult this one Map, so the two
+// directions can never drift. A Map keeps its keys ordered, so the hot
+// spelling -> TokenType lookup is a binary search rather than a linear
+// scan of a Vec.
 
-Keyword := struct {
-    const name := ""
-    const type := TokenType.Eof
-}
-
-priv keyword_table := func() returns Vec {
-    mut t := Vec.new(Keyword)
-    t.push(own Keyword(name = "mut", type = TokenType.KwMut))
-    t.push(own Keyword(name = "const", type = TokenType.KwConst))
-    t.push(own Keyword(name = "own", type = TokenType.KwOwn))
-    t.push(own Keyword(name = "ref", type = TokenType.KwRef))
-    t.push(own Keyword(name = "shallow", type = TokenType.KwShallow))
-    t.push(own Keyword(name = "struct", type = TokenType.KwStruct))
-    t.push(own Keyword(name = "enum", type = TokenType.KwEnum))
-    t.push(own Keyword(name = "namespace", type = TokenType.KwNamespace))
-    t.push(own Keyword(name = "func", type = TokenType.KwFunc))
-    t.push(own Keyword(name = "proc", type = TokenType.KwProc))
-    t.push(own Keyword(name = "test", type = TokenType.KwTest))
-    t.push(own Keyword(name = "macro", type = TokenType.KwMacro))
-    t.push(own Keyword(name = "ext_func", type = TokenType.KwExtFunc))
-    t.push(own Keyword(name = "ext_proc", type = TokenType.KwExtProc))
-    t.push(own Keyword(name = "ext_struct", type = TokenType.KwExtStruct))
-    t.push(own Keyword(name = "returns", type = TokenType.KwReturns))
-    t.push(own Keyword(name = "throws", type = TokenType.KwThrows))
-    t.push(own Keyword(name = "if", type = TokenType.KwIf))
-    t.push(own Keyword(name = "else", type = TokenType.KwElse))
-    t.push(own Keyword(name = "while", type = TokenType.KwWhile))
-    t.push(own Keyword(name = "for", type = TokenType.KwFor))
-    t.push(own Keyword(name = "in", type = TokenType.KwIn))
-    t.push(own Keyword(name = "switch", type = TokenType.KwSwitch))
-    t.push(own Keyword(name = "match", type = TokenType.KwMatch))
-    t.push(own Keyword(name = "case", type = TokenType.KwCase))
-    t.push(own Keyword(name = "default", type = TokenType.KwDefault))
-    t.push(own Keyword(name = "return", type = TokenType.KwReturn))
-    t.push(own Keyword(name = "throw", type = TokenType.KwThrow))
-    t.push(own Keyword(name = "catch", type = TokenType.KwCatch))
-    t.push(own Keyword(name = "break", type = TokenType.KwBreak))
-    t.push(own Keyword(name = "continue", type = TokenType.KwContinue))
-    t.push(own Keyword(name = "defer", type = TokenType.KwDefer))
-    t.push(own Keyword(name = "true", type = TokenType.KwTrue))
-    t.push(own Keyword(name = "false", type = TokenType.KwFalse))
-    t.push(own Keyword(name = "NULL", type = TokenType.KwNull))
-    t.push(own Keyword(name = "priv", type = TokenType.KwPriv))
-    return t
+priv keyword_map := func() returns Map {
+    kw : Map = {
+        "mut":        TokenType.KwMut,
+        "const":      TokenType.KwConst,
+        "own":        TokenType.KwOwn,
+        "ref":        TokenType.KwRef,
+        "shallow":    TokenType.KwShallow,
+        "struct":     TokenType.KwStruct,
+        "enum":       TokenType.KwEnum,
+        "namespace":  TokenType.KwNamespace,
+        "func":       TokenType.KwFunc,
+        "proc":       TokenType.KwProc,
+        "test":       TokenType.KwTest,
+        "macro":      TokenType.KwMacro,
+        "ext_func":   TokenType.KwExtFunc,
+        "ext_proc":   TokenType.KwExtProc,
+        "ext_struct": TokenType.KwExtStruct,
+        "returns":    TokenType.KwReturns,
+        "throws":     TokenType.KwThrows,
+        "if":         TokenType.KwIf,
+        "else":       TokenType.KwElse,
+        "while":      TokenType.KwWhile,
+        "for":        TokenType.KwFor,
+        "in":         TokenType.KwIn,
+        "switch":     TokenType.KwSwitch,
+        "match":      TokenType.KwMatch,
+        "case":       TokenType.KwCase,
+        "default":    TokenType.KwDefault,
+        "return":     TokenType.KwReturn,
+        "throw":      TokenType.KwThrow,
+        "catch":      TokenType.KwCatch,
+        "break":      TokenType.KwBreak,
+        "continue":   TokenType.KwContinue,
+        "defer":      TokenType.KwDefer,
+        "true":       TokenType.KwTrue,
+        "false":      TokenType.KwFalse,
+        "NULL":       TokenType.KwNull,
+        "priv":       TokenType.KwPriv,
+    }
+    return kw
 }
 
 // --- tok_name ---
 // Returns a human-readable name for a token type.
 // Matches C tok_name() output exactly. Keyword types resolve through the
-// shared keyword_table (TokenType -> source spelling); everything else
+// shared keyword_map (TokenType -> source spelling); everything else
 // is a fixed punctuation/literal name.
 
 tok_name := func(type: TokenType) returns Str {
-    table := keyword_table()
-    for kw : Keyword in table {
-        if type.is(kw.type) { return kw.name.clone() }
+    kw := keyword_map()
+    for k : Str in kw.keys {
+        ref tt : TokenType = kw[k]
+        if tt.is(type) { return k.clone() }
     }
     switch type {
     case TokenType.Eof: return "eof"
@@ -238,14 +237,15 @@ lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
 }
 
 // --- Keyword lookup ---
-// Scans the shared keyword_table (source spelling -> TokenType),
-// returning TokenType.Ident when the word is not a keyword. Mirrors the
-// C version's Keyword[] + comparison loop. The caller builds the table
-// once and passes it in so it is not rebuilt per identifier.
+// Looks up the shared keyword_map (source spelling -> TokenType),
+// returning TokenType.Ident when the word is not a keyword. The Map does
+// a binary search on its ordered keys. The caller builds the map once and
+// passes it in so it is not rebuilt per identifier.
 
-priv lookup_keyword := func(word: Str, table: Vec) returns shallow TokenType {
-    for kw : Keyword in table {
-        if word.eq(kw.name) { return kw.type }
+priv lookup_keyword := func(word: Str, kw: Map) returns TokenType {
+    if kw.has(word) {
+        ref tt : TokenType = kw[word]
+        return tt.clone()
     }
     return TokenType.Ident
 }
@@ -281,7 +281,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
     mut line : U32 = 1
     mut line_start : USize = 0
     src_len := src.len()
-    kw_table := keyword_table()
+    kw_map := keyword_map()
 
     while pos.lt(src_len) {
         ref c : I8 = src.byte_at(pos)
@@ -385,7 +385,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 pos++
             }
             word := src.substr(start, pos.sub(start))
-            push_tok(tokens, lookup_keyword(word, kw_table), word, line, col)
+            push_tok(tokens, lookup_keyword(word, kw_map), word, line, col)
             continue
         }
 

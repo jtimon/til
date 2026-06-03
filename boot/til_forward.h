@@ -187,7 +187,6 @@ typedef enum {
 } TokenType_tag;
 typedef struct TokenType TokenType;
 typedef struct Token Token;
-typedef struct Keyword Keyword;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
@@ -543,12 +542,6 @@ typedef struct Token {
     U32 line;
     U32 col;
 } Token;
-
-
-typedef struct Keyword {
-    Str name;
-    TokenType type;
-} Keyword;
 
 
 typedef struct priv___src_self_parser_til__Parser {
@@ -1282,15 +1275,11 @@ U32 Token_size(void);
 Bool is_digit(I8 c);
 Bool is_alpha(I8 c);
 Bool is_alnum(I8 c);
-Keyword * Keyword_clone(Keyword * self);
-void Keyword_delete(Keyword * self, Bool call_free);
-U64 Keyword_hash(Keyword * self, HashFn hasher);
-U32 Keyword_size(void);
-Vec * priv___src_self_lexer_til__keyword_table(void);
+Map * priv___src_self_lexer_til__keyword_map(void);
 Str * tok_name(TokenType * type);
 TokenType priv___src_self_lexer_til__lookup_single_char(I8 c);
 TokenType lookup_two_char(I8 c, I8 c2);
-TokenType priv___src_self_lexer_til__lookup_keyword(Str * word, Vec * table);
+TokenType * priv___src_self_lexer_til__lookup_keyword(Str * word, Map * kw);
 U32 priv___src_self_lexer_til__scan_to_eol(Str * src, U32 from, U32 src_len);
 void priv___src_self_lexer_til__push_tok(Vec * tokens, TokenType * type, Str * text, U32 line, U32 col);
 Vec * tokenize(Str * src, Str * path);
