@@ -33,9 +33,8 @@ NNG_LIB := vendor/nng/libnng.a
 NNG_FLAGS := -Lvendor/nng -lnng -lpthread -latomic
 
 LIBFFI_DIR := vendor/libffi
-LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
-LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
+LIBFFI_FLAGS = -L$(LIBFFI_LIBDIR) -lffi
 LIBFFI_BINDGEN_INCDIR := $(LIBFFI_DIR)/x86_64-pc-linux-gnu/include
 
 $(RAYLIB_LIB):
@@ -118,7 +117,7 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
 bin/til: bin/til_boot $(CORE) $(SELF) $(LIB_TIL) src/til.til
-	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til_boot build -o bin/til src/til.til
+	bin/til_boot build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
 # --- Two-pass build ---
@@ -133,7 +132,7 @@ bin/til: bin/til_boot $(CORE) $(SELF) $(LIB_TIL) src/til.til
 # "Two-pass: " so the local merger reproduces the same regen procedure
 # (see doc/bots/merging_from_remote.org).
 two_pass: bin/til
-	C_INCLUDE_PATH=$(LIBFFI_INCDIR) LIBRARY_PATH=$(LIBFFI_LIBDIR) bin/til build -o bin/til src/til.til
+	bin/til build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
 # --- ASAN build (for memory debugging) ---
