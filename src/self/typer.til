@@ -2978,7 +2978,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     case NodeType.Ident(_dv_id):
                         ref _src : TypeBinding = inner.get_binding(_dv_id.ident_name())
                         if _src.is_null().not().and(_src.func_def.is_null().not()) {
-                            _fb.func_def = _src.func_def
+                            inner.set_func_def(fd.name, _src.func_def)
                         }
                     case:
                     }
@@ -2988,7 +2988,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                         ref _fsb : TypeBinding = inner.get_binding(fd.explicit_type)
                         if _fsb.is_null().not().and(_fsb.func_def.is_null().not()) {
                             if _fsb.func_def.children.len().eq(0) {
-                                _fb.func_def = _fsb.func_def
+                                inner.set_func_def(fd.name, _fsb.func_def)
                             }
                         }
                     }
@@ -3017,8 +3017,8 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             }
             tc_nd.til_type =tc_rt.clone()
             inner.set(tc_nd.name, tc_rt, false, ctx.path, 0, 0, false, OwnType.Shallow)
+            inner.set_func_def(tc_nd.name, tc_nd.default_value)
             ref mut tc_fb : TypeBinding = inner.get_binding(tc_nd.name)
-            tc_fb.func_def = tc_nd.default_value
             tc_fb.is_func_decl = true
             if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)) {
                 tc_fb.is_builtin = true
@@ -3389,14 +3389,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                     param.own_type = OwnType.Shallow
                 }
                 func_scope.set(param.name, pt, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
-                ref mut pb : TypeBinding = func_scope.get_binding(param.name)
                 if pt.is(Type.FuncPtr) {
                     sf_fsb := scope.find(ptn)
                     switch sf_fsb {
                     case ScopeFind.Found(fsb):
                         if fsb.func_def.is_null().not() {
                             if fsb.func_def.children.len().eq(0) {
-                                pb.func_def = fsb.func_def
+                                func_scope.set_func_def(param.name, fsb.func_def)
                             }
                         }
                     case:
@@ -4212,8 +4211,8 @@ infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
             mut binding_type := rt
             if is_bodyless { binding_type = Type.FuncPtr }
             scope.set(sdecl.name, binding_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set_func_def(sdecl.name, stmt.child(0))
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-            fb.func_def = stmt.child(0)
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
@@ -4402,12 +4401,12 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
             case NodeType.Ident(rhs_id):
                 ref src : TypeBinding = scope.get_binding(rhs_id.ident_name())
                 if src.is_null().not() {
-                    if src.func_def.is_null().not() { decl_b.func_def = src.func_def }
+                    if src.func_def.is_null().not() { scope.set_func_def(sdecl.name, src.func_def) }
                 }
             case NodeType.FCall:
                 ref rfc_sig : Expr = resolve_fn_sig(rhs, scope)
                 if rfc_sig.is_null().not() {
-                    decl_b.func_def = rfc_sig
+                    scope.set_func_def(sdecl.name, rfc_sig)
                 }
             case:
             }
@@ -4417,7 +4416,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
                     if fsb.is_null().not() {
                         if fsb.func_def.is_null().not() {
                             if fsb.func_def.children.len().eq(0) {
-                                decl_b.func_def = fsb.func_def
+                                scope.set_func_def(sdecl.name, fsb.func_def)
                             }
                         }
                     }
@@ -7601,11 +7600,11 @@ reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                     }
                 if rb.func_def.is_null().not().and(rstmt.child(0).node_type.is(NodeType.FuncDef)) {
                     ref old_fd : Expr = rb.func_def
-                    rb.func_def = rstmt.child(0)
+                    scope.set_func_def(rb.name, rstmt.child(0))
                     for bi in 0..scope.bindings.len() {
-                        ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+                        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
                         if b.ptr_eq(rb).not().and(b.func_def.ptr_eq(old_fd)) {
-                            b.func_def = rstmt.child(0)
+                            scope.set_func_def(b.name, rstmt.child(0))
                         }
                     }
                 }
@@ -7833,8 +7832,8 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
         case NodeType.FuncDef:
             rt := Type.None
             scope.set(sdecl.name, rt, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
+            scope.set_func_def(sdecl.name, lifted.child(0))
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-            fb.func_def = lifted.child(0)
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
         case:

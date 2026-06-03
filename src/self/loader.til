@@ -244,14 +244,16 @@ LoadedProgram := struct {
     run_tests := false
 }
 
-retarget_alias_binding := func(scope: TypeScope, alias_name: Str, target_name: Str) {
+retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
     ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
     if alias_binding.is_null() { return }
     ref target_binding : TypeBinding = scope.get_binding(target_name)
     if target_binding.is_null() { return }
     alias_binding.type = target_binding.type.clone()
     alias_binding.struct_def = target_binding.struct_def
-    alias_binding.func_def = target_binding.func_def
+    if target_binding.func_def.is_null().not() {
+        scope.set_func_def(alias_name, target_binding.func_def)
+    }
     alias_binding.is_func_decl = target_binding.is_func_decl
     alias_binding.is_builtin = target_binding.is_builtin
     alias_binding.is_type_alias = true

@@ -122,7 +122,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      exists in flight; the ~FunctionDef~ struct in ~core/ast.til~ still
      mixes sig and body.
 
-   Not started (the substantive work that remains):
+   Done (continued):
 
    - Step 11 (stretch) -- *done* (via ~[[./206.org][#206]]~). ~Expr.til_type~ removed;
      ~expr_til_type~ is now a pure function of ~node_type~ + payload
@@ -247,19 +247,19 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
 
 *** Anti-pattern catalog (the remaining work, organized)
 
-   **** Layout cache on AST nodes (steps 3-4)
+   **** Layout cache on AST nodes (steps 3-4) -- DONE
 
-   ~Declaration.field_offset : I32~, ~field_size : I32~,
-   ~field_struct_def : ref mut Expr~ are set by initer's
-   ~compute_struct_layout~ ([[file:../../src/self/initer.til][src/self/initer.til]]) and read across
-   [[file:../../src/self/dispatch.til][src/self/dispatch.til]], ~interpreter.til~, ~typer.til~,
-   ~builder.til~ -- ~46 sites. ~StructDef.total_struct_size~ and
-   ~EnumDef.total_enum_size~ duplicate the same info at the type level.
-
-   These are per-struct-type facts, not per-declaration syntax. rstil
-   computes layout on demand in ~EvalHeap~. The til-shaped fix is
-   ~Context.struct_layouts : Map<Str, StructLayout>~, populated by the
-   typer's per-decl visit (see ~[[./165.org][#165]]~ step 3).
+   All five AST layout fields are gone (~Declaration.field_offset~,
+   ~field_size~, ~field_struct_def~, ~StructDef.total_struct_size~,
+   ~EnumDef.total_enum_size~). Step 3 landed
+   ~Context.struct_layouts~ (~88723f1~), step 4 dropped
+   ~field_struct_def~ (~2417f71~) and the rest (~5372e3c~). Readers
+   route through ~ctx.struct_layouts~ via the
+   ~ctx_total_size~ / ~ctx_field_layout~ helpers; the defensive
+   ~resolve_field_struct_defs~ / ~reregister_field_struct_defs~
+   walks went with the field. See [[./247.org][#247]] for the optional
+   step 5 (drop the stored map entirely, compute layout on demand
+   in the rstil-pure shape).
 
    **** FCallData resolution artifacts (step 7) -- DONE
 
@@ -323,18 +323,15 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    empty slot. This is larger than a mechanical reader migration and
    is best done as part of the step-11 push, not before.
 
-   **** Expr.til_type per-node cache (step 11, stretch)
+   **** Expr.til_type per-node cache (step 11, stretch) -- DONE
 
-   Hundreds of write/read sites across all phases. Worth doing only if
-   the AST becomes immutable-after-typer; otherwise new desugar nodes
-   need fresh entries and the bookkeeping defeats the savings. ~[[./158.org][#158]]~
-   (one pass per phase) and ~[[./146.org][#146]]~ (single typer walk) are the
-   prerequisites.
-
-   Tracked under ~[[./206.org][#206]]~ as a standalone issue with a slice-by-slice
-   migration plan (Ident, then literals, then FCall / FieldAccess /
-   collection literals / NamedArg, then dead-variant writes, then the
-   final cut).
+   Removed via ~[[./206.org][#206]]~. ~expr_til_type~ is now a
+   pure function of ~node_type~ + payload (no per-Expr storage):
+   per-variant type storage lives on the NodeType payloads
+   (~IdentData~, ~LiteralNumData~, ~FCallData~, ~FieldAccessData~,
+   ~ForInData~) and trivially-derivable variants derive on demand.
+   The rstil-style derive-from-Context+AST shape (no payload
+   storage at all) was not pursued.
 
    **** Dangerous ~ref mut .. : Expr = NULL~ refs (cross-cutting)
 
@@ -342,9 +339,9 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    or pre-date the nodes they point at. When any pass clones-and-filters
    ~body.children~ the refs can dangle. Catalog:
 
-   - ~Declaration.field_struct_def~ ([[file:../../src/core/ast.til:126][src/core/ast.til:126]]) -- points at
-     a nested struct/enum AST node. Replace with a name + lookup in
-     ~Context.struct_layouts~ once steps 3-4 land.
+   - ~Declaration.field_struct_def~ -- *removed* (~2417f71~). The
+     defensive ~resolve_field_struct_defs~ /
+     ~reregister_field_struct_defs~ walks went with it.
    - ~FCallData.fn_sig~ -- *removed*. Was the original motivating
      case; the "name + lookup" replacement
      (~resolve_fn_sig~ / ~fcall_fn_sig~) is now the template for the

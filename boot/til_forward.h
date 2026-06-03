@@ -571,6 +571,7 @@ typedef struct TypeBinding {
     Str alias_target;
     Expr *struct_def;
     Expr *func_def;
+    FuncType func_type;
     Bool is_builtin;
     Bool used;
     Bool written;
@@ -588,6 +589,7 @@ struct ScopeFind {
 
 typedef struct TypeScope {
     Map bindings;
+    Map func_defs;
     TypeScope *parent;
 } TypeScope;
 
@@ -1336,12 +1338,14 @@ ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
+void TypeScope_set_func_def(TypeScope * self, Str * name, Expr * fdef);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
 void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool call_free);
 U32 TypeScope_size(void);
 FuncType binding_func_type(TypeBinding * b);
+FuncType func_def_type(Expr * fdef);
 ImportUnit * ImportUnit_clone(ImportUnit * self);
 void ImportUnit_delete(ImportUnit * self, Bool call_free);
 U32 ImportUnit_size(void);

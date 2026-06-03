@@ -948,8 +948,8 @@ register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeSco
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set_func_def(sdecl.name, stmt.child(0))
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-        fb.func_def = stmt.child(0)
         fb.is_func_decl = true
     case:
         UNREACHABLE(__LOC__)
@@ -987,9 +987,9 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
                 }
             }
             scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            if target.func_def.is_null().not() { scope.set_func_def(sdecl.name, target.func_def) }
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
             ab.struct_def = target.struct_def
-            ab.func_def = target.func_def
             ab.is_func_decl = target.is_func_decl
             ab.is_builtin = target.is_builtin
             ab.is_type_alias = true
@@ -1078,8 +1078,8 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
     case NodeType.Decl(sdecl):
         if def.children.len().eq(0) {
             scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set_func_def(sdecl.name, stmt.child(0))
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-            fb.func_def = stmt.child(0)
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
@@ -1138,8 +1138,8 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
                 rt = init_type_from_explicit_type(fdef.return_type, scope)
             }
             scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+            scope.set_func_def(sdecl.name, stmt.child(0))
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
-            fb.func_def = stmt.child(0)
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()

@@ -23,6 +23,13 @@ TypeBinding := struct {
     alias_target := ""
     ref struct_def : Expr = NULL
     ref func_def : Expr = NULL
+    // Issue #147: cached FuncType for callers (binding_func_type and
+    // friends) so they don't have to deref ref func_def through the
+    // parse tree. Populated alongside scope.func_defs at every binding
+    // write site. Lets us drop the dangerous ref Expr func_def field
+    // in a later commit once all func_def readers have migrated to
+    // scope.lookup_func(name).
+    func_type := FuncType.Func
     is_builtin := false
     used := false
     // #164: set when the binding is written through -- direct `name = ...`,
@@ -57,6 +64,11 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 
 TypeScope := struct {
     bindings := Map.new(Str, TypeBinding)
+    // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
+    // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
+    // by scope.set_func_def at every binding write site that used to
+    // assign b.func_def; readers use scope.lookup_func(name).
+    func_defs := Map.new(Str, Dynamic)
     ref parent : TypeScope = NULL
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
@@ -95,6 +107,43 @@ namespace:
         }
         return NULL
     }
+    // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
+    // walking lookup. Replaces direct reads of TypeBinding.func_def.
+    // Same Map<Str, Dynamic> -> deref pattern as
+    // interpreter.til:lookup_interp_type_def.
+    lookup_func := func(self: TypeScope, name: Str) returns ref Expr {
+        if self.func_defs.has(name) {
+            ref slot : Dynamic = self.func_defs.get(name)?
+            catch (e: KeyNotFound) { return NULL }
+            return deref(slot)
+        }
+        if self.parent.is_null().not() {
+            return self.parent.lookup_func(name)
+        }
+        return NULL
+    }
+    // Issue #147: set both the ref Expr field on the binding (legacy,
+    // to keep existing readers working) and the scope-side func_defs
+    // Map (the migration target). Cached func_type is derived from
+    // the fdef Expr so binding_func_type doesn't need to deref the
+    // ref. Once all readers move to scope.lookup_func(name), the
+    // legacy b.func_def field can be dropped.
+    //
+    // The func_defs Map stores a Dynamic-pointing-to-Expr-ptr
+    // (malloc'd cell, write_ptr-populated). Mirrors the
+    // ctx.interp_type_defs pattern -- the cell is owned by the Map so
+    // its cleanup frees the allocation; the Expr it points at lives
+    // in the AST and is not owned by the Map.
+    set_func_def := func(mut self: TypeScope, name: Str, fdef: Expr) {
+        if self.bindings.has(name) {
+            ref mut b : TypeBinding = self.bindings[name]
+            b.func_def = fdef
+            b.func_type = func_def_type(fdef)
+        }
+        cell : Dynamic = malloc(I64.size())
+        write_ptr(cell, fdef)
+        self.func_defs.set(own name.clone(), own cell)
+    }
     is_mut := func(self: TypeScope, name: Str) returns Bool {
         ref b : TypeBinding = self.get_binding(name)
         if b.is_null().not() { return b.is_mut }
@@ -132,6 +181,11 @@ namespace:
 // func_def; return Func (the only callers test Proc/ExtProc/Test/Macro,
 // none of which a non-function answers yes to, and FuncPtr-typed callees
 // skip those checks entirely).
+//
+// Issue #147 transitional state: b.func_type is *also* populated by
+// scope.set_func_def at every binding write site so binding_func_type
+// can drop the deref once all binding writes route through that
+// helper (and the ref Expr field goes away in a follow-up commit).
 binding_func_type := func(b: TypeBinding) returns shallow FuncType {
     if b.is_null() { return FuncType.Func }
     if b.func_def.is_null().not() {
@@ -139,6 +193,20 @@ binding_func_type := func(b: TypeBinding) returns shallow FuncType {
         case NodeType.FuncDef(fd): return fd.func_type
         case:
         }
+    }
+    return FuncType.Func
+}
+
+// Issue #147 helper: pick the FuncType for a func_def Expr. Empty
+// (FuncType.Func) for non-FuncDef nodes such as FuncSig signatures
+// stored at func-pointer locations -- callers don't distinguish those
+// from regular funcs at the binding level.
+func_def_type := func(fdef: Expr) returns shallow FuncType {
+    if fdef.is_null() { return FuncType.Func }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        return fd.func_type
+    case:
     }
     return FuncType.Func
 }
