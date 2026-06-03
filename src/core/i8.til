@@ -28,7 +28,7 @@ namespace:
     /// Negate the value.
     neg := func(a: I8) returns I8 { return 0.sub(a.cast(I64)).to_i8() }
     /// Absolute value.
-    abs := func(a: I8) returns I8 { if a.cast(I64).lt(0) { return 0.sub(a.cast(I64)).to_i8() } return a }
+    abs := func(a: I8) returns I8 { if a.lt(0) { return I8.neg(a) } return a }
     band := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     bor := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     bxor := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}

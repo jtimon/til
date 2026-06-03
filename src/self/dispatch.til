@@ -1283,7 +1283,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns
 enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if enum_has_payloads(enum_def) {
         ctor_tag := enum_variant_tag(enum_def, method)
-        if ctor_tag.cast(I64).gte(0) {
+        if ctor_tag.gte(0) {
             vtype := enum_variant_type(enum_def, ctor_tag)
             has_payload := vtype.len().gt(0)
             if has_payload {

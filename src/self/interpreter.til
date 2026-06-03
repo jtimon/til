@@ -695,7 +695,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                         if edef.node_type.is(NodeType.EnumDef) {
                                             total_size : I32 = ctx_total_size(sname, ctx)
                                             tag := enum_variant_tag(edef, fname.field_access_name())
-                                            if tag.cast(I64).gte(0) {
+                                            if tag.gte(0) {
                                                 if enum_has_payloads(edef) {
                                                     return val_enum_flat(sname, tag, NULL, 0, total_size)
                                                 } else {
@@ -1090,7 +1090,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                             }
                                         }
                                     }
-                                    if sz.cast(I64).gt(0) {
+                                    if sz.gt(0) {
                                         // #221 paired: for Str payloads the old payload's
                                         // c_str may own heap (cap < CAP_VIEW && count > 0);
                                         // free it before overwriting the bytes so the
@@ -2778,7 +2778,7 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, run_tests: Bool
     if user_argv.is_null().not() { user_argc = user_argv.len() }
 
     ffi_rc := ffi_init(program, fwd_path, user_c, ext_c, link_flags, lp.ctx)
-    if ffi_rc.cast(I64).eq(0).not() { return ffi_rc }
+    if ffi_rc.eq(0).not() { return ffi_rc }
     if core_program.is_null().not() { ffi_init_scan_program(core_program, lp.ctx) }
 
     global := scope_new(NULL)
@@ -2865,8 +2865,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, run_tests: Bool
 
                 if nparam.gt(0) {
                     mut fixed := nparam
-                    if vi.cast(I64).gte(0) { fixed = nparam.sub(1) }
-                    if vi.cast(I64).gte(0) {
+                    if vi.gte(0) { fixed = nparam.sub(1) }
+                    if vi.gte(0) {
                         if user_argc.lt(fixed) {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
@@ -2941,7 +2941,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     ffi_reset(lp.ctx)
     empty := Expr.new(NodeType.Body, 0, 0)
     ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
-    if ffi_rc.cast(I64).eq(0).not() { return ffi_rc }
+    if ffi_rc.eq(0).not() { return ffi_rc }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -3121,8 +3121,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
 
                 if nparam.gt(0) {
                     mut fixed := nparam
-                    if vi.cast(I64).gte(0) { fixed = nparam.sub(1) }
-                    if vi.cast(I64).gte(0) {
+                    if vi.gte(0) { fixed = nparam.sub(1) }
+                    if vi.gte(0) {
                         if user_argc.lt(fixed) {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
