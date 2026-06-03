@@ -8267,11 +8267,6 @@ is_numeric_type := func(t: Type) returns Bool {
     case Type.Primitive(Primitive.U32): return true
     case Type.Primitive(Primitive.U64): return true
     case Type.Primitive(Primitive.F32): return true
-    case Type.Struct(s):
-        if s.eq("I32") { return true }
-        if s.eq("U8")  { return true }
-        if s.eq("I8")  { return true }
-        return false
     case: return false
     }
 }
@@ -8286,18 +8281,13 @@ is_integral_numeric_type := func(t: Type) returns Bool {
     case Type.Primitive(Primitive.I32): return true
     case Type.Primitive(Primitive.U32): return true
     case Type.Primitive(Primitive.U64): return true
-    case Type.Struct(s):
-        if s.eq("I32") { return true }
-        if s.eq("U8")  { return true }
-        if s.eq("I8")  { return true }
-        return false
     case: return false
     }
 }
 
 type_ctor_consumes := func(t: Type) returns Bool {
-    // Issue #205: primitives may still arrive as Type.Struct("I32") / Type.Struct("U8")
-    // are value types -- a ctor field default of `0` with explicit type I32
+    // Primitives (now all Type.Primitive) are value types -- a ctor field
+    // default of `0` with explicit type I32
     // shouldn't trigger "own" semantics. Without this short-circuit, the
     // generic Type.Struct case below pulls them into set_own_arg in
     // infer_struct_constructor_fcall, which makes the typer's hoist pass
@@ -8367,51 +8357,22 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
     case Type.Primitive(Primitive.U64):
         val := val_str.to_i64()
         return val.gte(0)
-    case Type.Struct(s):
-        if s.eq("I32") {
-            val := val_str.to_i64()
-            return val.gte(-2147483648).and(val.lte(2147483647))
-        }
-        if s.eq("U8") {
-            val := val_str.to_i64()
-            return val.gte(0).and(val.lte(255))
-        }
-        if s.eq("I8") {
-            val := val_str.to_i64()
-            return val.gte(-128).and(val.lte(127))
-        }
-        return true
     case: return true
     }
 }
 
 can_implicit_widen := func(from: Type, to: Type) returns Bool {
     if from.eq(to) { return false }
-    // Issue #205: a primitive may arrive as Type.Struct("<name>") or as
-    // Type.<Name> during the staged migration; both must widen to I64
-    // and accept widening from the smaller primitives.
     // is() is tag-only and matches any Type.Primitive, so discriminate the
-    // inner primitive by name (til_type_name_c) instead of is(Primitive(X)).
-    mut to_is_i32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I32"))
-    switch to {
-    case Type.Struct(ts):
-        if ts.eq("I32") { to_is_i32 = true }
-    case:
-    }
-    to_is_i64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I64"))
-    to_is_u32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U32"))
-    to_is_u64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U64"))
+    // target's inner primitive by name (til_type_name_c).
     to_is_i16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I16"))
     to_is_u16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U16"))
-    mut from_is_u8 := from.is(Type.Primitive).and(til_type_name_c(from).eq("U8"))
-    mut from_is_i8 := from.is(Type.Primitive).and(til_type_name_c(from).eq("I8"))
+    to_is_i32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I32"))
+    to_is_u32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U32"))
+    to_is_i64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I64"))
+    to_is_u64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U64"))
     switch from {
-    case Type.Struct(fs):
-        if fs.eq("U8") { from_is_u8 = true }
-        if fs.eq("I8") { from_is_i8 = true }
-    case:
-    }
-    if from_is_u8 {
+    case Type.Primitive(Primitive.U8):
         if to_is_i16 { return true }
         if to_is_u16 { return true }
         if to_is_i32 { return true }
@@ -8419,14 +8380,6 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
         if to_is_u32 { return true }
         if to_is_u64 { return true }
         return false
-    }
-    if from_is_i8 {
-        if to_is_i16 { return true }
-        if to_is_i32 { return true }
-        if to_is_i64 { return true }
-        return false
-    }
-    switch from {
     case Type.Primitive(Primitive.I8):
         if to_is_i16 { return true }
         if to_is_i32 { return true }
@@ -8449,11 +8402,6 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
     case Type.Primitive(Primitive.I32):
         if to_is_i64 { return true }
         return false
-    case Type.Struct(fs):
-        if fs.eq("I32") {
-            if to_is_i64 { return true }
-        }
-        return false
     case: return false
     }
 }
@@ -8473,21 +8421,8 @@ type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Context
 }
 
 type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
-    if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
-    if name.eq("U8")   { return Type.Primitive(Primitive.U8) }
-    if name.eq("I8")   { return Type.Primitive(Primitive.I8) }
-    if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
-    if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
-    if name.eq("I32")  { return Type.Primitive(Primitive.I32) }
-    if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
-    if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
-    if name.eq("F32")  { return Type.Primitive(Primitive.F32) }
-    if name.eq("Str")  { return Type.Struct("Str") }
-    if name.eq("Bool") { return Type.Primitive(Primitive.Bool) }
-    if name.eq("StructDef") { return Type.Struct("StructDef") }
-    if name.eq("EnumDef")   { return Type.Struct("EnumDef") }
-    if name.eq("Fn")        { return Type.FuncPtr }
-    if name.eq("Dynamic")   { return Type.Dynamic }
+    mut bt := Type.Unknown
+    if builtin_type_from_name(name, bt) { return bt }
     if scope.is_null().not() {
         ref mut b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {
@@ -9705,8 +9640,8 @@ hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: V
     case ScopeFind.Found(ab):
         if ab.is_param.not() { return }
         if ab.is_mut.not() { return }
-        // Issue #205: only rewrite for compound aggregates -- primitives
-        // (incl. those still arriving as Type.Struct("I32")) keep value semantics
+        // only rewrite for compound aggregates -- primitives (Type.Primitive)
+        // keep value semantics
         // and don't need the swap dance.
         if is_aggregate(ab.type).not() { return }
 

@@ -655,11 +655,6 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.None:    return "void"
     case Type.Dynamic: return "void *"
     case Type.FuncPtr: return "void *"
-    case Type.Struct(s):
-        if s.eq("I32") { return "I32" }
-        if s.eq("U8")  { return "U8" }
-        if s.eq("I8")  { return "I8" }
-        return "I64"
     case:                 return "I64"
     }
 }
@@ -4276,11 +4271,6 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                         case Type.Primitive(Primitive.U64):  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
                         case Type.Primitive(Primitive.F32):  ct = "ctypes.POINTER(ctypes.c_float)"
                         case Type.Primitive(Primitive.Bool): ct = "ctypes.POINTER(ctypes.c_bool)"
-                        case Type.Struct(sname):
-                            if sname.eq("I32")     { ct = "ctypes.POINTER(ctypes.c_int)" }
-                            else if sname.eq("U8") { ct = "ctypes.POINTER(ctypes.c_ubyte)" }
-                            else if sname.eq("I8") { ct = "ctypes.POINTER(ctypes.c_byte)" }
-                            else                   { ct = "ctypes.c_void_p" }
                         case:              ct = "ctypes.c_void_p"
                         }
                     }

@@ -718,11 +718,8 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec
         switch stmt.node_type {
         case NodeType.Decl(dd):
         if dd.own_type.is(OwnType.Ref) { continue }
-        // Issue #205: use is_aggregate, not raw is(Type.Struct).
-        // Primitives modelled as Type.Struct("I32") must NOT be
-        // heap-promoted -- they live in registers and the codegen
-        // emits them as value types. is(Type.Struct) alone would
-        // pull them into the heap-promote branch.
+        // Use is_aggregate, not raw is(Type.Struct): keeps user structs/
+        // enums (which heap-promote) distinct from everything else.
         is_struct := is_aggregate(local.type)
         if local.own_transfer.lt(0).and(is_struct.not()) { continue }
         // Skip heap-promotion if the only "use" is the function's

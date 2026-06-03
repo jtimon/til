@@ -582,20 +582,9 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
 }
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
-    if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
-    if name.eq("U8")   { return Type.Primitive(Primitive.U8) }
-    if name.eq("I8")   { return Type.Primitive(Primitive.I8) }
-    if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
-    if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
-    if name.eq("I32")  { return Type.Primitive(Primitive.I32) }
-    if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
-    if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
+    mut bt := Type.Unknown
+    if builtin_type_from_name(name, bt) { return bt }
     if name.eq("USize") { return Type.Primitive(Primitive.U32) }
-    if name.eq("Str")  { return Type.Struct("Str") }
-    if name.eq("Bool") { return Type.Primitive(Primitive.Bool) }
-    if name.eq("StructDef") { return Type.Struct("StructDef") }
-    if name.eq("EnumDef") { return Type.Struct("EnumDef") }
-    if name.eq("Dynamic")   { return Type.Dynamic }
     if scope.is_null().not() {
         ref b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {
