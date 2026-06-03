@@ -176,7 +176,11 @@ the merger decides whether to accept them.
 - Process is in `issues/process.org`; the counter is in `issues/NEXT_ISSUE.txt`.
 - New issues go at the top of their priority, numbered from `issues/NEXT_ISSUE.txt`.
 - When work starts, change OPEN -> WIP in the title line.
-- Fixed issues move to `issues/fixed/`, cancelled to `issues/cancelled/`.
+- When you fix an issue, do all of these in the SAME commit as the fix:
+  `git mv issues/open/NNN.org issues/fixed/NNN.org`, change OPEN/WIP ->
+  FIXED in the title line, and write a post-mortem at the top of the file
+  (what the root cause was, what you changed to fix it, and the name of
+  the regression test). Cancelled issues move to `issues/cancelled/`.
 - `make test` regenerates `issues/summary.org`. Increment `issues/NEXT_ISSUE.txt` manually.
 
 ## Build Output

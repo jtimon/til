@@ -375,6 +375,38 @@ extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec, scope: TypeScope
     }
 }
 
+// Issue #250: a hoisted view temp (a `hoisted__` Decl whose initializer reads
+// a local's heap buffer, e.g. `arg.substr(...)`) keeps that local's buffer
+// live until the temp is consumed -- typically by a later `.clone()`. The
+// local's last *named* mention is the view-producing statement, so without
+// this the asap pass schedules the local's auto-delete right there, BEFORE the
+// clone copies from the view: a use-after-free that corrupts the clone (garbage
+// bytes). This is the cross-variable generalization of #238, whose
+// collect_hoist_taint / var_aliases_target machinery only handled the case
+// where the view aliases the *assign target*.
+//
+// Fix idea #2 from the issue: treat a use of a hoisted view as a use of its
+// backing local. Taint the hoisted temps that (transitively) read the local,
+// then extend the local's last_use to the last statement that consumes any
+// such temp. Deferring an owned local's delete is always memory-safe, so the
+// (slightly over-eager) transitive taint -- which also follows clone results
+// that no longer alias the buffer -- only pushes the delete a touch later.
+extend_hoist_view_lifetimes := func(body: Expr, locals: Vec) {
+    for local : LocalInfo in locals {
+        if local.name.starts_with("hoisted__") { continue }
+        tainted := collect_hoist_taint(local.name, body.children)
+        if tainted.len().eq(0) { continue }
+        mut view_last : I32 = -1
+        for j in 0..body.children.len() {
+            if is_compile_directive(body.child(j)) { continue }
+            for t : Str in tainted {
+                if expr_uses_var(body.child(j), t) { view_last = j.cast(I32) }
+            }
+        }
+        if view_last.gt(local.last_use) { local.last_use = view_last }
+    }
+}
+
 check_use_after_own_transfer := proc(body: Expr, locals: Vec, ctx: Context) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
@@ -840,6 +872,10 @@ insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, sc
     check_use_after_own_transfer(body, locals_vec, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
     sink_conditional_transfer_deletes(body, locals_vec, scope, ctx)
+    // After the own-transfer check (so an over-eager taint can't spuriously
+    // flag use-after-transfer): defer a local's auto-delete past any later
+    // statement that reads a hoisted view aliasing its buffer. See #250.
+    extend_hoist_view_lifetimes(body, locals_vec)
 
     mut old := Vec.new(Expr)
     old.move_from(body.children)

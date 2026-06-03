@@ -1,5 +1,20 @@
 # priority: medium
-** OPEN #250 codegen: asap-destruction frees a local before a clone reads a substr view of it (the cross-var case #238 missed)
+** FIXED #250 codegen: asap-destruction frees a local before a clone reads a substr view of it (the cross-var case #238 missed)
+
+Fixed via fix idea #2 (root last-use accounting for borrows). Added
+~extend_hoist_view_lifetimes~ in ~src/self/garbager.til~: for each owned
+local, ~collect_hoist_taint~ (reused from #238) finds the ~hoisted__~ view
+temps that transitively read the local's buffer, and the local's ~last_use~
+is extended to the last statement consuming any such temp. The asap-delete
+is then scheduled after the consuming ~clone~ instead of after the
+view-producing ~substr~. Runs after ~check_use_after_own_transfer~ so the
+(deliberately over-eager) transitive taint cannot spuriously flag
+use-after-transfer; deferring an owned local's delete is always memory-safe.
+
+Regression test: ~test_self_substr_field_clone~ in ~test/strings.til~
+(built + run, asserts the returned struct field round-trips). The
+~src/til.til~ ~--cc=~ workaround (~format(flag.substr(...))~) is now
+redundant but left in place; it remains correct.
 
 Sibling of [[../fixed/238.org][#238]]. #238 fixed
 ~x = x.substr(...).clone()~ -- a *self*-reassign where the substr view

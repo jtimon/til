@@ -1729,6 +1729,7 @@ Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * targe
 Bool priv___src_self_garbager_til__is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
 void extend_ref_local_lifetimes(Expr * body, Vec * locals, TypeScope * scope);
+void extend_hoist_view_lifetimes(Expr * body, Vec * locals);
 void check_use_after_own_transfer(Expr * body, Vec * locals, Context * ctx);
 void insert_exit_deletes(Expr * body, Vec * live, Bool return_only);
 void insert_nested_exit_deletes(Expr * stmt, Vec * locals, U32 stmt_idx);

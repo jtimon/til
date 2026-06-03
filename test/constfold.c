@@ -2001,12 +2001,12 @@ void panic(Str * loc_str, Array * parts) {
     Array_set(_va_Array_144, hoisted__U32_4090, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_4091; _oa; }));
     Array *hoisted__Array_4092 = Array_clone(parts);
     (void)hoisted__Array_4092;
-    Array_delete(parts, 1);
     U32 hoisted__U32_4093 = 2;
     (void)hoisted__U32_4093;
     Str *hoisted__Str_4094 = format(hoisted__Array_4092);
     (void)hoisted__Str_4094;
     Array_set(_va_Array_144, hoisted__U32_4093, hoisted__Str_4094);
+    Array_delete(parts, 1);
     println(_va_Array_144);
     I64 hoisted__I64_4095 = 1;
     (void)hoisted__I64_4095;
@@ -2626,13 +2626,13 @@ void test_enum_payload_fold(void) {
     Str_delete(&hoisted__Str_4913, (Bool){0});
     Bool hoisted__Bool_4915 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
     (void)hoisted__Bool_4915;
-    Token_delete(t, 1);
     Str hoisted__Str_4916 = (Str){.c_str = (void *)"test/constfold.til:182:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4916;
     Bool hoisted__Bool_4917 = not(hoisted__Bool_4915);
     (void)hoisted__Bool_4917;
     assert(&hoisted__Str_4916, hoisted__Bool_4917);
     Str_delete(&hoisted__Str_4916, (Bool){0});
+    Token_delete(t, 1);
 }
 
 void test_enum_return_fold(void) {
@@ -2663,13 +2663,13 @@ void test_enum_payload_return_fold(void) {
     Str_delete(&hoisted__Str_4925, (Bool){0});
     Bool hoisted__Bool_4927 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
     (void)hoisted__Bool_4927;
-    Token_delete(t, 1);
     Str hoisted__Str_4928 = (Str){.c_str = (void *)"test/constfold.til:204:12", .count = 25ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_4928;
     Bool hoisted__Bool_4929 = not(hoisted__Bool_4927);
     (void)hoisted__Bool_4929;
     assert(&hoisted__Str_4928, hoisted__Bool_4929);
     Str_delete(&hoisted__Str_4928, (Bool){0});
+    Token_delete(t, 1);
 }
 
 I64 F32_cmp_dyn(void *_a0, void *_a1) {

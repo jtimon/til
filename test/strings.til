@@ -277,6 +277,29 @@ test_self_substr_reassign := test() {
     assert_eq_str(__LOC__, u, "ell")
 }
 
+// Issue #250: cross-variable sibling of #238. `holder.field = src.substr(...)
+// .clone()` where `src` is a grown heap buffer freed at end of scope and the
+// clone result outlives src (stored in a returned struct, read after src dies).
+// The substr view aliases src's buffer; src's asap-delete must run AFTER the
+// clone copies from the view, not at the view-producing substr. A grown
+// with_capacity buffer is required (a literal is CAP_LIT and never freed).
+Holder250 := struct {
+    own s : Str = ""
+}
+
+make_holder250 := func() returns Holder250 {
+    mut arg := Str.with_capacity(64)
+    arg.push_str("--cc=hello_world_value")
+    mut h := Holder250()
+    h.s = arg.substr(5, arg.len().sub(5)).clone()
+    return h
+}
+
+test_self_substr_field_clone := test() {
+    h := make_holder250()
+    assert_eq_str(__LOC__, h.s, "hello_world_value")
+}
+
 // Issue #203 point 4 / #238: Str.replace on a grown buffer, including a `from`
 // longer than the whole string (the `self.count.sub(from.count)` USize
 // underflow guard) and a self-reassign through replace.
