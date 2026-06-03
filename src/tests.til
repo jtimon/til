@@ -417,6 +417,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/fn_ptr.til", flags)
     add_mode(tests, "test/comparisons.til", flags)
     add_mode(tests, "test/vecs.til", flags)
+    add_mode(tests, "test/temp_vec.til", flags)
     add_mode(tests, "test/priv.til", flags)
     add_mode(tests, "test/trailing.til", flags)
     add_mode(tests, "test/globals.til", flags)

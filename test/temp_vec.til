@@ -1,0 +1,228 @@
+mode test
+
+// Issue #243, step 1: a TEMPLATED Vec generated per element type via a
+// `macro(T: Type) returns StructDef`. Unlike core Vec (which is
+// type-erased: a single struct carrying elem_size / elem_clone /
+// elem_delete and a `Dynamic` element API), `make_temp_vec(T)` emits one
+// monomorphized struct per T with a TYPED api: `push(own val: T)`,
+// `get(...) returns ref T`. Storage and algorithms mirror src/core/vec.til
+// exactly, so a TempVec is functionally equivalent to a Vec of the same
+// element type.
+//
+// This relies on the initer macro-expansion substituting both the type
+// param `T` and the self-type placeholder `Self` into namespace methods
+// (signatures AND bodies, including `Self(...)` constructor calls).
+
+make_temp_vec := macro(T: Type) returns StructDef {
+    return struct {
+        own data : U8 = 0
+        count : USize = 0
+        cap : USize = 0
+        const elem_size : USize = 0
+        const elem_kind : USize = ELEM_BOXED
+        const elem_clone : CloneFn = default_clone
+        const elem_delete : DeleteFn = default_delete
+
+    namespace:
+        new := func() returns Self {
+            tn := dyn_type_to_str(T)
+            sz : USize = dyn_size_of(tn)
+            return Self(data = malloc(sz), cap = 1, elem_size = sz,
+                        elem_kind = ELEM_BOXED,
+                        elem_clone = dyn_fn(tn, "clone"),
+                        elem_delete = dyn_fn(tn, "delete"))
+        }
+
+        len := func(self: Self) returns USize { return self.count }
+
+        push := func(mut self: Self, own val: T) {
+            if self.count.eq(self.cap) {
+                new_cap := self.cap.mul(2)
+                self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+                self.cap = new_cap
+            }
+            memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), val, self.elem_size)
+            // Ownership moved into the buffer: zero `val` so its scope-end
+            // auto-delete is a no-op (same trick as Vec.push_take).
+            memset(val, 0, self.elem_size)
+            self.count = self.count.add(1)
+        }
+
+        get := func(self: Self, i: USize) returns ref T throws OutOfBounds {
+            if i.gte(self.count) {
+                throw OutOfBounds(msg = format(__LOC__, ":TempVec.get: index ", i.to_str(),
+                      " out of bounds (len ", self.count.to_str(), ")"))
+            }
+            return ptr_add(self.data, i.mul(self.elem_size))
+        }
+
+        // Drop the existing element (for boxed types) then overwrite.
+        set := func(mut self: Self, i: USize, own val: T) {
+            if i.gte(self.count) {
+                panic(__LOC__, "TempVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            }
+            if self.elem_kind.eq(ELEM_BOXED) {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
+            memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
+            memset(val, 0, self.elem_size)
+        }
+
+        clear := func(mut self: Self) {
+            if self.elem_kind.eq(ELEM_BOXED) {
+                for i in 0..self.count {
+                    self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                }
+            }
+            self.count = 0
+        }
+
+        delete := func(own self: Self, call_free: Bool = true) {
+            Self.clear(self)
+            free(own self.data)
+            if call_free { free(own self) }
+        }
+
+        clone := func(self: Self) returns Self {
+            new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
+            if self.elem_kind.eq(ELEM_BOXED) {
+                for i in 0..self.count {
+                    cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
+                    memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                    free(own cloned)
+                }
+            } else {
+                memcpy(new_data, self.data, self.count.mul(self.elem_size))
+            }
+            return Self(data = new_data, count = self.count, cap = self.cap,
+                        elem_size = self.elem_size, elem_kind = self.elem_kind,
+                        elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+        }
+    }
+}
+
+TempVecI64  := make_temp_vec(I64)
+TempVecStr  := make_temp_vec(Str)
+TempVecBool := make_temp_vec(Bool)
+TempVecU8   := make_temp_vec(U8)
+
+// --- I64: typed push/get/len, plus cross-check against a core Vec ---
+
+test_tempvec_i64_basic := test() {
+    mut v := TempVecI64.new()
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+    assert_eq(__LOC__, v.len().to_i64(), 3)
+    ref a : I64 = v[0.to_usize()]
+    ref b : I64 = v[1.to_usize()]
+    ref c : I64 = v[2.to_usize()]
+    assert_eq(__LOC__, a, 10)
+    assert_eq(__LOC__, b, 20)
+    assert_eq(__LOC__, c, 30)
+}
+
+test_tempvec_i64_index_bang := test() {
+    mut v := TempVecI64.new()
+    v.push(own 7)
+    v.push(own 8)
+    ref x : I64 = v[1.to_usize()]
+    assert_eq(__LOC__, x, 8)
+}
+
+test_tempvec_i64_set := test() {
+    mut v := TempVecI64.new()
+    v.push(own 1)
+    v.push(own 2)
+    v.set(1, own 99)
+    ref y : I64 = v[1.to_usize()]
+    assert_eq(__LOC__, y, 99)
+}
+
+test_tempvec_i64_grow := test() {
+    mut v := TempVecI64.new()
+    for i in 0..100 {
+        v.push(own i)
+    }
+    assert_eq(__LOC__, v.len().to_i64(), 100)
+    ref last : I64 = v[99.to_usize()]
+    assert_eq(__LOC__, last, 99)
+}
+
+// Functional equivalence: same push sequence into a core Vec and a
+// TempVec yields identical length and per-element values.
+test_tempvec_i64_equiv_vec := test() {
+    mut tv := TempVecI64.new()
+    mut cv := Vec.new(I64)
+    for i in 0..10 {
+        tv.push(own i.mul(3))
+        cv.push(own i.mul(3))
+    }
+    assert_eq(__LOC__, tv.len().to_i64(), cv.len().to_i64())
+    for i in 0..10 {
+        ref t : I64 = tv[i.to_usize()]
+        ref c : I64 = cv[i.to_usize()]
+        assert_eq(__LOC__, t, c)
+    }
+}
+
+// --- Str: boxed elements (own heap buffers) ---
+
+test_tempvec_str_basic := test() {
+    mut v := TempVecStr.new()
+    v.push(own "alpha".concat(""))
+    v.push(own "beta".concat(""))
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+    ref a : Str = v[0.to_usize()]
+    ref b : Str = v[1.to_usize()]
+    assert_eq_str(__LOC__, a, "alpha")
+    assert_eq_str(__LOC__, b, "beta")
+}
+
+test_tempvec_str_set := test() {
+    mut v := TempVecStr.new()
+    v.push(own "old".concat(""))
+    v.set(0, own "new".concat(""))
+    ref a : Str = v[0.to_usize()]
+    assert_eq_str(__LOC__, a, "new")
+}
+
+// clone must deep-copy: mutating the clone leaves the original intact.
+test_tempvec_str_clone_independent := test() {
+    mut v := TempVecStr.new()
+    v.push(own "one".concat(""))
+    v.push(own "two".concat(""))
+    mut w := v.clone()
+    w.set(0, own "ONE".concat(""))
+    ref vo : Str = v[0.to_usize()]
+    ref wo : Str = w[0.to_usize()]
+    assert_eq_str(__LOC__, vo, "one")
+    assert_eq_str(__LOC__, wo, "ONE")
+}
+
+// --- Bool ---
+
+test_tempvec_bool := test() {
+    mut v := TempVecBool.new()
+    v.push(own true)
+    v.push(own false)
+    v.push(own true)
+    assert_eq(__LOC__, v.len().to_i64(), 3)
+    ref a : Bool = v[0.to_usize()]
+    ref b : Bool = v[1.to_usize()]
+    ref c : Bool = v[2.to_usize()]
+    assert(__LOC__, a)
+    assert(__LOC__, b.not())
+    assert(__LOC__, c)
+}
+
+// --- U8 ---
+
+test_tempvec_u8 := test() {
+    mut v := TempVecU8.new()
+    v.push(own 65.to_u8())
+    v.push(own 66.to_u8())
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+    ref a : U8 = v[0.to_usize()]
+    assert_eq(__LOC__, a.to_i64(), 65)
+}

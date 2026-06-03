@@ -2292,7 +2292,16 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map) {
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
         if nd.default_value.is_null().not() {
-            init_substitute_idents(nd.default_value, subs)
+            // Issue #243: a namespace method's value is a FuncDef. Recurse
+            // with the full type-param substitution (param/return types AND
+            // body) so `T` and `Self` resolve inside methods, not just in
+            // struct fields. Non-FuncDef ns defaults (constants) only need
+            // Ident substitution.
+            if nd.default_value.node_type.is(NodeType.FuncDef) {
+                init_substitute_type_params(nd.default_value, subs)
+            } else {
+                init_substitute_idents(nd.default_value, subs)
+            }
         }
     }
 }
@@ -2535,6 +2544,17 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
             .or(ret_val.node_type.is(NodeType.EnumDef))
             .or(ret_val.node_type.is(NodeType.FuncDef))
         if ret_val_ok.not() { continue }
+
+        // Issue #243: let namespace methods on a generated type name the
+        // type itself via `Self`. Map Self -> the decl's LHS name so method
+        // signatures (`self: Self`, `returns Self`) and in-body constructor
+        // calls (`Self(...)`) resolve to the monomorphized type name.
+        switch stmt.node_type {
+        case NodeType.Decl(dd_self):
+            mut self_ident := Expr.new(ident_node(dd_self.name), stmt.line, stmt.col)
+            subs.set(own "Self", own self_ident)
+        case:
+        }
 
         // Clone the return literal, substitute, replace Decl's RHS.
         mut cloned := ret_val.clone()
