@@ -58,10 +58,16 @@ It is intentionally short and code-oriented.
     (return / break / continue)
 - After asap insertion, every owned local has an explicit cleanup
   call on every path that leaves its scope.
-- Issue [[file:../issues/open/204.org][#204]] tracks lifting the call
-  out of ~infer_body~ into its own AST walk; until then the entry
-  points live in src/self/garbager.til but are still invoked from the
-  typer once per body.
+- The asap code now lives in its own ~mode lib~ module
+  (src/self/garbager.til) and the program-body asap runs as its own
+  phase, ~garbager_destroy(ctx)~, at the tail of
+  ~init_and_type_program~ (see [[file:../issues/fixed/204.org][#204]]).
+  The remaining per-body (function/if/while/block/catch) garbager
+  calls are still invoked inline from the typer's scope-management
+  sites because per-body scopes are stack-locals freed when
+  ~infer_body~ returns; lifting them into the single
+  ~garbager_destroy~ walk needs the per-body scope cache on ~Context~
+  and is tracked under [[file:../issues/open/158.org][#158]].
 
 6. Precomp
 

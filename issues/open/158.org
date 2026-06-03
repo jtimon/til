@@ -124,4 +124,9 @@ Each phase listed in doc/pipeline.org (lex, parse,
    - [[./144.org][#144]] -- per-pass clone-and-assign that this would also
      eliminate
    - [[./109.org][#109]] -- the leaks dominated by these repeated rebuilds
+   - [[../fixed/204.org][#204]] -- asap-destruction extracted into the
+     garbager phase; the per-body (function/if/while/block/catch)
+     garbager calls still run inline in the typer, and lifting them
+     into the single ~garbager_destroy(ctx)~ walk is part of this
+     issue's per-body scope-cache work
 

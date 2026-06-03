@@ -1,7 +1,41 @@
 # priority: high
-** OPEN #204 Asap destruction is its own phase, not part of the typer
+** FIXED #204 Asap destruction is its own phase, not part of the typer
 
-   [[./158.org][#158]] sets the direction: one AST walk per phase, with
+   Resolution: the asap-destruction machinery is no longer wedged into
+   the typer for historical reasons -- it now lives in its own
+   ~mode lib~ module, ~src/self/garbager.til~ (the phase was renamed
+   from "asaper" to "garbager"). What was done:
+
+   - The whole asap code (collect_scope_locals,
+     extend_ref_local_lifetimes, check_use_after_own_transfer,
+     promote_own_transferred_locals, the exit/post-stmt/assign delete
+     inserters and their helpers, orchestrated by ~insert_free_calls~)
+     was extracted out of ~typer.til~ into ~src/self/garbager.til~.
+   - The phase is documented in [[../../doc/pipeline.org][doc/pipeline.org]]
+     (step 5) and [[../../doc/facts.org][doc/facts.org]] calls it the
+     "garbager phase".
+   - ~infer_body~ was decoupled from asap: it is now purely in-place
+     type inference + ~body_pre_passes~ + ~reregister~ and no longer
+     calls ~insert_free_calls~.
+   - The program-body asap was lifted into a dedicated phase entry
+     point, ~garbager_destroy(ctx)~, wired into the tail of
+     ~init_and_type_program~ (loader.til) so both ~prepare_program~ and
+     ~cmd_doc~ see the post-asap program AST.
+
+   Remaining (folded into [[../open/158.org][#158]]): the per-body asap
+   for function bodies and nested if/while/block/catch scopes is still
+   invoked inline (~garbager_destroy_body~) from the typer's
+   scope-management sites, because those per-body ~TypeScope~ objects
+   are stack-locals freed by ~TypeScope.delete~ once ~infer_body~
+   returns. Lifting these inline calls into the single
+   ~garbager_destroy~ walk requires a per-body scope cache on
+   ~Context~ -- that is exactly [[../open/158.org][#158]]'s "one walk per
+   phase / scope cache" work, so the residual is tracked there rather
+   than as a separate dangling item here.
+
+   Original report follows.
+
+   [[../open/158.org][#158]] sets the direction: one AST walk per phase, with
    later phases reading caches the earlier phases left on the
    ~Context~. The typer phase's job is to resolve names, infer types,
    and reject invalid programs (see [[../../doc/pipeline.org][doc/pipeline.org]]).
@@ -28,7 +62,7 @@
    ~alias_used_in_stmts~) -- all wedged into the typer for historical
    reasons. It muddies the pipeline diagram, it doubles the typer's
    surface area, and it makes it hard to talk about "the typer walk"
-   in [[./158.org][#158]] terms.
+   in [[../open/158.org][#158]] terms.
 
    Goal: make asap destruction its own phase that runs after
    ~type_check~ and before ~precomp~ in
@@ -68,21 +102,21 @@
        sites in ~typer.til~. Per-body scopes are stack locals freed
        by ~TypeScope.delete~ once ~infer_body~ returns, so they need
        to either: (a) become first-class entries on ~Context~
-       ([[./158.org][#158]] cache work) so ~garbager_destroy~ can re-walk
+       ([[../open/158.org][#158]] cache work) so ~garbager_destroy~ can re-walk
        the AST and look scopes up by body identity; or (b) be
        rebuilt on the fly inside ~garbager_destroy~ from each body's
        Decls + the enclosing FuncDef's params + ~ctx.scope~ as the
-       parent. (a) composes better with [[./158.org][#158]].
+       parent. (a) composes better with [[../open/158.org][#158]].
 
    3a removes the asap coupling from the typer's per-body machinery;
-   3b finishes [[./158.org][#158]]'s "one walk per phase" by turning
+   3b finishes [[../open/158.org][#158]]'s "one walk per phase" by turning
    asap into a single top-level walk after type_check.
 
    Related:
-   - [[./158.org][#158]] - one walk per phase, garbager is one of the
+   - [[../open/158.org][#158]] - one walk per phase, garbager is one of the
      resulting phases
-   - [[./146.org][#146]] - the unified ~body_pre_passes~ (now in typer)
+   - [[../open/146.org][#146]] - the unified ~body_pre_passes~ (now in typer)
      is the other half of the typer-cleanup story
-   - [[./109.org][#109]] - the leaks that the rebuilds inside
+   - [[../open/109.org][#109]] - the leaks that the rebuilds inside
      ~insert_free_calls~ feed into
 
