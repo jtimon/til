@@ -585,7 +585,11 @@ void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
-void *get_payload(void *self) { return (U8*)self + sizeof(void *); }
+// Issue #223 enum follow-up: `off` is the payload union's byte offset within
+// the enum struct (4 when all payloads are <= 4-byte aligned, else 8). The
+// caller computes it from the enum's max payload alignment; the old hardcoded
+// sizeof(void*) was wrong for 4-aligned payload enums.
+void *get_payload(void *self, I64 off) { return (U8*)self + off; }
 
 // CLI arg parsing
 

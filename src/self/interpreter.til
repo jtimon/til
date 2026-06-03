@@ -965,7 +965,9 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             if dd.own_type.is(OwnType.Ref) {
                 switch rhs.node_type {
                 case NodeType.FCall:
-                    if rhs.children.len().eq(2) {
+                    // get_payload now carries (enum, offset) -> 3 children
+                    // (head + 2 args). The enum source is still child(1).
+                    if rhs.children.len().eq(3) {
                         ref head : Expr = rhs.child(0)
                         ref arg  : Expr = rhs.child(1)
                         switch head.node_type {

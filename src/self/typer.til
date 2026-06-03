@@ -4474,7 +4474,8 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
             // write-through-the-payload and accepts a constructor /
             // literal RHS (the builder lowers it to `*p = *new` for
             // structs and `*p = (Str){...}` for Str literals).
-            if rhs.node_type.is(NodeType.FCall).and(rhs.children.len().eq(2)) {
+            // get_payload now carries (enum, offset) -> 3 children.
+            if rhs.node_type.is(NodeType.FCall).and(rhs.children.len().eq(3)) {
                 ref head : Expr = rhs.child(0)
                 switch head.node_type {
                 case NodeType.Ident(head_id):
@@ -4738,7 +4739,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                             case:
                                             }
                                         }
-                                        mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col, bind_is_mut)
+                                        mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, enum_payload_offset(enum_def), sw_line, sw_col, bind_is_mut)
 
                                         mut old := Vec.new(Expr)
                                         old.move_from(case_body.children)
@@ -4815,7 +4816,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
-                                        inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
+                                        inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), enum_payload_offset(enum_def3), sw_line, sw_col)
 
                                         // Recurse on the nested pattern; bindings prepend to case_body
                                         // and use ~get_payload(sw_ref, payload_type)~ as their root.

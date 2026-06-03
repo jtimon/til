@@ -439,6 +439,7 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
 }
 
 generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+    epo := enum_payload_offset(enum_def)
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
@@ -470,9 +471,9 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32,
                 then_body.add_child(own ret_true)
             } else {
                 mut self_arg := Expr.new(ident_node("self"), line, col)
-                then_body.add_child(own make_payload_ref_decl(own self_arg, "_sp", vtype, line, col, false))
+                then_body.add_child(own make_payload_ref_decl(own self_arg, "_sp", vtype, epo, line, col, false))
                 mut other_arg := Expr.new(ident_node("other"), line, col)
-                then_body.add_child(own make_payload_ref_decl(own other_arg, "_op", vtype, line, col, false))
+                then_body.add_child(own make_payload_ref_decl(own other_arg, "_op", vtype, epo, line, col, false))
 
                 mut sp_id := Expr.new(ident_node("_sp"), line, col)
                 mut eq_call := make_method_call_fcall(own sp_id, "eq", line, col)
@@ -521,6 +522,7 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32,
 }
 
 generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+    epo := enum_payload_offset(enum_def)
     mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
         for j in 0..variant_names.len() {
@@ -542,7 +544,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: 
             del_call.add_child(own del_acc)
 
             mut self_arg := Expr.new(ident_node("self"), line, col)
-            mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
+            mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), epo, line, col)
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
 
@@ -595,6 +597,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: 
 }
 
 generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+    epo := enum_payload_offset(enum_def)
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
@@ -613,7 +616,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: 
             } else if vtype.len().gt(0) {
                 pn := format("_p_", vtype, "_", j.to_str())
                 mut self_arg := Expr.new(ident_node("self"), line, col)
-                then_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col, false))
+                then_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, epo, line, col, false))
 
                 mut fmt_call := Expr.new(NodeType.FCall(FCallData()), line, col)
                 mut fmt_id := Expr.new(ident_node("format"), line, col)
@@ -697,6 +700,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: 
 }
 
 generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+    epo := enum_payload_offset(enum_def)
     mut func_body := Expr.new(NodeType.Body, line, col)
     // Tag-only enums (no variant carries a payload) need an if-guard
     // for every variant so the auto-gen body always reads ~self~ at
@@ -722,7 +726,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U
             pn := format("_clone_payload_", vname, "_", j.to_str())
 
             mut self_arg := Expr.new(ident_node("self"), line, col)
-            pd = make_payload_ref_decl(own self_arg, pn, vtype, line, col, false)
+            pd = make_payload_ref_decl(own self_arg, pn, vtype, epo, line, col, false)
             has_pd = true
 
             mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line, col)

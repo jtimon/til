@@ -480,11 +480,50 @@ make_method_call_fcall := func(own recv: Expr, method: Str, line: U32, col: U32)
     return call
 }
 
-make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: U32, col: U32) returns Expr {
+// Issue #223 enum follow-up: the byte offset of an enum's payload union
+// within its C struct `{ tag; union data; }`. The tag is 4 bytes, so the
+// union sits at align_up(4, max_payload_align): offset 8 when any variant
+// has an 8-byte-aligned payload (I64/U64/Str/Dynamic/funcptr/struct/enum),
+// else offset 4 (all payloads are <= 4-byte primitives). This mirrors
+// compute_enum_layout's max_payload_align and is what get_payload(self, off)
+// must use -- the old hardcoded sizeof(void*)==8 was wrong for 4-aligned
+// payload enums. Needs neither scope nor ctx: every non-primitive payload
+// (struct/enum/Str/Dynamic/funcptr) is 8-aligned in til, so the offset is
+// decided purely from the payload type names.
+enum_payload_offset := func(enum_def: Expr) returns I64 {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for vi in 0..edd.variants.len() {
+            vt := enum_variant_type(enum_def, vi.cast(I32))
+            if vt.len().eq(0) { continue }
+            if til_payload_align_is_8(vt) { return 8 }
+        }
+        return 4
+    case:
+    }
+    return 8
+}
+
+// True when a payload type is 8-byte aligned. Only the small primitives
+// (I8/I16/I32/U8/U16/U32/F32/Bool) are < 8-aligned; everything else
+// (I64/U64/Dynamic/funcptr/Str/struct/enum, and unknowns conservatively)
+// forces 8-byte alignment.
+til_payload_align_is_8 := func(ftype: Str) returns Bool {
+    if ftype.eq("I8").or(ftype.eq("U8")) { return false }
+    if ftype.eq("I16").or(ftype.eq("U16")) { return false }
+    if ftype.eq("I32").or(ftype.eq("U32")) { return false }
+    if ftype.eq("F32").or(ftype.eq("Bool")) { return false }
+    return true
+}
+
+make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, offset: I64, line: U32, col: U32) returns Expr {
     mut gp := Expr.new(ident_node("get_payload"), line, col)
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
     gc.add_child(own gp)
     gc.add_child(own arg)
+    mut off_lit := Expr.new(literal_num_node(offset.to_str()), line, col)
+    off_lit.set_expr_til_type(Type.Primitive(Primitive.I64))
+    gc.add_child(own off_lit)
     gc.set_expr_til_type(payload_type)
     return gc
 }
@@ -502,8 +541,8 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, line: U32
     return is_call
 }
 
-make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Expr {
-    mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, offset: I64, line: U32, col: U32, is_mut: Bool) returns Expr {
+    mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), offset, line, col)
     mut decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref, is_mut = is_mut)), line, col)
     decl.add_child(own gc)
     return decl

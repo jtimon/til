@@ -302,7 +302,7 @@ void write_u64(void *dest, U64 val);
 void write_f32(void *dest, F32 val);
 void write_bool(void *dest, Bool val);
 Bool is(void *self, void *other);
-void *get_payload(void *self);
+void *get_payload(void *self, I64 off);
 
 // System primitives
 Str *File_readfile(const Str *path);
