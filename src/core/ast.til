@@ -532,6 +532,10 @@ Literal := enum {
 /// the typer records the common arm type here (mirrors FCallData.til_type).
 MatchData := struct {
     til_type := Type.Unknown
+    // Name of the result temp the lowering declares; set when a match is
+    // spliced as a statement so the shared switch desugar (infer_switch_stmt)
+    // knows what to assign each arm's value to. Empty on a bare/user match.
+    result_temp := ""
 namespace:
     eq := func(a: MatchData, b: MatchData) returns Bool { return a.til_type.eq(b.til_type) }
     to_str := func(_self: MatchData) returns Str { return "" }

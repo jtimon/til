@@ -2634,19 +2634,9 @@ infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Co
             reported = true
         }
     }
-    // A match must yield a value on every path. An enum subject's synthetic
-    // switch enforces variant exhaustiveness; for any other resolved subject
-    // type, require an explicit `case:` default to cover the remaining values.
-    subj_t := subj.expr_til_type()
-    if subj_t.is(Type.Enum).not().and(subj_t.is(Type.Custom).not()).and(subj_t.is(Type.Unknown).not()) {
-        mut has_default := false
-        for di in 1..expr.children.len() {
-            if expr.child(di).children.len().eq(1) { has_default = true }
-        }
-        if has_default.not() {
-            expr.type_error("non-exhaustive match; add a 'case:' default arm to cover the remaining values", ctx)
-        }
-    }
+    // Arm-type agreement is the one check unique to match (switch arms have no
+    // type). Exhaustiveness -- enum and non-enum alike -- is enforced by the
+    // shared switch desugar (infer_switch_stmt) once the match is lowered.
     expr.set_expr_til_type(result_t)
 }
 
@@ -2705,10 +2695,11 @@ stmt_contains_match := func(e: Expr) returns Bool {
 }
 
 // Lower every top-level Match in body.child(stmt_idx) into a result temp plus
-// a synthetic Switch (reusing the entire switch desugar), spliced as new
-// statements before stmt_idx. Each Match node is replaced in place by an Ident
-// referencing its result temp. Returns the number of statements inserted, so
-// the caller can advance past them to type-check the now-match-free statement.
+// the match itself (tagged with that temp so the shared switch desugar handles
+// it), spliced as new statements before stmt_idx. Each Match node is replaced
+// in place by an Ident referencing its result temp. Returns the number of
+// statements inserted, so the caller can advance past them to type-check the
+// now-match-free statement.
 lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns U32 {
     mut pre := Vec.new(Expr)
     ref mut stmt : Expr = body.child(stmt_idx)
@@ -2747,11 +2738,11 @@ replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_l
 }
 
 // Build the lowering for one (already-typed) Match: a `mut _m := default(T)`
-// temp plus a synthetic Switch whose every arm assigns the arm's value to the
-// temp. The block is inferred here (declaring the temp in `scope` and reusing
-// infer_switch_stmt to desugar + type the dispatch, including any nested
-// matches in arm values), then its statements are appended to `pre`. Returns
-// the temp's name.
+// temp plus the match itself tagged with that temp. The block is inferred here
+// (declaring the temp in `scope`, then reaching infer_switch_stmt which turns
+// the arms into `_m = <value>` assignments and emits the dispatch, including
+// any nested matches in arm values), then its statements are appended to
+// `pre`. Returns the temp's name.
 lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec) returns Str {
     line := match_node.line
     col := match_node.col
@@ -2763,34 +2754,18 @@ lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loo
     mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, explicit_type = tname.clone(), til_type = result_t.clone())), line, col)
     decl.add_child(own make_default_value_expr(tname, line, col))
 
-    mut sw := Expr.new(NodeType.Switch, line, col)
-    sw.add_child(own match_node.child(0).clone())
-    for ci in 1..match_node.children.len() {
-        ref case_node : Expr = match_node.child(ci)
-        mut new_case := Expr.new(NodeType.Case, case_node.line, case_node.col)
-        mut body_idx : U32 = 0
-        if case_node.children.len().eq(1) {
-            body_idx = 0
-        } else if case_node.children.len().eq(3) {
-            new_case.add_child(own case_node.child(0).clone())
-            new_case.add_child(own case_node.child(1).clone())
-            body_idx = 2
-        } else {
-            new_case.add_child(own case_node.child(0).clone())
-            body_idx = 1
-        }
-        ref vbody : Expr = case_node.child(body_idx)
-        mut assign_body := Expr.new(NodeType.Body, vbody.line, vbody.col)
-        mut assign := Expr.new(NodeType.Assign(AssignData(name = mname.clone())), vbody.line, vbody.col)
-        assign.add_child(own vbody.child(0).clone())
-        assign_body.add_child(own assign)
-        new_case.add_child(own assign_body)
-        sw.add_child(own new_case)
+    // Clone the match and tag it with the result temp; the shared switch
+    // desugar (infer_switch_stmt, reached via infer_body) turns its arms into
+    // `mname = <value>` assignments and emits the dispatch.
+    mut match_stmt := match_node.clone()
+    switch match_stmt.node_type {
+    case NodeType.Match(md): md.result_temp = mname.clone()
+    case:
     }
 
     mut block := Expr.new(NodeType.Body, line, col)
     block.add_child(own decl)
-    block.add_child(own sw)
+    block.add_child(own match_stmt)
     infer_body(scope, block, in_func, 0, in_loop, returns_ref, 0, ctx)
     for bi in 0..block.children.len() {
         pre.push_take(block.children, bi)
@@ -5056,6 +5031,34 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
     ref mut sw_expr : Expr = stmt.child(0)
     sw_line := stmt.line
     sw_col := stmt.col
+    // Issue #244: a Match node rides the same desugar -- it is a switch whose
+    // arms yield a value. The only difference: each arm body is a single
+    // value-expression, which we wrap into `result_temp = <value>` up front so
+    // every downstream step (conditions, payload bindings, guards, coverage,
+    // unreachable/exhaustiveness diagnostics, if/elif building) is shared
+    // verbatim with switch. The result temp itself is declared by the lowering
+    // (it must live in the enclosing scope, not this block's scope).
+    is_match := stmt.node_type.is(NodeType.Match)
+    mut kind_word := "switch"
+    mut result_temp := ""
+    if is_match {
+        kind_word = "match"
+        switch stmt.node_type {
+        case NodeType.Match(md): result_temp = md.result_temp.clone()
+        case:
+        }
+        for tci in 1..stmt.children.len() {
+            ref tcase : Expr = stmt.child(tci)
+            mut tbody_idx : U32 = 1
+            if tcase.children.len().eq(1) { tbody_idx = 0 }
+            else if tcase.children.len().eq(3) { tbody_idx = 2 }
+            ref tvbody : Expr = tcase.child(tbody_idx)
+            mut tvalue : Expr = tvbody.children.pop()
+            mut tassign := Expr.new(NodeType.Assign(AssignData(name = result_temp.clone())), tvbody.line, tvbody.col)
+            tassign.add_child(own tvalue)
+            tvbody.add_child(own tassign)
+        }
+    }
     infer_expr(scope, sw_expr, in_func, ctx)
     mut coverage := CoverageNode()
     mut has_default_case := false
@@ -5258,7 +5261,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
                 type_error_at(ctx.path, default_line, default_col, "unnecessary default `case:`; all variants of enum '".concat(sw_expr_sname).concat("' are already covered"), ctx)
             }
         } else if missing_paths.len().gt(0) {
-            mut msg := "non-exhaustive switch on enum '".concat(sw_expr_sname).concat("'; missing cases:")
+            mut msg := "non-exhaustive ".concat(kind_word).concat(" on enum '").concat(sw_expr_sname).concat("'; missing cases:")
             for mi in 0..missing_paths.len() {
                 ref mp : Str = missing_paths[mi]
                 if msg.ends_with(":").not() { msg = msg.concat(",") }
@@ -5273,6 +5276,13 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
             // generated C compiles under -Wreturn-type.
             attach_switch_default_body(first_if, last_case_body)
         }
+    }
+    // Issue #244: a match must yield a value on every path. The enum case is
+    // covered above (same check switch uses); for any other subject, require an
+    // explicit `case:` default. switch has no such requirement, so this is the
+    // one place the two forms genuinely diverge.
+    if is_match.and(has_switch_enum_def.not()).and(has_default_case.not()) {
+        stmt.type_error("non-exhaustive match; add a 'case:' default arm to cover the remaining values", ctx)
     }
 
     if has_first_if { block.add_child(own first_if.clone()) }
@@ -7470,16 +7480,28 @@ is_compile_directive := func(e: Expr) returns Bool {
 }
 
 infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
-    // Issue #244: a bare `match` as a statement throws its value away.
+    // Issue #244: a Match at statement position is either the lowering's
+    // result-temp-tagged form (desugar it like a switch) or a bare user
+    // `match` whose value is discarded (an error pointing at switch).
     if body.child(i).node_type.is(NodeType.Match) {
-        ref mut bare_match : Expr = body.child(i)
-        bare_match.type_error("match yields a value that is unused here; use 'switch' for arms that run statements", ctx)
-        bare_match.set_expr_til_type(Type.None)
+        mut match_result_temp := ""
+        switch body.child(i).node_type {
+        case NodeType.Match(md): match_result_temp = md.result_temp.clone()
+        case:
+        }
+        if match_result_temp.len().eq(0) {
+            ref mut bare_match : Expr = body.child(i)
+            bare_match.type_error("match yields a value that is unused here; use 'switch' for arms that run statements", ctx)
+            bare_match.set_expr_til_type(Type.None)
+            return
+        }
+        infer_switch_stmt(scope, body, i, in_func, ctx)
+        i = i.sub(1)
         return
     }
     // Issue #244: lower any match nested in this statement into a result temp
-    // plus a synthetic switch, spliced before it. `i` is advanced past the
-    // inserted statements so the now-match-free statement is type-checked next.
+    // plus a switch, spliced before it. `i` is advanced past the inserted
+    // statements so the now-match-free statement is type-checked next.
     if stmt_contains_match(body.child(i)) {
         inserted := lower_matches_in_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
         i = i.add(inserted)

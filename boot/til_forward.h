@@ -460,6 +460,7 @@ struct Literal {
 
 typedef struct MatchData {
     Type til_type;
+    Str result_temp;
 } MatchData;
 
 
