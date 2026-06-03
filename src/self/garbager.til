@@ -512,8 +512,17 @@ insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec, stmt_idx: U32) {
         case NodeType.While:
             insert_exit_deletes(stmt.child(1), live_vec, true)
         case:
-            // NodeType.Body -- desugared for-in wraps its decls + while in a Body block
-            insert_exit_deletes(stmt, live_vec, true)
+            // NodeType.Body -- a plain block: a desugared for-in wrapper
+            // (its decls + while), the lowered form of a switch/match
+            // (infer_switch_stmt emits an if/elif chain inside a Body), or a
+            // bare `{ }` scope. break/continue inside such a Body are NOT
+            // captured here (only a nested While captures them, and that
+            // While is recursed into with return_only=true on its own), so
+            // those edges exit the enclosing loop and must free this scope's
+            // live locals. Pass return_only=false so they get cleanup; a
+            // for-in wrapper has no Body-level break/continue, so this is a
+            // no-op for that shape.
+            insert_exit_deletes(stmt, live_vec, false)
         }
     }
 }
