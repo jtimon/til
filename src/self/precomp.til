@@ -193,10 +193,10 @@ priv str_to_source_form := func(s: Str) returns Str {
         if b.lt(32).or(b.gt(126)) {
             // Hex escape with explicit terminator -- "" between escape
             // and following digits prevents greedy hex consumption.
-            // Convert the byte to unsigned for the nibble math: I8's
+            // Reinterpret the I8 byte as U8 for the nibble math: I8's
             // negative range (high-bit bytes like 0x80..0xFF) splits
             // arithmetic the wrong way around for hex display.
-            ub : U8 = b.cast(I64).band(255).to_u8()
+            ub : U8 = b.cast(U8)
             out = out.concat("\\x")
             hi : U8 = ub.div(16)
             lo : U8 = ub.mod(16)

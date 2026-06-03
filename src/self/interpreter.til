@@ -96,7 +96,7 @@ namespace:
             memcpy(dst_data, self.data, sz.to_u64())
             if self.struct_name.eq("Str") {
                 ref s : Str = to_ptr(self.data)
-                if s.count.to_i64().gt(0) {
+                if s.count.gt(0) {
                     if s.c_str.is_null().not() {
                         cloned_str := s.clone()
                         // Replace c_str with the freshly malloc'd clone
@@ -139,7 +139,7 @@ namespace:
                     if dd.own_type.is(OwnType.Ref) { continue }
                     if ftype.eq("Str") {
                         ref s : Str = ptr_add(self.data, foff.to_u64())
-                        if s.count.to_i64().gt(0) {
+                        if s.count.gt(0) {
                             if s.c_str.is_null().not() {
                                 cloned_str := s.clone()
                                 write_ptr(ptr_add(dst_data, foff.to_u64()), cloned_str.c_str)
@@ -227,7 +227,7 @@ namespace:
                 // (a ref that may already be freed at teardown).
                 if self.is_str {
                     ref s_str : Str = to_ptr(self.data)
-                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                    if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 }
@@ -1089,7 +1089,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                         // cap == CAP_LIT and are skipped.
                                         if type_name.eq("Str") {
                                             ref old_str : Str = to_ptr(dest)
-                                            if old_str.count.to_i64().gt(0).and(old_str.cap.lt(CAP_VIEW)) {
+                                            if old_str.count.gt(0).and(old_str.cap.lt(CAP_VIEW)) {
                                                 if old_str.c_str.is_null().not() { free(own old_str.c_str) }
                                             }
                                         }
@@ -1824,7 +1824,7 @@ cleanup_value_payload := func(shallow v: Value) {
                     ref s_str : Str = to_ptr(si.data)
                     // Only free c_str when count > 0: StructInstance.clone
                     // for "Str" memcpy-shares c_str when count == 0.
-                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                    if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 }
