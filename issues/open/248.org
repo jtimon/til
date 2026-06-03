@@ -1,0 +1,42 @@
+# priority: low
+** OPEN #248 lexer.til cleanup: indentation, redundant clones, DRY
+
+  Review of ~src/self/lexer.til~ found several cleanup opportunities.
+  None change behaviour; tests pass as-is. Listed roughly by value.
+
+*** Broken indentation (lines ~397-486)
+  From the string-literal branch onward, the body of the ~while~ loop
+  in ~tokenize~ is dedented to column 0 / inconsistent levels (string,
+  char, two-char, single-char, unknown-char branches and the EOF tail).
+  Purely cosmetic but makes the function hard to read. Re-indent to
+  match lines 275-394.
+
+*** Redundant ~.clone()~ on ~line~/~col~
+  ~line~ and ~col~ are ~U32~ (value types). ~parser.til~ passes
+  ~peek(p).line~ / ~line, col~ bare with no clone, so every
+  ~line = line.clone(), col = col.clone()~ in the ~tokens.push(...)~
+  sites is noise. Drop the clones.
+  NOTE: ~src.substr(...).clone()~ is NOT redundant -- ~substr~ returns
+  a view into the ~src~ buffer (see ~garbager.til~), so that clone is
+  what makes each ~Token.text~ own its data. Keep those.
+
+*** ~col~ type inconsistency at EOF (line ~489)
+  The EOF token computes ~col := ...add(1).to_i64()~ (I64) while every
+  other site and the ~Token.col~ field is ~U32~. Use ~: U32~ to match.
+
+*** Triple-duplicated "scan to end of line" loop
+  The same ~while pos.lt(src_len) { if ...eq('\n') break; pos++ }~ loop
+  appears three times (~#~ comment, ~//~ comment, ~///~ doc-comment text
+  scan). Extract a helper returning the newline index.
+
+*** Token-push boilerplate repeated ~9 times
+  Every emit repeats ~tokens.push(own Token(type = ..., text = ...,
+  line = ..., col = ...))~. A small ~push_tok~ helper would remove the
+  repeated line/col plumbing (combines well with the clone fix).
+
+*** ~tok_name~ vs ~lookup_keyword~ are inverse maps
+  ~tok_name~ (keyword section) returns each keyword's source spelling,
+  the exact inverse of ~lookup_keyword~. ~35 lines of the same facts in
+  two directions. Hard to fully DRY without a single keyword table both
+  consult; lowest ROI. At minimum cross-link the two with a comment so
+  they do not drift.
