@@ -47,7 +47,6 @@
 *** [[./open/225.org][#225]] Subscript assignment a[b] = c -> a.set(b, own c)!
 *** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
-*** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/240.org][#240]] Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
@@ -78,6 +77,7 @@
 ** Medium
 ** Low
 *** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
+*** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/237.org][#237]] Advanced profiling for the self-host build
