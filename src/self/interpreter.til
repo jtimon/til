@@ -2954,8 +2954,8 @@ interpret := proc(core_program: Expr, program: Expr, mode: Mode, run_tests: Bool
 
                 if nparam.gt(0) {
                     mut fixed := nparam
-                    if vi.gte(0) { fixed = nparam.sub(1) }
                     if vi.gte(0) {
+                        fixed = nparam.sub(1)
                         if user_argc.lt(fixed) {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
@@ -3210,8 +3210,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
 
                 if nparam.gt(0) {
                     mut fixed := nparam
-                    if vi.gte(0) { fixed = nparam.sub(1) }
                     if vi.gte(0) {
+                        fixed = nparam.sub(1)
                         if user_argc.lt(fixed) {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())

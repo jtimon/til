@@ -2946,8 +2946,8 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static:
         } else {
             f.write("int main(int argc, char **argv) {\n")
             mut fixed := nparam.cast(I32)
-            if vi.gte(0) { fixed = fixed.sub(1) }
             if vi.gte(0) {
+                fixed = fixed.sub(1)
                 f.write("    if (argc - 1 < "); emit_i32(f, fixed); f.write(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             } else {
                 f.write("    if (argc - 1 != "); emit_i32(f, nparam.cast(I32)); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.cast(I32)); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
@@ -6131,14 +6131,12 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     mut arg2_s := "arg2"
                     if info.nargs.eq(2) {
                         if mfd.params.len().gt(1) {
-                            if mfd.params.len().gt(1) {
-                                ref p1 : Declaration = mfd.params[1]
-                                // Issue #223 step 1: the second param is not
-                                // always the dispatched type (e.g. delete's
-                                // call_free: Bool). Cast arg2 to the param's
-                                // own value type, not dd.name.
-                                if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
-                            }
+                            ref p1 : Declaration = mfd.params[1]
+                            // Issue #223 step 1: the second param is not
+                            // always the dispatched type (e.g. delete's
+                            // call_free: Bool). Cast arg2 to the param's
+                            // own value type, not dd.name.
+                            if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
                         }
                     }
                     ret_sh := mfd.return_own_type.is(OwnType.Shallow)
@@ -6200,13 +6198,11 @@ emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 mut arg2_s := "arg2"
                 if info.nargs.eq(2) {
                     if mfd.params.len().gt(1) {
-                        if mfd.params.len().gt(1) {
-                            ref p1 : Declaration = mfd.params[1]
-                            // Issue #223 step 1: cast arg2 to the param's own
-                            // value type (e.g. delete's call_free: Bool), not
-                            // the dispatched type dd.name.
-                            if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
-                        }
+                        ref p1 : Declaration = mfd.params[1]
+                        // Issue #223 step 1: cast arg2 to the param's own
+                        // value type (e.g. delete's call_free: Bool), not
+                        // the dispatched type dd.name.
+                        if p1.own_type.is(OwnType.Shallow) { arg2_s = format("*(", type_name_to_c_value(p1.explicit_type, lp.ctx), " *)arg2") }
                     }
                 }
                 ret_sh := mfd.return_own_type.is(OwnType.Shallow)

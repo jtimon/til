@@ -1214,8 +1214,8 @@ parse_primary := proc(mut p: Parser) returns Expr {
                     mut mhelper := "struct_def_of"
                     if marg.node_type.is(NodeType.EnumDef) { mhelper = "enum_def_of" }
                     mlifted_name := anon_lift(p, own marg, marg_line, marg_col)
-                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
                     if is_own_arg {
+                        set_own_arg(mcall, mcall.children.len())
                         mut msd_callee := Expr.new(ident_node(mhelper), marg_line, marg_col)
                         mut msd_strlit := Expr.new(NodeType.Literal(Literal.Str(mlifted_name.clone())), marg_line, marg_col)
                         mut msd_call := Expr.new(NodeType.FCall(FCallData()), marg_line, marg_col)
@@ -1623,8 +1623,8 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: Own
                     mut mhelper := "struct_def_of"
                     if marg.node_type.is(NodeType.EnumDef) { mhelper = "enum_def_of" }
                     mlifted_name := anon_lift(p, own marg, marg_line, marg_col)
-                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
                     if is_own_arg {
+                        set_own_arg(mcall, mcall.children.len())
                         mut msd_callee := Expr.new(ident_node(mhelper), marg_line, marg_col)
                         mut msd_strlit := Expr.new(NodeType.Literal(Literal.Str(mlifted_name.clone())), marg_line, marg_col)
                         mut msd_call := Expr.new(NodeType.FCall(FCallData()), marg_line, marg_col)
