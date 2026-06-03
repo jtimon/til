@@ -435,7 +435,7 @@ main := proc() {
                 if row.eq(0) { acc_match = -1 }
                 if row.eq(1) { acc_match = 0 }
                 if row.eq(2) { acc_match = 1 }
-                if col.eq(sel_diatonic).and(acc_match.eq(sel_accidental)) {
+                if col.eq(sel_diatonic).and(acc_match.eq(sel_accidental.cast(I64))) {
                     b_color = BTN_ACTIVE
                 }
                 DrawRectangle(bx, by, BTN_W - 2, BTN_H - 2, b_color)

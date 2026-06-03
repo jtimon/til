@@ -92,8 +92,8 @@ namespace:
         switch src_sdef.node_type {
         case NodeType.StructDef(sdef_data):
             sz := ctx_total_size(self.struct_name, self.ctx)
-            dst_data : Dynamic = malloc(sz)
-            memcpy(dst_data, self.data, sz)
+            dst_data : Dynamic = malloc(sz.cast(U64))
+            memcpy(dst_data, self.data, sz.cast(U64))
             if self.struct_name.eq("Str") {
                 ref s : Str = to_ptr(self.data)
                 if s.count.gt(0) {
@@ -109,7 +109,7 @@ namespace:
                         ref mut dst_cap : U32 = ptr_add(dst_data, 12)
                         dst_cap = s.count.clone()
                         // Prevent cloned_str destructor from freeing the new c_str
-                        memset(cloned_str, 0, Str.size())
+                        memset(cloned_str, 0, Str.size().cast(U64))
                     }
                 }
             } else if struct_def_shallow_safe(sdef_data, self.ctx) {
@@ -124,13 +124,13 @@ namespace:
                     ref ftype : Str = dd.explicit_type
                     ref nested_def : Expr = field_nested_def(dd, self.ctx)
                     if dd.own_type.is(OwnType.Own) {
-                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff))
+                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.cast(U64)))
                         if src_ptr.is_null().not() {
                             if nested_def.is_null().not() {
                                 mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                write_ptr(ptr_add(dst_data, foff), cloned.data)
+                                write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned.data)
                                 cloned.data = NULL
                             }
                         }
@@ -138,17 +138,17 @@ namespace:
                     }
                     if dd.own_type.is(OwnType.Ref) { continue }
                     if ftype.eq("Str") {
-                        ref s : Str = ptr_add(self.data, foff)
+                        ref s : Str = ptr_add(self.data, foff.cast(U64))
                         if s.count.gt(0) {
                             if s.c_str.is_null().not() {
                                 cloned_str := s.clone()
-                                write_ptr(ptr_add(dst_data, foff), cloned_str.c_str)
+                                write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
                                 // Update cap to count so the clone owns
                                 // its freshly malloc'd buffer (mirrors
                                 // the Str-payload branch above).
-                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff), 12)
+                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.cast(U64)), 12)
                                 dst_cap = s.count.clone()
-                                memset(cloned_str, 0, Str.size())
+                                memset(cloned_str, 0, Str.size().cast(U64))
                             }
                         }
                         continue
@@ -157,13 +157,13 @@ namespace:
                         if nested_def.node_type.is(NodeType.EnumDef) {
                             if enum_has_payloads(nested_def) {
                                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-                                    ref ei_ref : Dynamic = deref(ptr_add(self.data, foff))
+                                    ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.cast(U64)))
                                     if ei_ref.is_null().not() {
                                         ref ei : EnumInstance = ei_ref
                                         cloned_ei := ei.clone()
-                                        heap_ei : Dynamic = malloc(EnumInstance.size())
-                                        move(heap_ei, cloned_ei, EnumInstance.size())
-                                        write_ptr(ptr_add(dst_data, foff), heap_ei)
+                                        heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+                                        move(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
+                                        write_ptr(ptr_add(dst_data, foff.cast(U64)), heap_ei)
                                     }
                                 } else {
                                     mut temp_decl := dd
@@ -172,7 +172,7 @@ namespace:
                                     mut cloned_val := val.clone()
                                     switch cloned_val {
                                     case Value.Enum(cei):
-                                        memcpy(ptr_add(dst_data, foff), cei.data, cei.data_size)
+                                        memcpy(ptr_add(dst_data, foff.cast(U64)), cei.data, cei.data_size.cast(U64))
                                         free(own cei.data)
                                         cei.data = NULL
                                     case:
@@ -194,10 +194,10 @@ namespace:
                         if nested_def.node_type.is(NodeType.EnumDef).not() {
                             switch nested_def.node_type {
                             case NodeType.StructDef:
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff), borrowed = true)
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.cast(U64)), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                memcpy(ptr_add(dst_data, foff), cloned.data, ctx_total_size(ftype, self.ctx))
+                                memcpy(ptr_add(dst_data, foff.cast(U64)), cloned.data, ctx_total_size(ftype, self.ctx).cast(U64))
                                 free(own cloned.data)
                                 cloned.data = NULL
                             case:
@@ -256,8 +256,8 @@ namespace:
             return EnumInstance(enum_name = self.enum_name,
                                 data = NULL, data_size = self.data_size, borrowed = false)
         }
-        pdata : Dynamic = malloc(self.data_size)
-        memcpy(pdata, self.data, self.data_size)
+        pdata : Dynamic = malloc(self.data_size.cast(U64))
+        memcpy(pdata, self.data, self.data_size.cast(U64))
         return EnumInstance(enum_name = self.enum_name,
                             data = pdata, data_size = self.data_size, borrowed = false)
     }
@@ -458,11 +458,11 @@ val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_
     if alloc_size.lt(8) {
         alloc_size = 8
     }
-    data : U8 = calloc(1, alloc_size)
+    data : U8 = calloc(1, alloc_size.cast(U64))
     memcpy(data, etag, 4)
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
-            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET), payload_data, payload_size)
+            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64)), payload_data, payload_size.cast(U64))
         }
     }
     return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
@@ -563,7 +563,7 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str,
 eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value {
     switch e.node_type {
     case NodeType.Literal(Literal.Str(raw)):
-        buf : Dynamic = malloc(raw.count.add(1))
+        buf : Dynamic = malloc(raw.count.add(1).cast(U64))
         mut j : USize = 0
         mut i : USize = 0
         while i.lt(raw.count) {
@@ -571,18 +571,18 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             if ch.eq(92) {
                 if i.add(1).lt(raw.count) {
                     ref next : I8 = raw.byte_at(i.add(1))
-                    if next.eq(110) { memset(ptr_add(buf, j), 10, 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(116) { memset(ptr_add(buf, j), 9, 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(92) { memset(ptr_add(buf, j), 92, 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(34) { memset(ptr_add(buf, j), 34, 1); j = j.add(1); i = i.add(2); continue }
-                    if next.eq(48) { memset(ptr_add(buf, j), 0, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(110) { memset(ptr_add(buf, j.cast(U64)), 10, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(116) { memset(ptr_add(buf, j.cast(U64)), 9, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(92) { memset(ptr_add(buf, j.cast(U64)), 92, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(34) { memset(ptr_add(buf, j.cast(U64)), 34, 1); j = j.add(1); i = i.add(2); continue }
+                    if next.eq(48) { memset(ptr_add(buf, j.cast(U64)), 0, 1); j = j.add(1); i = i.add(2); continue }
                 }
             }
-            memcpy(ptr_add(buf, j), ptr_add(raw.c_str, i), 1)
+            memcpy(ptr_add(buf, j.cast(U64)), ptr_add(raw.c_str, i.cast(U64)), 1)
             j = j.add(1)
             i = i.add(1)
         }
-        memset(ptr_add(buf, j), 0, 1)
+        memset(ptr_add(buf, j.cast(U64)), 0, 1)
         v := make_str_value(buf, j, ctx)
         free(own buf)
         return v
@@ -796,7 +796,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                     if ei.data_size.gte(ENUM_PAYLOAD_OFFSET) {
                         psz_final = ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                     }
-                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET), psz_final, total_size)
+                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), psz_final, total_size)
                 }
                 ref etag : I32 = p
                 return Value.Int32(etag)
@@ -831,10 +831,10 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns Bool
             if fc.val.is(Value.None) { return true }
             switch fc.val {
             case Value.Struct(si):
-                if si.borrowed { memcpy(fc.val, val_none(), Value.size()); return true }
+                if si.borrowed { memcpy(fc.val, val_none(), Value.size().cast(U64)); return true }
             case:
             }
-            if is_value_ptr(fc.val) { memcpy(fc.val, val_none(), Value.size()); return true }
+            if is_value_ptr(fc.val) { memcpy(fc.val, val_none(), Value.size().cast(U64)); return true }
             return false
         case:
             return false
@@ -909,7 +909,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
                 val = shallow_copy_value(src.val)
                 if val.is(Value.Func).not() {
-                    memcpy(src.val, val_none(), Value.size())
+                    memcpy(src.val, val_none(), Value.size().cast(U64))
                 }
             case:
                 val = eval_expr(scope, rhs, ctx)
@@ -975,17 +975,17 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_ident):
                         ref src : Cell = scope_get(scope, rhs_ident.ident_name())
-                        memcpy(cell.val, src.val, Value.size())
+                        memcpy(cell.val, src.val, Value.size().cast(U64))
                         if src.val.is(Value.Func).not() {
-                            memcpy(src.val, val_none(), Value.size())
+                            memcpy(src.val, val_none(), Value.size().cast(U64))
                         }
                     case:
                     }
                     continue
                 }
             }
-            mut new_val := eval_expr(scope, rhs, ctx)
-            memcpy(cell.val, new_val, Value.size())
+            new_val := eval_expr(scope, rhs, ctx)
+            memcpy(cell.val, new_val, Value.size().cast(U64))
             // #227: for ref-mut bindings to a primitive scalar at a raw
             // pointer (`ref mut x : U32 = ptr_add(...)`), also write the
             // new value back through the saved source pointer so the
@@ -1027,7 +1027,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         switch enum_cell.val {
                         case Value.Enum(ei):
                             if ei.data.is_null().not() {
-                                ref dest : Dynamic = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
+                                ref dest : Dynamic = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
                                 switch new_val {
                                 case Value.Int(iv):
                                     if type_name.eq("I64") { write_i64(dest, iv) }
@@ -1085,13 +1085,13 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                             mut cloned := new_val.clone()
                                             switch cloned {
                                             case Value.Struct(csi):
-                                                memcpy(dest, csi.data, sz)
+                                                memcpy(dest, csi.data, sz.cast(U64))
                                                 free(own csi.data)
                                                 csi.data = NULL
                                             case:
                                             }
                                         } else {
-                                            memcpy(dest, si.data, sz)
+                                            memcpy(dest, si.data, sz.cast(U64))
                                         }
                                     }
                                 case Value.Enum(new_ei):
@@ -1108,11 +1108,11 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                         // the case body simple; produces a bounded leak
                                         // per nested-enum payload write under interp.
                                         copy_sz := new_ei.data_size
-                                        heap_ei : Dynamic = malloc(EnumInstance.size())
-                                        memcpy(heap_ei, new_ei, EnumInstance.size())
+                                        heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+                                        memcpy(heap_ei, new_ei, EnumInstance.size().cast(U64))
                                         if copy_sz.gt(0) {
-                                            new_data : Dynamic = malloc(copy_sz)
-                                            memcpy(new_data, new_ei.data, copy_sz)
+                                            new_data : Dynamic = malloc(copy_sz.cast(U64))
+                                            memcpy(new_data, new_ei.data, copy_sz.cast(U64))
                                             write_ptr(ptr_add(heap_ei, 8), new_data)
                                         }
                                         write_ptr(dest, heap_ei)
@@ -1129,7 +1129,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             // owns the payload. Null new_val so the garbager's deep
             // Value.delete at its last use is a no-op and does not free the
             // cell's data out from under later reads.
-            memcpy(new_val, val_none(), Value.size())
+            memcpy(new_val, val_none(), Value.size().cast(U64))
         case NodeType.FieldAssign(fad):
             fname := fad.name
             ref val_expr : Expr = stmt.child(1)
@@ -1154,7 +1154,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     }
                 }
                 ns_set(sname, fname, val, ctx)
-                if move_src.is_null().not() { memcpy(move_src.val, val_none(), Value.size()) }
+                if move_src.is_null().not() { memcpy(move_src.val, val_none(), Value.size().cast(U64)) }
             } else {
                 ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.child(0))
                 ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.child(0))
@@ -1196,9 +1196,9 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                         if fd.is_null().not() {
                                             fa_off := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx).offset
                                             if fd.own_type.is(OwnType.Shallow).not() {
-                                                base = deref(ptr_add(base, fa_off))
+                                                base = deref(ptr_add(base, fa_off.cast(U64)))
                                             } else {
-                                                base = ptr_add(base, fa_off)
+                                                base = ptr_add(base, fa_off.cast(U64))
                                             }
                                             cur_sdef = field_nested_def(fd, ctx)
                                             cur_sname = fd.explicit_type
@@ -1225,7 +1225,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 write_field(base, fdecl, wf_fl.offset, wf_fl.size, val, ctx)
                 if move_src.is_null().not() {
                     if move_src.val.is(Value.Func).not() {
-                        memcpy(move_src.val, val_none(), Value.size())
+                        memcpy(move_src.val, val_none(), Value.size().cast(U64))
                     }
                 }
             }
@@ -1524,7 +1524,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         // free) it. MOVE the cell to None WITHOUT deep-deleting
                         // -- `oc.val = val_none()` would free the buffer C
                         // already owns (double-free, e.g. `Pair.delete(own self)`).
-                        memcpy(oc.val, val_none(), Value.size())
+                        memcpy(oc.val, val_none(), Value.size().cast(U64))
                     }
                 case:
                 }
@@ -1563,7 +1563,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         if si_edef.node_type.is(NodeType.StructDef) {
             switch si_edef.node_type {
             case NodeType.StructDef(sdd):
-                inst_data : Dynamic = calloc(1, ctx_total_size(ident_name(name), ctx))
+                inst_data : Dynamic = calloc(1, ctx_total_size(ident_name(name), ctx).cast(U64))
                 mut inst := val_none()
                 switch e.node_type {
                 case NodeType.FCall(fcd_ctor):
@@ -1612,7 +1612,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                 // `= val_none()` which save-old-deletes the
                                 // payload val now owns -> double-free).
                                 val = shallow_copy_value(src.val)
-                                memcpy(src.val, val_none(), Value.size())
+                                memcpy(src.val, val_none(), Value.size().cast(U64))
                             } else {
                                 // BORROW: val aliases src.val for the field
                                 // write (write_field clones); its deep delete
@@ -1873,7 +1873,7 @@ needs_widen := func(val: Value, ptype: Str) returns Bool {
 
 shallow_copy_value := func(v: Value) returns shallow Value {
     r := Value.None
-    memcpy(r, v, Value.size())
+    memcpy(r, v, Value.size().cast(U64))
     return r
 }
 
@@ -1956,7 +1956,7 @@ make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool,
     // nulling r makes its scope-end (deep) delete a no-op so the payload is
     // not double-freed.
     result := shallow_copy_value(r)
-    memcpy(r, val_none(), Value.size())
+    memcpy(r, val_none(), Value.size().cast(U64))
     return result
 }
 
@@ -2113,13 +2113,13 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     if s.bindings.has(name) {
         ref b : Binding = s.bindings[name]
         free_value(b.cell.val)
-        memcpy(b.cell.val, val, Value.size())
-        memcpy(val, val_none(), Value.size())
+        memcpy(b.cell.val, val, Value.size().cast(U64))
+        memcpy(val, val_none(), Value.size().cast(U64))
         return
     }
-    cell : Dynamic = malloc(Cell.size())
-    memcpy(cell, val, Value.size())
-    memcpy(val, val_none(), Value.size())
+    cell : Dynamic = malloc(Cell.size().cast(U64))
+    memcpy(cell, val, Value.size().cast(U64))
+    memcpy(val, val_none(), Value.size().cast(U64))
     // Build an OWNED Str key: clone name's bytes so the key does NOT alias
     // the caller's buffer. The precomp fold scope (precomp_imported's
     // `global`) is shared across every unit's process_body and outlives AST
@@ -2128,29 +2128,29 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     // dangle once that Decl's name is freed, corrupting later Map_has
     // lookups -- a non-deterministic heap-use-after-free in Str_cmp that
     // surfaced as intermittent "X is undefined" during self-compilation.
-    kbuf : Dynamic = malloc(name.count.add(1))
-    memcpy(kbuf, name.c_str, name.count)
-    memset(ptr_add(kbuf, name.count), 0, 1)
-    k : Dynamic = malloc(Str.size())
-    memcpy(k, name, Str.size())
+    kbuf : Dynamic = malloc(name.count.add(1).cast(U64))
+    memcpy(kbuf, name.c_str, name.count.cast(U64))
+    memset(ptr_add(kbuf, name.count.cast(U64)), 0, 1)
+    k : Dynamic = malloc(Str.size().cast(U64))
+    memcpy(k, name, Str.size().cast(U64))
     write_ptr(k, kbuf)
-    memcpy(ptr_add(k, 12), name.count, U32.size())
+    memcpy(ptr_add(k, 12), name.count, U32.size().cast(U64))
     // Build Binding: {name_ptr, cell_ptr, cell_is_local=1}
-    v : Dynamic = malloc(Binding.size())
-    memset(v, 0, Binding.size())
+    v : Dynamic = malloc(Binding.size().cast(U64))
+    memset(v, 0, Binding.size().cast(U64))
     write_ptr(v, name)
     write_ptr(ptr_add(v, 8), cell)
     local_flag := true
-    memcpy(ptr_add(v, 16), local_flag, Bool.size())
+    memcpy(ptr_add(v, 16), local_flag, Bool.size().cast(U64))
     s.bindings.set(own k, own v)
 }
 
 scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
-    k : Dynamic = malloc(Str.size())
-    memcpy(k, name, Str.size())
-    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size())
-    v : Dynamic = malloc(Binding.size())
-    memset(v, 0, Binding.size())
+    k : Dynamic = malloc(Str.size().cast(U64))
+    memcpy(k, name, Str.size().cast(U64))
+    memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().cast(U64))
+    v : Dynamic = malloc(Binding.size().cast(U64))
+    memset(v, 0, Binding.size().cast(U64))
     write_ptr(v, name)
     write_ptr(ptr_add(v, 8), cell)
     // cell_is_local = false (already zeroed by memset)
@@ -2171,13 +2171,13 @@ scope_free := func(own s: Scope) {
     // Delete Map contents but not the Map struct (it's inline in Scope)
     own s.bindings.delete(false)
     // Zero out bindings so Scope destructor doesn't double-free
-    memset(s.bindings, 0, Map.size())
+    memset(s.bindings, 0, Map.size().cast(U64))
     // #211 follow-up: same treatment for payload_aliases. Was leaking
     // one Map.new(Str, Str) per scope per program (every scope_new()
     // defaulted the field), pushing translate ASAN from 146K to 707K
     // bytes leaked.
     own s.payload_aliases.delete(false)
-    memset(s.payload_aliases, 0, Map.size())
+    memset(s.payload_aliases, 0, Map.size().cast(U64))
     // #227 follow-up: same treatment for ref_primitive_ptrs (added by
     // 1e0be62). Like payload_aliases above, every scope_new() defaulted
     // this field to an empty Map.new(Str, Dynamic) -- two malloc'd Vec
@@ -2188,18 +2188,18 @@ scope_free := func(own s: Scope) {
     // the transient holder at insert time), so default_delete leaving
     // them untouched is exactly right -- do NOT free them here.
     own s.ref_primitive_ptrs.delete(false)
-    memset(s.ref_primitive_ptrs, 0, Map.size())
+    memset(s.ref_primitive_ptrs, 0, Map.size().cast(U64))
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // (ELEM_FN) stores raw pointer values; deref + reinterpret-as
     // DynPtrBox gives us the `own` field that free() accepts.
     for i in 0..s.box_owned_dynamics.count {
-        ref slot : Dynamic = ptr_add(s.box_owned_dynamics.data, i.mul(s.box_owned_dynamics.elem_size))
+        ref slot : Dynamic = ptr_add(s.box_owned_dynamics.data, i.mul(s.box_owned_dynamics.elem_size).cast(U64))
         ref box : DynPtrBox = slot
         if box.p.is_null().not() { free(own box.p) }
     }
     own s.box_owned_dynamics.delete(false)
-    memset(s.box_owned_dynamics, 0, Vec.size())
+    memset(s.box_owned_dynamics, 0, Vec.size().cast(U64))
     free(own s)
 }
 // Body of interp_fa_is_ns_inner pulled out so both FieldAccess and
@@ -2345,7 +2345,7 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
             mut cloned := val.clone()
             switch cloned {
             case Value.Struct(csi):
-                memcpy(dest, csi.data, sz)
+                memcpy(dest, csi.data, sz.cast(U64))
                 free(own csi.data)
                 csi.data = NULL
             case:
@@ -2360,14 +2360,14 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
-    data : Dynamic = calloc(alloc_count, esz)
+    data : Dynamic = calloc(alloc_count.cast(U64), esz.cast(U64))
     for i in 0..count {
         ref s : Str = argv[offset.add(i)]
         v := parse_cli_arg(s, elem_type, ctx)
-        value_to_buf(ptr_add(data, i.mul(esz)), v, elem_type)
+        value_to_buf(ptr_add(data, i.cast(U64).mul(esz.cast(U64))), v, elem_type)
     }
     sz := ctx_total_size(ctx.cached_array_name, ctx)
-    inst_data : Dynamic = calloc(1, sz)
+    inst_data : Dynamic = calloc(1, sz.cast(U64))
     ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
     ba_data_fl := ctx_field_layout(ctx.cached_array_name, "data", ctx)
     write_field(inst_data, ba_data_d, ba_data_fl.offset, ba_data_fl.size, Value.Ref(data), ctx)
@@ -2430,7 +2430,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
             // AST gets rebuilt later in the run. The map value is a malloc'd cell
             // holding the Expr pointer (same encoding as ctx.struct_def_exprs).
-            tdv : Dynamic = malloc(I64.size())
+            tdv : Dynamic = malloc(I64.size().cast(U64))
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(own dd.name.clone(), own tdv)
             ref ien_ns : Vec = def_ns_decls(sdef)
@@ -2475,10 +2475,10 @@ ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context) {
 }
 
 make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = malloc(Str.size())
-    copy : Dynamic = malloc(len.add(1))
-    memcpy(copy, data, len)
-    memset(ptr_add(copy, len), 0, 1)
+    inst_data : Dynamic = malloc(Str.size().cast(U64))
+    copy : Dynamic = malloc(len.add(1).cast(U64))
+    memcpy(copy, data, len.cast(U64))
+    memset(ptr_add(copy, len.cast(U64)), 0, 1)
     write_ptr(inst_data, copy)
     write_u32(ptr_add(inst_data, 8), len)
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
@@ -2494,15 +2494,15 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
 // Used by precomp to track LiteralStr Decls without copying the buffer:
 // the LiteralStr's c_str is stable for the entire precomp lifetime.
 make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = malloc(Str.size())
+    inst_data : Dynamic = malloc(Str.size().cast(U64))
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
-    memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size())
+    memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().cast(U64))
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
 make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = malloc(Str.size())
+    inst_data : Dynamic = malloc(Str.size().cast(U64))
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     write_u32(ptr_add(inst_data, 12), len)
@@ -2544,7 +2544,7 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
 ENUM_PAYLOAD_OFFSET : USize = 8
 
 read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx: Context) returns shallow Value {
-    ref ptr : Dynamic = ptr_add(inst_data, field_offset)
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     // Resolve the field's type name. For own/ref enum fields the typer
     // sometimes leaves explicit_type empty -- recover the enum name from
     // til_type when available so the enum branch below applies regardless
@@ -2647,19 +2647,19 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
-    ref ptr2 : Dynamic = ptr_add(inst_data, field_offset)
+    ref ptr2 : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     if ftype.len().gt(0) {
         ref stored : Dynamic = deref(ptr2)
         if stored.is_null().not() { return Value.Func(stored) }
     }
     // Fallback
-    ref ptr3 : Dynamic = ptr_add(inst_data, field_offset)
+    ref ptr3 : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     ref fi : I64 = ptr3
     return Value.Int(fi)
 }
 
 write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
-    ref ptr : Dynamic = ptr_add(inst_data, field_offset)
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     fsz := field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
     // of own_type; let the unified switch below allocate the heap instance.
@@ -2712,16 +2712,16 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize
         return
     }
     switch val {
-    case Value.Int(v):     memcpy(ptr, v, fsz)
-    case Value.Byte(v):    memcpy(ptr, v, fsz)
-    case Value.Sbyte(v):   memcpy(ptr, v, fsz)
-    case Value.Short(v):   memcpy(ptr, v, fsz)
-    case Value.Ushort(v):  memcpy(ptr, v, fsz)
-    case Value.Int32(v):   memcpy(ptr, v, fsz)
-    case Value.Uint32(v):  memcpy(ptr, v, fsz)
-    case Value.Uint64(v):  memcpy(ptr, v, fsz)
-    case Value.Float(v):   memcpy(ptr, v, fsz)
-    case Value.Boolean(v): memcpy(ptr, v, fsz)
+    case Value.Int(v):     memcpy(ptr, v, fsz.cast(U64))
+    case Value.Byte(v):    memcpy(ptr, v, fsz.cast(U64))
+    case Value.Sbyte(v):   memcpy(ptr, v, fsz.cast(U64))
+    case Value.Short(v):   memcpy(ptr, v, fsz.cast(U64))
+    case Value.Ushort(v):  memcpy(ptr, v, fsz.cast(U64))
+    case Value.Int32(v):   memcpy(ptr, v, fsz.cast(U64))
+    case Value.Uint32(v):  memcpy(ptr, v, fsz.cast(U64))
+    case Value.Uint64(v):  memcpy(ptr, v, fsz.cast(U64))
+    case Value.Float(v):   memcpy(ptr, v, fsz.cast(U64))
+    case Value.Boolean(v): memcpy(ptr, v, fsz.cast(U64))
     case Value.Struct:
         // Always deep-copy into the inline (Shallow) field: the caller owns
         // `val` and deletes it after this call, so the field must own an
@@ -2731,7 +2731,7 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize
         mut cloned := val.clone()
         switch cloned {
         case Value.Struct(csi):
-            memcpy(ptr, csi.data, fsz)
+            memcpy(ptr, csi.data, fsz.cast(U64))
             free(own csi.data)
             csi.data = NULL
         case:
@@ -2740,18 +2740,18 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize
         mut total : USize = ei.data_size
         if total.lt(8) { total = 8 }
         if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-            heap_ei : Dynamic = malloc(EnumInstance.size())
-            memcpy(heap_ei, ei, EnumInstance.size())
+            heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+            memcpy(heap_ei, ei, EnumInstance.size().cast(U64))
             // Deep-copy the data buffer
-            new_data : Dynamic = malloc(total)
-            memcpy(new_data, ei.data, total)
+            new_data : Dynamic = malloc(total.cast(U64))
+            memcpy(new_data, ei.data, total.cast(U64))
             // Write data pointer into the heap EnumInstance. After dropping the
             // dead enum_def field, EnumInstance is { enum_name(0..8),
             // data(8..16), data_size(16..) } so the data slot is at offset 8.
             write_ptr(ptr_add(heap_ei, 8), new_data)
             write_ptr(ptr, heap_ei)
         } else {
-            memcpy(ptr, ei.data, total)
+            memcpy(ptr, ei.data, total.cast(U64))
         }
     case Value.Ref(pv):     write_ptr(ptr, deref(pv))
     case Value.Dynamic(pv): write_ptr(ptr, deref(pv))

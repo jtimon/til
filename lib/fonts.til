@@ -63,10 +63,10 @@ patch_u32 := func(mut buf: Str, offset: USize, v: I64) {
     b1 := u.div(65536).mod(256).to_u8()
     b2 := u.div(256).mod(256).to_u8()
     b3 := u.mod(256).to_u8()
-    memcpy(ptr_add(buf.c_str, offset),         b0, 1)
-    memcpy(ptr_add(buf.c_str, offset.add(1)),  b1, 1)
-    memcpy(ptr_add(buf.c_str, offset.add(2)),  b2, 1)
-    memcpy(ptr_add(buf.c_str, offset.add(3)),  b3, 1)
+    memcpy(ptr_add(buf.c_str, offset.cast(U64)),         b0, 1)
+    memcpy(ptr_add(buf.c_str, offset.add(1).cast(U64)),  b1, 1)
+    memcpy(ptr_add(buf.c_str, offset.add(2).cast(U64)),  b2, 1)
+    memcpy(ptr_add(buf.c_str, offset.add(3).cast(U64)),  b3, 1)
 }
 
 // Sum of U32 big-endian words over buf[offset..offset+length], zero-padded.

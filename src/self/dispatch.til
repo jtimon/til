@@ -51,7 +51,7 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
     return to_ptr(ffi_global_symbol(name))
 }
 
-ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size()) }
+ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().cast(U64)) }
 
 ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
     if cif.rtype.is_null() { return false }
@@ -537,9 +537,9 @@ h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
 // introspection primitives hand back owned copies. Issue #56/#58.
 priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
     n := src.count
-    buf : Dynamic = malloc(n.add(1))
-    memcpy(buf, src.c_str, n)
-    ref mut term : U8 = ptr_add(buf, n)
+    buf : Dynamic = malloc(n.add(1).cast(U64))
+    memcpy(buf, src.c_str, n.cast(U64))
+    ref mut term : U8 = ptr_add(buf, n.cast(U64))
     term = 0
     return make_str_value_own(buf, n, ctx)
 }
@@ -926,7 +926,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Struct")) {
-            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
+            ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
             r = make_str_value(payload.c_str, payload.count, ctx)
             return true
         }
@@ -935,7 +935,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Enum")) {
-            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
+            ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
             r = make_str_value(payload2.c_str, payload2.count, ctx)
             return true
         }
@@ -956,7 +956,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             return true
         }
         if tag.eq(enum_variant_tag(til_type_def, "Custom")) {
-            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
+            ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
             r = make_str_value(payload3.c_str, payload3.count, ctx)
             return true
         }
@@ -969,7 +969,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             if prim_def.is_null() {
                 panic(__LOC__, "dyn_type_to_str: Primitive definition not registered")
             }
-            ref prim_tag_ref : I32 = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
+            ref prim_tag_ref : I32 = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
             ptag := prim_tag_ref
             if ptag.eq(enum_variant_tag(prim_def, "I16")) { r = make_str_value("I16".c_str, 3, ctx); return true }
             if ptag.eq(enum_variant_tag(prim_def, "U16")) { r = make_str_value("U16".c_str, 3, ctx); return true }
@@ -1104,14 +1104,14 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
     switch struct_def.node_type {
     case NodeType.StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
-        elements : Dynamic = malloc(nfields.add(1).mul(Dynamic.size()))
+        elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size().cast(U64)))
         for i in 0..nfields {
             ref fd : Declaration = bsf_sdd.fields[i]
             ref ft : ffi_type = field_ffi_type(fd, ctx)
-            memcpy(ptr_add(elements, i.mul(Dynamic.size())), ft, Dynamic.size())
+            memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size().cast(U64))), ft, Dynamic.size().cast(U64))
         }
-        memset(ptr_add(elements, nfields.mul(Dynamic.size())), 0, Dynamic.size())
-        st : Dynamic = malloc(ffi_type.size())
+        memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size().cast(U64))), 0, Dynamic.size().cast(U64))
+        st : Dynamic = malloc(ffi_type.size().cast(U64))
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
         stp.alignment = 0
@@ -1131,14 +1131,14 @@ h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(s, ident.ident_name())
         free_value_full(cell.val)
-        memcpy(cell.val, val_none(), Value.size())
+        memcpy(cell.val, val_none(), Value.size().cast(U64))
     case:
         val := eval_expr(s, e.child(1), ctx)
         free_value_full(val)
         // val is a garbager-tracked local whose deep Value.delete would
         // re-free the payload free_value_full just released; null it so the
         // scope-end delete is a no-op.
-        memcpy(val, val_none(), Value.size())
+        memcpy(val, val_none(), Value.size().cast(U64))
     }
     r = val_none()
     return true
@@ -1369,14 +1369,14 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 }
                 total_size : USize = ctx_total_size(enum_name, ctx)
                 tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
-                move(result, tmp, Value.size())
+                move(result, tmp, Value.size().cast(U64))
                 if must_free_pdata {
                     free(own pdata)
                 }
             } else {
                 total_size : USize = ctx_total_size(enum_name, ctx)
                 tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
-                move(result, tmp, Value.size())
+                move(result, tmp, Value.size().cast(U64))
             }
             return true
         }
@@ -1460,13 +1460,13 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     if is_value_ptr(v) {
         narrowed := reinterpret_ptr_value(v, tn, scope, ctx)
         ref payload : Dynamic = val_to_ptr(narrowed)
-        memcpy(dst, payload, sz)
+        memcpy(dst, payload, sz.cast(U64))
     } else if tn.eq("F32") {
         tmp : F32 = value_to_f32(v)
         memcpy(dst, tmp, 4)
     } else {
         tmp : U64 = value_to_u64(v)
-        memcpy(dst, tmp, sz)
+        memcpy(dst, tmp, sz.cast(U64))
     }
     return true
 }
@@ -1480,8 +1480,8 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     mut alloc_n := nargs
     if alloc_n.eq(0) { alloc_n = 1 }
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
-    args : Dynamic = malloc(alloc_n.mul(8))
-    arg_ptrs : Dynamic = malloc(alloc_n.mul(8))
+    args : Dynamic = malloc(alloc_n.mul(8).cast(U64))
+    arg_ptrs : Dynamic = malloc(alloc_n.mul(8).cast(U64))
     // args / arg_ptrs hold RAW pointers into each arg Value's payload
     // (si.data / ei.data). Those Values must outlive ffi_call, but they are
     // per-iteration locals the garbager would delete (deep) at the end of
@@ -1494,18 +1494,18 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))
         if is_shallow {
-            ref ps : Bool = ptr_add(fe.param_shallows, i)
+            ref ps : Bool = ptr_add(fe.param_shallows, i.cast(U64))
             is_shallow = ps
         }
         if is_shallow {
             // Shallow: store dereferenced value directly
             switch v {
             case Value.Struct(si):
-                write_ptr(ptr_add(arg_ptrs, i.mul(8)), si.data)
+                write_ptr(ptr_add(arg_ptrs, i.mul(8).cast(U64)), si.data)
             case:
-                ref at : Dynamic = ptr_add(fe.arg_types, i.mul(8))
+                ref at : Dynamic = ptr_add(fe.arg_types, i.mul(8).cast(U64))
                 ref atype : Dynamic = deref(at)
-                ref dst : Dynamic = ptr_add(args, i.mul(8))
+                ref dst : Dynamic = ptr_add(args, i.mul(8).cast(U64))
                 if ffi_write_shallow_arg(scope, v, atype, dst, ctx).not() {
                     // Default: pointer-like value
                     switch v {
@@ -1519,7 +1519,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
                         write_ptr(dst, NULL)
                     }
                 }
-                write_ptr(ptr_add(arg_ptrs, i.mul(8)), dst)
+                write_ptr(ptr_add(arg_ptrs, i.mul(8).cast(U64)), dst)
             }
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
@@ -1536,24 +1536,24 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
             case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
             case Value.Ref(pv):
-                write_ptr(ptr_add(args, i.mul(8)), deref(pv))
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), deref(pv))
             case Value.Dynamic(pv):
-                write_ptr(ptr_add(args, i.mul(8)), deref(pv))
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), deref(pv))
             case Value.Func(fv):
                 // Issue #58: pass through function pointer (Value.Func payload
                 // is the function pointer itself, deref reads the actual ptr).
-                write_ptr(ptr_add(args, i.mul(8)), deref(fv))
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), deref(fv))
             case Value.Struct(si):
-                write_ptr(ptr_add(args, i.mul(8)), si.data)
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), si.data)
             case Value.Enum(ei):
-                write_ptr(ptr_add(args, i.mul(8)), ei.data)
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), ei.data)
             case:
-                write_ptr(ptr_add(args, i.mul(8)), NULL)
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), NULL)
             }
             if dp.is_null().not() {
-                write_ptr(ptr_add(args, i.mul(8)), dp)
+                write_ptr(ptr_add(args, i.mul(8).cast(U64)), dp)
             }
-            write_ptr(ptr_add(arg_ptrs, i.mul(8)), ptr_add(args, i.mul(8)))
+            write_ptr(ptr_add(arg_ptrs, i.mul(8).cast(U64)), ptr_add(args, i.mul(8).cast(U64)))
         }
         // Keep this arg Value alive (and its payload, which args/arg_ptrs
         // point into) until after ffi_call; arg_vals owns it now.
@@ -1569,7 +1569,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     if ret_sdef.is_null().not() {
         switch ret_sdef.node_type {
         case NodeType.StructDef:
-            ret_buf = malloc(ctx_total_size(fe.return_type, ctx))
+            ret_buf = malloc(ctx_total_size(fe.return_type, ctx).cast(U64))
             ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
         case:
             ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
@@ -1625,23 +1625,23 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         mut alloc_np := np
         if alloc_np.eq(0) { alloc_np = 1 }
         // Build ffi_type* array (each element is a pointer = 8 bytes)
-        atypes : Dynamic = malloc(alloc_np.mul(8))
+        atypes : Dynamic = malloc(alloc_np.mul(8).cast(U64))
         mut pshallows : Dynamic = 0
         mut has_shallow := false
         for k in 0..np {
             ref pk : Declaration = fd.params[k]
             if pk.own_type.is(OwnType.Shallow) {
-                write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
+                write_ptr(ptr_add(atypes, k.mul(8).cast(U64)), shallow_ffi_type(pk.explicit_type, ctx))
                 has_shallow = true
             } else {
-                write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))
+                write_ptr(ptr_add(atypes, k.mul(8).cast(U64)), ffi_type_ref("ffi_type_pointer"))
             }
         }
         if has_shallow {
-            pshallows = malloc(np)
+            pshallows = malloc(np.cast(U64))
             for k in 0..np {
                 ref pk : Declaration = fd.params[k]
-                ref mut slot : Bool = ptr_add(pshallows, k)
+                ref mut slot : Bool = ptr_add(pshallows, k.cast(U64))
                 slot = pk.own_type.is(OwnType.Shallow)
             }
         }
@@ -1673,10 +1673,10 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         // either AST-owned strings or locally-allocated ones (e.g. format
         // results) without bespoke ownership dances.
         key_str := name.clone()
-        key : Dynamic = malloc(Str.size())
-        move(key, key_str, Str.size())
-        val : Dynamic = malloc(FFIEntry.size())
-        move(val, entry, FFIEntry.size())
+        key : Dynamic = malloc(Str.size().cast(U64))
+        move(key, key_str, Str.size().cast(U64))
+        val : Dynamic = malloc(FFIEntry.size().cast(U64))
+        move(val, entry, FFIEntry.size().cast(U64))
         ctx.ffi_map.set(own key, own val)
     case:
         UNREACHABLE(__LOC__)

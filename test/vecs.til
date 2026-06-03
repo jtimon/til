@@ -96,10 +96,10 @@ test_vec_dynamic := test() {
     // is(a, b) check verifies stored bytes really differ (ASAN's
     // malloc returns zeroed/uniform bytes, which would otherwise
     // make uninitialized buffers compare equal).
-    p1 : Dynamic = malloc(Dynamic.size())
-    p2 : Dynamic = malloc(Dynamic.size())
-    memset(p1, 170, Dynamic.size())
-    memset(p2, 187, Dynamic.size())
+    p1 : Dynamic = malloc(Dynamic.size().cast(U64))
+    p2 : Dynamic = malloc(Dynamic.size().cast(U64))
+    memset(p1, 170, Dynamic.size().cast(U64))
+    memset(p2, 187, Dynamic.size().cast(U64))
     v.push(own p1)
     v.push(own p2)
 
