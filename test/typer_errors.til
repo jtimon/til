@@ -611,3 +611,20 @@ terr_is_payload := func(c: TErrIsColor) returns Bool {
     return c.is(TErrIsColor.Tagged(5))
 }
 terr_is_payload(TErrIsColor.Red)
+
+// #242: a struct field with no default is required at instantiation;
+// omitting it is a type error.
+TErrReq := struct {
+    a : U16 = 0
+    b : Str
+    c := -1
+}
+terr_req_missing := TErrReq()
+
+// #242: defaulted fields stay optional, but a required field must be
+// supplied -- omitting it errors.
+TErrMixedReq := struct {
+    x := 1
+    label : Str
+}
+terr_mixed_req_missing := TErrMixedReq()

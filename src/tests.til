@@ -532,7 +532,7 @@ main := proc(args: ..Str) {
               format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 134,
+    add_count(tests, "typer_errors", "typer", "error:", 136,
                format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
@@ -587,14 +587,8 @@ main := proc(args: ..Str) {
     add_count(tests, "cli_unsupported_main_build", "typer",
               "cannot be parsed from a CLI argument", 1,
               format(til_bin, " build", asan_flag, " test/cli_unsupported_main.til"))
-    // #242: a no-default struct field is required at instantiation.
-    add_count(tests, "required_field_error_interp", "typer",
-              "missing required field", 2,
-              format(til_bin, " interpret test/required_field_error.til"))
-    add_count(tests, "required_field_error_build", "typer",
-              "missing required field", 2,
-              format(til_bin, " build", asan_flag, " test/required_field_error.til"))
-    // #242: a no-default field with no explicit type stays illegal.
+    // #242: missing-required-field cases live in test/typer_errors.til.
+    // A no-default field with no explicit type stays illegal (parser).
     add_count(tests, "required_field_no_type_error", "parser",
               "expected", 1,
               format(til_bin, " interpret test/required_field_no_type_error.til"))
