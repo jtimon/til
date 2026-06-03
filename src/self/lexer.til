@@ -35,7 +35,7 @@ TokenType := enum {
 
     // Keywords
     KwMut, KwConst, KwOwn, KwRef, KwShallow,
-    KwStruct, KwEnum, KwNamespace,
+    KwStruct, KwEnum, KwNamespace, KwInterface,
     KwFunc, KwProc, KwTest, KwMacro, KwExtFunc, KwExtProc, KwExtStruct,
     KwReturns, KwThrows,
     KwIf, KwElse,
@@ -131,6 +131,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.KwStruct: return "struct"
     case TokenType.KwEnum: return "enum"
     case TokenType.KwNamespace: return "namespace"
+    case TokenType.KwInterface: return "interface"
     case TokenType.KwFunc: return "func"
     case TokenType.KwProc: return "proc"
     case TokenType.KwTest: return "test"
@@ -229,6 +230,7 @@ priv lookup_keyword := func(word: Str) returns TokenType {
     case "struct": return TokenType.KwStruct
     case "enum": return TokenType.KwEnum
     case "namespace": return TokenType.KwNamespace
+    case "interface": return TokenType.KwInterface
     case "func": return TokenType.KwFunc
     case "proc": return TokenType.KwProc
     case "test": return TokenType.KwTest

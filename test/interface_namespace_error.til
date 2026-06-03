@@ -1,0 +1,9 @@
+mode script
+
+// Issue #250: an interface has no fields, so there is no field/namespace
+// split -- a `namespace:` marker must be rejected by the parser.
+Bad := interface {
+    len := func(self: Bad) returns USize
+namespace:
+    helper := func() returns I64
+}

@@ -408,6 +408,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/flow.til", flags)
     add_mode(tests, "test/asting.til", flags)
     add_mode(tests, "test/structs.til", flags)
+    add_mode(tests, "test/interface.til", flags)
     add_mode(tests, "test/types.til", flags)
     add_mode(tests, "test/cast.til", flags)
     add_mode(tests, "test/directives.til", flags)
@@ -559,6 +560,15 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_const_namespace_error", "parser",
               "on namespace declaration: namespace decls are immutable by default", 1,
               format(til_bin, " interpret test/qualifier_const_namespace_error.til"))
+    add_count(tests, "interface_field_error", "parser",
+              "cannot have fields", 1,
+              format(til_bin, " interpret test/interface_field_error.til"))
+    add_count(tests, "interface_body_error", "parser",
+              "cannot have a body", 1,
+              format(til_bin, " interpret test/interface_body_error.til"))
+    add_count(tests, "interface_namespace_error", "parser",
+              "is not allowed in an interface body", 1,
+              format(til_bin, " interpret test/interface_namespace_error.til"))
     add_count(tests, "const_payload_error", "typer",
               "cannot assign to immutable variable", 1,
               format(til_bin, " interpret test/const_payload_error.til"))

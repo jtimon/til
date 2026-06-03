@@ -1,0 +1,23 @@
+mode test
+
+// Issue #250: an interface is a named bag of method signatures that
+// desugars to a fieldless struct. Phase 1 records the contract; it does
+// not yet check conformance or dispatch dynamically. The point of these
+// tests is that an interface compiles end-to-end (interpret AND build)
+// as a usable, fieldless type whose namespace holds only bodyless
+// function-pointer declarations (FuncSigs).
+
+Collection := interface {
+    get := func(self: Collection, i: U32) returns Dynamic
+    len := func(self: Collection) returns USize
+}
+
+// The interface name is a usable type -- here as a parameter type. The
+// argument is a Collection() instance (an empty struct value).
+identify := func(_c: Collection) returns I64 {
+    return 7
+}
+
+test_interface_is_a_usable_fieldless_type := test() {
+    assert_eq(__LOC__, identify(Collection()), 7)
+}

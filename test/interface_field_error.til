@@ -1,0 +1,7 @@
+mode script
+
+// Issue #250: an interface forbids instance fields. A non-func member is
+// a "field" and must be rejected by the parser.
+Bad := interface {
+    x := 0
+}
