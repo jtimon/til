@@ -1,5 +1,5 @@
 # priority: medium
-** OPEN #230 Consolidate per-primitive Type variants into Type.Primitive(Primitive)
+** WIP #230 Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 
    Final-form decision after the cancelled #205 prototype:
    primitives live in ~Type.Primitive(Primitive)~ rather than
@@ -80,6 +80,52 @@
    - ~is_aggregate~ exists in ~src/core/ast.til~ and is used
      across asaper / typer / builder to mean "compound
      non-primitive named type".
+
+   *** Progress
+
+   - [X] Step 2 DONE: all ten primitives now live in the
+     ~Primitive~ enum. Migrated incrementally, smallest
+     call-site surface first:
+     - ~I16~ / ~U16~ (issue #203, earlier).
+     - ~I8~ / ~U8~ (resolve via ~Struct("U8"/"I8")~, so the
+       flat ~Type.U8/I8~ came out in one commit).
+     - ~U32~ / ~I32~ / ~U64~ / ~I64~ (commit "move U32, I32,
+       U64, I64 out of Type into Primitive").
+     - ~F32~ / ~Bool~ (commit "move F32/Bool to Primitive",
+       flats kept one bootstrap step, then "drop flat F32/Bool
+       from Type", a3558648).
+   - [X] Step 3 PARTIAL: the dead flat ~Type.I64/I32/U32/U64/
+     F32/Bool~ variants have all been dropped -- ~Type~ now
+     carries no flat scalar primitive at all.
+   - [ ] Step 3 REMAINING: drop ~is_aggregate~ (29 call
+     sites); collapse the by-name discrimination
+     (~til_type_name_c(t).eq("X")~) in ~eq~ /
+     ~can_implicit_widen~ / if&while-condition checks back to
+     an exhaustive nested ~switch~ over ~Primitive~; drop the
+     ~to_is_*~ / ~from_is_*~ caches in ~can_implicit_widen~.
+   - [ ] Step 1 REMAINING (now the lead item): retire the
+     ~Type.Struct("I32"/"U8"/"I8")~ scar. The migration went
+     straight to ~Primitive~ rather than rolling the scar back
+     first, so I32/U8/I8 still travel as ~Type.Struct(name)~
+     from the resolvers / precomp literals, and every helper
+     (~is_primitive~, ~til_type_name_c~, ~can_implicit_widen~,
+     ~type_prefix~, ...) still carries a ~Struct(s)~ fallback
+     (~132 sites). Collapse the producers onto ~Primitive~ and
+     delete the fallbacks.
+
+   Notes from the sweep (bootstrap mechanics): a primitive that
+   is passed as a type-value arg (~cast(I64)~, ~Vec.new(Bool)~)
+   goes through ~make_til_type_expr~, so master's ~til_boot~
+   must already emit the ~Type.Primitive(Primitive.X)~ form
+   before the flat ~Type.X~ can be removed -- hence the
+   add-then-drop two-commit shape for those. ~make_til_type_expr~
+   must mark the synthetic ~Primitive~ payload arg ~own~ (the
+   ~Type.Primitive(p)~ constructor frees it). The interp
+   ~h_dyn_type_to_str~ and the issue-#58 macro-condition
+   evaluator both had to learn the nested
+   ~Type.Primitive(Primitive.X)~ shape. ~validate_fcall_arg~
+   had a latent tag-only ~is(ptype)~ compare that treated any
+   two ~Type.Primitive~ as equal -- fixed to compare precisely.
 
    *** Plan
 
