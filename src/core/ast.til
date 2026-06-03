@@ -581,9 +581,11 @@ NodeType := enum {
     RestPattern,
 namespace:
     // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
-    // cannot tell the literal kinds apart -- it matches any Literal. These
-    // switch-based predicates discriminate the inner Literal variant. Use
-    // node_type.is(NodeType.Literal) directly when "any literal" is wanted.
+    // cannot tell the literal kinds apart -- it matches any Literal. The typer
+    // now rejects is() on a payload-carrying variant outright (the payload is
+    // dead), so write node_type.is(NodeType.Literal) when "any literal" is
+    // wanted and use these switch-based predicates to discriminate the inner
+    // Literal variant.
     is_literal_str := func(self: NodeType) returns Bool {
         switch self { case NodeType.Literal(Literal.Str): return true case: return false }
     }

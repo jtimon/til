@@ -22,6 +22,27 @@ test_til_type := test() {
     assert_eq_str(__LOC__, til_type_name_c(Type.Primitive(Primitive.F32)), "F32")
 }
 
+// Regression: Type.eq must tell distinct primitives apart. is() is tag-only
+// and matches any Type.Primitive, so an earlier is(Type.Primitive(X)) check
+// silently made every primitive equal (e.g. I16 == U16). Type.eq now compares
+// the inner primitive by name; guard that here so it cannot regress.
+test_type_eq_primitives := test() {
+    i16 := Type.Primitive(Primitive.I16)
+    u16 := Type.Primitive(Primitive.U16)
+    i8  := Type.Primitive(Primitive.I8)
+    u8  := Type.Primitive(Primitive.U8)
+    // distinct primitives are not equal
+    assert(__LOC__, Type.eq(i16, u16).not())
+    assert(__LOC__, Type.eq(i8, u8).not())
+    assert(__LOC__, Type.eq(i16, i8).not())
+    // the same primitive is equal
+    assert(__LOC__, Type.eq(i16, i16))
+    assert(__LOC__, Type.eq(u8, u8))
+    // a primitive is never equal to a non-primitive metatype
+    assert(__LOC__, Type.eq(i16, Type.FuncPtr).not())
+    assert(__LOC__, Type.eq(i16, Type.Unknown).not())
+}
+
 test_expr_new := test() {
     mut e := Expr.new(NodeType.Body, 1, 5)
     assert_eq(__LOC__, e.line.to_i64(), 1)
