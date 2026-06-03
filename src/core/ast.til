@@ -63,10 +63,14 @@ namespace:
         if a.is(Type.Unknown)   { return b.is(Type.Unknown) }
         if a.is(Type.None)      { return b.is(Type.None) }
         if a.is(Type.I64)       { return b.is(Type.I64) }
-        if a.is(Type.Primitive(Primitive.U8))        { return b.is(Type.Primitive(Primitive.U8)) }
-        if a.is(Type.Primitive(Primitive.I8))        { return b.is(Type.Primitive(Primitive.I8)) }
-        if a.is(Type.Primitive(Primitive.I16))       { return b.is(Type.Primitive(Primitive.I16)) }
-        if a.is(Type.Primitive(Primitive.U16))       { return b.is(Type.Primitive(Primitive.U16)) }
+        // Primitive group (#203): both must be Type.Primitive and carry the
+        // same inner Primitive. is() is tag-only and matches any Primitive, so
+        // distinguish the inner primitive by name (til_type_name_c maps
+        // Type.Primitive(Primitive.I16) -> "I16", U16 -> "U16", etc).
+        if a.is(Type.Primitive) {
+            if b.is(Type.Primitive).not() { return false }
+            return til_type_name_c(a).eq(til_type_name_c(b))
+        }
         if a.is(Type.I32)       { return b.is(Type.I32) }
         if a.is(Type.U32)       { return b.is(Type.U32) }
         if a.is(Type.U64)       { return b.is(Type.U64) }

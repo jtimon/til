@@ -532,7 +532,7 @@ main := proc(args: ..Str) {
               format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 133,
+    add_count(tests, "typer_errors", "typer", "error:", 134,
                format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,

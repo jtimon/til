@@ -599,3 +599,15 @@ terr_redundant_shallow_param := func(shallow x: I64) returns I64 {
 terr_redundant_shallow_return := func() returns shallow I64 {
     return 0
 }
+
+// is() compares only the outer enum tag, so a payload-carrying variant is
+// rejected -- it would silently match any value of that variant. Use a bare
+// variant or a switch to discriminate the inner variant.
+TErrIsColor := enum {
+    Red,
+    Tagged: I64,
+}
+terr_is_payload := func(c: TErrIsColor) returns Bool {
+    return c.is(TErrIsColor.Tagged(5))
+}
+terr_is_payload(TErrIsColor.Red)

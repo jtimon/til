@@ -318,9 +318,9 @@ test_is_simple := test() {
 
 test_is_payload := test() {
     t := Token.Num(42)
-    expect(__LOC__, t.is(Token.Num(0)), "Num is Num")
+    expect(__LOC__, t.is(Token.Num), "Num is Num")
     expect(__LOC__, t.is(Token.Eof).not(), "Num not Eof")
-    expect(__LOC__, t.is(Token.Name("")).not(), "Num not Name")
+    expect(__LOC__, t.is(Token.Name).not(), "Num not Name")
 }
 
 test_is_bare_payload := test() {
@@ -338,7 +338,7 @@ test_is_bare_payload := test() {
 test_is_payload_eof := test() {
     t := Token.Eof
     expect(__LOC__, t.is(Token.Eof), "Eof is Eof")
-    expect(__LOC__, t.is(Token.Num(0)).not(), "Eof not Num")
+    expect(__LOC__, t.is(Token.Num).not(), "Eof not Num")
 }
 
 # --- exhaustive switch (#113): default catches everything the other cases don't ---

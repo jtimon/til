@@ -1651,6 +1651,7 @@ void apply_hoist_to_stmt(Context * ctx, Expr * stmt, Vec * new_ch, TypeScope * s
 void apply_call_hoist_delete(Context * ctx, Expr * stmt, Vec * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs, Bool do_hoist, Bool needs_delete);
 void hoist_param_swap_assign(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 Bool fcall_variant_ctor_arg_is_own(Expr * expr, U32 i, TypeScope * scope);
+Bool is_enum_variant_ctor_with_payload(Expr * expr, TypeScope * scope);
 void hoist_expr(Context * ctx, Expr * expr, Vec * hoisted, TypeScope * scope);
 void hoist_decl_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_if_cond(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);

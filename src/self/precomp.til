@@ -871,7 +871,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             //     Type.Custom and Type.Struct/Type.Enum compare equal on payload
             //     name (ast.til Type.eq), so til_type_name picks up the right
             //     name regardless of which variant is constructed.
-            if arg.expr_til_type().is(Type.Enum("Type")) {
+            if arg.expr_til_type().eq(Type.Enum("Type")) {
                 switch arg.node_type {
                 case NodeType.FCall:
                     ec.add_child(own arg.clone())

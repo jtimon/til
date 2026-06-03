@@ -110,7 +110,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
 }
 
 rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_func: I32, ctx: Context) {
-    if ptype.is(Type.Enum("Type")).not() { return }
+    if ptype.eq(Type.Enum("Type")).not() { return }
     switch arg.node_type {
     case NodeType.Ident(arg_name):
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
@@ -536,7 +536,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         // `enum { ... }`) into this form via make_til_type_expr, so recognise
         // it before the binding lookup below (there is no `Type_Enum` binding
         // for the receiver-qualified method name).
-        if e.expr_til_type().is(Type.Enum("Type")) {
+        if e.expr_til_type().eq(Type.Enum("Type")) {
             for ai in 1..e.children.len() {
                 if e.child(ai).expr_is_comptime(scope).not() { return false }
             }
@@ -582,7 +582,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.I64` produced
         // by make_til_type_expr for primitive type-token args) is a Type
         // metatype value -- pure and comptime.
-        if e.expr_til_type().is(Type.Enum("Type")) {
+        if e.expr_til_type().eq(Type.Enum("Type")) {
             return true
         }
         return false
@@ -1904,6 +1904,23 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
     // extract the parent type name via til_type_name for dispatch.
     if obj3_sname.len().gt(0).and(obj3.expr_til_type().is(Type.Struct).not()) {
         obj3.set_expr_til_type(Type.Struct(obj3_sname.clone()))
+    }
+    // is() compares only the outer enum tag (see ast.til), so a payload-carrying
+    // variant like NodeType.Literal(Literal.SetLit) silently matches *any*
+    // Literal -- the payload is dead. Reject it: use a bare variant
+    // (NodeType.Literal) or a switch to discriminate the inner variant.
+    if method.eq("is") {
+        // is(self, other): the `other` argument is the last child (UFCS may
+        // have inserted `self` ahead of it).
+        if e.children.len().gt(1) {
+            ref is_other : Expr = e.child(e.children.len().sub(1))
+            if is_enum_variant_ctor_with_payload(is_other, scope) {
+                is_other.type_error(format(
+                    "is() compares only the enum tag, so the payload here is ignored; ",
+                    "use a bare variant (e.g. 'NodeType.Literal') or a switch to ",
+                    "discriminate the inner variant"), ctx)
+            }
+        }
     }
     switch ns_func2.node_type {
     case NodeType.FuncDef(ns_fdef):
@@ -8040,10 +8057,12 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
     to_is_i64 := to.is(Type.I64)
     to_is_u32 := to.is(Type.U32)
     to_is_u64 := to.is(Type.U64)
-    to_is_i16 := to.is(Type.Primitive(Primitive.I16))
-    to_is_u16 := to.is(Type.Primitive(Primitive.U16))
-    mut from_is_u8 := from.is(Type.Primitive(Primitive.U8))
-    mut from_is_i8 := from.is(Type.Primitive(Primitive.I8))
+    // is() is tag-only and matches any Type.Primitive, so discriminate the
+    // inner primitive by name (til_type_name_c) instead of is(Primitive(X)).
+    to_is_i16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I16"))
+    to_is_u16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U16"))
+    mut from_is_u8 := from.is(Type.Primitive).and(til_type_name_c(from).eq("U8"))
+    mut from_is_i8 := from.is(Type.Primitive).and(til_type_name_c(from).eq("I8"))
     switch from {
     case Type.Struct(fs):
         if fs.eq("U8") { from_is_u8 = true }
@@ -9405,6 +9424,45 @@ fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope) retu
             if pidx.gte(vfd.params.len()) { return false }
             ref vp : Declaration = vfd.params[pidx]
             return vp.own_type.is(OwnType.Own)
+        case: return false
+        }
+    }
+    return false
+}
+
+// True when `expr` is a syntactic enum-variant construction that supplies a
+// payload, e.g. NodeType.Literal(Literal.SetLit). Bare variants (a plain
+// FieldAccess like NodeType.Literal) and ordinary calls returning an enum are
+// not matched. Used to reject such arguments to is(), which compares only the
+// outer tag and so ignores the payload entirely.
+is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) returns Bool {
+    if expr.node_type.is(NodeType.FCall).not() { return false }
+    // callee + at least one payload argument
+    if expr.children.len().lt(2) { return false }
+    ref callee : Expr = expr.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    if callee.children.len().eq(0) { return false }
+    mut variant := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(fad): variant = fad.field_access_name()
+    case: return false
+    }
+    ref base : Expr = callee.child(0)
+    mut tn := ""
+    switch base.node_type {
+    case NodeType.Ident(idd): tn = idd.ident_name()
+    case: return false
+    }
+    ref sdef : Expr = scope.get_struct(tn)
+    if sdef.is_null() { return false }
+    if sdef.node_type.is(NodeType.EnumDef).not() { return false }
+    ref vc_ns : Vec = def_ns_decls(sdef)
+    for fd : Declaration in vc_ns {
+        if fd.name.eq(variant).not() { continue }
+        if fd.default_value.is_null() { return false }
+        switch fd.default_value.node_type {
+        case NodeType.FuncDef(vfd):
+            return vfd.is_enum_variant_ctor
         case: return false
         }
     }
