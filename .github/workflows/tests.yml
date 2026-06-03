@@ -116,7 +116,7 @@ jobs:
         run: make
       - name: Cross-compile and run for linux-riscv32
         run: |
-          RISCV32_CC=$(ls "$RISCV32_TC/bin/riscv32-*-gcc" | head -1)
+          RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)
           ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" \
             -o bin/hello_script_riscv32 examples/hello_script.til
           file bin/hello_script_riscv32 | grep -q "RISC-V"
