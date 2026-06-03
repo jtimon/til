@@ -2938,7 +2938,15 @@ priv typer_resolve_enum_payload_types := func(edef: EnumDef, scope: TypeScope, c
 
 infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     expr.set_expr_til_type(Type.None)
-    inner := TypeScope(parent = scope)
+    mut inner := TypeScope(parent = scope)
+    // Cache the namespace inner scope (issue #204 step 3b). Method
+    // func_scopes created during ns_decls typing record inner.own_body_id
+    // as their parent_body_id, so inner must outlive the typer's stack
+    // unwind for the garbager's parent-chain lookup to terminate at
+    // the right ancestor.
+    inner.own_body_id = ctx.next_body_id
+    ctx.next_body_id = ctx.next_body_id.add(1)
+    inner.parent_body_id = scope.own_body_id
     switch expr.node_type {
     case NodeType.StructDef(tc_sdd):
         for fd : Declaration in tc_sdd.fields {
@@ -3037,7 +3045,8 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     if expr.node_type.is(NodeType.StructDef) {
         check_user_delete_frees_own_fields(ctx.current_type_name, expr, ctx)
     }
-    TypeScope.delete(own inner)
+    ctx.body_id_to_index.set(own inner.own_body_id.clone(), own ctx.body_scopes.len().clone())
+    ctx.body_scopes.push(own inner)
 }
 
 // Issue #223 step 3: a struct is auto-shallow (safe to pass/return by a
@@ -3303,6 +3312,12 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             }
         }
         mut func_scope := TypeScope(parent = scope)
+        // Body-id stamp before infer_body so any child scope created
+        // during inference records this scope's id as its parent
+        // (issue #204 step 3b).
+        func_scope.own_body_id = ctx.next_body_id
+        ctx.next_body_id = ctx.next_body_id.add(1)
+        func_scope.parent_body_id = scope.own_body_id
         if fdef.return_type.len().gt(0) {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
@@ -3458,7 +3473,12 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         }
         if macro_is_template.not() {
             infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0, ctx)
-            garbager_destroy_body(ctx, expr.child(0), func_scope)
+            // Snapshot the per-body flags into the cached scope before
+            // they're restored, so the deferred garbager walk can put
+            // them back on Context when it processes this body (main()
+            // arg deletes and shallow-return checks depend on them).
+            func_scope.scope_in_main_func = ctx.typer_in_main_func
+            func_scope.scope_in_shallow_return = ctx.typer_in_shallow_return
         }
         ctx.typer_in_shallow_return = saved_in_shallow_ret
         ctx.typer_in_main_func = saved_in_main_func
@@ -3482,8 +3502,15 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             check_unused_mut_params(func_scope, expr, ctx.path, ctx)
             check_unused_locals(func_scope, ctx.path, ctx)
             check_unused_mut_locals(func_scope, ctx.path, ctx)
+            // Issue #204 step 3b: hand the typed scope off to the
+            // garbager via ctx.body_scopes keyed by body_id.
+            ref mut fbody : Expr = expr.child(0)
+            fbody.body_id = func_scope.own_body_id
+            ctx.body_id_to_index.set(own func_scope.own_body_id.clone(), own ctx.body_scopes.len().clone())
+            ctx.body_scopes.push(own func_scope)
+        } else {
+            TypeScope.delete(own func_scope)
         }
-        TypeScope.delete(own func_scope)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -3839,19 +3866,33 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I
     if if_cond_t.is(Type.Primitive).and(til_type_name_c(if_cond_t).eq("Bool")).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
-    then_scope := TypeScope(parent = scope)
+    mut then_scope := TypeScope(parent = scope)
+    then_scope.own_body_id = ctx.next_body_id
+    ctx.next_body_id = ctx.next_body_id.add(1)
+    then_scope.parent_body_id = scope.own_body_id
     infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0, ctx)
-    garbager_destroy_body(ctx, stmt.child(1), then_scope)
+    then_scope.scope_in_main_func = ctx.typer_in_main_func
+    then_scope.scope_in_shallow_return = ctx.typer_in_shallow_return
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
-    TypeScope.delete(own then_scope)
+    ref mut tbody : Expr = stmt.child(1)
+    tbody.body_id = then_scope.own_body_id
+    ctx.body_id_to_index.set(own then_scope.own_body_id.clone(), own ctx.body_scopes.len().clone())
+    ctx.body_scopes.push(own then_scope)
     if stmt.children.len().gt(2) {
-        else_scope := TypeScope(parent = scope)
+        mut else_scope := TypeScope(parent = scope)
+        else_scope.own_body_id = ctx.next_body_id
+        ctx.next_body_id = ctx.next_body_id.add(1)
+        else_scope.parent_body_id = scope.own_body_id
         infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0, ctx)
-        garbager_destroy_body(ctx, stmt.child(2), else_scope)
+        else_scope.scope_in_main_func = ctx.typer_in_main_func
+        else_scope.scope_in_shallow_return = ctx.typer_in_shallow_return
         check_unused_locals(else_scope, ctx.path, ctx)
         check_unused_mut_locals(else_scope, ctx.path, ctx)
-        TypeScope.delete(own else_scope)
+        ref mut ebody : Expr = stmt.child(2)
+        ebody.body_id = else_scope.own_body_id
+        ctx.body_id_to_index.set(own else_scope.own_body_id.clone(), own ctx.body_scopes.len().clone())
+        ctx.body_scopes.push(own else_scope)
     }
     stmt.set_expr_til_type(Type.None)
 }
@@ -4112,12 +4153,19 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns
         Vec.delete(own new_ch, true)
         Vec.delete(own old, true)
     }
-    while_scope := TypeScope(parent = scope)
+    mut while_scope := TypeScope(parent = scope)
+    while_scope.own_body_id = ctx.next_body_id
+    ctx.next_body_id = ctx.next_body_id.add(1)
+    while_scope.parent_body_id = scope.own_body_id
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
-    garbager_destroy_body(ctx, stmt.child(1), while_scope)
+    while_scope.scope_in_main_func = ctx.typer_in_main_func
+    while_scope.scope_in_shallow_return = ctx.typer_in_shallow_return
     check_unused_locals(while_scope, ctx.path, ctx)
     check_unused_mut_locals(while_scope, ctx.path, ctx)
-    TypeScope.delete(own while_scope)
+    ref mut wbody : Expr = stmt.child(1)
+    wbody.body_id = while_scope.own_body_id
+    ctx.body_id_to_index.set(own while_scope.own_body_id.clone(), own ctx.body_scopes.len().clone())
+    ctx.body_scopes.push(own while_scope)
     stmt.set_expr_til_type(Type.None)
 }
 
@@ -7532,12 +7580,18 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
     case NodeType.If:
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case NodeType.Body:
-        block_scope := TypeScope(parent = scope)
+        mut block_scope := TypeScope(parent = scope)
+        block_scope.own_body_id = ctx.next_body_id
+        ctx.next_body_id = ctx.next_body_id.add(1)
+        block_scope.parent_body_id = scope.own_body_id
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
-        garbager_destroy_body(ctx, stmt, block_scope)
+        block_scope.scope_in_main_func = ctx.typer_in_main_func
+        block_scope.scope_in_shallow_return = ctx.typer_in_shallow_return
         check_unused_locals(block_scope, ctx.path, ctx)
         check_unused_mut_locals(block_scope, ctx.path, ctx)
-        TypeScope.delete(own block_scope)
+        stmt.body_id = block_scope.own_body_id
+        ctx.body_id_to_index.set(own block_scope.own_body_id.clone(), own ctx.body_scopes.len().clone())
+        ctx.body_scopes.push(own block_scope)
     case NodeType.While:
         infer_while_stmt(scope, stmt, in_func, returns_ref, ctx)
     case NodeType.Switch:
@@ -7565,13 +7619,19 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
         // throws-set matching land in the validation step. Body
         // statements need infer_body so var refs etc. resolve.
         if stmt.children.len().eq(3) {
-            ref body_expr : Expr = stmt.child(2)
-            catch_scope := TypeScope(parent = scope)
+            ref mut body_expr : Expr = stmt.child(2)
+            mut catch_scope := TypeScope(parent = scope)
+            catch_scope.own_body_id = ctx.next_body_id
+            ctx.next_body_id = ctx.next_body_id.add(1)
+            catch_scope.parent_body_id = scope.own_body_id
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
-            garbager_destroy_body(ctx, body_expr, catch_scope)
+            catch_scope.scope_in_main_func = ctx.typer_in_main_func
+            catch_scope.scope_in_shallow_return = ctx.typer_in_shallow_return
             check_unused_locals(catch_scope, ctx.path, ctx)
             check_unused_mut_locals(catch_scope, ctx.path, ctx)
-            TypeScope.delete(own catch_scope)
+            body_expr.body_id = catch_scope.own_body_id
+            ctx.body_id_to_index.set(own catch_scope.own_body_id.clone(), own ctx.body_scopes.len().clone())
+            ctx.body_scopes.push(own catch_scope)
         } else {
             stmt.type_error("catch must have 3 children: var, type, body", ctx)
         }

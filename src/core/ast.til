@@ -627,6 +627,16 @@ Expr := struct {
     children := Vec.new(Expr)
     line : U32 = 0
     col : U32 = 0
+    // Stable body identity for the garbager (issue #204 step 3b).
+    // 0 = "not a body the typer owns a scope for". The typer mints
+    // a fresh id for each body it creates a TypeScope around
+    // (FuncDef body, if then/else, while body, Body block, catch
+    // body), then stashes the scope on ctx.body_scopes keyed by
+    // this id. garbager_destroy walks the post-typer AST, looks up
+    // the scope by id, and runs insert_free_calls. The id is a
+    // value field so Vec.move_from in body_pre_passes / insert_free_calls
+    // preserves it (no raw Expr* pointers cached anywhere).
+    body_id : U32 = 0
 
 namespace:
     /// Print a diagnostic error with file path and source location.

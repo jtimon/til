@@ -874,32 +874,108 @@ garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope
     return insert_free_calls(ctx, body, scope, 1)
 }
 
+// Post-order walk that processes every body the typer stamped
+// with a body_id (FuncDef body, if then/else, while body, Body
+// block, catch body). For each tracked body it pops the cached
+// TypeScope from ctx.body_scopes, runs insert_free_calls, then
+// deletes the scope. Post-order ensures inner bodies are
+// rewritten before their enclosing body's insert_free_calls
+// runs (same order the inline asap used).
+// One-time fix-up of every cached scope's .parent ref to point at
+// the now-stable ctx.body_scopes Vec slot for its typer-time parent
+// (or at &ctx.scope when parent_body_id is 0). The typer set .parent
+// to the parent's STACK address; that address is dead by the time
+// this runs, so we re-resolve via parent_body_id / body_id_to_index.
+// Must run before garbager_walk_subs because insert_free_calls
+// chases .parent for name resolution (TypeScope.get_struct, etc.).
+priv garbager_fixup_parents := func(mut ctx: Context) {
+    for i in 0..ctx.body_scopes.len() {
+        ref mut s : TypeScope = ctx.body_scopes[i]
+        if s.parent_body_id.eq(0) {
+            s.parent = ctx.scope
+        } else {
+            ref pidx_ref : USize = ctx.body_id_to_index[s.parent_body_id]
+            pidx : USize = pidx_ref
+            ref parent_scope : TypeScope = ctx.body_scopes[pidx]
+            s.parent = parent_scope
+        }
+    }
+}
+
+priv garbager_walk_subs := proc(mut ctx: Context, mut e: Expr) {
+    for i in 0..e.children.len() {
+        ref mut child : Expr = e.child(i)
+        garbager_walk_subs(ctx, child)
+    }
+    // Descend into ns_decls of struct/enum definitions (parser stores
+    // these separately from Expr.children). Method func bodies (and
+    // any nested if/while/block/catch inside them) are stamped with
+    // body_ids that only this entry can reach.
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref ns : Vec = def_ns_decls(e)
+        for nsd : Declaration in ns {
+            if nsd.default_value.is_null().not() {
+                garbager_walk_subs(ctx, nsd.default_value)
+            }
+        }
+    }
+    switch e.node_type {
+    case NodeType.StructDef(sdd_w):
+        for sfd_w : Declaration in sdd_w.fields {
+            if sfd_w.default_value.is_null().not() {
+                garbager_walk_subs(ctx, sfd_w.default_value)
+            }
+        }
+    case:
+    }
+    if e.body_id.eq(0) { return }
+    if ctx.body_id_to_index.has(e.body_id).not() { return }
+    ref idx_ref : USize = ctx.body_id_to_index[e.body_id]
+    idx : USize = idx_ref
+    ref mut scope : TypeScope = ctx.body_scopes[idx]
+    // Restore the per-body flags collect_scope_locals reads from
+    // Context (main()-param free, shallow-return semantics).
+    saved_main := ctx.typer_in_main_func
+    saved_sh := ctx.typer_in_shallow_return
+    ctx.typer_in_main_func = scope.scope_in_main_func
+    ctx.typer_in_shallow_return = scope.scope_in_shallow_return
+    insert_free_calls(ctx, e, scope, 1)
+    ctx.typer_in_main_func = saved_main
+    ctx.typer_in_shallow_return = saved_sh
+}
+
 // Phase entry point. Runs the asap-destruction pass on every
-// imported file's program body using the global TypeScope
-// (ctx.scope). Called from the tail of init_and_type_program
-// (loader.til) so both prepare_program (interpret/translate/
-// build/run/test/install paths) and cmd_doc see the post-asap
-// program AST.
+// imported file. For each file: post-order walk that processes
+// every sub-body the typer stamped with a body_id (looking the
+// scope up by id on ctx.body_scopes), then asap the program body
+// itself using the global TypeScope (ctx.scope). Called from the
+// tail of init_and_type_program (loader.til) so both prepare_program
+// (interpret/translate/build/run/test/install paths) and cmd_doc
+// see the post-asap program AST.
 //
-// Sub-body asap (function bodies, if/while/block/catch scopes)
-// still runs inline from the typer's scope-management sites
-// because per-body scopes are stack-locals freed by
-// TypeScope.delete once infer_body returns. Issue #204 step 3b
-// covers lifting the inline calls into this proc; the blocker is
-// per-body scope ownership, which needs either a scope cache on
-// Context (#158) or an on-the-fly scope rebuild in garbager.
+// Issue #204 step 3b: the typer no longer asap's sub-bodies
+// inline. It stamps a body_id on each scope-owning body and
+// hands the live TypeScope to ctx.body_scopes; this proc walks
+// the post-typer AST and looks each scope up by id.
 garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
     saved_in_main := ctx.typer_in_main_func
     saved_in_shallow := ctx.typer_in_shallow_return
     ctx.typer_in_main_func = false
     ctx.typer_in_shallow_return = false
+    garbager_fixup_parents(ctx)
     for i in 0..ctx.imported.len() {
         ref path : Str = Map.key_ptr(ctx.imported, i)
-        ref iu : ImportUnit = Map.val_ptr(ctx.imported, i)
+        ref mut iu : ImportUnit = Map.val_ptr(ctx.imported, i)
         ctx.path = path.clone()
+        garbager_walk_subs(ctx, iu.ast)
         insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }
+    // Free every cached per-body TypeScope now that asap is done.
+    // Vec.clear on a Vec(TypeScope) dispatches TypeScope.delete on
+    // each element, so this releases all the scopes the typer stashed.
+    Vec.clear(ctx.body_scopes)
+    Map.clear(ctx.body_id_to_index)
     ctx.path = saved_path
     ctx.typer_in_main_func = saved_in_main
     ctx.typer_in_shallow_return = saved_in_shallow

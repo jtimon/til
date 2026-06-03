@@ -488,6 +488,7 @@ typedef struct Expr {
     Vec children;
     U32 line;
     U32 col;
+    U32 body_id;
 } Expr;
 
 
@@ -589,6 +590,10 @@ struct ScopeFind {
 typedef struct TypeScope {
     Map bindings;
     TypeScope *parent;
+    U32 own_body_id;
+    U32 parent_body_id;
+    Bool scope_in_main_func;
+    Bool scope_in_shallow_return;
 } TypeScope;
 
 
@@ -858,6 +863,9 @@ typedef struct Context {
     Set imports_precomp_done;
     Set imports_eval_done;
     TypeScope scope;
+    Vec body_scopes;
+    Map body_id_to_index;
+    U32 next_body_id;
     Bool is_repl;
     Map struct_layouts;
     Set precomp_macros;
@@ -1723,7 +1731,8 @@ void promote_own_transferred_locals(Context * ctx, Expr * body, Vec * locals);
 Bool priv___src_self_garbager_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec * locals, TypeScope * scope, Context * ctx);
 Bool insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
-Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
+void priv___src_self_garbager_til__garbager_fixup_parents(Context * ctx);
+void priv___src_self_garbager_til__garbager_walk_subs(Context * ctx, Expr * e);
 void garbager_destroy(Context * ctx);
 void precomp_clear_known(Context * ctx);
 void precomp_reset_state(Context * ctx);

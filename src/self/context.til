@@ -58,6 +58,25 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 TypeScope := struct {
     bindings := Map.new(Str, TypeBinding)
     ref parent : TypeScope = NULL
+    // Body-id tracking for the garbager scope cache (issue #204 step 3b).
+    // own_body_id: 1-based id within ctx.body_scopes, 0 for ctx.scope
+    // (the global program scope that lives directly on Context).
+    // parent_body_id: own_body_id of this scope's typer-time parent;
+    // 0 means "parent is ctx.scope (the global)". garbager_destroy
+    // fixes up the .parent ref by re-resolving parent_body_id against
+    // the now-stable ctx.body_scopes Vec before walking, so the typer's
+    // name-resolution chain (which still chases .parent) keeps working
+    // for cached scopes whose stack-address parents have long since
+    // been freed.
+    own_body_id : U32 = 0
+    parent_body_id : U32 = 0
+    // Snapshot of the two ctx flags collect_scope_locals reads from
+    // Context. The typer sets them per body before infer_body and
+    // restores them after; the deferred garbager_destroy walk has to
+    // put them back on Context before insert_free_calls runs for each
+    // cached body. False on the namespace inner scope (no func body).
+    scope_in_main_func := false
+    scope_in_shallow_return := false
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
         if self.bindings.has(name) {
@@ -172,6 +191,21 @@ Context := struct {
     imports_eval_done := Set.new(Str)
 
     scope := TypeScope()
+
+    // Per-body scope cache for the garbager (issue #204 step 3b).
+    // The typer stashes each scope-management site's TypeScope here
+    // (infer_func_def_expr, infer_if_stmt, infer_while_stmt, the
+    // Body/Catch arms of infer_body_stmt, plus the struct/enum
+    // namespace inner scope) instead of TypeScope.delete'ing inline.
+    // body_scopes stores scopes in push order; body_id_to_index maps
+    // each scope's own_body_id (assigned in typing pre-order via
+    // next_body_id) to its Vec index. garbager_destroy does a one-time
+    // fix-up that re-resolves every cached scope's .parent ref against
+    // the now-stable Vec, then walks the AST and runs insert_free_calls
+    // for each Expr whose body_id matches a cached scope.
+    body_scopes := Vec.new(TypeScope)
+    body_id_to_index := Map.new(U32, USize)
+    next_body_id : U32 = 1
     is_repl := false
 
     // Issue #147 step 3: struct/enum layouts keyed by type name. Populated
