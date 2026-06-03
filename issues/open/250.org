@@ -1,0 +1,149 @@
+# priority: medium
+** OPEN #250 codegen: asap-destruction frees a local before a clone reads a substr view of it (the cross-var case #238 missed)
+
+Sibling of [[../fixed/238.org][#238]]. #238 fixed
+~x = x.substr(...).clone()~ -- a *self*-reassign where the substr view
+aliases the *assign target*. The same delete-before-clone-reads-view
+miscompile still happens when the view aliases a *different* local that
+the asap-destruction pass auto-frees at end of scope, and the clone is
+stored into a struct *field*. This one shipped: it was the real root
+cause of the ~--cc~ / linux-riscv32 CI saga (the C compile command's
+first token came out as a single garbage byte, "sh: 1: U: not found").
+
+*** Verified minimal repro
+
+#+begin_src til
+mode script
+
+Holder := struct {
+    own s : Str = ""
+}
+
+make_holder := func() returns Holder {
+    mut arg := Str.with_capacity(64)
+    arg.push_str("--cc=hello_world_value")
+    mut h := Holder()
+    // clone of a view into `arg`, a grown buffer freed when this fn returns:
+    h.s = arg.substr(5, arg.len().sub(5)).clone()
+    return h
+}
+
+h := make_holder()
+println(format("[", h.s, "]"))   // [   <garbage>_value] -- corrupt
+#+end_src
+
+Built (not interpreted -- this is a codegen bug, the tree-walker is
+fine). Prints e.g. ~[   ##w##C#_value]~: the head is freed/overwritten
+memory, only the tail "_value" survives because ~free~ does not zero.
+
+Three things must all hold for it to bite (which is why naive minimal
+cases miss it):
+
+  1. The clone source is a *view* (substr / borrow), not an owned Str.
+  2. The view's backing variable is a *grown heap buffer*
+     (~Str.with_capacity~ + ~push_str~, or a ref into a managed
+     Array/Vec) -- a string-*literal* source has ~cap == TIL_CAP_LIT~
+     and is never freed, so the dangling view stays readable and the
+     bug hides. (Same literal-vs-grown sensitivity #238 noted.)
+  3. The clone result outlives the source variable -- e.g. stored in a
+     returned struct's field and read after the source goes out of
+     scope, or read later once the buffer is reused by other allocs.
+
+*** Generated C (smoking gun)
+
+For the repro, ~til translate~ emits (abridged):
+
+#+begin_src c
+Str *hoisted__Str_4539 = Str_substr(arg, 5, 17);        // view INTO arg's buffer
+(void)hoisted__Str_4539;
+Str_delete(arg, 1);                                      // <-- frees arg's buffer FIRST
+Str *hoisted__Str_4540 = Str_clone(hoisted__Str_4539);   // <-- clone reads FREED view
+Str_delete(hoisted__Str_4539, 1);
+{ Str *_old = h->s; h->s = hoisted__Str_4540; Str_delete(_old, 1); }
+return h;
+#+end_src
+
+~Str_delete(arg, 1)~ is ordered *before* ~Str_clone(hoisted__Str_4539)~,
+but the clone copies from ~hoisted__Str_4539~, which is a view into
+~arg~'s now-freed buffer. Identical shape to #238's emitted-C bug, but
+the freed buffer belongs to a *separate* local (~arg~), not the assign
+target.
+
+*** Root cause
+
+The asap-destruction pass (~src/self/garbager.til~) inserts ~arg~'s
+end-of-life delete right after ~arg~'s last *named* mention -- the
+~Str_substr(arg, ...)~ call -- because by then ~arg~ looks dead. It does
+not account for the outstanding hoisted view ~hoisted__Str_4539~ that
+still aliases ~arg~'s buffer and is consumed by the *next* statement's
+~Str_clone~.
+
+#238 added ~collect_hoist_taint~ / ~rhs_depends_on_var~ so the *assign
+old-value delete* could see through hoisted temps that transitively read
+the assign target, and ~var_aliases_target~ so the clone-to-move opt
+would not move a clone-arg that aliases the assign *target*. Both checks
+are scoped to the *assign target* (the self-reassign case). They do not
+cover a *third* variable (~arg~) whose own asap-delete is scheduled
+between the view-producing substr and the clone that reads it.
+
+*** Real-world impact / current workaround
+
+~src/til.til~ ~--cc=~ parsing was ~cli.cc = flag.substr(...).clone()~
+(view of ~flag~, a ref into the argv Array; stored into the returned
+~CliArgs.cc~ field; read much later in ~compile_c~). It corrupted to a
+single garbage byte and broke the riscv32 CI cross-compile. Worked
+around at ~src/til.til:471~ with ~cli.cc = format(flag.substr(...))~,
+which materializes an owned copy and dodges the view-clone path. The
+NB comment there points back here.
+
+*** Other at-risk sites
+
+The same ~<var>.substr(...).clone()~ shape (clone of a view) is used at
+e.g. ~src/self/loader.til:64~, ~src/self/builder.til:7178~
+(~ensure_parent_dir~), and the lexer token text at
+~src/self/lexer.til:454/463/474/483~. These currently survive because
+the result is bound to a fresh local (~:=~) or a struct-*literal* field
+init and read promptly, and/or the source is not freed before the read
+-- but they sit on the same footgun. Any ~obj.field = other.substr(...).clone()~
+where ~other~ is a grown buffer that dies before the field is read can
+silently corrupt.
+
+*** Fix ideas
+
+1. (Targeted, preferred) Extend the asap-destruction analysis so a
+   local's auto-delete is *delayed past* any statement that reads a
+   still-live hoisted view aliasing that local's buffer. Concretely:
+   when scheduling ~delete(v)~, scan forward (within the same block) for
+   hoisted temps produced from ~v~ (reuse ~collect_hoist_taint~) and, if
+   any such temp is still consumed later (e.g. by a ~clone~), move the
+   ~delete(v)~ to *after* that last consuming statement. This is the
+   generalization of #238 from "view aliases assign target" to "view
+   aliases any local being asap-freed".
+
+2. (Broader) Treat ~clone(view)~ as a use of the view's *backing
+   variable*, not just of the temp. If the alias/taint graph recorded
+   that ~hoisted__Str_4539~ borrows ~arg~, then "last use of ~arg~"
+   would correctly be the ~clone~ statement, not the ~substr~, and the
+   existing asap logic would place the delete after it with no special
+   case.
+
+3. (Belt-and-braces) Make the clone-to-move / elision and delete
+   insertion conservative for *all* clone-of-view args, not only those
+   aliasing the assign target: never schedule a backing buffer's delete
+   before a pending clone that reads a view of it. Slightly more deletes
+   deferred, but removes the whole footgun class.
+
+Option 2 is the cleanest root fix (correct last-use accounting for
+borrows); option 1 is the smallest safe extension of the #238 machinery.
+A regression test mirroring the repro above (built + run, asserting the
+field round-trips) should live in ~test/strings.til~ alongside
+~test_self_substr_reassign~.
+
+*** Why medium
+
+Same severity class as #238: silent data corruption, serious, but the
+triggering pattern is narrow and now avoided at the one site that bit
+(matching #238's precedent of medium). Bumped on the radar because,
+unlike #238, this variant escaped into shipped behavior and cost a real
+debugging cycle, so a proper codegen fix (vs. per-site ~format()~
+workarounds) is worth doing.
