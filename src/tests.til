@@ -442,12 +442,14 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/test_in_namespace.til", flags)
     add_mode(tests, "test/forward_refs.til", flags)
     add_mode(tests, "test/functions.til", flags)
-    // TODO: namespaces.til fails the typer: MyNamespace.set is a proc with no
-    // proc/ext_proc calls and the typer now demands it be a func. Update the
-    // test (or the rule) then re-enable.
+    // TODO #251: namespaces.til disabled -- struct-namespace mut static
+    // fields don't persist mutation (Counter.instances reads 0 after
+    // make() increments it), both interp and compiled. The proc->func
+    // typer error is already fixed in the test. Re-enable when #251 lands.
     // add_mode(tests, "test/namespaces.til", flags)
-    // TODO: topo_sort.til segfaults in interp mode (inline nested struct
-    // fields A->B->C). Fix the crash then re-enable.
+    // TODO #250: topo_sort.til disabled -- interpreter segfaults on a
+    // depth-3 nested inline-struct lvalue write (c.b.a.x = 42); compiled
+    // run passes. Re-enable when #250 lands.
     // add_mode(tests, "test/topo_sort.til", flags)
     add_mode(tests, "test/ref.til", flags)
     // enums_lifecycle runs compile-only (interp disabled), so it is the

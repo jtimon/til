@@ -1,0 +1,27 @@
+# priority: medium
+** OPEN #250 Interpreter segfaults on nested inline-struct lvalue write (depth >= 3)
+
+  Assigning through two or more levels of inline (by-value) struct
+  fields crashes the interpreter with a segfault. The compiled path
+  handles the same code correctly.
+
+  Minimal repro::
+
+      mode test
+      A := struct { x : I64 = 0 }
+      B := struct { a := A()  y : I64 = 0 }
+      C := struct { b := B()  z : I64 = 0 }
+      test_t := test() {
+          mut c := C()
+          c.b.a.x = 42          // <- segfault in interpret mode
+          assert(__LOC__, c.b.a.x.eq(42))
+      }
+
+  - ~bin/til run~  (compiled): passes.
+  - ~bin/til interpret~: exit 139 (SIGSEGV).
+  - Depth-2 write (~b.a.x = ..~) is fine; depth-3 nested READ
+    (~c.b.a.x.eq(0)~) is fine. Only the depth-3+ nested WRITE crashes.
+
+  Lives as the disabled test/topo_sort.til (see src/tests.til). Once the
+  interpreter assignment path for chained inline-struct field lvalues is
+  fixed, re-enable that test.

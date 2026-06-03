@@ -36,7 +36,7 @@ MyNamespace := namespace {
     get := func() returns I64 {
         return MyNamespace.urmom
     }
-    set := proc(val: I64) {
+    set := func(val: I64) {
         MyNamespace.urmom = val
     }
 }

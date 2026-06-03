@@ -1,0 +1,39 @@
+# priority: low
+** OPEN #251 Struct-namespace mut static fields do not persist mutation
+
+  A ~mut~ static declared inside a struct's ~namespace:~ block does not
+  retain writes made through the qualified name. Reads after the write
+  see the original initializer. A plain ~namespace { ... }~ static with
+  the same shape works correctly, so the bug is specific to the
+  struct-namespace storage path. Affects both interpret and compiled.
+
+  Minimal repro::
+
+      mode test
+      Counter := struct {
+          value := 0
+          namespace:
+          mut instances := 0
+          make := func(start: I64) returns Counter {
+              Counter.instances = Counter.instances.add(1)
+              return Counter(value = start)
+          }
+      }
+      test_t := test() {
+          assert_eq(__LOC__, Counter.instances, 0)
+          c := Counter.make(7)
+          assert_eq(__LOC__, c.value, 7)
+          assert_eq(__LOC__, Counter.instances, 1)   // <- fails: reads 0
+      }
+
+  Working counter-example (plain namespace persists)::
+
+      N := namespace {
+          mut count := 0
+          bump := func() { N.count = N.count.add(1) }
+      }
+
+  Lives as the disabled test/namespaces.til (see src/tests.til); its
+  ~set~ member was also updated proc -> func (a proc with no proc/ext
+  calls is now a typer error). Re-enable that test once struct-namespace
+  mut statics persist.
