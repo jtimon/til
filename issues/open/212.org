@@ -191,8 +191,12 @@ algorithm. Those are not casts and should not masquerade as one.
   - Followup cleanup: `is_self_conversion_method` in src/self/typer.til
     is now unreachable for the four same-size pairs (their methods are
     gone, so any `x.to_u32()` on a U32 fails earlier with "no method").
-    It remains as a safeguard against future identity converters; decide
-    keep-with-comment vs delete.
+    Resolved: KEEP. The check is still reached for user struct types
+    via ASCII case-insensitive matching (`val.to_terrselfaaa()` on
+    `TerrSelfAaa`) -- without it the typer would surface a generic
+    "no method" instead of the clearer "redundant self-conversion"
+    diagnostic. test/typer_errors.til:519-541 exercises the path. The
+    function already carries an explanatory comment.
 
 *** Notes
 
