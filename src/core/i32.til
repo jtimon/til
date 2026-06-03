@@ -55,13 +55,13 @@ namespace:
     /// Use I32.add for the wrapping variant.
     safe_add := func(a: I32, b: I32) returns I32 throws IntegerOverflow {
         result := a.add(b)
-        if b.gt(0.to_i32()) {
+        if b.gt(0) {
             if result.lt(a) {
                 throw IntegerOverflow(msg = format(__LOC__, ":I32.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " overflows"))
             }
         }
-        if b.lt(0.to_i32()) {
+        if b.lt(0) {
             if result.gt(a) {
                 throw IntegerOverflow(msg = format(__LOC__, ":I32.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " underflows"))
@@ -74,13 +74,13 @@ namespace:
     /// Use I32.sub for the wrapping variant.
     safe_sub := func(a: I32, b: I32) returns I32 throws IntegerOverflow {
         result := a.sub(b)
-        if b.gt(0.to_i32()) {
+        if b.gt(0) {
             if result.gt(a) {
                 throw IntegerOverflow(msg = format(__LOC__, ":I32.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " underflows"))
             }
         }
-        if b.lt(0.to_i32()) {
+        if b.lt(0) {
             if result.lt(a) {
                 throw IntegerOverflow(msg = format(__LOC__, ":I32.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " overflows"))
@@ -93,7 +93,7 @@ namespace:
     /// Use I32.mul for the wrapping variant.
     safe_mul := func(a: I32, b: I32) returns I32 throws IntegerOverflow {
         result := a.mul(b)
-        if a.eq(0.to_i32()).not() {
+        if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(__LOC__, ":I32.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))

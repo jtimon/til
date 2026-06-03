@@ -72,7 +72,7 @@ namespace:
     /// Use U8.mul for the wrapping variant.
     safe_mul := func(a: U8, b: U8) returns U8 throws IntegerOverflow {
         result := a.mul(b)
-        if a.eq(0.to_u8()).not() {
+        if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(__LOC__, ":U8.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))

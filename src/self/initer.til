@@ -2372,7 +2372,7 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
 // to leaving the macro un-expanded).
 priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     if cond.node_type.is(NodeType.FCall).not() { return -1 }
-    if cond.children.len().neq(2.to_usize()) { return -1 }
+    if cond.children.len().neq(2) { return -1 }
     ref callee : Expr = cond.child(0)
     if callee.node_type.is(NodeType.FieldAccess).not() { return -1 }
     mut method_name := ""
@@ -2381,7 +2381,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     case: return -1
     }
     if method_name.eq("is").not() { return -1 }
-    if callee.children.len().neq(1.to_usize()) { return -1 }
+    if callee.children.len().neq(1) { return -1 }
     ref lhs : Expr = callee.child(0)
     mut lhs_name := ""
     switch lhs.node_type {
@@ -2393,7 +2393,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     // lives under Type.Primitive rather than as a flat Type variant. Match
     // the inner primitive name against the substituted type-param Ident.
     if arg.node_type.is(NodeType.FCall) {
-        if arg.children.len().neq(2.to_usize()) { return -1 }
+        if arg.children.len().neq(2) { return -1 }
         ref p_callee : Expr = arg.child(0)
         mut p_callee_name := ""
         switch p_callee.node_type {
@@ -2401,7 +2401,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
         case: return -1
         }
         if p_callee_name.eq("Primitive").not() { return -1 }
-        if p_callee.children.len().neq(1.to_usize()) { return -1 }
+        if p_callee.children.len().neq(1) { return -1 }
         switch p_callee.child(0).node_type {
         case NodeType.Ident(p_recv): if p_recv.ident_name().eq("Type").not() { return -1 }
         case: return -1
@@ -2412,7 +2412,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
         case NodeType.FieldAccess(p_arg_fan): prim_name = p_arg_fan.field_access_name()
         case: return -1
         }
-        if p_arg.children.len().neq(1.to_usize()) { return -1 }
+        if p_arg.children.len().neq(1) { return -1 }
         switch p_arg.child(0).node_type {
         case NodeType.Ident(p_arg_recv): if p_arg_recv.ident_name().eq("Primitive").not() { return -1 }
         case: return -1
@@ -2426,7 +2426,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     case NodeType.FieldAccess(fan_arg): variant_name = fan_arg.field_access_name()
     case: return -1
     }
-    if arg.children.len().neq(1.to_usize()) { return -1 }
+    if arg.children.len().neq(1) { return -1 }
     ref arg_recv : Expr = arg.child(0)
     mut recv_name := ""
     switch arg_recv.node_type {
@@ -2445,14 +2445,14 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
 priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
     if body.is_null() { return NULL }
     if body.node_type.is(NodeType.Body).not() { return NULL }
-    if body.children.len().neq(1.to_usize()) { return NULL }
+    if body.children.len().neq(1) { return NULL }
     ref s : Expr = body.child(0)
     if s.node_type.is(NodeType.Return) {
         if s.children.len().eq(0) { return NULL }
         return s.child(0)
     }
     if s.node_type.is(NodeType.If).not() { return NULL }
-    if s.children.len().lt(2.to_usize()) { return NULL }
+    if s.children.len().lt(2) { return NULL }
     // Clone + substitute the condition before evaluating: subs maps the
     // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
     // `T.is(Type.Primitive(Primitive.Bool))` into `Bool.is(Type.Primitive(Primitive.Bool))`.
@@ -2463,7 +2463,7 @@ priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
     if res.eq(1) {
         return init_macro_pick_return(s.child(1), subs)
     }
-    if s.children.len().lt(3.to_usize()) { return NULL }
+    if s.children.len().lt(3) { return NULL }
     return init_macro_pick_return(s.child(2), subs)
 }
 
@@ -2502,7 +2502,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.child(0)
         if rhs.node_type.is(NodeType.FCall).not() { continue }
-        if rhs.children.len().lt(1.to_usize()) { continue }
+        if rhs.children.len().lt(1) { continue }
         ref callee : Expr = rhs.child(0)
         if callee.node_type.is(NodeType.Ident).not() { continue }
         mut callee_name := ""
@@ -2527,9 +2527,9 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         switch macro_fdef.node_type {
         case NodeType.FuncDef(mfd):
             for j in 0..mfd.params.len() {
-                if j.add(1.to_usize()).gte(rhs.children.len()) { break }
+                if j.add(1).gte(rhs.children.len()) { break }
                 ref param : Declaration = mfd.params[j]
-                ref arg : Expr = rhs.child(j.add(1.to_usize()))
+                ref arg : Expr = rhs.child(j.add(1))
                 subs.set(own param.name.clone(), own arg.clone())
             }
         case:

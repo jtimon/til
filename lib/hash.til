@@ -77,7 +77,7 @@ knuth_bytes := func(data: Dynamic, n: USize) returns U64 {
 
 // Reduce a hash to a bucket index. Plain modulo works for any cap;
 // callers that pick a power-of-two cap can replace this with
-// `h.to_usize().band(cap.sub(1.to_usize()))` to drop the divide.
+// `h.to_usize().band(cap.sub(1))` to drop the divide.
 bucket := func(h: U64, cap: USize) returns USize {
     return h.to_usize().mod(cap)
 }

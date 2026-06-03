@@ -1041,8 +1041,8 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 pipe_pos := payload_alias.find("|")
                 if pipe_pos.gte(0) {
                     pipe_u := pipe_pos.to_u32()
-                    enum_var_name := payload_alias.substr(0.to_u32(), pipe_u)
-                    type_name := payload_alias.substr(pipe_u.add(1.to_u32()), payload_alias.len().sub(pipe_u).sub(1.to_u32()))
+                    enum_var_name := payload_alias.substr(0, pipe_u)
+                    type_name := payload_alias.substr(pipe_u.add(1), payload_alias.len().sub(pipe_u).sub(1))
                     ref enum_cell : Cell = scope_get(scope, enum_var_name)
                     if enum_cell.is_null().not() {
                         switch enum_cell.val {

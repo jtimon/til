@@ -85,7 +85,7 @@ namespace:
     // Walk the chain at the key's bucket. Returns the entry index in the
     // dense keys/values arrays, or -1 if not found.
     find := func(self: HashMap, key: Dynamic) returns I64 {
-        if self.keys.count.eq(0.to_usize()) { return -1 }
+        if self.keys.count.eq(0) { return -1 }
         bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
         ref head : I64 = self.buckets[bi]
         mut entry : I64 = head.clone()
@@ -153,14 +153,14 @@ namespace:
             self.values.push(own val)
             self.buckets.set(bi, own new_idx)
             // Load factor 0.75 = count * 4 > buckets * 3.
-            if self.keys.count.mul(4.to_usize()).gt(self.buckets.count.mul(3.to_usize())) {
+            if self.keys.count.mul(4).gt(self.buckets.count.mul(3)) {
                 self.rehash()
             }
         }
     }
 
     rehash := func(mut self: HashMap) {
-        new_count : USize = self.buckets.count.mul(2.to_usize())
+        new_count : USize = self.buckets.count.mul(2)
         // Zero out existing buckets and grow to new_count.
         for i in 0..self.buckets.count {
             self.buckets.set(i, own -1)
@@ -276,8 +276,8 @@ namespace:
         // rather than going through Vec.pop -- pop mallocs a copy of
         // the trailing bytes and hands ownership to the caller, which
         // here would alias the inner heap we just moved into idx_u.
-        self.keys.count = self.keys.count.sub(1.to_usize())
-        self.values.count = self.values.count.sub(1.to_usize())
-        self.nexts.count = self.nexts.count.sub(1.to_usize())
+        self.keys.count = self.keys.count.sub(1)
+        self.values.count = self.values.count.sub(1)
+        self.nexts.count = self.nexts.count.sub(1)
     }
 }
