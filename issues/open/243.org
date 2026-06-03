@@ -1,0 +1,171 @@
+# priority: low
+** OPEN #243 Array/Vec/Slice literal syntax + monomorphized containers via macros
+
+   til has literal syntax for Map (`{"a": 1}`), Set (`{3, 1, 2}`),
+   primitives and Str, but NOT for Array or Vec -- they use the
+   `array("I64", 1, 2, 3)` / `vec("I64", 10, 20, 30)` pseudo-literals
+   instead. There is also no Slice type at all, even though Str already
+   does the slice trick (`substr` / `str_view` produce `{ptr, len}` views
+   into a backing buffer).
+
+   This issue records a design discussion (seeded by studying Odin's
+   array / dynamic-array / slice design) for: (a) real literal syntax for
+   Array and Vec, (b) a Slice view type, and (c) monomorphized typed
+   containers `Vec(T)` built on the existing macro machinery.
+
+   NOTHING here is decided. This is a menu of options (both Jorge's and the
+   assistant's takes), kept deliberately open. Do not treat any "proposed"
+   / "direction" / "suggested" line below as a closed decision -- they are
+   candidates to weigh, not conclusions.
+
+   *** What Odin does (reference, not prescription)
+
+   One bracket family, three kinds; the element type always comes AFTER
+   the brackets, and what sits INSIDE the brackets selects the kind:
+
+   - `[3]int{...}`       fixed array     (til Array)
+   - `[]int{...}`        slice           (til has none)
+   - `[dynamic]int{...}` dynamic array   (til Vec)
+
+   There is no `dyn` keyword -- `dynamic` is a pseudo-keyword used
+   positionally in the length slot. Internal reps (base/runtime/core.odin):
+
+   - Raw_String        :: struct { data, len }
+   - Raw_Slice         :: struct { data, len }
+   - Raw_Dynamic_Array :: struct { data, len, cap, allocator }
+
+   So a slice is `{ptr, len}` -- identical shape to til's Str view. A
+   dynamic array adds `cap` (+ allocator). A fixed array is inline storage
+   with no header.
+
+   *** Proposed til literal syntax (type-directed, no new mechanism)
+
+   til already steers literals by the declared type in two places, so this
+   is the same rule a third time:
+
+   - numbers:    `a := 0` is I64;        `a : USize = 0` overrides
+   - containers: `s := {3, 1, 2}` is Set; `m : Map = {...}` overrides
+   - new:        `a := [1, 2, 3]` is Vec; `a : Array = [1, 2, 3]` overrides
+
+   Bracket picks the family (`{}` = Set/Map, `[]` = Array/Vec/Slice),
+   annotation picks the member. Element type infers from the members.
+   This replaces `vec(1, 2, 3)` / `array(1, 2, 3)`.
+
+   Default for a bare `[...]`: candidate is Vec (the growable, heap one),
+   with Array as the opt-in specialization -- mirroring `{}` defaulting to
+   Set and `0` defaulting to I64. Open: the reverse (bare -> Array,
+   `: Vec` -> Vec) is also defensible if "cheap inline by default, opt in
+   to heap" is preferred. Left open.
+
+   Two known leftovers:
+
+   1. Empty literal `[]` cannot infer its element type, so it still needs a
+      written type: `a : Vec(I64) = []`. This is the one spot where
+      `vec("I64")` / `array("I64")` do not fully disappear.
+
+   2. Slice literals do not really exist. A slice is a non-owning
+      `{ptr, len}`, so a literal has nothing to own the data. Slices come
+      from slicing something that owns -- see next section.
+
+   *** Slice is a method, not a literal
+
+   `a[i]` already desugars to `a.get(i)` (a bang-call) in
+   parser.til:1081-1099. The slice form is a small extension of that exact
+   code path: when there is a `:` (or `,`) between the brackets, parse two
+   exprs and emit `a.slice(beg, end)` instead of `a.get(i)`:
+
+       s := a[beg:end]   // desugars to  a.slice(beg, end)
+
+   Caveat on the return type. `Str.substr` works as "return another Str"
+   ONLY because Str is already a `{ptr, len}` view -- an owning Str and a
+   borrowed Str share one shape. Vec does not: today it is
+   `{own data, len, cap, elem_size, elem_clone, elem_delete}`. So
+   `vec[b:e]` cannot return `ref Vec` -- a slice has no cap, no ownership,
+   no clone/delete fns.
+
+   Two open shapes for what `slice` returns (keep both on the table):
+
+   - (A) A DISTINCT view type `Slice(T) = {ptr, len}`, separate from Vec --
+     exactly why Odin keeps Raw_Slice and Raw_Dynamic_Array as separate
+     structs. `slice(...) returns Slice(T)`.
+
+   - (B) A SHARED view header that Array / Vec / Str all embed at their
+     front, so a slice is `ref` to that header aliasing any of them. This
+     is the reading where Jorge's `slice(self: T, ...) returns ref T` is
+     literally correct -- with `T` being the view header, not the full
+     container. Str then stops being a special case and becomes "the
+     `Slice(U8)` that happens to have string methods."
+
+   Both lead to defining a `{ptr, len}` view type once and having Array /
+   Vec / Str slice down to it; they differ in whether the view is a
+   separate type or a common embedded header. Undecided.
+
+   *** Templates == macros (already exists, issue #57)
+
+   til's macro system already does monomorphization-by-substitution:
+   `macro(T: Type) returns StructDef / EnumDef / FuncDef` expanded at decl
+   scope (see test/first_class.til, e.g. `make_pair`, `make_opt`,
+   `make_id`). The proposed `create_vec_def(T: Type) returns StructDef`
+   is that same pattern.
+
+   Today's Array / Vec / Set are TYPE-ERASED: src/core/array.til carries
+   `elem_size`, `elem_clone : CloneFn`, `elem_delete : DeleteFn` as runtime
+   fields, populated via `dyn_fn(elem_type, "clone")`. A monomorphized
+   `Vec(I32)` drops all three:
+
+   - `elem_size`   -> compile-time `size_of(I32)`
+   - `elem_clone`  -> direct `I32.clone` calls, statically resolved
+   - `elem_delete` -> direct `I32.delete` calls, statically resolved
+
+   Win: 3 fewer fields, 2 fewer indirect calls per element op. Cost: one
+   struct + full method set emitted per element type, plus compile time --
+   today's erased Vec is a single shared impl. So `Vec(T)` is not strictly
+   a replacement; we likely want BOTH: erased Vec for heterogeneous /
+   reflective use, templated `Vec(T)` for hot typed paths. Classic
+   C++-template-vs-erased-container tradeoff.
+
+   *** Call syntax: `Vec(I32)()` vs `Vec<I32>()` vs enforcing `<>`
+
+   - `Vec(I32)()` costs ZERO new syntax. It is today's
+     `PairI64 := make_pair(I64)` then `PairI64(...)`, inlined: `Vec(I32)`
+     is a macro call returning a type, `()` constructs it. Works the
+     moment Vec is a `macro(T: Type) returns StructDef`. Downsides:
+     `Vec(I32)` reads as an ordinary call (compile-time vs runtime phase is
+     invisible); nesting is noisy: `Map(Str, Vec(I32))()`.
+
+   - `Vec<I32>` is NOT free in til. `<` / `>` ARE comparison operators
+     (parser.til:1254 `parse_comparison`, `a < b -> a.lt(b)`), so
+     `Vec<I32>` is ambiguous with comparison exactly like C++. It only
+     becomes clean if we FIRST remove `<` / `>` as infix operators. The
+     codebase already uses `.lt()` / `.gt()` essentially everywhere, so
+     dropping the operator sugar costs almost nothing -- and then `<>`
+     frees up for a hard phase split: `()` = runtime value application,
+     `<>` = compile-time type/macro application. That is the genuinely
+     elegant version of "enforce `<>` for macros":
+     `v : Vec<I32> = Vec<I32>()`.
+
+   *** Possible sequencing (one path, not the only one)
+
+   A plausible incremental order, recorded as a candidate. All four pieces
+   stay open and none blocks discussion of the others.
+
+   1. Define the `{ptr, len}` view type and add the `a[b:e]` slice desugar
+      (extends the existing `a.get(i)` parse site). Re-base Str on it.
+   2. Add Array / Vec literal syntax `[...]` (type-directed: bare -> Vec or
+      Array per the open default above), replacing the `array()` / `vec()`
+      pseudo-literals. Element type inferred from members; empty `[]` still
+      needs an annotation.
+   3. Monomorphized `Vec(T)` / `Array(T)` over the issue #57 macro
+      machinery, dropping `elem_size` / `elem_clone` / `elem_delete` --
+      kept ALONGSIDE the erased Vec, not replacing it.
+   4. Call syntax stays open: `Vec(I32)()` works today with zero new
+      syntax; `Vec<I32>()` / enforced `<>` remains a live option but is
+      gated on first removing the `<` / `>` infix comparison operators
+      (otherwise it reintroduces the C++ ambiguity). Both directions remain
+      on the table.
+
+   *** Status: nothing decided
+
+   All of the above is open for discussion. No option (default kind, slice
+   return shape, erased vs monomorphized, `()` vs `<>`) is closed. This
+   issue is a record of the design space, not a committed plan.
