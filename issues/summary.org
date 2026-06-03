@@ -51,7 +51,6 @@
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
 *** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
-*** [[./open/249.org][#249]] parser.til cleanup: DRY argument loops, binop clones, flag switches
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/250.org][#250]] codegen: asap-destruction frees a local before a clone reads a substr view of it (the cross-var case #238 missed)
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct

@@ -314,6 +314,37 @@ set_own_arg := func(mut fcall: Expr, arg_index: USize) {
     }
 }
 
+// Flip a single parse-time flag on an FCall node. The parser builds the
+// FCall first, then sets does_throw/is_bang/is_splat from postfix tokens;
+// these collapse the repeated `switch ... case FCall(fcd): fcd.X = true`
+// boilerplate to one call.
+set_fcall_throw := func(mut fcall: Expr) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.does_throw = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+set_fcall_bang := func(mut fcall: Expr) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.is_bang = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+set_fcall_splat := func(mut fcall: Expr) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.is_splat = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
 get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall(fcd):

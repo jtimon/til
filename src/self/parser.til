@@ -110,6 +110,15 @@ til_type_from_explicit_type := func(name: Str) returns Type {
     return Type.Custom(name.clone())
 }
 
+// set_decl_type: set a Declaration's explicit_type and the matching
+// til_type from one source name in a single call. Collapses the repeated
+// `d.explicit_type = name; d.til_type = til_type_from_explicit_type(name)`
+// pair the parser writes at every type-annotation site.
+priv set_decl_type := func(mut d: Declaration, name: Str) {
+    d.explicit_type = name.clone()
+    d.til_type = til_type_from_explicit_type(name)
+}
+
 // --- Parsing functions ---
 
 // Issue #56/#57: monotonic counter for generated anon type names. Module
@@ -342,8 +351,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         mut is_kwargs := false
         if check(p, TokenType.Colon).not() {
             // Bare type (FuncSig style): name stays "", type from pname
-            param_decl.explicit_type = pname.clone()
-            param_decl.til_type = til_type_from_explicit_type(pname)
+            set_decl_type(param_decl, pname)
         } else {
             expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
@@ -370,8 +378,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     param_decl.own_type = OwnType.Own
                 }
                 param_decl.name = pname.clone()
-                param_decl.explicit_type = "DynMap"
-                param_decl.til_type = til_type_from_explicit_type("DynMap")
+                set_decl_type(param_decl, "DynMap")
             } else if check(p, TokenType.DotDot) {
                 advance(p)
                 if own_type.is(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }
@@ -391,12 +398,10 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 } else {
                     param_decl.own_type = OwnType.Own
                 }
-                param_decl.explicit_type = parse_type_ref(p)
-                param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
+                set_decl_type(param_decl, parse_type_ref(p))
                 param_decl.name = pname.clone()
             } else {
-                param_decl.explicit_type = parse_type_ref(p)
-                param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
+                set_decl_type(param_decl, parse_type_ref(p))
                 param_decl.name = pname.clone()
             }
         }
@@ -405,8 +410,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         if param_decl.explicit_type.eq("Fn") {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
             if syn_name.len().gt(0) {
-                param_decl.explicit_type = syn_name
-                param_decl.til_type = til_type_from_explicit_type(param_decl.explicit_type)
+                set_decl_type(param_decl, syn_name)
             }
         }
 
@@ -513,6 +517,38 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     return def
 }
 
+// parse_ns_decl: parse one `namespace:` member declaration --
+// `[mut] name [: Type =] | [:= ] value` -- into a Declaration. `const` is
+// rejected (namespace decls are immutable by default). Shared by the struct
+// and enum body loops, which differ only in the push target (sdd.ns_decls
+// vs edd.ns_decls) and where the leading `priv` is consumed.
+priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration {
+    mut ns_explicit_type := ""
+    mut ns_is_mut := false
+    if check(p, TokenType.KwConst) {
+        panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+            ": redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
+    }
+    if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
+    ns_name := expect_text(p, TokenType.Ident)
+    if check(p, TokenType.ColonEq) {
+        advance(p)
+    } else if check(p, TokenType.Colon) {
+        advance(p)
+        ns_explicit_type = parse_type_ref(p)
+        expect_token(p, TokenType.Eq)
+    }
+    ns_doc := p.pending_doc.clone()
+    p.pending_doc = ""
+    ns_value := parse_expression(p)
+    return Declaration(name = ns_name,
+        is_mut = ns_is_mut, explicit_type = ns_explicit_type,
+        til_type = til_type_from_explicit_type(ns_explicit_type),
+        doc = ns_doc,
+        is_priv = member_priv,
+        default_value = ns_value)
+}
+
 // parse_struct_def: current token is 'struct' (or '{' for ext_struct)
 // c_tag: "" = normal struct (advance past 'struct' keyword)
 //        "@anon" = ext_struct anonymous (no struct tag)
@@ -563,32 +599,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             member_priv = true
         }
         if in_namespace {
-            // Parse namespace declaration directly into sdd.ns_decls
-            mut ns_name := ""
-            mut ns_explicit_type := ""
-            mut ns_is_mut := false
-            if check(p, TokenType.KwConst) {
-                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
-            }
-            if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
-            ns_name = expect_text(p, TokenType.Ident)
-            if check(p, TokenType.ColonEq) {
-                advance(p)
-            } else if check(p, TokenType.Colon) {
-                advance(p)
-                ns_explicit_type = parse_type_ref(p)
-                expect_token(p, TokenType.Eq)
-            }
-            ns_doc := p.pending_doc.clone()
-            p.pending_doc = ""
-            ns_value := parse_expression(p)
-            mut ns_dd := Declaration(name = ns_name,
-                is_mut = ns_is_mut, explicit_type = ns_explicit_type,
-                til_type = til_type_from_explicit_type(ns_explicit_type),
-                doc = ns_doc,
-                is_priv = member_priv,
-                default_value = ns_value)
+            mut ns_dd := parse_ns_decl(p, member_priv)
             switch def.node_type {
             case NodeType.StructDef(sdd):
                 sdd.ns_decls.push(own ns_dd)
@@ -676,39 +687,15 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             continue
         }
         if in_namespace {
-            // #179 step 5: priv on enum namespace members. The struct
-            // body in parse_struct_def already supports this; the enum
-            // body has its own loop and was missing it.
+            // #179 step 5: priv on enum namespace members. The struct body
+            // hoists this check above the field/namespace split; the enum
+            // body consumes the leading `priv` here before parse_ns_decl.
             mut enum_ns_priv := false
             if check(p, TokenType.KwPriv) {
                 advance(p)
                 enum_ns_priv = true
             }
-            mut ns_name := ""
-            mut ns_explicit_type := ""
-            mut ns_is_mut := false
-            if check(p, TokenType.KwConst) {
-                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
-            }
-            if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
-            ns_name = expect_text(p, TokenType.Ident)
-            if check(p, TokenType.ColonEq) {
-                advance(p)
-            } else if check(p, TokenType.Colon) {
-                advance(p)
-                ns_explicit_type = parse_type_ref(p)
-                expect_token(p, TokenType.Eq)
-            }
-            ns_doc := p.pending_doc.clone()
-            p.pending_doc = ""
-            ns_value := parse_expression(p)
-            mut ns_dd := Declaration(name = ns_name,
-                is_mut = ns_is_mut, explicit_type = ns_explicit_type,
-                til_type = til_type_from_explicit_type(ns_explicit_type),
-                doc = ns_doc,
-                is_priv = enum_ns_priv,
-                default_value = ns_value)
+            mut ns_dd := parse_ns_decl(p, enum_ns_priv)
             switch def.node_type {
             case NodeType.EnumDef(edd):
                 edd.ns_decls.push(own ns_dd)
@@ -765,6 +752,70 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     return def
 }
 
+// parse_named_arg: if the cursor is at `IDENT '='`, parse the named
+// argument `name = expr`, append it to `call`, consume a trailing comma,
+// and return true. Otherwise consume nothing and return false. Shared by
+// every call-argument loop (plain, postfix-method, statement-method, chain).
+priv parse_named_arg := proc(mut p: Parser, mut call: Expr) returns Bool {
+    if check(p, TokenType.Ident).not() { return false }
+    if p.pos.add(1).lt(p.tokens.len()).not() { return false }
+    ref next_tok : Token = p.tokens[p.pos.add(1)]
+    if next_tok.type.is(TokenType.Eq).not() { return false }
+    na_line := peek_line(p)
+    na_col := peek_col(p)
+    aname := expect_text(p, TokenType.Ident)
+    advance(p) // consume '='
+    mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col)
+    na.add_child(own parse_expression(p))
+    call.add_child(own na)
+    if check(p, TokenType.Comma) { advance(p) }
+    return true
+}
+
+// append_arg: append a positional argument `arg` (already parsed) to `call`,
+// applying the issue #56/#57 anon struct/enum lift and the `own` marker.
+// A bare `struct { ... }` / `enum { ... }` arg is lifted to its generated
+// AnonStructN/AnonEnumN name: as an Ident type-ref normally, or as a
+// struct_def_of/enum_def_of value call when `own`-prefixed. Centralises the
+// block that used to be copy-pasted across three call-argument loops.
+priv append_arg := func(mut p: Parser, mut call: Expr, own arg: Expr, is_own_arg: Bool) {
+    if arg.node_type.is(NodeType.StructDef).or(arg.node_type.is(NodeType.EnumDef)) {
+        arg_line := arg.line
+        arg_col := arg.col
+        mut helper := "struct_def_of"
+        if arg.node_type.is(NodeType.EnumDef) { helper = "enum_def_of" }
+        lifted_name := anon_lift(p, own arg, arg_line, arg_col)
+        if is_own_arg { set_own_arg(call, call.children.len()) }
+        if is_own_arg {
+            mut sd_callee := Expr.new(ident_node(helper), arg_line, arg_col)
+            mut sd_strlit := Expr.new(NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
+            mut sd_call := Expr.new(NodeType.FCall(FCallData()), arg_line, arg_col)
+            sd_call.add_child(own sd_callee)
+            sd_call.add_child(own sd_strlit)
+            call.add_child(own sd_call)
+        } else {
+            call.add_child(own Expr.new(ident_node(lifted_name), arg_line, arg_col))
+        }
+    } else {
+        if is_own_arg { set_own_arg(call, call.children.len()) }
+        call.add_child(own arg)
+    }
+}
+
+// parse_throw_bang_suffix: consume an optional postfix `?` (issue #198,
+// marks a throwing call) and/or `!` (issue #202, panic-on-throw) and set
+// the matching FCall flag. Shared by the plain-call and method-call paths.
+priv parse_throw_bang_suffix := func(mut p: Parser, mut call: Expr) {
+    if check(p, TokenType.Question) {
+        advance(p)
+        set_fcall_throw(call)
+    }
+    if check(p, TokenType.Bang) {
+        advance(p)
+        set_fcall_bang(call)
+    }
+}
+
 // parse_call: callee Expr already built, current token is '('. The callee
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
@@ -776,23 +827,7 @@ parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U3
 
     // parse arguments
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-        // Named arg: IDENT '=' expr
-        if check(p, TokenType.Ident) {
-            if p.pos.add(1).lt(p.tokens.len()) {
-                ref next_tok : Token = p.tokens[p.pos.add(1)]
-                if next_tok.type.is(TokenType.Eq) {
-                    na_line := peek_line(p)
-                    na_col := peek_col(p)
-                    aname := expect_text(p, TokenType.Ident)
-                    advance(p) // consume '='
-                    mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col)
-                    na.add_child(own parse_expression(p))
-                    call.add_child(own na)
-                    if check(p, TokenType.Comma) { advance(p) }
-                    continue
-                }
-            }
-        }
+        if parse_named_arg(p, call) { continue }
         // Splat arg: ..expr  OR  rest-pattern marker `..` (followed by
         // a comma or the closing paren, no expression). Splat sets the
         // FCall's is_splat flag and continues to parse the expression.
@@ -816,89 +851,41 @@ parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U3
             advance(p)
             is_own_arg = true
         }
-        mut arg := parse_expression(p)
-        // Issue #56/#57: a bare anonymous `struct { ... }` / `enum { ... }`
-        // passed as a call argument resolves through anon_lift to the
-        // generated AnonStructN/AnonEnumN type. Two flavours of arg flow:
-        //   * `f(enum { ... })`         -> Ident(AnonEnumN) -- a type ref,
-        //     for func/macro params typed `Type` (introspection style).
-        //   * `f(own struct { ... })`   -> struct_def_of("AnonStructN")
-        //     -- a runtime StructDef value (issue #56). The `own` prefix
-        //     is the signal that the caller wants the definition AS A
-        //     VALUE (e.g. `defs.push(own struct { ... })`). Symmetric for
-        //     enums via enum_def_of.
-        if arg.node_type.is(NodeType.StructDef).or(arg.node_type.is(NodeType.EnumDef)) {
-            arg_line := arg.line
-            arg_col := arg.col
-            mut helper := "struct_def_of"
-            if arg.node_type.is(NodeType.EnumDef) { helper = "enum_def_of" }
-            lifted_name := anon_lift(p, own arg, arg_line, arg_col)
-            if is_own_arg { set_own_arg(call, call.children.len()) }
-            if is_splat {
-                switch call.node_type {
-                case NodeType.FCall(fcd):
-                    fcd.is_splat = true
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
-            if is_own_arg {
-                mut sd_callee := Expr.new(ident_node(helper), arg_line, arg_col)
-                mut sd_strlit := Expr.new(NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
-                mut sd_call := Expr.new(NodeType.FCall(FCallData()), arg_line, arg_col)
-                sd_call.add_child(own sd_callee)
-                sd_call.add_child(own sd_strlit)
-                call.add_child(own sd_call)
-            } else {
-                call.add_child(own Expr.new(ident_node(lifted_name), arg_line, arg_col))
-            }
-        } else {
-            if is_own_arg { set_own_arg(call, call.children.len()) }
-            if is_splat {
-                switch call.node_type {
-                case NodeType.FCall(fcd):
-                    fcd.is_splat = true
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
-            call.add_child(own arg)
-        }
+        if is_splat { set_fcall_splat(call) }
+        // Issue #56/#57: append_arg resolves a bare anonymous
+        // `struct { ... }` / `enum { ... }` argument through anon_lift to
+        // its generated AnonStructN/AnonEnumN type -- as an Ident type-ref,
+        // or (when `own`-prefixed) a struct_def_of/enum_def_of value call.
+        append_arg(p, call, own parse_expression(p), is_own_arg)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
-    // Issue #198: postfix ~?~ marks a call to a throwing function.
-    if check(p, TokenType.Question) {
-        advance(p)
-        switch call.node_type {
-        case NodeType.FCall(fcd):
-            fcd.does_throw = true
-        case:
-            UNREACHABLE(__LOC__)
-        }
-    }
-    // Issue #202: postfix ~!~ -- panic if the call throws. The typer
-    // desugars to ~?~ + auto-catch+panic per declared throw type.
-    if check(p, TokenType.Bang) {
-        advance(p)
-        switch call.node_type {
-        case NodeType.FCall(fcd_b):
-            fcd_b.is_bang = true
-        case:
-            UNREACHABLE(__LOC__)
-        }
-    }
+    parse_throw_bang_suffix(p, call)
     return call
 }
 
 // make_binop_call: helper to desugar a OP b -> a.method(b)
-make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, rhs: Expr) returns Expr {
+// lhs stays a borrow (cloned here): every caller reassigns its own `e`
+// from the result, so `e = make_binop_call(e, ...)` cannot also move `e`
+// out. rhs is taken `own` -- callers never reuse it -- which drops one
+// full AST clone per binary operator.
+make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr) returns Expr {
     mut callee := Expr.new(field_access_node(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
     Expr.add_child(call, own callee)
-    Expr.add_child(call, own rhs.clone())
+    Expr.add_child(call, own rhs)
     return call
+}
+
+// take_expr: move the value out of `e`, leaving `e` an empty Body node, and
+// return the moved-out value. The postfix builders use this to reparent the
+// current expression under a new access/call node without aliasing it.
+priv take_expr := func(mut e: Expr) returns Expr {
+    taken := e
+    e.node_type = NodeType.Body
+    e.children = Vec.new(Expr)
+    return taken
 }
 
 // parse_primary: literals, identifiers, calls, field access, grouping parens
@@ -909,20 +896,20 @@ parse_primary := proc(mut p: Parser) returns Expr {
     mut e := Expr.new(NodeType.Body, 0, 0) // placeholder
     mut e_set := false
 
-    if t.type.is(TokenType.StringTok) {
+    switch t.type {
+    case TokenType.StringTok:
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Str(t.text.clone())), t_line, t_col)
         e_set = true
-    }
-    if e_set.not().and(t.type.is(TokenType.Number)) {
+    case TokenType.Number:
         advance(p)
         e = Expr.new(literal_num_node(t.text), t_line, t_col)
         e_set = true
-    }
-    // Unary minus: -N (literal) parses as a single negative numeric
-    // literal so it narrows like any other literal (args, decls, assigns,
-    // returns); -expr desugars to expr.neg().
-    if e_set.not().and(t.type.is(TokenType.Minus)) {
+    case TokenType.Minus:
+        // Unary minus: -N (literal) parses as a single negative numeric
+        // literal so it narrows like any other literal (args, decls, assigns,
+        // returns); -expr desugars to expr.neg(). A trailing '-' with no
+        // following token leaves e_set false and hits the panic below.
         if p.pos.add(1).lt(p.tokens.len()) {
             ref next_tok : Token = p.tokens[p.pos.add(1)]
             if next_tok.type.is(TokenType.Number) {
@@ -941,8 +928,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
                 e_set = true
             }
         }
-    }
-    if e_set.not().and(t.type.is(TokenType.Bang)) {
+    case TokenType.Bang:
         advance(p) // consume '!'
         mut operand := parse_primary(p)
         mut not_access := Expr.new(field_access_node("not"), t_line, t_col)
@@ -951,8 +937,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         not_call.add_child(own not_access)
         e = not_call
         e_set = true
-    }
-    if e_set.not().and(t.type.is(TokenType.Char)) {
+    case TokenType.Char:
         advance(p)
         // Parse char literal to byte value
         ch := t.text
@@ -974,18 +959,19 @@ parse_primary := proc(mut p: Parser) returns Expr {
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
         e.set_expr_til_type(Type.Primitive(Primitive.U8))
         e_set = true
-    }
-    if e_set.not().and(t.type.is(TokenType.KwTrue).or(t.type.is(TokenType.KwFalse))) {
+    case TokenType.KwTrue:
         advance(p)
-        e = Expr.new(NodeType.Literal(Literal.Bool(t.type.is(TokenType.KwTrue))), t_line, t_col)
+        e = Expr.new(NodeType.Literal(Literal.Bool(true)), t_line, t_col)
         e_set = true
-    }
-    if e_set.not().and(t.type.is(TokenType.KwNull)) {
+    case TokenType.KwFalse:
+        advance(p)
+        e = Expr.new(NodeType.Literal(Literal.Bool(false)), t_line, t_col)
+        e_set = true
+    case TokenType.KwNull:
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Null), t_line, t_col)
         e_set = true
-    }
-    if e_set.not().and(t.type.is(TokenType.Ident)) {
+    case TokenType.Ident:
         advance(p)
         name := t.text.clone()
         // Compile-time directives
@@ -1008,13 +994,15 @@ parse_primary := proc(mut p: Parser) returns Expr {
             e = Expr.new(ident_node(name), t_line, t_col)
             e_set = true
         }
-    }
-    if e_set.not().and(t.type.is(TokenType.KwFunc).or(t.type.is(TokenType.KwProc))
-        .or(t.type.is(TokenType.KwTest)).or(t.type.is(TokenType.KwMacro))
-        .or(t.type.is(TokenType.KwExtFunc)).or(t.type.is(TokenType.KwExtProc))) {
-            return parse_func_def(p)
-        }
-    if e_set.not().and(t.type.is(TokenType.KwStruct)) {
+    // Function literals and ext_struct return directly, bypassing the
+    // postfix chain below.
+    case TokenType.KwFunc:    return parse_func_def(p)
+    case TokenType.KwProc:    return parse_func_def(p)
+    case TokenType.KwTest:    return parse_func_def(p)
+    case TokenType.KwMacro:   return parse_func_def(p)
+    case TokenType.KwExtFunc: return parse_func_def(p)
+    case TokenType.KwExtProc: return parse_func_def(p)
+    case TokenType.KwStruct:
         mut sdef := parse_struct_def(p, "")
         // Anonymous struct instantiation: `struct { ... }(args)`. Lift the
         // literal to a top-level AnonStructN decl (issue #56) and call the
@@ -1027,8 +1015,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         } else {
             return sdef
         }
-    }
-    if e_set.not().and(t.type.is(TokenType.KwExtStruct)) {
+    case TokenType.KwExtStruct:
         advance(p)
         mut tag := "@anon"
         if check(p, TokenType.LParen) {
@@ -1039,8 +1026,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             expect_token(p, TokenType.RParen)
         }
         return parse_struct_def(p, tag)
-    }
-    if e_set.not().and(t.type.is(TokenType.KwEnum)) {
+    case TokenType.KwEnum:
         // Anonymous enum variant: `enum { ... }.Variant` (or
         // `.Variant(payload)`). Lift the literal to a top-level AnonEnumN
         // decl (issue #57) and let the postfix `.field` loop attach the
@@ -1054,8 +1040,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         } else {
             return edef
         }
-    }
-    if e_set.not().and(t.type.is(TokenType.LBrace)) {
+    case TokenType.LBrace:
         advance(p)
         mut first := parse_expression(p)
         if check(p, TokenType.Colon) {
@@ -1083,35 +1068,23 @@ parse_primary := proc(mut p: Parser) returns Expr {
         }
         expect_token(p, TokenType.RBrace)
         e_set = true
-    }
-    // Grouping parentheses: (expr)
-    if e_set.not().and(t.type.is(TokenType.LParen)) {
+    case TokenType.LParen:
+        // Grouping parentheses: (expr)
         advance(p) // consume '('
         e = parse_expression(p)
         expect_token(p, TokenType.RParen)
         e_set = true
-    }
-    // Issue #244: `match` is the value-producing selection form. Same arm
-    // syntax as `switch`, but each arm body is a single expression and the
-    // whole `match` yields a value. Returns directly (bypassing the postfix
-    // chain) -- use `(match ...).method()` if a postfix is needed.
-    if e_set.not().and(t.type.is(TokenType.KwMatch)) {
+    case TokenType.KwMatch:
+        // Issue #244: `match` is the value-producing selection form. Same arm
+        // syntax as `switch`, but each arm body is a single expression and the
+        // whole `match` yields a value. Returns directly (bypassing the
+        // postfix chain) -- use `(match ...).method()` if a postfix is needed.
         advance(p)
         mut node := Expr.new(NodeType.Match(MatchData()), t_line, t_col)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
         while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-            expect_token(p, TokenType.KwCase)
-            mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
-            if check(p, TokenType.Colon).not() {
-                cn.add_child(own parse_expression(p))
-                // Optional guard `case <pattern> if <expr>:`, as in switch.
-                if check(p, TokenType.KwIf) {
-                    advance(p)
-                    cn.add_child(own parse_expression(p))
-                }
-            }
-            expect_token(p, TokenType.Colon)
+            mut cn := parse_case_head(p)
             // Arm body is a single value-expression, wrapped in a Body so the
             // arm shape matches a switch Case (lets the typer reuse the switch
             // desugar). Block-valued arms are deferred (issue #244).
@@ -1122,12 +1095,14 @@ parse_primary := proc(mut p: Parser) returns Expr {
         }
         expect_token(p, TokenType.RBrace)
         return node
-    }
-    // Issue #244: `switch` parses here too (symmetric with `match`), so a
-    // `switch` written in value position (e.g. `x := switch ...`) becomes a
-    // node the typer rejects with a message pointing at `match`.
-    if e_set.not().and(t.type.is(TokenType.KwSwitch)) {
+    case TokenType.KwSwitch:
+        // Issue #244: `switch` parses here too (symmetric with `match`), so a
+        // `switch` written in value position (e.g. `x := switch ...`) becomes a
+        // node the typer rejects with a message pointing at `match`.
         return parse_switch(p)
+    case:
+        // Unhandled token: e_set stays false; the panic below reports it
+        // (and also covers a trailing unary minus that set nothing).
     }
 
     if e_set.not() {
@@ -1161,12 +1136,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
             mut get_call := Expr.new(NodeType.FCall(FCallData()), b_line, b_col)
             get_call.add_child(own get_callee)
             get_call.add_child(own index)
-            switch get_call.node_type {
-            case NodeType.FCall(gcd):
-                gcd.is_bang = true
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            set_fcall_bang(get_call)
             e = get_call
             continue
         }
@@ -1178,87 +1148,22 @@ parse_primary := proc(mut p: Parser) returns Expr {
             // Method call: e.method(args)
             advance(p) // consume '('
             mut callee := Expr.new(field_access_node(fname), f_line, f_col)
-            mut old_e := e
-            e.node_type = NodeType.Body
-            e.children = Vec.new(Expr)
-            callee.add_child(own old_e)
+            callee.add_child(own take_expr(e))
             mut mcall := Expr.new(NodeType.FCall(FCallData()), f_line, f_col)
             mcall.add_child(own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                // Named arg check
-                if check(p, TokenType.Ident) {
-                    if p.pos.add(1).lt(p.tokens.len()) {
-                        ref nt : Token = p.tokens[p.pos.add(1)]
-                        if nt.type.is(TokenType.Eq) {
-                            na_line := peek_line(p)
-                            na_col := peek_col(p)
-                            aname := expect_text(p, TokenType.Ident)
-                            advance(p) // consume '='
-                            mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col)
-                            na.add_child(own parse_expression(p))
-                            mcall.add_child(own na)
-                            if check(p, TokenType.Comma) { advance(p) }
-                            continue
-                        }
-                    }
-                }
+                if parse_named_arg(p, mcall) { continue }
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
-                mut marg := parse_expression(p)
-                // Issue #56/#57: same anon-arg lift as parse_call (the
-                // postfix method-call path duplicates the arg loop; keep
-                // all three sites in sync).
-                if marg.node_type.is(NodeType.StructDef).or(marg.node_type.is(NodeType.EnumDef)) {
-                    marg_line := marg.line
-                    marg_col := marg.col
-                    mut mhelper := "struct_def_of"
-                    if marg.node_type.is(NodeType.EnumDef) { mhelper = "enum_def_of" }
-                    mlifted_name := anon_lift(p, own marg, marg_line, marg_col)
-                    if is_own_arg {
-                        set_own_arg(mcall, mcall.children.len())
-                        mut msd_callee := Expr.new(ident_node(mhelper), marg_line, marg_col)
-                        mut msd_strlit := Expr.new(NodeType.Literal(Literal.Str(mlifted_name.clone())), marg_line, marg_col)
-                        mut msd_call := Expr.new(NodeType.FCall(FCallData()), marg_line, marg_col)
-                        msd_call.add_child(own msd_callee)
-                        msd_call.add_child(own msd_strlit)
-                        mcall.add_child(own msd_call)
-                    } else {
-                        mcall.add_child(own Expr.new(ident_node(mlifted_name), marg_line, marg_col))
-                    }
-                } else {
-                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
-                    mcall.add_child(own marg)
-                }
+                append_arg(p, mcall, own parse_expression(p), is_own_arg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
-            // Issue #198: postfix ~?~ on method call.
-            if check(p, TokenType.Question) {
-                advance(p)
-                switch mcall.node_type {
-                case NodeType.FCall(mcd):
-                    mcd.does_throw = true
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
-            // Issue #202: postfix ~!~ on method call.
-            if check(p, TokenType.Bang) {
-                advance(p)
-                switch mcall.node_type {
-                case NodeType.FCall(mcd_b):
-                    mcd_b.is_bang = true
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
+            parse_throw_bang_suffix(p, mcall)
             e = mcall
         } else {
             mut access := Expr.new(field_access_node(fname), f_line, f_col)
-            mut old_e := e
-            e.node_type = NodeType.Body
-            e.children = Vec.new(Expr)
-            access.add_child(own old_e)
+            access.add_child(own take_expr(e))
             e = access
         }
     }
@@ -1268,10 +1173,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         pp_col := peek_col(p)
         advance(p)
         mut inc_access := Expr.new(field_access_node("inc"), pp_line, pp_col)
-        mut old_e := e
-        e.node_type = NodeType.Body
-        e.children = Vec.new(Expr)
-        inc_access.add_child(own old_e)
+        inc_access.add_child(own take_expr(e))
         mut inc_call := Expr.new(NodeType.FCall(FCallData()), pp_line, pp_col)
         inc_call.add_child(own inc_access)
         e = inc_call
@@ -1281,10 +1183,7 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mm_col := peek_col(p)
         advance(p)
         mut dec_access := Expr.new(field_access_node("dec"), mm_line, mm_col)
-        mut old_e := e
-        e.node_type = NodeType.Body
-        e.children = Vec.new(Expr)
-        dec_access.add_child(own old_e)
+        dec_access.add_child(own take_expr(e))
         mut dec_call := Expr.new(NodeType.FCall(FCallData()), mm_line, mm_col)
         dec_call.add_child(own dec_access)
         e = dec_call
@@ -1292,126 +1191,74 @@ parse_primary := proc(mut p: Parser) returns Expr {
     return e
 }
 
-// parse_multiplicative: * / % (highest precedence binary operators)
-priv parse_multiplicative := proc(mut p: Parser) returns Expr {
+// Binary operators by precedence (higher binds tighter; -1 = not a binary
+// operator). Each `a OP b` desugars to `a.method(b)` via make_binop_call.
+//   8  * / %            mul div mod
+//   7  + -              add sub
+//   6  == != < <= > >=  eq neq lt lte gt gte
+//   5  &                band
+//   4  ^                bxor
+//   3  |                bor
+//   2  &&               and
+//   1  ||               or
+priv binop_prec := func(tt: TokenType) returns I64 {
+    if tt.is(TokenType.Star).or(tt.is(TokenType.Slash)).or(tt.is(TokenType.Percent)) { return 8 }
+    if tt.is(TokenType.Plus).or(tt.is(TokenType.Minus)) { return 7 }
+    if tt.is(TokenType.EqEq).or(tt.is(TokenType.Neq)).or(tt.is(TokenType.Lt))
+        .or(tt.is(TokenType.LtEq)).or(tt.is(TokenType.Gt)).or(tt.is(TokenType.GtEq)) { return 6 }
+    if tt.is(TokenType.Ampersand) { return 5 }
+    if tt.is(TokenType.Caret) { return 4 }
+    if tt.is(TokenType.Pipe) { return 3 }
+    if tt.is(TokenType.AmpAmp) { return 2 }
+    if tt.is(TokenType.PipePipe) { return 1 }
+    return -1
+}
+
+priv binop_method := func(tt: TokenType) returns Str {
+    if tt.is(TokenType.Star)      { return "mul" }
+    if tt.is(TokenType.Slash)     { return "div" }
+    if tt.is(TokenType.Percent)   { return "mod" }
+    if tt.is(TokenType.Plus)      { return "add" }
+    if tt.is(TokenType.Minus)     { return "sub" }
+    if tt.is(TokenType.EqEq)      { return "eq" }
+    if tt.is(TokenType.Neq)       { return "neq" }
+    if tt.is(TokenType.Lt)        { return "lt" }
+    if tt.is(TokenType.LtEq)      { return "lte" }
+    if tt.is(TokenType.Gt)        { return "gt" }
+    if tt.is(TokenType.GtEq)      { return "gte" }
+    if tt.is(TokenType.Ampersand) { return "band" }
+    if tt.is(TokenType.Caret)     { return "bxor" }
+    if tt.is(TokenType.Pipe)      { return "bor" }
+    if tt.is(TokenType.AmpAmp)    { return "and" }
+    if tt.is(TokenType.PipePipe)  { return "or" }
+    UNREACHABLE(__LOC__)
+    return ""
+}
+
+// parse_binop: precedence-climbing binary-operator parser. Parses a
+// primary, then folds in each following operator whose precedence is
+// >= min_prec, recursing at prec+1 for the right operand (all til binary
+// operators are left-associative). Replaces the old one-proc-per-level
+// precedence cascade.
+priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
     mut e := parse_primary(p)
-    while check(p, TokenType.Star).or(check(p, TokenType.Slash)).or(check(p, TokenType.Percent)) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        ref op : Token = advance(p)
-        mut method := "mul"
-        if op.type.is(TokenType.Slash) { method = "div" }
-        if op.type.is(TokenType.Percent) { method = "mod" }
-        rhs := parse_primary(p)
-        e = make_binop_call(e, method, op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_additive: + - (medium precedence)
-parse_additive := proc(mut p: Parser) returns Expr {
-    mut e := parse_multiplicative(p)
-    while check(p, TokenType.Plus).or(check(p, TokenType.Minus)) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        ref op : Token = advance(p)
-        mut method := "add"
-        if op.type.is(TokenType.Minus) { method = "sub" }
-        rhs := parse_multiplicative(p)
-        e = make_binop_call(e, method, op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_comparison: == != < <= > >= (lowest precedence binary operators)
-parse_comparison := proc(mut p: Parser) returns Expr {
-    mut e := parse_additive(p)
-    while check(p, TokenType.EqEq).or(check(p, TokenType.Neq))
-    .or(check(p, TokenType.Lt)).or(check(p, TokenType.LtEq))
-    .or(check(p, TokenType.Gt)).or(check(p, TokenType.GtEq)) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        ref op : Token = advance(p)
-        mut method := "eq"
-        if op.type.is(TokenType.Neq) { method = "neq" }
-        else if op.type.is(TokenType.Lt) { method = "lt" }
-        else if op.type.is(TokenType.LtEq) { method = "lte" }
-        else if op.type.is(TokenType.Gt) { method = "gt" }
-        else if op.type.is(TokenType.GtEq) { method = "gte" }
-        rhs := parse_additive(p)
-        e = make_binop_call(e, method, op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_bitand: & (below comparison)
-parse_bitand := proc(mut p: Parser) returns Expr {
-    mut e := parse_comparison(p)
-    while check(p, TokenType.Ampersand) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
+    while true {
+        ref op : Token = peek(p)
+        prec := binop_prec(op.type)
+        if prec.lt(min_prec) { break }
+        op_line := op.line
+        op_col := op.col
+        method := binop_method(op.type)
         advance(p)
-        rhs := parse_comparison(p)
-        e = make_binop_call(e, "band", op_line, op_col, rhs)
+        rhs := parse_binop(p, prec.add(1))
+        e = make_binop_call(e, method, op_line, op_col, own rhs)
     }
     return e
 }
 
-// parse_bitxor: ^ (below bitand)
-parse_bitxor := proc(mut p: Parser) returns Expr {
-    mut e := parse_bitand(p)
-    while check(p, TokenType.Caret) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        advance(p)
-        rhs := parse_bitand(p)
-        e = make_binop_call(e, "bxor", op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_bitor: | (below bitxor)
-parse_bitor := proc(mut p: Parser) returns Expr {
-    mut e := parse_bitxor(p)
-    while check(p, TokenType.Pipe) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        advance(p)
-        rhs := parse_bitxor(p)
-        e = make_binop_call(e, "bor", op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_logical_and: && (below bitor)
-parse_logical_and := proc(mut p: Parser) returns Expr {
-    mut e := parse_bitor(p)
-    while check(p, TokenType.AmpAmp) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        advance(p)
-        rhs := parse_bitor(p)
-        e = make_binop_call(e, "and", op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_logical_or: || (below logical_and)
-parse_logical_or := proc(mut p: Parser) returns Expr {
-    mut e := parse_logical_and(p)
-    while check(p, TokenType.PipePipe) {
-        op_line := peek_line(p)
-        op_col := peek_col(p)
-        advance(p)
-        rhs := parse_logical_and(p)
-        e = make_binop_call(e, "or", op_line, op_col, rhs)
-    }
-    return e
-}
-
-// parse_expression: top-level expression (logical_or + range)
+// parse_expression: top-level expression (binary operators + range)
 parse_expression := proc(mut p: Parser) returns Expr {
-    mut e := parse_logical_or(p)
+    mut e := parse_binop(p, 1)
     // Range expression: e..rhs → Range.new(e, rhs)
     if check(p, TokenType.DotDot) {
         dt_line := peek_line(p)
@@ -1423,10 +1270,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
         new_access.add_child(own range_ident)
         mut rcall := Expr.new(NodeType.FCall(FCallData()), dt_line, dt_col)
         rcall.add_child(own new_access)
-        mut old_e := e
-        e.node_type = NodeType.Body
-        e.children = Vec.new(Expr)
-        rcall.add_child(own old_e)
+        rcall.add_child(own take_expr(e))
         rcall.add_child(own rhs)
         e = rcall
     }
@@ -1594,50 +1438,10 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: Own
             mut mcall := Expr.new(NodeType.FCall(FCallData()), last_line, last_col)
             mcall.add_child(own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                // Named arg check
-                if check(p, TokenType.Ident) {
-                    if p.pos.add(1).lt(p.tokens.len()) {
-                        ref nt : Token = p.tokens[p.pos.add(1)]
-                        if nt.type.is(TokenType.Eq) {
-                            na_line := peek_line(p)
-                            na_col := peek_col(p)
-                            aname := expect_text(p, TokenType.Ident)
-                            advance(p) // consume '='
-                            mut na := Expr.new(NodeType.NamedArg(aname), na_line, na_col)
-                            na.add_child(own parse_expression(p))
-                            mcall.add_child(own na)
-                            if check(p, TokenType.Comma) { advance(p) }
-                            continue
-                        }
-                    }
-                }
+                if parse_named_arg(p, mcall) { continue }
                 mut is_own_arg := false
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
-                mut marg := parse_expression(p)
-                // Issue #56/#57: same anon-arg lift as parse_call (the
-                // statement-level method-call path duplicates the arg loop;
-                // keep all three sites in sync).
-                if marg.node_type.is(NodeType.StructDef).or(marg.node_type.is(NodeType.EnumDef)) {
-                    marg_line := marg.line
-                    marg_col := marg.col
-                    mut mhelper := "struct_def_of"
-                    if marg.node_type.is(NodeType.EnumDef) { mhelper = "enum_def_of" }
-                    mlifted_name := anon_lift(p, own marg, marg_line, marg_col)
-                    if is_own_arg {
-                        set_own_arg(mcall, mcall.children.len())
-                        mut msd_callee := Expr.new(ident_node(mhelper), marg_line, marg_col)
-                        mut msd_strlit := Expr.new(NodeType.Literal(Literal.Str(mlifted_name.clone())), marg_line, marg_col)
-                        mut msd_call := Expr.new(NodeType.FCall(FCallData()), marg_line, marg_col)
-                        msd_call.add_child(own msd_callee)
-                        msd_call.add_child(own msd_strlit)
-                        mcall.add_child(own msd_call)
-                    } else {
-                        mcall.add_child(own Expr.new(ident_node(mlifted_name), marg_line, marg_col))
-                    }
-                } else {
-                    if is_own_arg { set_own_arg(mcall, mcall.children.len()) }
-                    mcall.add_child(own marg)
-                }
+                append_arg(p, mcall, own parse_expression(p), is_own_arg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
@@ -1658,27 +1462,10 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: Own
                 mut next_call := Expr.new(NodeType.FCall(FCallData()), chain_line, chain_col)
                 next_call.add_child(own chain_callee)
                 while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                    if check(p, TokenType.Ident) {
-                        if p.pos.add(1).lt(p.tokens.len()) {
-                            ref nt2 : Token = p.tokens[p.pos.add(1)]
-                            if nt2.type.is(TokenType.Eq) {
-                                na2_line := peek_line(p)
-                                na2_col := peek_col(p)
-                                aname2 := expect_text(p, TokenType.Ident)
-                                advance(p) // consume '='
-                                mut na2 := Expr.new(NodeType.NamedArg(aname2), na2_line, na2_col)
-                                na2.add_child(own parse_expression(p))
-                                next_call.add_child(own na2)
-                                if check(p, TokenType.Comma) { advance(p) }
-                                continue
-                            }
-                        }
-                    }
+                    if parse_named_arg(p, next_call) { continue }
                     mut is_own_arg2 := false
                     if check(p, TokenType.KwOwn) { advance(p); is_own_arg2 = true }
-                    mut marg2 := parse_expression(p)
-                    if is_own_arg2 { set_own_arg(next_call, next_call.children.len()) }
-                    next_call.add_child(own marg2)
+                    append_arg(p, next_call, own parse_expression(p), is_own_arg2)
                     if check(p, TokenType.Comma) { advance(p) }
                 }
                 expect_token(p, TokenType.RParen)
@@ -1794,6 +1581,27 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
     return stmt
 }
 
+// parse_case_head: consume `case <pattern> [if <guard>]:` and return the
+// Case node carrying the pattern (child 0) and optional guard (child 1).
+// Issue #199: the guard is stored as a third child of the Case so the typer
+// can distinguish `[pattern, body]` from `[pattern, guard, body]`; a bare
+// `case if <expr>:` is not allowed (KwIf only follows a pattern). Shared by
+// `switch` (statement-list body) and `match` (single value-expr body); the
+// caller appends the body child.
+priv parse_case_head := proc(mut p: Parser) returns Expr {
+    expect_token(p, TokenType.KwCase)
+    mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
+    if check(p, TokenType.Colon).not() {
+        cn.add_child(own parse_expression(p))
+        if check(p, TokenType.KwIf) {
+            advance(p)
+            cn.add_child(own parse_expression(p))
+        }
+    }
+    expect_token(p, TokenType.Colon)
+    return cn
+}
+
 // parse_switch: current token is `switch`. Shared by statement position
 // (parse_statement_body) and expression position (parse_primary). In
 // expression position the typer rejects the resulting node and points at
@@ -1806,21 +1614,7 @@ parse_switch := proc(mut p: Parser) returns Expr {
     node.add_child(own parse_expression(p))
     expect_token(p, TokenType.LBrace)
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-        expect_token(p, TokenType.KwCase)
-        mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
-        if check(p, TokenType.Colon).not() {
-            cn.add_child(own parse_expression(p))
-            // Issue #199: optional guard clause `case <pattern> if <expr>:`.
-            // Stored as a third child of the Case node so the typer can
-            // distinguish `[pattern, body]` (regular) from
-            // `[pattern, guard, body]` (guarded). A bare `case if <expr>:`
-            // is not allowed -- KwIf only follows a pattern.
-            if check(p, TokenType.KwIf) {
-                advance(p)
-                cn.add_child(own parse_expression(p))
-            }
-        }
-        expect_token(p, TokenType.Colon)
+        mut cn := parse_case_head(p)
         mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
         while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
             cb.add_child(own parse_statement(p))
@@ -1861,8 +1655,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         if ref_mut { dd.is_mut = true }
         if check(p, TokenType.Colon) {
             advance(p)
-            dd.explicit_type = parse_type_ref(p)
-            dd.til_type = til_type_from_explicit_type(dd.explicit_type)
+            set_decl_type(dd, parse_type_ref(p))
             expect_token(p, TokenType.Eq)
         } else {
             expect_token(p, TokenType.ColonEq)

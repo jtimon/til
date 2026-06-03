@@ -1,0 +1,64 @@
+** #249 parser.til cleanup: DRY argument loops, binop clones, flag switches
+
+  Review of ~src/self/parser.til~ (was 2050 lines) found several
+  simplification / DRY / optimization opportunities. None change
+  behaviour. Sibling of #248 (the same kind of review for ~lexer.til~).
+
+  All items below are DONE; parser.til is down to ~1843 lines (~200
+  net even after adding the shared helpers). ~make clean && make test~:
+  136/136.
+
+*** DONE Triplicated call-argument loop (highest value)
+  The argument-parsing loop -- named-arg lookahead, splat / rest-pattern,
+  ~own~, the #56/#57 anon struct/enum lift, trailing comma -- was
+  copy-pasted across ~parse_call~, both method-call paths and the
+  chain-call loop ("keep all three sites in sync"). Extracted
+  ~parse_named_arg~ + ~append_arg~ + ~parse_throw_bang_suffix~; the
+  loops keep their own splat/rest handling where it applied.
+
+*** DONE ~make_binop_call~ deep-clones operands (optimization)
+  ~rhs~ is now taken ~own~ (never reused) -- drops one full AST clone
+  per binary operator. ~lhs~ stays borrow+clone: callers reassign ~e~
+  from the result, and the compiler rejects moving ~e~ out and
+  reassigning it in one statement ("use of e after ownership transfer").
+
+*** DONE Seven FCall flag-set switches
+  Added ~set_fcall_throw~ / ~set_fcall_bang~ / ~set_fcall_splat~ to
+  ~ast.til~ (next to ~set_own_arg~), replacing the repeated 6-line
+  ~switch ... case FCall(fcd): fcd.X = true~ blocks.
+
+*** DONE Postfix ~?~ / ~!~ handling duplicated
+  Folded into ~parse_throw_bang_suffix(mut p, mut call)~, shared by the
+  plain-call and method-call paths.
+
+*** DONE Namespace-decl parsing duplicated between struct and enum
+  Factored into ~parse_ns_decl(mut p, member_priv) returns Declaration~;
+  only the push target (~sdd.ns_decls~ vs ~edd.ns_decls~) and where the
+  leading ~priv~ is consumed differ.
+
+*** DONE ~match~ arm loop overlaps ~parse_switch~
+  Factored the shared `case <pattern> [if <guard>]:` head into
+  ~parse_case_head(mut p) returns Expr~; ~switch~ appends a
+  statement-list body, ~match~ a single value-expr body.
+
+*** DONE ~e.node_type = Body; e.children = Vec.new(Expr)~ move-out dance
+  Replaced the 5 hand-rolled "take ownership of ~e~" sites with
+  ~take_expr(mut e) returns Expr~ -- til does allow moving the value out
+  of a ~mut~ borrow and re-initialising the place before returning.
+
+*** DONE ~explicit_type = X; til_type = ...(X)~ pairs
+  Added ~set_decl_type(mut d: Declaration, name: Str)~ for the six
+  mutate-after-set sites. Constructor-call sites that pass both fields
+  inline were left alone (deriving ~til_type~ in the ~Declaration~
+  constructor would touch the whole codebase, not just the parser).
+
+*** DONE Precedence cascade -> precedence-climbing parser
+  The 8 one-proc-per-level binary-operator procs (~parse_multiplicative~
+  .. ~parse_logical_or~) collapsed into a single precedence-climbing
+  ~parse_binop(mut p, min_prec)~ driven by ~binop_prec~ / ~binop_method~
+  tables. ~parse_expression~ now calls ~parse_binop(p, 1)~.
+
+*** DONE ~parse_primary~ ~e_set~ ladder -> ~switch~
+  The long ~if e_set.not().and(t.type.is(...))~ chain became a
+  ~switch t.type~ with early ~return~ for the func/struct/enum/match/
+  switch forms and fall-through to the postfix chain for the rest.
