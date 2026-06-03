@@ -411,7 +411,7 @@ parse_args := proc(args: Array) returns CliArgs {
         while cli.path_idx.lt(args.len()) {
             ref flag : Str = args[cli.path_idx]
             if flag.starts_with("--extra-modes=") {
-                cli.extra_modes.push(own flag.substr(14, flag.len().sub(14)).clone())
+                cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
             } else if flag.starts_with("-").not() {
                 mode_arg = flag.clone()
             }
@@ -460,17 +460,17 @@ parse_args := proc(args: Array) returns CliArgs {
             cli.custom_c = cval.clone()
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.starts_with("--target=") {
-            cli.target_str = flag.substr(9, flag.len().sub(9)).clone()
+            cli.target_str = flag.strip_prefix("--target=").clone()
             cli.path_idx = cli.path_idx.add(1)
         } else if flag.starts_with("--cc=") {
-            cli.cc = flag.substr(5, flag.len().sub(5)).clone()
+            cli.cc = flag.strip_prefix("--cc=").clone()
             cli.path_idx = cli.path_idx.add(1)
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
             ref pval : Str = args[cli.path_idx.add(1)]
             cli.install_prefix = pval.clone()
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.starts_with("--prefix=") {
-            cli.install_prefix = flag.substr(9, flag.len().sub(9)).clone()
+            cli.install_prefix = flag.strip_prefix("--prefix=").clone()
             cli.path_idx = cli.path_idx.add(1)
         } else if flag.eq("--asan") {
             cli.asan = true
@@ -479,7 +479,7 @@ parse_args := proc(args: Array) returns CliArgs {
             cli.prof = true
             cli.path_idx = cli.path_idx.add(1)
         } else if flag.starts_with("--extra-modes=") {
-            cli.extra_modes.push(own flag.substr(14, flag.len().sub(14)).clone())
+            cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
             cli.path_idx = cli.path_idx.add(1)
         } else {
             break
@@ -503,7 +503,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array, start_idx: USize) 
     while ai.lt(args.len()) {
         ref arg : Str = args[ai]
         if arg.starts_with("-l") {
-            mut lib := arg.substr(2, arg.len())
+            mut lib := arg.strip_prefix("-l")
             if lib.len().eq(0).and(ai.add(1).lt(args.len())) {
                 ai = ai.add(1)
                 ref next_arg : Str = args[ai]

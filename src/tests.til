@@ -60,7 +60,7 @@ test_basename := func(path: Str) returns Str {
         name = path.substr(last_slash.add(1), path.len().sub(last_slash).sub(1))
     }
     if name.ends_with(".til") {
-        name = name.substr(0, name.len().sub(4))
+        name = name.strip_suffix(".til")
     }
     return name
 }

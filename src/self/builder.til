@@ -7084,11 +7084,11 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 // info block (reusing format_decl_info for the rich rendering).
 format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns Str {
     // Strip a leading "./" via a self-reassign from a substring of `title`.
-    // This (`title = title.substr(...).clone()`) is compiled correctly since
-    // issue #238 fixed the asap-destruction delete-ordering / clone-elision.
+    // This (`title = title.strip_prefix(...).clone()`) is compiled correctly
+    // since issue #238 fixed the asap-destruction delete-ordering / clone-elision.
     mut title := unit_path.clone()
     if title.starts_with("./") {
-        title = title.substr(2, title.len().sub(2)).clone()
+        title = title.strip_prefix("./").clone()
     }
     // First pass: render each Decl's chunk separately. format_decl_info
     // already sizes its returned Str to fit, so we don't need to pre-size
@@ -7149,14 +7149,14 @@ format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns
 // "src/core/vec.til" -> "doc/gen/src/core/vec.org"
 til_doc_out_path := func(unit_path: Str) returns Str {
     // Trim a leading "./" and a trailing ".til" via self-reassigns from
-    // substrings of `name`. `name = name.substr(...).clone()` is compiled
+    // substrings of `name`. `name = name.strip_prefix(...).clone()` is compiled
     // correctly since issue #238 fixed the asap-destruction delete-ordering /
     // clone-elision (the typer hoists the view-returning substr into a temp
     // aliasing the local; the fix keeps the clone and orders the old-value
     // delete after it).
     mut name := unit_path.clone()
-    if name.starts_with("./") { name = name.substr(2, name.len().sub(2)).clone() }
-    if name.ends_with(".til") { name = name.substr(0, name.len().sub(4)).clone() }
+    if name.starts_with("./") { name = name.strip_prefix("./").clone() }
+    if name.ends_with(".til") { name = name.strip_suffix(".til").clone() }
     return format("doc/gen/", name, ".org")
 }
 
