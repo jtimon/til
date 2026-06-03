@@ -2159,6 +2159,7 @@ I32 ffi_init_user_so(Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * 
 void ffi_init_struct_defs(Expr * program, Context * ctx);
 void ffi_init_struct_defs_append(Expr * program, Context * ctx);
 U64 value_to_u64(Value * v);
+I64 value_to_i64(Value * v);
 ffi_type * uptr_ffi_type(Context * ctx);
 ffi_type * usize_ffi_type(Context * ctx);
 F32 priv___src_self_dispatch_til__value_to_f32(Value * v);

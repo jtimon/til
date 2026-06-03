@@ -181,6 +181,23 @@ value_to_u64 := func(v: Value) returns U64 {
     }
 }
 
+value_to_i64 := func(v: Value) returns I64 {
+    switch v {
+    case Value.Int(x):     return x.clone()
+    case Value.Byte(x):    return x.to_i64()
+    case Value.Sbyte(x):   return x.cast(I64)
+    case Value.Short(x):   return x.cast(I64)
+    case Value.Ushort(x):  return x.to_i64()
+    case Value.Int32(x):   return x.cast(I64)
+    case Value.Uint32(x):  return x.to_i64()
+    case Value.Uint64(x):  return x.cast(I64)
+    case Value.Boolean(x):
+        if x { return 1 }
+        return 0
+    case: return 0
+    }
+}
+
 uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
     ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
     if uptr_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
@@ -599,7 +616,7 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 
 h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -617,7 +634,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 
 h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -635,7 +652,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 
 h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -689,7 +706,7 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 
 h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -707,7 +724,7 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 
 h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -729,7 +746,7 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 
 h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -787,7 +804,7 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 
 h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -817,7 +834,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
 
 h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -846,7 +863,7 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 
 h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_i64(eval_expr(s, e.child(2), ctx))
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
