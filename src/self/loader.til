@@ -1122,8 +1122,8 @@ til_type_user := func(t: Type) returns Str {
     case Type.Primitive(Primitive.I32):       return "I32"
     case Type.Primitive(Primitive.U32):       return "U32"
     case Type.Primitive(Primitive.U64):       return "U64"
-    case Type.F32:       return "F32"
-    case Type.Bool:      return "Bool"
+    case Type.Primitive(Primitive.F32):       return "F32"
+    case Type.Primitive(Primitive.Bool):      return "Bool"
     case Type.Struct(name):    return name.clone()
     case Type.StructDef:       return "StructDef"
     case Type.Enum(name):      return name.clone()

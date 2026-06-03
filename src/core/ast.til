@@ -26,6 +26,8 @@ Primitive := enum {
     I32,
     U64,
     I64,
+    F32,
+    Bool,
 }
 
 // --- Type enum ---
@@ -34,12 +36,13 @@ Primitive := enum {
 /// types (Struct/Enum/Custom) and is tag-only for builtins.
 Type := enum {
     Unknown, None,
-    // I64/I32/U32/U64 have moved to Primitive: every producer/consumer now
-    // uses Type.Primitive(Primitive.X). These flat variants are dead (nothing
-    // constructs them) but kept at their original tag positions so master's
-    // til_boot keeps decoding existing Type tags while bootstrapping; a
-    // follow-up commit drops them. F32/Bool are still flat (not yet migrated).
-    I64, I32, U32, U64, F32, Bool,
+    // F32/Bool have moved to Primitive but the flat variants are kept (dead,
+    // at their original tag positions) for one bootstrap step: master's
+    // til_boot still emits a bare Type.F32/Type.Bool for type-token args
+    // (e.g. Vec.new(Bool)), so the flats must stay until the regenerated boot
+    // emits the Primitive form. A follow-up drops them. (I64/I32/U32/U64 were
+    // dropped here now that the boot emits their Primitive form.)
+    F32, Bool,
     Struct: Str, StructDef,
     Enum: Str, EnumDef,
     FuncDef, FuncPtr, Dynamic,
@@ -79,8 +82,6 @@ namespace:
             if b.is(Type.Primitive).not() { return false }
             return til_type_name_c(a).eq(til_type_name_c(b))
         }
-        if a.is(Type.F32)       { return b.is(Type.F32) }
-        if a.is(Type.Bool)      { return b.is(Type.Bool) }
         if a.is(Type.StructDef) { return b.is(Type.StructDef) }
         if a.is(Type.EnumDef)   { return b.is(Type.EnumDef) }
         if a.is(Type.FuncDef)   { return b.is(Type.FuncDef) }
@@ -102,13 +103,11 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.Primitive(Primitive.I32):       return "I32"
     case Type.Primitive(Primitive.U32):       return "U32"
     case Type.Primitive(Primitive.U64):       return "U64"
-    // Dead arms: I64/I32/U32/U64 moved to Primitive but the flat Type
-    // variants are kept (at their original tags) for bootstrap stability
-    // until a follow-up drops them. Nothing constructs these.
-    case Type.I64:       return "I64"
-    case Type.I32:       return "I32"
-    case Type.U32:       return "U32"
-    case Type.U64:       return "U64"
+    case Type.Primitive(Primitive.F32):       return "F32"
+    case Type.Primitive(Primitive.Bool):      return "Bool"
+    // Dead arms: F32/Bool flat variants kept for one bootstrap step (see
+    // the Type enum). Nothing constructs these; the switch must stay
+    // exhaustive while the flats exist.
     case Type.F32:       return "F32"
     case Type.Bool:      return "Bool"
     case Type.Struct(s):
@@ -157,8 +156,8 @@ is_primitive := func(t: Type) returns Bool {
     case Type.Primitive(Primitive.I32):  return true
     case Type.Primitive(Primitive.U32):  return true
     case Type.Primitive(Primitive.U64):  return true
-    case Type.F32:  return true
-    case Type.Bool: return true
+    case Type.Primitive(Primitive.F32):  return true
+    case Type.Primitive(Primitive.Bool): return true
     case Type.Primitive: return true
     case Type.Struct(s):
         if s.eq("I64")  { return true }
@@ -717,7 +716,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Literal(Literal.Num(nd)):
         if nd.til_type.is(Type.Unknown) { return Type.Primitive(Primitive.I64) }
         return nd.til_type.clone()
-    case NodeType.Literal(Literal.Bool): return Type.Bool
+    case NodeType.Literal(Literal.Bool): return Type.Primitive(Primitive.Bool)
     case NodeType.Literal(Literal.Null): return Type.Dynamic
     case NodeType.Ident(id):   return id.til_type.clone()
     case NodeType.Decl(dd):    return dd.til_type.clone()

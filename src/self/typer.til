@@ -63,14 +63,12 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.Primitive(Primitive.I32):       primitive_variant = "I32"
     case Type.Primitive(Primitive.U32):       primitive_variant = "U32"
     case Type.Primitive(Primitive.U64):       primitive_variant = "U64"
-    // Dead arms: flat I64/I32/U32/U64 kept in Type for bootstrap; never
+    case Type.Primitive(Primitive.F32):       primitive_variant = "F32"
+    case Type.Primitive(Primitive.Bool):      primitive_variant = "Bool"
+    // Dead arms: flat F32/Bool kept in Type for one bootstrap step; never
     // constructed, but the switch must stay exhaustive.
-    case Type.I64:       primitive_variant = "I64"
-    case Type.I32:       primitive_variant = "I32"
-    case Type.U32:       primitive_variant = "U32"
-    case Type.U64:       primitive_variant = "U64"
-    case Type.F32:       variant_name = "F32"
-    case Type.Bool:      variant_name = "Bool"
+    case Type.F32:       primitive_variant = "F32"
+    case Type.Bool:      primitive_variant = "Bool"
     case Type.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
     case Type.StructDef: variant_name = "StructDef"
     case Type.Enum(s):   variant_name = "Enum"; payload_name = s.clone(); has_payload = true
@@ -589,7 +587,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         }
         return false
     case NodeType.FieldAccess:
-        // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.Bool` produced
+        // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.None` produced
         // by make_til_type_expr for primitive type-token args) is a Type
         // metatype value -- pure and comptime.
         if e.expr_til_type().eq(Type.Enum("Type")) {
@@ -1431,7 +1429,14 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
         arg.set_expr_til_type(ptype)
         return
     }
-    if arg.expr_til_type().is(ptype).not() {
+    // Primitives all share the Type.Primitive tag, so the tag-only is()
+    // can't tell them apart (e.g. Primitive(I64) vs Primitive(Bool)).
+    // Compare precisely when both sides are primitives.
+    mut type_matches := arg.expr_til_type().is(ptype)
+    if arg.expr_til_type().is(Type.Primitive).and(ptype.is(Type.Primitive)) {
+        type_matches = arg.expr_til_type().eq(ptype)
+    }
+    if type_matches.not() {
         arg.type_error("argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
     } else if is_aggregate(ptype) {
         arg_sname := til_type_name(arg.expr_til_type())
@@ -3853,7 +3858,8 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, return
 
 infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
-    if stmt.child(0).expr_til_type().is(Type.Bool).not().and(stmt.child(0).expr_til_type().is(Type.Unknown).not()) {
+    if_cond_t := stmt.child(0).expr_til_type()
+    if if_cond_t.is(Type.Primitive).and(til_type_name_c(if_cond_t).eq("Bool")).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
     then_scope := TypeScope(parent = scope)
@@ -4077,7 +4083,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
 
 infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
-    if stmt.child(0).expr_til_type().is(Type.Bool).not().and(stmt.child(0).expr_til_type().is(Type.Unknown).not()) {
+    while_cond_t := stmt.child(0).expr_til_type()
+    if while_cond_t.is(Type.Primitive).and(til_type_name_c(while_cond_t).eq("Bool")).not().and(while_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("while condition must be Bool, got ".concat(type_to_name(stmt.child(0).expr_til_type())), ctx)
     }
     if expr_contains_fcall(stmt.child(0)) {
@@ -4089,13 +4096,13 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns
         ctx.hoist_counter++
 
         mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col)
-        decl.set_expr_til_type(Type.Bool)
+        decl.set_expr_til_type(Type.Primitive(Primitive.Bool))
         decl.add_child(own cond.clone())
         ref mut decl_rhs : Expr = decl.child(0)
-        decl_rhs.set_expr_til_type(Type.Bool)
+        decl_rhs.set_expr_til_type(Type.Primitive(Primitive.Bool))
 
         mut ident := Expr.new(ident_node(wname), line, col)
-        ident.set_expr_til_type(Type.Bool)
+        ident.set_expr_til_type(Type.Primitive(Primitive.Bool))
 
         mut if_node := Expr.new(NodeType.If, line, col)
         if_node.set_expr_til_type(Type.None)
@@ -4181,9 +4188,9 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
         else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
         else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
-        else if sname.eq("F32") { builtin_type = Type.F32; is_builtin = true }
+        else if sname.eq("F32") { builtin_type = Type.Primitive(Primitive.F32); is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
-        else if sname.eq("Bool") { builtin_type = Type.Bool; is_builtin = true }
+        else if sname.eq("Bool") { builtin_type = Type.Primitive(Primitive.Bool); is_builtin = true }
         else if sname.eq("StructDef") { is_builtin = false }
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
@@ -5113,7 +5120,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
     if any_guard {
         matched_name = "_sw_matched_".concat(ctx.hoist_counter.to_str())
         ctx.hoist_counter++
-        mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Shallow)), stmt.line, stmt.col)
+        mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
         matched_decl.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
         block.add_child(own matched_decl)
     }
@@ -8236,7 +8243,7 @@ is_numeric_type := func(t: Type) returns Bool {
     case Type.Primitive(Primitive.I32): return true
     case Type.Primitive(Primitive.U32): return true
     case Type.Primitive(Primitive.U64): return true
-    case Type.F32: return true
+    case Type.Primitive(Primitive.F32): return true
     case Type.Struct(s):
         if s.eq("I32") { return true }
         if s.eq("U8")  { return true }
@@ -8315,7 +8322,7 @@ can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns Bo
 literal_in_range := func(val_str: Str, target: Type) returns Bool {
     switch target {
     case Type.Primitive(Primitive.I64): return true
-    case Type.F32: return true
+    case Type.Primitive(Primitive.F32): return true
     case Type.Primitive(Primitive.U8):
         val := val_str.to_i64()
         return val.gte(0).and(val.lte(255))
@@ -8451,9 +8458,9 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     if name.eq("I32")  { return Type.Struct("I32") }
     if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
     if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
-    if name.eq("F32")  { return Type.F32 }
+    if name.eq("F32")  { return Type.Primitive(Primitive.F32) }
     if name.eq("Str")  { return Type.Struct("Str") }
-    if name.eq("Bool") { return Type.Bool }
+    if name.eq("Bool") { return Type.Primitive(Primitive.Bool) }
     if name.eq("StructDef") { return Type.Struct("StructDef") }
     if name.eq("EnumDef")   { return Type.Struct("EnumDef") }
     if name.eq("Fn")        { return Type.FuncPtr }
@@ -8668,8 +8675,8 @@ type_prefix := func(t: Type) returns Str {
     case Type.Primitive(Primitive.I32): return "I32"
     case Type.Primitive(Primitive.U32): return "U32"
     case Type.Primitive(Primitive.U64): return "U64"
-    case Type.F32: return "F32"
-    case Type.Bool: return "Bool"
+    case Type.Primitive(Primitive.F32): return "F32"
+    case Type.Primitive(Primitive.Bool): return "Bool"
     case Type.None: return "None"
     case Type.Struct(s):
         if s.len().gt(0) { return s.clone() }
@@ -8700,8 +8707,8 @@ type_to_name := func(t: Type) returns Str {
     case Type.Primitive(Primitive.I32): return I32Name.clone()
     case Type.Primitive(Primitive.U32): return U32Name.clone()
     case Type.Primitive(Primitive.U64): return U64Name.clone()
-    case Type.F32: return F32Name.clone()
-    case Type.Bool: return BoolName.clone()
+    case Type.Primitive(Primitive.F32): return F32Name.clone()
+    case Type.Primitive(Primitive.Bool): return BoolName.clone()
     case: return ""
     }
 }
@@ -10610,7 +10617,7 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
 // insert_exit_deletes_into_stmt / insert_post_stmt_deletes /
 // insert_assign_delete, insert_free_calls) moved to
 // src/self/garbager.til. See issue #204 / doc/pipeline.org step 5.
-// expr_til_type derives Type.Struct("Str") and Type.Bool for LiteralStr
+// expr_til_type derives Type.Struct("Str") and Type.Primitive(Primitive.Bool) for LiteralStr
 // and LiteralBool directly from node_type, so this function only needs
 // to handle the two variants with non-trivial inference: LiteralNum's
 // I64-default-unless-already-narrowed (parser writes Type.Struct("U8") for char

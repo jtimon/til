@@ -79,8 +79,8 @@ til_type_from_explicit_type := func(name: Str) returns Type {
     if name.eq("I32")     { return Type.Struct("I32") }
     if name.eq("U32")     { return Type.Primitive(Primitive.U32) }
     if name.eq("U64")     { return Type.Primitive(Primitive.U64) }
-    if name.eq("F32")     { return Type.F32 }
-    if name.eq("Bool")    { return Type.Bool }
+    if name.eq("F32")     { return Type.Primitive(Primitive.F32) }
+    if name.eq("Bool")    { return Type.Primitive(Primitive.Bool) }
     if name.eq("Dynamic") { return Type.Dynamic }
     if name.len().eq(0)   { return Type.Unknown }
     return Type.Custom(name.clone())

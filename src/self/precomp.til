@@ -346,7 +346,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         // (the literal is re-parsed) and codegen (emitted verbatim as a C
         // float literal). So folded F32 results are faithful.
         mut e := Expr.new(literal_num_node(x.to_repr()), src.line, src.col)
-        e.set_expr_til_type(Type.F32)
+        e.set_expr_til_type(Type.Primitive(Primitive.F32))
         return e
     case Value.Struct(si):
         if si.to_str().eq("Str") {
@@ -420,7 +420,7 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         case Type.Primitive(Primitive.I16): return val_i16(num.to_i64())
         case Type.Primitive(Primitive.U16): return val_u16(num.to_i64())
         case Type.Primitive(Primitive.I32): return val_i32(num.to_i64())
-        case Type.F32: return val_f32(num.to_f32())
+        case Type.Primitive(Primitive.F32): return val_f32(num.to_f32())
         case Type.Struct(s):
             if s.eq("I32") { return val_i32(num.to_i64()) }
             if s.eq("U8")  { return val_u8(num.to_u8()) }

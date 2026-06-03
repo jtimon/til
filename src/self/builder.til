@@ -649,8 +649,8 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.Primitive(Primitive.I32):     return "I32"
     case Type.Primitive(Primitive.U32):     return "U32"
     case Type.Primitive(Primitive.U64):     return "U64"
-    case Type.F32:     return "F32"
-    case Type.Bool:    return "Bool"
+    case Type.Primitive(Primitive.F32):     return "F32"
+    case Type.Primitive(Primitive.Bool):    return "Bool"
     case Type.None:    return "void"
     case Type.Dynamic: return "void *"
     case Type.FuncPtr: return "void *"
@@ -818,7 +818,7 @@ priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
 }
 
 emit_til_default := proc(f: File, shallow t: Type) {
-    if t.is(Type.Bool) {
+    if t.is(Type.Primitive).and(til_type_name_c(t).eq("Bool")) {
         f.write("false")
     } else if is_primitive(t) {
         f.write("0")
@@ -4273,8 +4273,8 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                         case Type.Primitive(Primitive.I32):  ct = "ctypes.POINTER(ctypes.c_int)"
                         case Type.Primitive(Primitive.U32):  ct = "ctypes.POINTER(ctypes.c_uint)"
                         case Type.Primitive(Primitive.U64):  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
-                        case Type.F32:  ct = "ctypes.POINTER(ctypes.c_float)"
-                        case Type.Bool: ct = "ctypes.POINTER(ctypes.c_bool)"
+                        case Type.Primitive(Primitive.F32):  ct = "ctypes.POINTER(ctypes.c_float)"
+                        case Type.Primitive(Primitive.Bool): ct = "ctypes.POINTER(ctypes.c_bool)"
                         case Type.Struct(sname):
                             if sname.eq("I32")     { ct = "ctypes.POINTER(ctypes.c_int)" }
                             else if sname.eq("U8") { ct = "ctypes.POINTER(ctypes.c_ubyte)" }

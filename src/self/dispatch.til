@@ -953,6 +953,8 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             if ptag.eq(enum_variant_tag(prim_def, "I32")) { r = make_str_value("I32".c_str, 3, ctx); return true }
             if ptag.eq(enum_variant_tag(prim_def, "U64")) { r = make_str_value("U64".c_str, 3, ctx); return true }
             if ptag.eq(enum_variant_tag(prim_def, "I64")) { r = make_str_value("I64".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "F32")) { r = make_str_value("F32".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "Bool")) { r = make_str_value("Bool".c_str, 4, ctx); return true }
             panic(__LOC__, "dyn_type_to_str: unknown Primitive tag")
         }
         panic(__LOC__, "dyn_type_to_str: unknown Type tag")

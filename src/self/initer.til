@@ -561,7 +561,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
     if name.eq("USize") { return Type.Primitive(Primitive.U32) }
     if name.eq("Str")  { return Type.Struct("Str") }
-    if name.eq("Bool") { return Type.Bool }
+    if name.eq("Bool") { return Type.Primitive(Primitive.Bool) }
     if name.eq("StructDef") { return Type.Struct("StructDef") }
     if name.eq("EnumDef") { return Type.Struct("EnumDef") }
     if name.eq("Dynamic")   { return Type.Dynamic }
@@ -644,7 +644,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
         else if sname.eq("USize") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
-        else if sname.eq("Bool") { builtin_type = Type.Bool; is_builtin = true }
+        else if sname.eq("Bool") { builtin_type = Type.Primitive(Primitive.Bool); is_builtin = true }
         else if sname.eq("StructDef") { is_builtin = false }
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
@@ -910,7 +910,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Cont
             // plain borrowed param (Ref) and let step-1 auto-shallow normalize
             // it to value -- same as a hand-written delete. (An explicit Shallow
             // here would trip the step-2 redundant-shallow check.)
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
             proc_decl.variadic_index = -1
             proc_decl.kwargs_index = -1
 
@@ -1253,7 +1253,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: 
     // Issue #223: call_free is a primitive (Bool) -> emit a plain borrowed
     // param (Ref) and let step-1 auto-shallow normalize it to value, matching
     // a hand-written delete. (An explicit Shallow trips the step-2 check.)
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Bool, own_type = OwnType.Ref, default_value = default_true.clone()))
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = default_true.clone()))
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
 
@@ -2500,7 +2500,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
         out_type = Type.Primitive(Primitive.I64)
         return true
     case NodeType.Literal(Literal.Bool):
-        out_type = Type.Bool
+        out_type = Type.Primitive(Primitive.Bool)
         return true
     case NodeType.Literal(Literal.Str):
         out_type = Type.Struct("Str")
@@ -3031,7 +3031,7 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
 
 // Issue #58: evaluate a macro-body condition at expand time. Today
 // only the `<Ident>.is(Type.<Variant>)` shape is recognised -- enough
-// to make `if T.is(Type.Bool) { ... }` style template branching pick
+// to make `if T.is(Type.Primitive(Primitive.Bool)) { ... }` style template branching pick
 // a branch deterministically once T's substitution is applied. Returns
 // 1 (true), 0 (false), or -1 (shape not understood, caller falls back
 // to leaving the macro un-expanded).
@@ -3054,6 +3054,37 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     case: return -1
     }
     ref arg : Expr = cond.child(1)
+    // Nested form `Type.Primitive(Primitive.X)` (an FCall): a primitive that
+    // lives under Type.Primitive rather than as a flat Type variant. Match
+    // the inner primitive name against the substituted type-param Ident.
+    if arg.node_type.is(NodeType.FCall) {
+        if arg.children.len().neq(2.to_usize()) { return -1 }
+        ref p_callee : Expr = arg.child(0)
+        mut p_callee_name := ""
+        switch p_callee.node_type {
+        case NodeType.FieldAccess(p_fan): p_callee_name = p_fan.field_access_name()
+        case: return -1
+        }
+        if p_callee_name.eq("Primitive").not() { return -1 }
+        if p_callee.children.len().neq(1.to_usize()) { return -1 }
+        switch p_callee.child(0).node_type {
+        case NodeType.Ident(p_recv): if p_recv.ident_name().eq("Type").not() { return -1 }
+        case: return -1
+        }
+        ref p_arg : Expr = arg.child(1)
+        mut prim_name := ""
+        switch p_arg.node_type {
+        case NodeType.FieldAccess(p_arg_fan): prim_name = p_arg_fan.field_access_name()
+        case: return -1
+        }
+        if p_arg.children.len().neq(1.to_usize()) { return -1 }
+        switch p_arg.child(0).node_type {
+        case NodeType.Ident(p_arg_recv): if p_arg_recv.ident_name().eq("Primitive").not() { return -1 }
+        case: return -1
+        }
+        if lhs_name.eq(prim_name) { return 1 }
+        return 0
+    }
     if arg.node_type.is(NodeType.FieldAccess).not() { return -1 }
     mut variant_name := ""
     switch arg.node_type {
@@ -3089,7 +3120,7 @@ priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
     if s.children.len().lt(2.to_usize()) { return NULL }
     // Clone + substitute the condition before evaluating: subs maps the
     // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
-    // `T.is(Type.Bool)` into `Bool.is(Type.Bool)`.
+    // `T.is(Type.Primitive(Primitive.Bool))` into `Bool.is(Type.Primitive(Primitive.Bool))`.
     mut cond_clone := s.child(0).clone()
     init_substitute_idents(cond_clone, subs)
     res := init_macro_cond_eval(cond_clone)

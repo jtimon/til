@@ -16,10 +16,10 @@ test_func_type := test() {
 
 test_til_type := test() {
     assert_eq_str(__LOC__, til_type_name_c(Type.Unknown), "unknown")
-    assert_eq_str(__LOC__, til_type_name_c(Type.I64), "I64")
+    assert_eq_str(__LOC__, til_type_name_c(Type.Primitive(Primitive.I64)), "I64")
     assert_eq_str(__LOC__, til_type_name_c(Type.FuncPtr), "Fn")
-    assert_eq_str(__LOC__, til_type_name_c(Type.U64), "U64")
-    assert_eq_str(__LOC__, til_type_name_c(Type.F32), "F32")
+    assert_eq_str(__LOC__, til_type_name_c(Type.Primitive(Primitive.U64)), "U64")
+    assert_eq_str(__LOC__, til_type_name_c(Type.Primitive(Primitive.F32)), "F32")
 }
 
 test_expr_new := test() {

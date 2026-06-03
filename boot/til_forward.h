@@ -16,16 +16,14 @@ typedef enum {
     Primitive_TAG_U32,
     Primitive_TAG_I32,
     Primitive_TAG_U64,
-    Primitive_TAG_I64
+    Primitive_TAG_I64,
+    Primitive_TAG_F32,
+    Primitive_TAG_Bool
 } Primitive_tag;
 typedef struct Primitive Primitive;
 typedef enum {
     Type_TAG_Unknown,
     Type_TAG_None,
-    Type_TAG_I64,
-    Type_TAG_I32,
-    Type_TAG_U32,
-    Type_TAG_U64,
     Type_TAG_F32,
     Type_TAG_Bool,
     Type_TAG_Struct,
