@@ -605,11 +605,11 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         switch lit_t {
         case Type.Primitive(Primitive.U8):  return val_u8(num_str.to_i64())
         case Type.Primitive(Primitive.I8):  return val_i8(num_str.to_i64())
-        case Type.U32: return val_u32(num_str.to_i64())
-        case Type.U64: return val_u64(num_str.to_u64())
+        case Type.Primitive(Primitive.U32): return val_u32(num_str.to_i64())
+        case Type.Primitive(Primitive.U64): return val_u64(num_str.to_u64())
         case Type.Primitive(Primitive.I16): return val_i16(num_str.to_i64())
         case Type.Primitive(Primitive.U16): return val_u16(num_str.to_i64())
-        case Type.I32: return val_i32(num_str.to_i64())
+        case Type.Primitive(Primitive.I32): return val_i32(num_str.to_i64())
         case Type.F32: return val_f32(num_str.to_f32())
         case Type.Struct(s):
             if s.eq("I32") { return val_i32(num_str.to_i64()) }

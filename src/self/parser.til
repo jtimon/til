@@ -71,14 +71,14 @@ peek_col := func(p: Parser) returns U32 { return peek(p).col }
 // later refine it into Struct(name) or Enum(name) via scope lookup while
 // keeping the name already provided by the user.
 til_type_from_explicit_type := func(name: Str) returns Type {
-    if name.eq("I64")     { return Type.I64 }
+    if name.eq("I64")     { return Type.Primitive(Primitive.I64) }
     if name.eq("U8")      { return Type.Struct("U8") }
     if name.eq("I8")      { return Type.Struct("I8") }
     if name.eq("I16")     { return Type.Primitive(Primitive.I16) }
     if name.eq("U16")     { return Type.Primitive(Primitive.U16) }
     if name.eq("I32")     { return Type.Struct("I32") }
-    if name.eq("U32")     { return Type.U32 }
-    if name.eq("U64")     { return Type.U64 }
+    if name.eq("U32")     { return Type.Primitive(Primitive.U32) }
+    if name.eq("U64")     { return Type.Primitive(Primitive.U64) }
     if name.eq("F32")     { return Type.F32 }
     if name.eq("Bool")    { return Type.Bool }
     if name.eq("Dynamic") { return Type.Dynamic }

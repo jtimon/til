@@ -55,14 +55,20 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     switch t {
     case Type.Unknown:   variant_name = "Unknown"
     case Type.None:      variant_name = "None"
-    case Type.I64:       variant_name = "I64"
+    case Type.Primitive(Primitive.I64):       primitive_variant = "I64"
     case Type.Primitive(Primitive.U8):        variant_name = "U8"
     case Type.Primitive(Primitive.I8):        variant_name = "I8"
     case Type.Primitive(Primitive.I16):       primitive_variant = "I16"
     case Type.Primitive(Primitive.U16):       primitive_variant = "U16"
-    case Type.I32:       variant_name = "I32"
-    case Type.U32:       variant_name = "U32"
-    case Type.U64:       variant_name = "U64"
+    case Type.Primitive(Primitive.I32):       primitive_variant = "I32"
+    case Type.Primitive(Primitive.U32):       primitive_variant = "U32"
+    case Type.Primitive(Primitive.U64):       primitive_variant = "U64"
+    // Dead arms: flat I64/I32/U32/U64 kept in Type for bootstrap; never
+    // constructed, but the switch must stay exhaustive.
+    case Type.I64:       primitive_variant = "I64"
+    case Type.I32:       primitive_variant = "I32"
+    case Type.U32:       primitive_variant = "U32"
+    case Type.U64:       primitive_variant = "U64"
     case Type.F32:       variant_name = "F32"
     case Type.Bool:      variant_name = "Bool"
     case Type.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
@@ -89,6 +95,10 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
         mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
         call.add_child(own type_prim_fa)
         call.add_child(own prim_fa)
+        // The Type.Primitive(p) constructor takes ownership of its payload
+        // (it frees the boxed Primitive), so the payload arg (child 1) must
+        // be emitted as an owned heap box, not a stack compound literal.
+        set_own_arg(call, 1)
         call.set_expr_til_type(Type.Enum("Type"))
         return call
     }
@@ -579,7 +589,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         }
         return false
     case NodeType.FieldAccess:
-        // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.I64` produced
+        // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.Bool` produced
         // by make_til_type_expr for primitive type-token args) is a Type
         // metatype value -- pure and comptime.
         if e.expr_til_type().eq(Type.Enum("Type")) {
@@ -3899,14 +3909,14 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
         if is_enum { builtin_type = Type.Enum(sname.clone()) }
-        if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
+        if sname.eq("I64") { builtin_type = Type.Primitive(Primitive.I64); is_builtin = true }
         else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
         else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
         else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
-        else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
-        else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
+        else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
+        else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
         else if sname.eq("F32") { builtin_type = Type.F32; is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
         else if sname.eq("Bool") { builtin_type = Type.Bool; is_builtin = true }
@@ -5223,7 +5233,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
             if already_extended.not() {
                 mut kp := Declaration(name = "_err_kind",
                     explicit_type = "I64",
-                    til_type = Type.I64,
+                    til_type = Type.Primitive(Primitive.I64),
                     is_mut = true,
                     own_type = OwnType.Ref,
                     used = true)
@@ -5291,7 +5301,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     fk_name := "_forin_err_kind_".concat(counter.to_str())
     if get_throws {
         mut kind_decl := Expr.new(NodeType.Decl(Declaration(name = fk_name.clone(),
-            explicit_type = "I64", til_type = Type.I64, is_mut = true)), line, col)
+            explicit_type = "I64", til_type = Type.Primitive(Primitive.I64), is_mut = true)), line, col)
         kind_decl.add_child(own make_int_lit(0, line, col))
         block.add_child(own kind_decl)
         for gtn : Str in get_throw_types {
@@ -5326,7 +5336,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         // get's extended signature is satisfied without any flag-and-
         // lower roundtrip through the throw/catch pass.
         mut kind_arg := Expr.new(ident_node(fk_name), line, col)
-        kind_arg.set_expr_til_type(Type.I64)
+        kind_arg.set_expr_til_type(Type.Primitive(Primitive.I64))
         get_call.add_child(own kind_arg)
         for gtn : Str in get_throw_types {
             slot_name := "_forin_".concat(gtn).concat("_").concat(counter.to_str())
@@ -5343,7 +5353,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         // for-in is the only caller of this get; on-error semantics is
         // panic-with-type-name, matching the user-visible `arr[i]`.
         mut kind_id := Expr.new(ident_node(fk_name), line, col)
-        kind_id.set_expr_til_type(Type.I64)
+        kind_id.set_expr_til_type(Type.Primitive(Primitive.I64))
         mut zero_lit := make_int_lit(0, line, col)
         mut eq_call := make_method_call_fcall(own kind_id, "eq", line, col)
         eq_call.add_child(own zero_lit)
@@ -5966,7 +5976,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                 if already.not() {
                     mut kp := Declaration(name = "_err_kind",
                         explicit_type = "I64",
-                        til_type = Type.I64,
+                        til_type = Type.Primitive(Primitive.I64),
                         is_mut = true,
                         own_type = OwnType.Ref,
                         used = true)
@@ -6484,7 +6494,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr
     if idx_enc.eq(0) { return }
     ref tts : Vec = ctx.throws_per_global[idx_enc.sub(1).to_u32()]
     mut kind_id := Expr.new(ident_node("_err_kind"), e.line, e.col)
-    kind_id.set_expr_til_type(Type.I64)
+    kind_id.set_expr_til_type(Type.Primitive(Primitive.I64))
     e.add_child(own kind_id)
     for tn : Str in tts {
         mut slot_id := Expr.new(ident_node(err_slot_name(tn)), e.line, e.col)
@@ -7935,14 +7945,14 @@ assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns Boo
 
 is_numeric_type := func(t: Type) returns Bool {
     switch t {
-    case Type.I64: return true
+    case Type.Primitive(Primitive.I64): return true
     case Type.Primitive(Primitive.U8):  return true
     case Type.Primitive(Primitive.I8):  return true
     case Type.Primitive(Primitive.I16): return true
     case Type.Primitive(Primitive.U16): return true
-    case Type.I32: return true
-    case Type.U32: return true
-    case Type.U64: return true
+    case Type.Primitive(Primitive.I32): return true
+    case Type.Primitive(Primitive.U32): return true
+    case Type.Primitive(Primitive.U64): return true
     case Type.F32: return true
     case Type.Struct(s):
         if s.eq("I32") { return true }
@@ -7955,14 +7965,14 @@ is_numeric_type := func(t: Type) returns Bool {
 
 is_integral_numeric_type := func(t: Type) returns Bool {
     switch t {
-    case Type.I64: return true
+    case Type.Primitive(Primitive.I64): return true
     case Type.Primitive(Primitive.U8):  return true
     case Type.Primitive(Primitive.I8):  return true
     case Type.Primitive(Primitive.I16): return true
     case Type.Primitive(Primitive.U16): return true
-    case Type.I32: return true
-    case Type.U32: return true
-    case Type.U64: return true
+    case Type.Primitive(Primitive.I32): return true
+    case Type.Primitive(Primitive.U32): return true
+    case Type.Primitive(Primitive.U64): return true
     case Type.Struct(s):
         if s.eq("I32") { return true }
         if s.eq("U8")  { return true }
@@ -8002,16 +8012,16 @@ is_uptr_name := func(name: Str) returns Bool {
 can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns Bool {
     if is_usize_name(to_name) {
         switch to {
-        case Type.U32:
+        case Type.Primitive(Primitive.U32):
             return is_integral_numeric_type(from)
         case: return false
         }
     }
     if is_uptr_name(to_name) {
         switch to {
-        case Type.U32:
+        case Type.Primitive(Primitive.U32):
             return is_integral_numeric_type(from)
-        case Type.U64:
+        case Type.Primitive(Primitive.U64):
             return is_integral_numeric_type(from)
         case: return false
         }
@@ -8021,7 +8031,7 @@ can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns Bo
 
 literal_in_range := func(val_str: Str, target: Type) returns Bool {
     switch target {
-    case Type.I64: return true
+    case Type.Primitive(Primitive.I64): return true
     case Type.F32: return true
     case Type.Primitive(Primitive.U8):
         val := val_str.to_i64()
@@ -8035,13 +8045,13 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
     case Type.Primitive(Primitive.U16):
         val := val_str.to_i64()
         return val.gte(0).and(val.lte(65535))
-    case Type.I32:
+    case Type.Primitive(Primitive.I32):
         val := val_str.to_i64()
         return val.gte(-2147483648).and(val.lte(2147483647))
-    case Type.U32:
+    case Type.Primitive(Primitive.U32):
         val := val_str.to_i64()
         return val.gte(0).and(val.lte(4294967295))
-    case Type.U64:
+    case Type.Primitive(Primitive.U64):
         val := val_str.to_i64()
         return val.gte(0)
     case Type.Struct(s):
@@ -8067,17 +8077,17 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
     // Issue #205: a primitive may arrive as Type.Struct("<name>") or as
     // Type.<Name> during the staged migration; both must widen to I64
     // and accept widening from the smaller primitives.
-    mut to_is_i32 := to.is(Type.I32)
+    // is() is tag-only and matches any Type.Primitive, so discriminate the
+    // inner primitive by name (til_type_name_c) instead of is(Primitive(X)).
+    mut to_is_i32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I32"))
     switch to {
     case Type.Struct(ts):
         if ts.eq("I32") { to_is_i32 = true }
     case:
     }
-    to_is_i64 := to.is(Type.I64)
-    to_is_u32 := to.is(Type.U32)
-    to_is_u64 := to.is(Type.U64)
-    // is() is tag-only and matches any Type.Primitive, so discriminate the
-    // inner primitive by name (til_type_name_c) instead of is(Primitive(X)).
+    to_is_i64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I64"))
+    to_is_u32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U32"))
+    to_is_u64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U64"))
     to_is_i16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I16"))
     to_is_u16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U16"))
     mut from_is_u8 := from.is(Type.Primitive).and(til_type_name_c(from).eq("U8"))
@@ -8119,11 +8129,11 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
         if to_is_u32 { return true }
         if to_is_u64 { return true }
         return false
-    case Type.U32:
+    case Type.Primitive(Primitive.U32):
         if to_is_u64 { return true }
         if to_is_i64 { return true }
         return false
-    case Type.I32:
+    case Type.Primitive(Primitive.I32):
         if to_is_i64 { return true }
         return false
     case Type.Struct(fs):
@@ -8150,14 +8160,14 @@ type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Context
 }
 
 type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
-    if name.eq("I64")  { return Type.I64 }
+    if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
     if name.eq("U8")   { return Type.Struct("U8") }
     if name.eq("I8")   { return Type.Struct("I8") }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
     if name.eq("I32")  { return Type.Struct("I32") }
-    if name.eq("U32")  { return Type.U32 }
-    if name.eq("U64")  { return Type.U64 }
+    if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
+    if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
     if name.eq("F32")  { return Type.F32 }
     if name.eq("Str")  { return Type.Struct("Str") }
     if name.eq("Bool") { return Type.Bool }
@@ -8367,14 +8377,14 @@ find_array_vec_fcall := func(e: Expr) returns ref Expr {
 
 type_prefix := func(t: Type) returns Str {
     switch t {
-    case Type.I64: return "I64"
+    case Type.Primitive(Primitive.I64): return "I64"
     case Type.Primitive(Primitive.U8): return "U8"
     case Type.Primitive(Primitive.I8): return "I8"
     case Type.Primitive(Primitive.I16): return "I16"
     case Type.Primitive(Primitive.U16): return "U16"
-    case Type.I32: return "I32"
-    case Type.U32: return "U32"
-    case Type.U64: return "U64"
+    case Type.Primitive(Primitive.I32): return "I32"
+    case Type.Primitive(Primitive.U32): return "U32"
+    case Type.Primitive(Primitive.U64): return "U64"
     case Type.F32: return "F32"
     case Type.Bool: return "Bool"
     case Type.None: return "None"
@@ -8399,14 +8409,14 @@ type_to_name := func(t: Type) returns Str {
     name := til_type_name(t)
     if name.len().gt(0) { return name }
     switch t {
-    case Type.I64: return I64Name.clone()
+    case Type.Primitive(Primitive.I64): return I64Name.clone()
     case Type.Primitive(Primitive.U8): return U8Name.clone()
     case Type.Primitive(Primitive.I8): return I8Name.clone()
     case Type.Primitive(Primitive.I16): return I16Name.clone()
     case Type.Primitive(Primitive.U16): return U16Name.clone()
-    case Type.I32: return I32Name.clone()
-    case Type.U32: return U32Name.clone()
-    case Type.U64: return U64Name.clone()
+    case Type.Primitive(Primitive.I32): return I32Name.clone()
+    case Type.Primitive(Primitive.U32): return U32Name.clone()
+    case Type.Primitive(Primitive.U64): return U64Name.clone()
     case Type.F32: return F32Name.clone()
     case Type.Bool: return BoolName.clone()
     case: return ""
@@ -10328,7 +10338,7 @@ infer_literal_expr := func(mut expr: Expr) {
     switch expr.node_type {
     case NodeType.Literal(Literal.Num):
         if is_numeric_type(expr.expr_til_type()).not() {
-            expr.set_expr_til_type(Type.I64)
+            expr.set_expr_til_type(Type.Primitive(Primitive.I64))
         }
     case NodeType.Literal(Literal.Null):
         expr.set_expr_til_type(Type.Dynamic)

@@ -22,6 +22,10 @@ Primitive := enum {
     U16,
     I8,
     U8,
+    U32,
+    I32,
+    U64,
+    I64,
 }
 
 // --- Type enum ---
@@ -30,6 +34,11 @@ Primitive := enum {
 /// types (Struct/Enum/Custom) and is tag-only for builtins.
 Type := enum {
     Unknown, None,
+    // I64/I32/U32/U64 have moved to Primitive: every producer/consumer now
+    // uses Type.Primitive(Primitive.X). These flat variants are dead (nothing
+    // constructs them) but kept at their original tag positions so master's
+    // til_boot keeps decoding existing Type tags while bootstrapping; a
+    // follow-up commit drops them. F32/Bool are still flat (not yet migrated).
     I64, I32, U32, U64, F32, Bool,
     Struct: Str, StructDef,
     Enum: Str, EnumDef,
@@ -62,7 +71,6 @@ namespace:
         // Non-payloaded variants: tag equality.
         if a.is(Type.Unknown)   { return b.is(Type.Unknown) }
         if a.is(Type.None)      { return b.is(Type.None) }
-        if a.is(Type.I64)       { return b.is(Type.I64) }
         // Primitive group (#203): both must be Type.Primitive and carry the
         // same inner Primitive. is() is tag-only and matches any Primitive, so
         // distinguish the inner primitive by name (til_type_name_c maps
@@ -71,9 +79,6 @@ namespace:
             if b.is(Type.Primitive).not() { return false }
             return til_type_name_c(a).eq(til_type_name_c(b))
         }
-        if a.is(Type.I32)       { return b.is(Type.I32) }
-        if a.is(Type.U32)       { return b.is(Type.U32) }
-        if a.is(Type.U64)       { return b.is(Type.U64) }
         if a.is(Type.F32)       { return b.is(Type.F32) }
         if a.is(Type.Bool)      { return b.is(Type.Bool) }
         if a.is(Type.StructDef) { return b.is(Type.StructDef) }
@@ -89,11 +94,18 @@ til_type_name_c := func(t: Type) returns Str {
     switch t {
     case Type.Unknown:   return "unknown"
     case Type.None:      return "None"
-    case Type.I64:       return "I64"
+    case Type.Primitive(Primitive.I64):       return "I64"
     case Type.Primitive(Primitive.U8):        return "U8"
     case Type.Primitive(Primitive.I8):        return "I8"
     case Type.Primitive(Primitive.I16):       return "I16"
     case Type.Primitive(Primitive.U16):       return "U16"
+    case Type.Primitive(Primitive.I32):       return "I32"
+    case Type.Primitive(Primitive.U32):       return "U32"
+    case Type.Primitive(Primitive.U64):       return "U64"
+    // Dead arms: I64/I32/U32/U64 moved to Primitive but the flat Type
+    // variants are kept (at their original tags) for bootstrap stability
+    // until a follow-up drops them. Nothing constructs these.
+    case Type.I64:       return "I64"
     case Type.I32:       return "I32"
     case Type.U32:       return "U32"
     case Type.U64:       return "U64"
@@ -139,12 +151,12 @@ til_type_name := func(t: Type) returns Str {
 // without other callers having to learn about the dual representation.
 is_primitive := func(t: Type) returns Bool {
     switch t {
-    case Type.I64:  return true
+    case Type.Primitive(Primitive.I64):  return true
     case Type.Primitive(Primitive.U8):   return true
     case Type.Primitive(Primitive.I8):   return true
-    case Type.I32:  return true
-    case Type.U32:  return true
-    case Type.U64:  return true
+    case Type.Primitive(Primitive.I32):  return true
+    case Type.Primitive(Primitive.U32):  return true
+    case Type.Primitive(Primitive.U64):  return true
     case Type.F32:  return true
     case Type.Bool: return true
     case Type.Primitive: return true
@@ -682,7 +694,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Body:        return Type.None
     case NodeType.Literal(Literal.Str):  return Type.Struct("Str")
     case NodeType.Literal(Literal.Num(nd)):
-        if nd.til_type.is(Type.Unknown) { return Type.I64 }
+        if nd.til_type.is(Type.Unknown) { return Type.Primitive(Primitive.I64) }
         return nd.til_type.clone()
     case NodeType.Literal(Literal.Bool): return Type.Bool
     case NodeType.Literal(Literal.Null): return Type.Dynamic

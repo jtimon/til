@@ -551,15 +551,15 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
 }
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
-    if name.eq("I64")  { return Type.I64 }
+    if name.eq("I64")  { return Type.Primitive(Primitive.I64) }
     if name.eq("U8")   { return Type.Struct("U8") }
     if name.eq("I8")   { return Type.Struct("I8") }
     if name.eq("I16")  { return Type.Primitive(Primitive.I16) }
     if name.eq("U16")  { return Type.Primitive(Primitive.U16) }
     if name.eq("I32")  { return Type.Struct("I32") }
-    if name.eq("U32")  { return Type.U32 }
-    if name.eq("U64")  { return Type.U64 }
-    if name.eq("USize") { return Type.U32 }
+    if name.eq("U32")  { return Type.Primitive(Primitive.U32) }
+    if name.eq("U64")  { return Type.Primitive(Primitive.U64) }
+    if name.eq("USize") { return Type.Primitive(Primitive.U32) }
     if name.eq("Str")  { return Type.Struct("Str") }
     if name.eq("Bool") { return Type.Bool }
     if name.eq("StructDef") { return Type.Struct("StructDef") }
@@ -634,15 +634,15 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
 
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
-        if sname.eq("I64") { builtin_type = Type.I64; is_builtin = true }
+        if sname.eq("I64") { builtin_type = Type.Primitive(Primitive.I64); is_builtin = true }
         else if sname.eq("U8") { builtin_type = Type.Struct("U8"); is_builtin = true }
         else if sname.eq("I8") { builtin_type = Type.Struct("I8"); is_builtin = true }
         else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
         else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
         else if sname.eq("I32") { builtin_type = Type.Struct("I32"); is_builtin = true }
-        else if sname.eq("U32") { builtin_type = Type.U32; is_builtin = true }
-        else if sname.eq("U64") { builtin_type = Type.U64; is_builtin = true }
-        else if sname.eq("USize") { builtin_type = Type.U32; is_builtin = true }
+        else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
+        else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
+        else if sname.eq("USize") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
         else if sname.eq("Str") { is_builtin = false }
         else if sname.eq("Bool") { builtin_type = Type.Bool; is_builtin = true }
         else if sname.eq("StructDef") { is_builtin = false }
@@ -2497,7 +2497,7 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
 
     switch rhs.node_type {
     case NodeType.Literal(Literal.Num):
-        out_type = Type.I64
+        out_type = Type.Primitive(Primitive.I64)
         return true
     case NodeType.Literal(Literal.Bool):
         out_type = Type.Bool
@@ -3031,7 +3031,7 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
 
 // Issue #58: evaluate a macro-body condition at expand time. Today
 // only the `<Ident>.is(Type.<Variant>)` shape is recognised -- enough
-// to make `if T.is(Type.I64) { ... }` style template branching pick
+// to make `if T.is(Type.Bool) { ... }` style template branching pick
 // a branch deterministically once T's substitution is applied. Returns
 // 1 (true), 0 (false), or -1 (shape not understood, caller falls back
 // to leaving the macro un-expanded).
@@ -3088,8 +3088,8 @@ priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
     if s.node_type.is(NodeType.If).not() { return NULL }
     if s.children.len().lt(2.to_usize()) { return NULL }
     // Clone + substitute the condition before evaluating: subs maps the
-    // type-param Ident (`T`) onto the call's arg Ident (`I64`), turning
-    // `T.is(Type.I64)` into `I64.is(Type.I64)`.
+    // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
+    // `T.is(Type.Bool)` into `Bool.is(Type.Bool)`.
     mut cond_clone := s.child(0).clone()
     init_substitute_idents(cond_clone, subs)
     res := init_macro_cond_eval(cond_clone)

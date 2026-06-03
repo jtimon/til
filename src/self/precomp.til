@@ -310,7 +310,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
     switch val {
     case Value.Int(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.I64)
+        e.set_expr_til_type(Type.Primitive(Primitive.I64))
         return e
     case Value.Byte(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
@@ -334,11 +334,11 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
         return e
     case Value.Uint32(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.U32)
+        e.set_expr_til_type(Type.Primitive(Primitive.U32))
         return e
     case Value.Uint64(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.U64)
+        e.set_expr_til_type(Type.Primitive(Primitive.U64))
         return e
     case Value.Float(x):
         // F32.to_repr emits 9 significant digits, which round-trips back
@@ -415,11 +415,11 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         lit_t := e.expr_til_type()
         switch lit_t {
         case Type.Primitive(Primitive.U8):  return val_u8(num.to_u8())
-        case Type.U32: return val_u32(num.to_i64())
-        case Type.U64: return val_u64(num.to_u64())
+        case Type.Primitive(Primitive.U32): return val_u32(num.to_i64())
+        case Type.Primitive(Primitive.U64): return val_u64(num.to_u64())
         case Type.Primitive(Primitive.I16): return val_i16(num.to_i64())
         case Type.Primitive(Primitive.U16): return val_u16(num.to_i64())
-        case Type.I32: return val_i32(num.to_i64())
+        case Type.Primitive(Primitive.I32): return val_i32(num.to_i64())
         case Type.F32: return val_f32(num.to_f32())
         case Type.Struct(s):
             if s.eq("I32") { return val_i32(num.to_i64()) }
@@ -812,7 +812,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                     switch cell.val {
                     case Value.Int(iv):
                         mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.I64)
+                        lit.set_expr_til_type(Type.Primitive(Primitive.I64))
                         ec.add_child(own lit)
                         continue
                     case Value.Byte(bv):
@@ -842,12 +842,12 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
                         continue
                     case Value.Uint32(uv):
                         mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.U32)
+                        lit.set_expr_til_type(Type.Primitive(Primitive.U32))
                         ec.add_child(own lit)
                         continue
                     case Value.Uint64(uv):
                         mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.U64)
+                        lit.set_expr_til_type(Type.Primitive(Primitive.U64))
                         ec.add_child(own lit)
                         continue
                     case Value.Boolean(bv):

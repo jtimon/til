@@ -641,14 +641,14 @@ fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
 
 priv til_type_to_c := func(shallow t: Type) returns Str {
     switch t {
-    case Type.I64:     return "I64"
+    case Type.Primitive(Primitive.I64):     return "I64"
     case Type.Primitive(Primitive.U8):      return "U8"
     case Type.Primitive(Primitive.I8):      return "I8"
     case Type.Primitive(Primitive.I16):     return "I16"
     case Type.Primitive(Primitive.U16):     return "U16"
-    case Type.I32:     return "I32"
-    case Type.U32:     return "U32"
-    case Type.U64:     return "U64"
+    case Type.Primitive(Primitive.I32):     return "I32"
+    case Type.Primitive(Primitive.U32):     return "U32"
+    case Type.Primitive(Primitive.U64):     return "U64"
     case Type.F32:     return "F32"
     case Type.Bool:    return "Bool"
     case Type.None:    return "void"
@@ -2156,7 +2156,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
         // the ULL suffix or `cc -Werror` rejects "integer constant is
         // so large that it is unsigned". The constfolder marks the
         // type, we just have to emit the suffix.
-        if e.expr_til_type().is(Type.U64) {
+        if e.expr_til_type().is(Type.Primitive).and(til_type_name_c(e.expr_til_type()).eq("U64")) {
             f.write("ULL")
         }
     case NodeType.Literal(Literal.Bool(b)):
@@ -4265,14 +4265,14 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                         ct = type_name_to_ctypes_param(fdd.explicit_type, false)
                     } else {
                         switch fdd.til_type {
-                        case Type.I64:  ct = "ctypes.POINTER(ctypes.c_longlong)"
+                        case Type.Primitive(Primitive.I64):  ct = "ctypes.POINTER(ctypes.c_longlong)"
                         case Type.Primitive(Primitive.U8):   ct = "ctypes.POINTER(ctypes.c_ubyte)"
                         case Type.Primitive(Primitive.I8):   ct = "ctypes.POINTER(ctypes.c_byte)"
                         case Type.Primitive(Primitive.I16):  ct = "ctypes.POINTER(ctypes.c_short)"
                         case Type.Primitive(Primitive.U16):  ct = "ctypes.POINTER(ctypes.c_ushort)"
-                        case Type.I32:  ct = "ctypes.POINTER(ctypes.c_int)"
-                        case Type.U32:  ct = "ctypes.POINTER(ctypes.c_uint)"
-                        case Type.U64:  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
+                        case Type.Primitive(Primitive.I32):  ct = "ctypes.POINTER(ctypes.c_int)"
+                        case Type.Primitive(Primitive.U32):  ct = "ctypes.POINTER(ctypes.c_uint)"
+                        case Type.Primitive(Primitive.U64):  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
                         case Type.F32:  ct = "ctypes.POINTER(ctypes.c_float)"
                         case Type.Bool: ct = "ctypes.POINTER(ctypes.c_bool)"
                         case Type.Struct(sname):

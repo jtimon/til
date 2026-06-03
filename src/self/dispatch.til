@@ -934,6 +934,27 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
             r = make_str_value(payload3.c_str, payload3.count, ctx)
             return true
         }
+        if tag.eq(enum_variant_tag(til_type_def, "Primitive")) {
+            // Type.Primitive(p) carries a Primitive enum value inline at
+            // ENUM_PAYLOAD_OFFSET (its tag is the first I32). Decode it to
+            // the primitive's name -- mirrors the data-driven nested switch
+            // that emit_dyn_type_to_str_body generates for compiled code.
+            ref prim_def : Expr = lookup_interp_type_def("Primitive", ctx)
+            if prim_def.is_null() {
+                panic(__LOC__, "dyn_type_to_str: Primitive definition not registered")
+            }
+            ref prim_tag_ref : I32 = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET)
+            ptag := prim_tag_ref
+            if ptag.eq(enum_variant_tag(prim_def, "I16")) { r = make_str_value("I16".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "U16")) { r = make_str_value("U16".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "I8"))  { r = make_str_value("I8".c_str, 2, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "U8"))  { r = make_str_value("U8".c_str, 2, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "U32")) { r = make_str_value("U32".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "I32")) { r = make_str_value("I32".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "U64")) { r = make_str_value("U64".c_str, 3, ctx); return true }
+            if ptag.eq(enum_variant_tag(prim_def, "I64")) { r = make_str_value("I64".c_str, 3, ctx); return true }
+            panic(__LOC__, "dyn_type_to_str: unknown Primitive tag")
+        }
         panic(__LOC__, "dyn_type_to_str: unknown Type tag")
         r = make_str_value("".c_str, 0, ctx)
         return true

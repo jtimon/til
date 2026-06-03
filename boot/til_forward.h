@@ -12,7 +12,11 @@ typedef enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
     Primitive_TAG_I8,
-    Primitive_TAG_U8
+    Primitive_TAG_U8,
+    Primitive_TAG_U32,
+    Primitive_TAG_I32,
+    Primitive_TAG_U64,
+    Primitive_TAG_I64
 } Primitive_tag;
 typedef struct Primitive Primitive;
 typedef enum {

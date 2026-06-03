@@ -1114,14 +1114,14 @@ func_kind := func(ft: FuncType) returns Str {
 // User-facing Type name for help() info strings. "" for Unknown/None.
 til_type_user := func(t: Type) returns Str {
     switch t {
-    case Type.I64:       return "I64"
+    case Type.Primitive(Primitive.I64):       return "I64"
     case Type.Primitive(Primitive.U8):        return "U8"
     case Type.Primitive(Primitive.I8):        return "I8"
     case Type.Primitive(Primitive.I16):       return "I16"
     case Type.Primitive(Primitive.U16):       return "U16"
-    case Type.I32:       return "I32"
-    case Type.U32:       return "U32"
-    case Type.U64:       return "U64"
+    case Type.Primitive(Primitive.I32):       return "I32"
+    case Type.Primitive(Primitive.U32):       return "U32"
+    case Type.Primitive(Primitive.U64):       return "U64"
     case Type.F32:       return "F32"
     case Type.Bool:      return "Bool"
     case Type.Struct(name):    return name.clone()
