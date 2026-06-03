@@ -65,10 +65,6 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.Primitive(Primitive.U64):       primitive_variant = "U64"
     case Type.Primitive(Primitive.F32):       primitive_variant = "F32"
     case Type.Primitive(Primitive.Bool):      primitive_variant = "Bool"
-    // Dead arms: flat F32/Bool kept in Type for one bootstrap step; never
-    // constructed, but the switch must stay exhaustive.
-    case Type.F32:       primitive_variant = "F32"
-    case Type.Bool:      primitive_variant = "Bool"
     case Type.Struct(s): variant_name = "Struct"; payload_name = s.clone(); has_payload = true
     case Type.StructDef: variant_name = "StructDef"
     case Type.Enum(s):   variant_name = "Enum"; payload_name = s.clone(); has_payload = true

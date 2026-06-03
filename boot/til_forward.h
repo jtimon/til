@@ -24,8 +24,6 @@ typedef struct Primitive Primitive;
 typedef enum {
     Type_TAG_Unknown,
     Type_TAG_None,
-    Type_TAG_F32,
-    Type_TAG_Bool,
     Type_TAG_Struct,
     Type_TAG_StructDef,
     Type_TAG_Enum,

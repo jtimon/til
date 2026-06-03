@@ -36,23 +36,18 @@ Primitive := enum {
 /// types (Struct/Enum/Custom) and is tag-only for builtins.
 Type := enum {
     Unknown, None,
-    // F32/Bool have moved to Primitive but the flat variants are kept (dead,
-    // at their original tag positions) for one bootstrap step: master's
-    // til_boot still emits a bare Type.F32/Type.Bool for type-token args
-    // (e.g. Vec.new(Bool)), so the flats must stay until the regenerated boot
-    // emits the Primitive form. A follow-up drops them. (I64/I32/U32/U64 were
-    // dropped here now that the boot emits their Primitive form.)
-    F32, Bool,
+    // All scalar primitives now live under Type.Primitive(Primitive). The
+    // builtin metatypes below carry no payload (Struct/Enum/Custom carry a
+    // name).
     Struct: Str, StructDef,
     Enum: Str, EnumDef,
     FuncDef, FuncPtr, Dynamic,
     Custom: Str,
-    // Primitive is appended at the end (rather than where I8/I16
-    // used to sit) so the tag values for existing variants are
-    // preserved -- master's til_boot has its tag values baked into
-    // its compiled C, and inserting a new variant in the middle
-    // would shift everything after it and mis-decode Type values
-    // created by master's compiled code while bootstrapping.
+    // Primitive is appended at the end so the tag values for existing
+    // variants are preserved -- master's til_boot has its tag values baked
+    // into its compiled C, and inserting a new variant in the middle would
+    // shift everything after it and mis-decode Type values created by
+    // master's compiled code while bootstrapping.
     Primitive: Primitive,
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
@@ -105,11 +100,6 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.Primitive(Primitive.U64):       return "U64"
     case Type.Primitive(Primitive.F32):       return "F32"
     case Type.Primitive(Primitive.Bool):      return "Bool"
-    // Dead arms: F32/Bool flat variants kept for one bootstrap step (see
-    // the Type enum). Nothing constructs these; the switch must stay
-    // exhaustive while the flats exist.
-    case Type.F32:       return "F32"
-    case Type.Bool:      return "Bool"
     case Type.Struct(s):
         // Issue #205: primitives modelled as Type.Struct("I32") etc.
         // round-trip to their primitive name; only "real" user
