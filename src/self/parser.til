@@ -752,6 +752,38 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     return def
 }
 
+// Flip a single parse-time flag on an FCall node. The parser builds the
+// FCall first, then sets does_throw/is_bang/is_splat from postfix tokens;
+// these collapse the repeated `switch ... case FCall(fcd): fcd.X = true`
+// boilerplate to one call. Parser-only, so they live here rather than in
+// ast.til (unlike set_own_arg, which the typer/initer also use).
+priv set_fcall_throw := func(mut fcall: Expr) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.does_throw = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+priv set_fcall_bang := func(mut fcall: Expr) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.is_bang = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+priv set_fcall_splat := func(mut fcall: Expr) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        fcd.is_splat = true
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
 // parse_named_arg: if the cursor is at `IDENT '='`, parse the named
 // argument `name = expr`, append it to `call`, consume a trailing comma,
 // and return true. Otherwise consume nothing and return false. Shared by
