@@ -640,3 +640,29 @@ TErrMixedReq := struct {
     label : Str
 }
 terr_mixed_req_missing := TErrMixedReq()
+
+// #244: switch is statement-only; using it in value position errors and
+// points at match.
+TErrMatchColor := enum { Red, Green }
+terr_switch_in_value := switch TErrMatchColor.Red {
+case TErrMatchColor.Red:   1
+case TErrMatchColor.Green: 2
+}
+
+// #244: a bare match statement discards its value; the error points at switch.
+match TErrMatchColor.Red {
+case TErrMatchColor.Red:   1
+case TErrMatchColor.Green: 2
+}
+
+// #244: all match arms must yield the same type.
+terr_match_arms := match TErrMatchColor.Red {
+case TErrMatchColor.Red:   1
+case TErrMatchColor.Green: "two"
+}
+
+// #244: a non-enum match with no `case:` default is non-exhaustive.
+terr_match_nonexhaustive := match 9 {
+case 1: "a"
+case 2: "b"
+}

@@ -1099,11 +1099,11 @@ parse_primary := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.RBrace)
         return node
     }
-    // Issue #244: `switch` is statement-only. Reaching it here means it was
-    // written in value position (e.g. `x := switch ...`). Point at `match`.
+    // Issue #244: `switch` parses here too (symmetric with `match`), so a
+    // `switch` written in value position (e.g. `x := switch ...`) becomes a
+    // node the typer rejects with a message pointing at `match`.
     if e_set.not().and(t.type.is(TokenType.KwSwitch)) {
-        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-            ": switch is a statement and yields no value; use 'match' to select a value")
+        return parse_switch(p)
     }
 
     if e_set.not() {
@@ -1770,6 +1770,44 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
     return stmt
 }
 
+// parse_switch: current token is `switch`. Shared by statement position
+// (parse_statement_body) and expression position (parse_primary). In
+// expression position the typer rejects the resulting node and points at
+// `match` (issue #244). Each case body is a statement list.
+parse_switch := proc(mut p: Parser) returns Expr {
+    sw_line := peek_line(p)
+    sw_col := peek_col(p)
+    advance(p)
+    mut node := Expr.new(NodeType.Switch, sw_line, sw_col)
+    node.add_child(own parse_expression(p))
+    expect_token(p, TokenType.LBrace)
+    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        expect_token(p, TokenType.KwCase)
+        mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
+        if check(p, TokenType.Colon).not() {
+            cn.add_child(own parse_expression(p))
+            // Issue #199: optional guard clause `case <pattern> if <expr>:`.
+            // Stored as a third child of the Case node so the typer can
+            // distinguish `[pattern, body]` (regular) from
+            // `[pattern, guard, body]` (guarded). A bare `case if <expr>:`
+            // is not allowed -- KwIf only follows a pattern.
+            if check(p, TokenType.KwIf) {
+                advance(p)
+                cn.add_child(own parse_expression(p))
+            }
+        }
+        expect_token(p, TokenType.Colon)
+        mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
+        while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
+            cb.add_child(own parse_statement(p))
+        }
+        cn.add_child(own cb)
+        node.add_child(own cn)
+    }
+    expect_token(p, TokenType.RBrace)
+    return node
+}
+
 parse_statement_body := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
@@ -1853,7 +1891,11 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.StringTok).or(t.type.is(TokenType.Number))
     .or(t.type.is(TokenType.KwTrue)).or(t.type.is(TokenType.KwFalse))
     .or(t.type.is(TokenType.KwNull)).or(t.type.is(TokenType.LParen))
-    .or(t.type.is(TokenType.Minus)).or(t.type.is(TokenType.KwMacro)) {
+    .or(t.type.is(TokenType.Minus)).or(t.type.is(TokenType.KwMacro))
+    .or(t.type.is(TokenType.KwMatch)) {
+        // Issue #244: a statement that starts with `match` parses as an
+        // expression statement; the typer then reports its unused value and
+        // points at `switch`.
         return parse_expression(p)
     }
     if t.type.is(TokenType.LBrace) {
@@ -1890,35 +1932,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         return node
     }
     if t.type.is(TokenType.KwSwitch) {
-        advance(p)
-        mut node := Expr.new(NodeType.Switch, t_line, t_col)
-        node.add_child(own parse_expression(p))
-        expect_token(p, TokenType.LBrace)
-        while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-            expect_token(p, TokenType.KwCase)
-            mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
-            if check(p, TokenType.Colon).not() {
-                cn.add_child(own parse_expression(p))
-                // Issue #199: optional guard clause `case <pattern> if <expr>:`.
-                // Stored as a third child of the Case node so the typer can
-                // distinguish `[pattern, body]` (regular) from
-                // `[pattern, guard, body]` (guarded). A bare `case if <expr>:`
-                // is not allowed -- KwIf only follows a pattern.
-                if check(p, TokenType.KwIf) {
-                    advance(p)
-                    cn.add_child(own parse_expression(p))
-                }
-            }
-            expect_token(p, TokenType.Colon)
-            mut cb := Expr.new(NodeType.Body, peek_line(p), peek_col(p))
-            while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
-                cb.add_child(own parse_statement(p))
-            }
-            cn.add_child(own cb)
-            node.add_child(own cn)
-        }
-        expect_token(p, TokenType.RBrace)
-        return node
+        return parse_switch(p)
     }
     if t.type.is(TokenType.KwOwn) {
         advance(p)
@@ -1986,13 +2000,6 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
         cn.add_child(own Expr.new(ident_node(type_name), ty_line, ty_col))
         cn.add_child(own body)
         return cn
-    }
-
-    // Issue #244: `match` yields a value, so it cannot stand alone as a
-    // statement (its value would be discarded). Point at `switch`.
-    if t.type.is(TokenType.KwMatch) {
-        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-            ": match yields a value that is unused here; use 'switch' for arms that run statements")
     }
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),

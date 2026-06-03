@@ -1325,6 +1325,7 @@ Expr * parse_expression(priv___src_self_parser_til__Parser * p);
 Expr * parse_statement_ident(priv___src_self_parser_til__Parser * p, Bool is_mut, OwnType own_type);
 void drain_doc_comments(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_statement(priv___src_self_parser_til__Parser * p);
+Expr * parse_switch(priv___src_self_parser_til__Parser * p);
 Expr * parse_statement_body(priv___src_self_parser_til__Parser * p);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);

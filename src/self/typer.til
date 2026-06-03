@@ -2598,6 +2598,11 @@ priv infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Con
     case NodeType.Literal(Literal.SetLit):      infer_set_lit_expr(scope, expr, in_func, ctx)
     case NodeType.NamedArg:    infer_named_arg_expr(scope, expr, in_func, ctx)
     case NodeType.Match:       infer_match_expr(scope, expr, in_func, ctx)
+    case NodeType.Switch:
+        // Issue #244: a switch reached expression position (e.g. `x := switch
+        // ...`). switch is statement-only; point the user at match.
+        expr.type_error("switch is a statement and yields no value; use 'match' to select a value", ctx)
+        expr.set_expr_til_type(Type.Unknown)
     case:
         expr.set_expr_til_type(Type.Unknown)
     }
