@@ -497,10 +497,8 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
 }
 
 h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name_val := eval_expr(s, e.child(1), ctx)
-    method_val := eval_expr(s, e.child(2), ctx)
-    type_name := str_view(type_name_val)
-    method := str_view(method_val)
+    type_name := eval_str_owned(s, e.child(1), ctx)
+    method := eval_str_owned(s, e.child(2), ctx)
     r = val_bool(ns_get(type_name, method, ctx).is_null().not())
     return true
 }
@@ -508,22 +506,25 @@ h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
 h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name_val := eval_expr(s, e.child(1), ctx)
     method_val := eval_expr(s, e.child(2), ctx)
-    type_name := str_view(type_name_val)
-    method := str_view(method_val)
-    ref nsv : Value = ns_get(type_name, method, ctx)
+    // str_view returns a Str that BORROWS its arg Value's c_str. Inline the
+    // views into their uses (rather than binding type_name/method locals)
+    // so type_name_val / method_val stay live through ns_get -- their last
+    // use is now the str_view inside the call, not an earlier standalone
+    // str_view stmt, so the garbager does not free them out from under the
+    // borrowed views.
+    ref nsv : Value = ns_get(str_view(type_name_val), str_view(method_val), ctx)
     if nsv.is_null() {
-        panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
+        panic(__LOC__, "dyn_fn: unknown ", str_view(type_name_val), ".", str_view(method_val))
     }
     if nsv.is(Value.Func).not() {
-        panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
+        panic(__LOC__, "dyn_fn: unknown ", str_view(type_name_val), ".", str_view(method_val))
     }
     r = nsv.clone()
     return true
 }
 
 h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name_val := eval_expr(s, e.child(1), ctx)
-    type_name := str_view(type_name_val)
+    type_name := eval_str_owned(s, e.child(1), ctx)
     sz := get_elem_size(s, type_name, e, ctx)
     r = val_u32(sz.cast(I64))
     return true
@@ -541,6 +542,23 @@ priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
     ref mut term : U8 = ptr_add(buf, n)
     term = 0
     return make_str_value_own(buf, n, ctx)
+}
+
+// Evaluate a string-typed argument and return an OWNED Str copy of its
+// bytes. The eval'd Value is a local the garbager frees at this function's
+// end; a str_view into it would dangle once the caller uses it past that
+// point (the str_view-outlives-source UAF). Cloning the view detaches the
+// result from the source so builtins can hold a Str argument safely.
+// Clone the Str payload out of a Value into an OWNED Str. `v` is a borrowed
+// param, so the garbager never frees it inside this call -- the str_view
+// can't dangle here (unlike a view bound to a local the garbager would free
+// before the .clone()). The caller keeps `v` alive across this call (it is
+// the argument), then frees it afterwards.
+priv value_str_clone := func(v: Value) returns Str {
+    return str_view(v).clone()
+}
+eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
+    return value_str_clone(eval_expr(s, arg, ctx))
 }
 
 // Look up a registered struct type's AST node by name, erroring out if
@@ -568,7 +586,7 @@ interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: C
 }
 
 h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -580,7 +598,7 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 }
 
 h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
@@ -598,7 +616,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 }
 
 h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
@@ -616,7 +634,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 }
 
 h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
@@ -658,7 +676,7 @@ interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Con
 }
 
 h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -670,7 +688,7 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 }
 
 h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
@@ -688,7 +706,7 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 }
 
 h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
@@ -710,7 +728,7 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 }
 
 h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
@@ -756,7 +774,7 @@ interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: 
 }
 
 h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -768,7 +786,7 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 }
 
 h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     switch node.node_type {
@@ -786,7 +804,7 @@ h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 }
 
 h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -798,7 +816,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
 }
 
 h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     switch node.node_type {
@@ -815,7 +833,7 @@ h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 }
 
 h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -827,7 +845,7 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 }
 
 h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := str_view(eval_expr(s, e.child(1), ctx))
+    type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     switch node.node_type {
@@ -1014,9 +1032,8 @@ h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
 }
 
 h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    path_v := eval_expr(s, e.child(1), ctx)
+    path := eval_str_owned(s, e.child(1), ctx)
     is_write_v := eval_expr(s, e.child(2), ctx)
-    path := str_view(path_v)
     switch is_write_v {
     case Value.Boolean(is_write):
         // FILE* handle: closed via cfile_close (fclose), never free()'d,
@@ -1110,6 +1127,10 @@ h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     case:
         val := eval_expr(s, e.child(1), ctx)
         free_value_full(val)
+        // val is a garbager-tracked local whose deep Value.delete would
+        // re-free the payload free_value_full just released; null it so the
+        // scope-end delete is a no-op.
+        memcpy(val, val_none(), Value.size())
     }
     r = val_none()
     return true
@@ -1125,9 +1146,8 @@ h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
 
 h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
-    str_v := eval_expr(s, e.child(2), ctx)
+    sv := eval_str_owned(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
-    sv := str_view(str_v)
     cfile_write_str(deref(hp), sv)
     r = val_none()
     return true
@@ -1228,10 +1248,8 @@ ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value
 }
 
 h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name_val := eval_expr(s, e.child(1), ctx)
-    type_name := str_view(type_name_val)
-    method_val := eval_expr(s, e.child(2), ctx)
-    method := str_view(method_val)
+    type_name := eval_str_owned(s, e.child(1), ctx)
+    method := eval_str_owned(s, e.child(2), ctx)
 
     // Build fake AST: Type.method(args...)
     mut type_ident := Expr.new(ident_node(type_name), e.line, e.col)
@@ -1287,7 +1305,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
             vtype := enum_variant_type(enum_def, ctor_tag)
             has_payload := vtype.len().gt(0)
             if has_payload {
-                payload := eval_expr(scope, e.child(1), ctx)
+                mut payload := eval_expr(scope, e.child(1), ctx)
                 mut pdata : Dynamic = 0
                 mut psz : I32 = 0
                 mut must_free_pdata := false
@@ -1315,13 +1333,24 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                     // of si.data into the enum's own buffer (any nested heap
                     // pointers, e.g. a Str payload's c_str, are shared into
                     // the enum and outlive this free). The payload Value is a
-                    // temporary from eval_expr that nothing else frees, so
-                    // its top-level wrapper leaked once per enum-ctor call.
-                    // Skip borrowed payloads -- their data belongs to a live
-                    // variable.
-                    if si.borrowed.not() { must_free_pdata = true }
+                    // temporary from eval_expr that nothing else frees, so we
+                    // free its buffer below. Skip borrowed payloads -- their
+                    // data belongs to a live variable.
+                    if si.borrowed.not() {
+                        must_free_pdata = true
+                        // Hand off to the manual free below: mark borrowed so
+                        // the garbager's deep Value.delete(payload) -- which
+                        // fires at payload's last use, before val_enum_flat
+                        // reads pdata -- becomes a no-op and does not free
+                        // (UAF) or double-free this buffer.
+                        si.borrowed = true
+                    }
                 case Value.Enum(ei):
-                    cloned_ei := ei.clone()
+                    mut cloned_ei := ei.clone()
+                    // Same hand-off: the garbager would deep-delete this fresh
+                    // clone at its last use (the to_ptr); mark borrowed so the
+                    // manual free(own pdata) below is the sole owner.
+                    cloned_ei.borrowed = true
                     pdata = to_ptr(cloned_ei.data)
                     psz = cloned_ei.data_size.cast(I32)
                     must_free_pdata = true
@@ -1445,6 +1474,12 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
     args : Dynamic = malloc(alloc_n.cast(U64).mul(8))
     arg_ptrs : Dynamic = malloc(alloc_n.cast(U64).mul(8))
+    // args / arg_ptrs hold RAW pointers into each arg Value's payload
+    // (si.data / ei.data). Those Values must outlive ffi_call, but they are
+    // per-iteration locals the garbager would delete (deep) at the end of
+    // each iteration. Keep them in this Vec (push = own transfer, so the
+    // garbager hands off) and free them only after ffi_call + result decode.
+    mut arg_vals := Vec.new(Value)
 
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)), ctx)
@@ -1512,6 +1547,9 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             }
             write_ptr(ptr_add(arg_ptrs, i.cast(U64).mul(8)), ptr_add(args, i.cast(U64).mul(8)))
         }
+        // Keep this arg Value alive (and its payload, which args/arg_ptrs
+        // point into) until after ffi_call; arg_vals owns it now.
+        arg_vals.push(own v)
     }
 
     // Check if return is a shallow struct
@@ -1558,6 +1596,9 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             result = val_none()
         }
     }
+    // ffi_call + result decode are done, so the arg payloads the FFI buffers
+    // pointed into are no longer needed: free the arg Values now (deep).
+    Vec.delete(own arg_vals, true)
     free(own args)
     free(own arg_ptrs)
     free(own raw)

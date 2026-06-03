@@ -318,26 +318,286 @@ own premises are now STALE and the fix is more bounded than it reads:
   - ~StructInstance~ also already has ~borrowed~, and its deep ~clone~ already
     sets ~borrowed = true~ on the inline aliases it builds.
 
-The remaining blocker is bounded: ~~12 ~memcpy(_, _, Value.size())~ sites plus
-~~21 ~shallow_copy_value~ uses copy a ~Value~ whose ~StructInstance~/
-~EnumInstance~ payload then has ~borrowed = false~ on BOTH copies. Plan:
+*** Attempt 1 (reverted): what the deep delete actually hits
 
-  1. Make both deletes free ~own data~ when ~borrowed.not()~ (the ~Str~-payload
-     ~c_str~ too), mirroring ~Vec.delete~.
-  2. At every ~Value~-copy / ~shallow_copy_value~ / ~scope_set_owned~ site,
-     make exactly one copy the owner: either ~move()~ the bytes (null the
-     source) or set the non-owning copy ~borrowed = true~.
-  3. Drop the now-redundant workaround-frees in ~Value.clone~ and the
-     end-of-life patching in ~cleanup_value_payload~ where they become
-     double-frees.
-  4. Verify with the full ~--asan~ suite (137 tests) -- it catches the
-     double-free / use-after-free the TODO warns about at the exact site, so
-     the audit is empirical: any site that still aliases without a ~borrowed~
-     mark fails loudly.
+Tried it end to end, building an ASAN compiler via the clean ~til_boot~
+bootstrap (the chicken-and-egg dodge: a deep-delete ~bin/til~ double-frees
+while compiling anything, so it cannot build its own ~--asan~ variant; the
+clean ~til_boot~ can). The empirical wall, in order:
 
-This is a coordinated change across the interpreter, not a one-liner, but it
-is the single highest-value leak fix left and the infrastructure (the
-~borrowed~ flags) is already half in place.
+  1. Made ~EnumInstance.delete~ deep -> immediate double-free. ASAN backtrace:
+     ~try_eval_call~ (precomp fold) frees the result payload BOTH via a manual
+     ~cleanup_value_payload(result)~ AND via the garbager-inserted
+     ~Value.delete(result)~ at the same scope. So step 1 of the plan (deep
+     deletes) is inseparable from removing the redundant manual cleanups.
+  2. Classified all 14 manual ~cleanup_value_payload~/~free_value~ call sites:
+     the ones on garbager-tracked LOCALS (~try_eval_call~'s ~result~/~arg_val~,
+     the bare-FCall ~discarded~ in ~eval_body~, ~track_literal~'s ~v~) and on
+     ~precomp_known~ map values (~Map.set~/~Map.clear~ now deep-delete) are all
+     REDUNDANT once the delete is deep; only the ~scope_free~ cell-teardown
+     (Dynamic island) and the ~free_value_full~ composition stay. Removed the
+     redundant ones.
+  3. Made ~StructInstance.delete~ deep too -> the real wall: a heap
+     USE-AFTER-FREE in the Str-view path. Root cause is ~shallow_copy_value~,
+     which is a raw ~memcpy(Value.size())~ ALIAS (the copy shares the source's
+     ~.data~) used in two incompatible ways across its ~~21 call sites:
+       - MOVE shape (~make_struct_value~ / ~make_str_value*~: build a local
+         ~r~, ~return shallow_copy_value(r)~, discard ~r~). With a deep delete
+         the discarded ~r~ frees ~.data~ and the returned copy dangles.
+       - ALIAS shape (~shallow_copy_value(cell.val)~, ~= shallow_copy_value(
+         src.val)~: copy a STILL-LIVE cell's value). Deleting the copy frees
+         the live cell's ~.data~.
+     The no-op delete masked both. A deep delete needs each site resolved
+     individually: MOVE shape -> null the source after the copy; ALIAS shape ->
+     either a real ~Value.clone~ (independent ~.data~) or ~borrowed = true~ on
+     the copy. ~shallow_copy_value~ cannot choose uniformly (nulling breaks the
+     alias sites; cloning breaks views and costs allocs). This is exactly the
+     "coordinated audit of every memcpy-aliasing site" the StructInstance TODO
+     warned about, and why the deep delete segfaults.
+
+*** Execution plan (next, as a dedicated multi-commit effort)
+
+  1. Give ~shallow_copy_value~ an explicit contract: split into a MOVE helper
+     (~move_value~: ~memcpy~ out THEN ~memcpy(src, val_none())~ to null the
+     source) and keep ~shallow_copy_value~ only for genuine borrows that set
+     ~borrowed = true~. Audit all ~~21 sites and route each to move / clone /
+     borrow.
+  2. Then make both deletes deep and remove the redundant manual cleanups
+     (step 2 above). Keep the ~scope_free~ Dynamic-island teardown.
+  3. Drop ~Value.clone~'s workaround frees once the deletes are deep.
+  4. Verify with ~make test~ (catches the double-free / UAF as a build abort)
+     at each step, and measure with ~bin/til_asan {interpret,translate}
+     test/strings.til~. Build the ASAN compiler via ~til_boot~ while ~bin/til~
+     is mid-refactor.
+
+Confirmed-safe scaffolding (proven this attempt, reverted to keep the tree
+green): the manual-cleanup removals in (2) are correct and independent of the
+~shallow_copy_value~ work; they can land first. The ~shallow_copy_value~ split
+is the gating, highest-risk piece and should be its own commit with the suite
+green before the deletes go deep.
+
+*** Attempt 2 (reverted): step 1 works, step 2 is UNBOUNDED
+
+Did step 1 properly this time: added a ~borrow_value~ helper (copy + set
+~borrowed = true~ on Struct/Enum) and routed the read sites (Ident read,
+namespace-field read, ~reinterpret_ptr_value~) through it; converted
+~make_struct_value~ to a move (null ~r~ after the copy). Then activated the
+deep deletes + cleanup removals. Results, in order:
+
+  - The ~borrow_value~ fix DID clear the earlier Str-view read UAF -- reads no
+    longer dangle. Good: the move/borrow framing is correct as far as it goes.
+  - But the deep delete then hit a NEW use-after-free in ~enum_method_dispatch~
+    (dispatch.til). It does ~pdata = to_ptr(si.data)~ -- a RAW pointer into the
+    payload Value's heap -- then ~val_enum_flat(..., pdata, ...)~ memcpys from
+    it, then ~free(own pdata)~. The garbager schedules the payload Value's deep
+    ~Value.delete~ at the Value's last use, which is the ~to_ptr~ (everything
+    after uses the raw ~pdata~, not the Value). So the delete fires BEFORE
+    ~val_enum_flat~ reads ~pdata~ -> UAF, and double-frees with ~free(own
+    pdata)~.
+
+This is the real, unbounded blocker: the interpreter PERVASIVELY extracts a
+raw ~to_ptr(value.data)~ pointer and uses it after the owning Value's last use,
+relying on the no-op delete to keep the bytes alive until a manual ~free~. The
+garbager cannot see that ~pdata~ aliases the Value, so a deep delete frees the
+bytes early. ~val_enum_flat~ alone is called from 4+ sites; the same
+raw-pointer-outlives-Value shape recurs in struct construction, FFI arg/return
+marshaling, payload reads, ... Each is a distinct UAF. This is not a bounded
+site list -- it is an interpreter VALUE-MODEL rewrite (every raw pointer taken
+out of a Value must either keep the Value live across the raw use, or copy
+eagerly), which is exactly why the StructInstance/EnumInstance deletes were
+left no-op in the first place.
+
+*** Revised recommendation: deep-delete is not the right target
+
+The interpreter deep-delete fixes only the ~12% (eval/precomp) slice of the
+compiler leak and requires the unbounded value-model rewrite above. The
+DOMINANT ~82% of the leak is the TYPER phase (AST / Type clones during
+type-checking -- see the phase table), which is garbager-managed compiler code,
+NOT the alias-based interpreter. That is the higher-value, lower-coupling target
+for ~test_asan_full~ and does not need any interpreter rewrite. Next step:
+pin the typer-phase clone leak (build the ASAN compiler via ~til_boot~, trace
+which clones survive and why the garbager does not delete them), and fix it in
+the garbager -- the principle-aligned place.
+
+** Handoff: finishing the deep-delete value-model rewrite
+
+This is the concrete to-do list for making ~StructInstance.delete~ /
+~EnumInstance.delete~ deep so the garbager reclaims interpreter Values (the
+dominant eval/precomp leak; required for ~make test_asan_full~). Written for
+whoever picks it up; the in-progress patch was NOT committed (it does not pass
+~make test~ yet), so the changes below are described well enough to redo.
+
+*** Do issue #239 option 1 FIRST (root cause, not whack-a-mole)
+
+The recurring crash class is dangling ~ref Str~ in
+~StructInstance.struct_name~ / ~EnumInstance.enum_name~ (issue #239). Many of
+the use-after-frees that surface once deletes go deep are really *this* bug,
+not the ~.data~ payload. Issue #239 option 1 is the clean fix and should land
+BEFORE (or together with) the deep deletes:
+
+  - Change ~struct_name~ on ~StructInstance~ and ~enum_name~ on
+    ~EnumInstance~ from ~ref Str~ to an OWNED ~Str~ field.
+  - Every construction site already has the name in hand; add a ~.clone()~
+    at construction (~make_struct_value~, ~resolve_ptr_to_struct~,
+    ~reinterpret_ptr_value~, struct constructors, payload extractors,
+    ~val_enum_flat~, ...). Update ~StructInstance.clone~ / ~EnumInstance.clone~
+    to clone the name, and the hand-written ~delete~ to free it (when not
+    borrowed).
+  - This eliminates the "garbled type name / UAF on struct_name" failures
+    (kwargs, dynamic, structs, aliases, first_class, ... mostly hit this via
+    the FieldAccess / dispatch paths that read the name after the producing
+    Value's Type-payload destructor ran).
+
+*** Then make the two deletes deep
+
+In ~src/self/interpreter.til~, replace the no-op bodies with: free ~own data~
+(and, for a ~Str~ payload, its ~c_str~ when ~cap < CAP_VIEW && count > 0~)
+when ~borrowed.not()~; keep ~if call_free { free(own self) }~. Mirror
+~Vec.delete~. ~EnumInstance~ already has a ~borrowed~ field; it does fit the
+40-byte Value union.
+
+*** The aliasing-site recipes (apply per site, verified by ASAN)
+
+Deep deletes expose every place the interpreter aliases a Value payload. Each
+site resolves to exactly one of three moves:
+
+  - BORROW: a value that aliases a still-live owner (a scope cell, a namespace
+    field). Mark the copy ~borrowed = true~ so the deep delete skips it. Use a
+    ~borrow_value(v)~ helper (= ~shallow_copy_value~ then set
+    ~Value.Struct(si): si.borrowed = true~ / ~Value.Enum(ei): ei.borrowed =
+    true~). Apply at: ~eval_expr~ Ident read, namespace-field read,
+    ~reinterpret_ptr_value~'s pass-through returns.
+  - MOVE: a value built locally and handed off (build, return a copy, discard
+    the local) or copied into a cell. After the copy, null the source
+    (~memcpy(src, val_none(), Value.size())~) so the garbager's delete is a
+    no-op and the cell is sole owner. Apply at: ~make_struct_value~ (null ~r~
+    after the copy), ~scope_set_owned~ (take ~mut val~, null it after copying
+    into the cell), ~eval_body~ Assign handler (~mut new_val~; null it after
+    the #227/#211 read blocks). NB: the typer rejects ~mut~ that is only
+    written via ~memcpy~ -- drop the ~mut~ where the only write is a memcpy.
+  - CLONE: a pass-through that must be INDEPENDENT of its input because the
+    caller does ~x = f(x)~ (save_old_delete frees the old ~x~ after evaluating
+    the rhs, so an alias dangles). ~widen_numeric~ pass-throughs must
+    ~return v.clone()~, not ~shallow_copy_value(v)~ -- including the
+    numeric-switch default ~case:~.
+
+*** The str_view-outlives-source class (builtins)
+
+~str_view(v)~ returns a Str BORROWING v's c_str. A non-ref local bound to it
+(~name := str_view(v)~) dangles once v is freed -- and the typer HOISTS
+view-returning subexpressions, so even ~return str_view(v).clone()~ frees v
+before the clone. Fix with a helper where the Value is a borrowed PARAM (the
+garbager never frees params):
+
+  #+begin_src til
+  priv value_str_clone := func(v: Value) returns Str { return str_view(v).clone() }
+  eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
+      return value_str_clone(eval_expr(s, arg, ctx))
+  }
+  #+end_src
+
+Route every ~type_name := str_view(eval_expr(s, e.child(N), ctx))~ and
+~v := eval_expr(...); name := str_view(v)~ in the ~h_*~ builtins
+(src/self/dispatch.til: ~h_dyn_fn~, ~h_dyn_has_method~, ~h_dyn_size_of~,
+~h_dyn_call~, ~h_cfile_open~, ~h_cfile_write_str~, and the ~struct_field_*~
+introspection set) through ~eval_str_owned~. ~eval_str_owned~ must be a ~proc~
+(it calls ~eval_expr~, a proc), else every builtin that called it trips the
+"proc has no proc calls" check.
+
+*** Other concrete sites already found
+
+  - ~enum_method_dispatch~ (dispatch.til): mark the payload ~si.borrowed = true~
+    / ~cloned_ei.borrowed = true~ when ~must_free_pdata~ -- the manual
+    ~free(own pdata)~ after ~val_enum_flat~ is the sole owner; the garbager's
+    deep delete must hand off.
+  - ~ext_dispatch_ffi~: the FFI buffers hold raw pointers into each arg Value's
+    payload; keep the arg Values alive in a ~Vec.new(Value)~ across ~ffi_call~
+    (~push(own v)~ each), then ~Vec.delete(own arg_vals, true)~ after the
+    result decode.
+  - ~write_field~: a non-borrowed Struct value written into an inline Shallow
+    field must be DEEP-COPIED (clone, memcpy the clone's struct bytes, free the
+    clone wrapper), because the construction loop deletes the source after.
+  - Remove the now-redundant manual ~cleanup_value_payload~ calls in
+    src/self/precomp.til (~try_eval_call~ result + arg_val, ~track_literal~,
+    ~track_literal_known_only~, ~precomp_clear_known~, the FuncDef snapshot)
+    and the bare-FCall ~discarded~ in eval_body -- once the delete is deep, the
+    garbager and ~Map.clear~/~Map.set~ reclaim these; keeping them double-frees.
+    ~h_free~ (dispatch.til): null ~val~ after ~free_value_full(val)~.
+
+*** Remaining failures when the patch stopped (12 files)
+
+Crashing under ASAN after the above were applied: ~kwargs, dynamic, maps,
+hashmaps, sets, structs, tuples, asting, aliases, first_class, regression,
+own_fields, splat~. The live one was ~eval_call~'s arg-binding path
+(~reinterpret_ptr_value~ -> ~widen_numeric~ -> ~scope_set_owned~): a ~Str~
+created deep in one call's body is freed during a *different* call's arg
+~widen_numeric~ -- i.e. two args sharing one ~.data~ across recursive
+~eval_call~ frames. Most of these are expected to dissolve once #239 option 1
+makes ~struct_name~/~enum_name~ owned; re-triage after that lands.
+
+*** How to verify (bootstrap gotcha)
+
+Garbager changes need TWO-PASS to self-apply to the interpreter's own code
+(stage1 from ~til_boot~ uses the OLD garbager; stage2 = ~bin/til build src~
+uses the new one). Interpreter-source changes apply single-pass. Build an ASAN
+compiler WITHOUT poisoning the bootstrap via the clean ~til_boot~:
+~bin/til_boot build --asan -o bin/til_asan_dbg src/til.til~, then
+~ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=0:abort_on_error=1
+bin/til_asan_dbg interpret test/<file>.til~ to get backtraces. Final gate:
+~make test~ (single-pass) green, then ~make test_asan_full~ leak-clean.
+
+** Resolution (landed): deep deletes + the interpreter value-model fixes
+
+The deep ~StructInstance.delete~ / ~EnumInstance.delete~ landed and ~make test~
+is green (135/135). The handoff plan above is partly superseded -- record of
+what actually worked:
+
+*** Issue #239 was fixed with a cached ~is_str~ flag, NOT owned ~struct_name~
+
+Option 1 (owned ~struct_name~/~enum_name~) was attempted and abandoned: til
+stores an owned ~Str~ struct field as a heap ~Str *~, and ASAP destruction
+makes it impossible to give ~borrow_value~ a *private* name clone without the
+garbager either freeing the laundered pointer or corrupting the shared
+original (no address-of for the inline pointer field; ~move~ rewrites the
+pointed-to ~Str~, not the slot). Owned names also turned the cheap
+~shallow_copy_value~ alias into a double-free surface.
+
+What landed instead: ~struct_name~ stays a ~ref~, but the ONLY thing the deep
+~delete~ needed it for -- "is this payload a ~Str~ whose ~c_str~ must be
+freed?" -- is precomputed into a new ~is_str : Bool~ on ~StructInstance~ (set
+in ~make_struct_value~ while the name is still valid, propagated by
+~StructInstance.clone~). ~delete~ reads ~self.is_str~, never the (possibly
+freed-at-teardown) ~struct_name~. ~EnumInstance.delete~ never read
+~enum_name~, so it needed no change. This sidesteps the dangling-ref UAF
+without any ownership/clone/leak churn.
+
+*** The aliasing fixes that made every interpret-mode test pass
+
+Each was a value that shared a heap buffer (a ~.data~ payload or a ~Str~
+~c_str~) which a deep delete then freed while a live alias remained:
+
+  - ~reinterpret_ptr_value~ Str path: ~make_str_value_own(sp.c_str, ...)~
+    claimed ownership of the *source's* buffer -> ~make_str_value~ (COPY).
+    Its two fall-through ~borrow_value(val)~ returns -> ~val.clone()~ (the
+    caller does ~val = reinterpret_ptr_value(val, ...)~ whose save_old_delete
+    frees the old, non-borrowed val).
+  - ~widen_numeric~: short-circuit ~value_is_borrowed(v)~ to pass borrowed
+    views through UNCHANGED. Cloning them broke in-place method receivers
+    (~c.items.push(...)~ mutated a copy). Borrowed values skip their own
+    save_old_delete, so no dangle.
+  - struct-constructor own-arg binding: own arg -> MOVE
+    (~memcpy(src.val, val_none())~, not ~src.val = val_none()~ which
+    save-old-deletes the payload val now owns); non-own -> ~borrow_value~.
+  - ~write_field~ OWN struct field: deep-clone (~val.clone()~) instead of
+    ~write_ptr(ptr, si.data)~ sharing the caller's about-to-be-freed buffer.
+  - ~value_to_buf~ struct case: always deep-clone (the old non-borrowed
+    ~memcpy(si.data)~ shared the c_str; ~build_argv_array~ then freed it).
+  - enum-constructor own-arg consumption: clear ~is_str~ before the cell's
+    deep delete so it frees only the wrapper, not the c_str the enum took
+    (Issue #109 sharing).
+  - ext_func own-arg consumption: ~memcpy(oc.val, val_none())~ MOVE, not
+    deep delete -- the buffer was passed raw to C, which owns/frees it
+    (~Pair.delete(own self)~ was a double-free).
 
 ** Sources
 

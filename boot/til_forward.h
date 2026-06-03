@@ -660,6 +660,7 @@ typedef struct priv___src_self_builder_til__BuildPaths {
 
 typedef struct StructInstance {
     Str *struct_name;
+    Bool is_str;
     Expr *struct_def;
     Context *ctx;
     U8 *data;
@@ -2083,15 +2084,16 @@ Expr * resolve_field_assign_sdef(Scope * scope, Expr * obj_expr);
 void eval_body(Scope * scope, Expr * body, Context * ctx);
 Value eval_call(Scope * scope, Expr * e, Context * ctx);
 void free_value(Value v);
-void cleanup_value_payload(Value v);
 priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__DynPtrBox_clone(priv___src_self_interpreter_til__DynPtrBox * self);
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
 void free_value_full(Value v);
 Bool needs_widen(Value * val, Str * ptype);
 Value shallow_copy_value(Value * v);
+Value borrow_value(Value * v);
 Value * box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free);
 Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed, Context * ctx);
+Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
@@ -2178,6 +2180,8 @@ Bool h_dyn_has_method(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_dyn_fn(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_dyn_size_of(Scope * s, Expr * e, Value * r, Context * ctx);
 Value priv___src_self_dispatch_til__str_to_owned_value(Str * src, Context * ctx);
+Str * priv___src_self_dispatch_til__value_str_clone(Value * v);
+Str * eval_str_owned(Scope * s, Expr * arg, Context * ctx);
 Expr * interp_lookup_struct(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
 Bool h_struct_field_count(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_struct_field_name(Scope * s, Expr * e, Value * r, Context * ctx);

@@ -3,10 +3,8 @@ import("context")
 
 // Precomp: constant folding for macros and pure functions
 precomp_clear_known := func(mut ctx: Context) {
-    for i in 0..ctx.precomp_known.len() {
-        ref v : Value = Map.val_ptr(ctx.precomp_known, i)
-        cleanup_value_payload(v)
-    }
+    // Map.clear runs Value.delete on every value, which is now deep, so the
+    // payloads are reclaimed without a manual sweep.
     Map.clear(ctx.precomp_known)
 }
 
@@ -925,27 +923,13 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
         }
         ref _arg_lit : Expr = value_to_expr(arg_val, arg, ctx)
         if _arg_lit.is_null() {
-            // Free the arg_val payload before bailing. is_known's
-            // Ident branch goes through Value_clone (per the swap+
-            // clone-free pattern in the codegen), so the resulting
-            // arg_val owns its own deep-cloned payload independent of
-            // `known`'s entry. The other is_known branches
-            // (LiteralStr/Num/Bool) likewise produce owned payloads
-            // via expr_to_value. cleanup_value_payload is a no-op on
-            // Value.None / Value.Int / Value.Boolean, so calling it
-            // unconditionally is always safe.
-            cleanup_value_payload(arg_val)
             return NULL
         }
         ec.add_child(own _arg_lit.clone())
-        // value_to_expr deep-copied the bytes (str_to_source_form clones,
-        // and ec.add_child clone'd the LiteralStr again), so arg_val's
-        // payload is no longer reachable from anything that survives the
-        // loop. Free it -- without this each LiteralStr arg of every
-        // pure-func / macro fold leaked its Str struct + buffer, and
-        // each Ident arg fold leaked the Value_clone the Ident branch
-        // of is_known had allocated.
-        cleanup_value_payload(arg_val)
+        // value_to_expr / ec.add_child deep-copied the bytes, so arg_val's
+        // payload is no longer reachable past this point. arg_val is a
+        // loop-local reclaimed by the garbager's deep Value.delete at each
+        // iteration's end -- no manual free.
     }
 
     // Evaluate the call using the interpreter
@@ -975,16 +959,11 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
     ref lit_local : Expr = value_to_expr(result, fcall, ctx)
     if lit_local.is_null() {
-        // result was produced by eval_expr and is owned by us; nothing
-        // else holds a reference past this point. Free it before bailing.
-        cleanup_value_payload(result)
         return NULL
     }
-    // value_to_expr deep-copied result's payload into the LiteralStr
-    // (str_to_source_form clones into source-form bytes), so the
-    // eval_expr-owned result can be freed now. Without this, every
-    // Str-returning fold leaked the heap buffer eval_expr produced.
-    cleanup_value_payload(result)
+    // value_to_expr deep-copied result's payload into the LiteralStr, so the
+    // eval_expr-owned `result` is reclaimed by the garbager's deep
+    // Value.delete at its last use (just above) -- no manual free.
     // Preserve fcall.expr_til_type(). value_to_expr derives til_type from the
     // runtime Value variant (Uint32 -> U32), but the original fcall might
     // have been typed as USize/U64/... at typer time. Surrounding code
@@ -999,13 +978,8 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
 track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
     if is_known(ctx, rhs, v) {
-        // Map.set deletes the old value via Value.delete(false), which is
-        // a no-op on .data -- so a same-name overwrite leaks the old
-        // payload. Deep-free it before set.
-        if ctx.precomp_known.has(name) {
-            ref old : Value = ctx.precomp_known[name]
-            cleanup_value_payload(old)
-        }
+        // Map.set deletes the old value via Value.delete (now deep), so a
+        // same-name overwrite reclaims the old payload automatically.
         mut vcopy := v
         ctx.precomp_known.set(own name.clone(), own vcopy)
         scope_set_owned(scope, name, v)
@@ -1021,23 +995,13 @@ track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
 track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
     if is_known(ctx, rhs, v) {
-        if ctx.precomp_known.has(name) {
-            ref old : Value = ctx.precomp_known[name]
-            cleanup_value_payload(old)
-        }
+        // Map.set deletes the old value via Value.delete (now deep), so a
+        // same-name overwrite reclaims the old payload automatically.
         mut vcopy := v
         ctx.precomp_known.set(own name.clone(), own vcopy)
     }
-    // is_known writes through `mut out: Value`, allocating Str payload
-    // bytes inside the caller's v for LiteralStr inputs. Unlike
-    // track_literal (which transfers v into the scope via
-    // scope_set_owned), nothing here picks up v's payload after the
-    // vcopy deep-clone, so v's data is orphaned and the function-exit
-    // Value.delete(v, false) is shallow on .data. Free it explicitly.
-    // val_none() (the else branch and the post-is_known case where
-    // is_known returned false) is harmless here -- cleanup_value_payload
-    // is a no-op on Value.None and Value.Int variants.
-    cleanup_value_payload(v)
+    // v is reclaimed by the garbager's function-exit deep Value.delete -- no
+    // manual free needed.
 }
 
 is_macro_call := func(e: Expr, ctx: Context) returns Bool {
@@ -1087,18 +1051,12 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         if child.node_type.is(NodeType.FuncDef) {
             snapshot_fd := ctx.precomp_known.clone()
             fold_subtree(scope, child, ctx)
-            // Free payloads of every entry in `known` (both inherited
-            // and inner-fold-added) before dropping the Map. Map.delete
-            // doesn't deep-free Value payloads, so without this each
-            // FuncDef body fold would leak both the body's own Str
-            // additions and the deep-cloned outer payloads that the
-            // snapshot wired into known. Safe because body-local
-            // track_literal_known_only does not share Value payloads
-            // with `scope`.
-            for ki in 0..ctx.precomp_known.len() {
-                ref kv : Value = Map.val_ptr(ctx.precomp_known, ki)
-                cleanup_value_payload(kv)
-            }
+            // Drop every entry in `known` before restoring the snapshot.
+            // Map.clear runs Value.delete (now deep) on each value, so the
+            // payloads -- inherited and inner-fold-added -- are reclaimed
+            // without a manual sweep. Safe because body-local
+            // track_literal_known_only does not share Value payloads with
+            // `scope`.
             Map.clear(ctx.precomp_known)
             // Transfer snapshot_fd into known via memcpy (avoids the
             // implicit Map.clone that til codegen would emit for a plain

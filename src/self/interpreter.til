@@ -61,6 +61,13 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
 
 StructInstance := struct {
     ref struct_name : Str = NULL
+    // Issue #239: struct_name is a `ref` into the AST and dangles once the
+    // AST Expr is freed (program teardown frees the AST before the Context's
+    // cached Values). The deep delete must NOT read struct_name (UAF), so it
+    // consults this flag instead -- computed at construction while the name
+    // is still valid -- to decide whether the payload is a Str needing its
+    // c_str freed.
+    is_str := false
     ref struct_def : Expr = NULL
     // Issue #147 step 4: reference to the running Context so the
     // fixed-signature clone path can reach the type-def registry
@@ -200,29 +207,33 @@ namespace:
                     }
                 }
             }
-            return StructInstance(struct_name = self.struct_name, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
+            return StructInstance(struct_name = self.struct_name, is_str = self.is_str, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
         case:
             UNREACHABLE(__LOC__)
             return StructInstance()
         }
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
-        // TODO: this delete leaks `own self.data` (and the inline Str's
-        // c_str). Making it deep -- the right thing per the field's
-        // `own` qualifier and what Vec.delete does -- segfaults the
-        // self-host build because several interpreter sites (notably
-        // shallow_copy_value, scope_set_owned, and the various
-        // memcpy(dst, val, Value.size()) operations) lean on the
-        // current no-op contract: source and destination share the
-        // .data pointer and both have a destructor scheduled, so a
-        // deep delete on the alias double-frees. Closing this needs a
-        // coordinated audit of every memcpy-aliasing site to either
-        // flip self.borrowed = true on the alias or move() the bytes.
-        // For now, the no-op read of self.data below satisfies the
-        // typer's "delete must reference every own field" rule; the
-        // leak persists and continues to be patched at end-of-life
-        // sites by cleanup_value_payload.
-        if self.data.is_null() { /* leak acknowledged */ }
+        // Deep delete: free the struct payload buffer (and, for a Str
+        // payload, its c_str) unless this is a borrowed alias. Read sites
+        // mark their copy borrowed = true; sites that hand a raw .data
+        // pointer to a manual free likewise mark borrowed so this delete
+        // hands off. Ordinary moves null their source. The garbager inserts
+        // Value.delete -> StructInstance.delete at every owned struct
+        // value's last use, so this is where the payload is reclaimed.
+        if self.borrowed.not() {
+            if self.data.is_null().not() {
+                // Issue #239: consult the cached is_str flag, NOT struct_name
+                // (a ref that may already be freed at teardown).
+                if self.is_str {
+                    ref s_str : Str = to_ptr(self.data)
+                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                        if s_str.c_str.is_null().not() { free(own s_str.c_str) }
+                    }
+                }
+                free(own self.data)
+            }
+        }
         if call_free { free(own self) }
     }
 }
@@ -251,17 +262,13 @@ namespace:
                             data = pdata, data_size = self.data_size, borrowed = false)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
-        // TODO: this delete leaks `own self.data`. Making it deep
-        // (free-on-not-NULL like Vec.delete does) is the right fix,
-        // but needs a `borrowed` field on EnumInstance to handle the
-        // shallow_copy_value aliasing path (the same pattern
-        // StructInstance.borrowed solves) -- and adding the field
-        // grows EnumInstance past the current Value payload union
-        // size (40 bytes), rippling through sites that hardcode the
-        // layout. The no-op read of self.data below satisfies the
-        // typer's "delete must reference every own field" rule;
-        // continue to leak until the layout audit lands.
-        if self.data.is_null() { /* leak acknowledged */ }
+        // Deep delete: free the payload buffer unless this is a borrowed
+        // alias (read sites mark the copy borrowed = true; raw-pointer
+        // hand-off sites likewise). The garbager inserts Value.delete ->
+        // EnumInstance.delete at every owned enum value's last use, so this
+        // is where the payload is reclaimed. enum_name is a ref (Issue #239)
+        // -- never freed here, never read here.
+        if self.data.is_null().not().and(self.borrowed.not()) { free(own self.data) }
         if call_free { free(own self) }
     }
 }
@@ -322,39 +329,17 @@ namespace:
     clone := func(self: Value) returns Value {
         switch self {
         case Value.Struct(si):
-            // Value_Struct's body in generated C calls
-            // StructInstance_clone(val) again, so the returned Value
-            // owns a fresh data buffer independent of `tmp`. tmp.data
-            // is orphaned at function return because
-            // StructInstance.delete is a no-op (acknowledged leak in
-            // the destructor TODO); free it explicitly here.
-            // For Str payloads, only free the inner c_str when the
-            // clone allocated a fresh one (count > 0 and cap < CAP_VIEW);
-            // count == 0 keeps the source's c_str shared.
-            mut tmp := si.clone()
-            out := Value.Struct(tmp.clone())
-            if tmp.data.is_null().not() {
-                if tmp.struct_name.eq("Str") {
-                    ref s_str : Str = to_ptr(tmp.data)
-                    if s_str.count.to_i64().gt(0).and(s_str.cap.lt(CAP_VIEW)) {
-                        if s_str.c_str.is_null().not() { free(own s_str.c_str) }
-                    }
-                }
-                free(own tmp.data)
-                tmp.data = NULL
-            }
-            return out
+            // Value_Struct deep-clones via StructInstance_clone, so the
+            // returned Value owns a fresh data buffer. The intermediate
+            // clone is reclaimed by the garbager (StructInstance.delete is
+            // deep), so no manual free here.
+            return Value.Struct(si.clone())
         case Value.Enum(ei):
-            // Same shape: Value_Enum deep-clones via EnumInstance_clone,
-            // so the returned Value's payload owns a fresh buffer.
-            // tmp.data is orphaned and leaks under the no-op delete.
-            mut tmp := ei.clone()
-            out := Value.Enum(tmp.clone())
-            if tmp.data.is_null().not() {
-                free(own tmp.data)
-                tmp.data = NULL
-            }
-            return out
+            // Value_Enum deep-clones via EnumInstance_clone, so the returned
+            // Value owns a fresh buffer. The intermediate clone is reclaimed
+            // by the garbager (EnumInstance.delete is deep), so no manual
+            // free here.
+            return Value.Enum(ei.clone())
         case Value.Int(v):     return Value.Int(v)
         case Value.Byte(v):    return Value.Byte(v)
         case Value.Sbyte(v):   return Value.Sbyte(v)
@@ -636,7 +621,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             interp_error(e, format("undefined variable '", ident.ident_name(), "'"), ctx)
             exit(1)
         }
-        return shallow_copy_value(cell.val)
+        return borrow_value(cell.val)
     case NodeType.FCall:
         return eval_call(scope, e, ctx)
     case NodeType.FuncDef:
@@ -707,7 +692,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     }
                 case:
                 }
-                return shallow_copy_value(nsv)
+                return borrow_value(nsv)
             }
             interp_error(e, format("no namespace field '", fname.field_access_name(), "'"), ctx)
             exit(1)
@@ -795,7 +780,13 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
         if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
         if type_name.eq("Str") {
             ref sp : Str = p
-            return make_str_value_own(sp.c_str, sp.count, ctx)
+            // COPY (not _own): sp.c_str belongs to the underlying value the
+            // pointer references, not to us. make_str_value_own would claim
+            // ownership of a shared buffer, so the caller's save-old-delete
+            // (arg = widen_numeric(arg)) or scope_set_owned would free the
+            // source's c_str and dangle it. Copying yields an independent
+            // owned Str.
+            return make_str_value(sp.c_str, sp.count, ctx)
         }
         ref tdef : Expr = lookup_type_def_helper(type_name, scope, ctx)
         if tdef.is_null().not() {
@@ -826,9 +817,14 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                 return make_struct_value(type_name, tdef, p, true, ctx)
             }
         }
-        return shallow_copy_value(val)
+        // Independent clone, not a borrow: callers use `val = reinterpret_
+        // ptr_value(val, ...)`, whose save_old_delete frees the old val after
+        // evaluating the rhs -- a borrow aliasing that (non-borrowed) val
+        // would dangle. The value_ptr branches above already return fresh
+        // values; only these fall-throughs aliased the input.
+        return val.clone()
     }
-    return shallow_copy_value(val)
+    return val.clone()
 }
 
 // Check if call should be skipped because first own param is None/borrowed/pointer-like.
@@ -1000,7 +996,7 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     continue
                 }
             }
-            new_val := eval_expr(scope, rhs, ctx)
+            mut new_val := eval_expr(scope, rhs, ctx)
             memcpy(cell.val, new_val, Value.size())
             // #227: for ref-mut bindings to a primitive scalar at a raw
             // pointer (`ref mut x : U32 = ptr_add(...)`), also write the
@@ -1141,6 +1137,11 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     }
                 }
             }
+            // new_val was memcpy'd into cell.val above (a MOVE): the cell now
+            // owns the payload. Null new_val so the garbager's deep
+            // Value.delete at its last use is a no-op and does not free the
+            // cell's data out from under later reads.
+            memcpy(new_val, val_none(), Value.size())
         case NodeType.FieldAssign(fad):
             fname := fad.name
             ref val_expr : Expr = stmt.child(1)
@@ -1242,12 +1243,10 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             }
         case NodeType.FCall:
             // Issue #109: a bare call-statement discards its result Value.
-            // When the callee returns an owned heap payload (e.g. a Str),
-            // dropping it on the floor leaked the payload once per call.
-            // cleanup_value_payload is a no-op for borrowed/aliased results
-            // (it checks the StructInstance/EnumInstance `borrowed` flag).
-            discarded := eval_call(scope, stmt, ctx)
-            cleanup_value_payload(discarded)
+            // The garbager inserts a deep Value.delete for this discarded
+            // result at its last use, reclaiming any heap payload. Borrowed
+            // results carry borrowed = true, so the deep delete skips them.
+            _ := eval_call(scope, stmt, ctx)
         case NodeType.Body:
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt, ctx)
@@ -1383,7 +1382,18 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                         switch oa.node_type {
                                         case NodeType.Ident(oa_ident):
                                             ref oc : Cell = scope_get(scope, oa_ident.ident_name())
-                                            if oc.is_null().not() { oc.val = val_none() }
+                                            if oc.is_null().not() {
+                                                // enum_method_dispatch copied this own arg's
+                                                // payload bytes into eresult, sharing a Str
+                                                // payload's c_str (Issue #109). Clear is_str so
+                                                // the cell's deep delete frees only the wrapper,
+                                                // not the c_str eresult now owns (else UAF).
+                                                switch oc.val {
+                                                case Value.Struct(osi): osi.is_str = false
+                                                case:
+                                                }
+                                                oc.val = val_none()
+                                            }
                                         case:
                                             UNREACHABLE(__LOC__)
                                         }
@@ -1520,7 +1530,14 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 switch oa.node_type {
                 case NodeType.Ident(oa_ident):
                     ref oc : Cell = scope_get(scope, oa_ident.ident_name())
-                    if oc.is_null().not() { oc.val = val_none() }
+                    if oc.is_null().not() {
+                        // The ext_func took ownership of this own arg: its
+                        // data buffer was passed raw to C, which owns (and may
+                        // free) it. MOVE the cell to None WITHOUT deep-deleting
+                        // -- `oc.val = val_none()` would free the buffer C
+                        // already owns (double-free, e.g. `Pair.delete(own self)`).
+                        memcpy(oc.val, val_none(), Value.size())
+                    }
                 case:
                 }
             }
@@ -1593,7 +1610,6 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                 interp_error(arg, "undefined variable '".concat(arg_ident.ident_name()).concat("'"), ctx)
                                 exit(1)
                             }
-                            val = shallow_copy_value(src.val)
                             // Null the source only when THIS arg (cur_idx) is
                             // marked own. Using the post-increment arg_idx here
                             // tested the next arg's own-bit, which nulled the
@@ -1602,8 +1618,18 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                             // because the following `elem_clone` arg was own,
                             // leaving every later Vec.new with elem_kind == 0
                             // (issue #213).
-                            if get_own_arg(e, cur_idx).and(val.is(Value.Func).not()) {
-                                src.val = val_none()
+                            if get_own_arg(e, cur_idx).and(src.val.is(Value.Func).not()) {
+                                // MOVE: take ownership of the source payload and
+                                // null the cell WITHOUT freeing (memcpy, not
+                                // `= val_none()` which save-old-deletes the
+                                // payload val now owns -> double-free).
+                                val = shallow_copy_value(src.val)
+                                memcpy(src.val, val_none(), Value.size())
+                            } else {
+                                // BORROW: val aliases src.val for the field
+                                // write (write_field clones); its deep delete
+                                // must skip the payload the source still owns.
+                                val = borrow_value(src.val)
                             }
                         case:
                             val = eval_expr(scope, arg, ctx)
@@ -1863,6 +1889,23 @@ shallow_copy_value := func(v: Value) returns shallow Value {
     return r
 }
 
+// Like shallow_copy_value but marks the copy as a BORROW: the returned
+// Value aliases v's heap payload (shares the same .data), so its deep
+// delete must NOT free that payload -- the original owner (a scope cell, a
+// namespace field, ...) still holds it and frees it later. Used at read
+// sites where the value is consumed transiently; any store of it clones
+// (value semantics), so the borrow never outlives the owner. Scalars carry
+// no heap, so the flag is a harmless no-op for them.
+borrow_value := func(v: Value) returns shallow Value {
+    mut r := shallow_copy_value(v)
+    switch r {
+    case Value.Struct(si): si.borrowed = true
+    case Value.Enum(ei):   ei.borrowed = true
+    case:
+    }
+    return r
+}
+
 // Issue #217: in interpret mode `own 42` bound to a `: Dynamic`
 // parameter must look the same as compile mode's autobox (a heap I64
 // the callee sees as a Dynamic pointer). Without boxing, downstream
@@ -1911,6 +1954,9 @@ make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool,
     switch r {
     case Value.Struct(payload):
         payload.struct_name = sname
+        // Issue #239: cache whether this is a Str value while sname is valid,
+        // so the deep delete need not read the (possibly-freed) struct_name.
+        payload.is_str = sname.eq("Str")
         payload.struct_def = sdef
         payload.ctx = ctx
         payload.data = data
@@ -1918,12 +1964,35 @@ make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool,
     case:
         UNREACHABLE(__LOC__)
     }
-    return shallow_copy_value(r)
+    // Move r out: the returned copy becomes the sole owner of `data`, and
+    // nulling r makes its scope-end (deep) delete a no-op so the payload is
+    // not double-freed.
+    result := shallow_copy_value(r)
+    memcpy(r, val_none(), Value.size())
+    return result
+}
+
+priv value_is_borrowed := func(v: Value) returns Bool {
+    switch v {
+    case Value.Struct(si): return si.borrowed
+    case Value.Enum(ei):   return ei.borrowed
+    case:                  return false
+    }
 }
 
 widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
-    if ptype.is_null() { return shallow_copy_value(v) }
-    if ptype.len().eq(0) { return shallow_copy_value(v) }
+    // A borrowed view (a method's `mut self` aliasing the caller's storage,
+    // or any read_field borrow) passes through UNCHANGED: it is never a
+    // numeric value, so no widening is lost, and cloning it would break
+    // in-place mutation (e.g. `c.items.push(...)` would push into a copy).
+    // The save_old_delete around `arg = widen_numeric(arg)` skips borrowed
+    // values, so the alias does not dangle.
+    if value_is_borrowed(v) { return shallow_copy_value(v) }
+    // Pass-through returns clone (not shallow alias): callers reassign
+    // `arg = widen_numeric(arg, ...)`, whose save_old_delete frees the old
+    // arg AFTER evaluating the rhs -- an alias of arg would then dangle.
+    if ptype.is_null() { return v.clone() }
+    if ptype.len().eq(0) { return v.clone() }
     mut ival : I64 = 0
     mut uval : U64 = 0
     mut is_unsigned := false
@@ -1942,7 +2011,10 @@ widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
         uval = uv.cast(U64)
         is_unsigned = true
     case:
-        return shallow_copy_value(v)
+        // Non-numeric (Str/struct/enum): pass through as an INDEPENDENT
+        // clone, not a shallow alias -- callers do `arg = widen_numeric(arg)`
+        // whose save_old_delete frees the old arg, which would dangle an alias.
+        return v.clone()
     }
     if is_unsigned.not() { uval = ival.cast(U64) }
     else { ival = uval.cast(I64) }
@@ -1970,7 +2042,9 @@ widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     if ptype.eq("U16") {
         if v.is(Value.Byte) { return val_u16(uval.cast(I64)) }
     }
-    return shallow_copy_value(v)
+    // Clone, not alias: see the pass-through note at the top -- callers do
+    // `arg = widen_numeric(arg, ...)` and the result must be independent of v.
+    return v.clone()
 }
 
 scope_get := func(mut s: Scope, name: Str) returns ref Cell {
@@ -2042,15 +2116,22 @@ scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dynamic
     return NULL
 }
 
-scope_set_owned := func(mut s: Scope, name: Str, val: Value) {
+scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
+    // The cell takes ownership of val's payload (memcpy of the Value bytes,
+    // including the .data pointer). val is a pointer to the caller's local,
+    // so null it after the copy: this is a MOVE, and it makes the garbager's
+    // deep Value.delete on the caller's local a no-op -- the cell is now the
+    // sole owner and scope_free reclaims it.
     if s.bindings.has(name) {
         ref b : Binding = s.bindings[name]
         free_value(b.cell.val)
         memcpy(b.cell.val, val, Value.size())
+        memcpy(val, val_none(), Value.size())
         return
     }
     cell : Dynamic = malloc(Cell.size())
     memcpy(cell, val, Value.size())
+    memcpy(val, val_none(), Value.size())
     // Build an OWNED Str key: clone name's bytes so the key does NOT alias
     // the caller's buffer. The precomp fold scope (precomp_imported's
     // `global`) is shared across every unit's process_body and outlives AST
@@ -2268,17 +2349,18 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
         switch si.struct_def.node_type {
         case NodeType.StructDef:
             sz := ctx_total_size(si.struct_name, si.ctx)
-            if si.borrowed {
-                mut cloned := val.clone()
-                switch cloned {
-                case Value.Struct(csi):
-                    memcpy(dest, csi.data, sz.to_u64())
-                    free(own csi.data)
-                    csi.data = NULL
-                case:
-                }
-            } else {
-                memcpy(dest, si.data, sz.to_u64())
+            // Always deep-clone into the buffer: the caller deletes `val`
+            // after this (e.g. build_argv_array), so the buffer must own an
+            // independent copy of any nested heap (a Str payload's c_str). A
+            // bare memcpy of si.data shared the c_str and dangled once `val`
+            // was freed (the old non-borrowed path, fatal under deep deletes).
+            mut cloned := val.clone()
+            switch cloned {
+            case Value.Struct(csi):
+                memcpy(dest, csi.data, sz.to_u64())
+                free(own csi.data)
+                csi.data = NULL
+            case:
             }
         case:
         }
@@ -2604,8 +2686,19 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: I32, 
     if val.is(Value.Enum) { is_enum_field = true }
     if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
         switch val {
-        case Value.Struct(si):
-            write_ptr(ptr, si.data)
+        case Value.Struct:
+            // OWN field stores a pointer to a struct payload the field OWNS.
+            // Deep-clone val's data so the field has an independent buffer:
+            // the caller deletes `val` after this call, and a bare
+            // write_ptr(ptr, si.data) would leave the field pointing at the
+            // freed buffer (worked only while deletes were no-ops).
+            mut cloned := val.clone()
+            switch cloned {
+            case Value.Struct(csi):
+                write_ptr(ptr, csi.data)
+                csi.data = NULL
+            case:
+            }
         case Value.Ref(pv):
             write_ptr(ptr, deref(pv))
         case Value.Dynamic(pv):
@@ -2641,18 +2734,19 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: I32, 
     case Value.Uint64(v):  memcpy(ptr, v, fsz.to_u64())
     case Value.Float(v):   memcpy(ptr, v, fsz.to_u64())
     case Value.Boolean(v): memcpy(ptr, v, fsz.to_u64())
-    case Value.Struct(si):
-        if si.borrowed {
-            mut cloned := val.clone()
-            switch cloned {
-            case Value.Struct(csi):
-                memcpy(ptr, csi.data, fsz.to_u64())
-                free(own csi.data)
-                csi.data = NULL
-            case:
-            }
-        } else {
-            memcpy(ptr, si.data, fsz.to_u64())
+    case Value.Struct:
+        // Always deep-copy into the inline (Shallow) field: the caller owns
+        // `val` and deletes it after this call, so the field must own an
+        // independent copy of any nested heap (notably a Str payload's
+        // c_str). Cloning then copying the clone's struct bytes + freeing the
+        // clone's wrapper leaves the fresh c_str owned by the field.
+        mut cloned := val.clone()
+        switch cloned {
+        case Value.Struct(csi):
+            memcpy(ptr, csi.data, fsz.to_u64())
+            free(own csi.data)
+            csi.data = NULL
+        case:
         }
     case Value.Enum(ei):
         mut total : USize = ei.data_size
