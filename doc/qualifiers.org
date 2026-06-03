@@ -158,7 +158,14 @@ redundant and rejected by the typer.
   ~ref~ fields, and every field's type is itself auto-shallow (a primitive
   or another auto-shallow struct). Otherwise it stays pointer-passed. The
   transitive field check closes the hole where a size-8 struct embeds a
-  deep struct inline. (Enums are not auto-shallow yet -- a separate task.)
+  deep struct inline.
+- Issue #223 enum follow-up: a PAYLOADLESS enum (a bare tag, every variant
+  without a payload) is auto-shallow when its size fits a machine word
+  (~size <= UPtr.size()~). A bare tag is a plain integer, always
+  value-copy-safe. Payload-BEARING enums are not auto-shallow yet: the
+  generic ~get_payload~ helper hardcodes the payload offset at
+  ~sizeof(void*)~ (8), which is wrong for a <= 4-byte-aligned payload (union
+  at offset 4) -- a pre-existing limitation tracked as a separate follow-up.
 - Issue #223 step 4: on a STRUCT (or enum), an explicit ~shallow~ is a
   force/override, NOT an error. Unlike a primitive (step 2, rejected as
   redundant), a struct ~shallow~ is always honored: it forces by-value

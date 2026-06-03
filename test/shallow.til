@@ -108,3 +108,44 @@ test_shallow_forced_on_big_struct := test() {
     q := BigQuad(a = 1, b = 2, c = 3, d = 4)
     assert_eq(__LOC__, BigQuad.sum(q), 10)
 }
+
+// === Issue #223 enum follow-up: auto-shallow for small payloadless enums ===
+
+// Dir is a bare-tag enum (4 bytes, no payloads) -> auto-shallow: passed and
+// returned by value WITHOUT the keyword.
+Dir := enum { North, South, East, West }
+
+dir_code := func(d: Dir) returns I64 {
+    switch d {
+    case Dir.North: return 0
+    case Dir.South: return 1
+    case Dir.East:  return 2
+    case: return 3
+    }
+}
+
+make_dir := func(code: I64) returns Dir {
+    if code.eq(0) { return Dir.North }
+    if code.eq(1) { return Dir.South }
+    if code.eq(2) { return Dir.East }
+    return Dir.West
+}
+
+test_auto_shallow_payloadless_enum := test() {
+    assert_eq(__LOC__, dir_code(Dir.East), 2)
+    assert_eq(__LOC__, dir_code(make_dir(3)), 3)
+}
+
+// Explicit `shallow` on a payloadless enum is honored (force/override), not
+// rejected as redundant -- same rule as structs.
+dir_code_explicit := func(shallow d: Dir) returns I64 {
+    switch d {
+    case Dir.North: return 0
+    case: return 9
+    }
+}
+
+test_explicit_shallow_enum := test() {
+    assert_eq(__LOC__, dir_code_explicit(Dir.North), 0)
+    assert_eq(__LOC__, dir_code_explicit(Dir.West), 9)
+}

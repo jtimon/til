@@ -3049,9 +3049,9 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
 //   - every field's TYPE is itself auto-shallow (a primitive or another
 //     auto-shallow struct). The transitive check closes the hole where a
 //     size-8 struct embeds a deep struct inline.
-// Enums are not covered here (revisit separately). Mirrors builder's
-// is_pod_struct field rules, plus the size gate.
-PTR_SIZE_BYTES : I32 = 8
+// Mirrors builder's is_pod_struct field rules, plus the size gate. The size
+// ceiling for auto-shallow is a machine word -- UPtr.size() -- so a value that
+// fits in a register is cheap to copy.
 is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len().eq(0) { return false }
     if scope.is_null() { return false }
@@ -3059,15 +3059,14 @@ is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) return
     if sdef.is_null() { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
-        if ctx_total_size(type_name, ctx).gt(PTR_SIZE_BYTES) { return false }
+        if ctx_total_size(type_name, ctx).to_u64().gt(UPtr.size()) { return false }
         if sdd.fields.len().eq(0) { return false }
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { return false }
             ref ftn : Str = fd.explicit_type
             if ftn.len().eq(0) { return false }
-            if is_primitive(til_type_from_explicit_type(ftn)) { continue }
-            if is_shallow_struct(ftn, scope, ctx) { continue }
+            if is_shallow_type_name(ftn, scope, ctx) { continue }
             return false
         }
         return true
@@ -3076,10 +3075,52 @@ is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) return
     return false
 }
 
+// Issue #223 enum follow-up: a PAYLOADLESS enum is auto-shallow when its
+// total size fits in a machine word (size <= UPtr.size()). A bare tag is a
+// plain integer -- always value-copy-safe.
+//
+// Payload-bearing enums are deliberately excluded for now: the generic
+// get_payload() helper (src/c/ext.c) hardcodes the payload offset at
+// sizeof(void*) == 8, which is correct only when a payload forces 8-byte
+// alignment. An auto-shallow enum with a <= 4-byte-aligned payload (e.g.
+// Num: I32) puts its union at offset 4, so switch-case payload reads would
+// fetch garbage. Supporting those needs get_payload (and its switch-case /
+// clone / dispatch call sites) to use the real payload offset; tracked as a
+// follow-up. Until then, only payloadless small enums auto-shallow.
+is_shallow_enum := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
+    if type_name.len().eq(0) { return false }
+    if scope.is_null() { return false }
+    ref edef : Expr = scope.get_struct(type_name)
+    if edef.is_null() { return false }
+    switch edef.node_type {
+    case NodeType.EnumDef(edd):
+        if ctx_total_size(type_name, ctx).to_u64().gt(UPtr.size()) { return false }
+        // Any payload-bearing variant disqualifies (see comment above).
+        for vi in 0..edd.variants.len() {
+            vt := enum_variant_type(edef, vi.cast(I32))
+            if vt.len().gt(0) { return false }
+        }
+        return true
+    case:
+    }
+    return false
+}
+
+// A type name refers to a shallow (value-copy-safe) type: a primitive, a
+// small value-shaped struct (step 3), or a small value-shaped enum. Used by
+// the recursive field/payload checks above.
+is_shallow_type_name := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
+    if is_primitive(til_type_from_explicit_type(type_name)) { return true }
+    if is_shallow_struct(type_name, scope, ctx) { return true }
+    return is_shallow_enum(type_name, scope, ctx)
+}
+
 // A param/return type qualifies for auto-shallow if it is a primitive
-// (step 1) or a small value-shaped struct (step 3).
+// (step 1), a small value-shaped struct (step 3), or a small value-shaped
+// enum (enum follow-up).
 is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if is_primitive(t) { return true }
+    if is_shallow_enum(type_name, scope, ctx) { return true }
     return is_shallow_struct(type_name, scope, ctx)
 }
 

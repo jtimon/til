@@ -558,6 +558,27 @@ callee_param_is_shallow := func(callee_name: Str, arg_index: U32, ctx: Context) 
     }
 }
 
+// Issue #223 enum follow-up: the auto-generated enum `eq` forward
+// declaration must match the actual definition's ABI. With auto-shallow, a
+// small enum's eq takes its args by value (`Type self, Type other`) and may
+// return Bool by value; without it, the old pointer form (`Type *, Type *`).
+// Derive the C param type ("Type" vs "Type *") from the eq fdef's first
+// param own_type. `eq_fdef` may be a non-FuncDef placeholder when the enum
+// has no eq in ns_decls (has_eq false), in which case we keep the pointer
+// default.
+enum_eq_param_ctype := func(type_name: Str, eq_fdef: Expr, has_eq: Bool) returns Str {
+    if has_eq.not() { return format(type_name, " *") }
+    switch eq_fdef.node_type {
+    case NodeType.FuncDef(eqfd):
+        if eqfd.params.len().gt(0) {
+            ref p0 : Declaration = eqfd.params[0]
+            if p0.own_type.is(OwnType.Shallow) { return type_name.clone() }
+        }
+    case:
+    }
+    return format(type_name, " *")
+}
+
 callee_param_is_usize := func(callee_name: Str, arg_index: U32, ctx: Context) returns Bool {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if fdef.is_null() { return false }
@@ -3774,7 +3795,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr, c
                     UNREACHABLE(__LOC__)
                 }
             }
-            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(", "); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(");\n")
             switch stmt.child(0).node_type {
             case NodeType.EnumDef(hdr_edd):
                 mut hdr_vi : USize = 0
@@ -3905,7 +3926,7 @@ emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         UNREACHABLE(__LOC__)
                     }
                 }
-                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(", "); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(");\n")
                 switch stmt.child(0).node_type {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
@@ -4952,7 +4973,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
                     UNREACHABLE(__LOC__)
                 }
             }
-            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(", "); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(");\n")
             switch stmt.child(0).node_type {
             case NodeType.EnumDef(hdr_edd):
                 mut hdr_vi : USize = 0
@@ -5105,7 +5126,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         UNREACHABLE(__LOC__)
                     }
                 }
-                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(", "); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(");\n")
                 switch stmt.child(0).node_type {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
@@ -5244,7 +5265,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
                             UNREACHABLE(__LOC__)
                         }
                     }
-                    f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+                    f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(", "); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(");\n")
                     switch stmt.child(0).node_type {
                     case NodeType.EnumDef(shdr_edd):
                         mut shdr_vi : USize = 0
@@ -5297,7 +5318,7 @@ emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     UNREACHABLE(__LOC__)
                 }
             }
-            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(", "); f.write(enum_eq_param_ctype(dd.name, eq_fdef, has_eq_fdef)); f.write(");\n")
             switch stmt.child(0).node_type {
             case NodeType.EnumDef(shdr_edd):
                 mut shdr_vi : USize = 0
