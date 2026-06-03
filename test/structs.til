@@ -96,6 +96,37 @@ test_immutable_fields := test() {
     assert_eq(__LOC__, e3.id, 99)
 }
 
+// #242: a field declared with an explicit type and no default is
+// required at instantiation; fields with a default stay optional.
+Required := struct {
+    a : U16 = 0
+    b : Str
+    c := -1
+}
+
+test_required_field := test() {
+    r := Required(b = "x")
+    assert_eq(__LOC__, r.a.to_i64(), 0)
+    assert_eq_str(__LOC__, r.b, "x")
+    assert_eq(__LOC__, r.c, -1)
+    r2 := Required(a = 7, b = "y", c = 9)
+    assert_eq(__LOC__, r2.a.to_i64(), 7)
+    assert_eq_str(__LOC__, r2.b, "y")
+    assert_eq(__LOC__, r2.c, 9)
+}
+
+MixedReq := struct {
+    x := 1
+    label : Str
+}
+
+test_mixed_required_optional := test() {
+    // Omitting the defaulted field is fine; the required one is supplied.
+    m := MixedReq(label = "hi")
+    assert_eq(__LOC__, m.x, 1)
+    assert_eq_str(__LOC__, m.label, "hi")
+}
+
 test_independence := test() {
     a := Point()
     b := Point()

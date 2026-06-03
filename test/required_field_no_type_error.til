@@ -1,0 +1,11 @@
+mode script
+
+// #242: a field with no default must carry an explicit type. A bare
+// field name (neither ': Type' nor ':= value') stays illegal.
+
+Bad := struct {
+    a := 0
+    b
+}
+
+x := Bad()

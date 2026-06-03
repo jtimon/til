@@ -587,6 +587,17 @@ main := proc(args: ..Str) {
     add_count(tests, "cli_unsupported_main_build", "typer",
               "cannot be parsed from a CLI argument", 1,
               format(til_bin, " build", asan_flag, " test/cli_unsupported_main.til"))
+    // #242: a no-default struct field is required at instantiation.
+    add_count(tests, "required_field_error_interp", "typer",
+              "missing required field", 2,
+              format(til_bin, " interpret test/required_field_error.til"))
+    add_count(tests, "required_field_error_build", "typer",
+              "missing required field", 2,
+              format(til_bin, " build", asan_flag, " test/required_field_error.til"))
+    // #242: a no-default field with no explicit type stays illegal.
+    add_count(tests, "required_field_no_type_error", "parser",
+              "expected", 1,
+              format(til_bin, " interpret test/required_field_no_type_error.til"))
 
     // === CLI tests ===
     exp := "gen/out/expected/"

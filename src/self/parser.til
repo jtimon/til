@@ -584,24 +584,34 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             else if check(p, TokenType.KwMut) { advance(p); f_redundant_mut = true }
             f_name := expect_text(p, TokenType.Ident)
             mut f_explicit_type := ""
+            // #242: a field declared with an explicit `: Type` may omit
+            // the default entirely (`b : Str`), making it a required
+            // argument at instantiation. Without an explicit type a
+            // default is still mandatory, so a bare `name` stays illegal.
+            mut f_has_default := true
             if check(p, TokenType.Colon) {
                 advance(p)
                 f_explicit_type = parse_type_ref(p)
                 if check(p, TokenType.Eq) { advance(p) }
-                else { expect_token(p, TokenType.ColonEq) }
+                else if check(p, TokenType.ColonEq) { advance(p) }
+                else { f_has_default = false }
             } else {
                 expect_token(p, TokenType.ColonEq)
             }
             f_doc := p.pending_doc.clone()
             p.pending_doc = ""
-            f_value := parse_expression(p)
+            // No default leaves default_value as the NoDefaultArg sentinel
+            // (the Declaration constructor's default), mirroring how
+            // function params without a default are recorded.
             mut f_dd := Declaration(name = f_name, is_mut = f_is_mut,
                 redundant_mut = f_redundant_mut,
                 own_type = f_own_type, explicit_type = f_explicit_type,
                 til_type = til_type_from_explicit_type(f_explicit_type),
                 doc = f_doc,
-                is_priv = member_priv,
-                default_value = f_value)
+                is_priv = member_priv)
+            if f_has_default {
+                f_dd.default_value = parse_expression(p)
+            }
             switch def.node_type {
             case NodeType.StructDef(sdd):
                 sdd.fields.push(own f_dd)

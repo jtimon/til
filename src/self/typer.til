@@ -1132,12 +1132,27 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
                 continue
             }
         }
+        mut missing_required := false
         for i in 0..nfields {
             ref slot_arg : CtorArg = field_vals[i]
             if slot_arg.is(CtorArg.Filled).not() {
                 ref fld_d : Declaration = ctor_sdd.fields[i]
-                field_vals.set(i, own CtorArg.Filled(fld_d.default_value.clone()))
+                if fld_d.default_value.node_type.is(NodeType.NoDefaultArg) {
+                    // #242: a field with no default is required at
+                    // instantiation; it must be supplied by name.
+                    e.type_error(format("missing required field '", fld_d.name, "' in '", name, "(...)'"), ctx)
+                    missing_required = true
+                } else {
+                    field_vals.set(i, own CtorArg.Filled(fld_d.default_value.clone()))
+                }
             }
+        }
+        if missing_required {
+            // Diagnostic(s) already emitted. Bail before the desugar so the
+            // build loop below doesn't trip over the unfilled slot(s); set a
+            // sensible type so the typer keeps reporting later errors.
+            e.set_expr_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
+            return true
         }
         mut new_ch := Vec.new(Expr)
         new_ch.push_take(e.children, 0)
@@ -2746,7 +2761,11 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     }
                 }
             } else {
-                if fd.default_value.is_null().not() {
+                if fd.default_value.node_type.is(NodeType.NoDefaultArg) {
+                    // #242: no default means there is no expression to infer
+                    // the field type from, so an explicit `: Type` is required.
+                    fd.default_value.type_error("field '".concat(fd.name).concat("' has no default value, so it needs an explicit type: '").concat(fd.name).concat(" : Type'"), ctx)
+                } else if fd.default_value.is_null().not() {
                     fd.til_type =fd.default_value.expr_til_type()
                 }
             }
