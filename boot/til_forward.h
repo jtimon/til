@@ -200,6 +200,7 @@ typedef enum {
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
+typedef struct FfiState FfiState;
 typedef struct Context Context;
 typedef enum {
     Lang_TAG_C,
@@ -594,6 +595,18 @@ typedef struct TypeScope {
 } TypeScope;
 
 
+typedef struct FfiState {
+    Map dispatch_map;
+    Bool dispatch_inited;
+    Map ffi_map;
+    Bool ffi_map_inited;
+    Bool ffi_loaded;
+    Map ffi_struct_defs;
+    Vec ffi_type_cache;
+    Bool ffi_type_cache_inited;
+} FfiState;
+
+
 struct Lang {
     Lang_tag tag;
 };
@@ -915,14 +928,7 @@ typedef struct Context {
     Expr *cached_vec_def;
     Str *cached_vec_name;
     Map interp_type_defs;
-    Map dispatch_map;
-    Bool dispatch_inited;
-    Map ffi_map;
-    Bool ffi_map_inited;
-    Bool ffi_loaded;
-    Map ffi_struct_defs;
-    Vec ffi_type_cache;
-    Bool ffi_type_cache_inited;
+    FfiState ffi;
 } Context;
 
 
@@ -1352,6 +1358,10 @@ FuncType binding_func_type(TypeBinding * b);
 ImportUnit * ImportUnit_clone(ImportUnit * self);
 void ImportUnit_delete(ImportUnit * self, Bool call_free);
 U32 ImportUnit_size(void);
+FfiState * FfiState_clone(FfiState * self);
+void FfiState_delete(FfiState * self, Bool call_free);
+U64 FfiState_hash(FfiState * self, HashFn hasher);
+U32 FfiState_size(void);
 Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool call_free);
 U32 Context_size(void);

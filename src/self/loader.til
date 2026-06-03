@@ -344,7 +344,7 @@ precomp_imported := proc(mut lp: LoadedProgram) {
         // just registered. Built-in ext_funcs (I64_add etc.) are statically
         // linked, so no .so needs dlopen'ing for precomp's eval-based fold
         // to call them.
-        lp.ctx.ffi_loaded = true
+        lp.ctx.ffi.ffi_loaded = true
 
         // 3) Fold calls in every file. The known-fold map lives on ctx
         // (ctx.precomp_known); precomp_reset_state below clears it.

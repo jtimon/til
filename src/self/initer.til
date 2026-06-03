@@ -194,6 +194,24 @@ ImportUnit := struct {
     imports := Vec.new(Str)
 }
 
+// #246: Dispatch / FFI runtime state grouped off Context's top level
+// (previously eight flat ctx fields). FFIEntry / FFITypePtrBox are
+// defined in dispatch.til but resolve here via whole-program merge (same
+// as the fields did when they lived directly on Context). ffi_cleanup
+// frees the inner C-heap pointers (cifs etc.) and resets these maps to
+// fresh, so auto-delete only ever frees empty containers -- no double
+// free of the libffi allocations.
+FfiState := struct {
+    dispatch_map := Map.new(Str, Dynamic)
+    dispatch_inited := false
+    ffi_map := Map.new(Str, FFIEntry)
+    ffi_map_inited := false
+    ffi_loaded := false
+    ffi_struct_defs := Map.new(Str, Dynamic)
+    ffi_type_cache := Vec.new(FFITypePtrBox)
+    ffi_type_cache_inited := false
+}
+
 Context := struct {
     mode := Mode()
     path := ""
@@ -410,20 +428,10 @@ Context := struct {
     // stays in scope at the Context definition in this file.
     interp_type_defs := Map.new(Str, Dynamic)
 
-    // Dispatch / FFI runtime state (previously module-level globals in
-    // dispatch.til). FFIEntry / FFITypePtrBox are defined in dispatch.til
-    // but resolve here via whole-program merge (same as ns_fields' Value).
-    // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
-    // these maps to fresh, so Context's auto-delete only ever frees empty
-    // containers -- no double free of the libffi allocations.
-    dispatch_map := Map.new(Str, Dynamic)
-    dispatch_inited := false
-    ffi_map := Map.new(Str, FFIEntry)
-    ffi_map_inited := false
-    ffi_loaded := false
-    ffi_struct_defs := Map.new(Str, Dynamic)
-    ffi_type_cache := Vec.new(FFITypePtrBox)
-    ffi_type_cache_inited := false
+    // #246: Dispatch / FFI runtime state, grouped into FfiState (see its
+    // definition above). Was eight flat ctx fields; access sites now go
+    // through ctx.ffi.<field>.
+    ffi := FfiState()
 }
 
 priv align_up := func(offset: I32, align: I32) returns I32 {

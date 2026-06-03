@@ -2920,7 +2920,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     // interpreter helpers can read shared Context fields (#177/#178).
     ref mut c : Context = lp.ctx
     // Ensure builtin dispatch table is initialized deterministically.
-    if lp.ctx.dispatch_inited.not() { dispatch_init(lp.ctx) }
+    if lp.ctx.ffi.dispatch_inited.not() { dispatch_init(lp.ctx) }
 
     mut user_argc : U32 = 0
     if user_argv.is_null().not() { user_argc = user_argv.len() }
