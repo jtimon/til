@@ -224,6 +224,14 @@ main := proc(args: ..Str) {
     run("git restore --staged doc/totals.csv img/totals.svg")
     run("git restore doc/totals.csv img/totals.svg")
 
+    // ---- Step 4b: reindent all .til files with the emacs til-mode rules ----
+    // `-Q --batch' runs headless without starting or connecting to any Emacs
+    // server, so it leaves other running emacs sessions untouched. Only files
+    // whose indentation actually changes are rewritten; the formatting is
+    // folded into the merged commit by the `git add -A` in Step 7.
+    print("Running: emacs til-mode format\n")
+    run("emacs -Q --batch -l editor/til-mode.el -l editor/format.el -f til-format-batch $(git ls-files '*.til')")
+
     // ---- Step 5: full test suite ----
     print("Running: make clean && ", test_target, "\n")
     run(format(

@@ -122,17 +122,49 @@
 ))
 
 (defun til-syntax-propertize (start end)
-  "Neutralize a double quote that lives inside a til character literal.
-Without this, a literal like '\"' (and '\\\"') makes Emacs treat the inner
-\" as the start of a string, desyncing all highlighting that follows.
-The character literal is still colored by the font-lock rule in
-`til-highlights'; here we only stop the inner \" from opening a string by
-giving it punctuation syntax."
+  "Neutralize the byte(s) inside a til character literal.
+A character literal is '<c>' or '\\<c>'.  Its inner byte can be a structural
+character -- \" ( ) [ ] { } ' -- which Emacs would otherwise treat as a real
+delimiter, desyncing string parsing, paren/brace matching, and therefore
+indentation (e.g. case '\"': or case ')':).  Giving the interior punctuation
+syntax stops that.  The literal is still colored by the font-lock rule in
+`til-highlights'."
   (goto-char start)
   (funcall
    (syntax-propertize-rules
-    ("'\\\\?\\(\"\\)'" (1 ".")))
+    ("'\\(\\\\.\\|[^'\\\\]\\)'" (1 ".")))
    start end))
+
+(defun til-block-owner-indentation ()
+  "Indentation of the line that starts the statement owning the brace at point.
+Point must be on the block's opening brace.  Walks back to the first line
+of the owning statement across continuation lines so the owner is the line
+holding the NAME (or the head of the expression), not a continuation line.
+Two kinds of continuation are climbed:
+ - paren continuations: a signature/condition split over several lines
+   inside an unclosed '(' (never climb out of a '{' block, which is a real
+   indentation level);
+ - chained '.' continuations: a '{' sitting on a `.method(...)` line.
+This is what makes a body indent one level past the owner, and the matching
+closing brace align with it, regardless of how many lines the head spans."
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (let ((done nil))
+      (while (not done)
+        (let ((open (nth 1 (syntax-ppss (point)))))
+          (cond
+           ;; Inside a '(' opened on an earlier line: climb to that line.
+           ((and open (eq (char-after open) ?\())
+            (goto-char open)
+            (goto-char (line-beginning-position)))
+           ;; This line is a '.'-chain continuation: climb to the line it
+           ;; continues, skipping blank lines.
+           ((save-excursion (skip-chars-forward " \t") (looking-at "\\."))
+            (forward-line -1)
+            (while (and (looking-at "[ \t]*$") (not (bobp)))
+              (forward-line -1)))
+           (t (setq done t)))))
+      (current-indentation))))
 
 (defun til-indent-line ()
   "Indent current line as til code using 4 spaces."
@@ -143,12 +175,13 @@ giving it punctuation syntax."
       (beginning-of-line)
       (skip-chars-forward " \t")
       (cond
-       ;; Closing brace: align with opening block
+       ;; Closing brace: align with the line that owns the block (the NAME
+       ;; line for a multi-line signature, not a continuation line).
        ((looking-at "[ \t]*}")
         (condition-case nil
             (progn
               (backward-up-list 1)
-              (setq indent (current-indentation))
+              (setq indent (til-block-owner-indentation))
               (setq not-indented nil))
           (error (setq indent 0))))
        ;; Closing parenthesis: align with line containing opening parenthesis
@@ -187,16 +220,30 @@ giving it punctuation syntax."
               (setq indent (current-indentation))
               (setq not-indented nil))
           (error (setq indent 0))))
+       ;; Chained method continuation: a line starting with '.' continues
+       ;; the previous line's expression.  The first link indents one level
+       ;; past the line it continues; further links align with that first
+       ;; link so a chain does not stair-step ever deeper.
+       ((looking-at "\\.")
+        (condition-case nil
+            (progn
+              (forward-line -1)
+              (while (and (looking-at "[ \t]*$") (not (bobp)))
+                (forward-line -1))
+              (if (save-excursion (skip-chars-forward " \t") (looking-at "\\."))
+                  (setq indent (current-indentation))
+                (setq indent (+ (current-indentation) 4)))
+              (setq not-indented nil))
+          (error (setq indent 0))))
        ;; Other lines: indent based on open blocks or parentheses
        (t
         (condition-case nil
             (while not-indented
               (backward-up-list 1)
               (cond
-               ;; Inside a block: indent 4 spaces from block's indentation
+               ;; Inside a block: indent one level past the block owner's line
                ((looking-at "{")
-                (message "Indent block at %d" (+ (current-indentation) 4))
-                (setq indent (+ (current-indentation) 4))
+                (setq indent (+ (til-block-owner-indentation) 4))
                 (setq not-indented nil))
                ;; Inside parentheses: indent 4 spaces from line's indentation
                ((looking-at "(")
