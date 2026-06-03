@@ -1,0 +1,204 @@
+#+TITLE: rstil Context struct
+#+OPTIONS: toc:2
+
+Notes on the =Context= struct in the external prototype repo
+https://github.com/jtimon/rstil (the Rust implementation, =src/rs/=).
+This documents how rstil threads one mutable =Context= through every
+compiler phase and, crucially, how the caches built during the init
+phase are reused by every later phase instead of being rebuilt.
+
+Scope: the Rust code only. The self-hosted =.til= attempt is a near
+mirror (=src/self/init.til=, =Context := struct= at init.til:2344) but
+this doc describes =src/rs/=.
+
+* Where it lives
+
+=Context= is defined in =src/rs/init.rs= (around line 1706), not in a
+dedicated module. The init phase "owns" it because init is the phase
+that primes all the caches; the other phases are consumers.
+
+* The phase pipeline
+
+A single =Context= value is created once per top-level compile/interpret
+and passed =&mut= through the whole pipeline. The phases, in order:
+
+1. preinit  (=preinit_expr=, pure AST->AST, does NOT touch Context)
+2. init     (=init_context=, fills the caches)
+3. typer    (=type_check=, reads + augments caches, resolves INFER_TYPE)
+4. desugar  (=desugar_expr=)
+5. garbager (=garbager_expr=)
+6. ufcs     (=ufcs_expr=)
+7. precomp  (=precomp_expr=, comptime + constructors + import())
+8. scavenger (compile path only; disabled for the interpreter)
+9. eval     (=eval_expr=, interpreter)  OR  ccodegen (=emit=, compiler)
+
+The interpreter entry is =interpret_file= ->
+=interpret_file_with_context= -> =main_interpret= (interpreter.rs:3068+).
+The compiler entry is =builder::build= (builder.rs:215+). Both build the
+exact same =Context= and run the same init/typer/precomp phases; they
+only diverge at the final step (eval vs emit). This is why the caches
+have to be phase-agnostic.
+
+* Fields, grouped by purpose
+
+#+begin_src rust
+pub struct Context {
+    pub mode_def: ModeDef,                 // current file's mode (lib/script/test/...)
+    pub path: String,                      // current file path; needed by core "loc"
+    pub scope_stack: ScopeStack,           // THE cache (see below)
+    pub temp_enum_payload: Option<EnumPayload>,  // scratch during enum construction
+
+    // Per-phase import bookkeeping
+    pub imported_asts: OrderedMap<String, Expr>,    // path -> parsed AST
+    pub imported_modes: OrderedMap<String, ModeDef>,// path -> mode
+    pub imports_init_done: HashSet<String>,
+    pub imports_typer_done: HashSet<String>,
+    pub imports_precomp_done: HashSet<String>,
+    pub imports_eval_done: HashSet<String>,
+
+    // precomp scratch (Bug #40, #133)
+    pub current_precomp_func: String,
+    pub precomp_forin_counter: usize,
+    pub precomputed_heap_values: Vec<PrecomputedHeapValue>,
+
+    // anonymous def counters / pending injections (Issues #105, #106, #91)
+    pub anon_struct_counter: usize,
+    pub anon_struct_decls: Vec<Expr>,
+    pub anon_enum_counter: usize,
+    pub anon_enum_decls: Vec<Expr>,
+    pub anon_func_counter: usize,
+    pub anon_func_map: HashMap<(usize, usize), String>,
+}
+#+end_src
+
+** mode_def / path
+Mutated as the pipeline descends into imports. Both follow a
+save/restore discipline: a phase saves =context.path= (and
+=context.mode_def=), sets it to the imported file, recurses, then
+restores it (see =init_import_declarations=, =proc_import=,
+=interpret_file_with_context=, =push_function_scope=). The path is not a
+cache; it is current-position state.
+
+** scope_stack -- the real cache
+=ScopeStack= (init.rs:98) is the central thing built once and reused
+everywhere. It is a stack of =ScopeFrame= (init.rs:73), each frame
+holding five maps:
+
+#+begin_src rust
+pub struct ScopeFrame {
+    pub heap_index: HashMap<String, usize>,      // var name -> heap offset
+    pub symbols:    HashMap<String, SymbolInfo>,  // every declared name + its type
+    pub funcs:      HashMap<String, FuncDef>,     // functions/methods/macros
+    pub enums:      HashMap<String, EnumDef>,      // enum type defs
+    pub structs:    HashMap<String, StructDef>,    // struct type defs
+    pub scope_type: ScopeType,                     // Global|Function|Block|Catch
+}
+#+end_src
+
+The frame comment in the source states the intent directly: this is
+"context priming" / "declaration indexing", i.e. declaring things in any
+order so forward declarations are never required. In theory it is only
+needed for the typer phase after init, "but it can be convenient at
+times in eval or compile phases too."
+
+The global frame (pushed at =ScopeStack::new= + the first
+=push(ScopeType::Global)= in =Context::new=) is the one that survives the
+whole compilation. Inner frames are pushed/popped per function/block.
+
+=ScopeStack= also carries per-function analysis state that is reset as
+functions are entered/left rather than cached globally:
+=function_locals= (Bug #97 shadowing detection), =used_symbols= (Bug
+#101 unused detection), =removed_log= / =removal_tracking_depth= (Issue
+#117 own-consumption), =consumed_symbols= (Issue #185 better consume
+errors), =borrowed_args= (Bug #192).
+
+* How the caches are established in init, reused later
+
+** init populates, later phases mostly read
+=init_context= (init.rs:1401) walks the top-level AST and calls
+=declare_symbol= / =declare_struct= / =declare_enum= / =declare_func= on
+the global frame. That is the priming step. After init returns with zero
+errors, the global frame already knows every top-level type, function,
+and constant in the file AND in every (transitively) imported file.
+
+Subsequent phases then *look up* from that same =scope_stack= rather than
+re-deriving anything:
+
+- typer (=src/rs/typer.rs=): =scope_stack.lookup_symbol/lookup_struct/
+  lookup_enum/lookup_func= all over, plus
+  =register_struct_fields_for_typecheck= which *adds* flattened
+  =instance.field= symbols so member access type-checks. So typer both
+  consumes init's cache and augments it.
+- ccodegen (=src/rs/ccodegen.rs=): same lookups
+  (=lookup_symbol/lookup_struct=, etc.) to emit C; it also reads
+  =precomputed_heap_values= to serialize static arrays (Bug #133).
+- eval / interpreter: uses the same struct/enum/func defs to construct
+  and call.
+
+The Context helper methods that compute layout -- =get_type_size=,
+=calculate_field_offset=, =get_field_offset=, =get_field_type=,
+=get_struct= -- are pure functions over =scope_stack=. They are not
+separate caches; they recompute from the cached defs on demand. Offsets
+are deliberately computed dynamically (Bug #160 removed the old
+=map_instance_fields= precomputation) instead of being stored, which
+keeps the cache to "definitions" only.
+
+** Import caching: the four *_done sets
+Imports are the main reason the caches are phase-tagged. Each file is
+imported once *per phase*, tracked by a separate =HashSet<String>= of
+file paths:
+
+- =imports_init_done=    set by =init_import_declarations=
+- =imports_typer_done=   set by =typer_import_declarations=
+- =imports_precomp_done= set by =proc_import= / builder precomp
+- =imports_eval_done=    set by =proc_import=
+
+The pattern (e.g. =init_import_declarations=, init.rs:1180) is: insert
+the path into the *_done set at the START of processing, not the end.
+That single trick handles both circular imports (the recursion sees the
+path already "done" and stops) and re-imports (second importer is a
+no-op). Because the sets are per-phase, an import can be init'd in the
+init pass and only later typer'd/precomp'd/eval'd, without the phases
+stepping on each other -- they each have their own "have I visited this
+file yet" memory.
+
+** imported_asts / imported_modes: parse once, reuse across phases
+The big cross-phase reuse: init parses each imported file exactly once
+and stores the result:
+
+#+begin_src rust
+context.imported_asts.insert(path.clone(), imported_ast);   // init.rs:1280
+context.imported_modes.insert(path.clone(), context.mode_def.clone());
+#+end_src
+
+Later phases never re-read or re-parse the file. The typer pulls the
+stored AST for type checking; =proc_import= (interpreter.rs:3235) pulls
+=imported_asts.get(&path)= to desugar/ufcs/precomp/eval it; the builder
+does the same for codegen merging. So lexing+parsing is done once in
+init and the AST is a cache reused by every downstream phase. (The
+=OrderedMap= type preserves import order, which matters for
+deterministic codegen and init order.)
+
+* The "no clone the whole Context" refactor
+
+Historically each function call cloned the whole =Context= for its inner
+scope. The current direction (see =push_function_scope= /
+=pop_function_scope=, init.rs:1864-1877, and the Bug #160 notes) is to
+replace cloning with proper =scope_stack.push/pop= plus path
+save/restore. =Context= still derives =Clone= (needed in a few spots like
+mode/path save-restore), but the scope stack is meant to be mutated in
+place and unwound, not deep-copied per call -- the whole point of the
+single shared cache.
+
+* One-paragraph summary
+
+rstil builds *one* =Context= per compilation and threads it =&mut=
+through preinit -> init -> typer -> desugar -> garbager -> ufcs ->
+precomp -> (scavenger) -> eval/ccodegen. The init phase does all the
+expensive priming: it parses every imported file once into
+=imported_asts=, records modes in =imported_modes=, and registers every
+type/func/constant into the global =ScopeFrame= of =scope_stack=. Every
+later phase reuses those caches read-only (with the typer additionally
+flattening struct fields into the symbol table), and uses four
+per-phase =imports_*_done= sets -- marked at entry, not exit -- to make
+imports idempotent and circular-safe across phases.

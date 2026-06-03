@@ -1,0 +1,194 @@
+#+TITLE: rstil AST
+#+OPTIONS: toc:2
+
+Notes on the AST in the external prototype repo
+https://github.com/jtimon/rstil. Unlike =Context= (which only really
+exists in Rust), the AST is defined in *both* implementations, and the
+canonical definition is split:
+
+- Rust:  =src/rs/ast.rs= (the type definitions; =src/rs/parser.rs= builds them)
+- til:   =src/core/ast.til=  <-- NOTE: under =src/core/=, not =src/self/=
+
+That =src/core/ast.til= location is the "part of the AST that lives only
+in til files" you may remember: in the self-hosted build the AST types
+(=Expr=, =NodeType=, =ValueType=, ...) are a *core library module*
+imported like =Vec= or =Str=, not part of =src/self/=. The =src/self/=
+phase files (parser.til, typer.til, ...) all consume the =core/ast.til=
+types. The Rust side keeps the equivalent types in =src/rs/ast.rs=.
+
+The two definitions are kept deliberately in lock-step (same names, same
+comments, same issue references). Differences are only where the
+languages differ (see "Rust vs til" below).
+
+* The core node: Expr
+
+Everything is one recursive node type:
+
+#+begin_src rust
+pub struct Expr {
+    pub node_type: NodeType,   // what kind of node
+    pub params:    Vec<Expr>,   // children
+    pub line:      usize,
+    pub col:       usize,
+}
+#+end_src
+
+There is no separate Stmt/Decl/Type tree -- a whole program, a function
+body, a call, a literal, a declaration are all =Expr= with different
+=node_type= and different children in =params=. =line=/=col= carry source
+position for diagnostics.
+
+=Expr= also owns the error-formatting helpers used by every phase:
+=error= (normal user error), =lang_error= ("this is a compiler bug"),
+=todo_error= ("not implemented yet"), =exit_error=, and the constructors
+=new_explicit= / =new_clone=.
+
+* NodeType: the tag
+
+=NodeType= (ast.rs:169, ast.til:311) is the enum that says what an =Expr=
+is. Variants, with payloads where they carry data:
+
+#+begin_src rust
+pub enum NodeType {
+    Body,                       // a sequence of statements (children in params)
+    LLiteral(Literal),          // number / string / list / inline struct
+    FCall(FCallInfo),           // function call (throw/bang info in payload)
+    Identifier(String),         // a name reference
+    Declaration(Declaration),   // name := value  /  name: Type
+    Assignment(String),         // name = value (payload is the target name)
+    NamedArg(String),           // name=value at a call site
+    FuncDef(FuncDef),           // func/proc/macro definition
+    EnumDef(EnumDef),           // enum definition
+    Return, Throw, Catch,       // control flow
+    Break, Continue, Defer,
+    OwnArg,                     // `own expr` at a call site (Issue #185)
+    If, While, Switch, DefaultCase, Range,
+    Pattern(PatternInfo),       // switch case `Variant(binding)`
+    ForIn(String),              // for v: TYPE in coll  (payload = TYPE name)
+}
+#+end_src
+
+Note which nodes survive only until a given phase: =Switch=, =Defer=,
+=OwnArg= are *desugared away* before eval (the desugarer/garbager/ufcs
+phases lower them), and =eval_expr= treats encountering them as a
+compiler bug.
+
+* The payload types
+
+These are the structs/enums hung off =NodeType= variants and off each
+other. All defined in =ast.rs= and mirrored in =core/ast.til=.
+
+** Literal (ast.rs:154)
+=Number(String)=, =Str(String)=, =List(String)= (parsed, mostly
+untested), and =StructDef(StructDef)= -- Issue #204 made =struct { ... }=
+a first-class literal value.
+
+** Declaration (ast.rs:43)
+=name=, =value_type: ValueType=, =is_mut=, =is_own=, and
+=default_value: Option<Box<Expr>>= (for optional function args). In til
+the =Option<Box<Expr>>= is represented as a =Ptr= (NULL = none), because
+til has no =Option<Box<...>>=.
+
+** FunctionType (ast.rs:61)
+=FTFunc=, =FTProc=, =FTMacro=, =FTFuncExt=, =FTProcExt=. The Ext variants
+are external (FFI) functions/procs; Macro is comptime.
+
+** FuncSig vs FuncDef (Issue #91)
+The signature/definition split:
+
+- =FuncSig= (ast.rs:71) is the *type-level* signature: =function_type=,
+  =args: Vec<Declaration>= (names are =""=, types+modifiers only),
+  =return_types=, =throw_types=. Helpers =is_proc/is_ext/is_macro=.
+- =FuncDef= (ast.rs:103) is signature + *instance* data: =sig=,
+  =arg_names: Vec<String>= (paired by index with =sig.args=), =body:
+  Vec<Expr>=, and =source_path= (the file it was defined in -- used so
+  errors point at the right file after AST merging).
+
+** StructDef / NamespaceDef (ast.rs:117 / 148)
+=StructDef= = =members: Vec<Declaration>= + =default_values= + =ns:
+NamespaceDef=. =NamespaceDef= holds the namespace-level (associated)
+members and their defaults -- this is how structs double as namespaces
+(associated consts, methods, nested types). =StructDef= has lookup
+helpers =get_member= / =get_member_or_err=.
+
+** EnumDef / EnumVariant (ast.rs:15 / 9)
+Bug #38: variants are a =Vec<EnumVariant>= (not a map) to preserve
+declaration order, since variant position is the tag value.
+=EnumVariant= = =name= + =payload_type: Option<ValueType>= (tagged
+union). =EnumDef= also has =methods= (auto-generated delete/clone) and a
+=ns=. =get= / =contains_key= / =get_variant_pos= helpers map names <->
+positions.
+
+** PatternInfo (ast.rs:55)
+=variant_name= + =binding_var=, for =switch= case payload extraction. The
+TODO notes it is a workaround for til lacking tuple syntax (would
+otherwise be =Pattern(String, String)=).
+
+** FCallInfo (ast.rs:163, Issue #180)
+=does_throw= (call to a throwing func, marked =?= or =!=) and =is_bang=
+(=!=, panic-on-throw, desugared to catch+panic). Note: in til, =?= is
+NOT error propagation -- it is just the required annotation that a call
+may throw; whether it propagates is decided by catch blocks.
+
+** ValueType / TTypeDef (ast.rs:262 / 254)
+The type-of-a-value enum:
+
+#+begin_src rust
+pub enum ValueType {
+    TFunction(FunctionType), // a function value
+    TType(TTypeDef),         // a type-valued thing (enum/struct/sig/funcdef def)
+    TCustom(String),         // named type: "I64", "Str", "Vec", user structs...
+    TMulti(String),          // variadic / multi
+}
+pub enum TTypeDef { TEnumDef, TStructDef, TFuncSig, TFuncDef }
+#+end_src
+
+Most concrete types (including built-ins like =I64=, =U8=, =Str=, =Vec=)
+ride in =TCustom(String)=; =get_type_size= in =Context= special-cases the
+primitives.
+
+* Rust vs til: where they differ
+
+Same shapes, forced differences:
+
+| concern            | Rust (ast.rs)              | til (core/ast.til)                         |
+|--------------------+----------------------------+--------------------------------------------|
+| derive(Clone)      | =#[derive(Clone)]=          | hand-written =clone= methods per type       |
+| Option<Box<Expr>>  | =Option<Box<Expr>>=         | =Ptr= field, NULL = none (+ memcpy/malloc)  |
+| enum payload clone | derived                    | =literal_clone= / =node_type_clone= /       |
+|                    |                            | =value_type_clone= free functions           |
+| maps               | =HashMap= / =OrderedMap=     | =Map= (=std.map=)                            |
+| variant order      | =Vec<EnumVariant>= (Bug #38) | =Vec= (same fix, same reason)               |
+
+So the til AST file is *larger* than ast.rs almost entirely because of
+the explicit deep-=clone= machinery and =Ptr=/=memcpy= dance that Rust
+gets for free from =derive(Clone)= and =Box=. Semantically the trees are
+identical. The til side also adds a couple of convenience methods on
+=Expr= (=len=, =to_str=, =size=, =params_clone=) that the Rust side does
+inline.
+
+* Who builds and who consumes the AST
+
+- Built by: the parser (=src/rs/parser.rs= / =src/self/parser.til=) from
+  the lexer's tokens, then =preinit_expr= auto-generates struct/enum
+  =delete=/=clone= methods.
+- Rewritten by (AST -> AST passes): expand_struct_macros, type_check
+  (resolves =INFER_TYPE= placeholders into concrete =ValueType=),
+  desugarer (ForIn -> while, Switch -> if/else), garbager (insert
+  =delete=), ufcs (method-call resolution + named-arg reordering),
+  precomp (comptime, constructors, =import()=), scavenger (drop unused
+  funcs).
+- Consumed by: =eval_expr= (interpreter) and =ccodegen::emit= (C
+  backend).
+
+* One-paragraph summary
+
+The rstil AST is a single recursive =Expr= node (node_type + params +
+line/col), tagged by =NodeType=, with payload structs (=Declaration=,
+=FuncDef=/=FuncSig=, =StructDef=, =EnumDef=, =Literal=, =ValueType=,
+etc.). The Rust definition is =src/rs/ast.rs=; the self-hosted definition
+lives under =src/core/ast.til= as a core library module (not in
+=src/self/=), which is the "AST only in til files" detail -- it is in
+=core=, imported by the =self= phases. The two are kept name-for-name
+identical; til just spells out the deep-=clone= logic and uses =Ptr=
+where Rust uses =Option<Box>=.
