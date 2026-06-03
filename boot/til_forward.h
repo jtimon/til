@@ -1278,6 +1278,8 @@ Str * tok_name(TokenType * type);
 TokenType priv___src_self_lexer_til__lookup_single_char(I8 c);
 TokenType lookup_two_char(I8 c, I8 c2);
 TokenType * priv___src_self_lexer_til__lookup_keyword(Str * word);
+U32 priv___src_self_lexer_til__scan_to_eol(Str * src, U32 from, U32 src_len);
+void priv___src_self_lexer_til__push_tok(Vec * tokens, TokenType * type, Str * text, U32 line, U32 col);
 Vec * tokenize(Str * src, Str * path);
 priv___src_self_parser_til__Parser * priv___src_self_parser_til__Parser_clone(priv___src_self_parser_til__Parser * self);
 void priv___src_self_parser_til__Parser_delete(priv___src_self_parser_til__Parser * self, Bool call_free);

@@ -1,5 +1,4 @@
-# priority: low
-** OPEN #248 lexer.til cleanup: indentation, redundant clones, DRY
+** #248 lexer.til cleanup: indentation, redundant clones, DRY
 
   Review of ~src/self/lexer.til~ found several cleanup opportunities.
   None change behaviour; tests pass as-is. Listed roughly by value.

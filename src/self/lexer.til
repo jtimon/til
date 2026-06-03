@@ -81,6 +81,8 @@ is_alnum := func(c: I8) returns Bool {
 // --- tok_name ---
 // Returns a human-readable name for a token type.
 // Matches C tok_name() output exactly.
+// NOTE: the keyword cases below are the inverse of lookup_keyword's
+// table (TokenType -> source spelling). Keep the two in sync.
 
 tok_name := func(type: TokenType) returns Str {
     switch type {
@@ -218,6 +220,8 @@ lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
 // --- Keyword lookup ---
 // C version uses Keyword struct + static array with memcmp loop.
 // til version uses switch on Str — functionally equivalent.
+// NOTE: inverse of tok_name's keyword cases (source spelling ->
+// TokenType). Keep the two in sync.
 
 priv lookup_keyword := func(word: Str) returns TokenType {
     switch word {
@@ -261,6 +265,27 @@ priv lookup_keyword := func(word: Str) returns TokenType {
     }
 }
 
+// --- scan_to_eol ---
+// Returns the index of the next '\n' at or after `from`, or src_len if
+// none. Used to skip the rest of a line (# and // comments, /// text).
+
+priv scan_to_eol := func(src: Str, from: USize, src_len: USize) returns USize {
+    mut p := from
+    while p.lt(src_len) {
+        if src.byte_at(p).eq('\n') { break }
+        p = p.add(1)
+    }
+    return p
+}
+
+// --- push_tok ---
+// Appends a Token to the vector. Centralises the construction so the
+// line/col plumbing is written once instead of at every emit site.
+
+priv push_tok := func(mut tokens: Vec, type: TokenType, text: Str, line: U32, col: U32) {
+    tokens.push(own Token(type = type, text = text.clone(), line = line, col = col))
+}
+
 // --- Tokenizer ---
 // Strict translation of C tokenize(). Uses integer index instead of
 // char pointer. Token.text is a copied Str instead of pointer+len.
@@ -292,10 +317,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
 
         // Line comments: // or #
         if c.eq('#') {
-            while pos.lt(src_len) {
-                if src.byte_at(pos).eq('\n') { break }
-                pos++
-            }
+            pos = scan_to_eol(src, pos, src_len)
             continue
         }
         if c.eq('/').and(pos.add(1).lt(src_len)) {
@@ -308,22 +330,13 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                     if text_start.lt(src_len).and(src.byte_at(text_start).eq(' ')) {
                         text_start = text_start.add(1)
                     }
-                    mut text_end := text_start
-                    while text_end.lt(src_len) {
-                        if src.byte_at(text_end).eq('\n') { break }
-                        text_end = text_end.add(1)
-                    }
+                    text_end := scan_to_eol(src, text_start, src_len)
                     line_text := src.substr(text_start, text_end.sub(text_start))
-                    tokens.push(own Token(type = TokenType.DocComment,
-                        text = line_text.clone(),
-                        line = line.clone(), col = col.clone()))
+                    push_tok(tokens, TokenType.DocComment, line_text, line, col)
                     pos = text_end
                     continue
                 }
-                while pos.lt(src_len) {
-                    if src.byte_at(pos).eq('\n') { break }
-                    pos++
-                }
+                pos = scan_to_eol(src, pos, src_len)
                 continue
             }
             // Block comments: /* ... */ (nestable)
@@ -375,9 +388,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                     }
                 }
             }
-            tokens.push(own Token(type = TokenType.Number,
-                text = src.substr(start, pos.sub(start)).clone(),
-                line = line.clone(), col = col.clone()))
+            push_tok(tokens, TokenType.Number, src.substr(start, pos.sub(start)), line, col)
             continue
         }
 
@@ -388,8 +399,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 pos++
             }
             word := src.substr(start, pos.sub(start))
-            tokens.push(own Token(type = lookup_keyword(word), text = word.clone(),
-                line = line.clone(), col = col.clone()))
+            push_tok(tokens, lookup_keyword(word), word, line, col)
             continue
         }
 
@@ -398,96 +408,79 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             pos++
             while pos.lt(src_len) {
                 if src.byte_at(pos).eq('"') { break }
-        if src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len)) {
+                if src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len)) {
+                    pos++
+                }
+                if src.byte_at(pos).eq('\n') {
+                    line = line.add(1)
+                    line_start = pos.add(1)
+                }
+                pos++
+            }
+            if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
+                pos++
+                push_tok(tokens, TokenType.StringTok, src.substr(start.add(1), pos.sub(start).sub(2)), line, col)
+            } else {
+                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
+                push_tok(tokens, TokenType.Error, src.substr(start, pos.sub(start)), line, col)
+            }
+            continue
+        }
+
+        // Character literals: 'x' or '\x'
+        if c.eq('\'') {
             pos++
-        }
-        if src.byte_at(pos).eq('\n') {
-            line = line.add(1)
-            line_start = pos.add(1)
-        }
-        pos++
-    }
-    if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
-        pos++
-        tokens.push(own Token(type = TokenType.StringTok,
-            text = src.substr(start.add(1), pos.sub(start).sub(2)).clone(),
-            line = line.clone(), col = col.clone()))
-    } else {
-        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
-        tokens.push(own Token(type = TokenType.Error,
-            text = src.substr(start, pos.sub(start)).clone(),
-            line = line.clone(), col = col.clone()))
-    }
+            ch_start := pos
+            if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
+                pos++
+            }
+            pos++
+            if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
+                push_tok(tokens, TokenType.Char, src.substr(ch_start, pos.sub(ch_start)), line, col)
+                pos++
+            } else {
+                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
+                push_tok(tokens, TokenType.Error, src.substr(start, pos.sub(start)), line, col)
+            }
             continue
         }
 
-// Character literals: 'x' or '\x'
-if c.eq('\'') {
-    pos++
-    ch_start := pos
-    if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
-        pos++
-    }
-    pos++
-    if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
-        tokens.push(own Token(type = TokenType.Char,
-            text = src.substr(ch_start, pos.sub(ch_start)).clone(),
-            line = line.clone(), col = col.clone()))
-        pos++
-    } else {
-        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
-        tokens.push(own Token(type = TokenType.Error,
-            text = src.substr(start, pos.sub(start)).clone(),
-            line = line.clone(), col = col.clone()))
-    }
-    continue
-}
+        // Two-character tokens
+        if pos.add(1).lt(src_len) {
+            ref c2 : I8 = src.byte_at(pos.add(1))
+            // Check for ... (three dots) before the two-char dispatch below
+            if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
+                ref c3 : I8 = src.byte_at(pos.add(2))
+                if c3.eq('.') {
+                    push_tok(tokens, TokenType.DotDotDot, src.substr(start, 3), line, col)
+                    pos = pos.add(3)
+                    continue
+                }
+            }
+            two := lookup_two_char(c, c2)
+            if two.is(TokenType.Eof).not() {
+                push_tok(tokens, two, src.substr(start, 2), line, col)
+                pos = pos.add(2)
+                continue
+            }
+        }
 
-// Two-character tokens
-if pos.add(1).lt(src_len) {
-    ref c2 : I8 = src.byte_at(pos.add(1))
-    // Check for ... (three dots) before the two-char dispatch below
-    if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
-        ref c3 : I8 = src.byte_at(pos.add(2))
-        if c3.eq('.') {
-            tokens.push(own Token(type = TokenType.DotDotDot,
-                text = src.substr(start, 3).clone(),
-                line = line.clone(), col = col.clone()))
-            pos = pos.add(3)
+        // Single-character tokens
+        single := lookup_single_char(c)
+        if single.is(TokenType.Eof).not() {
+            push_tok(tokens, single, src.substr(start, 1), line, col)
+            pos++
             continue
         }
+
+        // Unknown character
+        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
+        push_tok(tokens, TokenType.Error, src.substr(start, 1), line, col)
+        pos++
     }
-    two := lookup_two_char(c, c2)
-    if two.is(TokenType.Eof).not() {
-        tokens.push(own Token(type = two,
-            text = src.substr(start, 2).clone(),
-            line = line.clone(), col = col.clone()))
-        pos = pos.add(2)
-        continue
-    }
-}
 
-// Single-character tokens
-single := lookup_single_char(c)
-if single.is(TokenType.Eof).not() {
-    tokens.push(own Token(type = single,
-        text = src.substr(start, 1).clone(),
-        line = line.clone(), col = col.clone()))
-    pos++
-    continue
-}
-
-// Unknown character
-println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
-tokens.push(own Token(type = TokenType.Error,
-    text = src.substr(start, 1).clone(),
-    line = line.clone(), col = col.clone()))
-pos++
-}
-
-// EOF
-col := pos.sub(line_start).add(1).to_i64()
-tokens.push(own Token(type = TokenType.Eof, text = "",
-    line = line.clone(), col = col.clone()))
-return tokens
+    // EOF
+    col : U32 = pos.sub(line_start).add(1)
+    push_tok(tokens, TokenType.Eof, "", line, col)
+    return tokens
 }
