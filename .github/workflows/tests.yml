@@ -110,6 +110,10 @@ jobs:
           mkdir -p /tmp/riscv32-tc
           tar -xjf /tmp/riscv32-toolchain.tar.bz2 -C /tmp/riscv32-tc
           TC_DIR=$(ls -d /tmp/riscv32-tc/riscv32*)
+          # Bootlin SDKs bake in their build-time path; relocate-sdk.sh
+          # rewrites all internal paths for the new extraction location.
+          # Without it gcc fails to find its sub-tools/sysroot.
+          "$TC_DIR/relocate-sdk.sh"
           echo "RISCV32_TC=$TC_DIR" >> $GITHUB_ENV
           echo "Toolchain: $TC_DIR"
       - name: Build bin/til (native)
