@@ -10,6 +10,8 @@
     (modify-syntax-entry ?\n "> b")
     ;; Strings
     (modify-syntax-entry ?\" "\"")
+    ;; Backslash escapes the next char (so "\"" stays one string)
+    (modify-syntax-entry ?\\ "\\")
     ;; Punctuation
     (modify-syntax-entry ?: ".")
     (modify-syntax-entry ?= ".")
@@ -119,6 +121,19 @@
     ;; TODO Enum values as constants
 ))
 
+(defun til-syntax-propertize (start end)
+  "Neutralize a double quote that lives inside a til character literal.
+Without this, a literal like '\"' (and '\\\"') makes Emacs treat the inner
+\" as the start of a string, desyncing all highlighting that follows.
+The character literal is still colored by the font-lock rule in
+`til-highlights'; here we only stop the inner \" from opening a string by
+giving it punctuation syntax."
+  (goto-char start)
+  (funcall
+   (syntax-propertize-rules
+    ("'\\\\?\\(\"\\)'" (1 ".")))
+   start end))
+
 (defun til-indent-line ()
   "Indent current line as til code using 4 spaces."
   (interactive)
@@ -202,6 +217,7 @@
   "Major Mode for editing til source code."
   :syntax-table til-mode-syntax-table
   (setq font-lock-defaults '(til-highlights))
+  (setq-local syntax-propertize-function #'til-syntax-propertize)
   (setq indent-line-function 'til-indent-line)
   (setq-local indent-tabs-mode nil)          ; Use spaces, not tabs
   (setq-local tab-width 4)                   ; Set tab width to 4 spaces
