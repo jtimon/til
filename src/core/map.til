@@ -11,13 +11,10 @@ import("vec")
 Map := struct {
     keys : Vec = Vec.new(Dynamic)
     values : Vec = Vec.new(Dynamic)
-
     key_cmp : CmpFn = default_cmp
 
 namespace:
-    /// Create an empty Map. Both key_type and val_type must be non-empty;
-    /// key_type must implement `cmp`.
-    new_type_names := func(key_type: Str, val_type: Str) returns Map {
+    priv new_type_names := func(key_type: Str, val_type: Str) returns Map {
         if key_type.is_empty() { panic(__LOC__, "Map.new: key_type required") }
         if dyn_has_method(key_type, "cmp").not() {
             panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
@@ -32,6 +29,8 @@ namespace:
         return m
     }
 
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
     new := func(K: Type, V: Type) returns Map {
         key_type := dyn_type_to_str(K)
         val_type := dyn_type_to_str(V)
