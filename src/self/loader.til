@@ -1115,8 +1115,8 @@ func_kind := func(ft: FuncType) returns Str {
 til_type_user := func(t: Type) returns Str {
     switch t {
     case Type.I64:       return "I64"
-    case Type.U8:        return "U8"
-    case Type.I8:        return "I8"
+    case Type.Primitive(Primitive.U8):        return "U8"
+    case Type.Primitive(Primitive.I8):        return "I8"
     case Type.Primitive(Primitive.I16):       return "I16"
     case Type.Primitive(Primitive.U16):       return "U16"
     case Type.I32:       return "I32"

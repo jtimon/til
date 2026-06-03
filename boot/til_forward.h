@@ -10,14 +10,15 @@ typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
     Primitive_TAG_I16,
-    Primitive_TAG_U16
+    Primitive_TAG_U16,
+    Primitive_TAG_I8,
+    Primitive_TAG_U8
 } Primitive_tag;
 typedef struct Primitive Primitive;
 typedef enum {
     Type_TAG_Unknown,
     Type_TAG_None,
     Type_TAG_I64,
-    Type_TAG_U8,
     Type_TAG_I32,
     Type_TAG_U32,
     Type_TAG_U64,
@@ -31,7 +32,6 @@ typedef enum {
     Type_TAG_FuncPtr,
     Type_TAG_Dynamic,
     Type_TAG_Custom,
-    Type_TAG_I8,
     Type_TAG_Primitive
 } Type_tag;
 typedef struct Type Type;

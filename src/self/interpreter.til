@@ -603,8 +603,8 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     case NodeType.Literal(Literal.Num(num_str)):
         lit_t := e.expr_til_type()
         switch lit_t {
-        case Type.U8:  return val_u8(num_str.to_i64())
-        case Type.I8:  return val_i8(num_str.to_i64())
+        case Type.Primitive(Primitive.U8):  return val_u8(num_str.to_i64())
+        case Type.Primitive(Primitive.I8):  return val_i8(num_str.to_i64())
         case Type.U32: return val_u32(num_str.to_i64())
         case Type.U64: return val_u64(num_str.to_u64())
         case Type.Primitive(Primitive.I16): return val_i16(num_str.to_i64())

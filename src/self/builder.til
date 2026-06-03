@@ -642,8 +642,8 @@ fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
 priv til_type_to_c := func(shallow t: Type) returns Str {
     switch t {
     case Type.I64:     return "I64"
-    case Type.U8:      return "U8"
-    case Type.I8:      return "I8"
+    case Type.Primitive(Primitive.U8):      return "U8"
+    case Type.Primitive(Primitive.I8):      return "I8"
     case Type.Primitive(Primitive.I16):     return "I16"
     case Type.Primitive(Primitive.U16):     return "U16"
     case Type.I32:     return "I32"
@@ -4266,8 +4266,8 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
                     } else {
                         switch fdd.til_type {
                         case Type.I64:  ct = "ctypes.POINTER(ctypes.c_longlong)"
-                        case Type.U8:   ct = "ctypes.POINTER(ctypes.c_ubyte)"
-                        case Type.I8:   ct = "ctypes.POINTER(ctypes.c_byte)"
+                        case Type.Primitive(Primitive.U8):   ct = "ctypes.POINTER(ctypes.c_ubyte)"
+                        case Type.Primitive(Primitive.I8):   ct = "ctypes.POINTER(ctypes.c_byte)"
                         case Type.Primitive(Primitive.I16):  ct = "ctypes.POINTER(ctypes.c_short)"
                         case Type.Primitive(Primitive.U16):  ct = "ctypes.POINTER(ctypes.c_ushort)"
                         case Type.I32:  ct = "ctypes.POINTER(ctypes.c_int)"

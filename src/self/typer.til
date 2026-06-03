@@ -56,8 +56,8 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     case Type.Unknown:   variant_name = "Unknown"
     case Type.None:      variant_name = "None"
     case Type.I64:       variant_name = "I64"
-    case Type.U8:        variant_name = "U8"
-    case Type.I8:        variant_name = "I8"
+    case Type.Primitive(Primitive.U8):        variant_name = "U8"
+    case Type.Primitive(Primitive.I8):        variant_name = "I8"
     case Type.Primitive(Primitive.I16):       primitive_variant = "I16"
     case Type.Primitive(Primitive.U16):       primitive_variant = "U16"
     case Type.I32:       variant_name = "I32"
@@ -7900,8 +7900,8 @@ assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns Boo
 is_numeric_type := func(t: Type) returns Bool {
     switch t {
     case Type.I64: return true
-    case Type.U8:  return true
-    case Type.I8:  return true
+    case Type.Primitive(Primitive.U8):  return true
+    case Type.Primitive(Primitive.I8):  return true
     case Type.Primitive(Primitive.I16): return true
     case Type.Primitive(Primitive.U16): return true
     case Type.I32: return true
@@ -7920,8 +7920,8 @@ is_numeric_type := func(t: Type) returns Bool {
 is_integral_numeric_type := func(t: Type) returns Bool {
     switch t {
     case Type.I64: return true
-    case Type.U8:  return true
-    case Type.I8:  return true
+    case Type.Primitive(Primitive.U8):  return true
+    case Type.Primitive(Primitive.I8):  return true
     case Type.Primitive(Primitive.I16): return true
     case Type.Primitive(Primitive.U16): return true
     case Type.I32: return true
@@ -7987,10 +7987,10 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
     switch target {
     case Type.I64: return true
     case Type.F32: return true
-    case Type.U8:
+    case Type.Primitive(Primitive.U8):
         val := val_str.to_i64()
         return val.gte(0).and(val.lte(255))
-    case Type.I8:
+    case Type.Primitive(Primitive.I8):
         val := val_str.to_i64()
         return val.gte(-128).and(val.lte(127))
     case Type.Primitive(Primitive.I16):
@@ -8042,8 +8042,8 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
     to_is_u64 := to.is(Type.U64)
     to_is_i16 := to.is(Type.Primitive(Primitive.I16))
     to_is_u16 := to.is(Type.Primitive(Primitive.U16))
-    mut from_is_u8 := from.is(Type.U8)
-    mut from_is_i8 := from.is(Type.I8)
+    mut from_is_u8 := from.is(Type.Primitive(Primitive.U8))
+    mut from_is_i8 := from.is(Type.Primitive(Primitive.I8))
     switch from {
     case Type.Struct(fs):
         if fs.eq("U8") { from_is_u8 = true }
@@ -8066,7 +8066,7 @@ can_implicit_widen := func(from: Type, to: Type) returns Bool {
         return false
     }
     switch from {
-    case Type.I8:
+    case Type.Primitive(Primitive.I8):
         if to_is_i16 { return true }
         if to_is_i32 { return true }
         if to_is_i64 { return true }
@@ -8330,8 +8330,8 @@ find_array_vec_fcall := func(e: Expr) returns ref Expr {
 type_prefix := func(t: Type) returns Str {
     switch t {
     case Type.I64: return "I64"
-    case Type.U8: return "U8"
-    case Type.I8: return "I8"
+    case Type.Primitive(Primitive.U8): return "U8"
+    case Type.Primitive(Primitive.I8): return "I8"
     case Type.Primitive(Primitive.I16): return "I16"
     case Type.Primitive(Primitive.U16): return "U16"
     case Type.I32: return "I32"
@@ -8362,8 +8362,8 @@ type_to_name := func(t: Type) returns Str {
     if name.len().gt(0) { return name }
     switch t {
     case Type.I64: return I64Name.clone()
-    case Type.U8: return U8Name.clone()
-    case Type.I8: return I8Name.clone()
+    case Type.Primitive(Primitive.U8): return U8Name.clone()
+    case Type.Primitive(Primitive.I8): return I8Name.clone()
     case Type.Primitive(Primitive.I16): return I16Name.clone()
     case Type.Primitive(Primitive.U16): return U16Name.clone()
     case Type.I32: return I32Name.clone()
@@ -10243,7 +10243,7 @@ field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
 // expr_til_type derives Type.Struct("Str") and Type.Bool for LiteralStr
 // and LiteralBool directly from node_type, so this function only needs
 // to handle the two variants with non-trivial inference: LiteralNum's
-// I64-default-unless-already-narrowed (parser writes Type.U8 for char
+// I64-default-unless-already-narrowed (parser writes Type.Struct("U8") for char
 // literals) and LiteralNull's initial Type.Dynamic (narrow_dynamic may
 // mutate it post-write, so the field is still authoritative for that
 // variant).
