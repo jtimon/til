@@ -285,112 +285,86 @@ tokenize := proc(src: Str, path: Str) returns Vec {
 
     while pos.lt(src_len) {
         ref c : I8 = src.byte_at(pos)
+        col : U32 = pos.sub(line_start).add(1)
+        start := pos
 
-        // Skip whitespace (spaces, tabs, \r, semicolons)
-        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq(';')) {
-            pos++
-            continue
-        }
-        if c.eq('\n') {
+        switch c {
+        // Whitespace (spaces, tabs, \r, semicolons): skip
+        case ' ':  pos++; continue
+        case '\t': pos++; continue
+        case '\r': pos++; continue
+        case ';':  pos++; continue
+        case '\n':
             pos++
             line = line.add(1)
             line_start = pos
             continue
-        }
 
-        col : U32 = pos.sub(line_start).add(1)
-        start := pos
-
-        // Line comments: // or #
-        if c.eq('#') {
+        // Line comment: #
+        case '#':
             pos = scan_to_eol(src, pos, src_len)
             continue
-        }
-        if c.eq('/').and(pos.add(1).lt(src_len)) {
-            ref c2 : I8 = src.byte_at(pos.add(1))
-            if c2.eq('/') {
-                // Check for /// doc comment
-                is_doc := pos.add(2).lt(src_len).and(src.byte_at(pos.add(2)).eq('/'))
-                if is_doc {
-                    mut text_start := pos.add(3)
-                    if text_start.lt(src_len).and(src.byte_at(text_start).eq(' ')) {
-                        text_start = text_start.add(1)
+
+        // Comments (// /// /* */) or the '/' operator
+        case '/':
+            if pos.add(1).lt(src_len) {
+                ref c2 : I8 = src.byte_at(pos.add(1))
+                if c2.eq('/') {
+                    // Check for /// doc comment
+                    is_doc := pos.add(2).lt(src_len).and(src.byte_at(pos.add(2)).eq('/'))
+                    if is_doc {
+                        mut text_start := pos.add(3)
+                        if text_start.lt(src_len).and(src.byte_at(text_start).eq(' ')) {
+                            text_start = text_start.add(1)
+                        }
+                        text_end := scan_to_eol(src, text_start, src_len)
+                        line_text := src.substr(text_start, text_end.sub(text_start))
+                        push_tok(tokens, TokenType.DocComment, line_text, line, col)
+                        pos = text_end
+                        continue
                     }
-                    text_end := scan_to_eol(src, text_start, src_len)
-                    line_text := src.substr(text_start, text_end.sub(text_start))
-                    push_tok(tokens, TokenType.DocComment, line_text, line, col)
-                    pos = text_end
+                    pos = scan_to_eol(src, pos, src_len)
                     continue
                 }
-                pos = scan_to_eol(src, pos, src_len)
-                continue
-            }
-            // Block comments: /* ... */ (nestable)
-            if c2.eq('*') {
-                pos = pos.add(2)
-                mut depth := 1
-                while pos.lt(src_len) {
-                    if depth.lte(0) { break }
-                    if pos.add(1).lt(src_len) {
-                        ref b1 : I8 = src.byte_at(pos)
-                        ref b2 : I8 = src.byte_at(pos.add(1))
-                        if b1.eq('/').and(b2.eq('*')) {
-                            depth = depth.add(1)
-                            pos = pos.add(2)
-                            continue
-                        }
-                        if b1.eq('*').and(b2.eq('/')) {
-                            depth = depth.sub(1)
-                            pos = pos.add(2)
-                            continue
-                        }
-                    }
-                    if src.byte_at(pos).eq('\n') {
-                        line = line.add(1)
-                        line_start = pos.add(1)
-                    }
-                    pos++
-                }
-                if depth.gt(0) {
-                    println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated comment")
-                }
-                continue
-            }
-        }
-
-        // Numbers
-        if is_digit(c) {
-            while pos.lt(src_len) {
-                if is_digit(src.byte_at(pos)).not() { break }
-                pos++
-            }
-            // Check for decimal point
-            if pos.add(1).lt(src_len) {
-                if src.byte_at(pos).eq('.').and(is_digit(src.byte_at(pos.add(1)))) {
-                    pos++
+                // Block comments: /* ... */ (nestable)
+                if c2.eq('*') {
+                    pos = pos.add(2)
+                    mut depth := 1
                     while pos.lt(src_len) {
-                        if is_digit(src.byte_at(pos)).not() { break }
+                        if depth.lte(0) { break }
+                        if pos.add(1).lt(src_len) {
+                            ref b1 : I8 = src.byte_at(pos)
+                            ref b2 : I8 = src.byte_at(pos.add(1))
+                            if b1.eq('/').and(b2.eq('*')) {
+                                depth = depth.add(1)
+                                pos = pos.add(2)
+                                continue
+                            }
+                            if b1.eq('*').and(b2.eq('/')) {
+                                depth = depth.sub(1)
+                                pos = pos.add(2)
+                                continue
+                            }
+                        }
+                        if src.byte_at(pos).eq('\n') {
+                            line = line.add(1)
+                            line_start = pos.add(1)
+                        }
                         pos++
                     }
+                    if depth.gt(0) {
+                        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated comment")
+                    }
+                    continue
                 }
             }
-            push_tok(tokens, TokenType.Number, src.substr(start, pos.sub(start)), line, col)
+            // Plain '/' operator (slash at EOF or not a comment)
+            push_tok(tokens, lookup_single_char(c), src.substr(start, 1), line, col)
+            pos++
             continue
-        }
-
-        // Identifiers and keywords
-        if is_alpha(c) {
-            while pos.lt(src_len) {
-                if is_alnum(src.byte_at(pos)).not() { break }
-                pos++
-            }
-            word := src.substr(start, pos.sub(start))
-            push_tok(tokens, lookup_keyword(word, kw_map), word, line, col)
-            continue
-        }
 
         // Strings
-        if c.eq('"') {
+        case '"':
             pos++
             while pos.lt(src_len) {
                 if src.byte_at(pos).eq('"') { break }
@@ -411,10 +385,9 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 push_tok(tokens, TokenType.Error, src.substr(start, pos.sub(start)), line, col)
             }
             continue
-        }
 
         // Character literals: 'x' or '\x'
-        if c.eq('\'') {
+        case '\'':
             pos++
             ch_start := pos
             if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
@@ -429,40 +402,72 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 push_tok(tokens, TokenType.Error, src.substr(start, pos.sub(start)), line, col)
             }
             continue
-        }
 
-        // Two-character tokens
-        if pos.add(1).lt(src_len) {
-            ref c2 : I8 = src.byte_at(pos.add(1))
-            // Check for ... (three dots) before the two-char dispatch below
-            if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
-                ref c3 : I8 = src.byte_at(pos.add(2))
-                if c3.eq('.') {
-                    push_tok(tokens, TokenType.DotDotDot, src.substr(start, 3), line, col)
-                    pos = pos.add(3)
+        // Numbers
+        case '0'..'9':
+            while pos.lt(src_len) {
+                if is_digit(src.byte_at(pos)).not() { break }
+                pos++
+            }
+            // Check for decimal point
+            if pos.add(1).lt(src_len) {
+                if src.byte_at(pos).eq('.').and(is_digit(src.byte_at(pos.add(1)))) {
+                    pos++
+                    while pos.lt(src_len) {
+                        if is_digit(src.byte_at(pos)).not() { break }
+                        pos++
+                    }
+                }
+            }
+            push_tok(tokens, TokenType.Number, src.substr(start, pos.sub(start)), line, col)
+            continue
+
+        // Identifiers/keywords (alpha) and operators
+        case:
+            // Identifiers and keywords
+            if is_alpha(c) {
+                while pos.lt(src_len) {
+                    if is_alnum(src.byte_at(pos)).not() { break }
+                    pos++
+                }
+                word := src.substr(start, pos.sub(start))
+                push_tok(tokens, lookup_keyword(word, kw_map), word, line, col)
+                continue
+            }
+
+            // Two-character tokens
+            if pos.add(1).lt(src_len) {
+                ref c2 : I8 = src.byte_at(pos.add(1))
+                // Check for ... (three dots) before the two-char dispatch below
+                if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
+                    ref c3 : I8 = src.byte_at(pos.add(2))
+                    if c3.eq('.') {
+                        push_tok(tokens, TokenType.DotDotDot, src.substr(start, 3), line, col)
+                        pos = pos.add(3)
+                        continue
+                    }
+                }
+                two := lookup_two_char(c, c2)
+                if two.is(TokenType.Eof).not() {
+                    push_tok(tokens, two, src.substr(start, 2), line, col)
+                    pos = pos.add(2)
                     continue
                 }
             }
-            two := lookup_two_char(c, c2)
-            if two.is(TokenType.Eof).not() {
-                push_tok(tokens, two, src.substr(start, 2), line, col)
-                pos = pos.add(2)
+
+            // Single-character tokens
+            single := lookup_single_char(c)
+            if single.is(TokenType.Eof).not() {
+                push_tok(tokens, single, src.substr(start, 1), line, col)
+                pos++
                 continue
             }
-        }
 
-        // Single-character tokens
-        single := lookup_single_char(c)
-        if single.is(TokenType.Eof).not() {
-            push_tok(tokens, single, src.substr(start, 1), line, col)
+            // Unknown character
+            println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
+            push_tok(tokens, TokenType.Error, src.substr(start, 1), line, col)
             pos++
-            continue
         }
-
-        // Unknown character
-        println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
-        push_tok(tokens, TokenType.Error, src.substr(start, 1), line, col)
-        pos++
     }
 
     // EOF
