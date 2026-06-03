@@ -1782,11 +1782,13 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
         for cu : ProgramUnit in lp.core_units {
             ref ciu : ImportUnit = lp.ctx.imported[cu.path]
             type_errors = type_errors.add(check_unused_priv_members_in_program(ciu.ast, cu.path, lp.ctx))
+            type_errors = type_errors.add(check_unused_mut_ns_decls_in_program(ciu.ast, cu.path, lp.ctx))
         }
     }
     for uu : ProgramUnit in lp.units {
         ref uiu : ImportUnit = lp.ctx.imported[uu.path]
         type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path, lp.ctx))
+        type_errors = type_errors.add(check_unused_mut_ns_decls_in_program(uiu.ast, uu.path, lp.ctx))
     }
     for mode_file : Str in lp.mode_files {
         type_errors = type_errors.add(type_file(mode_file, lp.ctx))

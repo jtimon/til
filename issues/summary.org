@@ -20,6 +20,7 @@
 *** [[./open/204.org][#204]] Asap destruction is its own phase, not part of the typer
 *** [[./open/239.org][#239]] Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
 *** [[./open/241.org][#241]] precomp fold scope keys alias freed AST names -> non-deterministic build UAF
+*** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
 ** Low
@@ -50,6 +51,8 @@
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/240.org][#240]] Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
+*** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
+*** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
@@ -73,7 +76,6 @@
 ** Medium
 ** Low
 *** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
-*** [[./open/164.org][#164]] Diagnose `mut` qualifiers that are never used to write
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/237.org][#237]] Advanced profiling for the self-host build

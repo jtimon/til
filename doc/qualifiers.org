@@ -26,17 +26,19 @@ Complete mapping of til qualifiers to generated C, by context.
    ~test/qualifier_mut_field_error.til~, and
    ~test/qualifier_mut_payload_error.til~.
 
-   Issue #164 adds the third leg: a ~mut~ local OR ~mut~ parameter
-   that the body never uses to write is also flagged. The detector
-   counts these as writes: a direct assignment (~name = ...~), a
-   field-chain assignment (~name.f = ...~), a UFCS method call on
-   the name (~name.method(args)~), passing the name (or one of its
-   fields) to a callee parameter declared ~mut~/~own~ or typed
-   ~Dynamic~ (a raw pointer the callee may write through, e.g.
-   ~move~/~memcpy~/~write_ptr~), the name as the source of a
+   Issue #164 adds the third leg: a ~mut~ local, ~mut~ parameter,
+   or ~priv mut~ namespace declaration that the body (or, for ns
+   decls, the declaring file) never uses to write is also flagged.
+   The detector counts these as writes: a direct assignment
+   (~name = ...~), a field-chain assignment (~name.f = ...~), a UFCS
+   method call on the name (~name.method(args)~), passing the name
+   (or one of its fields) to a callee parameter declared ~mut~/~own~
+   or typed ~Dynamic~ (a raw pointer the callee may write through,
+   e.g. ~move~/~memcpy~/~write_ptr~), the name as the source of a
    ~case V(p):~ ref-mut payload binding, and the name as the source
    of a ~ref mut~ declaration (a launder use that requires the
-   source to be ~mut~).
+   source to be ~mut~). Namespace declarations additionally record
+   a write when a ~Type.member = ...~ FieldAssign type-checks.
 
    Note that ~mut~ only governs the binding and its direct fields
    (~p = ...~, ~p.f = ...~). Mutating state reachable *through* a
@@ -46,8 +48,14 @@ Complete mapping of til qualifiers to generated C, by context.
    flagged as redundant. The diagnostic is intentionally conservative
    on the write side: it would rather miss a redundant ~mut~ (e.g. a
    binding only passed to a read-only ~Dynamic~ param like ~is_null~)
-   than wrongly reject a ~mut~ that is actually needed. Namespace
-   declarations are not yet covered.
+   than wrongly reject a ~mut~ that is actually needed.
+
+   Namespace decls are flagged only when both ~priv~ and ~mut~ are
+   present and no write is seen in the declaring file. ~priv~ blocks
+   downstream consumers from writing, so the single-file view is
+   complete; a public ~mut~ ns decl (e.g. ~HashMap.hasher~) is left
+   alone because a downstream consumer may legitimately write it
+   even when the library itself does not.
 
 ** Arguments (function/proc parameters)
 

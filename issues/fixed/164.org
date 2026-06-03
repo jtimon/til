@@ -1,5 +1,5 @@
 # priority: low
-** WIP #164 Diagnose `mut` qualifiers that are never used to write
+** DONE #164 Diagnose `mut` qualifiers that are never used to write
 
    Step 1 (LANDED): the typer flags redundant `mut` on locals via
    ~check_unused_mut_locals~. A binding's ~written~ flag is set when:
@@ -31,8 +31,25 @@
    ~infer_set_lit_expr~, ~eval_body~, etc.) -- exactly the laundering
    "small lies" this issue set out to remove.
 
-   Step 3 (TODO): namespace declarations. These live at module/struct
-   scope, not in a function body, so they need a separate pass.
+   Step 3 (LANDED): namespace declarations -- but only the ~priv mut~
+   shape. ~check_unused_mut_ns_decls_in_program~ walks every loaded
+   file's program right after the priv-member walker; for each
+   StructDef / EnumDef ns_decl that is both ~priv~ and ~mut~ and
+   whose ~written~ flag (a new field on ~Declaration~, set at the
+   FieldAssign-to-ns_decl site in ~infer_field_assign_stmt~) was
+   never flipped, the diagnostic fires.
+
+   Public ~mut~ ns_decls are NOT flagged: they describe an exposed
+   mutation point (e.g. ~HashMap.hasher~, where the library leaves a
+   knob open even when it doesn't turn the knob itself), and the
+   single-file view a typer walk has can't see writes from downstream
+   consumers. ~priv mut~ has no such ambiguity -- ~priv~ blocks all
+   downstream access, so absence of an in-file write proves the
+   ~mut~ is dead.
+
+   Self-host sweep: zero -- no ~priv mut~ ns_decls were found.
+
+   Done. Closing the issue.
 
 After [[./161.org][#161]] the typer rejects `ref mut x : T = src` when `src` is
    immutable. The simplest way to fix the existing chain-walker

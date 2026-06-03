@@ -3738,6 +3738,59 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
     return found
 }
 
+// #164 step 3: a `priv mut` namespace declaration that no code in the
+// declaring file writes through is a redundant qualifier -- nobody can
+// ever set it (priv blocks downstream access), and the file itself
+// doesn't, so the `mut` is dead. Public `mut` ns-decls are NOT flagged:
+// they describe an exposed mutation point (e.g. `HashMap.hasher` --
+// libs leave a knob open even when they don't turn it themselves), and
+// the typer can't see writes from downstream consumers from inside the
+// declaring file's program walk. Mirrors the locals/params steps in
+// spirit but scoped to the only ns_decl shape where we can prove
+// redundance from a single-file view.
+check_unused_mut_ns_decls_in_program := proc(program: Expr, path: Str, ctx: Context) returns I32 {
+    mut found : I32 = 0
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref tdef : Expr = stmt.child(0)
+        if tdef.node_type.is(NodeType.StructDef).not()
+            .and(tdef.node_type.is(NodeType.EnumDef).not()) { continue }
+        mut owner_name := ""
+        switch stmt.node_type {
+        case NodeType.Decl(td_decl):
+            owner_name = td_decl.name.clone()
+        case:
+            UNREACHABLE(__LOC__)
+        }
+        ref ns : Vec = def_ns_decls(tdef)
+        for nsd : Declaration in ns {
+            if nsd.is_mut.not() { continue }
+            if nsd.is_priv.not() { continue }
+            if nsd.written { continue }
+            if nsd.name.len().eq(0) { continue }
+            if nsd.name.starts_with("_") { continue }
+            // Skip func-shaped ns_decls; `mut` is meaningless on a
+            // function value and the parser rejects user-written ones.
+            if nsd.default_value.is_null().not() {
+                if nsd.default_value.node_type.is(NodeType.FuncDef) { continue }
+            }
+            mut ns_line : U32 = tdef.line
+            mut ns_col : U32 = tdef.col
+            if nsd.default_value.is_null().not()
+                .and(nsd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
+                ns_line = nsd.default_value.line
+                ns_col = nsd.default_value.col
+            }
+            type_error_at(path, ns_line, ns_col,
+                "redundant 'mut' on namespace declaration '".concat(owner_name).concat(".").concat(nsd.name)
+                    .concat("': never written through; drop the 'mut'"), ctx)
+            found = found.add(1)
+        }
+    }
+    return found
+}
+
 // Narrow a bare numeric literal return value to the function's declared
 // numeric return type, mirroring validate_fcall_arg for call arguments.
 // Fires for a direct Literal.Num return expression (including negative
@@ -3973,6 +4026,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                         if nsd.is_mut.not() {
                             stmt.type_error("cannot assign to immutable field '".concat(fname).concat("'"), ctx)
                         }
+                        // #164 step 3: feed the redundant-mut detector.
+                        nsd.written = true
                         mut handled_lit2 := false
                         switch rhs.node_type {
                         case NodeType.Literal(Literal.Num(lit_str)):

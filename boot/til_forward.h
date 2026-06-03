@@ -357,6 +357,7 @@ typedef struct Declaration {
     Bool redundant_mut;
     Bool is_priv;
     Bool used;
+    Bool written;
     OwnType own_type;
     Type til_type;
     Expr *default_value;
@@ -1536,6 +1537,7 @@ void check_unused_locals(TypeScope * scope, Str * path, Context * ctx);
 void check_unused_mut_locals(TypeScope * scope, Str * path, Context * ctx);
 I32 check_unused_priv_top_level(TypeScope * scope, Context * ctx);
 I32 check_unused_priv_members_in_program(Expr * program, Str * path, Context * ctx);
+I32 check_unused_mut_ns_decls_in_program(Expr * program, Str * path, Context * ctx);
 void narrow_return_literal(TypeScope * scope, Expr * rv, Context * ctx);
 void infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
