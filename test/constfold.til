@@ -203,3 +203,15 @@ test_enum_payload_return_fold := test() {
     assert(__LOC__, t.is(Token.Num))
     assert(__LOC__, t.is(Token.Eof).not())
 }
+
+// Test 12d: nested-enum payload. An enum whose payload is itself another
+// enum recursively folds: mk_wrap() -> Wrap.Inner(Token.Num(7)).
+Wrap := enum { Inner: Token, Done }
+
+mk_wrap := func() returns Wrap { return Wrap.Inner(Token.Num(7)) }
+
+test_nested_enum_payload_fold := test() {
+    w := mk_wrap()
+    assert(__LOC__, w.is(Wrap.Inner))
+    assert(__LOC__, w.is(Wrap.Done).not())
+}

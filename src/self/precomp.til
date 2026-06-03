@@ -282,14 +282,22 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 mut payload_decl := Declaration()
                 payload_decl.explicit_type = payload_type_name.clone()
                 payload_val := read_field(ei.data, payload_decl, ENUM_PAYLOAD_OFFSET.cast(I32), ctx)
-                // Recurse with a synthetic src whose til_type is NOT
-                // Type.Enum so this same intercept doesn't refire on the
-                // scalar payload. The main switch's Value variant cases
-                // don't depend on src.til_type, so a default-typed Expr is
-                // sufficient for I64/Bool/Str/struct payloads. Nested-enum
-                // payloads currently bail (synthetic src skips the
-                // intercept and the default Value.Enum case returns NULL).
-                payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
+                // Recurse with a synthetic src. For scalar payloads the
+                // til_type doesn't matter (the main switch's Value variant
+                // cases ignore src.til_type). For an enum-typed payload we
+                // build the synthetic src as an Ident typed
+                // Type.Enum(payload_type_name) so the recursion re-enters
+                // this same intercept and reconstructs the nested variant.
+                // (NoDefaultArg has no til_type field, so set_expr_til_type
+                // silently no-ops on it -- the recursion would then see an
+                // unset type and the nested Value.Enum would return NULL.)
+                mut payload_src := Expr.new(ident_node(""), src.line, src.col)
+                ref payload_def : Expr = lookup_interp_type_def(payload_type_name, ctx)
+                if payload_def.is_null().not() {
+                    if payload_def.node_type.is(NodeType.EnumDef) {
+                        payload_src.set_expr_til_type(Type.Enum(payload_type_name.clone()))
+                    }
+                }
                 ref payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
                 if payload_expr.is_null() { return NULL }
                 ref vname2 : Str = edd2.variants[etag2.to_usize()]

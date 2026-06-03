@@ -51,6 +51,11 @@ typedef enum {
     Token_TAG_Eof
 } Token_tag;
 typedef struct Token Token;
+typedef enum {
+    Wrap_TAG_Inner,
+    Wrap_TAG_Done
+} Wrap_tag;
+typedef struct Wrap Wrap;
 
 typedef void * (*CloneFn)(void *);
 typedef void (*DeleteFn)(void *, Bool);
@@ -125,6 +130,13 @@ struct Token {
     union {
         I64 Num;
         Str Name;
+    } data;
+};
+
+struct Wrap {
+    Wrap_tag tag;
+    union {
+        Token Inner;
     } data;
 };
 
@@ -236,6 +248,11 @@ U32 Token_size(void);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
+Bool Wrap_is(Wrap * self, Wrap * other);
+void Wrap_delete(Wrap * self, Bool call_free);
+Wrap * Wrap_clone(Wrap * self);
+U32 Wrap_size(void);
+void test_nested_enum_payload_fold(void);
 Bool Color_eq(Color *, Color *);
 Color *Color_Red();
 Color *Color_Green();
@@ -244,6 +261,9 @@ Bool * Token_eq(Token *, Token *);
 Token *Token_Num(I64 *);
 Token *Token_Name(Str *);
 Token *Token_Eof();
+Bool * Wrap_eq(Wrap *, Wrap *);
+Wrap *Wrap_Inner(Token *);
+Wrap *Wrap_Done();
 #include "ext.h"
 
 
@@ -361,6 +381,13 @@ U32 Token_size(void);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
+Wrap * Wrap_Inner(Token * val);
+Wrap * Wrap_Done(void);
+Bool Wrap_is(Wrap * self, Wrap * other);
+void Wrap_delete(Wrap * self, Bool call_free);
+Wrap * Wrap_clone(Wrap * self);
+U32 Wrap_size(void);
+void test_nested_enum_payload_fold(void);
 Bool Primitive_eq(Primitive *, Primitive *);
 Primitive *Primitive_I16();
 Primitive *Primitive_U16();
@@ -392,6 +419,9 @@ Bool * Token_eq(Token *, Token *);
 Token *Token_Num(I64 *);
 Token *Token_Name(Str *);
 Token *Token_Eof();
+Bool * Wrap_eq(Wrap *, Wrap *);
+Wrap *Wrap_Inner(Token *);
+Wrap *Wrap_Done();
 
 void *dyn_fn(Str *type_name, Str *method);
 U32 dyn_size_of(Str *type_name);
@@ -2678,6 +2708,84 @@ void test_enum_payload_return_fold(void) {
     Str_delete(&hoisted__Str_5041, (Bool){0});
 }
 
+Wrap *Wrap_Inner(Token * val) {
+    Wrap *r = malloc(sizeof(Wrap));
+    r->tag = Wrap_TAG_Inner;
+    r->data.Inner = *val;
+    free(val);
+    return r;
+}
+Wrap *Wrap_Done() {
+    Wrap *r = malloc(sizeof(Wrap));
+    r->tag = Wrap_TAG_Done;
+    return r;
+}
+Bool Wrap_is(Wrap * self, Wrap * other) {
+    Bool hoisted__Bool_5043 = is(self, other);
+    (void)hoisted__Bool_5043;
+    return hoisted__Bool_5043;
+}
+
+void Wrap_delete(Wrap * self, Bool call_free) {
+    Bool hoisted__Bool_5054 = is(self, &(Wrap){.tag = Wrap_TAG_Inner});
+    (void)hoisted__Bool_5054;
+    if (hoisted__Bool_5054) {
+        Token *hoisted__Token_5052 = get_payload(self);
+        (void)hoisted__Token_5052;
+        (void)hoisted__Token_5052;
+        Bool hoisted__Bool_5053 = 0;
+        (void)hoisted__Bool_5053;
+        Token_delete(hoisted__Token_5052, hoisted__Bool_5053);
+    }
+    if (call_free) {
+        free(self);
+    }
+}
+
+Wrap * Wrap_clone(Wrap * self) {
+    Bool hoisted__Bool_5071 = is(self, &(Wrap){.tag = Wrap_TAG_Inner});
+    (void)hoisted__Bool_5071;
+    if (hoisted__Bool_5071) {
+        Token *_clone_payload_Inner_0 = get_payload(self);
+        (void)_clone_payload_Inner_0;
+        (void)_clone_payload_Inner_0;
+        Token *hoisted__Token_5069 = Token_clone(_clone_payload_Inner_0);
+        (void)hoisted__Token_5069;
+        Wrap *hoisted__Wrap_5070 = Wrap_Inner(hoisted__Token_5069);
+        (void)hoisted__Wrap_5070;
+        { Wrap * _ret_val = hoisted__Wrap_5070;
+                return _ret_val; }
+    }
+    { Wrap *_r = malloc(sizeof(Wrap)); _r->tag = Wrap_TAG_Done;
+    return _r; }
+}
+
+U32 Wrap_size(void) {
+    U32 hoisted__U32_5072 = 32;
+    (void)hoisted__U32_5072;
+    return hoisted__U32_5072;
+}
+
+
+void test_nested_enum_payload_fold(void) {
+    Wrap *w = Wrap_Inner(Token_Num(&(I64){7}));
+    Str hoisted__Str_5076 = (Str){.c_str = (void *)"test/constfold.til:215:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_5076;
+    Bool hoisted__Bool_5077 = Wrap_is(w, &(Wrap){.tag = Wrap_TAG_Inner});
+    (void)hoisted__Bool_5077;
+    assert(&hoisted__Str_5076, hoisted__Bool_5077);
+    Str_delete(&hoisted__Str_5076, (Bool){0});
+    Bool hoisted__Bool_5078 = Wrap_is(w, &(Wrap){.tag = Wrap_TAG_Done});
+    (void)hoisted__Bool_5078;
+    Wrap_delete(w, 1);
+    Str hoisted__Str_5079 = (Str){.c_str = (void *)"test/constfold.til:216:12", .count = 25ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_5079;
+    Bool hoisted__Bool_5080 = not(hoisted__Bool_5078);
+    (void)hoisted__Bool_5080;
+    assert(&hoisted__Str_5079, hoisted__Bool_5080);
+    Str_delete(&hoisted__Str_5079, (Bool){0});
+}
+
 I64 F32_cmp_dyn(void *_a0, void *_a1) {
     return F32_cmp(*(F32 *)_a0, *(F32 *)_a1);
 }
@@ -2972,6 +3080,15 @@ void Token_delete_dyn(void *_a0, Bool _a1) {
 U32 Token_size_dyn(void) {
     return Token_size();
 }
+Bool Wrap_is_dyn(void *_a0, void *_a1) {
+    return Wrap_is(_a0, _a1);
+}
+void Wrap_delete_dyn(void *_a0, Bool _a1) {
+    Wrap_delete(_a0, _a1);
+}
+U32 Wrap_size_dyn(void) {
+    return Wrap_size();
+}
 void *dyn_fn(Str *type_name, Str *method) {
     (void)type_name; (void)method;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) return (void*)F32_cmp_dyn;
@@ -3100,6 +3217,12 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Token_delete_dyn;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Token_clone;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Token_size_dyn;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "Inner", 5ULL) == 0) return (void*)Wrap_Inner;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "Done", 4ULL) == 0) return (void*)Wrap_Done;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "is", 2ULL) == 0) return (void*)Wrap_is_dyn;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Wrap_delete_dyn;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Wrap_clone;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Wrap_size_dyn;
     fprintf(stderr, "dyn_fn: unknown %s.%s\n", (char*)type_name->c_str, (char*)method->c_str);
     exit(1);
 }
@@ -3125,6 +3248,7 @@ U32 dyn_size_of(Str *type_name) {
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) return sizeof(CfRect);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) return sizeof(Color);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return sizeof(Token);
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0) return sizeof(Wrap);
     fprintf(stderr, "dyn_size_of: unknown type %.*s\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
@@ -3332,6 +3456,9 @@ I64 enum_variant_count(Str *type_name) {
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) {
         return 3LL;
     }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0) {
+        return 2LL;
+    }
     fprintf(stderr, "enum_variant_count: type '%.*s' not found\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
@@ -3372,6 +3499,10 @@ Str *enum_variant_name(Str *type_name, I64 *index) {
         if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
         if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Name", .count = 4ULL, .cap = TIL_CAP_LIT}; _lit; });
         if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Eof", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Inner", .count = 5ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Done", .count = 4ULL, .cap = TIL_CAP_LIT}; _lit; });
     }
     fprintf(stderr, "enum_variant_name: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -3414,6 +3545,10 @@ I64 enum_variant_has_payload(Str *type_name, I64 *index) {
         if (*index == 1LL) return 1;
         if (*index == 2LL) return 0;
     }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0) {
+        if (*index == 0LL) return 1;
+        if (*index == 1LL) return 0;
+    }
     fprintf(stderr, "enum_variant_has_payload: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
 }
@@ -3454,6 +3589,10 @@ Str *enum_variant_payload_type(Str *type_name, I64 *index) {
         if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
         if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; _lit; });
         if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; _lit; });
+    }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Wrap", 4ULL) == 0) {
+        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Token", .count = 5ULL, .cap = TIL_CAP_LIT}; _lit; });
+        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; _lit; });
     }
     fprintf(stderr, "enum_variant_payload_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -3618,6 +3757,8 @@ int main(void) {
     fprintf(stderr, "  pass: %s\n", "test_enum_return_fold");
     test_enum_payload_return_fold();
     fprintf(stderr, "  pass: %s\n", "test_enum_payload_return_fold");
-    fprintf(stderr, "15/15 tests passed\n");
+    test_nested_enum_payload_fold();
+    fprintf(stderr, "  pass: %s\n", "test_nested_enum_payload_fold");
+    fprintf(stderr, "16/16 tests passed\n");
     return 0;
 }
