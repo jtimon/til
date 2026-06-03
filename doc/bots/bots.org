@@ -275,6 +275,15 @@ way through.
   after the commit, otherwise the stop hook will block the session.
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
+- Always squash a feature branch into a single commit before pushing.
+  Multiple commits on one branch are only justified when squashing
+  isn't possible in self.org terms -- e.g. a preparation + use pair
+  where the preparation commit must land in master first so the next
+  commit's ~til_boot~ has the new emit logic baked in (see
+  ~doc/self.org~ "When a preparation commit is needed" and "Staged
+  migration across master merges"). Outside those cases, mixing a
+  source commit and a follow-up Doc commit on the same branch is
+  noise; fold the doc change into the source commit instead.
 - Do NOT start commit message subjects with `#` (e.g. "#167 Foo"). Lead with
   a word and reference the issue number inline ("Issue #167: foo" or
   "Foo (#167)"). Lines beginning with `#` are comments in git's commit
@@ -373,6 +382,16 @@ merger picking it up), the soft-reset + regenerate step at (4b) /
 so the work would just be thrown away. Discard doc/totals.csv + img/totals.svg
 if they are modified, then commit and force-push. Only the human can grant this
 exception -- never assume it; redo the regen by default.
+
+"Next to merge" also means the human is about to test the branch
+locally and will come back with any errors. Push *immediately* -- do
+not re-run ~make clean && make~, do not re-run tests, do not regen.
+Re-verifying things the human already saw fail (or pass) just makes
+them wait. If the prior push had no errors here, any new failures the
+human reports will be from the new master commits landing in between
+and how those interact with the branch; reproduce *those* and fix.
+Don't pad the loop with belt-and-braces local rebuilds on every
+"next to merge" rebase.
 
 
 NEVER `git rebase --abort` on conflicts in generated files alone. Only

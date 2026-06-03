@@ -268,10 +268,15 @@
      ~Vec.get~ specialization (return the element type, not Dynamic)
      or context-driven typing of the hoisted temp from the outer call
      site.
-   - [ ] Macro body cases beyond ~return <single-literal>~: an
-     ~if T.is(...) { return struct {...} } else { return struct {...} }~
-     macro doesn't expand today (init's pre-pass only matches single-
-     literal returns).
+   - [X] Macro body cases beyond ~return <single-literal>~: an
+     ~if T.is(Type.<Variant>) { return struct {...} } else { ... }~
+     macro now expands. init's pre-pass walks the body recursively;
+     a small comptime evaluator recognises ~<Ident>.is(Type.<Variant>)~
+     against the substituted type-param and picks the matching
+     branch's return literal. Else-if chains and StructDef / EnumDef
+     / FuncDef returns all work. Conditions beyond that exact shape
+     still leave the macro un-expanded (the pre-pass returns NULL,
+     caller continues without rewrite).
    - [ ] Value-param substitution in function generators:
      ~make_adder := macro(N: I64) returns FuncDef { return func(x: I64) returns I64 { return x.add(N) } }~
      currently substitutes only type-name idents; an ~Ident(N)~ that

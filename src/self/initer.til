@@ -3029,6 +3029,78 @@ priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
     }
 }
 
+// Issue #58: evaluate a macro-body condition at expand time. Today
+// only the `<Ident>.is(Type.<Variant>)` shape is recognised -- enough
+// to make `if T.is(Type.I64) { ... }` style template branching pick
+// a branch deterministically once T's substitution is applied. Returns
+// 1 (true), 0 (false), or -1 (shape not understood, caller falls back
+// to leaving the macro un-expanded).
+priv init_macro_cond_eval := func(cond: Expr) returns I32 {
+    if cond.node_type.is(NodeType.FCall).not() { return -1 }
+    if cond.children.len().neq(2.to_usize()) { return -1 }
+    ref callee : Expr = cond.child(0)
+    if callee.node_type.is(NodeType.FieldAccess).not() { return -1 }
+    mut method_name := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(fan): method_name = fan.field_access_name()
+    case: return -1
+    }
+    if method_name.eq("is").not() { return -1 }
+    if callee.children.len().neq(1.to_usize()) { return -1 }
+    ref lhs : Expr = callee.child(0)
+    mut lhs_name := ""
+    switch lhs.node_type {
+    case NodeType.Ident(idn): lhs_name = idn.ident_name()
+    case: return -1
+    }
+    ref arg : Expr = cond.child(1)
+    if arg.node_type.is(NodeType.FieldAccess).not() { return -1 }
+    mut variant_name := ""
+    switch arg.node_type {
+    case NodeType.FieldAccess(fan_arg): variant_name = fan_arg.field_access_name()
+    case: return -1
+    }
+    if arg.children.len().neq(1.to_usize()) { return -1 }
+    ref arg_recv : Expr = arg.child(0)
+    mut recv_name := ""
+    switch arg_recv.node_type {
+    case NodeType.Ident(idr): recv_name = idr.ident_name()
+    case: return -1
+    }
+    if recv_name.eq("Type").not() { return -1 }
+    if lhs_name.eq(variant_name) { return 1 }
+    return 0
+}
+
+// Pick the macro return literal from a possibly-if-shaped body. body
+// must be a NodeType.Body. Returns NULL when the shape isn't a single
+// Return or a recognised if-chain whose branches each terminate in a
+// single Return; the caller falls back to leaving the macro un-expanded.
+priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
+    if body.is_null() { return NULL }
+    if body.node_type.is(NodeType.Body).not() { return NULL }
+    if body.children.len().neq(1.to_usize()) { return NULL }
+    ref s : Expr = body.child(0)
+    if s.node_type.is(NodeType.Return) {
+        if s.children.len().eq(0) { return NULL }
+        return s.child(0)
+    }
+    if s.node_type.is(NodeType.If).not() { return NULL }
+    if s.children.len().lt(2.to_usize()) { return NULL }
+    // Clone + substitute the condition before evaluating: subs maps the
+    // type-param Ident (`T`) onto the call's arg Ident (`I64`), turning
+    // `T.is(Type.I64)` into `I64.is(Type.I64)`.
+    mut cond_clone := s.child(0).clone()
+    init_substitute_idents(cond_clone, subs)
+    res := init_macro_cond_eval(cond_clone)
+    if res.lt(0) { return NULL }
+    if res.eq(1) {
+        return init_macro_pick_return(s.child(1), subs)
+    }
+    if s.children.len().lt(3.to_usize()) { return NULL }
+    return init_macro_pick_return(s.child(2), subs)
+}
+
 priv init_expand_type_gen_macros := func(mut program: Expr) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
@@ -3077,15 +3149,6 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         if macro_fdef.children.len().eq(0) { continue }
         ref body : Expr = macro_fdef.child(0)
         if body.node_type.is(NodeType.Body).not() { continue }
-        if body.children.len().neq(1.to_usize()) { continue }
-        ref ret_stmt : Expr = body.child(0)
-        if ret_stmt.node_type.is(NodeType.Return).not() { continue }
-        if ret_stmt.children.len().eq(0) { continue }
-        ref ret_val : Expr = ret_stmt.child(0)
-        ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
-            .or(ret_val.node_type.is(NodeType.EnumDef))
-            .or(ret_val.node_type.is(NodeType.FuncDef))
-        if ret_val_ok.not() { continue }
 
         // Build param-name -> arg-expression substitution. Type-param args
         // are Idents (e.g. `I64`) and value-param args are arbitrary
@@ -3105,6 +3168,16 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
             }
         case:
         }
+
+        // Pick the return literal -- a direct `return <literal>` or an
+        // if-chain whose recognised condition evaluates to a definite
+        // arm under `subs` (issue #58).
+        ref ret_val : Expr = init_macro_pick_return(body, subs)
+        if ret_val.is_null() { continue }
+        ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
+            .or(ret_val.node_type.is(NodeType.EnumDef))
+            .or(ret_val.node_type.is(NodeType.FuncDef))
+        if ret_val_ok.not() { continue }
 
         // Clone the return literal, substitute, replace Decl's RHS.
         mut cloned := ret_val.clone()

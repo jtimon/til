@@ -49,6 +49,8 @@
 *** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/240.org][#240]] Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
+*** [[./open/242.org][#242]] Allow struct fields without a default value (mandatory at instantiation)
+*** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

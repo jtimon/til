@@ -547,6 +547,58 @@ test_macro_func_gen_mixed_params := test() {
     assert_eq(__LOC__, add_i64_5(7), 12)
 }
 
+// --- Conditional macro bodies (issue #58) ---
+// init's pre-pass evaluates `T.is(Type.<Variant>)` at expand time and
+// picks the matching branch's return literal. Else-if chains and bare
+// else both work; StructDef / EnumDef / FuncDef returns are all
+// supported in every branch.
+
+make_tagged := macro(T: Type) returns StructDef {
+    if T.is(Type.I64) {
+        return struct {
+            value: I64 = 0
+            tag:   I32 = 1
+        }
+    } else if T.is(Type.I32) {
+        return struct {
+            value: I64 = 0
+            tag:   I32 = 2
+        }
+    } else {
+        return struct {
+            value: I64 = 0
+            tag:   I32 = 3
+        }
+    }
+}
+TaggedI64 := make_tagged(I64)
+TaggedI32 := make_tagged(I32)
+TaggedF32 := make_tagged(F32)
+
+test_cond_macro_struct_else_if := test() {
+    a := TaggedI64(value = 1)
+    b := TaggedI32(value = 2)
+    c := TaggedF32(value = 3)
+    assert_eq(__LOC__, a.tag.cast(I64), 1)
+    assert_eq(__LOC__, b.tag.cast(I64), 2)
+    assert_eq(__LOC__, c.tag.cast(I64), 3)
+}
+
+make_default_fn := macro(T: Type) returns FuncDef {
+    if T.is(Type.I64) {
+        return func() returns I64 { return 42 }
+    } else {
+        return func() returns I64 { return 0 }
+    }
+}
+answer_fn := make_default_fn(I64)
+zero_fn   := make_default_fn(F32)
+
+test_cond_macro_funcdef := test() {
+    assert_eq(__LOC__, answer_fn(), 42)
+    assert_eq(__LOC__, zero_fn(), 0)
+}
+
 make_greeter := macro(name: Str) returns FuncDef {
     return func() returns Str { return name }
 }
