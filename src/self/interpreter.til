@@ -567,7 +567,19 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str,
         if tdef.node_type.is(NodeType.StructDef) {
             if is_value_ptr(obj) {
                 ref pv : Dynamic = value_ptr_view(obj)
-                obj = make_struct_value(obj_sname, tdef, deref(pv), true, ctx)
+                // Issue #239: derive the struct name from the long-lived
+                // scope binding rather than from `obj_sname`, which is
+                // borrowed from a case-arm Type payload that the caller's
+                // switch deletes on its way out. Same template as master's
+                // d6c3554 fix in read_field. See issue #245 for the
+                // underlying Value-model gap that blocks the full
+                // "own the Str" remediation.
+                ref bnd : TypeBinding = ctx.scope.get_binding(obj_sname)
+                if bnd.is_null().not() {
+                    obj = make_struct_value(bnd.name, tdef, deref(pv), true, ctx)
+                } else {
+                    obj = make_struct_value(obj_sname, tdef, deref(pv), true, ctx)
+                }
             }
         }
     case:
@@ -728,8 +740,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 interp_error(e, format("no field '", fname.field_access_name(), "'"), ctx)
                 exit(1)
             }
-            sname_stable := til_type_name(e.child(0).expr_til_type())
-            fl := ctx_field_layout(sname_stable, fname.field_access_name(), ctx)
+            fl := ctx_field_layout(si.struct_name, fname.field_access_name(), ctx)
             return read_field(si.data, fdecl, fl.offset, ctx)
         case:
             UNREACHABLE(__LOC__)
