@@ -53,6 +53,7 @@
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+*** [[./open/252.org][#252]] Derive Declaration.til_type from explicit_type at construction
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies

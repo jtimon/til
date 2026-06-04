@@ -561,6 +561,31 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
         default_value = ns_value)
 }
 
+// structdef_of / enumdef_of: borrow the StructDef / EnumDef payload of a
+// StructDef / EnumDef Expr, so the body parsers can push fields, variants
+// and ns_decls through one binding instead of repeating
+// `switch def.node_type { case ...(d): ... case: UNREACHABLE }` at every
+// mutation site.
+priv structdef_of := func(def: Expr) returns ref StructDef {
+    switch def.node_type {
+    case NodeType.StructDef(sdd):
+        return sdd
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
+priv enumdef_of := func(def: Expr) returns ref EnumDef {
+    switch def.node_type {
+    case NodeType.EnumDef(edd):
+        return edd
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
 // parse_struct_def: current token is 'struct' (or '{' for ext_struct)
 // c_tag: "" = normal struct (advance past 'struct' keyword)
 //        "@anon" = ext_struct anonymous (no struct tag)
@@ -572,13 +597,9 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     if is_ext.not() { advance(p) }
 
     def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
+    ref sdd : StructDef = structdef_of(def)
     if is_ext {
-        switch def.node_type {
-        case NodeType.StructDef(sdd):
-            sdd.c_tag = c_tag.clone()
-        case:
-            UNREACHABLE(__LOC__)
-        }
+        sdd.c_tag = c_tag.clone()
     }
     expect_token(p, TokenType.LBrace)
 
@@ -611,13 +632,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             member_priv = true
         }
         if in_namespace {
-            mut ns_dd := parse_ns_decl(p, member_priv)
-            switch def.node_type {
-            case NodeType.StructDef(sdd):
-                sdd.ns_decls.push(own ns_dd)
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            sdd.ns_decls.push(own parse_ns_decl(p, member_priv))
         } else {
             mut f_own_type := OwnType.Shallow
             // #211: struct instance fields are mutable by default; `const`
@@ -659,12 +674,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             if f_has_default {
                 f_dd.default_value = parse_expression(p)
             }
-            switch def.node_type {
-            case NodeType.StructDef(sdd):
-                sdd.fields.push(own f_dd)
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            sdd.fields.push(own f_dd)
         }
     }
     expect_token(p, TokenType.RBrace)
@@ -679,6 +689,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     advance(p)
 
     def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
+    ref edd : EnumDef = enumdef_of(def)
     expect_token(p, TokenType.LBrace)
 
     saved_doc := p.pending_doc.clone()
@@ -707,13 +718,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 advance(p)
                 enum_ns_priv = true
             }
-            mut ns_dd := parse_ns_decl(p, enum_ns_priv)
-            switch def.node_type {
-            case NodeType.EnumDef(edd):
-                edd.ns_decls.push(own ns_dd)
-            case:
-                UNREACHABLE(__LOC__)
-            }
+            edd.ns_decls.push(own parse_ns_decl(p, enum_ns_priv))
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated.
             // Variant docs aren't yet stored (variants are a Vec<Str>);
@@ -743,18 +748,13 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
                 advance(p)
                 vtype = expect_text(p, TokenType.Ident)
             }
-            switch def.node_type {
-            case NodeType.EnumDef(edd):
-                edd.variants.push(own vname.clone())
-                if vtype.len().gt(0) {
-                    edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
-                }
-                // payload_consts is dense, parallel to variants: push one
-                // entry per variant (false for non-const / no-payload).
-                edd.payload_consts.push(own v_payload_const.clone())
-            case:
-                UNREACHABLE(__LOC__)
+            edd.variants.push(own vname.clone())
+            if vtype.len().gt(0) {
+                edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
             }
+            // payload_consts is dense, parallel to variants: push one
+            // entry per variant (false for non-const / no-payload).
+            edd.payload_consts.push(own v_payload_const.clone())
             variant_idx = variant_idx.add(1)
             if check(p, TokenType.Comma) { advance(p) }
         }

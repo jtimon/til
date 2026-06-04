@@ -1310,6 +1310,8 @@ Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til_
 Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parser * p);
 Expr * parse_func_def(priv___src_self_parser_til__Parser * p);
 Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_til__Parser * p, Bool member_priv);
+StructDef * priv___src_self_parser_til__structdef_of(Expr * def);
+EnumDef * priv___src_self_parser_til__enumdef_of(Expr * def);
 Expr * parse_struct_def(priv___src_self_parser_til__Parser * p, Str * c_tag);
 Expr * parse_enum_def(priv___src_self_parser_til__Parser * p);
 void priv___src_self_parser_til__set_fcall_throw(Expr * fcall);

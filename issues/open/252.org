@@ -1,0 +1,88 @@
+# priority: low
+** OPEN #252 Derive Declaration.til_type from explicit_type at construction
+
+  Follow-up from #249. At construction time, ~49 sites across the self
+  compiler build a ~Declaration~ passing BOTH ~explicit_type~ and the
+  redundant ~til_type = til_type_from_explicit_type(explicit_type)~:
+
+    Declaration(name = f_name, ...,
+        explicit_type = f_explicit_type,
+        til_type = til_type_from_explicit_type(f_explicit_type), ...)
+
+  The ~til_type~ value is mechanically derived from ~explicit_type~, so
+  every site repeats the same call. #249 added ~set_decl_type(mut d,
+  name)~ for the handful of mutate-after-construction sites, but the
+  inline-constructor sites still pass both by hand.
+
+  Counts (at time of writing):
+    - 49 ~til_type = til_type_from_explicit_type(...)~ occurrences
+    - across src/self/parser.til, initer.til, typer.til, context.til
+
+*** Why it is not a one-liner
+  Two real constraints:
+
+  1. Layering. ~til_type_from_explicit_type~ lives in
+     ~src/self/parser.til~ (the self layer). ~Declaration~ lives in
+     ~src/core/ast.til~ (core). Core cannot import self, so the
+     ~Declaration~ constructor cannot call the mapping where it
+     currently sits.
+  2. The field must stay mutable/stored. The typer REFINES
+     ~til_type~ after parsing (e.g. resolving ~Custom(name)~ to
+     ~Struct(name)~/~Enum(name)~), so ~til_type~ cannot be dropped or
+     made a pure read-only accessor over ~explicit_type~. The
+     derivation only describes the INITIAL value.
+
+  til struct literals run no logic, so a field default cannot compute
+  ~til_type~ from a sibling field -- a factory or post-build step is
+  required.
+
+*** Recommended plan
+  1. Move ~til_type_from_explicit_type~ from ~src/self/parser.til~ into
+     ~src/core/ast.til~, next to ~Type~/~Declaration~. It is a pure
+     name -> Type mapping that only references ~Type~/~Primitive~ (both
+     already in ast.til); it has zero parser dependencies, so it
+     belongs in core anyway. The ~49 call sites keep calling it by the
+     same name, so this step alone changes no call site (just the
+     definition's home) and should pass ~make clean && make test~ on
+     its own. Land it first.
+
+  2. Add a factory in core that derives ~til_type~ from
+     ~explicit_type~. Two candidate shapes -- pick one when
+     implementing:
+     a. Free function ~decl_typed(explicit_type: Str, name := "",
+        is_mut := false, own_type := OwnType.Shallow, doc := "",
+        is_priv := false, ...) returns Declaration~ that forwards the
+        named args to ~Declaration(...)~ and fills
+        ~til_type = til_type_from_explicit_type(explicit_type)~. Uses
+        til's named-arg defaults so callers only pass what they need.
+        Cost: the factory's parameter list mirrors ~Declaration~'s
+        fields and must be kept in sync when a field is added.
+     b. A ~Declaration~ namespace method
+        ~with_explicit(mut self, name) returns ref Declaration~ that
+        sets both fields, used as a post-construction step. Avoids
+        mirroring the field list, but turns one expression into a
+        two-step build at each site and the ref-return ownership at
+        call sites needs care.
+     Recommendation: (a) -- it keeps each site a single expression and
+     reads closest to today's code; the field-list coupling is a small,
+     localized maintenance cost.
+
+  3. Migrate the ~49 sites to the factory, dropping the explicit
+     ~til_type = ...~ argument. Do it file by file
+     (parser -> initer -> typer -> context) so each step stays
+     reviewable.
+
+  4. ~make clean && make test~ (137/137 at time of writing). This
+     touches compiler source, so confirm a plain commit stands on its
+     own per doc/self.org; only reach for the two-pass build if
+     ~make test~ surfaces a bootstrap mismatch.
+
+*** Alternatives considered
+  - Leave it: the redundancy is harmless and uniform, but it is 49
+    copies of the same derivation and was explicitly flagged in #249.
+  - Construct-then-~set_decl_type~ everywhere (reuse the #249 helper):
+    works without moving the mapping, but makes every site a two-step
+    build and keeps ~set_decl_type~ in the self layer. Rejected in
+    favour of the core factory.
+
+  Behaviour-preserving throughout; no observable output change.
