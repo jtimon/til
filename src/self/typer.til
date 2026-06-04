@@ -1188,12 +1188,12 @@ infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e:
         for fi in 0..nfields {
             if fi.gte(e.children.len().sub(1)) { break }
             ref fld_decl : Declaration = ctor_sdd.fields[fi]
-            ai := fi.add(1).cast(I32)
+            ai := fi.add(1)
             if fld_decl.own_type.is(OwnType.Ref) { continue }
             if fld_decl.own_type.is(OwnType.Own).not() {
                 if type_ctor_consumes(fld_decl.til_type).not() { continue }
             }
-            set_own_arg(e, ai.to_usize())
+            set_own_arg(e, ai)
         }
         e.set_expr_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
         return true
@@ -2329,7 +2329,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // in both the codegen and interpreter value model are returned (4 and 8);
 // 1-byte (I8 has no interpreter Value variant) and 2-byte (no U16) are
 // intentionally left at 0 for now.
-cast_int_size := func(t: Type) returns I32 {
+cast_int_size := func(t: Type) returns USize {
     tn := til_type_name_c(t)
     if tn.eq("I8").or(tn.eq("U8"))   { return 1 }
     if tn.eq("I16").or(tn.eq("U16")) { return 2 }

@@ -599,15 +599,15 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 
 h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+        if idx.gte(sd.fields.len()) {
             interp_error(e, "struct_field_name: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx.to_usize()]
+        ref fd : Declaration = sd.fields[idx]
         r = str_to_owned_value(fd.name, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -617,15 +617,15 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 
 h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+        if idx.gte(sd.fields.len()) {
             interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx.to_usize()]
+        ref fd : Declaration = sd.fields[idx]
         if fd.is_mut { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
         UNREACHABLE(__LOC__)
@@ -635,15 +635,15 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 
 h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+        if idx.gte(sd.fields.len()) {
             interp_error(e, "struct_field_type: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx.to_usize()]
+        ref fd : Declaration = sd.fields[idx]
         r = str_to_owned_value(fd.explicit_type, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -689,15 +689,15 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
 
 h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+        if idx.gte(ed.variants.len()) {
             interp_error(e, "enum_variant_name: index out of bounds", ctx)
             exit(1)
         }
-        ref vn : Str = ed.variants[idx.to_usize()]
+        ref vn : Str = ed.variants[idx]
         r = str_to_owned_value(vn, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -707,16 +707,16 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 
 h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+        if idx.gte(ed.variants.len()) {
             interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
             exit(1)
         }
-        if ed.payload_types.has(idx) {
-            ref pt : Str = ed.payload_types[idx]
+        if ed.payload_types.has(idx.to_i64()) {
+            ref pt : Str = ed.payload_types[idx.to_i64()]
             if pt.len().gt(0) { r = Value.Int(1) } else { r = Value.Int(0) }
         } else {
             r = Value.Int(0)
@@ -729,16 +729,16 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 
 h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+        if idx.gte(ed.variants.len()) {
             interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
             exit(1)
         }
-        if ed.payload_types.has(idx) {
-            ref pt : Str = ed.payload_types[idx]
+        if ed.payload_types.has(idx.to_i64()) {
+            ref pt : Str = ed.payload_types[idx.to_i64()]
             r = str_to_owned_value(pt, ctx)
         } else {
             r = str_to_owned_value("", ctx)
@@ -787,15 +787,15 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 
 h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        if idx.lt(0).or(idx.to_usize().gte(fd.params.len())) {
+        if idx.gte(fd.params.len()) {
             interp_error(e, "func_sig_param_type: index out of bounds", ctx)
             exit(1)
         }
-        ref pd : Declaration = fd.params[idx.to_usize()]
+        ref pd : Declaration = fd.params[idx]
         r = str_to_owned_value(pd.explicit_type, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -817,7 +817,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
 
 h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -846,15 +846,15 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 
 h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
-    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
+    idx := value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        if idx.lt(0).or(idx.to_usize().gte(fd.throw_types.len())) {
+        if idx.gte(fd.throw_types.len()) {
             interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
             exit(1)
         }
-        ref tt : Str = fd.throw_types[idx.to_usize()]
+        ref tt : Str = fd.throw_types[idx]
         r = str_to_owned_value(tt, ctx)
     case:
         UNREACHABLE(__LOC__)

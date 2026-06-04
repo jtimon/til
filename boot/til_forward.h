@@ -1527,7 +1527,7 @@ void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBind
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);
 void check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool member_is_priv, Context * ctx);
 void priv___src_self_typer_til__check_free_managed_local(TypeScope * scope, Expr * e, Context * ctx);
-I32 cast_int_size(Type * t);
+U32 cast_int_size(Type * t);
 Bool cast_is_signed(Type * t);
 Bool cast_pair_ok(Type * src, Type * target);
 void infer_cast_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
