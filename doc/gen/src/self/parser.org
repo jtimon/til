@@ -31,9 +31,24 @@ func peek_line(p: priv___src_self_parser_til__Parser) returns shallow U32
 func peek_col(p: priv___src_self_parser_til__Parser) returns shallow U32
 #+end_src
 
+* builtin_type_table
+#+begin_src til
+builtin_type_table is a Map
+#+end_src
+
+* builtin_type_from_name
+#+begin_src til
+func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
+#+end_src
+
 * til_type_from_explicit_type
 #+begin_src til
 func til_type_from_explicit_type(name: Str) returns Type
+#+end_src
+
+* decl_typed
+#+begin_src til
+func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
 #+end_src
 
 * anon_struct_counter
@@ -63,47 +78,12 @@ proc parse_call(mut p: priv___src_self_parser_til__Parser, own callee: Expr, sha
 
 * make_binop_call
 #+begin_src til
-func make_binop_call(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, rhs: Expr) returns Expr
+func make_binop_call(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, own rhs: Expr) returns Expr
 #+end_src
 
 * parse_primary
 #+begin_src til
 proc parse_primary(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_additive
-#+begin_src til
-proc parse_additive(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_comparison
-#+begin_src til
-proc parse_comparison(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_bitand
-#+begin_src til
-proc parse_bitand(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_bitxor
-#+begin_src til
-proc parse_bitxor(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_bitor
-#+begin_src til
-proc parse_bitor(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_logical_and
-#+begin_src til
-proc parse_logical_and(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_logical_or
-#+begin_src til
-proc parse_logical_or(mut p: priv___src_self_parser_til__Parser) returns Expr
 #+end_src
 
 * parse_expression
@@ -133,6 +113,6 @@ proc parse_statement_body(mut p: priv___src_self_parser_til__Parser) returns Exp
 
 * parse
 #+begin_src til
-proc parse(tokens: Vec, path: Str, mut mode_out: Str) returns Expr
+proc parse(tokens: Vec, source: Str, path: Str, mut mode_out: Str) returns Expr
 #+end_src
 

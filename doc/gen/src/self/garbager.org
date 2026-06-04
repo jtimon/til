@@ -16,6 +16,11 @@ func collect_scope_locals(ctx: Context, body: Expr, scope: TypeScope, shallow is
 func extend_ref_local_lifetimes(mut body: Expr, locals: Vec, scope: TypeScope)
 #+end_src
 
+* extend_hoist_view_lifetimes
+#+begin_src til
+func extend_hoist_view_lifetimes(body: Expr, locals: Vec)
+#+end_src
+
 * check_use_after_own_transfer
 #+begin_src til
 proc check_use_after_own_transfer(body: Expr, locals: Vec, ctx: Context)

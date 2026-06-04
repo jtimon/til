@@ -240,6 +240,11 @@ proc h_dyn_fn(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Boo
 proc h_dyn_size_of(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow Bool
 #+end_src
 
+* eval_str_owned
+#+begin_src til
+proc eval_str_owned(s: Scope, arg: Expr, ctx: Context) returns Str
+#+end_src
+
 * interp_lookup_struct
 #+begin_src til
 proc interp_lookup_struct(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr
@@ -427,7 +432,7 @@ proc h_dyn_call(s: Scope, e: Expr, mut r: Value, ctx: Context) returns shallow B
 
 * get_elem_size
 #+begin_src til
-proc get_elem_size(s: Scope, type_name: Str, src: Expr, ctx: Context) returns shallow I32
+proc get_elem_size(s: Scope, type_name: Str, src: Expr, ctx: Context) returns shallow U32
 #+end_src
 
 * enum_method_dispatch

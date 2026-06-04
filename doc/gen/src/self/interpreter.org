@@ -25,6 +25,7 @@ proc interp_lang_error(e: Expr, msg: Str, ctx: Context)
 #+begin_src til
 struct StructInstance {
     ref mut struct_name : Str
+    mut is_str : Bool
     ref mut struct_def : Expr
     ref mut ctx : Context
     own mut data : U8
@@ -206,17 +207,17 @@ ENUM_PAYLOAD_OFFSET is a U32
 
 * val_enum_flat
 #+begin_src til
-func val_enum_flat(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32, shallow total_enum_size: I32) returns shallow Value
+func val_enum_flat(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: U32, shallow total_enum_size: U32) returns shallow Value
 #+end_src
 
 * val_enum_simple
 #+begin_src til
-func val_enum_simple(enum_name: Str, shallow etag: I32, shallow total_enum_size: I32) returns shallow Value
+func val_enum_simple(enum_name: Str, shallow etag: I32, shallow total_enum_size: U32) returns shallow Value
 #+end_src
 
 * elem_size_for_type
 #+begin_src til
-func elem_size_for_type(type_name: Str) returns shallow I32
+func elem_size_for_type(type_name: Str) returns shallow U32
 #+end_src
 
 * parse_cli_arg
@@ -294,6 +295,11 @@ func needs_widen(val: Value, ptype: Str) returns shallow Bool
 func shallow_copy_value(v: Value) returns shallow Value
 #+end_src
 
+* borrow_value
+#+begin_src til
+func borrow_value(v: Value) returns shallow Value
+#+end_src
+
 * box_scalar_to_dynamic
 #+begin_src til
 func box_scalar_to_dynamic(mut call_scope: Scope, v: Value, shallow track_for_free: Bool) returns Value
@@ -336,7 +342,7 @@ func scope_get_ref_primitive_ptr(mut s: Scope, name: Str) returns ref Dynamic
 
 * scope_set_owned
 #+begin_src til
-func scope_set_owned(mut s: Scope, name: Str, val: Value)
+func scope_set_owned(mut s: Scope, name: Str, mut val: Value)
 #+end_src
 
 * scope_set_borrowed
@@ -426,12 +432,12 @@ ENUM_PAYLOAD_OFFSET is a U32
 
 * read_field
 #+begin_src til
-func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: I32, ctx: Context) returns shallow Value
+func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, ctx: Context) returns shallow Value
 #+end_src
 
 * write_field
 #+begin_src til
-func write_field(mut inst_data: Dynamic, dd: Declaration, shallow field_offset: I32, shallow field_size: I32, val: Value, ctx: Context)
+func write_field(mut inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, shallow field_size: U32, val: Value, ctx: Context)
 #+end_src
 
 * interpret_register_defs

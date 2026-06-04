@@ -11,6 +11,11 @@ func precomp_clear_known(mut ctx: Context)
 func precomp_reset_state(mut ctx: Context)
 #+end_src
 
+* collect_assign_targets
+#+begin_src til
+proc collect_assign_targets(e: Expr, mut names: Set)
+#+end_src
+
 * precomp_has_macro
 #+begin_src til
 func precomp_has_macro(ctx: Context, name: Str) returns shallow Bool
@@ -28,7 +33,7 @@ func is_side_effecting_name(name: Str) returns shallow Bool
 
 * value_to_expr
 #+begin_src til
-func value_to_expr(shallow val: Value, src: Expr, ctx: Context) returns ref Expr
+func value_to_expr(shallow val: Value, src: Expr, ctx: Context) returns Expr
 #+end_src
 
 * expr_to_value
@@ -68,12 +73,12 @@ func fa_recv_type_name(callee: Expr, ctx: Context) returns Str
 
 * try_fast_fold_call
 #+begin_src til
-func try_fast_fold_call(scope: Scope, fcall: Expr, ctx: Context) returns ref Expr
+func try_fast_fold_call(scope: Scope, fcall: Expr, ctx: Context) returns Expr
 #+end_src
 
 * try_eval_call
 #+begin_src til
-proc try_eval_call(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: Context) returns ref Expr
+proc try_eval_call(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: Context) returns Expr
 #+end_src
 
 * track_literal

@@ -170,7 +170,8 @@ namespace:
 #+begin_src til
 struct Token {
     type : TokenType
-    text : Str
+    start : U32
+    len : U32
     line : U32
     col : U32
 namespace:

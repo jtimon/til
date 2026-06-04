@@ -10,9 +10,9 @@ struct Map {
     mut values : Vec
     mut key_cmp : CmpFn
 namespace:
-    /// Create an empty Map. Both key_type and val_type must be non-empty;
-    /// key_type must implement `cmp`.
     func new_type_names(key_type: Str, val_type: Str) returns Map
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
     func new(K: Type, V: Type) returns Map
     func len(self: Map) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage and

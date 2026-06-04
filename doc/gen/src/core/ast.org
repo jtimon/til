@@ -162,7 +162,6 @@ struct Declaration {
     mut redundant_mut : Bool
     mut is_priv : Bool
     mut used : Bool
-    mut written : Bool
     mut own_type : OwnType
     mut til_type : Type
     own mut default_value : Expr
@@ -368,8 +367,8 @@ namespace:
 * FieldLayout
 #+begin_src til
 struct FieldLayout {
-    mut offset : I32
-    mut size : I32
+    mut offset : U32
+    mut size : U32
     mut struct_name : Str
 namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns shallow Bool
@@ -384,7 +383,7 @@ namespace:
 * StructLayout
 #+begin_src til
 struct StructLayout {
-    mut total_size : I32
+    mut total_size : U32
     mut fields : Vec
 namespace:
     func eq(a: StructLayout, b: StructLayout) returns shallow Bool
@@ -498,6 +497,7 @@ the typer records the common arm type here (mirrors FCallData.til_type).
 #+begin_src til
 struct MatchData {
     mut til_type : Type
+    mut result_temp : Str
 namespace:
     func eq(a: MatchData, b: MatchData) returns shallow Bool
     func to_str(_self: MatchData) returns Str
@@ -590,6 +590,12 @@ struct Expr {
     mut line : U32
     mut col : U32
 namespace:
+    /// Null-safe delete. The auto-generated version dereferences `self`
+    /// unconditionally, so the asap pass deleting an owned-but-null Expr
+    /// (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
+    /// here lets functions return owned `Expr` that may be null without
+    /// the caller having to clone-and-leak to dodge the deep delete.
+    func delete(own self: Expr, shallow call_free: Bool)
     /// Print a diagnostic error with file path and source location.
     proc error(self: Expr, path: Str, msg: Str)
     /// Like error() but adds "not implemented yet" note.
@@ -610,7 +616,6 @@ namespace:
     func eq(_self: Expr, _other: Expr) returns shallow Bool
     func to_str(self: Expr) returns Str
     func clone(self: Expr) returns Expr
-    func delete(own self: Expr, shallow call_free: Bool)
     func hash(self: Expr, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }

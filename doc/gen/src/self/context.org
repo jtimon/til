@@ -17,8 +17,7 @@ struct TypeBinding {
     mut is_type_alias : Bool
     mut is_func_decl : Bool
     mut alias_target : Str
-    ref mut struct_def : Expr
-    ref mut func_def : Expr
+    mut func_type : FuncType
     mut is_builtin : Bool
     mut used : Bool
     mut written : Bool
@@ -29,6 +28,7 @@ namespace:
     func to_str(self: TypeBinding) returns Str
     func clone(self: TypeBinding) returns TypeBinding
     func delete(own self: TypeBinding, shallow call_free: Bool)
+    func hash(self: TypeBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src
@@ -50,10 +50,17 @@ namespace:
 }
 #+end_src
 
+* func_defs_lookup_one
+#+begin_src til
+func func_defs_lookup_one(m: Map, name: Str) returns ref Expr
+#+end_src
+
 * TypeScope
 #+begin_src til
 struct TypeScope {
     mut bindings : Map
+    mut func_defs : Map
+    mut struct_defs : Map
     ref mut parent : TypeScope
 namespace:
     func get_binding(self: TypeScope, name: Str) returns ref TypeBinding
@@ -61,6 +68,10 @@ namespace:
     func get_type(self: TypeScope, name: Str) returns Type
     func get_func_type(self: TypeScope, name: Str) returns shallow FuncType
     func get_struct(self: TypeScope, name: Str) returns ref Expr
+    func struct_def_of(self: TypeScope, name: Str) returns ref Expr
+    func lookup_func(self: TypeScope, name: Str) returns ref Expr
+    func set_func_def(mut self: TypeScope, name: Str, fdef: Expr)
+    func set_struct_def(mut self: TypeScope, name: Str, sdef: Expr)
     func is_mut(self: TypeScope, name: Str) returns shallow Bool
     func set(mut self: TypeScope, name: Str, type: Type, shallow is_mut: Bool, path: Str, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow own_type: OwnType)
     func clone(self: TypeScope) returns TypeScope
@@ -72,6 +83,11 @@ namespace:
 * binding_func_type
 #+begin_src til
 func binding_func_type(b: TypeBinding) returns shallow FuncType
+#+end_src
+
+* func_def_type
+#+begin_src til
+func func_def_type(fdef: Expr) returns shallow FuncType
 #+end_src
 
 * ImportUnit
@@ -106,6 +122,7 @@ struct Context {
     mut precomp_macros : Set
     mut precomp_funcs : Set
     mut precomp_known : Map
+    mut precomp_assigned : Set
     mut has_return : Bool
     mut has_break : Bool
     mut has_continue : Bool
@@ -121,8 +138,7 @@ struct Context {
     mut script_globals : Set
     mut ref_globals : Set
     mut throw_type_registry : Vec
-    mut throws_names_global : Vec
-    mut throws_per_global : Vec
+    mut throws_global : Map
     mut bang_counter : I64
     mut lowering_param_types : Map
     mut typer_in_shallow_return : Bool
@@ -178,7 +194,7 @@ func priv_c_name(path: Str, name: Str) returns Str
 
 * align_up
 #+begin_src til
-func align_up(shallow offset: I32, shallow align: I32) returns shallow I32
+func align_up(shallow offset: U32, shallow align: U32) returns shallow U32
 #+end_src
 
 * precomp_classify_stmt

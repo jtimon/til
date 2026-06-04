@@ -138,17 +138,17 @@ proc compute_struct_layout(name: Str, mut struct_def: Expr, scope: TypeScope, ct
 
 * type_size_align
 #+begin_src til
-proc type_size_align(ftype: Str, scope: TypeScope, ctx: Context, mut sz: I32, mut al: I32)
+proc type_size_align(ftype: Str, scope: TypeScope, ctx: Context, mut sz: U32, mut al: U32)
 #+end_src
 
 * compute_enum_layout
 #+begin_src til
-proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns shallow I32
+proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns shallow U32
 #+end_src
 
 * ctx_total_size
 #+begin_src til
-func ctx_total_size(name: Str, ctx: Context) returns shallow I32
+func ctx_total_size(name: Str, ctx: Context) returns shallow U32
 #+end_src
 
 * ctx_field_layout

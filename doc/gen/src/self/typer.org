@@ -8,7 +8,7 @@ func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
 
 * type_binding_is_type_token
 #+begin_src til
-func type_binding_is_type_token(b: TypeBinding) returns shallow Bool
+func type_binding_is_type_token(scope: TypeScope, b: TypeBinding) returns shallow Bool
 #+end_src
 
 * make_til_type_expr
@@ -173,7 +173,7 @@ proc infer_struct_constructor_fcall_impl(scope: TypeScope, sdef: Expr, mut e: Ex
 
 * desugar_user_func_fcall_args
 #+begin_src til
-proc desugar_user_func_fcall_args(mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context)
+proc desugar_user_func_fcall_args(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context)
 #+end_src
 
 * redundant_literal_conversion
@@ -313,7 +313,7 @@ proc infer_type_def_expr(scope: TypeScope, mut expr: Expr, ctx: Context)
 
 * PTR_SIZE_BYTES
 #+begin_src til
-PTR_SIZE_BYTES is a I32
+PTR_SIZE_BYTES is a U32
 #+end_src
 
 * is_shallow_struct
@@ -369,11 +369,6 @@ proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow
 * check_unused_priv_members_in_program
 #+begin_src til
 proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
-#+end_src
-
-* check_unused_mut_ns_decls_in_program
-#+begin_src til
-proc check_unused_mut_ns_decls_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * narrow_return_literal

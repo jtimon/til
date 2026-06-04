@@ -81,7 +81,7 @@ namespace:
 
 * retarget_alias_binding
 #+begin_src til
-func retarget_alias_binding(scope: TypeScope, alias_name: Str, target_name: Str)
+func retarget_alias_binding(mut scope: TypeScope, alias_name: Str, target_name: Str)
 #+end_src
 
 * retarget_loaded_aliases
