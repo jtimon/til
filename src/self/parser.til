@@ -575,12 +575,16 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     }
     ns_doc := p.pending_doc.clone()
     p.pending_doc = ""
-    ns_value := parse_expression(p)
     mut ns_decl := decl_typed(name = ns_name,
         is_mut = ns_is_mut, explicit_type = ns_explicit_type,
         doc = ns_doc,
         is_priv = member_priv)
-    ns_decl.default_value = ns_value
+    // Assign the parsed value directly (a temporary -> move), NOT via a
+    // named local (which the codegen would deep-CLONE, heap-copying every
+    // literal Str in the value tree and leaking it with the AST -- the
+    // #252 regression). decl_typed does not touch the parser, so parsing
+    // here keeps the same token position as the old constructor form.
+    ns_decl.default_value = parse_expression(p)
     return ns_decl
 }
 
