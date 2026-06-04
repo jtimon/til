@@ -113,9 +113,9 @@ is_side_effecting_name := func(name: Str) returns Bool {
 // (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
 priv hex_digit_value := func(b: I8) returns U8 {
     if b.lt(48).or(b.gt(102)) { return 0 }
-    if b.lte(57) { return b.cast(I64).sub(48).to_u8() }
-    if b.gte(97) { return b.cast(I64).sub(97).add(10).to_u8() }
-    if b.gte(65).and(b.lte(70)) { return b.cast(I64).sub(65).add(10).to_u8() }
+    if b.lte(57) { return b.sub(48).cast(U8) }
+    if b.gte(97) { return b.sub(97).add(10).cast(U8) }
+    if b.gte(65).and(b.lte(70)) { return b.sub(65).add(10).cast(U8) }
     return 0
 }
 

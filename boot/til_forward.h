@@ -2197,6 +2197,7 @@ Str * priv___src_self_dispatch_til__value_str_clone(Value * v);
 Str * eval_str_owned(Scope * s, Expr * arg, Context * ctx);
 Expr * interp_lookup_struct(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
 Bool h_struct_field_count(Scope * s, Expr * e, Value * r, Context * ctx);
+U32 priv___src_self_dispatch_til__eval_index_arg(Scope * s, Expr * e, Context * ctx);
 Bool h_struct_field_name(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_struct_field_is_mut(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_struct_field_type(Scope * s, Expr * e, Value * r, Context * ctx);

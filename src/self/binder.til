@@ -108,9 +108,9 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
         while p.lt(e) {
             ref c : I8 = s.byte_at(p)
             mut digit : I64 = -1
-            if c.gte('0').and(c.lte('9')) { digit = c.cast(I64).sub('0'.to_i64()) }
-            else if c.gte('a').and(c.lte('f')) { digit = 10.add(c.cast(I64).sub('a'.to_i64())) }
-            else if c.gte('A').and(c.lte('F')) { digit = 10.add(c.cast(I64).sub('A'.to_i64())) }
+            if c.gte('0').and(c.lte('9')) { digit = c.sub('0').cast(I64) }
+            else if c.gte('a').and(c.lte('f')) { digit = c.sub('a').cast(I64).add(10) }
+            else if c.gte('A').and(c.lte('F')) { digit = c.sub('A').cast(I64).add(10) }
             else { success = false; return 0 }
             val = val.mul(16).add(digit)
             p = p.add(1)
@@ -119,7 +119,7 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
         while p.lt(e) {
             ref c : I8 = s.byte_at(p)
             if c.gte('0').and(c.lte('9')).not() { success = false; return 0 }
-            val = val.mul(10).add(c.cast(I64).sub('0'.to_i64()))
+            val = val.mul(10).add(c.sub('0').cast(I64))
             p = p.add(1)
         }
     }
