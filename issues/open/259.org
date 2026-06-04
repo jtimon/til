@@ -1,0 +1,36 @@
+# priority: low
+# category: experiments
+** OPEN #259 desugar if/else chains into switch (Gleam-inspired)
+
+Experiment inspired by Gleam, which has no ~if/else~ and expresses all
+branching through ~case~. Desugar an ~if/elif/else~ chain into a ~switch~
+so the codebase has a single canonical branching construct.
+
+Sketch:
+
+    if cond { A } else { B }
+
+becomes
+
+    switch cond {
+    case true:  A
+    case false: B
+    }
+
+*** Motivation
+Once #254 lets the builder and interpreter handle a real (C-like) switch,
+routing if/else through switch could (a) unify control-flow lowering onto
+one path and (b) let dense boolean/enum dispatch reuse the jump-table
+emission. It may yield no efficiency win at all -- hence ~category:
+experiments~, not a committed optimization.
+
+*** Open questions
+- Does collapsing if/else into switch actually help codegen, or just move
+  complexity around? Measure against ~doc/totals.csv~.
+- Multi-arm ~else if~ chains on different scrutinees do not map to one
+  switch; only same-scrutinee chains do.
+- Interaction with #254's C-like detection: a 2-case bool switch is
+  trivially C-like.
+
+*** Depends on
+Pairs with #254 (real C switch emission).

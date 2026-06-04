@@ -1,11 +1,13 @@
 # priority: medium
 ** OPEN #254 codegen: emit a real C switch (jump table) for dense int/char/enum switches
 
-til lowers every ~switch~ to a nested if/else chain of equality tests in
-the generated C (see ~boot/til.c~, e.g. ~lookup_single_char~: each ~case~
-becomes an ~I8_eq(c, ...)~ + ~if/else~). The C compiler therefore cannot
-build a jump table, so an N-case switch costs O(N) comparisons at runtime
-regardless of how it is written in til.
+The typer's ~infer_switch_stmt~ (src/self/typer.til) currently desugars
+EVERY ~switch~ (and ~match~) into a nested if/elif chain of equality tests
+before codegen. The builder and interpreter therefore never see a real
+switch node -- only if/elif ~Body~ trees -- so an N-case switch costs O(N)
+comparisons at runtime and the C compiler can never build a jump table
+(see ~boot/til.c~, e.g. ~lookup_single_char~: each case is an ~I8_eq~ +
+~if/else~).
 
 This shows up directly in the lexer: ~tokenize~'s ~switch c~ dispatch,
 ~lookup_single_char~, ~lookup_two_char~, ~tok_name~, etc. are all
@@ -13,29 +15,51 @@ sequential comparisons. It matters far more in the hot ~switch~ statements
 all over ~typer.til~ / ~builder.til~ / ~dispatch.til~ that run once per AST
 node per phase.
 
-*** Goal
-Teach the builder to emit a C ~switch (expr) { case K: ...; default: ... }~
-when the scrutinee is an integer/char (and possibly an enum *tag*, switching
-on ~.tag~) and the cases are constant labels. The C compiler then chooses a
-jump table or binary search. Fall back to the current if/else lowering for:
-- string switches (already ~Str_eq~ chains),
-- enum switches that bind payloads (~case NodeType.Ident(id):~),
-- ranges (~case 'a'..'z':~) -- or emit these as C case ranges where the
-  toolchain supports them, else keep the chain,
-- guarded cases (~case X if cond:~).
+*** Why keep both lowerings
+til's ~switch~/~match~ is far richer than C's: payload binding, ranges,
+guards, string compares, exhaustiveness. Desugaring all of that to if/elif
+in the typer (as today) is correct but throws away the cheap case. The
+answer to "why support emission for both?" is this issue: efficiency. So
+we split by complexity -- the typer keeps owning the rich lowering, but a
+C-like subset survives untouched to the backends.
+
+*** Goal (revised scope)
+Keep the typer as the single owner of switch lowering, but teach
+~infer_switch_stmt~ to detect a *C-like* switch and NOT desugar it:
+- scrutinee is an integer/char, or an enum *tag* (switching on ~.tag~), and
+- every case label is a constant, non-overlapping literal, with
+  - NO payload binding (~case NodeType.Ident(id):~),
+  - NO range (~case 'a'..'z':~),
+  - NO guard (~case X if cond:~),
+  - NO string compare.
+
+A C-like switch is left as canonical ~Switch~/~Case~ nodes. Everything
+else keeps desugaring to the if/elif chain exactly as today.
+
+Backends then gain a switch path that did not exist before:
+- the builder emits a real C ~switch (expr) { case K: ...; default: ... }~
+  for the surviving ~Switch~ nodes; the C compiler picks a jump table or
+  binary search.
+- the interpreter gains a direct ~Switch~ dispatch (previously unreachable
+  because everything was pre-desugared).
 
 *** Notes / risks
-- Needs constant, non-overlapping integer labels; ranges expand to many
-  C ~case~ labels or stay as comparisons.
 - ~continue~/~break~ inside a til ~switch~ must keep their current meaning
-  (continue the enclosing loop); a C ~switch~ captures ~break~, so the
-  lowering must route til ~break~/~continue~ correctly (e.g. via a label or
-  by keeping the body out of the C switch's ~break~ scope).
-- Pure codegen change: the tree-walking interpreter is unaffected. Verify
-  with ~make test~ (two-pass) and check ~doc/totals.csv~ for a build-time
-  win.
+  (continue/break the ENCLOSING loop). A C ~switch~ captures ~break~, so
+  the lowering must route til ~break~/~continue~ past the C switch (a label
+  + ~goto~, or by keeping the body out of the C switch's ~break~ scope).
+- Needs constant, non-overlapping integer labels. Ranges either expand to
+  many C ~case~ labels or stay desugared.
+- BOTH backends change now -- the interpreter is no longer a no-op. Verify
+  with two-pass ~make test~ and check ~doc/totals.csv~ for a build-time win.
+
+*** Related
+See #259 (category: experiments) for the inverse direction -- desugaring
+if/else INTO switch, inspired by Gleam. A 2-case boolean switch produced
+that way would be trivially C-like and reuse this issue's emission path.
 
 *** Why medium
 Broad, compiler-wide performance lever with no behaviour change, but it
-touches codegen control-flow lowering (the ~break~/~continue~ interaction
-needs care), so it is a real piece of work rather than a quick win.
+touches both backends' control-flow lowering (the ~break~/~continue~
+interaction needs care), so it is a real piece of work rather than a quick
+win.

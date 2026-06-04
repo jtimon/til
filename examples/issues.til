@@ -52,16 +52,26 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     nl1u : USize = nl1.to_usize()
     first_line := content.substr(0, nl1u)
 
-    after_first := content.substr(nl1u.add(1), content.len().sub(nl1u).sub(1))
-    nl2 := after_first.find(NL)
+    mut rest := content.substr(nl1u.add(1), content.len().sub(nl1u).sub(1))
+    mut nl2 := rest.find(NL)
     if nl2.lt(0) { return "" }
-    nl2u : USize = nl2.to_usize()
+    mut nl2u : USize = nl2.to_usize()
     // `title` is a view into `content` (a borrowed param that stays live
     // for the whole function), so num_str/after_num views derived from it
     // stay valid through their .clone() below. Cloning title into an owned
     // local would let the typer's ASAP-delete free it at its last direct
     // use, dangling those views (the bug class flagged at the top of file).
-    title := after_first.substr(0, nl2u)
+    mut title := rest.substr(0, nl2u)
+    // Skip extra header comment lines (e.g. "# category: experiments")
+    // sitting between the "# priority:" line and the "** OPEN #NNN" title.
+    // All header views stay rooted in `content`, so reassigning them is safe.
+    while title.len().gt(0).and(title.get(0).eq('#')) {
+        rest = rest.substr(nl2u.add(1), rest.len().sub(nl2u).sub(1))
+        nl2 = rest.find(NL)
+        if nl2.lt(0) { return "" }
+        nl2u = nl2.to_usize()
+        title = rest.substr(0, nl2u)
+    }
 
     hash_pos := title.find("#")
     if hash_pos.lt(0) { return "" }
