@@ -1669,15 +1669,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 }
 
                 if ftype.len().eq(0) { fsz = 8; falign = 8 }
-                else if ftype.eq("I64") { fsz = 8; falign = 8 }
-                else if ftype.eq("U8") { fsz = 1; falign = 1 }
-                else if ftype.eq("I8") { fsz = 1; falign = 1 }
-                else if ftype.eq("I16") { fsz = 2; falign = 2 }
-                else if ftype.eq("U16") { fsz = 2; falign = 2 }
-                else if ftype.eq("I32") { fsz = 4; falign = 4 }
-                else if ftype.eq("U32") { fsz = 4; falign = 4 }
-                else if ftype.eq("F32") { fsz = 4; falign = 4 }
-                else if ftype.eq("Bool") { fsz = 1; falign = 1 }
+                else if primitive_size_align(ftype, fsz, falign) { }
                 else if type_from_name_init(ftype, scope).is(Type.FuncPtr) { fsz = 8; falign = 8 }
                 else {
                     ref nested_def : Expr = scope.get_struct(ftype)
@@ -1714,17 +1706,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 // Compute size and alignment for a TIL type name.
 // For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
 type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
-    if ftype.eq("I64") { sz = 8; al = 8; return }
-    if ftype.eq("U64") { sz = 8; al = 8; return }
-    if ftype.eq("F32") { sz = 4; al = 4; return }
-    if ftype.eq("U8") { sz = 1; al = 1; return }
-    if ftype.eq("I8") { sz = 1; al = 1; return }
-    if ftype.eq("I16") { sz = 2; al = 2; return }
-    if ftype.eq("U16") { sz = 2; al = 2; return }
-    if ftype.eq("I32") { sz = 4; al = 4; return }
-    if ftype.eq("U32") { sz = 4; al = 4; return }
-    if ftype.eq("Bool") { sz = 1; al = 1; return }
-    if ftype.eq("Dynamic") { sz = 8; al = 8; return }
+    if primitive_size_align(ftype, sz, al) { return }
     if type_from_name_init(ftype, scope).is(Type.FuncPtr) { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
     if nested.is_null() { sz = 8; al = 8; return }

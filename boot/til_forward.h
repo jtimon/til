@@ -1373,6 +1373,7 @@ void Context_delete(Context * self, Bool call_free);
 U32 Context_size(void);
 Str * priv_c_name(Str * path, Str * name);
 U32 align_up(U32 offset, U32 align);
+Bool primitive_size_align(Str * name, U32 * sz, U32 * al);
 void precomp_classify_stmt(Expr * stmt, Context * ctx);
 Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);

@@ -530,6 +530,30 @@ align_up := func(offset: USize, align: USize) returns USize {
     return offset.add(align).sub(1).band(align.sub(1).bnot())
 }
 
+// Issue #257: single source of truth for builtin scalar size/align.
+// Returns true and sets sz/al when `name` is a primitive scalar (or
+// Dynamic, a pointer-width handle); returns false untouched otherwise so
+// the caller can fall through to its struct/enum/FuncPtr handling. Every
+// layout site (compute_struct_layout, type_size_align, elem_size_for_type)
+// routes through here instead of repeating the width literals -- mirrors
+// rstil's single get_type_size over the Context (see doc/rstil/context.org).
+// USize is intentionally NOT handled here: the layout code treats it as a
+// pointer-width fall-through, so adding it would change struct layouts.
+primitive_size_align := func(name: Str, mut sz: USize, mut al: USize) returns Bool {
+    if name.eq("I64") { sz = 8; al = 8; return true }
+    if name.eq("U64") { sz = 8; al = 8; return true }
+    if name.eq("F32") { sz = 4; al = 4; return true }
+    if name.eq("I32") { sz = 4; al = 4; return true }
+    if name.eq("U32") { sz = 4; al = 4; return true }
+    if name.eq("I16") { sz = 2; al = 2; return true }
+    if name.eq("U16") { sz = 2; al = 2; return true }
+    if name.eq("U8")  { sz = 1; al = 1; return true }
+    if name.eq("I8")  { sz = 1; al = 1; return true }
+    if name.eq("Bool") { sz = 1; al = 1; return true }
+    if name.eq("Dynamic") { sz = 8; al = 8; return true }
+    return false
+}
+
 precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.child(0).node_type {

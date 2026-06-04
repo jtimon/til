@@ -1,5 +1,20 @@
 # priority: low
-** OPEN #257 Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
+** WIP #257 Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
+
+  *Progress (option a done).* Added the single source-of-truth helper
+  ~primitive_size_align(name, mut sz, mut al) returns Bool~ in
+  ~src/self/context.til~ (next to ~align_up~) and routed all three sites
+  through it: the inline cascade in ~compute_struct_layout~ and
+  ~type_size_align~ (both ~src/self/initer.til~) and ~elem_size_for_type~
+  (~src/self/interpreter.til~). No primitive width literal is duplicated
+  anymore; the three sites now agree on every scalar (including U64/F32/
+  Dynamic). ~make clean && make test~ green (137/137); the self-host
+  rebuild of ~boot/til.c~ plus the ~I16/I32/U32 .size()~ asserts in
+  ~test/types.til~ are the regression guard. USize was deliberately left
+  as a pointer-width fall-through (not added to the table) to keep struct
+  layouts unchanged. Option (b) -- representing primitives in
+  ~ctx.struct_layouts~ so even scalars have a stored size -- remains open
+  as a possible follow-up.
 
   *Symptom / smell.* The primitive byte size and alignment of every
   builtin scalar is hardcoded as a literal in multiple places instead
