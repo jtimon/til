@@ -433,14 +433,14 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
     case NodeType.Literal(Literal.Num(num)):
         lit_t := e.expr_til_type()
         switch lit_t {
-        case Type.Primitive(Primitive.U8):  return val_u8(num.to_u8())
-        case Type.Primitive(Primitive.U32): return val_u32(num.to_i64())
-        case Type.Primitive(Primitive.U64): return val_u64(num.to_u64())
+        case Type.Primitive(Primitive.U8):  return Value.Byte(num.to_u8())
+        case Type.Primitive(Primitive.U32): return Value.Uint32(num.to_u32())
+        case Type.Primitive(Primitive.U64): return Value.Uint64(num.to_u64())
         case Type.Primitive(Primitive.I16): return val_i16(num.to_i64())
         case Type.Primitive(Primitive.U16): return val_u16(num.to_i64())
-        case Type.Primitive(Primitive.I32): return val_i32(num.to_i64())
-        case Type.Primitive(Primitive.F32): return val_f32(num.to_f32())
-        case: return val_i64(num.to_i64())
+        case Type.Primitive(Primitive.I32): return Value.Int32(num.to_i32())
+        case Type.Primitive(Primitive.F32): return Value.Float(num.to_f32())
+        case: return Value.Int(num.to_i64())
         }
     case NodeType.Literal(Literal.Str(s)):
         // LiteralStr stores source-form text (parser doesn't process
@@ -1265,9 +1265,9 @@ precomp_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context)
 // CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
 // CAP_LIT  = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
 precomp_register_core_constants := func(mut global: Scope) {
-    cap_view_val := val_u32(4294967294)
+    cap_view_val := Value.Uint32(4294967294)
     scope_set_owned(global, "CAP_VIEW", cap_view_val)
-    cap_lit_val := val_u32(4294967295)
+    cap_lit_val := Value.Uint32(4294967295)
     scope_set_owned(global, "CAP_LIT", cap_lit_val)
 }
 

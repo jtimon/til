@@ -359,33 +359,33 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     src_tn := til_type_name_c(e.child(1).expr_til_type())
     switch v {
     case Value.Ref(p):
-        if src_tn.eq("I8") { ref tmp : I8 = p; v = val_i8(tmp.cast(I64)) }
-        else if src_tn.eq("U8") { ref tmp : U8 = p; v = val_u8(tmp.to_i64()) }
-        else if src_tn.eq("I16") { ref tmp : I16 = p; v = val_i16(tmp.cast(I64)) }
-        else if src_tn.eq("U16") { ref tmp : U16 = p; v = val_u16(tmp.to_i64()) }
-        else if src_tn.eq("I32") { ref tmp : I32 = p; v = val_i32(tmp.cast(I64)) }
-        else if src_tn.eq("U32") { ref tmp : U32 = p; v = val_u32(tmp.to_i64()) }
-        else if src_tn.eq("I64") { ref tmp : I64 = p; v = val_i64(tmp) }
-        else if src_tn.eq("U64") { ref tmp : U64 = p; v = val_u64(tmp) }
+        if src_tn.eq("I8") { ref tmp : I8 = p; v = Value.Sbyte(tmp) }
+        else if src_tn.eq("U8") { ref tmp : U8 = p; v = Value.Byte(tmp) }
+        else if src_tn.eq("I16") { ref tmp : I16 = p; v = Value.Short(tmp) }
+        else if src_tn.eq("U16") { ref tmp : U16 = p; v = Value.Ushort(tmp) }
+        else if src_tn.eq("I32") { ref tmp : I32 = p; v = Value.Int32(tmp) }
+        else if src_tn.eq("U32") { ref tmp : U32 = p; v = Value.Uint32(tmp) }
+        else if src_tn.eq("I64") { ref tmp : I64 = p; v = Value.Int(tmp) }
+        else if src_tn.eq("U64") { ref tmp : U64 = p; v = Value.Uint64(tmp) }
     case Value.Dynamic(p):
-        if src_tn.eq("I8") { ref tmp : I8 = p; v = val_i8(tmp.cast(I64)) }
-        else if src_tn.eq("U8") { ref tmp : U8 = p; v = val_u8(tmp.to_i64()) }
-        else if src_tn.eq("I16") { ref tmp : I16 = p; v = val_i16(tmp.cast(I64)) }
-        else if src_tn.eq("U16") { ref tmp : U16 = p; v = val_u16(tmp.to_i64()) }
-        else if src_tn.eq("I32") { ref tmp : I32 = p; v = val_i32(tmp.cast(I64)) }
-        else if src_tn.eq("U32") { ref tmp : U32 = p; v = val_u32(tmp.to_i64()) }
-        else if src_tn.eq("I64") { ref tmp : I64 = p; v = val_i64(tmp) }
-        else if src_tn.eq("U64") { ref tmp : U64 = p; v = val_u64(tmp) }
+        if src_tn.eq("I8") { ref tmp : I8 = p; v = Value.Sbyte(tmp) }
+        else if src_tn.eq("U8") { ref tmp : U8 = p; v = Value.Byte(tmp) }
+        else if src_tn.eq("I16") { ref tmp : I16 = p; v = Value.Short(tmp) }
+        else if src_tn.eq("U16") { ref tmp : U16 = p; v = Value.Ushort(tmp) }
+        else if src_tn.eq("I32") { ref tmp : I32 = p; v = Value.Int32(tmp) }
+        else if src_tn.eq("U32") { ref tmp : U32 = p; v = Value.Uint32(tmp) }
+        else if src_tn.eq("I64") { ref tmp : I64 = p; v = Value.Int(tmp) }
+        else if src_tn.eq("U64") { ref tmp : U64 = p; v = Value.Uint64(tmp) }
     case Value.Struct(si):
         ref p : Dynamic = si.data
-        if src_tn.eq("I8") { ref tmp : I8 = p; v = val_i8(tmp.cast(I64)) }
-        else if src_tn.eq("U8") { ref tmp : U8 = p; v = val_u8(tmp.to_i64()) }
-        else if src_tn.eq("I16") { ref tmp : I16 = p; v = val_i16(tmp.cast(I64)) }
-        else if src_tn.eq("U16") { ref tmp : U16 = p; v = val_u16(tmp.to_i64()) }
-        else if src_tn.eq("I32") { ref tmp : I32 = p; v = val_i32(tmp.cast(I64)) }
-        else if src_tn.eq("U32") { ref tmp : U32 = p; v = val_u32(tmp.to_i64()) }
-        else if src_tn.eq("I64") { ref tmp : I64 = p; v = val_i64(tmp) }
-        else if src_tn.eq("U64") { ref tmp : U64 = p; v = val_u64(tmp) }
+        if src_tn.eq("I8") { ref tmp : I8 = p; v = Value.Sbyte(tmp) }
+        else if src_tn.eq("U8") { ref tmp : U8 = p; v = Value.Byte(tmp) }
+        else if src_tn.eq("I16") { ref tmp : I16 = p; v = Value.Short(tmp) }
+        else if src_tn.eq("U16") { ref tmp : U16 = p; v = Value.Ushort(tmp) }
+        else if src_tn.eq("I32") { ref tmp : I32 = p; v = Value.Int32(tmp) }
+        else if src_tn.eq("U32") { ref tmp : U32 = p; v = Value.Uint32(tmp) }
+        else if src_tn.eq("I64") { ref tmp : I64 = p; v = Value.Int(tmp) }
+        else if src_tn.eq("U64") { ref tmp : U64 = p; v = Value.Uint64(tmp) }
     case:
     }
     tn := til_type_name_c(e.expr_til_type())
@@ -526,7 +526,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
 h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     sz := get_elem_size(s, type_name, e, ctx)
-    r = val_u32(sz.cast(I64))
+    r = Value.Uint32(sz)
     return true
 }
 
@@ -1277,7 +1277,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     return true
 }
 
-get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns I32 {
+get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns USize {
     ref size_fn : Value = ns_get(type_name, "size", ctx)
     if size_fn.is_null() {
         interp_error(src, type_name.concat(" has no size() method"), ctx)
@@ -1295,7 +1295,7 @@ get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns
     fake_call.add_child(own field_access)
 
     result := eval_call(s, fake_call, ctx)
-    return value_to_u64(result).to_i32()
+    return value_to_u64(result).to_u32()
 }
 
 enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns Bool {
@@ -1377,23 +1377,23 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
 }
 
 ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns Bool {
-    if rtype.eq("I64")        { ref rv : I64 = p;   result = val_i64(rv);            return true }
-    else if rtype.eq("U8")    { ref rv : U8 = p;    result = val_u8(rv.to_i64());    return true }
-    else if rtype.eq("I16")   { ref rv : I16 = p;   result = val_i16(rv.cast(I64));   return true }
-    else if rtype.eq("U16")   { ref rv : U16 = p;   result = val_u16(rv.to_i64());   return true }
-    else if rtype.eq("I32")   { ref rv : I32 = p;   result = val_i32(rv.cast(I64));   return true }
-    else if rtype.eq("U32")   { ref rv : U32 = p;   result = val_u32(rv.to_i64());   return true }
+    if rtype.eq("I64")        { ref rv : I64 = p;   result = Value.Int(rv);            return true }
+    else if rtype.eq("U8")    { ref rv : U8 = p;    result = Value.Byte(rv);    return true }
+    else if rtype.eq("I16")   { ref rv : I16 = p;   result = Value.Short(rv);   return true }
+    else if rtype.eq("U16")   { ref rv : U16 = p;   result = Value.Ushort(rv);   return true }
+    else if rtype.eq("I32")   { ref rv : I32 = p;   result = Value.Int32(rv);   return true }
+    else if rtype.eq("U32")   { ref rv : U32 = p;   result = Value.Uint32(rv);   return true }
     else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
     else if rtype.eq("USize") {
         ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
-        if usize_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
+        if usize_name.eq("U32") { ref rv : U32 = p; result = Value.Uint32(rv); return true }
         ref rv : U64 = p
         result = val_u64(rv)
         return true
     }
     else if rtype.eq("UPtr") {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
-        if uptr_name.eq("U32") { ref rv : U32 = p; result = val_u32(rv.to_i64()); return true }
+        if uptr_name.eq("U32") { ref rv : U32 = p; result = Value.Uint32(rv); return true }
         ref rv : U64 = p
         result = val_u64(rv)
         return true

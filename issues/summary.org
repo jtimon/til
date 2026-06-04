@@ -20,6 +20,7 @@
 *** [[./open/239.org][#239]] Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
 *** [[./open/241.org][#241]] precomp fold scope keys alias freed AST names -> non-deterministic build UAF
 *** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
+*** [[./open/256.org][#256]] Garbager clones (and leaks) an owned local at its last use instead of moving it
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
 ** Low
