@@ -1694,7 +1694,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name))
+            sl.fields.push(own FieldLayout(offset = offset.cast(USize), size = fsz.cast(USize), struct_name = field_struct_name))
             if falign.gt(max_align) { max_align = falign }
             offset = offset.add(fsz)
         }

@@ -124,13 +124,13 @@ namespace:
                     ref ftype : Str = dd.explicit_type
                     ref nested_def : Expr = field_nested_def(dd, self.ctx)
                     if dd.own_type.is(OwnType.Own) {
-                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
+                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff))
                         if src_ptr.is_null().not() {
                             if nested_def.is_null().not() {
                                 mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                write_ptr(ptr_add(dst_data, foff.to_u64()), cloned.data)
+                                write_ptr(ptr_add(dst_data, foff), cloned.data)
                                 cloned.data = NULL
                             }
                         }
@@ -138,15 +138,15 @@ namespace:
                     }
                     if dd.own_type.is(OwnType.Ref) { continue }
                     if ftype.eq("Str") {
-                        ref s : Str = ptr_add(self.data, foff.to_u64())
+                        ref s : Str = ptr_add(self.data, foff)
                         if s.count.gt(0) {
                             if s.c_str.is_null().not() {
                                 cloned_str := s.clone()
-                                write_ptr(ptr_add(dst_data, foff.to_u64()), cloned_str.c_str)
+                                write_ptr(ptr_add(dst_data, foff), cloned_str.c_str)
                                 // Update cap to count so the clone owns
                                 // its freshly malloc'd buffer (mirrors
                                 // the Str-payload branch above).
-                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.to_u64()), 12)
+                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff), 12)
                                 dst_cap = s.count.clone()
                                 memset(cloned_str, 0, Str.size())
                             }
@@ -157,13 +157,13 @@ namespace:
                         if nested_def.node_type.is(NodeType.EnumDef) {
                             if enum_has_payloads(nested_def) {
                                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-                                    ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.to_u64()))
+                                    ref ei_ref : Dynamic = deref(ptr_add(self.data, foff))
                                     if ei_ref.is_null().not() {
                                         ref ei : EnumInstance = ei_ref
                                         cloned_ei := ei.clone()
                                         heap_ei : Dynamic = malloc(EnumInstance.size())
                                         move(heap_ei, cloned_ei, EnumInstance.size())
-                                        write_ptr(ptr_add(dst_data, foff.to_u64()), heap_ei)
+                                        write_ptr(ptr_add(dst_data, foff), heap_ei)
                                     }
                                 } else {
                                     mut temp_decl := dd
@@ -172,7 +172,7 @@ namespace:
                                     mut cloned_val := val.clone()
                                     switch cloned_val {
                                     case Value.Enum(cei):
-                                        memcpy(ptr_add(dst_data, foff.to_u64()), cei.data, cei.data_size)
+                                        memcpy(ptr_add(dst_data, foff), cei.data, cei.data_size)
                                         free(own cei.data)
                                         cei.data = NULL
                                     case:
@@ -194,10 +194,10 @@ namespace:
                         if nested_def.node_type.is(NodeType.EnumDef).not() {
                             switch nested_def.node_type {
                             case NodeType.StructDef:
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.to_u64()), borrowed = true)
+                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
-                                memcpy(ptr_add(dst_data, foff.to_u64()), cloned.data, ctx_total_size(ftype, self.ctx).to_u64())
+                                memcpy(ptr_add(dst_data, foff), cloned.data, ctx_total_size(ftype, self.ctx).to_u64())
                                 free(own cloned.data)
                                 cloned.data = NULL
                             case:
@@ -1208,9 +1208,9 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                         if fd.is_null().not() {
                                             fa_off := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx).offset
                                             if fd.own_type.is(OwnType.Shallow).not() {
-                                                base = deref(ptr_add(base, fa_off.to_u64()))
+                                                base = deref(ptr_add(base, fa_off))
                                             } else {
-                                                base = ptr_add(base, fa_off.to_u64())
+                                                base = ptr_add(base, fa_off)
                                             }
                                             cur_sdef = field_nested_def(fd, ctx)
                                             cur_sname = fd.explicit_type
@@ -2555,8 +2555,8 @@ find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
 
 ENUM_PAYLOAD_OFFSET : USize = 8
 
-read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: I32, ctx: Context) returns shallow Value {
-    ref ptr : Dynamic = ptr_add(inst_data, field_offset.to_u64())
+read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx: Context) returns shallow Value {
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset)
     // Resolve the field's type name. For own/ref enum fields the typer
     // sometimes leaves explicit_type empty -- recover the enum name from
     // til_type when available so the enum branch below applies regardless
@@ -2659,19 +2659,19 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: I32, ctx: 
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
-    ref ptr2 : Dynamic = ptr_add(inst_data, field_offset.to_u64())
+    ref ptr2 : Dynamic = ptr_add(inst_data, field_offset)
     if ftype.len().gt(0) {
         ref stored : Dynamic = deref(ptr2)
         if stored.is_null().not() { return Value.Func(stored) }
     }
     // Fallback
-    ref ptr3 : Dynamic = ptr_add(inst_data, field_offset.to_u64())
+    ref ptr3 : Dynamic = ptr_add(inst_data, field_offset)
     ref fi : I64 = ptr3
     return val_i64(fi)
 }
 
-write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: I32, field_size: I32, val: Value, ctx: Context) {
-    ref ptr : Dynamic = ptr_add(inst_data, field_offset.to_u64())
+write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
+    ref ptr : Dynamic = ptr_add(inst_data, field_offset)
     fsz := field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
     // of own_type; let the unified switch below allocate the heap instance.
@@ -2724,16 +2724,16 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: I32, 
         return
     }
     switch val {
-    case Value.Int(v):     memcpy(ptr, v, fsz.to_u64())
-    case Value.Byte(v):    memcpy(ptr, v, fsz.to_u64())
-    case Value.Sbyte(v):   memcpy(ptr, v, fsz.to_u64())
-    case Value.Short(v):   memcpy(ptr, v, fsz.to_u64())
-    case Value.Ushort(v):  memcpy(ptr, v, fsz.to_u64())
-    case Value.Int32(v):   memcpy(ptr, v, fsz.to_u64())
-    case Value.Uint32(v):  memcpy(ptr, v, fsz.to_u64())
-    case Value.Uint64(v):  memcpy(ptr, v, fsz.to_u64())
-    case Value.Float(v):   memcpy(ptr, v, fsz.to_u64())
-    case Value.Boolean(v): memcpy(ptr, v, fsz.to_u64())
+    case Value.Int(v):     memcpy(ptr, v, fsz)
+    case Value.Byte(v):    memcpy(ptr, v, fsz)
+    case Value.Sbyte(v):   memcpy(ptr, v, fsz)
+    case Value.Short(v):   memcpy(ptr, v, fsz)
+    case Value.Ushort(v):  memcpy(ptr, v, fsz)
+    case Value.Int32(v):   memcpy(ptr, v, fsz)
+    case Value.Uint32(v):  memcpy(ptr, v, fsz)
+    case Value.Uint64(v):  memcpy(ptr, v, fsz)
+    case Value.Float(v):   memcpy(ptr, v, fsz)
+    case Value.Boolean(v): memcpy(ptr, v, fsz)
     case Value.Struct:
         // Always deep-copy into the inline (Shallow) field: the caller owns
         // `val` and deletes it after this call, so the field must own an
@@ -2743,7 +2743,7 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: I32, 
         mut cloned := val.clone()
         switch cloned {
         case Value.Struct(csi):
-            memcpy(ptr, csi.data, fsz.to_u64())
+            memcpy(ptr, csi.data, fsz)
             free(own csi.data)
             csi.data = NULL
         case:

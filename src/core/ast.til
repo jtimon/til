@@ -364,8 +364,8 @@ namespace:
 // for primitives / Dynamic / FuncPtr) so lookups go by name rather than a
 // dangling ref into the parse tree.
 FieldLayout := struct {
-    offset : I32 = 0
-    size : I32 = 0
+    offset : USize = 0
+    size : USize = 0
     struct_name := ""
 namespace:
     eq := func(a: FieldLayout, b: FieldLayout) returns Bool {

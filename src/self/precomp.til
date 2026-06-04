@@ -299,7 +299,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 // type info and the offset.)
                 mut payload_decl := Declaration()
                 payload_decl.explicit_type = payload_type_name.clone()
-                payload_val := read_field(ei.data, payload_decl, ENUM_PAYLOAD_OFFSET.cast(I32), ctx)
+                payload_val := read_field(ei.data, payload_decl, ENUM_PAYLOAD_OFFSET, ctx)
                 // Recurse with a synthetic src whose til_type is NOT
                 // Type.Enum so this same intercept doesn't refire on the
                 // scalar payload. The main switch's Value variant cases

@@ -416,8 +416,8 @@ typedef struct EnumDef {
 
 
 typedef struct FieldLayout {
-    I32 offset;
-    I32 size;
+    U32 offset;
+    U32 size;
     Str struct_name;
 } FieldLayout;
 
@@ -2126,8 +2126,8 @@ Value make_str_value_view(void * data, U32 len, Context * ctx);
 Value make_str_value_own(void * data, U32 len, Context * ctx);
 Str str_view(Value v);
 Declaration * find_field_decl(Expr * struct_def, Str * fname);
-Value read_field(void * inst_data, Declaration * dd, I32 field_offset, Context * ctx);
-void write_field(void * inst_data, Declaration * dd, I32 field_offset, I32 field_size, Value * val, Context * ctx);
+Value read_field(void * inst_data, Declaration * dd, U32 field_offset, Context * ctx);
+void write_field(void * inst_data, Declaration * dd, U32 field_offset, U32 field_size, Value * val, Context * ctx);
 void interpret_register_defs(Scope * global, Expr * prog);
 void interpret_register_aliases(Scope * global, Expr * prog);
 void interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
