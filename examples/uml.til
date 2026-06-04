@@ -158,7 +158,7 @@ join_lines := func(lines: Vec) returns Str {
     return out
 }
 
-append_token_text := func(mut out: Str, tok: Token) returns Str {
+append_token_text := func(mut out: Str, tok: Token, src: Str) returns Str {
     if tok.type.is(TokenType.Eof) { return out }
     if out.len().gt(0) {
         no_space_before := tok.type.is(TokenType.RParen).or(tok.type.is(TokenType.Colon)).or(tok.type.is(TokenType.Comma))
@@ -168,7 +168,7 @@ append_token_text := func(mut out: Str, tok: Token) returns Str {
             out = out.concat(" ")
         }
     }
-    return out.concat(tok.text)
+    return out.concat(src.substr(tok.start, tok.len))
 }
 
 trim_trailing_comma := func(s: Str) returns Str {
@@ -192,10 +192,10 @@ split_enum_variants := proc(lines: Vec) returns Vec {
         switch tok.type {
         case TokenType.LParen:
             paren_depth = paren_depth.add(1)
-            current = append_token_text(current, tok)
+            current = append_token_text(current, tok, body)
         case TokenType.RParen:
             paren_depth = paren_depth.sub(1)
-            current = append_token_text(current, tok)
+            current = append_token_text(current, tok, body)
         case TokenType.Comma:
             if paren_depth.eq(0) {
                 variant := trim_trailing_comma(current)
@@ -204,10 +204,10 @@ split_enum_variants := proc(lines: Vec) returns Vec {
                 }
                 current = ""
             } else {
-                current = append_token_text(current, tok)
+                current = append_token_text(current, tok, body)
             }
         case:
-            current = append_token_text(current, tok)
+            current = append_token_text(current, tok, body)
         }
     }
 
@@ -223,7 +223,7 @@ parse_file := proc(path: Str) returns Expr {
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    return parse(tokens, path, mode_str)
+    return parse(tokens, source, path, mode_str)
 }
 
 extract_types_from_file := proc(path: Str) returns Vec {

@@ -78,7 +78,8 @@
 *** Error
 ** Token: StructDef
 *** const type := TokenType.Eof
-*** const text := ""
+*** const start : USize = 0
+*** const len : USize = 0
 *** const line : U32 = 0
 *** const col : U32 = 0
 * ast
@@ -124,7 +125,6 @@
 *** redundant_mut := false
 *** is_priv := false
 *** used := false
-*** written := false
 *** own_type := OwnType.Shallow
 *** til_type := Type.Unknown
 *** own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
@@ -164,11 +164,11 @@
 *** payload_types : Map = Map.new(I64, Str)
 *** payload_consts := Vec.new(Bool)
 ** FieldLayout: StructDef
-*** offset : I32 = 0
-*** size : I32 = 0
+*** offset : USize = 0
+*** size : USize = 0
 *** struct_name := ""
 ** StructLayout: StructDef
-*** total_size : I32 = 0
+*** total_size : USize = 0
 *** fields := Vec.new(FieldLayout)
 ** AssignData: StructDef
 *** name := ""
@@ -190,6 +190,7 @@
 *** SetLit
 ** MatchData: StructDef
 *** til_type := Type.Unknown
+*** result_temp := ""
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -230,6 +231,7 @@
 *** anon_decls := Vec.new(Expr)
 *** anon_cache := Map.new(Str, Str)
 *** pending_doc := ""
+*** source := ""
 * initer
 * typer
 ** CtorArg: EnumDef
@@ -278,6 +280,7 @@
 * interpreter
 ** StructInstance: StructDef
 *** ref struct_name : Str = NULL
+*** is_str := false
 *** ref struct_def : Expr = NULL
 *** ref ctx : Context = NULL
 *** own data : U8 = 0
