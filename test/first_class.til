@@ -497,6 +497,30 @@ test_macro_enum_gen := test() {
     assert_eq_str(__LOC__, o.to_str(), "Some(99)")
 }
 
+// Issue #243 follow-up: enum-generator macros get the same Self / T
+// substitution into namespace methods as struct-generators. Without
+// the FuncDef dispatch in init_subst_enum_params, the method's `val: T`
+// and `self: Self` stayed as-is and the typer rejected them.
+make_pair_enum := macro(T: Type) returns EnumDef {
+    return enum {
+        Empty
+        One: T
+    namespace:
+        unwrap_or := func(self: Self, default_v: T) returns T {
+            switch self {
+            case Self.One(v): return v
+            case: return default_v
+            }
+        }
+    }
+}
+PairEnumI64 := make_pair_enum(I64)
+
+test_macro_enum_ns_t_and_self := test() {
+    assert_eq(__LOC__, PairEnumI64.One(7).unwrap_or(0), 7)
+    assert_eq(__LOC__, PairEnumI64.Empty.unwrap_or(42), 42)
+}
+
 // --- Function generators (issue #57) ---
 // A macro returning FuncDef is the symmetric analog of macros returning
 // StructDef / EnumDef: `id_i64 := make_id(I64)` expands to

@@ -2325,7 +2325,17 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
         if nd.default_value.is_null().not() {
-            init_substitute_idents(nd.default_value, subs)
+            // Issue #243 follow-up: same FuncDef dispatch as
+            // init_subst_struct_params -- a namespace method's param
+            // types and return type live in the FunctionDef payload,
+            // not Expr.children, so init_substitute_idents alone would
+            // miss them. Non-FuncDef ns defaults (constants) only need
+            // Ident substitution.
+            if nd.default_value.node_type.is(NodeType.FuncDef) {
+                init_substitute_type_params(nd.default_value, subs)
+            } else {
+                init_substitute_idents(nd.default_value, subs)
+            }
         }
     }
 }
