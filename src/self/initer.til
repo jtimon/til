@@ -2164,7 +2164,11 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
             UNREACHABLE(__LOC__)
         }
         mut empty_body := Expr.new(NodeType.Body, slot.line, slot.col)
-        body.children.set(idx, own empty_body)
+        // Vec.replace (not .set): the lifted decl was cloned into top_level
+        // above, so the original slot here is dead -- replace frees it. .set
+        // would overwrite the slot pointer and orphan the whole original
+        // subtree (its method bodies etc.), a per-lifted-decl leak.
+        body.children.replace(idx, own empty_body)
     }
 
     init_recurse_into_subbodies(body, parent_prefix, top_level)

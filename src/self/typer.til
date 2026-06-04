@@ -1862,9 +1862,17 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
             return true
         }
         ufcs_desugared = true
-        mut instance := obj.clone()
         mut type_ident := Expr.new(ident_node(type_name), obj.line, obj.col)
         type_ident.set_expr_til_type(Type.Struct(type_name.clone()))
+        // Move the receiver `obj` out of fa.children[0] (no clone) into a
+        // holder, then put the type ident in the vacated slot. push_take
+        // zeroes the source slot, so the .set below is a plain bit-overwrite
+        // of a dead slot. The moved receiver becomes the UFCS self-arg at
+        // position 1 (pushed into new_children further down), so we reuse the
+        // original subtree instead of cloning it and orphaning the original
+        // -- the clone+orphan was a per-UFCS-call leak of the whole receiver.
+        mut recv_holder := Vec.new(Expr)
+        recv_holder.push_take(fa.children, 0)
         fa.children.set(0, own type_ident)
         // Shift own_args bitmask: bits at position >=1 move to position+1
         // (UFCS inserts self at position 1)
@@ -1890,11 +1898,12 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
         }
         mut new_children := Vec.new(Expr)
         new_children.push_take(e.children, 0)
-        new_children.push(own instance)
+        new_children.push_take(recv_holder, 0)
         for i in 1..e.children.len() {
             new_children.push_take(e.children, i)
         }
         e.children = new_children
+        Vec.delete(own recv_holder, true)
         ref fa2 : Expr = e.child(0)
         switch fa2.node_type {
         case NodeType.FieldAccess(m2):
@@ -9795,7 +9804,10 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
             set_own_arg(expr, i)
         }
 
-        expr.children.set(i, own hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own))
+        // .replace (not .set): hoist_to_temp clones `arg` into the temp decl,
+        // so the slot's original arg subtree is now dead -- replace frees it
+        // instead of orphaning it (the orphan was a real per-arg leak).
+        expr.children.replace(i, own hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own))
     }
 }
 
@@ -9807,7 +9819,8 @@ hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut sc
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     ref cond : Expr = stmt.child(0)
     if cond.node_type.is(NodeType.FCall) {
-        stmt.children.set(0, own hoist_to_temp(ctx, cond, hoisted, scope, false))
+        // .replace: hoist_to_temp clones `cond`; free the dead original slot.
+        stmt.children.replace(0, own hoist_to_temp(ctx, cond, hoisted, scope, false))
     }
 }
 
@@ -9849,7 +9862,8 @@ hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        stmt.children.set(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
+        // .replace: hoist_to_temp clones `rhs`; free the dead original slot.
+        stmt.children.replace(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
 }
 
@@ -9867,7 +9881,8 @@ hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        stmt.children.set(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
+        // .replace: hoist_to_temp clones `rhs`; free the dead original slot.
+        stmt.children.replace(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
 }
 
