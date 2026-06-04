@@ -1273,7 +1273,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if e.expr_til_type().is(Type.FuncPtr) {
         ref decl_sig : Expr = resolve_decl_fn_sig(rhs, dd, ctx.scope, ctx)
         if decl_sig.is_null().not() {
-            sig_buf : Dynamic = malloc(I64.size())
+            sig_buf : Dynamic = malloc(I64.size().cast(U64))
             write_ptr(sig_buf, decl_sig)
             ref mut m : Map = ctx.local_fn_sigs
             m.set(own dd.name.clone(), own sig_buf)
@@ -3328,7 +3328,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgr
                 ref stmt : Expr = iu.ast.child(i)
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                     if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
-                        tmp : Dynamic = malloc(I64.size())
+                        tmp : Dynamic = malloc(I64.size().cast(U64))
                         write_ptr(tmp, stmt)
                         items.push(own tmp)
                     }
@@ -3342,7 +3342,7 @@ topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgr
             ref stmt : Expr = iu.ast.child(i)
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                 if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
-                    tmp2 : Dynamic = malloc(I64.size())
+                    tmp2 : Dynamic = malloc(I64.size().cast(U64))
                     write_ptr(tmp2, stmt)
                     items.push(own tmp2)
                 }
@@ -4793,7 +4793,7 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
         case NodeType.Decl(dd):
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                sdv : Dynamic = malloc(I64.size())
+                sdv : Dynamic = malloc(I64.size().cast(U64))
                 write_ptr(sdv, rhs)
                 ctx.struct_def_exprs.set(own dd.name.clone(), own sdv)
                 // Register ns_decls methods into func_defs
@@ -4804,7 +4804,7 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
                     if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                     key := dd.name.format("_", nsd.name)
                     if ctx.func_defs.has(key) { continue }
-                    fv : Dynamic = malloc(I64.size())
+                    fv : Dynamic = malloc(I64.size().cast(U64))
                     write_ptr(fv, nsd.default_value)
                     ctx.func_defs.set(own key, own fv)
                     if nsd.default_value.children.len().gt(0) {
@@ -4814,7 +4814,7 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
                             ref nfdef : Expr = nested.child(0)
                             switch nested.node_type {
                             case NodeType.Decl(nd):
-                                nv : Dynamic = malloc(I64.size())
+                                nv : Dynamic = malloc(I64.size().cast(U64))
                                 write_ptr(nv, nfdef)
                                 ctx.func_defs.set(own nd.name.clone(), own nv)
                             case:
@@ -4825,7 +4825,7 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
                 }
             }
             if rhs.node_type.is(NodeType.FuncDef) {
-                fv2 : Dynamic = malloc(I64.size())
+                fv2 : Dynamic = malloc(I64.size().cast(U64))
                 write_ptr(fv2, rhs)
                 ctx.func_defs.set(own dd.name.clone(), own fv2)
             }

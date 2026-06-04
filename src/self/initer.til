@@ -52,7 +52,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         // precomp eval (which clones Values and looks up nested struct/enum
         // defs by name) sees a populated registry; interpret_units later
         // re-registers with the same value, which is idempotent.
-        tdv : Dynamic = malloc(I64.size())
+        tdv : Dynamic = malloc(I64.size().cast(U64))
         write_ptr(tdv, stmt.child(0))
         ctx.interp_type_defs.set(own sname.clone(), own tdv)
         return 0
@@ -332,7 +332,7 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         b.orig_name = edecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
         // register_struct_def_for_stmt for rationale).
-        tdv : Dynamic = malloc(I64.size())
+        tdv : Dynamic = malloc(I64.size().cast(U64))
         write_ptr(tdv, stmt.child(0))
         ctx.interp_type_defs.set(own ename.clone(), own tdv)
         return 0
@@ -2262,7 +2262,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
         if subs.has(nm) {
             ref repl_expr : Expr = subs[nm]
             cloned := repl_expr.clone()
-            move(e, cloned, Expr.size())
+            move(e, cloned, Expr.size().cast(U64))
             // The replacement now occupies `e`; children of the original
             // Ident were none, so no further recursion at this node.
             return

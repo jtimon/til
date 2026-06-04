@@ -55,6 +55,6 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     // Move content into output: copies the bytes and zeroes content, so the
     // asap pass's scope-end Str.delete(content) frees only the (now empty)
     // box -- no explicit free needed, and output keeps the c_str.
-    move(output, content, Str.size())
+    move(output, content, Str.size().cast(U64))
     return ec
 }

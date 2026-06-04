@@ -7,11 +7,11 @@ link("atomic")
 read_cstr := func(p: Dynamic) returns Str {
     mut n : USize = 0
     while true {
-        ref b : I8 = ptr_add(p, n)
+        ref b : I8 = ptr_add(p, n.cast(U64))
         if b.eq(0) { break }
         n = n.add(1)
     }
-    ref start : I8 = ptr_add(p, 0.to_usize())
+    ref start : I8 = ptr_add(p, 0)
     view := Str(c_str = start, count = n, cap = CAP_VIEW)
     return view.clone()
 }

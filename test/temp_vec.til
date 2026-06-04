@@ -27,7 +27,7 @@ make_temp_vec := macro(T: Type) returns StructDef {
         new := func() returns Self {
             tn := dyn_type_to_str(T)
             sz : USize = dyn_size_of(tn)
-            return Self(data = malloc(sz), cap = 1, elem_size = sz,
+            return Self(data = malloc(sz.cast(U64)), cap = 1, elem_size = sz,
                         elem_kind = ELEM_BOXED,
                         elem_clone = dyn_fn(tn, "clone"),
                         elem_delete = dyn_fn(tn, "delete"))
@@ -38,13 +38,13 @@ make_temp_vec := macro(T: Type) returns StructDef {
         push := func(mut self: Self, own val: T) {
             if self.count.eq(self.cap) {
                 new_cap := self.cap.mul(2)
-                self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+                self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
                 self.cap = new_cap
             }
-            memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), val, self.elem_size)
+            memcpy(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
             // Ownership moved into the buffer: zero `val` so its scope-end
             // auto-delete is a no-op (same trick as Vec.push_take).
-            memset(val, 0, self.elem_size)
+            memset(val, 0, self.elem_size.cast(U64))
             self.count = self.count.add(1)
         }
 
@@ -53,7 +53,7 @@ make_temp_vec := macro(T: Type) returns StructDef {
                 throw OutOfBounds(msg = format(__LOC__, ":TempVec.get: index ", i.to_str(),
                       " out of bounds (len ", self.count.to_str(), ")"))
             }
-            return ptr_add(self.data, i.mul(self.elem_size))
+            return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
         }
 
         // Drop the existing element (for boxed types) then overwrite.
@@ -62,16 +62,16 @@ make_temp_vec := macro(T: Type) returns StructDef {
                 panic(__LOC__, "TempVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
             }
             if self.elem_kind.eq(ELEM_BOXED) {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
             }
-            memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
-            memset(val, 0, self.elem_size)
+            memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
+            memset(val, 0, self.elem_size.cast(U64))
         }
 
         clear := func(mut self: Self) {
             if self.elem_kind.eq(ELEM_BOXED) {
                 for i in 0..self.count {
-                    self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+                    self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
                 }
             }
             self.count = 0
@@ -84,15 +84,15 @@ make_temp_vec := macro(T: Type) returns StructDef {
         }
 
         clone := func(self: Self) returns Self {
-            new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
+            new_data : Dynamic = malloc(self.cap.mul(self.elem_size).cast(U64))
             if self.elem_kind.eq(ELEM_BOXED) {
                 for i in 0..self.count {
-                    cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                    memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                    cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
+                    memcpy(ptr_add(new_data, i.mul(self.elem_size).cast(U64)), cloned, self.elem_size.cast(U64))
                     free(own cloned)
                 }
             } else {
-                memcpy(new_data, self.data, self.count.mul(self.elem_size))
+                memcpy(new_data, self.data, self.count.mul(self.elem_size).cast(U64))
             }
             return Self(data = new_data, count = self.count, cap = self.cap,
                         elem_size = self.elem_size, elem_kind = self.elem_kind,

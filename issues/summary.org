@@ -56,7 +56,6 @@
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
 *** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
-*** [[./open/224.org][#224]] implicit integer widening at call sites is too permissive; restrict to literals
 *** [[./open/225.org][#225]] Subscript assignment a[b] = c -> a.set(b, own c)!
 *** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args

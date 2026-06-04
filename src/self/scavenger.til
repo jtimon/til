@@ -33,10 +33,10 @@ priv children_filter := func(mut v: Vec, marks: Dynamic, n: USize) {
     // Delete marked elements and zero their bytes
     mut i : USize = 0
     while i.lt(n) {
-        ref mark : Bool = ptr_add(marks, i)
+        ref mark : Bool = ptr_add(marks, i.cast(U64))
         if mark {
-            v.elem_delete(ptr_add(v.data, i.mul(v.elem_size)), false)
-            memset(ptr_add(v.data, i.mul(v.elem_size)), 0, v.elem_size)
+            v.elem_delete(ptr_add(v.data, i.mul(v.elem_size).cast(U64)), false)
+            memset(ptr_add(v.data, i.mul(v.elem_size).cast(U64)), 0, v.elem_size.cast(U64))
         }
         i = i.add(1)
     }
@@ -44,10 +44,10 @@ priv children_filter := func(mut v: Vec, marks: Dynamic, n: USize) {
     mut w : USize = 0
     mut r : USize = 0
     while r.lt(n) {
-        ref mark : Bool = ptr_add(marks, r)
+        ref mark : Bool = ptr_add(marks, r.cast(U64))
         if mark.not() {
             if w.neq(r) {
-                memcpy(ptr_add(v.data, w.mul(v.elem_size)), ptr_add(v.data, r.mul(v.elem_size)), v.elem_size)
+                memcpy(ptr_add(v.data, w.mul(v.elem_size).cast(U64)), ptr_add(v.data, r.mul(v.elem_size).cast(U64)), v.elem_size.cast(U64))
             }
             w = w.add(1)
         }
@@ -224,8 +224,8 @@ collect_refs := func(e: Expr, mut refs: Vec) {
 // precomputed visited set.
 scavenge_filter := func(mut program: Expr, visited: Set) {
     pn := program.children.len()
-    pm : Dynamic = malloc(pn)
-    memset(pm, 0, pn)
+    pm : Dynamic = malloc(pn.cast(U64))
+    memset(pm, 0, pn.cast(U64))
     for i in 0..pn {
         ref stmt : Expr = program.child(i)
         if is_def(stmt) {
@@ -241,7 +241,7 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
                 // duplicating that indirection here.
                 is_anon_lifted := d.name.starts_with("AnonStruct").or(d.name.starts_with("AnonEnum"))
                 if visited.has(d.name).not().and(is_anon_lifted.not()) {
-                    memset(ptr_add(pm, i), 1, 1)
+                    memset(ptr_add(pm, i.cast(U64)), 1, 1)
                 }
             case:
                 UNREACHABLE(__LOC__)
@@ -258,13 +258,13 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
             ref scv_ns2 : Vec = def_ns_decls(stmt.child(0))
             scv_nn2 := scv_ns2.len()
             if scv_nn2.gt(0) {
-                scv_nm2 : Dynamic = malloc(scv_nn2)
-                memset(scv_nm2, 0, scv_nn2)
+                scv_nm2 : Dynamic = malloc(scv_nn2.cast(U64))
+                memset(scv_nm2, 0, scv_nn2.cast(U64))
                 for j in 0..scv_nn2 {
                     ref nsd : Declaration = scv_ns2[j]
                     scv_qn2 := qualified_name(sdecl.name, nsd.name)
                     if visited.has(scv_qn2).not() {
-                        memset(ptr_add(scv_nm2, j), 1, 1)
+                        memset(ptr_add(scv_nm2, j.cast(U64)), 1, 1)
                     }
                 }
                 children_filter(scv_ns2, scv_nm2, scv_nn2)
@@ -420,15 +420,15 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n.gt(0) {
-            marks : Dynamic = malloc(n)
-            memset(marks, 0, n)
+            marks : Dynamic = malloc(n.cast(U64))
+            memset(marks, 0, n.cast(U64))
             mut any := false
             for i in 0..n {
                 ref stmt : Expr = e.child(i)
                 target := match_trivial_delete(stmt)
                 if target.len().eq(0) { continue }
                 if dropped.has(target).not() { continue }
-                memset(ptr_add(marks, i), 1, 1)
+                memset(ptr_add(marks, i.cast(U64)), 1, 1)
                 any = true
             }
             if any { children_filter(e.children, marks, n) }
@@ -511,8 +511,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
 
     // Phase 3: mark Decls (delete or replace-with-rhs) and the
     // matching trivial-delete stmts.
-    marks : Dynamic = malloc(n)
-    memset(marks, 0, n)
+    marks : Dynamic = malloc(n.cast(U64))
+    memset(marks, 0, n.cast(U64))
     dropped := Set.new(Str)
     mut any := false
     for i in 0..n {
@@ -524,7 +524,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             if refs.has(dd.name) { continue }
             mut code : U8 = MARK_DELETE
             if candidates_replace.has(dd.name) { code = MARK_REPLACE_RHS }
-            memset(ptr_add(marks, i), code, 1)
+            memset(ptr_add(marks, i.cast(U64)), code.to_i32(), 1)
             dropped.add(own dd.name.clone())
             any = true
         case:
@@ -536,7 +536,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             target := match_trivial_delete(stmt)
             if target.len().eq(0) { continue }
             if dropped.has(target).not() { continue }
-            memset(ptr_add(marks, j), MARK_DELETE, 1)
+            memset(ptr_add(marks, j.cast(U64)), MARK_DELETE.to_i32(), 1)
         }
         // Rebuild body.children honoring the marks. DELETE skips the
         // stmt; REPLACE_RHS swaps the Decl for its RHS (the FCall is
@@ -545,7 +545,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         old.move_from(body.children)
         mut new_ch := Vec.new(Expr)
         for k in 0..n {
-            ref mark : U8 = ptr_add(marks, k)
+            ref mark : U8 = ptr_add(marks, k.cast(U64))
             if mark.eq(MARK_DELETE) { continue }
             if mark.eq(MARK_REPLACE_RHS) {
                 ref decl_stmt : Expr = old[k]

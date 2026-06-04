@@ -130,7 +130,7 @@ rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_fu
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
         if type_binding_is_type_token(scope, b).not() { return }
         replacement := arg.make_til_type_expr(b.type)
-        move(arg, replacement, Expr.size())
+        move(arg, replacement, Expr.size().cast(U64))
         infer_expr(scope, arg, in_func, ctx)
     case:
     }
@@ -1427,10 +1427,11 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
         }
     case:
     }
-    if can_implicit_widen(arg.expr_til_type(), ptype) {
-        arg.set_expr_til_type(ptype)
-        return
-    }
+    // Issue #224: implicit integer widening of non-literal arguments at
+    // call sites is no longer allowed. A numeric literal still adopts the
+    // param type via the Literal branch above; any runtime value that needs
+    // a wider type must say so with an explicit `.cast(T)`. The USize/UPtr
+    // coercion is intentionally kept (see can_implicit_usize_coerce).
     if can_implicit_usize_coerce(arg.expr_til_type(), ptype, ptype_name) {
         arg.set_expr_til_type(ptype)
         return
@@ -2083,8 +2084,9 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ct
                 }
             case:
             }
-            if can_implicit_widen(arg.expr_til_type(), ptype)
-            .or(can_implicit_usize_coerce(arg.expr_til_type(), ptype, ptype_name)) {
+            // Issue #224: no implicit widening of non-literal args; only
+            // the USize/UPtr coercion survives.
+            if can_implicit_usize_coerce(arg.expr_til_type(), ptype, ptype_name) {
                 arg.set_expr_til_type(ptype)
                 continue
             }
@@ -2436,7 +2438,7 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
         return
     }
     replacement := e.child(2).make_til_type_expr(target_type)
-    move(e.child(2), replacement, Expr.size())
+    move(e.child(2), replacement, Expr.size().cast(U64))
     infer_expr(scope, e.child(2), in_func, ctx)
     e.set_expr_til_type(target_type)
 }
@@ -4911,7 +4913,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
     ref slot_sw : Expr = body.children[stmt_idx]
     slot_sw.free_expr_slot_in_place()
-    move(slot_sw, block, Expr.size())
+    move(slot_sw, block, Expr.size().cast(U64))
 }
 
 append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
@@ -5257,7 +5259,7 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_fu
 replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
     ref slot_bd : Expr = body.children[stmt_idx]
     slot_bd.free_expr_slot_in_place()
-    move(slot_bd, block, Expr.size())
+    move(slot_bd, block, Expr.size().cast(U64))
 }
 
 make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {
@@ -8317,51 +8319,6 @@ literal_in_range := func(val_str: Str, target: Type) returns Bool {
         val := val_str.to_i64()
         return val.gte(0)
     case: return true
-    }
-}
-
-can_implicit_widen := func(from: Type, to: Type) returns Bool {
-    if from.eq(to) { return false }
-    // is() is tag-only and matches any Type.Primitive, so discriminate the
-    // target's inner primitive by name (til_type_name_c).
-    to_is_i16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I16"))
-    to_is_u16 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U16"))
-    to_is_i32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I32"))
-    to_is_u32 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U32"))
-    to_is_i64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("I64"))
-    to_is_u64 := to.is(Type.Primitive).and(til_type_name_c(to).eq("U64"))
-    switch from {
-    case Type.Primitive(Primitive.U8):
-        if to_is_i16 { return true }
-        if to_is_u16 { return true }
-        if to_is_i32 { return true }
-        if to_is_i64 { return true }
-        if to_is_u32 { return true }
-        if to_is_u64 { return true }
-        return false
-    case Type.Primitive(Primitive.I8):
-        if to_is_i16 { return true }
-        if to_is_i32 { return true }
-        if to_is_i64 { return true }
-        return false
-    case Type.Primitive(Primitive.I16):
-        if to_is_i32 { return true }
-        if to_is_i64 { return true }
-        return false
-    case Type.Primitive(Primitive.U16):
-        if to_is_i32 { return true }
-        if to_is_i64 { return true }
-        if to_is_u32 { return true }
-        if to_is_u64 { return true }
-        return false
-    case Type.Primitive(Primitive.U32):
-        if to_is_u64 { return true }
-        if to_is_i64 { return true }
-        return false
-    case Type.Primitive(Primitive.I32):
-        if to_is_i64 { return true }
-        return false
-    case: return false
     }
 }
 

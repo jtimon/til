@@ -139,8 +139,8 @@ namespace:
             // captured ref binding -- and without nesting a Vec.get
             // bang inside elem_delete / memcpy.
             slot_off : USize = slot_idx.mul(self.values.elem_size)
-            self.values.elem_delete(ptr_add(self.values.data, slot_off), false)
-            memcpy(ptr_add(self.values.data, slot_off), val, self.values.elem_size)
+            self.values.elem_delete(ptr_add(self.values.data, slot_off.cast(U64)), false)
+            memcpy(ptr_add(self.values.data, slot_off.cast(U64)), val, self.values.elem_size.cast(U64))
             self.keys.elem_delete(key, false)
             free(own key)
             free(own val)
@@ -226,8 +226,8 @@ namespace:
         // Drop the entry's owned key/value inner heap. Inline the
         // slot pointer via ptr_add to avoid the nested-bang-on-Dynamic
         // hoist (the typer's bang temp can't hold a Dynamic result).
-        self.keys.elem_delete(ptr_add(self.keys.data, keys_off), false)
-        self.values.elem_delete(ptr_add(self.values.data, values_off), false)
+        self.keys.elem_delete(ptr_add(self.keys.data, keys_off.cast(U64)), false)
+        self.values.elem_delete(ptr_add(self.values.data, values_off.cast(U64)), false)
 
         // Unlink from the chain.
         ref nxt_of_idx : I64 = self.nexts[idx_u]
@@ -264,10 +264,10 @@ namespace:
             // Move bytes for keys, values, and the chain link.
             last_keys_off : USize = last_u.mul(self.keys.elem_size)
             last_values_off : USize = last_u.mul(self.values.elem_size)
-            memcpy(ptr_add(self.keys.data, keys_off),
-                   ptr_add(self.keys.data, last_keys_off), self.keys.elem_size)
-            memcpy(ptr_add(self.values.data, values_off),
-                   ptr_add(self.values.data, last_values_off), self.values.elem_size)
+            memcpy(ptr_add(self.keys.data, keys_off.cast(U64)),
+                   ptr_add(self.keys.data, last_keys_off.cast(U64)), self.keys.elem_size.cast(U64))
+            memcpy(ptr_add(self.values.data, values_off.cast(U64)),
+                   ptr_add(self.values.data, last_values_off.cast(U64)), self.values.elem_size.cast(U64))
             ref last_nxt : I64 = self.nexts[last_u]
             self.nexts.set(idx_u, own last_nxt.clone())
         }
