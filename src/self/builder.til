@@ -1799,8 +1799,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
                     f.write(aname).write(" = (Str){.c_str = (void *)\"")
                     switch rhs.node_type {
-                    case NodeType.Literal(Literal.Str(_lit_s)):
-                        f.write(_lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(_lit_s))
+                    case NodeType.Literal(Literal.Str(lit_s)):
+                        f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
                     case:
                     }
                     f.write("ULL, .cap = TIL_CAP_LIT}; }\n")
@@ -1996,17 +1996,17 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // call_free temp if present, so -Wunused-variable
                         // doesn't trip.
                         if is_stack_local(del_arg.ident_name(), ctx).and(c1.expr_til_type().is(Type.Struct)) {
-                            ref _del_ct : Str = get_stack_local_ctype(del_arg.ident_name(), ctx)
-                            if _del_ct.is_null().not().and(_del_ct.eq("Str").or(is_pod_struct(_del_ct, ctx))) {
+                            ref del_ct : Str = get_stack_local_ctype(del_arg.ident_name(), ctx)
+                            if del_ct.is_null().not().and(del_ct.eq("Str").or(is_pod_struct(del_ct, ctx))) {
                                 if e.children.len().gte(3) {
-                                    ref _cf_arg : Expr = e.child(2)
-                                    switch _cf_arg.node_type {
-                                    case NodeType.Ident(_cf_name):
-                                        f.write("(void)"); f.write(_cf_name.ident_name()); f.write("; ")
+                                    ref cf_arg : Expr = e.child(2)
+                                    switch cf_arg.node_type {
+                                    case NodeType.Ident(cf_name):
+                                        f.write("(void)"); f.write(cf_name.ident_name()); f.write("; ")
                                     case:
                                     }
                                 }
-                                f.write(_del_ct); f.write("_delete(&"); f.write(del_arg.ident_name()); f.write(", "); f.write(delete_call_free_lit(_del_ct, false, ctx)); f.write(");\n"); return
+                                f.write(del_ct); f.write("_delete(&"); f.write(del_arg.ident_name()); f.write(", "); f.write(delete_call_free_lit(del_ct, false, ctx)); f.write(");\n"); return
                             }
                         }
                     case:
@@ -3189,8 +3189,8 @@ emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram) {
         UNREACHABLE(__LOC__)
     }
     // Namespace methods from ns_decls
-    ref _ens : Vec = def_ns_decls(enum_def)
-    for dd : Declaration in _ens {
+    ref ens : Vec = def_ns_decls(enum_def)
+    for dd : Declaration in ens {
         if dd.default_value.is_null() { continue }
         if dd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         emit_ns_method(f, name, dd.name, dd.default_value, lp)
@@ -4780,9 +4780,9 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
         case NodeType.Decl(dd):
             ref rhs : Expr = stmt.child(0)
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                _sdv : Dynamic = malloc(I64.size())
-                write_ptr(_sdv, rhs)
-                ctx.struct_def_exprs.set(own dd.name.clone(), own _sdv)
+                sdv : Dynamic = malloc(I64.size())
+                write_ptr(sdv, rhs)
+                ctx.struct_def_exprs.set(own dd.name.clone(), own sdv)
                 // Register ns_decls methods into func_defs
                 ref rl_ns : Vec = def_ns_decls(rhs)
                 for d_j : Declaration in rl_ns {

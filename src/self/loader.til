@@ -111,8 +111,8 @@ resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd
 priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec) {
     if imp_stmt.children.len().gte(2) {
         switch imp_stmt.child(0).node_type {
-        case NodeType.Ident(_c0id):
-            if _c0id.ident_name().eq("import") {
+        case NodeType.Ident(c0id):
+            if c0id.ident_name().eq("import") {
                 switch imp_stmt.child(1).node_type {
                 case NodeType.Literal(Literal.Str(p)):
                     if p.ends_with(".til") {
