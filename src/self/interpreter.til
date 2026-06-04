@@ -2378,31 +2378,33 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
         v := parse_cli_arg(s, elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz)), v, elem_type)
     }
-    sz := ctx_total_size(ctx.cached_array_name, ctx)
+    ref array_name : Str = def_name(ctx.cached_array_def)
+    sz := ctx_total_size(array_name, ctx)
     inst_data : Dynamic = calloc(1, sz.to_u64())
     ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
-    ba_data_fl := ctx_field_layout(ctx.cached_array_name, "data", ctx)
+    ba_data_fl := ctx_field_layout(array_name, "data", ctx)
     write_field(inst_data, ba_data_d, ba_data_fl.offset, ba_data_fl.size, Value.Ref(data), ctx)
     ref ba_cap_d : Declaration = find_field_decl(ctx.cached_array_def, "cap")
-    ba_cap_fl := ctx_field_layout(ctx.cached_array_name, "cap", ctx)
+    ba_cap_fl := ctx_field_layout(array_name, "cap", ctx)
     write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, val_u32(count.to_i64()), ctx)
     ref ba_esz_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_size")
-    ba_esz_fl := ctx_field_layout(ctx.cached_array_name, "elem_size", ctx)
+    ba_esz_fl := ctx_field_layout(array_name, "elem_size", ctx)
     write_field(inst_data, ba_esz_d, ba_esz_fl.offset, ba_esz_fl.size, val_u32(esz.to_i64()), ctx)
     ref clone_fn : Value = ns_get(elem_type, "clone", ctx)
-    if clone_fn.is_null().not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); ba_ec_fl := ctx_field_layout(ctx.cached_array_name, "elem_clone", ctx); write_field(inst_data, ba_ec_d, ba_ec_fl.offset, ba_ec_fl.size, shallow_copy_value(clone_fn), ctx) }
+    if clone_fn.is_null().not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); ba_ec_fl := ctx_field_layout(array_name, "elem_clone", ctx); write_field(inst_data, ba_ec_d, ba_ec_fl.offset, ba_ec_fl.size, shallow_copy_value(clone_fn), ctx) }
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
-    if delete_fn.is_null().not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); ba_ed_fl := ctx_field_layout(ctx.cached_array_name, "elem_delete", ctx); write_field(inst_data, ba_ed_d, ba_ed_fl.offset, ba_ed_fl.size, shallow_copy_value(delete_fn), ctx) }
-    return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
+    if delete_fn.is_null().not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); ba_ed_fl := ctx_field_layout(array_name, "elem_delete", ctx); write_field(inst_data, ba_ed_d, ba_ed_fl.offset, ba_ed_fl.size, shallow_copy_value(delete_fn), ctx) }
+    return make_struct_value(array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
 }
 
-// Cache-only pass: populate ctx.cached_str/array/vec_def/name without
-// running eval_expr on namespace decl default values. Cheap walk that
-// must run BEFORE precomp_register_fold_scope so make_str_value_view /
-// make_str_value calls from is_known(...) -> expr_to_value see a
-// non-NULL cached_str_name -- otherwise cleanup_value_payload's
-// struct_name.eq("Str") check fails for the resulting Values and the
-// inner c_str buffers leak (issue #109).
+// Cache-only pass: populate ctx.cached_str/array_def and stamp every
+// struct def's own name (set_def_name) without running eval_expr on
+// namespace decl default values. Cheap walk that must run BEFORE
+// precomp_register_fold_scope so make_str_value_view / make_str_value
+// calls from is_known(...) -> expr_to_value can read def_name -> "Str"
+// -- otherwise cleanup_value_payload's struct_name.eq("Str") check
+// fails for the resulting Values and the inner c_str buffers leak
+// (issue #109).
 populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     for stmt : Expr in program.children {
         switch stmt.node_type {
@@ -2410,9 +2412,9 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
             if stmt.children.len().eq(0) { continue }
             ref sdef : Expr = stmt.child(0)
             if sdef.node_type.is(NodeType.StructDef).not() { continue }
-            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
-            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
-            if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+            set_def_name(stmt.child(0), dd.name)
+            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0) }
+            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0) }
         case:
         }
     }
@@ -2432,10 +2434,10 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             if sdef.node_type.is(NodeType.StructDef).not() {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
+            set_def_name(stmt.child(0), dd.name)
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
-                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
-                if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0) }
+                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0) }
             }
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.
@@ -2497,7 +2499,7 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
     write_u32(ptr_add(inst_data, 12), len)
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(def_name(ctx.cached_str_def), ctx.cached_str_def, inst_data, false, ctx)
 }
 
 // Like make_str_value but builds a Value.Struct(Str) that VIEWS into
@@ -2510,7 +2512,7 @@ make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns sha
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size())
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(def_name(ctx.cached_str_def), ctx.cached_str_def, inst_data, false, ctx)
 }
 
 make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
@@ -2518,7 +2520,7 @@ make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shal
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     write_u32(ptr_add(inst_data, 12), len)
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(def_name(ctx.cached_str_def), ctx.cached_str_def, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {
     // Top-level Decl + Return so the typer's

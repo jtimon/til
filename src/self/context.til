@@ -426,14 +426,13 @@ Context := struct {
 
     // #177 interpreter caches for well-known core types, populated during
     // interpret_register_defs by interpret_register_struct_defs and read
-    // back by make_str_value / build_array_from_argv. These were the
-    // remaining six module-scope ref-mut + NULL globals after #178.
+    // back by make_str_value / build_array_from_argv. The type name is no
+    // longer cached separately: it lives on the def node (StructDef.name,
+    // stamped by set_def_name) and is read via def_name, which yields an
+    // AST-lifetime `ref` safe to borrow for StructInstance.struct_name
+    // (issue #239). The dead Vec cache pair was dropped.
     ref cached_str_def : Expr = NULL
-    ref cached_str_name : Str = NULL
     ref cached_array_def : Expr = NULL
-    ref cached_array_name : Str = NULL
-    ref cached_vec_def : Expr = NULL
-    ref cached_vec_name : Str = NULL
 
     // Interpreter type-def registry: maps every struct/enum name to its
     // AST def Expr. Populated by interpreter_init_ns, read via
@@ -725,6 +724,30 @@ def_ns_decls := func(sdef: Expr) returns ref Vec {
         return ed.ns_decls
     case:
         UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
+// Stamp a struct/enum def's own name onto the node (no-op for other
+// node types). Called by the interpreter/builder registration passes so
+// a def can later recover its name without a parent-Decl walk.
+set_def_name := func(mut sdef: Expr, name: Str) {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd): sd.name = name.clone()
+    case NodeType.EnumDef(ed):   ed.name = name.clone()
+    case:
+    }
+}
+
+// The name stamped by set_def_name, as a `ref` into the node's own
+// (AST-lifetime) storage so callers may borrow it for a long-lived
+// StructInstance.struct_name. NULL for non struct/enum nodes.
+def_name := func(sdef: Expr) returns ref Str {
+    if sdef.is_null() { return NULL }
+    switch sdef.node_type {
+    case NodeType.StructDef(sd): return sd.name
+    case NodeType.EnumDef(ed):   return ed.name
+    case:
         return NULL
     }
 }
