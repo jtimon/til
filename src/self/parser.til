@@ -851,8 +851,8 @@ priv append_arg := func(mut p: Parser, mut call: Expr, own arg: Expr, is_own_arg
         mut helper := "struct_def_of"
         if arg.node_type.is(NodeType.EnumDef) { helper = "enum_def_of" }
         lifted_name := anon_lift(p, own arg, arg_line, arg_col)
-        if is_own_arg { set_own_arg(call, call.children.len()) }
         if is_own_arg {
+            set_own_arg(call, call.children.len())
             mut sd_callee := Expr.new(ident_node(helper), arg_line, arg_col)
             mut sd_strlit := Expr.new(NodeType.Literal(Literal.Str(lifted_name.clone())), arg_line, arg_col)
             mut sd_call := Expr.new(NodeType.FCall(FCallData()), arg_line, arg_col)
