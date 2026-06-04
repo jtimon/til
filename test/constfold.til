@@ -162,6 +162,31 @@ test_struct_fold_nested := test() {
     assert_eq(__LOC__, r.bottom_right.y, 200)
 }
 
+// Test 10b: struct with F32 fields folds correctly. Regression: F32 was
+// missing from compute_struct_layout's size/align table (initer.til), so an
+// F32 field got an 8-byte slot instead of 4. The folded struct value then
+// came back with zeroed F32 fields -- e.g. a v3()-built raylib Vector3 used
+// to init a camera folded to (0,0,0), rendering the whole 3D scene black.
+// The `at` params deliberately share the field names (x/y/z), mirroring
+// examples/shootil.til's `v3` helper.
+CfVec3f := struct {
+    x : F32 = 0
+    y : F32 = 0
+    z : F32 = 0
+
+    namespace:
+    at := func(x: F32, y: F32, z: F32) returns CfVec3f {
+        return CfVec3f(x=x, y=y, z=z)
+    }
+}
+
+test_struct_fold_f32 := test() {
+    v := CfVec3f.at(3.0, 4.0, 5.0)
+    assert_eq_str(__LOC__, v.x.to_str(), "3")
+    assert_eq_str(__LOC__, v.y.to_str(), "4")
+    assert_eq_str(__LOC__, v.z.to_str(), "5")
+}
+
 // --- Enum comptime folding ---
 
 Color := enum { Red, Green, Blue }

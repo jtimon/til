@@ -1676,6 +1676,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 else if ftype.eq("U16") { fsz = 2; falign = 2 }
                 else if ftype.eq("I32") { fsz = 4; falign = 4 }
                 else if ftype.eq("U32") { fsz = 4; falign = 4 }
+                else if ftype.eq("F32") { fsz = 4; falign = 4 }
                 else if ftype.eq("Bool") { fsz = 1; falign = 1 }
                 else if type_from_name_init(ftype, scope).is(Type.FuncPtr) { fsz = 8; falign = 8 }
                 else {

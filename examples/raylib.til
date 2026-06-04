@@ -24,6 +24,6 @@ while !WindowShouldClose() {
     DrawRectangle(x, y, 50, 50, RED)
     EndDrawing()
     x++
-    y--
+    y++
 }
 CloseWindow()
