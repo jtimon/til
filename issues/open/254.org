@@ -1,0 +1,41 @@
+# priority: medium
+** OPEN #254 codegen: emit a real C switch (jump table) for dense int/char/enum switches
+
+til lowers every ~switch~ to a nested if/else chain of equality tests in
+the generated C (see ~boot/til.c~, e.g. ~lookup_single_char~: each ~case~
+becomes an ~I8_eq(c, ...)~ + ~if/else~). The C compiler therefore cannot
+build a jump table, so an N-case switch costs O(N) comparisons at runtime
+regardless of how it is written in til.
+
+This shows up directly in the lexer: ~tokenize~'s ~switch c~ dispatch,
+~lookup_single_char~, ~lookup_two_char~, ~tok_name~, etc. are all
+sequential comparisons. It matters far more in the hot ~switch~ statements
+all over ~typer.til~ / ~builder.til~ / ~dispatch.til~ that run once per AST
+node per phase.
+
+*** Goal
+Teach the builder to emit a C ~switch (expr) { case K: ...; default: ... }~
+when the scrutinee is an integer/char (and possibly an enum *tag*, switching
+on ~.tag~) and the cases are constant labels. The C compiler then chooses a
+jump table or binary search. Fall back to the current if/else lowering for:
+- string switches (already ~Str_eq~ chains),
+- enum switches that bind payloads (~case NodeType.Ident(id):~),
+- ranges (~case 'a'..'z':~) -- or emit these as C case ranges where the
+  toolchain supports them, else keep the chain,
+- guarded cases (~case X if cond:~).
+
+*** Notes / risks
+- Needs constant, non-overlapping integer labels; ranges expand to many
+  C ~case~ labels or stay as comparisons.
+- ~continue~/~break~ inside a til ~switch~ must keep their current meaning
+  (continue the enclosing loop); a C ~switch~ captures ~break~, so the
+  lowering must route til ~break~/~continue~ correctly (e.g. via a label or
+  by keeping the body out of the C switch's ~break~ scope).
+- Pure codegen change: the tree-walking interpreter is unaffected. Verify
+  with ~make test~ (two-pass) and check ~doc/totals.csv~ for a build-time
+  win.
+
+*** Why medium
+Broad, compiler-wide performance lever with no behaviour change, but it
+touches codegen control-flow lowering (the ~break~/~continue~ interaction
+needs care), so it is a real piece of work rather than a quick win.

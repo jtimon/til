@@ -21,11 +21,12 @@ priv Parser := struct {
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     pending_doc := ""
-    // Owned copy of the lexed source. Tokens store only byte ranges
-    // (start/len); tok_text materialises a token's text as a transient
-    // view into this buffer. Owning it (vs borrowing the caller's source)
-    // keeps the views valid for the whole parse regardless of when the
-    // caller frees its own copy.
+    // Non-owning view of the caller's lexed source. Tokens store only byte
+    // ranges (start/len); tok_text materialises a token's text as a
+    // transient sub-view into this buffer. The view is safe because the
+    // caller passes `source` as a parse() argument, so its buffer outlives
+    // the whole parse; storing a CAP_VIEW (not an owned clone) avoids both a
+    // per-file allocation and any double-free of the caller's buffer.
     source := ""
 }
 
@@ -1891,7 +1892,7 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
 
 // parse: entry point
 parse := proc(tokens: Vec, source: Str, path: Str, mut mode_out: Str) returns Expr {
-    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.clone())
+    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()))
 
     // Parse optional mode declaration
     if check(p, TokenType.Ident).and(tok_text(p, peek(p)).eq("mode")) {

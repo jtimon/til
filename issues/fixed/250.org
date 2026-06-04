@@ -123,6 +123,12 @@ init and read promptly, and/or the source is not freed before the read
 where ~other~ is a grown buffer that dies before the field is read can
 silently corrupt.
 
+NB (post-fix): the lexer no longer applies here -- tokens were since
+reworked to store byte ranges (start/len) instead of ~substr(...).clone()~
+text, so ~lexer.til~ holds no view-clones at all (the parser owns a single
+source view and materialises token text transiently). The loader/builder
+sites remain as written.
+
 *** Fix ideas
 
 1. (Targeted, preferred) Extend the asap-destruction analysis so a
