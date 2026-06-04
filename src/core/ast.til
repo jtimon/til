@@ -49,6 +49,15 @@ Type := enum {
     // shift everything after it and mis-decode Type values created by
     // master's compiled code while bootstrapping.
     Primitive: Primitive,
+    // Issue #58 / #147 step 5: FuncPtr with the FuncSig alias name
+    // (e.g. `Type.FuncPtrSig("BinaryOp")`). Tag-only `Type.FuncPtr` stays
+    // for the wildcard "some function pointer" cases; sites that know
+    // the FuncSig name (param decls with `explicit_type` matching a
+    // funcsig binding, struct fields likewise) will migrate to this
+    // variant in follow-up commits so Declaration.explicit_type can
+    // eventually be dropped (#147 step 5). Same append-at-end rule as
+    // Primitive: keeps the existing tags stable for bootstrapping.
+    FuncPtrSig: Str,
 namespace:
     /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
     /// compare equal regardless of variant if their name payloads match.
@@ -80,7 +89,20 @@ namespace:
         if a.is(Type.StructDef) { return b.is(Type.StructDef) }
         if a.is(Type.EnumDef)   { return b.is(Type.EnumDef) }
         if a.is(Type.FuncDef)   { return b.is(Type.FuncDef) }
-        if a.is(Type.FuncPtr)   { return b.is(Type.FuncPtr) }
+        // Issue #58: FuncPtr and FuncPtrSig are equivalent for "is this a
+        // function pointer?" semantics. Two FuncPtrSig with different names
+        // are not equal; FuncPtrSig with any name matches a bare FuncPtr
+        // (the wildcard) so legacy callsites continue to work while names
+        // get migrated in.
+        a_fn := a.is(Type.FuncPtr).or(a.is(Type.FuncPtrSig))
+        b_fn := b.is(Type.FuncPtr).or(b.is(Type.FuncPtrSig))
+        if a_fn.and(b_fn) {
+            an := til_type_name(a)
+            bn := til_type_name(b)
+            if an.is_empty().or(bn.is_empty()) { return true }
+            return an.eq(bn)
+        }
+        if a_fn.or(b_fn) { return false }
         if a.is(Type.Dynamic)   { return b.is(Type.Dynamic) }
         return false
     }
@@ -106,6 +128,7 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.EnumDef:   return "EnumDef"
     case Type.FuncDef:   return "FunctionDef"
     case Type.FuncPtr:   return "Fn"
+    case Type.FuncPtrSig: return "Fn"
     case Type.Dynamic:   return "Dynamic"
     case Type.Custom(name): return name.clone()
     }
@@ -115,9 +138,10 @@ til_type_name_c := func(t: Type) returns Str {
 // Returns empty Str for any other variant.
 til_type_name := func(t: Type) returns Str {
     switch t {
-    case Type.Struct(s): return s.clone()
-    case Type.Enum(s):   return s.clone()
-    case Type.Custom(s): return s.clone()
+    case Type.Struct(s):     return s.clone()
+    case Type.Enum(s):       return s.clone()
+    case Type.Custom(s):     return s.clone()
+    case Type.FuncPtrSig(s): return s.clone()
     case: return ""
     }
 }

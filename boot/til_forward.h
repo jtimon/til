@@ -32,7 +32,8 @@ typedef enum {
     Type_TAG_FuncPtr,
     Type_TAG_Dynamic,
     Type_TAG_Custom,
-    Type_TAG_Primitive
+    Type_TAG_Primitive,
+    Type_TAG_FuncPtrSig
 } Type_tag;
 typedef struct Type Type;
 typedef enum {
@@ -334,6 +335,7 @@ struct Type {
         Str Enum;
         Str Custom;
         Primitive Primitive;
+        Str FuncPtrSig;
     } data;
 };
 
