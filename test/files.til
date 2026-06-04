@@ -37,3 +37,49 @@ test_file_multiple_writes := test() {
     content := File.readfile(path)
     assert_eq_str(__LOC__, content, "0 1 2 3 4 ")
 }
+
+test_file_seek_tell_read := test() {
+    path := "tmp/_test_file_cursor.txt"
+    File.writefile(path, "hello world")
+
+    f := File.new(path, false)
+    assert_eq(__LOC__, f.tell(), 0)
+
+    // Partial read from the start advances the cursor.
+    first := f.read(5)
+    assert_eq_str(__LOC__, first, "hello")
+    assert_eq(__LOC__, f.tell(), 5)
+
+    // Seek to an absolute offset, then read a region.
+    f.seek(6)
+    assert_eq(__LOC__, f.tell(), 6)
+    rest := f.read(5)
+    assert_eq_str(__LOC__, rest, "world")
+    f.close()
+}
+
+test_file_read_past_eof := test() {
+    path := "tmp/_test_file_eof.txt"
+    File.writefile(path, "abc")
+
+    f := File.new(path, false)
+    // Asking for more bytes than remain returns only what is there.
+    got := f.read(100)
+    assert_eq_str(__LOC__, got, "abc")
+    assert_eq(__LOC__, f.tell(), 3)
+    f.close()
+}
+
+test_file_update_in_place := test() {
+    path := "tmp/_test_file_update.txt"
+    File.writefile(path, "hello world")
+
+    // Patch a region without rewriting the whole file.
+    f := File.update(path)
+    f.seek(6)
+    f.write("there")
+    f.close()
+
+    content := File.readfile(path)
+    assert_eq_str(__LOC__, content, "hello there")
+}

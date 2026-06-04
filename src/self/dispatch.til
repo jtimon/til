@@ -1178,6 +1178,39 @@ h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     return true
 }
 
+h_cfile_open_update := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    path := eval_str_owned(s, e.child(1), ctx)
+    // FILE* handle: closed via cfile_close (fclose), never free()'d, so
+    // it is a borrowed view, not a free()-owned Value.Dynamic.
+    r = Value.Ref(cfile_open_update(path))
+    return true
+}
+
+h_cfile_tell := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    r = Value.Int(cfile_tell(deref(hp)))
+    return true
+}
+
+h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
+    pos_v := eval_expr(s, e.child(2), ctx)
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    cfile_seek(deref(hp), value_to_u64(pos_v).cast(I64))
+    r = val_none()
+    return true
+}
+
+h_cfile_read_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
+    count_v := eval_expr(s, e.child(2), ctx)
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    content := cfile_read_n(deref(hp), value_to_u64(count_v).cast(I64))
+    r = make_str_value(content.c_str, content.count, ctx)
+    return true
+}
+
 DispatchFn := proc(Scope, Expr, mut Value, Context) returns Bool
 
 reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
@@ -1239,9 +1272,13 @@ dispatch_init := func(ctx: Context) {
     reg_dispatch("clock_ms", h_clock_ms, ctx)
     reg_dispatch("get_thread_count", h_get_thread_count, ctx)
     reg_dispatch("cfile_open", h_cfile_open, ctx)
+    reg_dispatch("cfile_open_update", h_cfile_open_update, ctx)
     reg_dispatch("cfile_close", h_cfile_close, ctx)
     reg_dispatch("cfile_write_str", h_cfile_write_str, ctx)
     reg_dispatch("cfile_read_all", h_cfile_read_all, ctx)
+    reg_dispatch("cfile_tell", h_cfile_tell, ctx)
+    reg_dispatch("cfile_seek", h_cfile_seek, ctx)
+    reg_dispatch("cfile_read_n", h_cfile_read_n, ctx)
     ctx.dispatch_inited = true
 }
 

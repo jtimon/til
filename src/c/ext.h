@@ -330,9 +330,13 @@ void eprint_single(const Str *s);
 // it non-mut, but the underlying FILE * state is mutated by the call,
 // so handle stays non-const.
 void *cfile_open(const Str *path, Bool is_write);
+void *cfile_open_update(const Str *path);
 void cfile_close(void *handle);
 void cfile_write_str(void *handle, const Str *s);
 Str *cfile_read_all(void *handle);
+I64 cfile_tell(void *handle);
+void cfile_seek(void *handle, I64 pos);
+Str *cfile_read_n(void *handle, I64 count);
 
 // Line input. The til-side binding declares `mut line: Str`, so line
 // is mutated by this call -- keep it non-const.

@@ -653,6 +653,59 @@ void cfile_write_str(void *handle, const Str *s) {
     fwrite(s->c_str, 1, s->count, (FILE *)handle);
 }
 
+// Open a file for in-place update ("r+b"): reads and writes are both
+// allowed and the cursor can move freely with cfile_seek, so small
+// regions can be patched without rewriting the whole file.
+void *cfile_open_update(const Str *path) {
+    char *p = dup_n(path->c_str, path->count);
+    FILE *f = fopen(p, "r+b");
+    if (!f) {
+        fprintf(stderr, "cfile_open_update: could not open '%s'\n", p);
+        free(p);
+        exit(1);
+    }
+    free(p);
+    return (void *)f;
+}
+
+// Current cursor position as a byte offset from the start of the file.
+I64 cfile_tell(void *handle) {
+    if (!handle) {
+        fprintf(stderr, "cfile_tell: file not open\n");
+        exit(1);
+    }
+    return (I64)ftell((FILE *)handle);
+}
+
+// Move the cursor to an absolute byte offset from the start of the file.
+void cfile_seek(void *handle, I64 pos) {
+    if (!handle) {
+        fprintf(stderr, "cfile_seek: file not open\n");
+        exit(1);
+    }
+    fseek((FILE *)handle, (long)pos, SEEK_SET);
+}
+
+// Read up to `count` bytes starting at the current cursor position. The
+// returned Str's count reflects how many bytes were actually read (fewer
+// than `count` near end-of-file).
+Str *cfile_read_n(void *handle, I64 count) {
+    if (!handle) {
+        fprintf(stderr, "cfile_read_n: file not open\n");
+        exit(1);
+    }
+    FILE *f = (FILE *)handle;
+    if (count < 0) count = 0;
+    char *buf = malloc((size_t)count + 1);
+    size_t got = fread(buf, 1, (size_t)count, f);
+    buf[got] = '\0';
+    Str *s = malloc(sizeof(Str));
+    s->c_str = (I8 *)buf;
+    s->count = (U32)got;
+    s->cap = (U32)count;
+    return s;
+}
+
 // Read a single line from stdin into *line (without trailing newline).
 // Returns true on success, false on EOF. Flushes stdout first so prompts appear.
 Bool in_read_line(Str *line) {

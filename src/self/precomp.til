@@ -73,9 +73,13 @@ is_side_effecting_name := func(name: Str) returns Bool {
     if name.eq("print")  { return true }
     if name.eq("in_read_line") { return true }
     if name.eq("cfile_open") { return true }
+    if name.eq("cfile_open_update") { return true }
     if name.eq("cfile_close") { return true }
     if name.eq("cfile_read_all") { return true }
     if name.eq("cfile_write_str") { return true }
+    if name.eq("cfile_tell") { return true }
+    if name.eq("cfile_seek") { return true }
+    if name.eq("cfile_read_n") { return true }
     if name.eq("file_mtime") { return true }
     if name.eq("unlink_path") { return true }
     if name.eq("spawn_cmd") { return true }

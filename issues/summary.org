@@ -25,7 +25,6 @@
 ** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
 ** [[./open/256.org][#256]] Garbager clones (and leaks) an owned local at its last use instead of moving it
 * Medium
-** [[./open/193.org][#193]] Add lower-level File cursor APIs
 ** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
 ** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 ** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase

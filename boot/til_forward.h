@@ -518,6 +518,7 @@ typedef struct DynMap {
 typedef struct File {
     U8 *handle;
     Bool is_write;
+    Bool is_update;
 } File;
 
 
@@ -2231,6 +2232,10 @@ Bool h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cfile_seek(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cfile_read_n(Scope * s, Expr * e, Value * r, Context * ctx);
 void reg_dispatch(Str * name, DispatchFn handler, Context * ctx);
 void dispatch_init(Context * ctx);
 Bool ext_dispatch_builtin(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);

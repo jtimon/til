@@ -1,0 +1,50 @@
+# priority: medium
+** FIXED #193 Add lower-level File cursor APIs
+
+Post-mortem:
+
+Resolution: added cursor-based File operations alongside the existing
+whole-file helpers. New methods on the `File` namespace in
+`src/core/io.til`:
+
+- `File.update(path)` opens an existing file in "r+b" mode (read+write),
+  enabling in-place patching without truncation.
+- `f.seek(pos)` moves the cursor to an absolute byte offset (chains via
+  UFCS).
+- `f.tell()` returns the current cursor offset.
+- `f.read(count)` reads up to `count` bytes from the cursor and advances
+  it (short read near EOF).
+
+These are backed by new C ext functions in `src/c/ext.c` / `src/c/ext.h`
+(`cfile_open_update`, `cfile_seek`, `cfile_tell`, `cfile_read_n`), wired
+into the self-hosted interpreter via dispatch handlers in
+`src/self/dispatch.til` and marked side-effecting in `src/self/precomp.til`
+so they are never folded at compile time. `File.write` now also accepts
+update-mode handles (`is_update` flag on the struct).
+
+Regression test: `test/files.til` -- `test_file_seek_tell_read`,
+`test_file_read_past_eof`, and `test_file_update_in_place`.
+
+Current file helpers mostly work in whole-file terms:
+
+- read the full file into memory
+- build a modified full string
+- write the whole file back out
+
+That is simple, but it is wasteful and awkward for tools that only need to
+inspect or patch small regions.
+
+Wanted direction:
+
+- add lower-level File operations for cursor-based access
+- expose read/write position movement explicitly
+- support partial reads and writes without rewriting the whole file
+
+Possible API shapes:
+
+- seek / tell style methods
+- fixed-size read/write methods on an open File
+- cursor-relative helpers if that fits til better than POSIX naming
+
+This should reduce memory churn and make small in-place file updates easier in
+tools like the issue-summary generator and other source-processing utilities.
