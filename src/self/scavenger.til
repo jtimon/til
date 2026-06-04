@@ -660,8 +660,8 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
 
 priv body_dce_ns := proc(rhs: Expr) {
     ref ns : Vec = def_ns_decls(rhs)
-    for _nsd_e : Declaration in ns {
-        ref nsd : Declaration = _nsd_e
+    for nsd_e : Declaration in ns {
+        ref nsd : Declaration = nsd_e
         if nsd.default_value.is_null() { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_value.children.len().eq(0) { continue }

@@ -52,9 +52,9 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         // precomp eval (which clones Values and looks up nested struct/enum
         // defs by name) sees a populated registry; interpret_units later
         // re-registers with the same value, which is idempotent.
-        _tdv : Dynamic = malloc(I64.size())
-        write_ptr(_tdv, stmt.child(0))
-        ctx.interp_type_defs.set(own sname.clone(), own _tdv)
+        tdv : Dynamic = malloc(I64.size())
+        write_ptr(tdv, stmt.child(0))
+        ctx.interp_type_defs.set(own sname.clone(), own tdv)
         return 0
     case:
         UNREACHABLE(__LOC__)
@@ -332,9 +332,9 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         b.orig_name = edecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
         // register_struct_def_for_stmt for rationale).
-        _tdv : Dynamic = malloc(I64.size())
-        write_ptr(_tdv, stmt.child(0))
-        ctx.interp_type_defs.set(own ename.clone(), own _tdv)
+        tdv : Dynamic = malloc(I64.size())
+        write_ptr(tdv, stmt.child(0))
+        ctx.interp_type_defs.set(own ename.clone(), own tdv)
         return 0
     case:
         UNREACHABLE(__LOC__)
@@ -1599,8 +1599,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                             if def_val.children.len().gt(0) {
                                 ref callee : Expr = def_val.child(0)
                                 switch callee.node_type {
-                                case NodeType.Ident(_ft):
-                                    ftype = _ft.ident_name()
+                                case NodeType.Ident(ft):
+                                    ftype = ft.ident_name()
                                 case:
                                 }
                             }
@@ -1625,14 +1625,14 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                             if def_val.children.len().gt(0) {
                                 ref callee : Expr = def_val.child(0)
                                 switch callee.node_type {
-                                case NodeType.Ident(_ft):
-                                    ftype = _ft.ident_name()
+                                case NodeType.Ident(ft):
+                                    ftype = ft.ident_name()
                                 case NodeType.FieldAccess:
                                     if callee.children.len().gt(0) {
                                         ref type_node : Expr = callee.child(0)
                                         switch type_node.node_type {
-                                        case NodeType.Ident(_ft):
-                                            ftype = _ft.ident_name()
+                                        case NodeType.Ident(ft):
+                                            ftype = ft.ident_name()
                                         case:
                                         }
                                     }
@@ -1643,8 +1643,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                             if def_val.children.len().gt(0) {
                                 ref type_node : Expr = def_val.child(0)
                                 switch type_node.node_type {
-                                case NodeType.Ident(_ft):
-                                    ftype = _ft.ident_name()
+                                case NodeType.Ident(ft):
+                                    ftype = ft.ident_name()
                                 case:
                                 }
                             }
@@ -1844,9 +1844,9 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
     case NodeType.FieldAccess:
         mut init_ns1 := false
         if rhs.children.len().gt(0) {
-            ref _io1 : Expr = rhs.child(0)
-            if _io1.node_type.is(NodeType.Ident) {
-                if til_type_name(_io1.expr_til_type()).eq("StructDef").or(til_type_name(_io1.expr_til_type()).eq("EnumDef")) {
+            ref io1 : Expr = rhs.child(0)
+            if io1.node_type.is(NodeType.Ident) {
+                if til_type_name(io1.expr_til_type()).eq("StructDef").or(til_type_name(io1.expr_til_type()).eq("EnumDef")) {
                     init_ns1 = true
                 }
             }
@@ -1875,9 +1875,9 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ty
         case NodeType.FieldAccess:
             mut init_ns2 := false
             if callee.children.len().gt(0) {
-                ref _io2 : Expr = callee.child(0)
-                if _io2.node_type.is(NodeType.Ident) {
-                    if til_type_name(_io2.expr_til_type()).eq("StructDef").or(til_type_name(_io2.expr_til_type()).eq("EnumDef")) {
+                ref io2 : Expr = callee.child(0)
+                if io2.node_type.is(NodeType.Ident) {
+                    if til_type_name(io2.expr_til_type()).eq("StructDef").or(til_type_name(io2.expr_til_type()).eq("EnumDef")) {
                         init_ns2 = true
                     }
                 }

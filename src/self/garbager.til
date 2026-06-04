@@ -38,8 +38,8 @@ alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns Bool {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
                 switch d.child(0).node_type {
-                case NodeType.Ident(_di):
-                    if _di.ident_name().eq(name) {
+                case NodeType.Ident(di):
+                    if di.ident_name().eq(name) {
                         if expr_uses_var(expr, dd.name) { return true }
                     }
                 case:
@@ -215,15 +215,15 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_prog
         // return, and which the typer otherwise leaves at Own for
         // Struct-returning FCalls).
         if decl_idx.gte(0) {
-            ref _li_stmt : Expr = body.child(decl_idx.cast(U32))
-            if _li_stmt.node_type.is(NodeType.Decl).and(_li_stmt.children.len().gt(0)) {
-                ref _li_rhs : Expr = _li_stmt.child(0)
-                if _li_rhs.node_type.is_literal_str() {
+            ref li_stmt : Expr = body.child(decl_idx.cast(U32))
+            if li_stmt.node_type.is(NodeType.Decl).and(li_stmt.children.len().gt(0)) {
+                ref li_rhs : Expr = li_stmt.child(0)
+                if li_rhs.node_type.is_literal_str() {
                     li.is_heap = false
-                } else if _li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(_li_rhs, scope).neq(0)) {
+                } else if li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(li_rhs, scope).neq(0)) {
                     li.is_heap = false
                 }
-                if is_pod_enum_clone_wrap(_li_rhs, scope) {
+                if is_pod_enum_clone_wrap(li_rhs, scope) {
                     // POD-enum clone wrap (`c := Color.clone(Color.Red)`):
                     // builder emits a stack value (Color c = (Color){...};)
                     // and registers the local with stack_locals. The
@@ -273,7 +273,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec, scope: TypeScope
             }
             mut holder_name := ""
             switch target.node_type {
-            case NodeType.Ident(_hn): holder_name = _hn.ident_name()
+            case NodeType.Ident(hn): holder_name = hn.ident_name()
             case:
             }
             if holder_name.len().eq(0) { continue }
@@ -282,7 +282,7 @@ extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec, scope: TypeScope
             ref value : Expr = stmt.child(1)
             mut src_name := ""
             switch value.node_type {
-            case NodeType.Ident(_sn): src_name = _sn.ident_name()
+            case NodeType.Ident(sn): src_name = sn.ident_name()
             case:
             }
             if src_name.len().eq(0) { continue }
@@ -613,17 +613,17 @@ insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mut new
             // loop/conditional bodies).
             if local.is_heap.and(is_aggregate(local.type)) {
                 if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
-                    ref _fa_rhs : Expr = stmt.child(1)
-                    if rhs_is_clone_fcall(_fa_rhs).and(_fa_rhs.children.len().gte(2)) {
-                        ref _clone_arg : Expr = _fa_rhs.child(1)
-                        switch _clone_arg.node_type {
-                        case NodeType.Ident(_clone_arg_name):
-                            if _clone_arg_name.ident_name().eq(local.name) {
-                                mut _bare := Expr.new(ident_node(local.name), _fa_rhs.line, _fa_rhs.col)
-                                _bare.set_expr_til_type(local.type.clone())
+                    ref fa_rhs : Expr = stmt.child(1)
+                    if rhs_is_clone_fcall(fa_rhs).and(fa_rhs.children.len().gte(2)) {
+                        ref clone_arg : Expr = fa_rhs.child(1)
+                        switch clone_arg.node_type {
+                        case NodeType.Ident(clone_arg_name):
+                            if clone_arg_name.ident_name().eq(local.name) {
+                                mut bare := Expr.new(ident_node(local.name), fa_rhs.line, fa_rhs.col)
+                                bare.set_expr_til_type(local.type.clone())
                                 ref slot_fa : Expr = stmt.children[1]
                                 slot_fa.free_expr_slot_in_place()
-                                stmt.children.set(1, own _bare)
+                                stmt.children.set(1, own bare)
                                 free_call := make_free_call(local.name, local.type, stmt)
                                 if free_call.is_null().not() {
                                     new_ch.push(own free_call)
@@ -745,8 +745,8 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec
         // would free a stack pointer). Keep them Shallow so make_delete_call
         // generates call_free=false.
         if stmt.children.len().gt(0) {
-            ref _rhs0 : Expr = stmt.child(0)
-            if _rhs0.node_type.is_literal_str() { continue }
+            ref rhs0 : Expr = stmt.child(0)
+            if rhs0.node_type.is_literal_str() { continue }
             // Same shape, payload-less enum case: the builder emits a
             // stack value via the is_pod_enum_clone_call shortcut, so
             // heap-promotion here would mismatch the destructor (the
@@ -754,7 +754,7 @@ promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec
             // own + stack_local). Keep is_heap=false so make_delete_call
             // uses call_free=false / arg_is_own=false and the destructor
             // becomes a true no-op (`Color_delete(&c, &(Bool){0});`).
-            if is_pod_enum_clone_wrap(_rhs0, ctx.scope) { continue }
+            if is_pod_enum_clone_wrap(rhs0, ctx.scope) { continue }
         }
         switch stmt.node_type {
         case NodeType.Decl(dd):

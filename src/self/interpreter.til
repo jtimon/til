@@ -2442,9 +2442,9 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
             // AST gets rebuilt later in the run. The map value is a malloc'd cell
             // holding the Expr pointer (same encoding as ctx.struct_def_exprs).
-            _tdv : Dynamic = malloc(I64.size())
-            write_ptr(_tdv, sdef)
-            ctx.interp_type_defs.set(own dd.name.clone(), own _tdv)
+            tdv : Dynamic = malloc(I64.size())
+            write_ptr(tdv, sdef)
+            ctx.interp_type_defs.set(own dd.name.clone(), own tdv)
             ref ien_ns : Vec = def_ns_decls(sdef)
             for d_j : Declaration in ien_ns {
                 ref nsd : Declaration = d_j
