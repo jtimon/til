@@ -22,13 +22,11 @@ TypeBinding := struct {
     is_func_decl := false
     alias_target := ""
     ref struct_def : Expr = NULL
-    ref func_def : Expr = NULL
-    // Issue #147: cached FuncType for callers (binding_func_type and
-    // friends) so they don't have to deref ref func_def through the
-    // parse tree. Populated alongside scope.func_defs at every binding
-    // write site. Lets us drop the dangerous ref Expr func_def field
-    // in a later commit once all func_def readers have migrated to
-    // scope.lookup_func(name).
+    // Issue #147: the dangerous `ref func_def : Expr` borrow into the
+    // parse tree is gone. A binding's FuncDef Expr now lives in the
+    // owning scope's `func_defs` map (set by set_func_def, read via
+    // scope.lookup_func(name)); func_type caches the FuncType so
+    // binding_func_type doesn't need the Expr at all.
     func_type := FuncType.Func
     is_builtin := false
     used := false
@@ -61,6 +59,17 @@ namespace:
 }
 
 ScopeFind := enum { NotFound, Found: TypeBinding }
+
+// Issue #147: leaf cell-deref for TypeScope.func_defs. Same shape as
+// interpreter.til:lookup_interp_type_def (Map.get(name)? -> deref).
+// Kept as a standalone leaf so the catch/?-unwrap is the function's
+// whole body -- inlining it into lookup_func's parent-walk produced a
+// multi-branch CFG that GCC rejected with -Werror=return-type.
+func_defs_lookup_one := func(m: Map, name: Str) returns ref Expr {
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
+    return deref(slot)
+}
 
 TypeScope := struct {
     bindings := Map.new(Str, TypeBinding)
@@ -109,25 +118,35 @@ namespace:
     }
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
     // walking lookup. Replaces direct reads of TypeBinding.func_def.
-    // Same Map<Str, Dynamic> -> deref pattern as
-    // interpreter.til:lookup_interp_type_def.
+    // The actual cell deref is delegated to func_defs_lookup_one (a
+    // leaf with the exact Map.get(name)? + deref shape proven in
+    // interpreter.til:lookup_interp_type_def) so the `?`/catch desugar
+    // doesn't sit in a multi-branch function (which trips
+    // -Werror=return-type in the emitted C).
     lookup_func := func(self: TypeScope, name: Str) returns ref Expr {
-        if self.func_defs.has(name) {
-            ref slot : Dynamic = self.func_defs.get(name)?
-            catch (e: KeyNotFound) { return NULL }
-            return deref(slot)
+        // Track get_binding's scope resolution exactly: the func_def of
+        // a binding lives in the SAME scope as the binding. Stop at the
+        // first scope that owns the binding and return its func_defs
+        // entry (or NULL). Walking func_defs independently of bindings
+        // would let a shadowing local in a child scope pick up a parent
+        // function's def -- the bug that broke this migration. Mirrors
+        // how the old per-binding `func_def` field (no parent walk)
+        // behaved.
+        if self.bindings.has(name) {
+            if self.func_defs.has(name) {
+                return func_defs_lookup_one(self.func_defs, name)
+            }
+            return NULL
         }
         if self.parent.is_null().not() {
             return self.parent.lookup_func(name)
         }
         return NULL
     }
-    // Issue #147: set both the ref Expr field on the binding (legacy,
-    // to keep existing readers working) and the scope-side func_defs
-    // Map (the migration target). Cached func_type is derived from
-    // the fdef Expr so binding_func_type doesn't need to deref the
-    // ref. Once all readers move to scope.lookup_func(name), the
-    // legacy b.func_def field can be dropped.
+    // Issue #147: register a binding's FuncDef Expr in the scope-side
+    // func_defs map (the replacement for the removed ref func_def
+    // field) and cache its FuncType so binding_func_type stays a pure
+    // field read.
     //
     // The func_defs Map stores a Dynamic-pointing-to-Expr-ptr
     // (malloc'd cell, write_ptr-populated). Mirrors the
@@ -137,7 +156,6 @@ namespace:
     set_func_def := func(mut self: TypeScope, name: Str, fdef: Expr) {
         if self.bindings.has(name) {
             ref mut b : TypeBinding = self.bindings[name]
-            b.func_def = fdef
             b.func_type = func_def_type(fdef)
         }
         cell : Dynamic = malloc(I64.size())
@@ -176,25 +194,14 @@ namespace:
         }
 }
 
-// A binding's func kind lives on its func_def FuncDef node, so derive it
-// rather than caching a copy on TypeBinding. Non-function bindings have no
-// func_def; return Func (the only callers test Proc/ExtProc/Test/Macro,
-// none of which a non-function answers yes to, and FuncPtr-typed callees
-// skip those checks entirely).
-//
-// Issue #147 transitional state: b.func_type is *also* populated by
-// scope.set_func_def at every binding write site so binding_func_type
-// can drop the deref once all binding writes route through that
-// helper (and the ref Expr field goes away in a follow-up commit).
+// A binding's func kind is cached in b.func_type (set by
+// scope.set_func_def from the FuncDef node at registration). Non-function
+// bindings keep the default FuncType.Func (the only callers test
+// Proc/ExtProc/Test/Macro, none of which a non-function answers yes to,
+// and FuncPtr-typed callees skip those checks entirely).
 binding_func_type := func(b: TypeBinding) returns shallow FuncType {
     if b.is_null() { return FuncType.Func }
-    if b.func_def.is_null().not() {
-        switch b.func_def.node_type {
-        case NodeType.FuncDef(fd): return fd.func_type
-        case:
-        }
-    }
-    return FuncType.Func
+    return b.func_type
 }
 
 // Issue #147 helper: pick the FuncType for a func_def Expr. Empty
@@ -596,8 +603,9 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
             if b.is_builtin {
                 if b.struct_def.is_null().not() { return b.type }
             }
-            if b.func_def.is_null().not() {
-                if b.func_def.children.len().eq(0) {
+            ref b_fd : Expr = scope.lookup_func(b.name)
+            if b_fd.is_null().not() {
+                if b_fd.children.len().eq(0) {
                     return Type.FuncPtr
                 }
             }

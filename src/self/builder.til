@@ -40,7 +40,8 @@ resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: C
         sf := scope.find(rhs_name.ident_name())
         switch sf {
         case ScopeFind.Found(b):
-            if b.func_def.is_null().not() { return b.func_def }
+            ref bfd : Expr = scope.lookup_func(b.name)
+            if bfd.is_null().not() { return bfd }
         case:
         }
     case NodeType.FCall:
@@ -53,8 +54,9 @@ resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: C
     sf := scope.find(dd.explicit_type.clone())
     switch sf {
     case ScopeFind.Found(b):
-        if b.func_def.is_null().not() {
-            if b.func_def.children.len().eq(0) { return b.func_def }
+        ref bfd : Expr = scope.lookup_func(b.name)
+        if bfd.is_null().not() {
+            if bfd.children.len().eq(0) { return bfd }
         }
     case:
     }
@@ -90,9 +92,10 @@ fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
                     sf := s.find(p.explicit_type.clone())
                     switch sf {
                     case ScopeFind.Found(ftb):
-                        if ftb.func_def.is_null() { return NULL }
-                        if ftb.func_def.children.len().neq(0) { return NULL }
-                        return ftb.func_def
+                        ref ftbfd : Expr = s.lookup_func(ftb.name)
+                        if ftbfd.is_null() { return NULL }
+                        if ftbfd.children.len().neq(0) { return NULL }
+                        return ftbfd
                     case:
                     }
                     return NULL
@@ -130,9 +133,10 @@ fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         sf := s.find(sig_name.clone())
         switch sf {
         case ScopeFind.Found(ftb):
-            if is_null(ftb.func_def) { return NULL }
-            if ftb.func_def.children.len().neq(0) { return NULL }
-            return ftb.func_def
+            ref ftbfd : Expr = s.lookup_func(ftb.name)
+            if is_null(ftbfd) { return NULL }
+            if ftbfd.children.len().neq(0) { return NULL }
+            return ftbfd
         case:
         }
         return NULL
