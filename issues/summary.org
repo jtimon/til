@@ -1,84 +1,78 @@
-* Open
-** High
-*** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
-*** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
-*** [[./open/116.org][#116]] Imported files are parsed in isolation
-*** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
-*** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
-*** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
-*** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
-*** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
-*** [[./open/146.org][#146]] Unify typer desugar/insert passes into a single walk
-*** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
-*** [[./open/163.org][#163]] Per-file AST/import graph + Context.path (prep for removing Expr.path)
-*** [[./open/165.org][#165]] Declaration order should not matter inside a file or across imports
-*** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
-*** [[./open/171.org][#171]] Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
-*** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs
-*** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
-*** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
-*** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
-*** [[./open/239.org][#239]] Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
-*** [[./open/241.org][#241]] precomp fold scope keys alias freed AST names -> non-deterministic build UAF
-*** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
-*** [[./open/256.org][#256]] Garbager clones (and leaks) an owned local at its last use instead of moving it
-** Medium
-** Low
-*** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
-*** [[./open/25.org][#25]] Support for the 4 main operative systems
-*** [[./open/54.org][#54]] Explicit capture syntax (closures)
-*** [[./open/55.org][#55]] Lambda functions and first-class bodies
-*** [[./open/56.org][#56]] First-class structs: StructDef as values
-*** [[./open/57.org][#57]] First-class enums: EnumDef as values
-*** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
-*** [[./open/63.org][#63]] User-defined modes
-*** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
-*** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
-*** [[./open/84.org][#84]] mode theme: cross-editor theme generation
-*** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
-*** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
-*** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
-*** [[./open/101.org][#101]] Deterministic temp variable names in generated C
-*** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
-*** [[./open/114.org][#114]] Source docs + repl help/introspection
-*** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
-*** [[./open/117.org][#117]] Bool and/or do not short-circuit
-*** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
-*** [[./open/154.org][#154]] Typer error for unused imports
-*** [[./open/156.org][#156]] Improve til-mode indentation rules
-*** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
-*** [[./open/193.org][#193]] Add lower-level File cursor APIs
-*** [[./open/195.org][#195]] Consider removing ~mode test~
-*** [[./open/201.org][#201]] More built-in error types and safe_* methods
-*** [[./open/207.org][#207]] Consider removing Vec.move_from
-*** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
-*** [[./open/210.org][#210]] Eliminate the per-literal malloc in dyn_type_to_str returns
-*** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
-*** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
-*** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
-*** [[./open/225.org][#225]] Subscript assignment a[b] = c -> a.set(b, own c)!
-*** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
-*** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
-*** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
-*** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
-*** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
-*** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
-*** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
-*** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
-*** [[./open/254.org][#254]] codegen: emit a real C switch (jump table) for dense int/char/enum switches
-*** [[./open/255.org][#255]] lexer: richer number literals (hex/binary/octal, digit separators, exponents)
-*** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
-*** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
-
-* WIP
-** High
-*** [[./open/158.org][#158]] One pass per phase across the whole pipeline
-*** [[./open/192.org][#192]] USize should not be hardwired to U32
-*** [[./open/232.org][#232]] Add LinuxX86 (32-bit) target support
-** Medium
-** Low
-*** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
-*** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
-*** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
-*** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
-*** [[./open/237.org][#237]] Advanced profiling for the self-host build
+* High
+** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
+** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
+** [[./open/116.org][#116]] Imported files are parsed in isolation
+** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
+** [[./open/125.org][#125]] Enum payload method generation should not assume ~eq~/~to_str~
+** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
+** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
+** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
+** [[./open/146.org][#146]] Unify typer desugar/insert passes into a single walk
+** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
+** [[./open/158.org][#158]] One pass per phase across the whole pipeline
+** [[./open/163.org][#163]] Per-file AST/import graph + Context.path (prep for removing Expr.path)
+** [[./open/165.org][#165]] Declaration order should not matter inside a file or across imports
+** [[./open/170.org][#170]] All-or-nothing caching for translate/build/run
+** [[./open/171.org][#171]] Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
+** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs
+** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
+** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
+** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
+** [[./open/192.org][#192]] USize should not be hardwired to U32
+** [[./open/232.org][#232]] Add LinuxX86 (32-bit) target support
+** [[./open/239.org][#239]] Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
+** [[./open/241.org][#241]] precomp fold scope keys alias freed AST names -> non-deterministic build UAF
+** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
+** [[./open/256.org][#256]] Garbager clones (and leaks) an owned local at its last use instead of moving it
+* Medium
+** [[./open/193.org][#193]] Add lower-level File cursor APIs
+** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
+** [[./open/230.org][#230]] Consolidate per-primitive Type variants into Type.Primitive(Primitive)
+** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
+** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
+** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+** [[./open/254.org][#254]] codegen: emit a real C switch (jump table) for dense int/char/enum switches
+** [[./open/255.org][#255]] lexer: richer number literals (hex/binary/octal, digit separators, exponents)
+** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
+* Low
+** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
+** [[./open/25.org][#25]] Support for the 4 main operative systems
+** [[./open/54.org][#54]] Explicit capture syntax (closures)
+** [[./open/55.org][#55]] Lambda functions and first-class bodies
+** [[./open/56.org][#56]] First-class structs: StructDef as values
+** [[./open/57.org][#57]] First-class enums: EnumDef as values
+** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
+** [[./open/63.org][#63]] User-defined modes
+** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
+** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
+** [[./open/84.org][#84]] mode theme: cross-editor theme generation
+** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
+** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
+** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
+** [[./open/101.org][#101]] Deterministic temp variable names in generated C
+** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
+** [[./open/114.org][#114]] Source docs + repl help/introspection
+** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
+** [[./open/117.org][#117]] Bool and/or do not short-circuit
+** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
+** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
+** [[./open/154.org][#154]] Typer error for unused imports
+** [[./open/156.org][#156]] Improve til-mode indentation rules
+** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
+** [[./open/195.org][#195]] Consider removing ~mode test~
+** [[./open/201.org][#201]] More built-in error types and safe_* methods
+** [[./open/207.org][#207]] Consider removing Vec.move_from
+** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
+** [[./open/210.org][#210]] Eliminate the per-literal malloc in dyn_type_to_str returns
+** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
+** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
+** [[./open/225.org][#225]] Subscript assignment a[b] = c -> a.set(b, own c)!
+** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
+** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
+** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
+** [[./open/237.org][#237]] Advanced profiling for the self-host build
+** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
+** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
+** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
+** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
+** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code

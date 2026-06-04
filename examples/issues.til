@@ -51,21 +51,24 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     if nl1.lt(0) { return "" }
     nl1u : USize = nl1.to_usize()
     first_line := content.substr(0, nl1u)
-    is_high := first_line.find("high").gte(0)
 
     after_first := content.substr(nl1u.add(1), content.len().sub(nl1u).sub(1))
     nl2 := after_first.find(NL)
     if nl2.lt(0) { return "" }
     nl2u : USize = nl2.to_usize()
+    // `title` is a view into `content` (a borrowed param that stays live
+    // for the whole function), so num_str/after_num views derived from it
+    // stay valid through their .clone() below. Cloning title into an owned
+    // local would let the typer's ASAP-delete free it at its last direct
+    // use, dangling those views (the bug class flagged at the top of file).
     title := after_first.substr(0, nl2u)
-    title_owned := title.clone()
 
-    hash_pos := title_owned.find("#")
+    hash_pos := title.find("#")
     if hash_pos.lt(0) { return "" }
     hp : USize = hash_pos.to_usize()
     mut num_end := hp.add(1)
-    while num_end.lt(title_owned.len()) {
-        ref ch : I8 = title_owned.get(num_end)
+    while num_end.lt(title.len()) {
+        ref ch : I8 = title.get(num_end)
         if ch.eq('0').or(ch.eq('1')).or(ch.eq('2')).or(ch.eq('3'))
             .or(ch.eq('4')).or(ch.eq('5')).or(ch.eq('6')).or(ch.eq('7'))
             .or(ch.eq('8')).or(ch.eq('9'))
@@ -75,26 +78,42 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
             break
         }
     }
-    num_str := title_owned.substr(hp, num_end.sub(hp))
-    after_num := title_owned.substr(num_end, title_owned.len().sub(num_end))
+    num_str := title.substr(hp, num_end.sub(hp))
+    after_num := title.substr(num_end, title.len().sub(num_end))
     num_str_own := num_str.clone()
     after_num_own := after_num.clone()
 
-    is_wip := title_owned.find("** WIP").gte(0)
-    link := format("*** [[./open/", fname, "][", num_str_own, "]]", after_num_own)
+    link := format("** [[./open/", fname, "][", num_str_own, "]]", after_num_own)
 
-    mut tag := "H"
-    if !is_high { tag = "L" }
-    if is_wip { tag = format(tag, "W") }
+    // Priority comes from the "# priority: <level>" first line. Default to
+    // Low; a "medium" or "high" match upgrades it. WIP vs OPEN status is
+    // intentionally ignored -- the summary groups purely by priority.
+    mut tag := "L"
+    if first_line.find("medium").gte(0) { tag = "M" }
+    if first_line.find("high").gte(0) { tag = "H" }
     return format(tag, NL, link)
 }
 
-// Parse an issue file and return {priority_marker, is_wip, link}
-// Returns "H\nlink" or "HW\nlink" or "L\nlink" or "LW\nlink"
+// Parse an issue file and return "<P>\nlink" where <P> is the priority
+// marker H, M, or L. Returns "" if the file has no parseable header.
 parse_issue := func(fname: Str) returns Str {
     path := format("issues/open/", fname)
     raw_content := File.readfile(path)
     return parse_issue_body(fname, raw_content)
+}
+
+// Emit every entry whose priority marker equals `want`, one link per line.
+emit_section := func(entries: Vec, want: Str) returns Str {
+    mut out := ""
+    for entry : Str in entries {
+        nl_pos := entry.find(NL)
+        if nl_pos.lt(0) { continue }
+        nlp : USize = nl_pos.to_usize()
+        tag := entry.substr(0, nlp)
+        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
+        if tag.eq(want) { out = format(out, link, NL) }
+    }
+    return out
 }
 
 main := proc() {
@@ -109,62 +128,11 @@ main := proc() {
         }
     }
 
-    // Build summary.org manually
+    // Build summary.org: one section per priority, OPEN and WIP together.
     mut s := ""
-    s = format(s, "* Open", NL)
-
-    // Open High
-    s = format(s, "** High", NL)
-    for entry : Str in entries {
-        nl_pos := entry.find(NL)
-        if nl_pos.lt(0) { continue }
-        nlp : USize = nl_pos.to_usize()
-        tag := entry.substr(0, nlp)
-        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("H") { s = format(s, link, NL) }
-    }
-
-    // Open Medium
-    s = format(s, "** Medium", NL)
-
-    // Open Low
-    s = format(s, "** Low", NL)
-    for entry : Str in entries {
-        nl_pos := entry.find(NL)
-        if nl_pos.lt(0) { continue }
-        nlp : USize = nl_pos.to_usize()
-        tag := entry.substr(0, nlp)
-        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("L") { s = format(s, link, NL) }
-    }
-
-    // WIP
-    s = format(s, NL, "* WIP", NL)
-
-    // WIP High
-    s = format(s, "** High", NL)
-    for entry : Str in entries {
-        nl_pos := entry.find(NL)
-        if nl_pos.lt(0) { continue }
-        nlp : USize = nl_pos.to_usize()
-        tag := entry.substr(0, nlp)
-        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("HW") { s = format(s, link, NL) }
-    }
-
-    // WIP Medium
-    s = format(s, "** Medium", NL)
-
-    // WIP Low
-    s = format(s, "** Low", NL)
-    for entry : Str in entries {
-        nl_pos := entry.find(NL)
-        if nl_pos.lt(0) { continue }
-        nlp : USize = nl_pos.to_usize()
-        tag := entry.substr(0, nlp)
-        link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq("LW") { s = format(s, link, NL) }
-    }
+    s = format(s, "* High", NL, emit_section(entries, "H"))
+    s = format(s, "* Medium", NL, emit_section(entries, "M"))
+    s = format(s, "* Low", NL, emit_section(entries, "L"))
 
     File.writefile("issues/summary.org", s)
     println("Generated: issues/summary.org")
