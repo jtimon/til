@@ -53,6 +53,21 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     allocs = num_str2.to_i64()
 }
 
+// Parse the TIL_TRUE_LEAK=<bytes> line printed by the leak probe in
+// src/c/ext.c (live-allocated bytes after teardown = the true leak).
+// Returns -1 if absent (e.g. a non-sanitizer binary).
+parse_true_leak := func(summary: Str) returns I64 {
+    key := "TIL_TRUE_LEAK="
+    pos := summary.find(key)
+    if pos.eq(-1) { return -1 }
+    start := pos.to_usize().add(key.len())
+    rest := summary.len().sub(start)
+    nl_off := summary.substr(start, rest).find("\n")
+    mut num_len : USize = rest
+    if nl_off.neq(-1) { num_len = nl_off.to_usize() }
+    return summary.substr(start, num_len).to_i64()
+}
+
 pct_str := func(old_val: I64, new_val: I64) returns Str {
     if old_val.eq(0) { return "0.0%" }
     delta := new_val.sub(old_val)
@@ -251,13 +266,23 @@ main := proc(args: ..Str) {
     // ---- Step 6: ASAN leak check ----
     run("make bin/til_asan > tmp/asan_build.log 2>&1")
 
-    int_summary := capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til")
-    trans_summary := capture("ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til")
+    int_summary := capture("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til")
+    trans_summary := capture("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til")
 
     mut int_bytes : I64 = 0; mut int_allocs : I64 = 0
     mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
     parse_asan_summary(int_summary, int_bytes, int_allocs)
     parse_asan_summary(trans_summary, trans_bytes, trans_allocs)
+    // Bytes column tracks the TRUE leak (live heap after teardown) from the
+    // TIL_LEAK_PROBE destructor, not LeakSanitizer's "bytes leaked" -- the
+    // latter is config-dependent and under-reports here by orders of
+    // magnitude (inter-leak false-reachability). Allocs stay from the LSAN
+    // summary (no config-independent count is available). If the probe line
+    // is missing, fall back to the LSAN bytes already parsed above.
+    int_true := parse_true_leak(int_summary)
+    if int_true.gte(0) { int_bytes = int_true }
+    trans_true := parse_true_leak(trans_summary)
+    if trans_true.gte(0) { trans_bytes = trans_true }
 
     // Read baseline from doc/bots/asan.org; fall back to current values.
     mut old_int_bytes : I64 = int_bytes

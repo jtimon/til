@@ -1,0 +1,54 @@
+# priority: low
+** FIXED #259 Measure ASAN leaks via the allocator's live-byte counter, not LeakSanitizer's count
+
+  POST-MORTEM
+  Root cause: not a code bug -- a measurement bug. examples/merge_commit.til
+  tracked LeakSanitizer's "N byte(s) leaked" line (ASAN_OPTIONS=detect_leaks=1)
+  in doc/bots/asan.org. That number is a reachability estimate, not a leak
+  count: at exit LSAN treats the stack, registers and globals as roots and
+  reports a block only if nothing points to it. Two effects make it wrong here:
+    1. The typer/precomp orphan large connected graphs of AST nodes that still
+       point at each other; a single stale pointer left in stack memory (from
+       the deep typer/precomp recursion) into any node makes LSAN call the
+       whole graph "reachable", so it is never reported.
+    2. The result therefore under-reports the real leak by orders of magnitude
+       and swings several-fold with trivial option changes (e.g.
+       malloc_context_size shifts stack layout). It can even move opposite to
+       the real leak -- a genuine leak fix that breaks up the graph makes LSAN
+       converge UP toward the truth and look like a byte regression. (This is
+       exactly why an earlier fold fix appeared to "inflate" leaks and was
+       reverted.)
+
+  Fix: added a destructor in src/c/ext.c that prints the sanitizer allocator's
+  live-allocated byte count (__sanitizer_get_current_allocated_bytes) after
+  main() returns, i.e. after the program has torn its structures down. That is
+  bytes-malloc'd minus bytes-freed -- the true never-freed total, with no
+  reachability guessing and identical across ASAN configs. It is gated on the
+  TIL_LEAK_PROBE env var and declared weak, so non-sanitizer builds link (the
+  symbol is NULL and the call is skipped) and normal runs are unaffected.
+  examples/merge_commit.til now sets TIL_LEAK_PROBE=1 on its two measurement
+  runs and records the probe's bytes in the asan.org Bytes column. Alloc counts
+  still come from the LSAN summary (no config-independent count is available);
+  if the probe line is absent the script falls back to the LSAN bytes.
+
+  Design notes:
+    - Single --asan option kept (no separate leak-count flag). --asan still
+      detects use-after-free / overflow via ASAN exactly as before; only the
+      leak *total* now comes from the probe.
+    - The probe rides on ASAN's existing allocator -- it does NOT add a wrapper
+      around malloc/free and imposes no cost beyond ASAN itself (one call at
+      exit). A standalone malloc/free byte counter (near-zero overhead, no
+      sanitizer needed) is a possible future lightweight alternative if we want
+      the true total without ASAN's penalty; it would only lack per-leak stack
+      traces.
+    - The probe is env-gated so it does not emit a line on every sanitized test
+      binary during `make test` (which would break stderr comparisons). Making
+      it print by default under --asan is a one-line change if wanted.
+
+  Verification: with the probe, master's true leak on test/strings.til is
+  26.21 MB interpret / 26.19 MB translate, where LSAN reported only 144 KB /
+  185 KB. The companion AST-splice leak fix cuts the true leak to 0.69 MB /
+  0.67 MB (-97%). On the same binary LSAN's byte count swung 166 KB / 1.05 MB /
+  6.24 MB across malloc_context_size=40/30/10 while the probe stayed constant.
+  No regression test (tooling/measurement change); the probe is exercised by
+  merge_commit.til on every merge.

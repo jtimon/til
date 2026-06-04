@@ -1310,4 +1310,22 @@ void __cyg_profile_func_exit(void *this_fn, void *call_site) {
 
 #endif // !_WIN32
 
+// Leak measurement. Runs as a destructor -- after main() returns, i.e. after
+// the program has finished tearing its data structures down -- and prints the
+// sanitizer's live-allocated byte count. That is the true never-freed total.
+// Unlike LeakSanitizer's "N byte(s) leaked", it is independent of ASAN config
+// and immune to inter-leak false-reachability (leaked blocks pointing at each
+// other), which makes the LSAN number under-report by orders of magnitude and
+// swing several-fold with trivial option changes. Gated on TIL_LEAK_PROBE so
+// normal runs are unaffected; examples/merge_commit.til sets it to record the
+// ASAN baseline. The weak decl lets non-sanitizer builds link (symbol is NULL
+// there, and the address check skips the call).
+__attribute__((weak)) unsigned long __sanitizer_get_current_allocated_bytes(void);
+static void til_leak_probe(void) __attribute__((destructor));
+static void til_leak_probe(void) {
+    if (!getenv("TIL_LEAK_PROBE")) return;
+    if (&__sanitizer_get_current_allocated_bytes)
+        fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
+}
+
 
