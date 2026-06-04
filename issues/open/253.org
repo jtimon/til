@@ -1,0 +1,82 @@
+# priority: low
+** OPEN #253 Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
+
+  Follow-up from #249. The parser now uses ~structdef_of~/~enumdef_of~
+  (returns ~ref StructDef~/~ref EnumDef~, ~NULL~ after ~UNREACHABLE~)
+  to push fields/variants without repeating
+  ~switch e.node_type { case NodeType.X(d): ... case: UNREACHABLE }~ at
+  every site. The same single-case "extract this payload or die" switch
+  is repeated across the whole self compiler. ~context.til~ already has
+  a partial version (~def_ns_decls~).
+
+  Idea: add general accessors in ~src/core/ast.til~ (core, so every
+  phase shares them; promote the parser's ~structdef_of~/~enumdef_of~
+  there too) and convert the convertible sites:
+
+    funcdef_of(e)     returns ref FunctionDef
+    decl_of(e)        returns ref Declaration
+    fieldaccess_of(e) returns ref FieldAccessData
+    fcall_of(e)       returns ref FCallData
+    ident_of(e)       returns ref IdentData
+    structdef_of(e)   returns ref StructDef   (move from parser.til)
+    enumdef_of(e)     returns ref EnumDef      (move from parser.til)
+
+  Each is the def_ns_decls shape:
+
+    funcdef_of := func(e: Expr) returns ref FunctionDef {
+        switch e.node_type {
+        case NodeType.FuncDef(fd):
+            return fd
+        case:
+            UNREACHABLE(__LOC__)
+            return NULL
+        }
+    }
+
+  Call sites collapse to ~ref fd : FunctionDef = funcdef_of(e)~ then use
+  ~fd~.
+
+*** Frequency (case NodeType.X( occurrences, typer + initer + dispatch)
+    Ident 144, FuncDef 70, Decl 61, FieldAccess 49, Literal 45,
+    StructDef 39, EnumDef 34, FCall 20.
+  These are an UPPER bound on convertible sites, not the count -- see
+  the next section.
+
+*** Only the single-case-or-UNREACHABLE shape converts
+  An accessor fits ONLY where the code already knows the node's variant
+  and the switch is
+    case NodeType.X(d): <use d>
+    case: UNREACHABLE
+  Do NOT convert:
+    - switches whose default is EMPTY or does real work (conditional
+      extraction -- "do nothing / fall back if not X"). e.g.
+      dispatch.til:157 `case NodeType.Decl(dd): ... case:` skips
+      non-Decl deliberately.
+    - genuine multi-variant dispatch (two+ meaningful cases).
+    - switches on something other than ~node_type~ (Value, ScopeFind,
+      Type, ...).
+  So each candidate must be eyeballed; a blind regex sweep will break
+  the conditional-extraction sites.
+
+*** Plan
+  1. Add the accessors to ast.til (next to Expr/NodeType and the
+     existing set_own_arg). Promote structdef_of/enumdef_of out of
+     parser.til (drop the parser-local priv copies). Land this with at
+     least one file converted so the new funcs aren't unused.
+  2. Convert file by file, lowest-overlap first, eyeballing each switch:
+     dispatch.til (no #252 overlap) -> context.til -> initer.til ->
+     typer.til. Build + test after each file (make clean && make test,
+     137/137 at time of writing).
+  3. Keep accessors that return ~ref~ paired with ~return NULL~ after
+     ~UNREACHABLE~ (C -Werror=return-type needs the trailing return;
+     see def_ns_decls and #249's structdef_of).
+
+*** Coordination
+  #252 (Declaration.til_type derivation) is being worked in parallel and
+  edits Declaration CONSTRUCTION sites in parser/initer/typer/context.
+  This issue edits payload EXTRACTION switches in the same files but
+  different lines. Sequence the shared files (initer/typer/context)
+  after #252 lands, or coordinate, to avoid churn. dispatch.til is
+  unaffected by #252 and is the safe place to start.
+
+  Behaviour-preserving throughout; no observable output change.
