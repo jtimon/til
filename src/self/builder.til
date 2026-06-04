@@ -818,7 +818,7 @@ priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
 }
 
 emit_til_default := proc(f: File, shallow t: Type) {
-    if t.is(Type.Primitive).and(til_type_name_c(t).eq("Bool")) {
+    if type_is_primitive(t, Primitive.Bool) {
         f.write("false")
     } else if is_primitive(t) {
         f.write("0")
@@ -2156,7 +2156,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
         // the ULL suffix or `cc -Werror` rejects "integer constant is
         // so large that it is unsigned". The constfolder marks the
         // type, we just have to emit the suffix.
-        if e.expr_til_type().is(Type.Primitive).and(til_type_name_c(e.expr_til_type()).eq("U64")) {
+        if type_is_primitive(e.expr_til_type(), Primitive.U64) {
             f.write("ULL")
         }
     case NodeType.Literal(Literal.Bool(b)):

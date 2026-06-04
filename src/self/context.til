@@ -625,6 +625,18 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
     return decl
 }
 
+// True when ~t~ is exactly ~Type.Primitive(p)~. The runtime ~.is()~ is
+// tag-only on the outer Type tag, so it can't tell two primitives apart;
+// destructure and compare the inner Primitive (payload-free, so its own
+// tag-only ~.is()~ is precise). Cheaper than discriminating by name via
+// ~til_type_name_c(t).eq("X")~ (no Str build/compare).
+type_is_primitive := func(t: Type, p: Primitive) returns Bool {
+    switch t {
+    case Type.Primitive(tp): return tp.is(p)
+    case: return false
+    }
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }

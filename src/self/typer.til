@@ -3802,7 +3802,7 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, return
 infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     if_cond_t := stmt.child(0).expr_til_type()
-    if if_cond_t.is(Type.Primitive).and(til_type_name_c(if_cond_t).eq("Bool")).not().and(if_cond_t.is(Type.Unknown).not()) {
+    if type_is_primitive(if_cond_t, Primitive.Bool).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
     then_scope := TypeScope(parent = scope)
@@ -4025,7 +4025,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
 infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.child(0), in_func, ctx)
     while_cond_t := stmt.child(0).expr_til_type()
-    if while_cond_t.is(Type.Primitive).and(til_type_name_c(while_cond_t).eq("Bool")).not().and(while_cond_t.is(Type.Unknown).not()) {
+    if type_is_primitive(while_cond_t, Primitive.Bool).not().and(while_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("while condition must be Bool, got ".concat(type_to_name(stmt.child(0).expr_til_type())), ctx)
     }
     if expr_contains_fcall(stmt.child(0)) {
