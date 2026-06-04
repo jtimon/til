@@ -320,6 +320,43 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     }
 }
 
+// Payload accessors: borrow the StructDef / EnumDef / FunctionDef payload
+// of an Expr whose variant is already known, so callers write
+// `ref sd : StructDef = structdef_of(node)` instead of repeating
+// `switch node.node_type { case NodeType.X(d): ... case: UNREACHABLE }` at
+// every introspection site. UNREACHABLE if the node is the wrong variant;
+// the `return NULL` after it satisfies the C return-type check (ref types
+// are pointers). See issue #253; mirrors def_ns_decls in context.til.
+structdef_of := func(node: Expr) returns ref StructDef {
+    switch node.node_type {
+    case NodeType.StructDef(sd):
+        return sd
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
+enumdef_of := func(node: Expr) returns ref EnumDef {
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        return ed
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
+funcdef_of := func(node: Expr) returns ref FunctionDef {
+    switch node.node_type {
+    case NodeType.FuncDef(fd):
+        return fd
+    case:
+        UNREACHABLE(__LOC__)
+        return NULL
+    }
+}
+
 /// Struct definition: field declarations, namespace methods, c_tag.
 /// Issue #147 step 4: total_struct_size dropped from the AST in favour
 /// of ctx.struct_layouts[name].total_size, populated by

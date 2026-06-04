@@ -588,12 +588,8 @@ interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: C
 h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        r = val_i64(sd.fields.len().to_i64())
-    case:
-        UNREACHABLE(__LOC__)
-    }
+    ref sd : StructDef = structdef_of(node)
+    r = val_i64(sd.fields.len().to_i64())
     return true
 }
 
@@ -601,17 +597,13 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
-            interp_error(e, "struct_field_name: index out of bounds", ctx)
-            exit(1)
-        }
-        ref fd : Declaration = sd.fields[idx.to_usize()]
-        r = str_to_owned_value(fd.name, ctx)
-    case:
-        UNREACHABLE(__LOC__)
+    ref sd : StructDef = structdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+        interp_error(e, "struct_field_name: index out of bounds", ctx)
+        exit(1)
     }
+    ref fd : Declaration = sd.fields[idx.to_usize()]
+    r = str_to_owned_value(fd.name, ctx)
     return true
 }
 
@@ -619,17 +611,13 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
-            interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
-            exit(1)
-        }
-        ref fd : Declaration = sd.fields[idx.to_usize()]
-        if fd.is_mut { r = val_i64(1) } else { r = val_i64(0) }
-    case:
-        UNREACHABLE(__LOC__)
+    ref sd : StructDef = structdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+        interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
+        exit(1)
     }
+    ref fd : Declaration = sd.fields[idx.to_usize()]
+    if fd.is_mut { r = val_i64(1) } else { r = val_i64(0) }
     return true
 }
 
@@ -637,17 +625,13 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
-            interp_error(e, "struct_field_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref fd : Declaration = sd.fields[idx.to_usize()]
-        r = str_to_owned_value(fd.explicit_type, ctx)
-    case:
-        UNREACHABLE(__LOC__)
+    ref sd : StructDef = structdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(sd.fields.len())) {
+        interp_error(e, "struct_field_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref fd : Declaration = sd.fields[idx.to_usize()]
+    r = str_to_owned_value(fd.explicit_type, ctx)
     return true
 }
 
@@ -678,12 +662,8 @@ interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Con
 h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        r = val_i64(ed.variants.len().to_i64())
-    case:
-        UNREACHABLE(__LOC__)
-    }
+    ref ed : EnumDef = enumdef_of(node)
+    r = val_i64(ed.variants.len().to_i64())
     return true
 }
 
@@ -691,17 +671,13 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
-            interp_error(e, "enum_variant_name: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vn : Str = ed.variants[idx.to_usize()]
-        r = str_to_owned_value(vn, ctx)
-    case:
-        UNREACHABLE(__LOC__)
+    ref ed : EnumDef = enumdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+        interp_error(e, "enum_variant_name: index out of bounds", ctx)
+        exit(1)
     }
+    ref vn : Str = ed.variants[idx.to_usize()]
+    r = str_to_owned_value(vn, ctx)
     return true
 }
 
@@ -709,20 +685,16 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
-            interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
-            exit(1)
-        }
-        if ed.payload_types.has(idx) {
-            ref pt : Str = ed.payload_types[idx]
-            if pt.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
-        } else {
-            r = val_i64(0)
-        }
-    case:
-        UNREACHABLE(__LOC__)
+    ref ed : EnumDef = enumdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+        interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
+        exit(1)
+    }
+    if ed.payload_types.has(idx) {
+        ref pt : Str = ed.payload_types[idx]
+        if pt.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
+    } else {
+        r = val_i64(0)
     }
     return true
 }
@@ -731,20 +703,16 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
-            interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
-            exit(1)
-        }
-        if ed.payload_types.has(idx) {
-            ref pt : Str = ed.payload_types[idx]
-            r = str_to_owned_value(pt, ctx)
-        } else {
-            r = str_to_owned_value("", ctx)
-        }
-    case:
-        UNREACHABLE(__LOC__)
+    ref ed : EnumDef = enumdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(ed.variants.len())) {
+        interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
+        exit(1)
+    }
+    if ed.payload_types.has(idx) {
+        ref pt : Str = ed.payload_types[idx]
+        r = str_to_owned_value(pt, ctx)
+    } else {
+        r = str_to_owned_value("", ctx)
     }
     return true
 }
@@ -776,12 +744,8 @@ interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: 
 h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        r = val_i64(fd.params.len().to_i64())
-    case:
-        UNREACHABLE(__LOC__)
-    }
+    ref fd : FunctionDef = funcdef_of(node)
+    r = val_i64(fd.params.len().to_i64())
     return true
 }
 
@@ -789,29 +753,21 @@ h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if idx.lt(0).or(idx.to_usize().gte(fd.params.len())) {
-            interp_error(e, "func_sig_param_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref pd : Declaration = fd.params[idx.to_usize()]
-        r = str_to_owned_value(pd.explicit_type, ctx)
-    case:
-        UNREACHABLE(__LOC__)
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(fd.params.len())) {
+        interp_error(e, "func_sig_param_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref pd : Declaration = fd.params[idx.to_usize()]
+    r = str_to_owned_value(pd.explicit_type, ctx)
     return true
 }
 
 h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if fd.return_type.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
-    case:
-        UNREACHABLE(__LOC__)
-    }
+    ref fd : FunctionDef = funcdef_of(node)
+    if fd.return_type.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
     return true
 }
 
@@ -819,28 +775,20 @@ h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if idx.neq(0).or(fd.return_type.len().eq(0)) {
-            interp_error(e, "func_sig_return_type: index out of bounds", ctx)
-            exit(1)
-        }
-        r = str_to_owned_value(fd.return_type, ctx)
-    case:
-        UNREACHABLE(__LOC__)
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx.neq(0).or(fd.return_type.len().eq(0)) {
+        interp_error(e, "func_sig_return_type: index out of bounds", ctx)
+        exit(1)
     }
+    r = str_to_owned_value(fd.return_type, ctx)
     return true
 }
 
 h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        r = val_i64(fd.throw_types.len().to_i64())
-    case:
-        UNREACHABLE(__LOC__)
-    }
+    ref fd : FunctionDef = funcdef_of(node)
+    r = val_i64(fd.throw_types.len().to_i64())
     return true
 }
 
@@ -848,17 +796,13 @@ h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := value_to_u64(eval_expr(s, e.child(2), ctx)).cast(I64)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if idx.lt(0).or(idx.to_usize().gte(fd.throw_types.len())) {
-            interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref tt : Str = fd.throw_types[idx.to_usize()]
-        r = str_to_owned_value(tt, ctx)
-    case:
-        UNREACHABLE(__LOC__)
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx.lt(0).or(idx.to_usize().gte(fd.throw_types.len())) {
+        interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref tt : Str = fd.throw_types[idx.to_usize()]
+    r = str_to_owned_value(tt, ctx)
     return true
 }
 
@@ -1093,29 +1037,24 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
         ctx.ffi_type_cache = Vec.new(FFITypePtrBox)
         ctx.ffi_type_cache_inited = true
     }
-    switch struct_def.node_type {
-    case NodeType.StructDef(bsf_sdd):
-        nfields := bsf_sdd.fields.len()
-        elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size()))
-        for i in 0..nfields {
-            ref fd : Declaration = bsf_sdd.fields[i]
-            ref ft : ffi_type = field_ffi_type(fd, ctx)
-            memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size())), ft, Dynamic.size())
-        }
-        memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size())), 0, Dynamic.size())
-        st : Dynamic = malloc(ffi_type.size())
-        ref mut stp : ffi_type = to_ptr(st)
-        stp.size = 0
-        stp.alignment = 0
-        stp.type = FFI_TYPE_STRUCT.to_i16()
-        stp.elements = elements
-        box := FFITypePtrBox(ptr = stp)
-        ctx.ffi_type_cache.push(own box)
-        return stp
-    case:
-        UNREACHABLE(__LOC__)
-        return NULL
+    ref bsf_sdd : StructDef = structdef_of(struct_def)
+    nfields := bsf_sdd.fields.len()
+    elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size()))
+    for i in 0..nfields {
+        ref fd : Declaration = bsf_sdd.fields[i]
+        ref ft : ffi_type = field_ffi_type(fd, ctx)
+        memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size())), ft, Dynamic.size())
     }
+    memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size())), 0, Dynamic.size())
+    st : Dynamic = malloc(ffi_type.size())
+    ref mut stp : ffi_type = to_ptr(st)
+    stp.size = 0
+    stp.alignment = 0
+    stp.type = FFI_TYPE_STRUCT.to_i16()
+    stp.elements = elements
+    box := FFITypePtrBox(ptr = stp)
+    ctx.ffi_type_cache.push(own box)
+    return stp
 }
 
 h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
@@ -1611,68 +1550,64 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
 ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        np := fd.params.len()
-        mut alloc_np := np
-        if alloc_np.eq(0) { alloc_np = 1 }
-        // Build ffi_type* array (each element is a pointer = 8 bytes)
-        atypes : Dynamic = malloc(alloc_np.cast(U64).mul(8))
-        mut pshallows : Dynamic = 0
-        mut has_shallow := false
+    ref fd : FunctionDef = funcdef_of(fdef)
+    np := fd.params.len()
+    mut alloc_np := np
+    if alloc_np.eq(0) { alloc_np = 1 }
+    // Build ffi_type* array (each element is a pointer = 8 bytes)
+    atypes : Dynamic = malloc(alloc_np.cast(U64).mul(8))
+    mut pshallows : Dynamic = 0
+    mut has_shallow := false
+    for k in 0..np {
+        ref pk : Declaration = fd.params[k]
+        if pk.own_type.is(OwnType.Shallow) {
+            write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
+            has_shallow = true
+        } else {
+            write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), ffi_type_ref("ffi_type_pointer"))
+        }
+    }
+    if has_shallow {
+        pshallows = malloc(np.cast(U64))
         for k in 0..np {
             ref pk : Declaration = fd.params[k]
-            if pk.own_type.is(OwnType.Shallow) {
-                write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
-                has_shallow = true
-            } else {
-                write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), ffi_type_ref("ffi_type_pointer"))
-            }
+            ref mut slot : Bool = ptr_add(pshallows, k.cast(U64))
+            slot = pk.own_type.is(OwnType.Shallow)
         }
-        if has_shallow {
-            pshallows = malloc(np.cast(U64))
-            for k in 0..np {
-                ref pk : Declaration = fd.params[k]
-                ref mut slot : Bool = ptr_add(pshallows, k.cast(U64))
-                slot = pk.own_type.is(OwnType.Shallow)
-            }
-        }
-        ret_shallow := fd.return_own_type.is(OwnType.Shallow)
-        cif : Dynamic = ffi_alloc_cif()
-
-        // Build FFIEntry
-        mut entry := FFIEntry()
-        entry.fn = fn
-        if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
-        entry.nparam = np.cast(I32)
-        entry.param_shallows = pshallows
-        entry.return_is_shallow = ret_shallow
-        entry.cif = cif
-        entry.arg_types = atypes
-
-        // Resolve return ffi_type
-        ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
-        if entry.return_type.is_null().not() {
-            if ret_shallow {
-                rtype = to_ptr(shallow_ffi_type(entry.return_type, ctx))
-            } else {
-                rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
-            }
-        }
-        ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
-
-        // Store in ctx.ffi_map. Own a clone of the name so callers can pass
-        // either AST-owned strings or locally-allocated ones (e.g. format
-        // results) without bespoke ownership dances.
-        key_str := name.clone()
-        key : Dynamic = malloc(Str.size())
-        move(key, key_str, Str.size())
-        val : Dynamic = malloc(FFIEntry.size())
-        move(val, entry, FFIEntry.size())
-        ctx.ffi_map.set(own key, own val)
-    case:
-        UNREACHABLE(__LOC__)
     }
+    ret_shallow := fd.return_own_type.is(OwnType.Shallow)
+    cif : Dynamic = ffi_alloc_cif()
+
+    // Build FFIEntry
+    mut entry := FFIEntry()
+    entry.fn = fn
+    if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
+    entry.nparam = np.cast(I32)
+    entry.param_shallows = pshallows
+    entry.return_is_shallow = ret_shallow
+    entry.cif = cif
+    entry.arg_types = atypes
+
+    // Resolve return ffi_type
+    ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
+    if entry.return_type.is_null().not() {
+        if ret_shallow {
+            rtype = to_ptr(shallow_ffi_type(entry.return_type, ctx))
+        } else {
+            rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
+        }
+    }
+    ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
+
+    // Store in ctx.ffi_map. Own a clone of the name so callers can pass
+    // either AST-owned strings or locally-allocated ones (e.g. format
+    // results) without bespoke ownership dances.
+    key_str := name.clone()
+    key : Dynamic = malloc(Str.size())
+    move(key, key_str, Str.size())
+    val : Dynamic = malloc(FFIEntry.size())
+    move(val, entry, FFIEntry.size())
+    ctx.ffi_map.set(own key, own val)
 }
 
 

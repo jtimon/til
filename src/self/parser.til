@@ -561,31 +561,6 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
         default_value = ns_value)
 }
 
-// structdef_of / enumdef_of: borrow the StructDef / EnumDef payload of a
-// StructDef / EnumDef Expr, so the body parsers can push fields, variants
-// and ns_decls through one binding instead of repeating
-// `switch def.node_type { case ...(d): ... case: UNREACHABLE }` at every
-// mutation site.
-priv structdef_of := func(def: Expr) returns ref StructDef {
-    switch def.node_type {
-    case NodeType.StructDef(sdd):
-        return sdd
-    case:
-        UNREACHABLE(__LOC__)
-        return NULL
-    }
-}
-
-priv enumdef_of := func(def: Expr) returns ref EnumDef {
-    switch def.node_type {
-    case NodeType.EnumDef(edd):
-        return edd
-    case:
-        UNREACHABLE(__LOC__)
-        return NULL
-    }
-}
-
 // parse_struct_def: current token is 'struct' (or '{' for ext_struct)
 // c_tag: "" = normal struct (advance past 'struct' keyword)
 //        "@anon" = ext_struct anonymous (no struct tag)
