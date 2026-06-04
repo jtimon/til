@@ -1,0 +1,49 @@
+mode script
+
+// Reproduction for issue #256: the garbager/codegen clones an owned local
+// at its last use instead of moving it.
+//
+// In `build`, `val` is a named owned local whose last (and only) use is the
+// FieldAssign `h.child = val` into an Own field. It should MOVE. Instead the
+// codegen emits `Node_clone(val)` -- a deep clone that includes a Str_clone
+// of the literal label, and Str_clone ALWAYS malloc+memcpy's the chars (even
+// for a cap = TIL_CAP_LIT literal that has no char heap of its own). The
+// original `val` is then freed. A *temporary* RHS (e.g.
+// `h.child = make_node()`) moves and never clones -- that inconsistency is
+// the bug, and it is exactly how #252 regressed the ASAN leak baseline.
+//
+// To surface the extra clone heap as an ASAN-reported leak, build()'s owned
+// return is abandoned below (an inline temporary, never bound or freed),
+// standing in for #252's real situation where the cloned tree rode along in
+// the compiler's retained-but-never-freed program AST. After main returns,
+// LeakSanitizer reports the abandoned allocations -- and the report points
+// straight at `Node_clone` / `Str_clone` inside `build`, which a move would
+// not produce.
+//
+// Observe it:
+//   bin/til build --asan -o tmp/bug256 test/bug256.til
+//   ASAN_OPTIONS=detect_leaks=1 tmp/bug256
+//   ==> SUMMARY: AddressSanitizer: NN byte(s) leaked, with Str_clone /
+//       Node_clone frames inside build().
+//
+// NOT YET wired into test/tests.til: it leaks on purpose and would fail the
+// ASAN-clean suite until #256 is fixed.
+
+Node := struct {
+    own label : Str = ""
+}
+
+Holder := struct {
+    own child : Node = Node()
+}
+
+build := func() returns Holder {
+    val := Node(label = "bug256-distinctive-literal-payload-tag!!")
+    mut h := Holder()
+    // BUG #256: last use of the named local `val` -> should move, clones.
+    h.child = val
+    return h
+}
+
+// Abandon the owned return so the cloned heap leaks (see header).
+println("bug256: ", build().child.label)

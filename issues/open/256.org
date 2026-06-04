@@ -1,0 +1,98 @@
+# priority: high
+** OPEN #256 Garbager clones (and leaks) an owned local at its last use instead of moving it
+
+Related: [[./109.org][#109]] (compiler leak baseline). This bug feeds
+leaks into that baseline -- it is exactly how [[./252.org][#252]]
+regressed translate by +47547 bytes / +579 allocs and interpret by
++9563 bytes / +491 allocs (fixed in commit d416876 by sidestepping the
+named local, not by fixing the garbager).
+
+*** Symptom
+
+Assigning an owned value into an owned slot behaves differently
+depending on whether the right-hand side is a *named local* or a
+*temporary*, even when the named local is never used again:
+
+  // CLONES the whole value tree (and the clone leaks with the AST):
+  ns_value := parse_expression(p)
+  ns_decl.default_value = ns_value     // last use of ns_value
+
+  // MOVES -- no clone, no leak:
+  ns_decl.default_value = parse_expression(p)
+
+Both forms are semantically identical: ~ns_value~ is an owned local
+whose last (and only) use is the assignment. The first form should
+move it, but the compiler emits a defensive deep clone instead.
+
+*** What the generated C looks like
+
+For the named-local form, the emitter produces (see the #252
+post-mortem, parse_ns_decl):
+
+  Expr *ns_value = parse_expression(p);
+  Declaration *ns_decl = decl_typed(...);
+  Expr *hoisted__Expr = Expr_clone(ns_value);   // <-- defensive deep clone
+  { Expr *_old = ns_decl->default_value;
+    ns_decl->default_value = hoisted__Expr;
+    Expr_delete(_old, (Bool){1}); }
+  Expr_delete(ns_value, 1);                       // original then freed
+  return ns_decl;
+
+The clone deep-copies every literal ~Str~ in the value tree into fresh
+heap allocations. When the surrounding structure is part of the program
+AST (intentionally leaked at exit), the clone leaks; for namespace
+members the value tree is an entire function definition, so a single
+site leaks thousands of bytes.
+
+*** Root cause
+
+A bare identifier RHS is classified as a *borrow*. To satisfy the
+"owned slot needs an owned source" contract, the typer wraps it in a
+~.clone()~ (and the local is then freed at scope end). A function-call
+temporary is already an owned rvalue, so no clone is inserted and the
+value is moved straight in.
+
+The garbager (src/self/garbager.til) already computes, per owned local,
+its ~last_use~ index and an ~own_transfer~ index (the statement that
+transfers the local's ownership away, after which scope-end cleanup is
+suppressed). The gap: ~expr_transfers_own~ does NOT recognize "owned
+local used as the RHS of an owned assignment / FieldAssign at its last
+use" as an ownership transfer. So the use is treated as a borrow ->
+clone inserted, AND the local is still scope-deleted -- the worst of
+both worlds (extra alloc + the clone leaks).
+
+*** Proposed fix
+
+When the RHS of an owned-target assignment / FieldAssign is an Ident
+naming an owned local whose ~last_use~ is this statement (and which is
+not aliased / borrowed elsewhere afterward), classify it as an
+~own_transfer~ (a move): suppress the typer's defensive ~.clone()~ wrap
+and suppress the scope-end ~_delete~ of that local, transferring
+ownership directly into the slot -- exactly what already happens for a
+temporary RHS.
+
+Guard rails to respect:
+- Only when it is genuinely the last use (the existing ~last_use~
+  computation), so no later read sees a moved-from local.
+- Not when the local is also borrowed/aliased after the assignment
+  (the garbager's existing taint/Ref-extension logic, e.g. the
+  FieldAssign-to-Ref-field last_use extension, must still win).
+- The reassignment-before-last-use and view-aliasing cases the
+  garbager already handles must be unaffected.
+
+*** Regression test
+
+test/bug256.til reproduces the leak: ~build~ assigns a named owned local
+~val~ (last use) into an Own struct field, and building it under ASAN
+(~bin/til build --asan -o tmp/bug256 test/bug256.til~ then
+~ASAN_OPTIONS=detect_leaks=1 tmp/bug256~) reports leaks whose stacks
+point straight at ~Node_clone~ / ~Str_clone~ inside ~build~ -- the deep
+clone a move would not produce. The owned return is abandoned (inline
+temporary) so the extra clone heap surfaces as a leak at exit, mirroring
+how the #252 clone rode along in the compiler's retained AST.
+
+It is deliberately NOT wired into test/tests.til yet: it leaks on
+purpose and would fail the ASAN-clean suite. Once the garbager learns
+the move, drop the abandonment (or add a delete) and add it to the suite
+so it guards the fix; the existing per-channel baseline in
+doc/bots/asan.org also tracks the regression at the compiler level.
