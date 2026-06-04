@@ -306,11 +306,11 @@ Context := struct {
     // Issue #198: typer-owned error-type registries, moved off
     // module-level globals so they live on the same Context that
     // crosses unit boundaries. throw_type_registry is the integer-tag
-    // table used by tag_for_type; throws_names/throws_per is the
-    // Decl-name -> throws-types map used by inject_throw_args_in_body.
+    // table used by tag_for_type; throws_global is the Decl-name ->
+    // throws-types map used by inject_throw_args_in_body. (Method
+    // throws are keyed "Type.method", free functions stay bare.)
     throw_type_registry := Vec.new(Str)
-    throws_names_global := Vec.new(Str)
-    throws_per_global := Vec.new(Vec)
+    throws_global := Map.new(Str, Vec)
 
     // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
     // temps emitted when hoisting nested `f()!` calls. Lives on
@@ -318,7 +318,7 @@ Context := struct {
     // registries also owns the matching temp counter.
     bang_counter : I64 = 0
 
-    // Type-qualified throws lookup: throws_names_global stores method
+    // Type-qualified throws lookup: throws_global stores method
     // throws under "Type.method" keys (free functions stay bare). To
     // resolve the receiver type of a `recv.method(...)` call site at
     // lowering time (before infer_body runs), the throw/catch walk

@@ -186,8 +186,8 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // a reference at the current location is allowed to see the mangled
 // name (only the original parent function and any of its other lifted
 // descendants can). current_top_func_name now lives on Context.
-// Issue #198: the throw_type_registry / throws_names_global /
-// throws_per_global tables previously declared here moved onto the
+// Issue #198: the throw_type_registry / throws_global tables
+// previously declared here moved onto the
 // `Context` struct (see initer.til) so cross-unit typer state lives
 // on the same ctx everything else threads through. The accessors
 // below take `ctx` and the body-walk helpers thread it down.
@@ -6136,15 +6136,12 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
 priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec) {
     if name.len().eq(0) { return }
     if throws_list.len().eq(0) { return }
-    for existing : Str in ctx.throws_names_global {
-        if existing.eq(name) { return }
-    }
-    ctx.throws_names_global.push(own name.clone())
+    if ctx.throws_global.has(name) { return }
     mut tt := Vec.new(Str)
     for t : Str in throws_list {
         tt.push(own t.clone())
     }
-    ctx.throws_per_global.push(own tt)
+    ctx.throws_global.set(own name.clone(), own tt)
 }
 
 extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
@@ -6540,44 +6537,40 @@ priv callee_owning_type := func(ctx: Context, fcall: Expr, body: Expr) returns S
     }
 }
 
-priv registry_exact_idx := func(ctx: Context, key: Str) returns I64 {
-    for i in 0..ctx.throws_names_global.len() {
-        ref n : Str = ctx.throws_names_global[i]
-        if n.eq(key) { return i.to_i64().add(1) }
-    }
-    return 0
+priv registry_exact_key := func(ctx: Context, key: Str) returns Str {
+    if ctx.throws_global.has(key) { return key.clone() }
+    return ""
 }
 
 // Fallback for an unresolvable receiver: match a registry entry whose
 // key is bare `method` or any `Type.method`. Conservative (treats the
 // call as throwing), preserving the pre-qualification behavior for
 // method-chain / literal receivers whose type we can't resolve here.
-priv registry_suffix_idx := func(ctx: Context, method: Str) returns I64 {
+priv registry_suffix_key := func(ctx: Context, method: Str) returns Str {
+    if ctx.throws_global.has(method) { return method.clone() }
     dotted := ".".concat(method)
-    for i in 0..ctx.throws_names_global.len() {
-        ref n : Str = ctx.throws_names_global[i]
-        if n.eq(method) { return i.to_i64().add(1) }
-        if n.ends_with(dotted) { return i.to_i64().add(1) }
+    for n : Str in ctx.throws_global.keys {
+        if n.ends_with(dotted) { return n.clone() }
     }
-    return 0
+    return ""
 }
 
 // Look up callee throws for an FCall. Free functions match by bare
 // name; method calls resolve the receiver type and match the
 // type-qualified "Type.method" key, falling back to a bare/suffix
-// match when the receiver type can't be resolved. Returns the entry
-// index (encoded +1) into throws_names_global, or 0 for not-found.
-priv find_callee_throws_idx := func(ctx: Context, fcall: Expr, body: Expr) returns I64 {
-    if fcall.children.len().eq(0) { return 0 }
+// match when the receiver type can't be resolved. Returns the matching
+// throws_global key, or "" for not-found.
+priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) returns Str {
+    if fcall.children.len().eq(0) { return "" }
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
     case NodeType.Ident(n):
-        return registry_exact_idx(ctx, n.ident_name())
+        return registry_exact_key(ctx, n.ident_name())
     case NodeType.FieldAccess(fname):
         method := fname.field_access_name()
         owner := callee_owning_type(ctx, fcall, body)
         if owner.len().gt(0) {
-            return registry_exact_idx(ctx, owner.concat(".").concat(method))
+            return registry_exact_key(ctx, owner.concat(".").concat(method))
         }
         // Unresolvable receiver: only treat as throwing if SOME type's
         // method by this name throws AND the user marked the call with
@@ -6589,10 +6582,10 @@ priv find_callee_throws_idx := func(ctx: Context, fcall: Expr, body: Expr) retur
         case NodeType.FCall(fcd_m): marked = fcd_m.does_throw.or(fcd_m.is_bang)
         case:
         }
-        if marked { return registry_suffix_idx(ctx, method) }
-        return 0
+        if marked { return registry_suffix_key(ctx, method) }
+        return ""
     case:
-        return 0
+        return ""
     }
 }
 
@@ -6672,8 +6665,8 @@ priv validate_one_fcall_consolidated := proc(
         case:
         }
     }
-    idx := find_callee_throws_idx(ctx, e, body)
-    callee_is_throwing := idx.gt(0)
+    key := find_callee_throws_key(ctx, e, body)
+    callee_is_throwing := key.len().gt(0)
     if does_throw {
         if callee_is_throwing.not() {
             type_error_at(path, e.line, e.col, "function does not throw, remove the '?' after the call", ctx)
@@ -6682,7 +6675,7 @@ priv validate_one_fcall_consolidated := proc(
             case:
             }
         } else {
-            ref tts : Vec = ctx.throws_per_global[idx.sub(1).to_u32()]
+            ref tts : Vec = ctx.throws_global[key]
             for tn : Str in tts {
                 pending.push(own tn.clone())
                 vec_str_push_uniq(seen, tn)
@@ -6691,7 +6684,7 @@ priv validate_one_fcall_consolidated := proc(
         }
     } else {
         if callee_is_throwing {
-            ref tts2 : Vec = ctx.throws_per_global[idx.sub(1).to_u32()]
+            ref tts2 : Vec = ctx.throws_global[key]
             mut tlist := ""
             for jj in 0..tts2.len() {
                 ref tn2 : Str = tts2[jj]
@@ -6725,9 +6718,9 @@ priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr
     }
     if does_throw.not() { return }
     if e.children.len().eq(0) { return }
-    idx_enc := find_callee_throws_idx(ctx, e, body)
-    if idx_enc.eq(0) { return }
-    ref tts : Vec = ctx.throws_per_global[idx_enc.sub(1).to_u32()]
+    key := find_callee_throws_key(ctx, e, body)
+    if key.len().eq(0) { return }
+    ref tts : Vec = ctx.throws_global[key]
     mut kind_id := Expr.new(ident_node("_err_kind"), e.line, e.col)
     kind_id.set_expr_til_type(Type.Primitive(Primitive.I64))
     e.add_child(own kind_id)
@@ -6823,8 +6816,8 @@ priv hoist_walk_consolidated := proc(
     }
     if is_bang_here.not() { return }
     if child.children.len().eq(0) { return }
-    found_idx := find_callee_throws_idx(ctx, child, body)
-    if found_idx.eq(0) { return }
+    found_key := find_callee_throws_key(ctx, child, body)
+    if found_key.len().eq(0) { return }
     line := child.line
     col := child.col
     tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
@@ -6838,7 +6831,7 @@ priv hoist_walk_consolidated := proc(
     mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
-    ref tts : Vec = ctx.throws_per_global[found_idx.sub(1).to_u32()]
+    ref tts : Vec = ctx.throws_global[found_key]
     for tn : Str in tts {
         vec_str_push_uniq(types_to_declare, tn)
         vec_str_push_uniq(seen, tn)
@@ -6999,9 +6992,9 @@ priv process_throw_catch_in_body := proc(
         ref bang_fc : Expr = find_bang_fcall(stmt)
         mut root_bang_throws := Vec.new(Str)
         if bang_fc.is_null().not() {
-            found_idx_root := find_callee_throws_idx(ctx, bang_fc, root_body)
-            if found_idx_root.gt(0) {
-                ref tts_root : Vec = ctx.throws_per_global[found_idx_root.sub(1).to_u32()]
+            found_key_root := find_callee_throws_key(ctx, bang_fc, root_body)
+            if found_key_root.len().gt(0) {
+                ref tts_root : Vec = ctx.throws_global[found_key_root]
                 for tn : Str in tts_root {
                     root_bang_throws.push(own tn.clone())
                     vec_str_push_uniq(types_to_declare, tn)
