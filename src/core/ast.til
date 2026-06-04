@@ -586,6 +586,17 @@ Expr := struct {
     col : U32 = 0
 
 namespace:
+    /// Null-safe delete. The auto-generated version dereferences `self`
+    /// unconditionally, so the asap pass deleting an owned-but-null Expr
+    /// (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
+    /// here lets functions return owned `Expr` that may be null without
+    /// the caller having to clone-and-leak to dodge the deep delete.
+    delete := func(own self: Expr, call_free: Bool = true) {
+        if self.is_null() { return }
+        NodeType.delete(own self.node_type, false)
+        Vec.delete(own self.children, false)
+        if call_free { free(own self) }
+    }
     /// Print a diagnostic error with file path and source location.
     error := proc(self: Expr, path: Str, msg: Str) {
         println(path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)

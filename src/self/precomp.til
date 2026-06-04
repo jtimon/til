@@ -211,7 +211,7 @@ priv str_to_source_form := func(s: Str) returns Str {
     return out
 }
 
-value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref Expr {
+value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr {
     // If the source expression returns an enum, the interpreter folded a
     // no-payload variant access to its integer tag (Value.Int32, set up in
     // interpreter_init_ns). Naively turning that into a Num literal would
@@ -308,7 +308,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 // payloads currently bail (synthetic src skips the
                 // intercept and the default Value.Enum case returns NULL).
                 payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
-                ref payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
+                mut payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
                 if payload_expr.is_null() { return NULL }
                 ref vname2 : Str = edd2.variants[etag2.to_usize()]
                 mut variant_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
@@ -317,7 +317,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                 variant_callee.add_child(own variant_recv)
                 mut variant_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
                 variant_call.add_child(own variant_callee)
-                variant_call.add_child(own payload_expr.clone())
+                variant_call.add_child(own payload_expr)
                 variant_call.set_expr_til_type(Type.Enum(til_type_name(src_t)))
                 return variant_call
             case:
@@ -411,9 +411,9 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns ref E
                     return NULL
                 }
                 fl_pre := ctx_field_layout(si.to_str(), fd.name, ctx)
-                ref farg : Expr = value_to_expr(read_field(si.data, fd, fl_pre.offset, ctx), src, ctx)
+                mut farg : Expr = value_to_expr(read_field(si.data, fd, fl_pre.offset, ctx), src, ctx)
                 if farg.is_null() { return NULL }
-                ctor.add_child(own farg.clone())
+                ctor.add_child(own farg)
             }
             ctor.set_expr_til_type(Type.Struct(si.to_str()))
             return ctor
@@ -689,7 +689,7 @@ fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
 
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
-try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns ref Expr {
+try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Expr {
     if fcall.children.len().eq(1).not() { return NULL }
     ref _fc_callee : Expr = fcall.child(0)
     mut _fc_fp : Dynamic = 0
@@ -727,14 +727,14 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns ref 
     if _lit.is_null() { return NULL }
     mut _lit_clone := _lit.clone()
     _lit_clone.set_expr_til_type(fcall.expr_til_type())
-    _heap : Dynamic = malloc(Expr.size())
-    move(_heap, _lit_clone, Expr.size())
-    ref _heap_ref : Expr = to_ptr(_heap)
-    return _heap_ref
+    // Return the owned clone directly: the previous malloc + move into a
+    // second heap Expr both double-allocated and abandoned _lit_clone's
+    // node (a per-fold leak), and forced callers to clone-and-drop.
+    return _lit_clone
 }
 
-try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: Context) returns ref Expr {
-    ref _fast : Expr = try_fast_fold_call(scope, fcall, ctx)
+try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Context) returns Expr {
+    mut _fast : Expr = try_fast_fold_call(scope, fcall, ctx)
     if _fast.is_null().not() { return _fast }
 
     ref callee : Expr = fcall.child(0)
@@ -921,11 +921,11 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
             }
             return NULL
         }
-        ref _arg_lit : Expr = value_to_expr(arg_val, arg, ctx)
+        mut _arg_lit : Expr = value_to_expr(arg_val, arg, ctx)
         if _arg_lit.is_null() {
             return NULL
         }
-        ec.add_child(own _arg_lit.clone())
+        ec.add_child(own _arg_lit)
         // value_to_expr / ec.add_child deep-copied the bytes, so arg_val's
         // payload is no longer reachable past this point. arg_val is a
         // loop-local reclaimed by the garbager's deep Value.delete at each
@@ -957,7 +957,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     }
 
     // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
-    ref lit_local : Expr = value_to_expr(result, fcall, ctx)
+    mut lit_local : Expr = value_to_expr(result, fcall, ctx)
     if lit_local.is_null() {
         return NULL
     }
@@ -969,10 +969,10 @@ try_eval_call := proc(scope: Scope, fcall: Expr, shallow require_known: Bool, ct
     // have been typed as USize/U64/... at typer time. Surrounding code
     // (re-typing, codegen) expects the original til_type.
     lit_local.set_expr_til_type(fcall.expr_til_type())
-    heap : Dynamic = malloc(Expr.size())
-    move(heap, lit_local, Expr.size())
-    ref heap_lit : Expr = to_ptr(heap)
-    return heap_lit
+    // Return an owned clone (value_to_expr returns a borrowed ref). The
+    // previous malloc + move into a separate heap Expr leaked the abandoned
+    // block and forced callers to clone-and-drop.
+    return lit_local
 }
 
 track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
@@ -1072,8 +1072,8 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             if is_macro_call(child, ctx) {
                 // Issue #191: always fold macro calls. Typer already
                 // validated that all args are comptime.
-                ref lit : Expr = try_eval_call(scope, child, true, ctx)
-                if lit.is_null().not() { e.children.set(i, own lit.clone()) }
+                mut lit : Expr = try_eval_call(scope, child, true, ctx)
+                if lit.is_null().not() { e.children.set(i, own lit) }
             } else if is_func_call(child, ctx) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
@@ -1084,12 +1084,18 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                     }
                 }
                 if all_comptime {
-                    ref lit : Expr = try_fast_fold_call(scope, child, ctx)
+                    mut lit : Expr = try_fast_fold_call(scope, child, ctx)
                     if lit.is_null().not() {
-                        e.children.set(i, own lit.clone())
+                        // try_fast_fold_call / try_eval_call malloc a heap Expr
+                        // and return it; MOVE it into e.children rather than
+                        // clone-and-drop (the dropped heap original + its
+                        // children Vec leaked on every comptime fold).
+                        e.children.set(i, own lit)
                     } else {
-                        ref lit2 : Expr = try_eval_call(scope, child, false, ctx)
-                        if lit2.is_null().not() { e.children.set(i, own lit2.clone()) }
+                        mut lit2 : Expr = try_eval_call(scope, child, false, ctx)
+                        if lit2.is_null().not() {
+                            e.children.set(i, own lit2)
+                        }
                     }
                 }
             }
