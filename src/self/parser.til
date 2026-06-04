@@ -574,12 +574,15 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     }
     ns_doc := p.pending_doc.clone()
     p.pending_doc = ""
-    ns_value := parse_expression(p)
     mut ns_decl := decl_typed(name = ns_name,
         is_mut = ns_is_mut, explicit_type = ns_explicit_type,
         doc = ns_doc,
         is_priv = member_priv)
-    ns_decl.default_value = ns_value
+    // Assign the parsed value expression as a temporary so it MOVES into
+    // the own default_value field. Binding it to a named local first
+    // would make this assignment a deep Expr_clone (a leak, since the
+    // clone is never freed) -- see #252 follow-up.
+    ns_decl.default_value = parse_expression(p)
     return ns_decl
 }
 

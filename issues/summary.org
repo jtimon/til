@@ -54,7 +54,6 @@
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
-*** [[./open/252.org][#252]] Derive Declaration.til_type from explicit_type at construction
 *** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies
