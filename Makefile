@@ -147,7 +147,7 @@ bin/til_asan: bin/til $(CORE) $(SELF) $(LIB_TIL) src/til.til
 # --- Debug build (for gdb) ---
 
 bin/til_debug: bin/til
-	cc -g -O0 -Wno-all \
+	cc -g -O0 -Wall -Wextra -Werror \
 	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) \
 	  -o bin/til_debug
