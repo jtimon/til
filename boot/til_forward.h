@@ -423,7 +423,7 @@ typedef struct FieldLayout {
 
 
 typedef struct StructLayout {
-    I32 total_size;
+    U32 total_size;
     Vec fields;
 } StructLayout;
 
@@ -1365,7 +1365,7 @@ Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool call_free);
 U32 Context_size(void);
 Str * priv_c_name(Str * path, Str * name);
-I32 align_up(I32 offset, I32 align);
+U32 align_up(U32 offset, U32 align);
 void precomp_classify_stmt(Expr * stmt, Context * ctx);
 Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
@@ -1406,9 +1406,9 @@ void gen_enum_size_method_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx
 void gen_unity_derived_for_stmt(Expr * stmt);
 void gen_cmp_derived_for_stmt(Expr * stmt);
 void compute_struct_layout(Str * name, Expr * struct_def, TypeScope * scope, Context * ctx);
-void type_size_align(Str * ftype, TypeScope * scope, Context * ctx, I32 * sz, I32 * al);
-I32 compute_enum_layout(Str * name, Expr * enum_def, TypeScope * scope, Context * ctx);
-I32 ctx_total_size(Str * name, Context * ctx);
+void type_size_align(Str * ftype, TypeScope * scope, Context * ctx, U32 * sz, U32 * al);
+U32 compute_enum_layout(Str * name, Expr * enum_def, TypeScope * scope, Context * ctx);
+U32 ctx_total_size(Str * name, Context * ctx);
 FieldLayout * ctx_field_layout(Str * sname, Str * field_name, Context * ctx);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
 Bool priv___src_self_initer_til__init_is_lift_target(Expr * stmt);
@@ -2443,7 +2443,7 @@ extern Str U32Name;
 extern Str U64Name;
 extern Str F32Name;
 extern Str BoolName;
-extern I32 PTR_SIZE_BYTES;
+extern U32 PTR_SIZE_BYTES;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
 extern U32 ENUM_PAYLOAD_OFFSET;

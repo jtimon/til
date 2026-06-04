@@ -489,8 +489,8 @@ priv_c_name := func(path: Str, name: Str) returns Str {
     return buf
 }
 
-align_up := func(offset: I32, align: I32) returns I32 {
-    return offset.add(align).sub(1).band(align.sub(1).bxor(-1))
+align_up := func(offset: USize, align: USize) returns USize {
+    return offset.add(align).sub(1).band(align.sub(1).bnot())
 }
 
 precomp_classify_stmt := func(stmt: Expr, ctx: Context) {

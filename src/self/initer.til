@@ -1578,13 +1578,13 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
     ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = 1))
     switch struct_def.node_type {
     case NodeType.StructDef(struct_meta):
-        mut offset : I32 = 0
-        mut max_align : I32 = 1
+        mut offset : USize = 0
+        mut max_align : USize = 1
         mut sl := StructLayout()
 
         for mut fd : Declaration in struct_meta.fields {
-            mut fsz : I32 = 0
-            mut falign : I32 = 0
+            mut fsz : USize = 0
+            mut falign : USize = 0
             mut field_struct_name := ""
 
             if fd.own_type.is(OwnType.Shallow).not() {
@@ -1696,7 +1696,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset.cast(USize), size = fsz.cast(USize), struct_name = field_struct_name))
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name))
             if falign.gt(max_align) { max_align = falign }
             offset = offset.add(fsz)
         }
@@ -1711,7 +1711,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 
 // Compute size and alignment for a TIL type name.
 // For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
-type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: I32, mut al: I32) {
+type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
     if ftype.eq("I64") { sz = 8; al = 8; return }
     if ftype.eq("U64") { sz = 8; al = 8; return }
     if ftype.eq("F32") { sz = 4; al = 4; return }
@@ -1740,24 +1740,24 @@ type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: I32,
     }
 }
 
-compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns I32 {
+compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns USize {
     if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
     // Set sentinel before recursing to break self-referential cycles.
     ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = 4))
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        mut max_payload_size : I32 = 0
-        mut max_payload_align : I32 = 4
+        mut max_payload_size : USize = 0
+        mut max_payload_align : USize = 4
         for vi in 0..edd.variants.len() {
             vt := enum_variant_type(enum_def, vi.cast(I32))
             if vt.len().eq(0) { continue }
-            mut psz : I32 = 0
-            mut palign : I32 = 0
+            mut psz : USize = 0
+            mut palign : USize = 0
             type_size_align(vt, scope, ctx, psz, palign)
             if psz.gt(max_payload_size) { max_payload_size = psz }
             if palign.gt(max_payload_align) { max_payload_align = palign }
         }
-        mut total : I32 = 4
+        mut total : USize = 4
         if max_payload_size.gt(0) {
             total = align_up(4, max_payload_align)
             total = total.add(max_payload_size)
@@ -1774,7 +1774,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
 // Issue #147 step 4: lookup helper for the struct/enum total size out of
 // ctx.struct_layouts. Returns 0 when the name is unregistered (which
 // downstream code already handles as "unknown size / fall back").
-ctx_total_size := func(name: Str, ctx: Context) returns I32 {
+ctx_total_size := func(name: Str, ctx: Context) returns USize {
     if name.len().eq(0) { return 0 }
     if ctx.struct_layouts.has(name).not() { return 0 }
     ref sl : StructLayout = ctx.struct_layouts[name]

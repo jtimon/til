@@ -377,7 +377,7 @@ namespace:
 // Whole-type layout. For enums only total_size is meaningful (fields stays
 // empty); the per-variant payload sizing lives in EnumDef.payload_types.
 StructLayout := struct {
-    total_size : I32 = 0
+    total_size : USize = 0
     fields := Vec.new(FieldLayout)
 namespace:
     eq := func(a: StructLayout, b: StructLayout) returns Bool {

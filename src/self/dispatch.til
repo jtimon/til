@@ -1307,7 +1307,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
             if has_payload {
                 mut payload := eval_expr(scope, e.child(1), ctx)
                 mut pdata : Dynamic = 0
-                mut psz : I32 = 0
+                mut psz : USize = 0
                 mut must_free_pdata := false
                 switch payload {
                 case Value.Int(x):     pdata = to_ptr(x); psz = 8
@@ -1352,22 +1352,22 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                     // manual free(own pdata) below is the sole owner.
                     cloned_ei.borrowed = true
                     pdata = to_ptr(cloned_ei.data)
-                    psz = cloned_ei.data_size.cast(I32)
+                    psz = cloned_ei.data_size
                     must_free_pdata = true
                 case Value.Ref(p):     pdata = to_ptr(p); psz = 8
                 case Value.Dynamic(p): pdata = to_ptr(p); psz = 8
                 case Value.Func(f):    pdata = to_ptr(f); psz = 8
                 case:
                 }
-                total_size : I32 = ctx_total_size(enum_name, ctx)
-                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz.cast(USize), total_size.cast(USize))
+                total_size : USize = ctx_total_size(enum_name, ctx)
+                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
                 move(result, tmp, Value.size())
                 if must_free_pdata {
                     free(own pdata)
                 }
             } else {
-                total_size : I32 = ctx_total_size(enum_name, ctx)
-                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size.cast(USize))
+                total_size : USize = ctx_total_size(enum_name, ctx)
+                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
                 move(result, tmp, Value.size())
             }
             return true
@@ -1561,7 +1561,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     if ret_sdef.is_null().not() {
         switch ret_sdef.node_type {
         case NodeType.StructDef:
-            ret_buf = malloc(ctx_total_size(fe.return_type, ctx).to_usize())
+            ret_buf = malloc(ctx_total_size(fe.return_type, ctx))
             ffi_call(fe.cif, fe.fn, ret_buf, arg_ptrs)
         case:
             ffi_call(fe.cif, fe.fn, raw, arg_ptrs)

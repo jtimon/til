@@ -3056,7 +3056,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
 //     size-8 struct embeds a deep struct inline.
 // Enums are not covered here (revisit separately). Mirrors builder's
 // is_pod_struct field rules, plus the size gate.
-PTR_SIZE_BYTES : I32 = 8
+PTR_SIZE_BYTES : USize = 8
 is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len().eq(0) { return false }
     if scope.is_null() { return false }
