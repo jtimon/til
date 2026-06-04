@@ -465,8 +465,8 @@ val_bool := func(v: Bool) returns shallow Value {
 
 ENUM_PAYLOAD_OFFSET : USize = 8
 
-val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: I32, total_enum_size: I32) returns shallow Value {
-    mut alloc_size : USize = total_enum_size.cast(USize)
+val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize) returns shallow Value {
+    mut alloc_size : USize = total_enum_size
     if alloc_size.lt(8) {
         alloc_size = 8
     }
@@ -474,24 +474,24 @@ val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_
     memcpy(data, etag, 4)
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
-            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET), payload_data, payload_size.to_u64())
+            memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET), payload_data, payload_size)
         }
     }
     return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
 }
 
-val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: I32) returns shallow Value {
+val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize) returns shallow Value {
     return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size)
 }
 
-elem_size_for_type := func(type_name: Str) returns I32 {
-    if type_name.eq("I64") { return I64.size().cast(I32) }
-    if type_name.eq("U8") { return U8.size().cast(I32) }
-    if type_name.eq("I16") { return I16.size().cast(I32) }
-    if type_name.eq("U16") { return U16.size().cast(I32) }
-    if type_name.eq("I32") { return I32.size().cast(I32) }
-    if type_name.eq("U32") { return U32.size().cast(I32) }
-    if type_name.eq("Bool") { return Bool.size().cast(I32) }
+elem_size_for_type := func(type_name: Str) returns USize {
+    if type_name.eq("I64") { return I64.size() }
+    if type_name.eq("U8") { return U8.size() }
+    if type_name.eq("I16") { return I16.size() }
+    if type_name.eq("U16") { return U16.size() }
+    if type_name.eq("I32") { return I32.size() }
+    if type_name.eq("U32") { return U32.size() }
+    if type_name.eq("Bool") { return Bool.size() }
     if type_name.eq("Str") { return 24 }
     return 8
 }
@@ -677,7 +677,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                             tag := enum_variant_tag(edef, fname.field_access_name())
                                             if tag.gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, tag, NULL, 0, total_size)
+                                                    return val_enum_flat(sname, tag, NULL, 0, total_size.cast(USize))
                                                 } else {
                                                     return val_i32(tag.cast(I64))
                                                 }
@@ -801,14 +801,14 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                 if enum_has_payloads(tdef) {
                     total_size : I32 = ctx_total_size(type_name, ctx)
                     ref ei : EnumInstance = deref(p)
-                    if ei.is_null() { return val_enum_simple(type_name, 0, total_size) }
+                    if ei.is_null() { return val_enum_simple(type_name, 0, total_size.cast(USize)) }
                     ref etag_ref : Dynamic = ei.data
                     ref etag : I32 = etag_ref
                     mut psz_final : USize = 0
                     if ei.data_size.gte(ENUM_PAYLOAD_OFFSET) {
                         psz_final = ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                     }
-                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET), psz_final.cast(I32), total_size)
+                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET), psz_final, total_size.cast(USize))
                 }
                 ref etag : I32 = p
                 return val_i32(etag.cast(I64))
@@ -2372,11 +2372,11 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
-    data : Dynamic = calloc(alloc_count.cast(U64), esz.to_u64())
+    data : Dynamic = calloc(alloc_count.cast(U64), esz)
     for i in 0..count {
         ref s : Str = argv[offset.add(i)]
         v := parse_cli_arg(s, elem_type, ctx)
-        value_to_buf(ptr_add(data, i.cast(U64).mul(esz.to_u64())), v, elem_type)
+        value_to_buf(ptr_add(data, i.cast(U64).mul(esz)), v, elem_type)
     }
     sz := ctx_total_size(ctx.cached_array_name, ctx)
     inst_data : Dynamic = calloc(1, sz.to_u64())
@@ -2388,7 +2388,7 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, val_u32(count.to_i64()), ctx)
     ref ba_esz_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_size")
     ba_esz_fl := ctx_field_layout(ctx.cached_array_name, "elem_size", ctx)
-    write_field(inst_data, ba_esz_d, ba_esz_fl.offset, ba_esz_fl.size, val_u32(esz.cast(I64)), ctx)
+    write_field(inst_data, ba_esz_d, ba_esz_fl.offset, ba_esz_fl.size, val_u32(esz.to_i64()), ctx)
     ref clone_fn : Value = ns_get(elem_type, "clone", ctx)
     if clone_fn.is_null().not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); ba_ec_fl := ctx_field_layout(ctx.cached_array_name, "elem_clone", ctx); write_field(inst_data, ba_ec_d, ba_ec_fl.offset, ba_ec_fl.size, shallow_copy_value(clone_fn), ctx) }
     ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
@@ -2633,7 +2633,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
                 total_size : I32 = ctx_total_size(ftype, ctx)
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
-                    if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }
+                    if ei.is_null() { return val_enum_simple(ftype, 0, total_size.cast(USize)) }
                     return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size.cast(USize), borrowed = true))
                 }
                 ref bnd_enum : TypeBinding = ctx.scope.get_binding(ftype)

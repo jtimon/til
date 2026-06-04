@@ -1360,14 +1360,14 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case:
                 }
                 total_size : I32 = ctx_total_size(enum_name, ctx)
-                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
+                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz.cast(USize), total_size.cast(USize))
                 move(result, tmp, Value.size())
                 if must_free_pdata {
                     free(own pdata)
                 }
             } else {
                 total_size : I32 = ctx_total_size(enum_name, ctx)
-                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
+                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size.cast(USize))
                 move(result, tmp, Value.size())
             }
             return true
@@ -1419,7 +1419,7 @@ ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
 // false for ffi_types that don't correspond to a primitive shallow
 // value (struct/pointer/etc., caller falls back to the Ptr-default
 // path). type_name is what reinterpret_ptr_value understands.
-priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: I32) returns Bool {
+priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size: USize) returns Bool {
     if atype.ptr_eq(ffi_type_ref("ffi_type_sint64")) { type_name = "I64"; size = 8; return true }
     if atype.ptr_eq(ffi_type_ref("ffi_type_uint8"))  { type_name = "U8";  size = 1; return true }
     if atype.ptr_eq(ffi_type_ref("ffi_type_sint8"))  { type_name = "I8";  size = 1; return true }
@@ -1447,18 +1447,18 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
 // to_i16/to_u8/etc. casts on x86-64 little-endian).
 priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: Dynamic, ctx: Context) returns Bool {
     mut tn := ""
-    mut sz : I32 = 0
+    mut sz : USize = 0
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
     if is_value_ptr(v) {
         narrowed := reinterpret_ptr_value(v, tn, scope, ctx)
         ref payload : Dynamic = val_to_ptr(narrowed)
-        memcpy(dst, payload, sz.to_u64())
+        memcpy(dst, payload, sz)
     } else if tn.eq("F32") {
         tmp : F32 = value_to_f32(v)
         memcpy(dst, tmp, 4)
     } else {
         tmp : U64 = value_to_u64(v)
-        memcpy(dst, tmp, sz.to_u64())
+        memcpy(dst, tmp, sz)
     }
     return true
 }
