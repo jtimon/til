@@ -13,7 +13,7 @@ priv ExtStr := struct {
 FFIEntry := struct {
     ref fn : U8 = NULL
     ref return_type : Str = NULL
-    nparam : I32 = 0
+    nparam : USize = 0
     ref param_shallows : U8 = NULL
     return_is_shallow := false
     ref cif : ffi_cif = NULL
@@ -254,20 +254,20 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
 h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.child(1), ctx)
     bv := narrow_bool_arg(s, e.child(2), ctx)
-    r = val_bool(and(av, bv))
+    r = Value.Boolean(and(av, bv))
     return true
 }
 
 h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.child(1), ctx)
     bv := narrow_bool_arg(s, e.child(2), ctx)
-    r = val_bool(or(av, bv))
+    r = Value.Boolean(or(av, bv))
     return true
 }
 
 h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     bv := narrow_bool_arg(s, e.child(1), ctx)
-    r = val_bool(not(bv))
+    r = Value.Boolean(not(bv))
     return true
 }
 
@@ -323,7 +323,7 @@ h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
-        r = val_f32(i.to_f32())
+        r = Value.Float(i.to_f32())
         return true
     case:
         UNREACHABLE(__LOC__)
@@ -422,8 +422,8 @@ h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     if tn.eq("U16") { r = val_u16(raw.cast(I64)); return true }
     if tn.eq("I32") { r = val_i32(raw.cast(I64)); return true }
     if tn.eq("U32") { r = val_u32(raw.cast(I64)); return true }
-    if tn.eq("I64") { r = val_i64(raw.cast(I64)); return true }
-    if tn.eq("U64") { r = val_u64(raw); return true }
+    if tn.eq("I64") { r = Value.Int(raw.cast(I64)); return true }
+    if tn.eq("U64") { r = Value.Uint64(raw); return true }
     UNREACHABLE(__LOC__)
     return false
 }
@@ -470,7 +470,7 @@ h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 
 h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     cmd := eval_expr(s, e.child(1), ctx)
-    r = val_i64(spawn_cmd(str_view(cmd)))
+    r = Value.Int(spawn_cmd(str_view(cmd)))
     return true
 }
 
@@ -499,7 +499,7 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
 h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     method := eval_str_owned(s, e.child(2), ctx)
-    r = val_bool(ns_get(type_name, method, ctx).is_null().not())
+    r = Value.Boolean(ns_get(type_name, method, ctx).is_null().not())
     return true
 }
 
@@ -590,7 +590,7 @@ h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        r = val_i64(sd.fields.len().to_i64())
+        r = Value.Int(sd.fields.len().to_i64())
     case:
         UNREACHABLE(__LOC__)
     }
@@ -626,7 +626,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
             exit(1)
         }
         ref fd : Declaration = sd.fields[idx.to_usize()]
-        if fd.is_mut { r = val_i64(1) } else { r = val_i64(0) }
+        if fd.is_mut { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
         UNREACHABLE(__LOC__)
     }
@@ -680,7 +680,7 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        r = val_i64(ed.variants.len().to_i64())
+        r = Value.Int(ed.variants.len().to_i64())
     case:
         UNREACHABLE(__LOC__)
     }
@@ -717,9 +717,9 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
         }
         if ed.payload_types.has(idx) {
             ref pt : Str = ed.payload_types[idx]
-            if pt.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
+            if pt.len().gt(0) { r = Value.Int(1) } else { r = Value.Int(0) }
         } else {
-            r = val_i64(0)
+            r = Value.Int(0)
         }
     case:
         UNREACHABLE(__LOC__)
@@ -778,7 +778,7 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        r = val_i64(fd.params.len().to_i64())
+        r = Value.Int(fd.params.len().to_i64())
     case:
         UNREACHABLE(__LOC__)
     }
@@ -808,7 +808,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        if fd.return_type.len().gt(0) { r = val_i64(1) } else { r = val_i64(0) }
+        if fd.return_type.len().gt(0) { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
         UNREACHABLE(__LOC__)
     }
@@ -837,7 +837,7 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        r = val_i64(fd.throw_types.len().to_i64())
+        r = Value.Int(fd.throw_types.len().to_i64())
     case:
         UNREACHABLE(__LOC__)
     }
@@ -988,7 +988,7 @@ h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
     pidv := eval_expr(s, e.child(1), ctx)
     switch pidv {
     case Value.Int(pid):
-        r = val_i64(check_cmd_status(pid))
+        r = Value.Int(check_cmd_status(pid))
         return true
     case:
         UNREACHABLE(__LOC__)
@@ -1011,23 +1011,23 @@ h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
 
 h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
-    r = val_i64(file_mtime(str_view(path)))
+    r = Value.Int(file_mtime(str_view(path)))
     return true
 }
 
 h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     arg := eval_expr(s, e.child(1), ctx)
-    r = val_f32(str_parse_f32(str_view(arg)))
+    r = Value.Float(str_parse_f32(str_view(arg)))
     return true
 }
 
 h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
-    r = val_i64(clock_ms())
+    r = Value.Int(clock_ms())
     return true
 }
 
 h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
-    r = val_i64(get_thread_count())
+    r = Value.Int(get_thread_count())
     return true
 }
 
@@ -1096,13 +1096,13 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
     switch struct_def.node_type {
     case NodeType.StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
-        elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size()))
+        elements : Dynamic = malloc(nfields.add(1).mul(Dynamic.size()))
         for i in 0..nfields {
             ref fd : Declaration = bsf_sdd.fields[i]
             ref ft : ffi_type = field_ffi_type(fd, ctx)
-            memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size())), ft, Dynamic.size())
+            memcpy(ptr_add(elements, i.mul(Dynamic.size())), ft, Dynamic.size())
         }
-        memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size())), 0, Dynamic.size())
+        memset(ptr_add(elements, nfields.mul(Dynamic.size())), 0, Dynamic.size())
         st : Dynamic = malloc(ffi_type.size())
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
@@ -1383,23 +1383,23 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Contex
     else if rtype.eq("U16")   { ref rv : U16 = p;   result = Value.Ushort(rv);   return true }
     else if rtype.eq("I32")   { ref rv : I32 = p;   result = Value.Int32(rv);   return true }
     else if rtype.eq("U32")   { ref rv : U32 = p;   result = Value.Uint32(rv);   return true }
-    else if rtype.eq("U64")   { ref rv : U64 = p;   result = val_u64(rv);            return true }
+    else if rtype.eq("U64")   { ref rv : U64 = p;   result = Value.Uint64(rv);            return true }
     else if rtype.eq("USize") {
         ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
         if usize_name.eq("U32") { ref rv : U32 = p; result = Value.Uint32(rv); return true }
         ref rv : U64 = p
-        result = val_u64(rv)
+        result = Value.Uint64(rv)
         return true
     }
     else if rtype.eq("UPtr") {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         if uptr_name.eq("U32") { ref rv : U32 = p; result = Value.Uint32(rv); return true }
         ref rv : U64 = p
-        result = val_u64(rv)
+        result = Value.Uint64(rv)
         return true
     }
-    else if rtype.eq("F32")   { ref rv : F32 = p;   result = val_f32(rv);            return true }
-    else if rtype.eq("Bool")  { ref rv : Bool = p;  result = val_bool(rv);           return true }
+    else if rtype.eq("F32")   { ref rv : F32 = p;   result = Value.Float(rv);            return true }
+    else if rtype.eq("Bool")  { ref rv : Bool = p;  result = Value.Boolean(rv);           return true }
     return false
 }
 
@@ -1472,8 +1472,8 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     mut alloc_n := nargs
     if alloc_n.eq(0) { alloc_n = 1 }
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
-    args : Dynamic = malloc(alloc_n.cast(U64).mul(8))
-    arg_ptrs : Dynamic = malloc(alloc_n.cast(U64).mul(8))
+    args : Dynamic = malloc(alloc_n.mul(8))
+    arg_ptrs : Dynamic = malloc(alloc_n.mul(8))
     // args / arg_ptrs hold RAW pointers into each arg Value's payload
     // (si.data / ei.data). Those Values must outlive ffi_call, but they are
     // per-iteration locals the garbager would delete (deep) at the end of
@@ -1484,20 +1484,20 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)), ctx)
         mut is_shallow := fe.param_shallows.is_null().not()
-        .and(i.lt(fe.nparam.to_usize()))
+        .and(i.lt(fe.nparam))
         if is_shallow {
-            ref ps : Bool = ptr_add(fe.param_shallows, i.cast(U64))
+            ref ps : Bool = ptr_add(fe.param_shallows, i)
             is_shallow = ps
         }
         if is_shallow {
             // Shallow: store dereferenced value directly
             switch v {
             case Value.Struct(si):
-                write_ptr(ptr_add(arg_ptrs, i.cast(U64).mul(8)), si.data)
+                write_ptr(ptr_add(arg_ptrs, i.mul(8)), si.data)
             case:
-                ref at : Dynamic = ptr_add(fe.arg_types, i.cast(U64).mul(8))
+                ref at : Dynamic = ptr_add(fe.arg_types, i.mul(8))
                 ref atype : Dynamic = deref(at)
-                ref dst : Dynamic = ptr_add(args, i.cast(U64).mul(8))
+                ref dst : Dynamic = ptr_add(args, i.mul(8))
                 if ffi_write_shallow_arg(scope, v, atype, dst, ctx).not() {
                     // Default: pointer-like value
                     switch v {
@@ -1511,7 +1511,7 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
                         write_ptr(dst, NULL)
                     }
                 }
-                write_ptr(ptr_add(arg_ptrs, i.cast(U64).mul(8)), dst)
+                write_ptr(ptr_add(arg_ptrs, i.mul(8)), dst)
             }
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
@@ -1528,24 +1528,24 @@ ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ct
             case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
             case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
             case Value.Ref(pv):
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), deref(pv))
+                write_ptr(ptr_add(args, i.mul(8)), deref(pv))
             case Value.Dynamic(pv):
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), deref(pv))
+                write_ptr(ptr_add(args, i.mul(8)), deref(pv))
             case Value.Func(fv):
                 // Issue #58: pass through function pointer (Value.Func payload
                 // is the function pointer itself, deref reads the actual ptr).
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), deref(fv))
+                write_ptr(ptr_add(args, i.mul(8)), deref(fv))
             case Value.Struct(si):
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), si.data)
+                write_ptr(ptr_add(args, i.mul(8)), si.data)
             case Value.Enum(ei):
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), ei.data)
+                write_ptr(ptr_add(args, i.mul(8)), ei.data)
             case:
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), NULL)
+                write_ptr(ptr_add(args, i.mul(8)), NULL)
             }
             if dp.is_null().not() {
-                write_ptr(ptr_add(args, i.cast(U64).mul(8)), dp)
+                write_ptr(ptr_add(args, i.mul(8)), dp)
             }
-            write_ptr(ptr_add(arg_ptrs, i.cast(U64).mul(8)), ptr_add(args, i.cast(U64).mul(8)))
+            write_ptr(ptr_add(arg_ptrs, i.mul(8)), ptr_add(args, i.mul(8)))
         }
         // Keep this arg Value alive (and its payload, which args/arg_ptrs
         // point into) until after ffi_call; arg_vals owns it now.
@@ -1617,23 +1617,23 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         mut alloc_np := np
         if alloc_np.eq(0) { alloc_np = 1 }
         // Build ffi_type* array (each element is a pointer = 8 bytes)
-        atypes : Dynamic = malloc(alloc_np.cast(U64).mul(8))
+        atypes : Dynamic = malloc(alloc_np.mul(8))
         mut pshallows : Dynamic = 0
         mut has_shallow := false
         for k in 0..np {
             ref pk : Declaration = fd.params[k]
             if pk.own_type.is(OwnType.Shallow) {
-                write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
+                write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
                 has_shallow = true
             } else {
-                write_ptr(ptr_add(atypes, k.cast(U64).mul(8)), ffi_type_ref("ffi_type_pointer"))
+                write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))
             }
         }
         if has_shallow {
-            pshallows = malloc(np.cast(U64))
+            pshallows = malloc(np)
             for k in 0..np {
                 ref pk : Declaration = fd.params[k]
-                ref mut slot : Bool = ptr_add(pshallows, k.cast(U64))
+                ref mut slot : Bool = ptr_add(pshallows, k)
                 slot = pk.own_type.is(OwnType.Shallow)
             }
         }
@@ -1644,7 +1644,7 @@ ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         mut entry := FFIEntry()
         entry.fn = fn
         if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
-        entry.nparam = np.cast(I32)
+        entry.nparam = np
         entry.param_shallows = pshallows
         entry.return_is_shallow = ret_shallow
         entry.cif = cif

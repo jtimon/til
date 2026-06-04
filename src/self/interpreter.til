@@ -432,9 +432,6 @@ lookup_interp_type_def := func(name: Str, ctx: Context) returns ref Expr {
 val_none := func() returns shallow Value {
     return Value.None
 }
-val_i64 := func(v: I64) returns shallow Value {
-    return Value.Int(v)
-}
 val_u8 := func(v: I64) returns shallow Value {
     return Value.Byte(v.to_u8())
 }
@@ -452,15 +449,6 @@ val_i32 := func(v: I64) returns shallow Value {
 }
 val_u32 := func(v: I64) returns shallow Value {
     return Value.Uint32(v.to_u32())
-}
-val_u64 := func(v: U64) returns shallow Value {
-    return Value.Uint64(v)
-}
-val_f32 := func(v: F32) returns shallow Value {
-    return Value.Float(v)
-}
-val_bool := func(v: Bool) returns shallow Value {
-    return Value.Boolean(v)
 }
 
 ENUM_PAYLOAD_OFFSET : USize = 8
@@ -514,10 +502,10 @@ parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Valu
     if type_name.eq("U64") { return Value.Uint64(s.to_u64()) }
     if type_name.eq("USize") { return Value.Uint32(s.to_u32()) }
     if type_name.eq("UPtr") { return Value.Uint64(s.to_u64()) }
-    if type_name.eq("F32") { return val_f32(s.to_f32()) }
+    if type_name.eq("F32") { return Value.Float(s.to_f32()) }
     if type_name.eq("Bool") {
-        if s.eq("true") { return val_bool(true) }
-        if s.eq("false") { return val_bool(false) }
+        if s.eq("true") { return Value.Boolean(true) }
+        if s.eq("false") { return Value.Boolean(false) }
         panic(__LOC__, "cannot parse '", s, "' as Bool (expected true/false)")
     }
     panic(__LOC__, "unsupported CLI argument type '", type_name, "'")
@@ -612,7 +600,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         case: return Value.Int(num_str.to_i64())
         }
     case NodeType.Literal(Literal.Bool(b)):
-        return val_bool(b)
+        return Value.Boolean(b)
     case NodeType.Literal(Literal.Null):
         return Value.Ref(NULL)
     case NodeType.Ident(ident):
@@ -776,8 +764,8 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
             ref v : U64 = p
             return Value.Uint64(v)
         }
-        if type_name.eq("F32") { ref v : F32 = p; return val_f32(v) }
-        if type_name.eq("Bool") { ref v : Bool = p; return val_bool(v) }
+        if type_name.eq("F32") { ref v : F32 = p; return Value.Float(v) }
+        if type_name.eq("Bool") { ref v : Bool = p; return Value.Boolean(v) }
         if type_name.eq("Str") {
             ref sp : Str = p
             // COPY (not _own): sp.c_str belongs to the underlying value the
@@ -2019,15 +2007,15 @@ widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     if is_unsigned.not() { uval = ival.cast(U64) }
     else { ival = uval.cast(I64) }
     if ptype.eq("I64") {
-        if is_unsigned { return val_i64(uval.cast(I64)) }
-        return val_i64(ival)
+        if is_unsigned { return Value.Int(uval.cast(I64)) }
+        return Value.Int(ival)
     }
-    if ptype.eq("U64") { return val_u64(uval) }
+    if ptype.eq("U64") { return Value.Uint64(uval) }
     if ptype.eq("USize") { return val_u32(uval.cast(I64)) }
     if ptype.eq("UPtr") {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         if uptr_name.eq("U32") { return val_u32(uval.cast(I64)) }
-        return val_u64(uval)
+        return Value.Uint64(uval)
     }
     if ptype.eq("U32") {
         if v.is(Value.Byte) { return val_u32(uval.cast(I64)) }
@@ -2372,11 +2360,11 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
-    data : Dynamic = calloc(alloc_count.cast(U64), esz)
+    data : Dynamic = calloc(alloc_count, esz)
     for i in 0..count {
         ref s : Str = argv[offset.add(i)]
         v := parse_cli_arg(s, elem_type, ctx)
-        value_to_buf(ptr_add(data, i.cast(U64).mul(esz)), v, elem_type)
+        value_to_buf(ptr_add(data, i.mul(esz)), v, elem_type)
     }
     sz := ctx_total_size(ctx.cached_array_name, ctx)
     inst_data : Dynamic = calloc(1, sz)
@@ -2623,7 +2611,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
         return Value.Uint64(v)
     }
     if ftype.eq("F32") { ref v : F32 = ptr; return Value.Float(v) }
-    if ftype.eq("Bool") { ref v : Bool = ptr; return val_bool(v) }
+    if ftype.eq("Bool") { ref v : Bool = ptr; return Value.Boolean(v) }
     // Enum field
     ref edef_lookup : Expr = lookup_interp_type_def(ftype, ctx)
     if edef_lookup.is_null().not() {
@@ -2667,7 +2655,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     // Fallback
     ref ptr3 : Dynamic = ptr_add(inst_data, field_offset)
     ref fi : I64 = ptr3
-    return val_i64(fi)
+    return Value.Int(fi)
 }
 
 write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {

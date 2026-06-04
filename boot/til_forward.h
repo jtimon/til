@@ -751,7 +751,7 @@ typedef struct priv___src_self_dispatch_til__ExtStr {
 typedef struct FFIEntry {
     U8 *fn;
     Str *return_type;
-    I32 nparam;
+    U32 nparam;
     U8 *param_shallows;
     Bool return_is_shallow;
     ffi_cif *cif;
@@ -2073,16 +2073,12 @@ void Scope_delete(Scope * self, Bool call_free);
 U32 Scope_size(void);
 Expr * lookup_interp_type_def(Str * name, Context * ctx);
 Value val_none(void);
-Value val_i64(I64 v);
 Value val_u8(I64 v);
 Value val_i8(I64 v);
 Value val_i16(I64 v);
 Value val_u16(I64 v);
 Value val_i32(I64 v);
 Value val_u32(I64 v);
-Value val_u64(U64 v);
-Value val_f32(F32 v);
-Value val_bool(Bool v);
 Value val_enum_flat(Str * enum_name, I32 etag, void * payload_data, U32 payload_size, U32 total_enum_size);
 Value val_enum_simple(Str * enum_name, I32 etag, U32 total_enum_size);
 U32 elem_size_for_type(Str * type_name);

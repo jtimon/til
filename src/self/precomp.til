@@ -465,7 +465,7 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         raw := from_source_form(s)
         return make_str_value(raw.c_str, raw.count, ctx)
     case NodeType.Literal(Literal.Bool(b)):
-        return val_bool(b)
+        return Value.Boolean(b)
     case:
         return val_none()
     }
