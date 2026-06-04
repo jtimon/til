@@ -31,9 +31,9 @@ namespace:
     neg := func(a: I16) returns I16 { return 0.sub(a.cast(I64)).to_i16() }
     /// Absolute value.
     abs := func(a: I16) returns I16 { if a.lt(0) { return I16.neg(a) } return a }
-    and := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
-    or := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
-    xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
+    band := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
+    bor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
+    bxor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     clone := ext_func(val: I16) returns shallow I16 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {

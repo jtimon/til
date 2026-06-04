@@ -4506,14 +4506,22 @@ compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: St
     if compiler.len().eq(0) { compiler = toolchain_command(target, Lang.C) }
     extra := toolchain_extra_args(target, compiler)
 
-    // ASAN: swap -Werror for -Wno-all and add the sanitizer flags. The
-    // generated C is meant to compile clean under -Werror, but the asan
-    // pass occasionally surfaces additional warnings; matching the
-    // historical Makefile recipe avoids spurious failures.
+    // ASAN: keep -Werror but demote return-type to a non-fatal warning,
+    // then add the sanitizer flags. The generated C compiles clean under
+    // -Wall -Wextra -Werror without ASAN, but -fsanitize=address inserts
+    // __asan_* hooks that mutate the CFG enough that GCC can no longer
+    // prove some exhaustive if/else chains never fall off the end of a
+    // non-void function, so it mis-fires -Werror=return-type. Issue #240:
+    // -Wno-error=return-type suppresses just that false positive instead
+    // of disabling the whole -Wall set like the old -Wno-all band-aid;
+    // every other -Wall/-Wextra warning stays a hard error. Non-ASAN
+    // builds keep -Werror=return-type as a real error -- til has no
+    // all-paths-return check of its own, so that is the only safety net
+    // for a genuinely missing return.
     mut werr := " -Werror"
     mut asan_flags := ""
     if asan {
-        werr = " -Wno-all"
+        werr = " -Werror -Wno-error=return-type"
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
 
@@ -4592,12 +4600,17 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     if compiler.len().eq(0) { compiler = toolchain_command(target, Lang.C) }
     extra := toolchain_extra_args(target, compiler)
 
-    // ASAN: swap -Werror for -Wno-all and add the sanitizer flags. Single
-    // cc invocation here, so the flags work for compile and link in one go.
+    // ASAN: keep -Werror but demote return-type to a non-fatal warning,
+    // then add the sanitizer flags. Single cc invocation here, so the
+    // flags work for compile and link in one go. -fsanitize=address
+    // mutates the CFG enough that GCC mis-fires -Werror=return-type on
+    // exhaustive non-void functions; Issue #240 narrows the suppression
+    // to -Wno-error=return-type (see compile_lib) so the rest of -Wall
+    // /-Wextra stays a hard error rather than the old blunt -Wno-all.
     mut werr := " -Werror"
     mut asan_flags := ""
     if asan {
-        werr = " -Wno-all"
+        werr = " -Werror -Wno-error=return-type"
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
 

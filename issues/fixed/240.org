@@ -1,5 +1,46 @@
 # priority: low
-** OPEN #240 Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
+** FIXED #240 Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
+
+   Post-mortem: the ~-Wno-all~ band-aid is gone. ASAN builds now run under
+   ~-Werror -Wno-error=return-type~ in both ~compile_lib~ and ~compile_c~
+   (src/self/builder.til), and ~bin/til_debug~ (Makefile) builds under the
+   full ~-Wall -Wextra -Werror~. Every ~-Wall~/~-Wextra~ warning except
+   ~-Wreturn-type~ stays a hard error on ASAN builds; non-ASAN builds keep
+   ~-Werror=return-type~ unchanged.
+
+   Root cause: with ~-Wall -Wextra -Werror~ the generated C compiles clean,
+   but ~-fsanitize=address~ inserts ~__asan_*~ hooks that mutate the CFG
+   enough that GCC can no longer prove some exhaustive non-void functions
+   never fall off the end, mis-firing ~-Werror=return-type~ on exactly 34
+   functions. Those were the *only* warnings ASAN added; nothing else in
+   ~-Wall~ fired, so disabling the whole set was overkill.
+
+   The recommended fix (option 1, mark ~panic~/~UNREACHABLE~/~TODO~/~exit~
+   noreturn) does NOT work and was rejected after empirical testing: adding
+   ~__attribute__((noreturn))~ to all three til decls + defs left the exact
+   same 34-line warning set. The warnings fire at the function's closing
+   brace, after a dead trailing owned-local (error-context) destructor --
+   not on the synthesized ~UNREACHABLE~ branch, which already ends in an
+   explicit ~return~. So noreturn has nothing to propagate through.
+
+   Option 2 (emit a trailing ~return _default_~) was also rejected: til's
+   typer has no all-paths-return check of its own (verified -- ~func(x:
+   Bool) returns I64 { if x { return 1 } }~ translates to C with no error),
+   so GCC's ~-Werror=return-type~ is til's *only* safety net for a genuinely
+   missing return. Emitting a trailing terminator would silence that check
+   in every build and mask real user bugs.
+
+   Fix: option 3, but narrowed -- demote just ~-Wreturn-type~ to a non-fatal
+   warning under ASAN. This matches the existing ~--prof~ handling
+   (~-Wno-error=return-type~, builder.til), which softens the same warning
+   for the same kind of GCC mis-fire. The ~bin/til_debug~ ~-Wno-all~ was
+   orthogonal (~-O0~, no ASAN) and confirmed unnecessary: ~-O0~ without ASAN
+   compiles clean under ~-Wall -Wextra -Werror~.
+
+   Regression guard: ~make test~ (the default suite) compiles every
+   test/example binary with ~--asan~ through ~compile_c~, so the narrowed
+   ASAN flags are exercised on every default test run; ~make test_asan_full~
+   additionally rebuilds ~bin/til_asan~ under them.
 
    The self-hosted builder swaps ~-Werror~ for ~-Wno-all~ whenever
    ~--asan~ is passed
