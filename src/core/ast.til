@@ -328,13 +328,6 @@ StructDef : StructDef = struct {
     fields := Vec.new(Declaration)
     ns_decls := Vec.new(Declaration)
     c_tag := ""
-    // The type's own name, stamped from the owning Decl by the
-    // interpreter/builder registration passes. Lets a def recover its
-    // name without the (dangling-prone) parent-Decl walk -- e.g.
-    // make_str_value borrows it for StructInstance.struct_name, which
-    // is a `ref` and must point at AST-lifetime storage (issue #239).
-    // Empty for anonymous / not-yet-registered defs.
-    name := ""
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
         return a.fields.len().eq(b.fields.len())
@@ -354,9 +347,6 @@ EnumDef : StructDef = struct {
     // whose payload was declared `const Type`. Appended at the end of
     // the field list to minimise layout disturbance for til_boot.
     payload_consts := Vec.new(Bool)
-    // Mirror of StructDef.name: the enum's own name, stamped by the
-    // registration passes so a def can recover its name directly.
-    name := ""
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len().eq(b.variants.len())

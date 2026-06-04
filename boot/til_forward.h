@@ -404,7 +404,6 @@ typedef struct StructDef {
     Vec fields;
     Vec ns_decls;
     Str c_tag;
-    Str name;
 } StructDef;
 
 
@@ -413,7 +412,6 @@ typedef struct EnumDef {
     Vec variants;
     Map payload_types;
     Vec payload_consts;
-    Str name;
 } EnumDef;
 
 
@@ -912,7 +910,9 @@ typedef struct Context {
     Set ref_dyn_locals;
     Expr *current_fdef;
     Expr *cached_str_def;
+    Str *cached_str_name;
     Expr *cached_array_def;
+    Str *cached_array_name;
     Map interp_type_defs;
     Map dispatch_map;
     Bool dispatch_inited;
@@ -1378,8 +1378,6 @@ Bool is_struct_or_enum(Expr * stmt);
 Bool is_func_decl(Expr * stmt);
 Bool is_def(Expr * stmt);
 Vec * def_ns_decls(Expr * sdef);
-void set_def_name(Expr * sdef, Str * name);
-Str * def_name(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
 I32 enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);

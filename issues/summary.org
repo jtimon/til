@@ -47,16 +47,16 @@
 *** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
+*** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/240.org][#240]] Drop -Wno-all ASAN band-aid via UNREACHABLE noreturn
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
 *** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
-*** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
+*** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
 *** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 *** [[./open/254.org][#254]] codegen: emit a real C switch (jump table) for dense int/char/enum switches
 *** [[./open/255.org][#255]] lexer: richer number literals (hex/binary/octal, digit separators, exponents)
-*** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies
 *** [[./open/56.org][#56]] First-class structs: StructDef as values

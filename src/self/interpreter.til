@@ -2378,7 +2378,7 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
         v := parse_cli_arg(s, elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz)), v, elem_type)
     }
-    ref array_name : Str = def_name(ctx.cached_array_def)
+    ref array_name : Str = ctx.cached_array_name
     sz := ctx_total_size(array_name, ctx)
     inst_data : Dynamic = calloc(1, sz.to_u64())
     ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
@@ -2397,14 +2397,13 @@ build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx
     return make_struct_value(array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
 }
 
-// Cache-only pass: populate ctx.cached_str/array_def and stamp every
-// struct def's own name (set_def_name) without running eval_expr on
-// namespace decl default values. Cheap walk that must run BEFORE
-// precomp_register_fold_scope so make_str_value_view / make_str_value
-// calls from is_known(...) -> expr_to_value can read def_name -> "Str"
-// -- otherwise cleanup_value_payload's struct_name.eq("Str") check
-// fails for the resulting Values and the inner c_str buffers leak
-// (issue #109).
+// Cache-only pass: populate ctx.cached_str/array_def/name without
+// running eval_expr on namespace decl default values. Cheap walk that
+// must run BEFORE precomp_register_fold_scope so make_str_value_view /
+// make_str_value calls from is_known(...) -> expr_to_value see a
+// non-NULL cached_str_name -- otherwise cleanup_value_payload's
+// struct_name.eq("Str") check fails for the resulting Values and the
+// inner c_str buffers leak (issue #109).
 populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     for stmt : Expr in program.children {
         switch stmt.node_type {
@@ -2412,9 +2411,8 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
             if stmt.children.len().eq(0) { continue }
             ref sdef : Expr = stmt.child(0)
             if sdef.node_type.is(NodeType.StructDef).not() { continue }
-            set_def_name(stmt.child(0), dd.name)
-            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0) }
-            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0) }
+            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
+            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
         case:
         }
     }
@@ -2434,10 +2432,9 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             if sdef.node_type.is(NodeType.StructDef).not() {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
-            set_def_name(stmt.child(0), dd.name)
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0) }
-                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0) }
+                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
+                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
             }
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.
@@ -2499,7 +2496,7 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed precomp fold).
     write_u32(ptr_add(inst_data, 12), len)
-    return make_struct_value(def_name(ctx.cached_str_def), ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
 // Like make_str_value but builds a Value.Struct(Str) that VIEWS into
@@ -2512,7 +2509,7 @@ make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns sha
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size())
-    return make_struct_value(def_name(ctx.cached_str_def), ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 
 make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
@@ -2520,7 +2517,7 @@ make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shal
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     write_u32(ptr_add(inst_data, 12), len)
-    return make_struct_value(def_name(ctx.cached_str_def), ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {
     // Top-level Decl + Return so the typer's
