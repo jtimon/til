@@ -296,9 +296,10 @@ Context := struct {
     local_fn_sigs := Map.new(Str, Dynamic)
 
     // #178 builder lookup tables migrated from module-globals. Populated
-    // at build registration time, read throughout codegen.
+    // at build registration time, read throughout codegen. The builder's
+    // struct/enum name->def lookups now reuse the shared interp_type_defs
+    // registry (#246) rather than a private struct_def_exprs map.
     func_defs := Map.new(Str, Dynamic)
-    struct_def_exprs := Map.new(Str, Dynamic)
     funcsig_names := Set.new(Str)
     script_globals := Set.new(Str)
     ref_globals := Set.new(Str)
@@ -435,13 +436,14 @@ Context := struct {
     ref cached_array_def : Expr = NULL
     ref cached_array_name : Str = NULL
 
-    // Interpreter type-def registry: maps every struct/enum name to its
-    // AST def Expr. Populated by interpreter_init_ns, read via
-    // lookup_interp_type_def. This is the rstil-style "external type
-    // map" that lets struct/enum values carry only a heap pointer +
-    // type name and recover their layout by name lookup. Stored as
-    // Map(Str, Dynamic) of malloc'd cells holding the Expr pointer
-    // (same encoding as struct_def_exprs / func_defs) so the field type
+    // Shared struct/enum type-def registry (rstil "external type map"):
+    // maps every struct/enum name to its AST def Expr. Pre-populated at
+    // init, then overwritten from the final AST by interpreter_init_ns
+    // (interpret path) or build_register_lookups (build path); read via
+    // lookup_interp_type_def by every phase. Lets struct/enum values
+    // carry only a heap pointer + type name and recover their layout by
+    // name lookup. Stored as Map(Str, Dynamic) of malloc'd cells holding
+    // the Expr pointer (same encoding as func_defs) so the field type
     // stays in scope at the Context definition in this file.
     interp_type_defs := Map.new(Str, Dynamic)
 

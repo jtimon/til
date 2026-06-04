@@ -877,7 +877,6 @@ typedef struct Context {
     Bool typing_namespace_member;
     Map local_fn_sigs;
     Map func_defs;
-    Map struct_def_exprs;
     Set funcsig_names;
     Set script_globals;
     Set ref_globals;
@@ -1872,7 +1871,6 @@ Bool is_pod_struct(Str * struct_name, Context * ctx);
 Bool is_funcsig_type(Str * name, Context * ctx);
 Bool is_ext_h_type(Str * name);
 Bool is_exported_top_level_global(Expr * stmt);
-Expr * priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Expr * priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
 Str * fa_struct_name(Expr * e);
 Bool priv___src_self_builder_til__builder_fa_is_ptr_with_fname(Str * sname, Str * fname, Context * ctx);

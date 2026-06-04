@@ -232,7 +232,7 @@ is_primitive_type := func(name: Str) returns Bool {
 // emission path recognises the wrap and emits the value directly.
 is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     if enum_name.len().eq(0) { return false }
-    ref ed : Expr = find_struct_def(enum_name, ctx)
+    ref ed : Expr = lookup_interp_type_def(enum_name, ctx)
     if ed.is_null() { return false }
     if ed.node_type.is(NodeType.EnumDef).not() { return false }
     if enum_has_payloads(ed) { return false }
@@ -246,7 +246,7 @@ is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
 priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
     tname := clone_call_type_name(e)
     if tname.len().eq(0) { return false }
-    return is_pod_enum_clone_of(e, find_struct_def(tname, ctx))
+    return is_pod_enum_clone_of(e, lookup_interp_type_def(tname, ctx))
 }
 
 // Matches user-written `<value>.clone()` where the typer's expansion
@@ -324,7 +324,7 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
 is_pod_struct := func(struct_name: Str, ctx: Context) returns Bool {
     if struct_name.len().eq(0) { return false }
     if is_primitive_type(struct_name) { return false }
-    ref sdef : Expr = find_struct_def(struct_name, ctx)
+    ref sdef : Expr = lookup_interp_type_def(struct_name, ctx)
     if sdef.is_null() { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
@@ -382,13 +382,6 @@ is_exported_top_level_global := func(stmt: Expr) returns Bool {
     }
 }
 
-priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
-    ref m : Map = ctx.struct_def_exprs
-    ref slot : Dynamic = m.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return deref(slot)
-}
-
 priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
     ref m : Map = ctx.func_defs
     ref slot : Dynamic = m.get(name)?
@@ -409,7 +402,7 @@ fa_struct_name := func(e: Expr) returns Str {
 }
 
 priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) returns Bool {
-    ref fap_def : Expr = find_struct_def(sname, ctx)
+    ref fap_def : Expr = lookup_interp_type_def(sname, ctx)
     if fap_def.is_null() { return false }
     switch fap_def.node_type {
     case NodeType.StructDef(fap_sdd):
@@ -438,7 +431,7 @@ builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
 }
 
 priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: Context) returns Bool {
-    ref bfn_def : Expr = find_struct_def(sname, ctx)
+    ref bfn_def : Expr = lookup_interp_type_def(sname, ctx)
     if bfn_def.is_null() { return false }
     mut has_ns := false
     mut has_inst := false
@@ -1222,7 +1215,7 @@ emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Context)
     ctor_sname := til_type_name(ctor.expr_til_type())
     ctype := c_type_name(ctor.expr_til_type(), ctor_sname, ctx)
     f.write("("); f.write(ctype); f.write("){")
-    ref pod_def : Expr = find_struct_def(ctor_sname, ctx)
+    ref pod_def : Expr = lookup_interp_type_def(ctor_sname, ctx)
     if pod_def.is_null().not() {
         switch pod_def.node_type {
         case NodeType.StructDef(pod_sdd):
@@ -2501,7 +2494,7 @@ priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
     }
 }
 emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context) {
-    ref ecf_def : Expr = find_struct_def(til_type_name(ctor.expr_til_type()), ctx)
+    ref ecf_def : Expr = lookup_interp_type_def(til_type_name(ctor.expr_til_type()), ctx)
     mut fi : U32 = 0
     for i in 1..ctor.children.len() {
         mut fld_own := OwnType.Shallow
@@ -4782,7 +4775,7 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 sdv : Dynamic = malloc(I64.size())
                 write_ptr(sdv, rhs)
-                ctx.struct_def_exprs.set(own dd.name.clone(), own sdv)
+                ctx.interp_type_defs.set(own dd.name.clone(), own sdv)
                 // Register ns_decls methods into func_defs
                 ref rl_ns : Vec = def_ns_decls(rhs)
                 for d_j : Declaration in rl_ns {
@@ -4825,7 +4818,9 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
 // #135: can't use for prog_idx in 0..2 with ref mut prog here because
 // the clone bug makes stored pointers point to cloned nodes
 build_register_lookups := func(core_program: Expr, program: Expr, ctx: Context) {
-    ctx.struct_def_exprs = Map.new(Str, Dynamic)
+    // interp_type_defs is the shared rstil-style type registry, already
+    // pre-populated at init; the walk below overwrites it from the final
+    // AST (picking up anon/synthesised defs), matching interpreter_init_ns.
     ctx.func_defs = Map.new(Str, Dynamic)
     ctx.stack_locals = Set.new(Str)
     ctx.stack_local_types = Map.new(Str, Str)
@@ -4838,7 +4833,6 @@ build_register_lookups := func(core_program: Expr, program: Expr, ctx: Context) 
 }
 
 build_register_lookups_lp := func(lp: LoadedProgram) {
-    lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
     lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
     lp.ctx.stack_local_types = Map.new(Str, Str)

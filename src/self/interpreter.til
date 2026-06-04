@@ -2440,7 +2440,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             // so readers can replace Declaration.field_struct_def with a name lookup.
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
             // AST gets rebuilt later in the run. The map value is a malloc'd cell
-            // holding the Expr pointer (same encoding as ctx.struct_def_exprs).
+            // holding the Expr pointer (same encoding as ctx.func_defs).
             tdv : Dynamic = malloc(I64.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(own dd.name.clone(), own tdv)
