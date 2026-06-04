@@ -158,7 +158,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Cont
             func_decl.func_type = FuncType.Func
             mut self_pname := "self"
             if field_names.len().eq(0) { self_pname = "_self" }
-            func_decl.params.push(own Declaration(name = self_pname, explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref))
+            func_decl.params.push(own decl_typed(name = self_pname, explicit_type = sname, own_type = OwnType.Ref))
             func_decl.return_type = sname.clone()
             func_decl.variadic_index = -1
             func_decl.kwargs_index = -1
@@ -231,7 +231,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Cont
 
             mut proc_decl := FunctionDef(auto_generated = true)
             proc_decl.func_type = FuncType.Func
-            proc_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Own))
+            proc_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
             // Issue #223: call_free is a primitive (Bool), so emit it as a
             // plain borrowed param (Ref) and let step-1 auto-shallow normalize
             // it to value -- same as a hand-written delete. (An explicit Shallow
@@ -289,7 +289,7 @@ gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Cont
 
                 mut hash_decl := FunctionDef(auto_generated = true)
                 hash_decl.func_type = FuncType.Func
-                hash_decl.params.push(own Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref))
+                hash_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Ref))
                 hash_decl.params.push(own Declaration(name = "hasher", explicit_type = "HashFn", til_type = Type.FuncPtr, own_type = OwnType.Ref))
                 hash_decl.return_type = "U64"
                 hash_decl.variadic_index = -1
@@ -385,7 +385,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
                 if vtype.eq("Dynamic") { payload_own_type = OwnType.Ref }
                 if resolved.is(Type.FuncPtr) { payload_own_type = OwnType.Ref }
                 if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
-                param := Declaration(name = "val", explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = payload_own_type)
+                param := decl_typed(name = "val", explicit_type = vtype, own_type = payload_own_type)
                 func_decl.params.push(own param)
             }
             func_decl.return_type = ename.clone()
@@ -419,8 +419,8 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
 
     mut func_decl := FunctionDef(auto_generated = true)
     func_decl.func_type = FuncType.Func
-    self_param := Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref)
-    other_param := Declaration(name = "other", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref)
+    self_param := decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref)
+    other_param := decl_typed(name = "other", explicit_type = ename, own_type = OwnType.Ref)
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
@@ -503,8 +503,8 @@ generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32,
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
-    fdecl.params.push(own Declaration(name = "other", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "other", explicit_type = ename, own_type = OwnType.Ref))
     fdecl.return_type = "Bool"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -575,7 +575,7 @@ generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: 
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Own))
+    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Own))
     // Issue #223: call_free is a primitive (Bool) -> emit a plain borrowed
     // param (Ref) and let step-1 auto-shallow normalize it to value, matching
     // a hand-written delete. (An explicit Shallow trips the step-2 check.)
@@ -680,7 +680,7 @@ generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: 
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
     fdecl.return_type = "Str"
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -806,7 +806,7 @@ generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
-    fdecl.params.push(own Declaration(name = "self", explicit_type = ename.clone(), til_type = til_type_from_explicit_type(ename), own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
     fdecl.return_type = ename.clone()
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
@@ -1321,7 +1321,7 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
 
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        param := Declaration(name = "self", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), is_mut = true, own_type = OwnType.Ref)
+        param := decl_typed(name = "self", explicit_type = sname, is_mut = true, own_type = OwnType.Ref)
         func_decl.params.push(own param)
         func_decl.variadic_index = -1
         func_decl.kwargs_index = -1
@@ -1388,8 +1388,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1424,8 +1424,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1457,8 +1457,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1488,8 +1488,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1519,8 +1519,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"
@@ -1550,8 +1550,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_body.add_child(own ret)
         mut func_decl := FunctionDef(auto_generated = true)
         func_decl.func_type = FuncType.Func
-        a_param := Declaration(name = "a", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
-        b_param := Declaration(name = "b", explicit_type = sname.clone(), til_type = til_type_from_explicit_type(sname), own_type = OwnType.Ref)
+        a_param := decl_typed(name = "a", explicit_type = sname, own_type = OwnType.Ref)
+        b_param := decl_typed(name = "b", explicit_type = sname, own_type = OwnType.Ref)
         func_decl.params.push(own a_param)
         func_decl.params.push(own b_param)
         func_decl.return_type = "Bool"

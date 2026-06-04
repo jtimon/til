@@ -1300,6 +1300,7 @@ U32 peek_line(priv___src_self_parser_til__Parser * p);
 U32 peek_col(priv___src_self_parser_til__Parser * p);
 Bool builtin_type_from_name(Str * name, Type * out);
 Type * til_type_from_explicit_type(Str * name);
+Declaration * decl_typed(Str * explicit_type, Str * name, Str * doc, Bool is_mut, Bool redundant_mut, Bool is_priv, Bool used, OwnType * own_type);
 void priv___src_self_parser_til__set_decl_type(Declaration * d, Str * name);
 Str * priv___src_self_parser_til__anon_decl_key(Declaration * d);
 Str * priv___src_self_parser_til__anon_def_key(Expr * def);

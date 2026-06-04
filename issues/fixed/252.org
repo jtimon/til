@@ -1,5 +1,34 @@
 # priority: low
-** OPEN #252 Derive Declaration.til_type from explicit_type at construction
+** FIXED #252 Derive Declaration.til_type from explicit_type at construction
+
+  POST-MORTEM
+  Root cause: not a bug -- 49 inline ~Declaration(...)~ constructor sites
+  across the self layer (parser/initer/typer/context) each repeated the
+  mechanical ~til_type = til_type_from_explicit_type(explicit_type)~
+  derivation by hand, duplicating the same call.
+
+  Fix: added a ~decl_typed~ factory that derives the initial ~til_type~
+  from ~explicit_type~ and forwards the remaining fields via named-arg
+  defaults mirroring ~Declaration~'s field defaults. The 49 sites now
+  call ~decl_typed(...)~ and drop the explicit ~til_type~ argument (and
+  the now-redundant ~.clone()~ on the forwarded name/explicit_type, which
+  the factory clones internally).
+
+  Deviation from the recommended plan: the plan proposed moving
+  ~til_type_from_explicit_type~ into ~src/core/ast.til~ and putting the
+  factory there too. That is not viable: since #249 the mapping is backed
+  by ~builtin_type_table~, a module-level ~Map~ global. ~src/core/map.til~
+  imports ~ast~, so ~ast~ is compiled before ~Map~ is defined, and a
+  ~Map~-typed global in ~ast.til~ fails to compile ("unknown type name
+  'Map'"). The factory does not need to be in core: every one of the 49
+  call sites is already a self-layer module that sees
+  ~til_type_from_explicit_type~, so ~decl_typed~ lives next to the mapping
+  in ~src/self/parser.til~. Smaller change, no layering/ordering issue.
+
+  Regression coverage: the existing suite (137/137) exercises every
+  migrated site -- the self compiler is rebuilt from this source and
+  every test compiles declarations through these paths. No observable
+  output change (behaviour-preserving refactor).
 
   Follow-up from #249. At construction time, ~49 sites across the self
   compiler build a ~Declaration~ passing BOTH ~explicit_type~ and the
