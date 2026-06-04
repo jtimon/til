@@ -38,7 +38,7 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Boo
     if b.is_null() { return false }
     if b.is_type_alias { return true }
     if b.is_builtin { return true }
-    if b.struct_def.is_null().not() { return true }
+    if scope.struct_def_of(b.name).is_null().not() { return true }
     ref bfd : Expr = scope.lookup_func(b.name)
     if bfd.is_null().not() {
         if bfd.children.len().eq(0) { return true }
@@ -506,7 +506,8 @@ find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns r
                         case ScopeFind.Found(b):
                             ref bfd : Expr = scope.lookup_func(b.name)
                             if bfd.is_null().not() { return bfd }
-                            if b.struct_def.is_null().not() { return b.struct_def }
+                            ref bsd : Expr = scope.struct_def_of(b.name)
+                            if bsd.is_null().not() { return bsd }
                         case:
                         }
                     case:
@@ -2811,7 +2812,7 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             if scope.lookup_func(ib.name).is_null().not() {
                 expr.set_expr_til_type(Type.FuncPtr)
             }
-            if ib.struct_def.is_null().not() {
+            if scope.struct_def_of(ib.name).is_null().not() {
                 if til_type_name(expr.expr_til_type()).len().eq(0) {
                     ref resolved_name : Str = resolve_type_alias(scope, id_name.ident_name())
                     expr.set_expr_til_type(Type.Custom(resolved_name.clone()))
@@ -3551,7 +3552,7 @@ check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        if b.struct_def.is_null().not() { continue }
+        if scope.struct_def_of(b.name).is_null().not() { continue }
         if scope.lookup_func(b.name).is_null().not() { continue }
         if b.name.len().eq(0) { continue }
         if b.name.starts_with("_") { continue }
@@ -3582,7 +3583,7 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        if is_null(b.struct_def).not() { continue }
+        if is_null(scope.struct_def_of(b.name)).not() { continue }
         if is_null(scope.lookup_func(b.name)).not() { continue }
         if b.name.len().eq(0) { continue }
         if b.name.starts_with("_") { continue }
@@ -3615,8 +3616,9 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
         if b.name.starts_with("_") { continue }
         mut kind := "value"
         if scope.lookup_func(b.name).is_null().not() { kind = "func" }
-        if b.struct_def.is_null().not() {
-            if b.struct_def.node_type.is(NodeType.EnumDef) { kind = "enum" }
+        ref b_sd : Expr = scope.struct_def_of(b.name)
+        if b_sd.is_null().not() {
+            if b_sd.node_type.is(NodeType.EnumDef) { kind = "enum" }
             else { kind = "struct" }
         }
         // Two flavors of mangled priv names land here:
@@ -4092,9 +4094,10 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         ref sname : Str = sdecl.name
         ref existing : TypeBinding = scope.get_binding(sname)
         if existing.is_null().not() {
-            if existing.struct_def.is_null().not() {
-                if existing.struct_def.line.neq(stmt.child(0).line).or(
-                    existing.struct_def.col.neq(stmt.child(0).col).or(
+            ref existing_sd : Expr = scope.struct_def_of(existing.name)
+            if existing_sd.is_null().not() {
+                if existing_sd.line.neq(stmt.child(0).line).or(
+                    existing_sd.col.neq(stmt.child(0).col).or(
                         existing.path.eq(ctx.path).not()
                     )
                 ) {
@@ -4124,8 +4127,8 @@ infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) retu
         else if sname.eq("FunctionDef") { is_builtin = false }
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
         scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set_struct_def(sname, stmt.child(0))
         ref mut b : TypeBinding = scope.get_binding(sname)
-        b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
         b.orig_name = sdecl.orig_name.clone()
@@ -7535,14 +7538,14 @@ reregister_scope_defs := func(body: Expr, scope: TypeScope) {
         case NodeType.Decl(rdecl):
             ref mut rb : TypeBinding = scope.get_binding(rdecl.name)
             if rb.is_null().not() {
-                if rb.struct_def.is_null().not().and(
+                ref rb_old_sd : Expr = scope.struct_def_of(rb.name)
+                if rb_old_sd.is_null().not().and(
                     rstmt.child(0).node_type.is(NodeType.StructDef).or(rstmt.child(0).node_type.is(NodeType.EnumDef))) {
-                        ref old_sd : Expr = rb.struct_def
-                        rb.struct_def = rstmt.child(0)
+                        scope.set_struct_def(rb.name, rstmt.child(0))
                         for bi in 0..scope.bindings.len() {
-                            ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
-                            if b.ptr_eq(rb).not().and(b.struct_def.ptr_eq(old_sd)) {
-                                b.struct_def = rstmt.child(0)
+                            ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+                            if b.ptr_eq(rb).not().and(scope.struct_def_of(b.name).ptr_eq(rb_old_sd)) {
+                                scope.set_struct_def(b.name, rstmt.child(0))
                             }
                         }
                     }
@@ -8388,7 +8391,19 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
                 b.used = true
             }
             if b.is_builtin {
-                if b.struct_def.is_null().not() { return b.type }
+                // A builtin binding is either a builtin TYPE (had a
+                // struct_def) or a builtin ext_func (has a func_def);
+                // never both. The old read here was
+                // `if b.struct_def.is_null().not()`, i.e. "builtin type".
+                // With struct_def removed, test the equivalent "builtin
+                // and NOT a func". lookup_func is shadowing-aware (gates
+                // on the binding's own scope) so it matches the exact
+                // per-binding semantics the struct_def field read had,
+                // unlike a get_struct name-walk which can fall through to
+                // a parent type of the same name. Clone the result: every
+                // type_from_name return path yields an owned Type that the
+                // caller Type_deletes.
+                if scope.lookup_func(b.name).is_null() { return b.type.clone() }
             }
             ref b_fd : Expr = scope.lookup_func(b.name)
             if b_fd.is_null().not() {
@@ -10491,7 +10506,7 @@ expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
         switch sf {
         case ScopeFind.Found(b):
             if scope.lookup_func(b.name).is_null().not() { return false }
-            if b.struct_def.is_null().not() { return false }
+            if scope.struct_def_of(b.name).is_null().not() { return false }
             return true
         case:
             return false

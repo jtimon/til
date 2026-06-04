@@ -570,7 +570,6 @@ typedef struct TypeBinding {
     Bool is_type_alias;
     Bool is_func_decl;
     Str alias_target;
-    Expr *struct_def;
     FuncType func_type;
     Bool is_builtin;
     Bool used;
@@ -590,6 +589,7 @@ struct ScopeFind {
 typedef struct TypeScope {
     Map bindings;
     Map func_defs;
+    Map struct_defs;
     TypeScope *parent;
 } TypeScope;
 
@@ -1338,6 +1338,7 @@ Expr * parse_statement_body(priv___src_self_parser_til__Parser * p);
 Expr * parse(Vec * tokens, Str * source, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
+U64 TypeBinding_hash(TypeBinding * self, HashFn hasher);
 U32 TypeBinding_size(void);
 ScopeFind * ScopeFind_NotFound(void);
 ScopeFind * ScopeFind_Found(TypeBinding * val);
@@ -1351,8 +1352,10 @@ ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
+Expr * TypeScope_struct_def_of(TypeScope * self, Str * name);
 Expr * TypeScope_lookup_func(TypeScope * self, Str * name);
 void TypeScope_set_func_def(TypeScope * self, Str * name, Expr * fdef);
+void TypeScope_set_struct_def(TypeScope * self, Str * name, Expr * sdef);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
 void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);

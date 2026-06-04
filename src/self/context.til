@@ -21,11 +21,12 @@ TypeBinding := struct {
     // func-ptr value's copied func_def cannot tell us on its own.
     is_func_decl := false
     alias_target := ""
-    ref struct_def : Expr = NULL
-    // Issue #147: the dangerous `ref func_def : Expr` borrow into the
-    // parse tree is gone. A binding's FuncDef Expr now lives in the
-    // owning scope's `func_defs` map (set by set_func_def, read via
-    // scope.lookup_func(name)); func_type caches the FuncType so
+    // Issue #147: the dangerous `ref struct_def : Expr` and
+    // `ref func_def : Expr` borrows into the parse tree are both gone.
+    // A binding's StructDef/EnumDef/FuncDef Expr now lives in the owning
+    // scope's struct_defs / func_defs maps (set by set_struct_def /
+    // set_func_def, read via scope.struct_def_of(name) / get_struct(name)
+    // / lookup_func(name)); func_type caches the FuncType so
     // binding_func_type doesn't need the Expr at all.
     func_type := FuncType.Func
     is_builtin := false
@@ -78,6 +79,7 @@ TypeScope := struct {
     // by scope.set_func_def at every binding write site that used to
     // assign b.func_def; readers use scope.lookup_func(name).
     func_defs := Map.new(Str, Dynamic)
+    struct_defs := Map.new(Str, Dynamic)
     ref parent : TypeScope = NULL
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
@@ -106,13 +108,39 @@ namespace:
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
         return binding_func_type(self.get_binding(name))
     }
+    // Issue #147: TYPE-NAME resolution. Fall-through walk: a scope that
+    // binds `name` as a non-type (no struct_defs entry) does NOT block
+    // the lookup from finding a same-named type in a parent scope (e.g.
+    // typing the `Type` enum body binds a payload variable `Primitive`
+    // in the inner scope, and `Type.Primitive(Primitive)` must still
+    // resolve the top-level `Primitive` enum from the parent). This is
+    // the semantic master's get_struct had via `b.struct_def`-then-
+    // fall-through; now it reads the struct_defs map.
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
-        if self.bindings.has(name) {
-            ref b : TypeBinding = self.bindings[name]
-            if b.struct_def.is_null().not() { return b.struct_def }
+        if self.struct_defs.has(name) {
+            return func_defs_lookup_one(self.struct_defs, name)
         }
         if self.parent.is_null().not() {
             return self.parent.get_struct(name)
+        }
+        return NULL
+    }
+    // Issue #147: EXACT-BINDING struct def. Replaces direct
+    // `binding.struct_def` field reads where the caller already holds a
+    // specific binding (from get_binding / find / a bindings iteration)
+    // and asks "is THIS binding a type def?". Gates on the first scope
+    // that binds `name` (mirroring get_binding) and returns that scope's
+    // struct def or NULL -- it must NOT fall through to a parent type of
+    // the same name, or a shadowing local var would be misread as a type.
+    struct_def_of := func(self: TypeScope, name: Str) returns ref Expr {
+        if self.bindings.has(name) {
+            if self.struct_defs.has(name) {
+                return func_defs_lookup_one(self.struct_defs, name)
+            }
+            return NULL
+        }
+        if self.parent.is_null().not() {
+            return self.parent.struct_def_of(name)
         }
         return NULL
     }
@@ -161,6 +189,15 @@ namespace:
         cell : Dynamic = malloc(I64.size())
         write_ptr(cell, fdef)
         self.func_defs.set(own name.clone(), own cell)
+    }
+    // Issue #147: register a binding's StructDef/EnumDef Expr in the
+    // scope-side struct_defs map (the replacement for the removed
+    // ref struct_def field). Same malloc'd-cell pattern as set_func_def
+    // -- the cell is owned by the Map, the Expr lives in the AST.
+    set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr) {
+        cell : Dynamic = malloc(I64.size())
+        write_ptr(cell, sdef)
+        self.struct_defs.set(own name.clone(), own cell)
     }
     is_mut := func(self: TypeScope, name: Str) returns Bool {
         ref b : TypeBinding = self.get_binding(name)
@@ -601,7 +638,11 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
                 }
             }
             if b.is_builtin {
-                if b.struct_def.is_null().not() { return b.type }
+                // Builtin type (had a struct_def) vs builtin ext_func
+                // (has a func_def): test "builtin and not a func", and
+                // clone the owned Type. See the matching note in
+                // typer.til:type_from_name.
+                if scope.lookup_func(b.name).is_null() { return b.type.clone() }
             }
             ref b_fd : Expr = scope.lookup_func(b.name)
             if b_fd.is_null().not() {

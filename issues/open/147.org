@@ -100,23 +100,25 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    Partial:
 
    - Step 5 -- ~Declaration.til_type~ exists and stays in sync with
-     ~explicit_type~ at write sites, and ~243~ ~explicit_type~ read
-     sites across ~src/self/*~ still pivot on the string. The naive
-     "migrate readers, drop ~explicit_type~" plan is the wrong
-     direction: ~explicit_type~ is the parse-time fact, ~til_type~ is
-     the typer-filled cache, and dropping the parse fact while keeping
-     the cache makes the cache the database -- exactly the AST-as-cache
-     antipattern this issue catalogs, and it makes ~Expr.til_type~
-     /harder/ to remove (step 11 wants re-derivation from parse facts +
-     scope, not trust in a typer-mutated cache). Rstil's equivalent
-     ~Declaration.value_type~ works as a single field because the
-     parser writes it directly as ~TCustom(name)~ (the unresolved form)
-     and the typer only refines the classification. The til-shaped
-     step 5 is therefore: have the parser populate ~til_type~ as
-     ~Type.Custom(name)~ at parse time, stop writing ~explicit_type~,
-     migrate readers, then drop ~explicit_type~. Larger than a
-     mechanical reader migration; worth doing only as part of the
-     step-11 push.
+     ~explicit_type~ at write sites (the parser already derives
+     ~til_type~ via ~til_type_from_explicit_type~, #252), and ~198~
+     ~explicit_type~ read sites across ~src/self/*~ still pivot on the
+     string. *Blocked, not mechanical.* The decisive finding: ~til_type~
+     is *lossy* relative to ~explicit_type~ for FuncPtr-typed decls.
+     A FuncPtr param/field/local stores its FuncSig *alias name* in
+     ~explicit_type~ (e.g. ~explicit_type = "MyCmpFn"~) but its
+     ~til_type~ is the payload-less ~Type.FuncPtr~ -- the name is gone.
+     That name is load-bearing: ~is_funcsig_type(dd.explicit_type, ctx)~
+     ([[file:../../src/self/builder.til][src/self/builder.til]] sig-typedef emit) and
+     ~get_binding(fd.explicit_type)~ ([[file:../../src/self/typer.til][src/self/typer.til]] sig
+     resolution) both look the sig up *by that name*. Dropping
+     ~explicit_type~ therefore requires somewhere else to keep the sig
+     alias name -- i.e. a ~Type.FuncPtr~ that carries a name (or the
+     broader FuncSig representation work). That is step 8 / ~[[./58.org][#58]]~
+     territory: step 5 cannot land before the FuncPtr/FuncSig type
+     gains a name payload. (The earlier "wrong direction / cache-as-
+     database" framing still holds for the non-FuncPtr readers, but the
+     FuncPtr name-loss is the hard blocker.)
    - Step 8 -- FuncSig/FuncDef split tracked under ~[[./58.org][#58]]~. Lambdas (~[[./61.org][#61]]~)
      already lift FuncSig-form expressions, so the type-level shape
      exists in flight; the ~FunctionDef~ struct in ~core/ast.til~ still
@@ -155,27 +157,32 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
 
 *** Audit (read/write site counts; remaining dangerous refs after ~fn_sig~ removal)
 
-   **** Dangerous ~ref mut .. : Expr = NULL~ refs
+   **** Dangerous ~ref mut .. : Expr = NULL~ refs -- DONE
 
-   | Field                              | Writes | Reads | Notes                                                                                  |
-   |------------------------------------+--------+-------+----------------------------------------------------------------------------------------|
-   | ~TypeBinding.struct_def~           |      6 |   ~30 | initer + typer write; reads spread across initer/typer/interpreter/dispatch                  |
-   | ~TypeBinding.func_def~             |    ~14 |   ~50 | most reads in typer (callee resolution); initer also reads heavily                           |
+   All AST-borrowing refs on AST/scope structs are now gone:
 
-   ~Declaration.field_struct_def~ is gone as of step 4 (commit
-   ~2417f71~); the defensive ~resolve_field_struct_defs~ /
-   ~reregister_field_struct_defs~ walks went with it.
-   ~TypeBinding.struct_def~ / ~TypeBinding.func_def~ remain as the
-   next big purge.
+   - ~Declaration.field_struct_def~ -- removed in step 4 (~2417f71~);
+     the defensive ~resolve_field_struct_defs~ /
+     ~reregister_field_struct_defs~ walks went with it.
+   - ~FCallData.fn_sig~ -- removed (step 7); ~resolve_fn_sig~ /
+     ~fcall_fn_sig~ name+lookup replacements were the template.
+   - ~TypeBinding.func_def~ -- removed (commit ~1c9265a~). The FuncDef
+     Expr lives in ~scope.func_defs~ (name -> Dynamic cell); readers
+     use ~scope.lookup_func(name)~; ~func_type~ caches the FuncType.
+   - ~TypeBinding.struct_def~ -- removed (commit ~7c5280c~). The
+     StructDef/EnumDef Expr lives in ~scope.struct_defs~; type-name
+     resolution uses ~scope.get_struct(name)~ (fall-through walk),
+     exact-binding "is THIS binding a type?" uses
+     ~scope.struct_def_of(name)~ (gated, no fall-through). The two
+     lookups are distinct on purpose -- collapsing them miscompiled
+     the self-host compiler (a shadowing local read as a type), and a
+     latent ~type_from_name~ alias-return UAF surfaced and was fixed
+     in the same commit.
 
-   First-move ranking (smallest -> biggest), now that steps 3/4/7
-   are done:
-
-   1. *TypeBinding.struct_def* / *TypeBinding.func_def* (~80 reads
-      combined). Largest scope. Discipline: store the name on the
-      binding, look up via ~scope.get_struct(name)~ /
-      ~scope.lookup_func(name)~ at read time. Needed to fully purge
-      AST refs from the scope layer.
+   ~TypeBinding~ now carries no ~ref Expr~ into the parse tree at all.
+   The only remaining AST-as-cache item is step 5
+   (~Declaration.explicit_type~), which is blocked on the FuncPtr
+   name-loss described above (#58 / step 8).
 
    **** ~Expr.til_type~ reads/writes by phase
 

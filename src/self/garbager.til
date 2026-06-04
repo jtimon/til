@@ -128,7 +128,7 @@ collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_prog
         // main itself; skip the usual is_param filter so they get a
         // scope-end delete.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(ctx.typer_in_main_func.not()) { continue }
-        if b.struct_def.is_null().not() { continue }
+        if scope.struct_def_of(b.name).is_null().not() { continue }
         if scope.lookup_func(b.name).is_null().not() { continue }
 
         mut decl_idx : I32 = -1

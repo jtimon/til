@@ -14,7 +14,7 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         existing_find := scope.find(sname)
         switch existing_find {
         case ScopeFind.Found(existing):
-            if existing.struct_def.is_null().not() {
+            if scope.struct_def_of(existing.name).is_null().not() {
                 println(
                     ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: struct '", sname, "' already declared at ",
@@ -43,8 +43,8 @@ register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope)
         else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
 
         scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set_struct_def(sname, stmt.child(0))
         ref mut b : TypeBinding = scope.get_binding(sname)
-        b.struct_def = stmt.child(0)
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
         b.orig_name = sdecl.orig_name.clone()
@@ -314,7 +314,7 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         existing_find := scope.find(ename)
         switch existing_find {
         case ScopeFind.Found(existing):
-            if existing.struct_def.is_null().not() {
+            if scope.struct_def_of(existing.name).is_null().not() {
                 println(
                     ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
                     ": error: enum '", ename, "' already declared at ",
@@ -326,8 +326,8 @@ register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) ret
         }
 
         scope.set(ename, Type.Enum(ename.clone()), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set_struct_def(ename, stmt.child(0))
         ref mut b : TypeBinding = scope.get_binding(ename)
-        b.struct_def = stmt.child(0)
         b.is_priv = edecl.is_priv
         b.orig_name = edecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
@@ -979,7 +979,8 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
         switch find {
         case ScopeFind.Found(target):
             ref tgt_fd : Expr = scope.lookup_func(target.name)
-            if target.struct_def.is_null().and(target.is_builtin.not()) {
+            ref tgt_sd : Expr = scope.struct_def_of(target.name)
+            if tgt_sd.is_null().and(target.is_builtin.not()) {
                 if tgt_fd.is_null() {
                     return
                 }
@@ -990,7 +991,7 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
             scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             if tgt_fd.is_null().not() { scope.set_func_def(sdecl.name, tgt_fd) }
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
-            ab.struct_def = target.struct_def
+            if tgt_sd.is_null().not() { scope.set_struct_def(sdecl.name, tgt_sd) }
             ab.is_func_decl = target.is_func_decl
             ab.is_builtin = target.is_builtin
             ab.is_type_alias = true

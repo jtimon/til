@@ -250,7 +250,8 @@ retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_nam
     ref target_binding : TypeBinding = scope.get_binding(target_name)
     if target_binding.is_null() { return }
     alias_binding.type = target_binding.type.clone()
-    alias_binding.struct_def = target_binding.struct_def
+    ref target_sd : Expr = scope.struct_def_of(target_name)
+    if target_sd.is_null().not() { scope.set_struct_def(alias_name, target_sd) }
     ref target_fd : Expr = scope.lookup_func(target_name)
     if target_fd.is_null().not() {
         scope.set_func_def(alias_name, target_fd)
