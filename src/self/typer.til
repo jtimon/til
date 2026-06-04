@@ -5252,7 +5252,7 @@ replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: E
 make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {
     mut wb := Expr.new(NodeType.Body, line, col)
 
-    mut vd := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), is_mut = var_is_mut)), line, col)
+    mut vd := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = elem_type, is_mut = var_is_mut)), line, col)
     mut cur_ident := Expr.new(ident_node(cur_name), line, col)
     vd.add_child(own cur_ident)
     wb.add_child(own vd)
@@ -5333,11 +5333,11 @@ desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U3
 
     mut block := Expr.new(NodeType.Body, line, col)
 
-    mut end_decl := Expr.new(NodeType.Decl(Declaration(name = end_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type))), line, col)
+    mut end_decl := Expr.new(NodeType.Decl(decl_typed(name = end_name, explicit_type = elem_type)), line, col)
     end_decl.add_child(own end_expr.clone())
     block.add_child(own end_decl)
 
-    mut cur_decl := Expr.new(NodeType.Decl(Declaration(name = cur_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), is_mut = true)), line, col)
+    mut cur_decl := Expr.new(NodeType.Decl(decl_typed(name = cur_name, explicit_type = elem_type, is_mut = true)), line, col)
     cur_decl.add_child(own start_expr.clone())
     block.add_child(own cur_decl)
 
@@ -5476,9 +5476,8 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
                     used = true)
                 get_def.params.push(own kp)
                 for gtn : Str in get_def.throw_types {
-                    mut tp := Declaration(name = err_slot_name(gtn),
-                        explicit_type = gtn.clone(),
-                        til_type = til_type_from_explicit_type(gtn),
+                    mut tp := decl_typed(name = err_slot_name(gtn),
+                        explicit_type = gtn,
                         is_mut = true,
                         own_type = OwnType.Ref,
                         used = true)
@@ -5525,7 +5524,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
-    mut idx_decl := Expr.new(NodeType.Decl(Declaration(name = idx_name.clone(), explicit_type = idx_type.clone(), til_type = til_type_from_explicit_type(idx_type), is_mut = true)), line, col)
+    mut idx_decl := Expr.new(NodeType.Decl(decl_typed(name = idx_name, explicit_type = idx_type, is_mut = true)), line, col)
     mut zero := Expr.new(literal_num_node("0"), line, col)
     idx_decl.add_child(own zero)
     block.add_child(own idx_decl)
@@ -5543,8 +5542,8 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         block.add_child(own kind_decl)
         for gtn : Str in get_throw_types {
             slot_name := "_forin_".concat(gtn).concat("_").concat(counter.to_str())
-            mut slot_decl := Expr.new(NodeType.Decl(Declaration(name = slot_name.clone(),
-                explicit_type = gtn.clone(), til_type = til_type_from_explicit_type(gtn),
+            mut slot_decl := Expr.new(NodeType.Decl(decl_typed(name = slot_name,
+                explicit_type = gtn,
                 is_mut = true)), line, col)
             slot_decl.add_child(own make_default_value_expr(gtn, line, col))
             block.add_child(own slot_decl)
@@ -5563,7 +5562,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
 
     mut forin_own := OwnType.Shallow
     if get_returns_ref { forin_own = OwnType.Ref }
-    mut elem_decl := Expr.new(NodeType.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), til_type = til_type_from_explicit_type(elem_type), own_type = forin_own, is_mut = forin_is_mut)), line, col)
+    mut elem_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = elem_type, own_type = forin_own, is_mut = forin_is_mut)), line, col)
     mut col_ident_get := Expr.new(ident_node(col_name), line, col)
     mut get_call := make_method_call_fcall(own col_ident_get, "get", line, col)
     mut idx_ident_get := Expr.new(ident_node(idx_name), line, col)
@@ -6005,10 +6004,9 @@ priv make_int_lit := func(n: I64, line: U32, col: U32) returns Expr {
 }
 
 priv make_typed_mut_decl := func(name: Str, type_name: Str, init: Expr, line: U32, col: U32) returns Expr {
-    mut dd := Declaration(
-        name = name.clone(),
-        explicit_type = type_name.clone(),
-        til_type = til_type_from_explicit_type(type_name),
+    mut dd := decl_typed(
+        name = name,
+        explicit_type = type_name,
         is_mut = true
     )
     mut decl := Expr.new(NodeType.Decl(dd), line, col)
@@ -6219,9 +6217,8 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                         used = true)
                     efd.params.push(own kp)
                     for tn : Str in efd.throw_types {
-                        mut tp := Declaration(name = err_slot_name(tn),
-                            explicit_type = tn.clone(),
-                            til_type = til_type_from_explicit_type(tn),
+                        mut tp := decl_typed(name = err_slot_name(tn),
+                            explicit_type = tn,
                             is_mut = true,
                             own_type = OwnType.Ref,
                             used = true)

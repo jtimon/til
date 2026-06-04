@@ -583,7 +583,7 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, line: U32
 
 make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Expr {
     mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = bind_name.clone(), explicit_type = vtype.clone(), til_type = til_type_from_explicit_type(vtype), own_type = OwnType.Ref, is_mut = is_mut)), line, col)
+    mut decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, explicit_type = vtype, own_type = OwnType.Ref, is_mut = is_mut)), line, col)
     decl.add_child(own gc)
     return decl
 }
