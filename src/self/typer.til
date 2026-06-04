@@ -7342,8 +7342,10 @@ process_throw_catch_in_func_body := proc(
 
     // Pre-pass: annotate every Throw with its resolved type so the
     // body walk can read stmt.expr_til_type() directly during rewriting.
-    if has_body_throw_catch { annotate_throw_types_in(body, body) }
-    if has_body_throw_catch { annotate_throw_ident_expr_types(body, body) }
+    if has_body_throw_catch {
+        annotate_throw_types_in(body, body)
+        annotate_throw_ident_expr_types(body, body)
+    }
 
     mut pending := Vec.new(Str)
     mut seen := Vec.new(Str)

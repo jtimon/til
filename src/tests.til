@@ -745,8 +745,10 @@ main := proc(args: ..Str) {
             if t.category.eq("ffi") { ffi_ms = ffi_ms.add(t.ms) }
             if t.category.eq("typer") { typer_ms = typer_ms.add(t.ms) }
             if t.category.eq("cli") { cli_ms = cli_ms.add(t.ms) }
-            if t.category.eq("build") { build_ms = build_ms.add(t.ms) }
-            if t.category.eq("build") { build_mem = build_mem.add(t.mem) }
+            if t.category.eq("build") {
+                build_ms = build_ms.add(t.ms)
+                build_mem = build_mem.add(t.mem)
+            }
         }
         pi = pi.add(1)
     }
@@ -797,8 +799,10 @@ main := proc(args: ..Str) {
     println("")
     println("=== Summary ===")
     if en_interp.eq(1) { println("interp:       ", ms_to_str(total_interp_ms)) }
-    if en_run.eq(1) { println("compile:      ", ms_to_str(total_compile_ms)) }
-    if en_run.eq(1) { println("run:          ", ms_to_str(total_run_ms)) }
+    if en_run.eq(1) {
+        println("compile:      ", ms_to_str(total_compile_ms))
+        println("run:          ", ms_to_str(total_run_ms))
+    }
     println("FFI tests:    ", ms_to_str(ffi_ms))
     println("Typer errors: ", ms_to_str(typer_ms))
     println("CLI tests:    ", ms_to_str(cli_ms))
