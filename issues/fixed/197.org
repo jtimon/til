@@ -1,5 +1,28 @@
 # priority: medium
-** OPEN #197 Issue summary generator silently drops some open issues
+** FIXED #197 Issue summary generator silently drops some open issues
+
+Post-mortem: the non-faithful regeneration was an ordering problem, not
+a parse/Vec bug. `list_dir` shelled out to a bare `ls issues/open`, whose
+sort order follows the ambient LC_COLLATE locale. On a UTF-8 host the
+collation ignores the '.' separator, so "24.org" sorts *after* "247.org";
+under POSIX/C it is byte order, so "24.org" sorts *before* "243.org". The
+generated summary.org therefore differed depending on which environment
+last ran the generator, producing spurious diffs (and, in the historical
+UAF era tracked alongside #128/#241, the appearance of dropped issues).
+The dropping itself no longer reproduces -- removing or adding files now
+yields a faithful, complete list -- so the only remaining defect was the
+locale-dependent order.
+
+Fix: pipe the listing through `LC_ALL=C sort -t. -k1,1n` in
+examples/issues.til, keying on the leading integer (the issue number).
+The order is now numeric and locale-independent, so regeneration is
+byte-for-byte deterministic across environments. Verified by running the
+generator three times (identical md5) and confirming all 77 open files
+appear exactly once.
+
+Regression test: `issues_summary` in src/tests.til exercises the
+generator on every `make test`; the deterministic numeric ordering keeps
+its committed summary.org output stable across hosts.
 
 [[file:../../examples/issues.til][examples/issues.til]] regenerates [[./summary.org][issues/summary.org]] from the
 files under ~issues/open/~. Running it deterministically drops a

@@ -1,5 +1,6 @@
 * Open
 ** High
+*** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 *** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
 *** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
@@ -21,9 +22,22 @@
 *** [[./open/241.org][#241]] precomp fold scope keys alias freed AST names -> non-deterministic build UAF
 *** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
 *** [[./open/256.org][#256]] Garbager clones (and leaks) an owned local at its last use instead of moving it
-*** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 ** Medium
 ** Low
+*** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
+*** [[./open/25.org][#25]] Support for the 4 main operative systems
+*** [[./open/54.org][#54]] Explicit capture syntax (closures)
+*** [[./open/55.org][#55]] Lambda functions and first-class bodies
+*** [[./open/56.org][#56]] First-class structs: StructDef as values
+*** [[./open/57.org][#57]] First-class enums: EnumDef as values
+*** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
+*** [[./open/63.org][#63]] User-defined modes
+*** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
+*** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
+*** [[./open/84.org][#84]] mode theme: cross-editor theme generation
+*** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
+*** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
+*** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 *** [[./open/101.org][#101]] Deterministic temp variable names in generated C
 *** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
 *** [[./open/114.org][#114]] Source docs + repl help/introspection
@@ -35,7 +49,6 @@
 *** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
 *** [[./open/193.org][#193]] Add lower-level File cursor APIs
 *** [[./open/195.org][#195]] Consider removing ~mode test~
-*** [[./open/197.org][#197]] Issue summary generator silently drops some open issues
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
 *** [[./open/207.org][#207]] Consider removing Vec.move_from
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
@@ -51,26 +64,12 @@
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
 *** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
-*** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
 *** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 *** [[./open/254.org][#254]] codegen: emit a real C switch (jump table) for dense int/char/enum switches
 *** [[./open/255.org][#255]] lexer: richer number literals (hex/binary/octal, digit separators, exponents)
 *** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
 *** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
-*** [[./open/25.org][#25]] Support for the 4 main operative systems
-*** [[./open/54.org][#54]] Explicit capture syntax (closures)
-*** [[./open/55.org][#55]] Lambda functions and first-class bodies
-*** [[./open/56.org][#56]] First-class structs: StructDef as values
-*** [[./open/57.org][#57]] First-class enums: EnumDef as values
-*** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
-*** [[./open/63.org][#63]] User-defined modes
-*** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
-*** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
-*** [[./open/84.org][#84]] mode theme: cross-editor theme generation
-*** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
-*** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
-*** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 
 * WIP
 ** High
