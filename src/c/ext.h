@@ -336,6 +336,8 @@ void cfile_write_str(void *handle, const Str *s);
 Str *cfile_read_all(void *handle);
 I64 cfile_tell(void *handle);
 void cfile_seek(void *handle, I64 pos);
+void cfile_seek_cur(void *handle, I64 delta);
+void cfile_seek_end(void *handle, I64 delta);
 Str *cfile_read_n(void *handle, I64 count);
 
 // Line input. The til-side binding declares `mut line: Str`, so line

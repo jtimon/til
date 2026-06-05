@@ -79,6 +79,8 @@ is_side_effecting_name := func(name: Str) returns Bool {
     if name.eq("cfile_write_str") { return true }
     if name.eq("cfile_tell") { return true }
     if name.eq("cfile_seek") { return true }
+    if name.eq("cfile_seek_cur") { return true }
+    if name.eq("cfile_seek_end") { return true }
     if name.eq("cfile_read_n") { return true }
     if name.eq("file_mtime") { return true }
     if name.eq("unlink_path") { return true }

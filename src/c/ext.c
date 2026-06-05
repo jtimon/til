@@ -686,6 +686,27 @@ void cfile_seek(void *handle, I64 pos) {
     fseek((FILE *)handle, (long)pos, SEEK_SET);
 }
 
+// Move the cursor by `delta` bytes relative to its current position
+// (delta may be negative).
+void cfile_seek_cur(void *handle, I64 delta) {
+    if (!handle) {
+        fprintf(stderr, "cfile_seek_cur: file not open\n");
+        exit(1);
+    }
+    fseek((FILE *)handle, (long)delta, SEEK_CUR);
+}
+
+// Move the cursor to `delta` bytes relative to the end of the file
+// (delta is typically <= 0; seek_end(0) puts the cursor at EOF, so a
+// following tell() yields the file size).
+void cfile_seek_end(void *handle, I64 delta) {
+    if (!handle) {
+        fprintf(stderr, "cfile_seek_end: file not open\n");
+        exit(1);
+    }
+    fseek((FILE *)handle, (long)delta, SEEK_END);
+}
+
 // Read up to `count` bytes starting at the current cursor position. The
 // returned Str's count reflects how many bytes were actually read (fewer
 // than `count` near end-of-file).

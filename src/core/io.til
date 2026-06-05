@@ -37,6 +37,8 @@ cfile_write_str := ext_proc(handle: Dynamic, s: Str) {}
 cfile_read_all := ext_func(handle: Dynamic) returns Str {}
 cfile_tell := ext_func(handle: Dynamic) returns shallow I64 {}
 cfile_seek := ext_proc(handle: Dynamic, shallow pos: I64) {}
+cfile_seek_cur := ext_proc(handle: Dynamic, shallow delta: I64) {}
+cfile_seek_end := ext_proc(handle: Dynamic, shallow delta: I64) {}
 cfile_read_n := ext_func(handle: Dynamic, shallow count: I64) returns Str {}
 
 /// File handle for reading or writing on disk.
@@ -106,6 +108,21 @@ namespace:
     /// file. Returns `self` so calls chain via UFCS.
     seek := proc(self: File, pos: I64) returns ref File {
         cfile_seek(self.handle, pos)
+        return self
+    }
+
+    /// Move the cursor by `delta` bytes relative to its current position
+    /// (`delta` may be negative). Returns `self` so calls chain via UFCS.
+    seek_cur := proc(self: File, delta: I64) returns ref File {
+        cfile_seek_cur(self.handle, delta)
+        return self
+    }
+
+    /// Move the cursor to `delta` bytes relative to the end of the file
+    /// (`delta` is typically <= 0). `f.seek_end(0)` followed by `f.tell()`
+    /// yields the file size. Returns `self` so calls chain via UFCS.
+    seek_end := proc(self: File, delta: I64) returns ref File {
+        cfile_seek_end(self.handle, delta)
         return self
     }
 
