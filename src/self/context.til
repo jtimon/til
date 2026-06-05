@@ -650,6 +650,10 @@ is_type_metatype := func(t: Type) returns Bool {
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
+    // USize is target-dependent. Keep this in sync with target_usize_name
+    // (currently U32 on every target, per #192); when that becomes
+    // target-driven (U64 on 64-bit), this hardcode must follow or the init
+    // phase and the retargetable alias will disagree.
     if name.eq("USize") { return Type.Primitive(Primitive.U32) }
     if scope.is_null().not() {
         ref b : TypeBinding = scope.get_binding(name)
