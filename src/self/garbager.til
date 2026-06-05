@@ -624,9 +624,19 @@ insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mut new
                                 ref slot_fa : Expr = stmt.children[1]
                                 slot_fa.free_expr_slot_in_place()
                                 stmt.children.set(1, own bare)
-                                free_call := make_free_call(local.name, local.type, stmt)
-                                if free_call.is_null().not() {
-                                    new_ch.push(own free_call)
+                                // A Shallow (value) field deref-copies the move
+                                // source (`field = *local`), so the inner data
+                                // transfers but the heap wrapper must still be
+                                // freed. An Own (pointer) field instead moves the
+                                // pointer itself into the field, which then owns
+                                // the wrapper -- freeing it here would dangle the
+                                // field (issue #256). Only emit the wrapper free
+                                // for the value-field case.
+                                if stmt.fa_own_type(scope).is(OwnType.Own).not() {
+                                    free_call := make_free_call(local.name, local.type, stmt)
+                                    if free_call.is_null().not() {
+                                        new_ch.push(own free_call)
+                                    }
                                 }
                                 continue
                             }
