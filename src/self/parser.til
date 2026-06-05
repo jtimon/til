@@ -116,6 +116,17 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
     return true
 }
 
+// True when `name` is a builtin scalar primitive, derived straight from
+// builtin_type_table (the single source of truth) rather than a parallel
+// hardcoded name list (#115). Checks the looked-up Type's tag in place, so
+// unlike builtin_type_from_name it clones nothing.
+is_builtin_primitive_name := func(name: Str) returns Bool {
+    ref tbl : Map = builtin_type_table
+    ref t : Type = tbl.get(name)?
+    catch (e: KeyNotFound) { return false }
+    return t.is(Type.Primitive)
+}
+
 til_type_from_explicit_type := func(name: Str) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }

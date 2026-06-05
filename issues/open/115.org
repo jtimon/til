@@ -9,21 +9,44 @@
     reorder fields while ~ext_struct~ guarantees declaration order ==
     memory order for the C ABI. This is the "document its contract" half
     of the issue.
-  - First special-casing reduction: builder.til had the full primitive
-    name list (~U8 I8 I16 U16 I32 U32 U64 I64 F32 Bool~) spelled out four
-    times to seed the header-emission "already emitted" sets. Collapsed
-    those into one ~seed_primitive_names~ helper, so adding a primitive is
-    no longer a four-place edit in that file.
+  - Header-emission seed removed entirely. builder.til used to seed the
+    "already emitted" dependency Set with the full primitive name list in
+    four places (briefly centralized as ~seed_primitive_names~). That seed
+    was redundant: the topo dependency tracker only checks aggregate field
+    types (~is_aggregate~ is true only for Struct/Enum, never a primitive)
+    and the enum-payload path already skips primitives via
+    ~is_primitive_type~. So both the helper and all four call sites are
+    gone -- zero primitive list there now.
+  - ~is_primitive_type~ no longer carries its own hardcoded name list. It
+    derives from ~builtin_type_table~ -- the single Map of builtin type
+    names -> Type that the parser already maintains -- via a new
+    non-cloning ~is_builtin_primitive_name~ helper next to that table.
+    Only the target-dependent ~USize~/~UPtr~ aliases (not in the table)
+    stay explicit. Adding a scalar primitive is now one row in
+    ~builtin_type_table~ for the "is it a primitive" question.
 
-*Remaining.* The bulk of the special-casing is still scattered: hundreds
-  of individual ~name.eq("U32")~-style checks and parallel
-  ~switch~/~if~-chains across builder, initer, typer, and dispatch. Each
-  tests one primitive (or a near-full subset) for a property -- builtin
-  scalar, forward-decl skip, C representation, default value, etc. Folding
-  those onto a single source of truth needs a shared cross-file helper
-  (home TBD: core/ast.til or context.til) and care around the ~USize~ /
-  ~UPtr~ aliases that some lists include and others do not. That is the
-  incremental work this issue still tracks.
+*Remaining.* Two flavors of special-casing are left:
+
+  1. More parallel name lists that should also route through
+     ~builtin_type_table~ / ~is_primitive_type~: e.g.
+     ~make_default_value_expr~ (typer) and the ~loader.til~ explicit-type
+     checks each re-list the numerics. These are mechanical follow-ups now
+     that the single source is wired up.
+  2. Per-primitive ~switch~ arms (~Primitive.U8 -> ...~) in builder /
+     dispatch that map each primitive to its genuinely-distinct runtime
+     facts (C type name, byte size, signedness, format). These are the
+     "minimum truly required by runtime representation" the issue talks
+     about; collapsing them means building ONE primitive-metadata table
+     (primitive -> {c_name, size, signed, ...}) and driving codegen from
+     it, rather than N parallel switches.
+
+  No dependency on #264 (enum discriminant width) or any other open issue
+  blocks this. The only standing constraint is the bootstrap rule that the
+  ~Primitive~ enum's tag values stay append-only (ast.til), which does not
+  impede consolidating lookups -- only reordering the enum itself. #192
+  (USize not hardwired to U32) is adjacent: finishing the USize/UPtr
+  special-case removal wants its target-driven sizing, but the rest of
+  #115 proceeds independently.
 
 *Rescoped.* The original premise -- "remove or simplify ~ext_struct~,
 maybe fold it into ordinary ~struct~" -- is wrong and is dropped.
