@@ -1,6 +1,6 @@
 # priority: low
 # category: experiments
-** OPEN #259 desugar if/else chains into switch (Gleam-inspired)
+** OPEN #261 desugar if/else chains into switch (Gleam-inspired)
 
 Experiment inspired by Gleam, which has no ~if/else~ and expresses all
 branching through ~case~. Desugar an ~if/elif/else~ chain into a ~switch~

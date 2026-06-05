@@ -5,7 +5,7 @@
 This is not a bug: ~and~/~or~ are strict ~ext_func~ builtins
   (~src/core/bool.til~), so both operands are always evaluated. That is
   consistent, just not C-style. Short-circuiting is a future feature, and
-  it depends on the lazy-call machinery tracked in #260 (~lazy_func~ /
+  it depends on the lazy-call machinery tracked in #262 (~lazy_func~ /
   ~lazy_proc~): once a call's arguments can be evaluated lazily, ~and~/~or~
   become lazy funcs whose desugaring yields short-circuit control flow, and
   the same machinery enables a variadic, Lisp-style ~and~/~or~.

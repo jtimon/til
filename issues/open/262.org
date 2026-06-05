@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #260 lazy_func / lazy_proc: lazily-evaluated call arguments
+** OPEN #262 lazy_func / lazy_proc: lazily-evaluated call arguments
 
 Introduce ~lazy_func~ and ~lazy_proc~ as new callable kinds (alongside
   ~func~/~proc~ and ~ext_func~/~ext_proc~). When you call a lazy callable,

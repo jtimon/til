@@ -55,7 +55,7 @@ Backends then gain a switch path that did not exist before:
   with two-pass ~make test~ and check ~doc/totals.csv~ for a build-time win.
 
 *** Related
-See #259 (category: experiments) for the inverse direction -- desugaring
+See #261 (category: experiments) for the inverse direction -- desugaring
 if/else INTO switch, inspired by Gleam. A 2-case boolean switch produced
 that way would be trivially C-like and reuse this issue's emission path.
 
