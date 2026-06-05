@@ -10,7 +10,6 @@
 ** Medium
 *** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
 ** Low
-*** [[./open/117.org][#117]] Bool and/or do not short-circuit
 * Cleanups
 ** High
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
@@ -66,6 +65,7 @@
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 *** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
 *** [[./open/114.org][#114]] Source docs + repl help/introspection
+*** [[./open/117.org][#117]] Bool and/or do not short-circuit
 *** [[./open/154.org][#154]] Typer error for unused imports
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
@@ -75,6 +75,7 @@
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
+*** [[./open/260.org][#260]] lazy_func / lazy_proc: lazily-evaluated call arguments
 * Experiments
 ** High
 ** Medium

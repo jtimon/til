@@ -1,0 +1,46 @@
+# priority: low
+# category: features
+** OPEN #260 lazy_func / lazy_proc: lazily-evaluated call arguments
+
+Introduce ~lazy_func~ and ~lazy_proc~ as new callable kinds (alongside
+  ~func~/~proc~ and ~ext_func~/~ext_proc~). When you call a lazy callable,
+  its arguments are NOT evaluated eagerly at the call site; each argument
+  expression is treated as a thunk and is only evaluated if and when the
+  body uses it. Most of the work should live in the desugarer.
+
+Motivation:
+  - It unblocks short-circuiting ~and~/~or~ (#117). With lazy args, ~and~
+    is just:
+        and := lazy_func(a: Bool, b: Bool) returns Bool {
+            if a { return b } else { return false }
+        }
+    and ~b~ is never evaluated when ~a~ is false. ~or~ is the dual.
+  - It enables a variadic, Lisp-style ~and~/~or~ that short-circuits across
+    N operands, e.g. ~and(p, q, r, ...)~ folding to nested ~if~s, instead of
+    the chained ~.and(...).and(...)~ method form.
+
+Sketch of the desugaring approach:
+  - At a lazy call site, the desugarer inlines the callee's body and splices
+    each argument expression in at the points where the corresponding
+    parameter is used (call-by-name / macro-style expansion). For ~and~/~or~
+    this collapses to the ~if~ forms above with no thunk allocation.
+  - Variadic lazy and/or desugar by right-folding the operand list into
+    nested conditionals.
+
+Open questions / honest caveats (these are why this is its own issue, not a
+  trivial rewrite):
+  - "All in the desugarer" only holds when the lazy callee can be inlined at
+    the call site. A first-class lazy func (stored in a var, passed as a
+    funcptr) or a recursive one cannot be fully desugared by inlining; those
+    cases need real thunks/closures or must be disallowed initially.
+  - Side-effect / evaluation-order semantics change by design: an unused lazy
+    argument's side effects never run. This needs to be documented clearly.
+  - Each lazy parameter that is used more than once in the body would
+    re-evaluate its argument unless we bind it once; decide whether lazy means
+    call-by-name (re-eval) or call-by-need (memoized once).
+
+Note: the binary short-circuit ~and~/~or~ from #117 could also be done as a
+  narrow, special-cased desugar rewrite (~a.and(b)~ -> ~if a { b } else
+  { false }~) without any of this general machinery. This issue is the
+  general path that additionally buys user-defined lazy callables and the
+  variadic form; #117 can be satisfied by either.
