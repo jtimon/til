@@ -101,25 +101,41 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    Partial:
 
    - Step 5 -- ~Declaration.til_type~ exists and stays in sync with
-     ~explicit_type~ at write sites (the parser already derives
-     ~til_type~ via ~til_type_from_explicit_type~, #252), and ~198~
-     ~explicit_type~ read sites across ~src/self/*~ still pivot on the
-     string. *Blocked, not mechanical.* The decisive finding: ~til_type~
-     is *lossy* relative to ~explicit_type~ for FuncPtr-typed decls.
-     A FuncPtr param/field/local stores its FuncSig *alias name* in
-     ~explicit_type~ (e.g. ~explicit_type = "MyCmpFn"~) but its
-     ~til_type~ is the payload-less ~Type.FuncPtr~ -- the name is gone.
-     That name is load-bearing: ~is_funcsig_type(dd.explicit_type, ctx)~
-     ([[file:../../src/self/builder.til][src/self/builder.til]] sig-typedef emit) and
-     ~get_binding(fd.explicit_type)~ ([[file:../../src/self/typer.til][src/self/typer.til]] sig
-     resolution) both look the sig up *by that name*. Dropping
-     ~explicit_type~ therefore requires somewhere else to keep the sig
-     alias name -- i.e. a ~Type.FuncPtr~ that carries a name (or the
-     broader FuncSig representation work). That is step 8 / ~[[./58.org][#58]]~
-     territory: step 5 cannot land before the FuncPtr/FuncSig type
-     gains a name payload. (The earlier "wrong direction / cache-as-
-     database" framing still holds for the non-FuncPtr readers, but the
-     FuncPtr name-loss is the hard blocker.)
+     ~explicit_type~ at write sites (the parser derives ~til_type~ via
+     ~til_type_from_explicit_type~, #252). *Now unblocked* -- the
+     FuncPtr name-loss that blocked it is fixed by #58's
+     ~Type.FuncPtrSig: Str~ variant (commit ~44c9faa~): a FuncSig-typed
+     decl's til_type now carries the sig alias name (e.g.
+     ~Type.FuncPtrSig("MyCmpFn")~), recoverable via ~til_type_name(t)~.
+     ~180~ ~explicit_type~ read sites remain; this is the in-progress
+     reader migration.
+
+     Validated migration plan (fidelity proven empirically by a
+     temporary ~decl_type_name(d.til_type).eq(d.explicit_type)~
+     assertion on the param / struct-field / local emit paths, run over
+     the whole compiler self-compile + 142 tests):
+
+     1. *Always-annotated decls* (params, typed struct fields):
+        ~decl_type_name(til_type)~ -- til_type_name for named variants,
+        else til_type_name_c, Unknown -> "" -- reconstructs
+        ~explicit_type~ byte-for-byte at every emit site. These readers
+        migrate cleanly: name-uses -> ~decl_type_name(d.til_type)~;
+        equality-checks -> ~d.til_type.is(Type.X)~ (cheaper than the
+        Str compare, e.g. ~param.til_type.is(Type.Dynamic)~).
+     2. *Inferred locals* (~x := foo()~, no annotation):
+        ~explicit_type == ""~ but ~til_type~ is the *inferred* type --
+        they are semantically distinct. Readers using
+        ~explicit_type.len().eq(0)~ as an "is this annotated?" predicate
+        must NOT switch to ~decl_type_name~ (which returns the inferred
+        name); they migrate to a dedicated "was annotated" flag or stay
+        on a parse-time fact. Each such reader is a per-site judgement.
+
+     First slice landed: the four hot-path interpreter
+     ~param.explicit_type.eq("Dynamic")~ checks now use
+     ~param.til_type.is(Type.Dynamic)~. The bulk (name-uses across
+     builder / interpreter / loader / initer / typer) is a follow-up
+     using ~decl_type_name~, finishing with the ~explicit_type~ field
+     drop once every reader is migrated.
    - Step 8 -- FuncSig/FuncDef split tracked under ~[[./58.org][#58]]~. Lambdas (~[[./61.org][#61]]~)
      already lift FuncSig-form expressions, so the type-level shape
      exists in flight; the ~FunctionDef~ struct in ~core/ast.til~ still

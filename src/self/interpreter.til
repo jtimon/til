@@ -1510,7 +1510,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         mut arg := arg_cell.val.clone()
                         arg = widen_numeric(arg, param.explicit_type, ctx)
                         scope_set_owned(call_scope, param.name, arg)
-                    } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
+                    } else if param.til_type.is(Type.Dynamic).and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
                         // Issue #217: scalar Ident bound to a Dynamic
                         // parameter needs a heap box so downstream
                         // ptr-deref sees a valid pointer.
@@ -1529,7 +1529,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     // a heap-allocated box so that ptr_add / memcpy /
                     // anything-that-reads-bytes downstream sees a real
                     // pointer instead of dereferencing the scalar.
-                    if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
+                    if param.til_type.is(Type.Dynamic).and(is_value_ptr(arg).not()) {
                         arg = box_scalar_to_dynamic(call_scope, arg, param.own_type.is(OwnType.Own).not())
                     }
                     scope_set_owned(call_scope, param.name, arg)
@@ -1740,7 +1740,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         mut arg := arg_cell.val.clone()
                         arg = widen_numeric(arg, param.explicit_type, ctx)
                         scope_set_owned(call_scope2, param.name, arg)
-                    } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
+                    } else if param.til_type.is(Type.Dynamic).and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
                         // Issue #217: scalar Ident bound to a Dynamic
                         // parameter needs a heap box; see the Literal
                         // branch below for context.
@@ -1753,7 +1753,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     mut arg := eval_expr(scope, arg_expr, ctx)
                     arg = widen_numeric(arg, param.explicit_type, ctx)
                     // Issue #217: see the namespace path above.
-                    if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
+                    if param.til_type.is(Type.Dynamic).and(is_value_ptr(arg).not()) {
                         arg = box_scalar_to_dynamic(call_scope2, arg, param.own_type.is(OwnType.Own).not())
                     }
                     scope_set_owned(call_scope2, param.name, arg)
