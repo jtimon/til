@@ -3332,6 +3332,16 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
     ctx.typing_namespace_member = false
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
+        // Issue #54: function captures (closures) are parsed and stored
+        // but not yet executable. Reject them with a clear diagnostic
+        // (and stop before body typing, which would otherwise report the
+        // captured names as undefined symbols). Block captures already
+        // work; function/lambda closures land in a follow-up commit.
+        if fdef.captures.len().gt(0) {
+            expr.type_error("function captures (closures) are not yet implemented (issue #54); block captures '[a] { ... }' work so far", ctx)
+            ctx.typing_namespace_member = ifd_in_ns
+            return
+        }
         // Issue #262: a lazy_func types like a func (cannot call proc,
         // tracks its return type); a lazy_proc types like neither func nor
         // proc here so its body may call procs without the "proc has no

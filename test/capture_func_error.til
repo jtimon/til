@@ -1,0 +1,16 @@
+mode script
+
+// Negative test (issue #54): function/lambda captures are parsed and
+// stored, but executing a closure is not implemented yet. Both the
+// FuncDef form (`[scale]` after `returns`) and the FuncSig form
+// (`[scale]` after the names) must be parsed and then rejected by the
+// typer with a clear "not yet implemented" diagnostic.
+scale := 10
+
+scaled_a := func(a: I64) returns I64 [scale] { return a.mul(scale) }
+scaled_b : func(I64) returns I64 = (a) [scale] { return a.mul(scale) }
+
+main := proc() {
+    println(scaled_a(3).to_str())
+    println(scaled_b(4).to_str())
+}

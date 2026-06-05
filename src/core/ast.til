@@ -185,6 +185,11 @@ FunctionDef := struct {
     // boilerplate references.
     auto_generated := false
     is_enum_variant_ctor := false
+    // Issue #54: explicit capture list for closures, e.g.
+    // `func(a: I64) returns I64 [scale] { ... }`. Each entry is a
+    // Declaration carrying the captured name plus its modifier
+    // (is_mut / own_type). Empty for ordinary (non-capturing) functions.
+    captures := Vec.new(Declaration)
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }

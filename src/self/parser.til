@@ -341,6 +341,33 @@ priv parse_block := proc(mut p: Parser) returns Expr {
     return body
 }
 
+// parse_capture_list: parse `[ [own|shallow] [mut] name, ... ]` into a
+// Vec<Declaration>. The current token must be '['. `allow_modes` enables
+// the own/shallow ownership modifiers (function captures); block captures
+// pass false and reject them. Issue #54.
+priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec {
+    expect_token(p, TokenType.LBracket)
+    mut caps := Vec.new(Declaration)
+    while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
+        mut own_type := OwnType.Ref
+        if check(p, TokenType.KwShallow).or(check(p, TokenType.KwOwn)) {
+            if allow_modes.not() {
+                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                    ": 'own'/'shallow' capture modes on a block are not yet supported (issue #54)")
+            }
+            if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
+            else { advance(p); own_type = OwnType.Own }
+        }
+        mut cap_is_mut := false
+        if check(p, TokenType.KwMut) { advance(p); cap_is_mut = true }
+        cname := expect_text(p, TokenType.Ident)
+        caps.push(own Declaration(name = cname.clone(), is_mut = cap_is_mut, own_type = own_type))
+        if check(p, TokenType.Comma) { advance(p) }
+    }
+    expect_token(p, TokenType.RBracket)
+    return caps
+}
+
 // parse_func_def: current token is func/proc/etc keyword
 parse_func_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
@@ -503,6 +530,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         }
     }
 
+    // Issue #54: optional capture list (FuncDef form), after returns/throws
+    // and before the body: `func(a: I64) returns I64 [scale] { ... }`. The
+    // FuncSig form (`= (names) [caps] { ... }`) parses its captures below.
+    if check(p, TokenType.LBracket) {
+        fd.captures = parse_capture_list(p, true)
+    }
+
     mut def := Expr.new(NodeType.FuncDef(fd), kw_line, kw_col)
 
     if check(p, TokenType.LBrace) {
@@ -537,6 +571,11 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             if pi.lt(sfd.params.len()) {
                 panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                     ": FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
+            }
+            // Issue #54: optional capture list (FuncSig form), after the
+            // param names and before the body: `= (a) [scale] { ... }`.
+            if check(p, TokenType.LBracket) {
+                sfd.captures = parse_capture_list(p, true)
             }
         case:
             UNREACHABLE(__LOC__)
@@ -1885,20 +1924,8 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     // unambiguous capture block. Modifiers: bare (const ref) and `mut`;
     // `own`/`shallow` capture modes on a block are not yet supported.
     if t.type.is(TokenType.LBracket) {
-        advance(p) // consume '['
         mut cbd := CaptureBlockData()
-        while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
-            if check(p, TokenType.KwOwn).or(check(p, TokenType.KwShallow)) {
-                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": 'own'/'shallow' capture modes on a block are not yet supported (issue #54)")
-            }
-            mut cap_is_mut := false
-            if check(p, TokenType.KwMut) { advance(p); cap_is_mut = true }
-            cname := expect_text(p, TokenType.Ident)
-            cbd.captures.push(own Declaration(name = cname.clone(), is_mut = cap_is_mut))
-            if check(p, TokenType.Comma) { advance(p) }
-        }
-        expect_token(p, TokenType.RBracket)
+        cbd.captures = parse_capture_list(p, false)
         mut cb := Expr.new(NodeType.CaptureBlock(cbd), t_line, t_col)
         expect_token(p, TokenType.LBrace)
         cb.add_child(own parse_block(p))

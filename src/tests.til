@@ -543,6 +543,9 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_block_error", "typer",
               "block does not capture", 2,
               format(til_bin, " interpret test/capture_block_error.til"))
+    add_count(tests, "capture_func_error", "typer",
+              "captures (closures) are not yet implemented", 2,
+              format(til_bin, " interpret test/capture_func_error.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
                format(til_bin, " interpret test/qualifier_shallow_local_error.til"))

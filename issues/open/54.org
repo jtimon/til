@@ -11,9 +11,17 @@
      The block stays inline at runtime (no closure machinery), so it
      works in both interpret and compile mode. Tests: test/closures.til
      (positive, both modes) and test/capture_block_error.til (negative).
-   - [ ] Func-def capture lists: parse + store on FunctionDef + typer
-     validation.
-   - [ ] Closure values (fn-ptr + captured environment) in both modes.
+   - [X] Func-def capture lists parse + store: `func(a: I64) returns I64
+     [scale] { ... }` (FuncDef form) and `= (a) [scale] { ... }` (FuncSig
+     form) parse via a shared parse_capture_list helper and store onto
+     FunctionDef.captures (name + is_mut + own_type). For now the typer
+     rejects any capturing function/lambda with a clear "not yet
+     implemented" diagnostic (it does not yet build a closure value).
+     Test: test/capture_func_error.til (negative, both forms).
+   - [ ] Closure values (fn-ptr + captured environment) in both modes:
+     bind captured names at the literal, consult them at call time,
+     replacing the rejection diagnostic. Add capture name/type validation
+     against the enclosing scope here (the lift currently discards it).
    - [ ] copy/own capture modifiers (snapshot/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]
