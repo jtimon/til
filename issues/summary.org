@@ -54,6 +54,7 @@
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
 *** [[./open/265.org][#265]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+*** [[./open/267.org][#267]] Replace dynamic core containers with templated (monomorphized) ones
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies

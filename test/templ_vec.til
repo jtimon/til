@@ -3,7 +3,7 @@ mode test
 // Issue #243: a TEMPLATED Vec generated per element type via a
 // `macro(T: Type) returns StructDef`. Unlike core Vec (type-erased: a
 // single struct that STORES elem_size + elem_clone/elem_delete function
-// pointers and uses a `Dynamic` element api), `make_templ_vec(T)` emits
+// pointers and uses a `Dynamic` element api), `TemplVec(T)` emits
 // one monomorphized struct per T that stores NOTHING about the element
 // type -- no size, no name, no method pointers. The element size and the
 // clone/delete operations are resolved directly at compile time per
@@ -15,7 +15,7 @@ mode test
 // signatures AND bodies -- including body-local `ref x : T` decls,
 // `Self(...)` ctor calls, and `T.method(...)` static calls.
 
-make_templ_vec := macro(T: Type) returns StructDef {
+TemplVec := macro(T: Type) returns StructDef {
     return struct {
         own data : U8 = 0
         count : USize = 0
@@ -87,10 +87,16 @@ make_templ_vec := macro(T: Type) returns StructDef {
     }
 }
 
-TemplVecI64  := make_templ_vec(I64)
-TemplVecStr  := make_templ_vec(Str)
-TemplVecBool := make_templ_vec(Bool)
-TemplVecU8   := make_templ_vec(U8)
+// NOTE: each concrete type is bound to a name first, then used. The
+// fully-inline form the design aims for -- `mut v := TemplVec(Bool).new()`
+// and `mut v : TemplVec(Bool) = ...` -- does not compile yet: the macro
+// only expands at top-level `Name := TemplVec(T)` decl scope, and the
+// type-annotation position needs parser support. Inline instantiation +
+// dedup is tracked as a caveat in the "templated core types" feature issue.
+TemplVecI64  := TemplVec(I64)
+TemplVecStr  := TemplVec(Str)
+TemplVecBool := TemplVec(Bool)
+TemplVecU8   := TemplVec(U8)
 
 // --- I64: typed push/get/len, plus cross-check against a core Vec ---
 
