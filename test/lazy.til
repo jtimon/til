@@ -1,0 +1,100 @@
+mode test
+
+# Issue #262: lazy_func / lazy_proc.
+#
+# A lazy callable's body is a single `return <expr>`. Arguments are spliced
+# in unevaluated at the call site, so a `match` body (which only evaluates
+# the taken arm) yields C-style short-circuit semantics: an unused argument
+# is never evaluated, even when it has side effects.
+
+lazy_and := lazy_func(a: Bool, b: Bool) returns Bool {
+    return match a { case true: b case: false }
+}
+
+lazy_or := lazy_func(a: Bool, b: Bool) returns Bool {
+    return match a { case true: true case: b }
+}
+
+# --- functional correctness ---
+
+test_lazy_and := test() {
+    expect(__LOC__, lazy_and(true, true), "T and T")
+    expect(__LOC__, lazy_and(true, false).not(), "T and F")
+    expect(__LOC__, lazy_and(false, true).not(), "F and T")
+    expect(__LOC__, lazy_and(false, false).not(), "F and F")
+}
+
+test_lazy_or := test() {
+    expect(__LOC__, lazy_or(true, true), "T or T")
+    expect(__LOC__, lazy_or(true, false), "T or F")
+    expect(__LOC__, lazy_or(false, true), "F or T")
+    expect(__LOC__, lazy_or(false, false).not(), "F or F")
+}
+
+# --- nested lazy calls (re-expansion of the spliced body) ---
+
+test_lazy_nested := test() {
+    expect(__LOC__, lazy_and(lazy_or(false, true), true), "(F or T) and T")
+    expect(__LOC__, lazy_or(lazy_and(true, false), false).not(), "(T and F) or F")
+}
+
+# --- decisive short-circuit proof: an unused side-effecting argument must
+#     NOT run. bump() increments a global counter; if it ran when it should
+#     have been short-circuited, the count would be non-zero. ---
+
+mut eval_count := 0
+
+bump := func() returns Bool {
+    eval_count = eval_count.add(1)
+    return true
+}
+
+test_and_short_circuits := test() {
+    eval_count = 0
+    r := lazy_and(false, bump())
+    expect(__LOC__, r.not(), "false and bump() is false")
+    assert_eq(__LOC__, eval_count, 0)
+}
+
+test_or_short_circuits := test() {
+    eval_count = 0
+    r := lazy_or(true, bump())
+    expect(__LOC__, r, "true or bump() is true")
+    assert_eq(__LOC__, eval_count, 0)
+}
+
+test_evaluates_taken_arm := test() {
+    eval_count = 0
+    r := lazy_and(true, bump())
+    expect(__LOC__, r, "true and bump() is true")
+    assert_eq(__LOC__, eval_count, 1)
+}
+
+# --- lazy_proc: like lazy_func but its deferred argument may be a proc call
+#     (a side-effecting expression). ---
+
+lazy_or_p := lazy_proc(a: Bool, b: Bool) returns Bool {
+    return match a { case true: true case: b }
+}
+
+mut log_count := 0
+
+note := proc() returns Bool {
+    println("note ran")
+    log_count = log_count.add(1)
+    return true
+}
+
+test_lazy_proc_short_circuits := test() {
+    log_count = 0
+    r := lazy_or_p(true, note())
+    expect(__LOC__, r, "true or note() is true")
+    assert_eq(__LOC__, log_count, 0)
+}
+
+test_lazy_proc_runs_when_needed := test() {
+    log_count = 0
+    r := lazy_or_p(false, note())
+    expect(__LOC__, r, "false or note() runs note()")
+    assert_eq(__LOC__, log_count, 1)
+}

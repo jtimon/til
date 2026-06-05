@@ -137,3 +137,10 @@
   Prevents memory leaks from intermediate results and simplifies evaluation
   order. Runs inside the typer pass (in infer_body), before the garbager phase
   (src/self/garbager.til).
+
+* TRUE Trailing commas are allowed wherever a comma-separated list appears
+  Anywhere commas separate items, a trailing comma before the closing
+  delimiter is accepted (issue #60). This covers enum variants, struct
+  fields, function/proc/etc parameter lists, function and method call args,
+  struct constructor args, and collection literals. Regression test:
+  test/trailing.til.

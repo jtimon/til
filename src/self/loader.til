@@ -1706,6 +1706,124 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
     Vec.delete(own old, false)
 }
 
+// Issue #262: lazy_func / lazy_proc inlining.
+//
+// A lazy callable's body is a single `return <expr>`. A call f(a1..an) is
+// rewritten here -- before type-checking -- by cloning <expr> and
+// substituting each parameter Ident with the matching argument expression
+// (call-by-name). When <expr> is a `match` (the short-circuit form), only
+// the taken arm is evaluated at run time, so unused arguments never run.
+// The lazy defs themselves are left in place: the typer checks them and
+// (being uncalled after inlining) they emit as ordinary dead functions,
+// exactly like macros.
+//
+// v1 scope: top-level lazy callables, called by bare name, fixed arity,
+// non-recursive. Variadic (Lisp-style) and first-class / recursive lazy
+// callables are deferred (issue #262). A call that does not match this
+// shape is simply left un-inlined and types as an ordinary (eager) call.
+
+priv lazy_substitute_idents := func(mut e: Expr, subs: Map) {
+    if e.is_null() { return }
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        nm := idn.ident_name()
+        if subs.has(nm) {
+            ref repl : Expr = subs[nm]
+            cloned := repl.clone()
+            move(e, cloned, Expr.size().cast(U64))
+            return
+        }
+    case:
+    }
+    for mut c : Expr in e.children {
+        lazy_substitute_idents(c, subs)
+    }
+}
+
+// Returns true if the call was inlined. Leaves `call` untouched (and
+// returns false) for any shape v1 does not handle, so the residual call
+// types as an ordinary eager call.
+priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
+    if fdef.children.len().eq(0) { return false }
+    ref body : Expr = fdef.child(0)
+    if body.node_type.is(NodeType.Body).not() { return false }
+    // Body must be exactly `return <expr>`.
+    if body.children.len().eq(1).not() { return false }
+    ref ret_stmt : Expr = body.child(0)
+    if ret_stmt.node_type.is(NodeType.Return).not() { return false }
+    if ret_stmt.children.len().lt(1) { return false }
+
+    mut subs := Map.new(Str, Expr)
+    mut ok := false
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.variadic_index.lt(0) {
+            nargs := call.children.len().sub(1)
+            if nargs.eq(fd.params.len()) {
+                for j in 0..fd.params.len() {
+                    ref param : Declaration = fd.params[j]
+                    subs.set(own param.name.clone(), own call.child(j.add(1)).clone())
+                }
+                ok = true
+            }
+        }
+    case:
+    }
+    if ok.not() { return false }
+
+    mut cloned := ret_stmt.child(0).clone()
+    lazy_substitute_idents(cloned, subs)
+    move(call, cloned, Expr.size().cast(U64))
+    return true
+}
+
+priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
+    if e.is_null() { return }
+    if depth.gt(256) { return }
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(0)) {
+        ref callee : Expr = e.child(0)
+        mut lname := ""
+        switch callee.node_type {
+        case NodeType.Ident(idn): lname = idn.ident_name()
+        case:
+        }
+        if lname.len().gt(0) {
+            ref fdef : Expr = scope.lookup_func(lname)
+            if fdef.is_null().not() {
+                ft := func_def_type(fdef)
+                if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
+                    if inline_lazy_call(e, fdef) {
+                        // The spliced body may contain further lazy calls
+                        // (in the body itself or in the substituted args).
+                        expand_lazy_in_expr(e, scope, depth.add(1))
+                        return
+                    }
+                }
+            }
+        }
+    }
+    for mut c : Expr in e.children {
+        expand_lazy_in_expr(c, scope, depth.add(1))
+    }
+}
+
+expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for cu : ProgramUnit in lp.core_units {
+            ref ciu : ImportUnit = lp.ctx.imported[cu.path]
+            expand_lazy_in_expr(ciu.ast, lp.ctx.scope, 0)
+        }
+    }
+    for uu : ProgramUnit in lp.units {
+        ref uiu : ImportUnit = lp.ctx.imported[uu.path]
+        expand_lazy_in_expr(uiu.ast, lp.ctx.scope, 0)
+    }
+    for mf : Str in lp.mode_files {
+        ref miu : ImportUnit = lp.ctx.imported[mf]
+        expand_lazy_in_expr(miu.ast, lp.ctx.scope, 0)
+    }
+}
+
 init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
@@ -1769,6 +1887,11 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // initer's scope-free registration helpers) to Struct/Enum now that
     // every name is in scope.
     normalize_scope_bindings(lp.ctx.scope)
+
+    // Issue #262: inline lazy_func / lazy_proc calls before type-checking so
+    // the spliced bodies (and the short-circuit `match` inside them) are
+    // typed and lowered as ordinary code.
+    expand_lazy_calls_in_program(lp)
 
     // Type checking (rstil-style): recursive imports per file.
     mut type_errors : I32 = 0

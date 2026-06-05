@@ -1,6 +1,30 @@
 # priority: low
 # category: features
-** OPEN #262 lazy_func / lazy_proc: lazily-evaluated call arguments
+** WIP #262 lazy_func / lazy_proc: lazily-evaluated call arguments
+
+v1 status (implemented):
+  - ~lazy_func~ / ~lazy_proc~ keywords parse to ~FuncType.LazyFunc~ /
+    ~FuncType.LazyProc~ (lexer, parser, ~FuncType~ enum + name mappers).
+  - A lazy callable's body is a single ~return <expr>~. Calls are inlined
+    by ~expand_lazy_calls_in_program~ (src/self/loader.til), a pre-typer
+    pass: it clones ~<expr>~ and substitutes each parameter Ident with the
+    matching argument expression (call-by-name), then the typer types and
+    lowers the result normally. When ~<expr>~ is a ~match~, only the taken
+    arm runs, so unused args never evaluate -> short-circuit.
+  - The lazy defs themselves are left in place and type/emit as ordinary
+    (uncalled) functions, like macros, so the builder needs no changes.
+  - Regression test: test/lazy.til (functional and/or, nested lazy calls,
+    and decisive short-circuit proofs where an unused side-effecting
+    argument must not run).
+
+Remaining (deferred):
+  - Variadic, Lisp-style ~and~/~or~ folding (and N-ary lazy callables).
+  - First-class lazy callables (stored in a var / funcptr) and recursive
+    lazy callables, which cannot be inlined and need real thunks/closures.
+  - Multi-statement lazy bodies (v1 requires a single ~return <expr>~).
+  - Migrating the core ~and~/~or~ to lazy callables (closes #117).
+  - call-by-need (memoize a reused argument once) vs the current
+    call-by-name (re-evaluate on each use).
 
 Introduce ~lazy_func~ and ~lazy_proc~ as new callable kinds (alongside
   ~func~/~proc~ and ~ext_func~/~ext_proc~). When you call a lazy callable,

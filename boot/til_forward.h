@@ -42,7 +42,9 @@ typedef enum {
     FuncType_TAG_Test,
     FuncType_TAG_Macro,
     FuncType_TAG_ExtFunc,
-    FuncType_TAG_ExtProc
+    FuncType_TAG_ExtProc,
+    FuncType_TAG_LazyFunc,
+    FuncType_TAG_LazyProc
 } FuncType_tag;
 typedef struct FuncType FuncType;
 typedef enum {
@@ -163,6 +165,8 @@ typedef enum {
     TokenType_TAG_KwExtFunc,
     TokenType_TAG_KwExtProc,
     TokenType_TAG_KwExtStruct,
+    TokenType_TAG_KwLazyFunc,
+    TokenType_TAG_KwLazyProc,
     TokenType_TAG_KwReturns,
     TokenType_TAG_KwThrows,
     TokenType_TAG_KwIf,
@@ -1859,6 +1863,10 @@ void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs)
 Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
+void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map * subs);
+Bool priv___src_self_loader_til__inline_lazy_call(Expr * call, Expr * fdef);
+void priv___src_self_loader_til__expand_lazy_in_expr(Expr * e, TypeScope * scope, I32 depth);
+void expand_lazy_calls_in_program(LoadedProgram * lp);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
@@ -2378,6 +2386,8 @@ TokenType *TokenType_KwMacro();
 TokenType *TokenType_KwExtFunc();
 TokenType *TokenType_KwExtProc();
 TokenType *TokenType_KwExtStruct();
+TokenType *TokenType_KwLazyFunc();
+TokenType *TokenType_KwLazyProc();
 TokenType *TokenType_KwReturns();
 TokenType *TokenType_KwThrows();
 TokenType *TokenType_KwIf();
