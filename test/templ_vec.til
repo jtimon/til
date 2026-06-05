@@ -1,9 +1,11 @@
 mode test
 
-// Issue #243: a TEMPLATED Vec generated per element type via a
-// `macro(T: Type) returns StructDef`. Unlike core Vec (type-erased: a
-// single struct that STORES elem_size + elem_clone/elem_delete function
-// pointers and uses a `Dynamic` element api), `TemplVec(T)` emits
+// Issue #243 / #267: a TEMPLATED Vec generated per element type. It is
+// declared with the `struct<T: Type> { ... }` sugar (caveat 1), which the
+// parser desugars to `macro(T: Type) returns StructDef { return struct {...} }`.
+// Unlike core Vec (type-erased: a single struct that STORES elem_size +
+// elem_clone/elem_delete pointers and uses a `Dynamic` element api),
+// `TemplVec(T)` emits
 // one monomorphized struct per T that stores NOTHING about the element
 // type -- no size, no name, no method pointers. The element size and the
 // clone/delete operations are resolved directly at compile time per
@@ -15,75 +17,73 @@ mode test
 // signatures AND bodies -- including body-local `ref x : T` decls,
 // `Self(...)` ctor calls, and `T.method(...)` static calls.
 
-TemplVec := macro(T: Type) returns StructDef {
-    return struct {
-        own data : U8 = 0
-        count : USize = 0
-        cap : USize = 0
+TemplVec := struct<T: Type> {
+    own data : U8 = 0
+    count : USize = 0
+    cap : USize = 0
 
-    namespace:
-        new := func() returns Self {
-            return Self(data = malloc(T.size().cast(U64)), cap = 1)
+namespace:
+    new := func() returns Self {
+        return Self(data = malloc(T.size().cast(U64)), cap = 1)
+    }
+
+    len := func(self: Self) returns USize { return self.count }
+
+    push := func(mut self: Self, own val: T) {
+        if self.count.eq(self.cap) {
+            new_cap := self.cap.mul(2)
+            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+            self.cap = new_cap
         }
+        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), val, T.size().cast(U64))
+        // Ownership moved into the buffer: zero `val` so its scope-end
+        // auto-delete is a no-op (same trick as Vec.push_take).
+        memset(val, 0, T.size().cast(U64))
+        self.count = self.count.add(1)
+    }
 
-        len := func(self: Self) returns USize { return self.count }
-
-        push := func(mut self: Self, own val: T) {
-            if self.count.eq(self.cap) {
-                new_cap := self.cap.mul(2)
-                self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
-                self.cap = new_cap
-            }
-            memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-            // Ownership moved into the buffer: zero `val` so its scope-end
-            // auto-delete is a no-op (same trick as Vec.push_take).
-            memset(val, 0, T.size().cast(U64))
-            self.count = self.count.add(1)
+    get := func(self: Self, i: USize) returns ref T throws OutOfBounds {
+        if i.gte(self.count) {
+            throw OutOfBounds(msg = format(__LOC__, ":TemplVec.get: index ", i.to_str(),
+                  " out of bounds (len ", self.count.to_str(), ")"))
         }
+        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+    }
 
-        get := func(self: Self, i: USize) returns ref T throws OutOfBounds {
-            if i.gte(self.count) {
-                throw OutOfBounds(msg = format(__LOC__, ":TemplVec.get: index ", i.to_str(),
-                      " out of bounds (len ", self.count.to_str(), ")"))
-            }
-            return ptr_add(self.data, i.mul(T.size()).cast(U64))
+    // Drop the existing element via T.delete, then overwrite. For POD
+    // T (I64/Bool/U8) T.delete is a no-op; for Str it frees the c_str.
+    set := func(mut self: Self, i: USize, own val: T) {
+        if i.gte(self.count) {
+            panic(__LOC__, "TemplVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
+        T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+        memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
+        memset(val, 0, T.size().cast(U64))
+    }
 
-        // Drop the existing element via T.delete, then overwrite. For POD
-        // T (I64/Bool/U8) T.delete is a no-op; for Str it frees the c_str.
-        set := func(mut self: Self, i: USize, own val: T) {
-            if i.gte(self.count) {
-                panic(__LOC__, "TemplVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
-            }
+    clear := func(mut self: Self) {
+        for i in 0..self.count {
             T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
-            memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-            memset(val, 0, T.size().cast(U64))
         }
+        self.count = 0
+    }
 
-        clear := func(mut self: Self) {
-            for i in 0..self.count {
-                T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
-            }
-            self.count = 0
-        }
+    delete := func(own self: Self, call_free: Bool = true) {
+        Self.clear(self)
+        free(own self.data)
+        if call_free { free(own self) }
+    }
 
-        delete := func(own self: Self, call_free: Bool = true) {
-            Self.clear(self)
-            free(own self.data)
-            if call_free { free(own self) }
+    clone := func(self: Self) returns Self {
+        new_data : Dynamic = malloc(self.cap.mul(T.size()).cast(U64))
+        for i in 0..self.count {
+            ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
+            mut cloned : T = src.clone()
+            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
+            // ownership of cloned's heap (if any) moves into the buffer
+            memset(cloned, 0, T.size().cast(U64))
         }
-
-        clone := func(self: Self) returns Self {
-            new_data : Dynamic = malloc(self.cap.mul(T.size()).cast(U64))
-            for i in 0..self.count {
-                ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
-                mut cloned : T = src.clone()
-                memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
-                // ownership of cloned's heap (if any) moves into the buffer
-                memset(cloned, 0, T.size().cast(U64))
-            }
-            return Self(data = new_data, count = self.count, cap = self.cap)
-        }
+        return Self(data = new_data, count = self.count, cap = self.cap)
     }
 }
 

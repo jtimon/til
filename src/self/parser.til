@@ -654,6 +654,28 @@ priv enumdef_of := func(def: Expr) returns ref EnumDef {
     }
 }
 
+// Issue #267 (caveat 1): `Name := struct<T: Type, ...> { BODY }` is sugar
+// for `Name := macro(T: Type, ...) returns StructDef { return struct { BODY } }`.
+// parse_struct_def collects the optional `<...>` params right after the
+// `struct` keyword; this wraps the parsed StructDef literal into that macro,
+// so the rest of the pipeline (init expansion, inline instantiation, dedup)
+// treats it identically to a hand-written type-gen macro.
+priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec, line: U32, col: U32) returns Expr {
+    mut fd := FunctionDef()
+    fd.func_type = FuncType.Macro
+    fd.return_type = "StructDef"
+    for gp : Declaration in gparams {
+        fd.params.push(own gp.clone())
+    }
+    mut def := Expr.new(NodeType.FuncDef(fd), line, col)
+    mut body := Expr.new(NodeType.Body, line, col)
+    mut ret := Expr.new(NodeType.Return, line, col)
+    ret.add_child(own sdef)
+    body.add_child(own ret)
+    def.add_child(own body)
+    return def
+}
+
 // parse_struct_def: current token is 'struct' (or '{' for ext_struct)
 // c_tag: "" = normal struct (advance past 'struct' keyword)
 //        "@anon" = ext_struct anonymous (no struct tag)
@@ -669,6 +691,31 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     if is_ext {
         sdd.c_tag = c_tag.clone()
     }
+
+    // Issue #267 (caveat 1): optional generic params `<T: Type, ...>` right
+    // after `struct`. When present, the whole def is wrapped into a
+    // type-gen macro (see wrap_struct_def_in_macro) at the end.
+    mut gparams := Vec.new(Declaration)
+    mut is_generic := false
+    if is_ext.not().and(check(p, TokenType.Lt)) {
+        is_generic = true
+        advance(p) // consume '<'
+        while check(p, TokenType.Gt).not().and(check(p, TokenType.Eof).not()) {
+            gpname := expect_text(p, TokenType.Ident)
+            mut gp := Declaration(is_mut = false, own_type = OwnType.Ref)
+            gp.name = gpname.clone()
+            if check(p, TokenType.Colon) {
+                advance(p)
+                set_decl_type(gp, parse_type_ref(p))
+            } else {
+                set_decl_type(gp, "Type")
+            }
+            gparams.push(own gp)
+            if check(p, TokenType.Comma) { advance(p) }
+        }
+        expect_token(p, TokenType.Gt)
+    }
+
     expect_token(p, TokenType.LBrace)
 
     // Save outer pending_doc so a /// run inside the struct body doesn't
@@ -746,6 +793,9 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     }
     expect_token(p, TokenType.RBrace)
     p.pending_doc = saved_doc.clone()
+    if is_generic {
+        return wrap_struct_def_in_macro(own def.clone(), gparams, kw_line, kw_col)
+    }
     return def
 }
 

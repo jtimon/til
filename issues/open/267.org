@@ -10,6 +10,12 @@
 
    *** Progress
 
+   - Caveat 1 (`struct<T>` sugar): DONE. `Name := struct<T: Type, ...> { BODY }`
+     is parsed (parser.til, parse_struct_def + wrap_struct_def_in_macro) and
+     desugars to `Name := macro(T: Type, ...) returns StructDef { return
+     struct { BODY } }`, so it reuses the whole expansion/instantiation/dedup
+     path. Multi-param works (`struct<K: Type, V: Type>`). test/templ_vec.til
+     now declares TemplVec with the sugar.
    - Caveat 2 (expression-position): DONE. Inline instantiation works for
      value/receiver positions -- `mut v := TemplVec(Bool).new()` compiles
      in both interpret and build modes (test/templ_vec.til now uses the

@@ -1349,6 +1349,7 @@ Expr * parse_func_def(priv___src_self_parser_til__Parser * p);
 Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_til__Parser * p, Bool member_priv);
 StructDef * priv___src_self_parser_til__structdef_of(Expr * def);
 EnumDef * priv___src_self_parser_til__enumdef_of(Expr * def);
+Expr * priv___src_self_parser_til__wrap_struct_def_in_macro(Expr * sdef, Vec * gparams, U32 line, U32 col);
 Expr * parse_struct_def(priv___src_self_parser_til__Parser * p, Str * c_tag);
 Expr * parse_interface_def(priv___src_self_parser_til__Parser * p);
 Expr * parse_enum_def(priv___src_self_parser_til__Parser * p);
