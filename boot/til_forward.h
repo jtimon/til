@@ -161,6 +161,7 @@ typedef enum {
     TokenType_TAG_KwEnum,
     TokenType_TAG_KwNamespace,
     TokenType_TAG_KwInterface,
+    TokenType_TAG_KwImplements,
     TokenType_TAG_KwFunc,
     TokenType_TAG_KwProc,
     TokenType_TAG_KwTest,
@@ -417,6 +418,7 @@ typedef struct StructDef {
     Str c_tag;
     Bool is_interface;
     Bool interface_ns_marker;
+    Str implements_name;
 } StructDef;
 
 
@@ -1596,6 +1598,7 @@ void infer_set_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * c
 Bool priv___src_self_typer_til__expr_uses_self_field(Expr * e, Str * field_name);
 void priv___src_self_typer_til__check_user_delete_frees_own_fields(Str * struct_name, Expr * sdef, Context * ctx);
 void priv___src_self_typer_til__typer_resolve_enum_payload_types(EnumDef * edef, TypeScope * scope, Context * ctx);
+Bool priv___src_self_typer_til__interface_method_conforms(Str * iface_name, Str * impl_name, Expr * iface_fd, Expr * impl_fd);
 void infer_type_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
 Bool is_shallow_struct(Str * type_name, TypeScope * scope, Context * ctx);
 Bool is_auto_shallow_type(Type * t, Str * type_name, TypeScope * scope, Context * ctx);
@@ -2425,6 +2428,7 @@ TokenType *TokenType_KwStruct();
 TokenType *TokenType_KwEnum();
 TokenType *TokenType_KwNamespace();
 TokenType *TokenType_KwInterface();
+TokenType *TokenType_KwImplements();
 TokenType *TokenType_KwFunc();
 TokenType *TokenType_KwProc();
 TokenType *TokenType_KwTest();

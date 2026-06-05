@@ -1,6 +1,28 @@
 # priority: medium
 # category: features
-** OPEN #251 `interface` keyword: an abstract-class-like contract, desugars to a fieldless struct
+** FIXED #251 `interface` keyword: an abstract-class-like contract, desugars to a fieldless struct
+
+   FIXED. Implemented incrementally: the ~interface~ keyword (desugars to a
+   fieldless StructDef), abstract-class member kinds (~ext_func~/~ext_proc~
+   = abstract, ~func~/~proc~ = concrete default), the no-fields and
+   no-~namespace:~ rules (typer-enforced), and ~struct implements Iface
+   { ... }~ conformance: the typer (interface_method_conforms /
+   infer_type_def_expr) verifies a conforming struct provides every abstract
+   method the interface lists, with a matching signature -- the interface's
+   own name is "Self" and substitutes to the implementing type.
+
+   Regression tests: test/interfaces.til (positive -- abstract ext_func
+   methods, a callable concrete default, and ~Circle implements Drawable~
+   with a callable provided method, on both backends); test/typer_errors.til
+   (interface field / namespace / bad-kind rejections, and the implements
+   missing-method / wrong-signature / not-an-interface rejections).
+
+   Out of scope, deferred to a future issue: dynamic dispatch / vtables and
+   the *runtime* inheritance of concrete default methods -- i.e. an
+   interface-typed value that erases the concrete type and dispatches to the
+   right implementation. Conformance here is a compile-time check only.
+
+   --- Original issue below ---
 
    A top-level type keyword, ~interface~, modelled on Java interfaces and
    C++ abstract classes. An interface is a NAMED, fieldless contract of

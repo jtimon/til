@@ -673,3 +673,26 @@ namespace:
 TErrInterfaceBadKind := interface {
     t := test() {}
 }
+
+// #251: `implements` conformance. An interface for the cases below.
+TErrConfIface := interface {
+    must := ext_func(self: TErrConfIface) returns I64 {}
+}
+
+// missing abstract method: TErrConfMissing implements TErrConfIface but
+// does not provide `must`.
+TErrConfMissing := struct implements TErrConfIface {
+    x := 0
+}
+
+// wrong signature: provides `must` but returns Str, not I64.
+TErrConfBadSig := struct implements TErrConfIface {
+namespace:
+    must := func(_self: TErrConfBadSig) returns Str { return "" }
+}
+
+// implements a non-interface (a plain struct).
+TErrConfNotIface := struct { y := 0 }
+TErrConfImplNonIface := struct implements TErrConfNotIface {
+    z := 0
+}

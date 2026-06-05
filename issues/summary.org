@@ -51,7 +51,6 @@
 ** Medium
 *** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
-*** [[./open/251.org][#251]] `interface` keyword: an abstract-class-like contract, desugars to a fieldless struct
 *** [[./open/267.org][#267]] Replace dynamic core containers with templated (monomorphized) ones
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

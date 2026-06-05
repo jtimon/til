@@ -22,6 +22,15 @@ Drawable := interface {
     label := func(_self: Drawable) returns Str { return "shape" }
 }
 
+// Circle conforms to Drawable: it provides the abstract `draw`. The typer
+// verifies this at the struct definition; the interface's `self: Drawable`
+// matches `self: Circle` by Self-substitution.
+Circle := struct implements Drawable {
+    r := 1
+namespace:
+    draw := func(_self: Circle) returns Str { return "circle" }
+}
+
 // Usable as a parameter type ...
 collection_tag := func(_c: Collection) returns I64 {
     return 7
@@ -52,4 +61,10 @@ test_second_interface_type := test() {
 test_interface_concrete_default_method := test() {
     d := Drawable()
     assert_eq_str(__LOC__, d.label(), "shape")
+}
+
+// A conforming struct compiles and its provided method is callable.
+test_implements_conformance := test() {
+    c := Circle(r = 2)
+    assert_eq_str(__LOC__, c.draw(), "circle")
 }

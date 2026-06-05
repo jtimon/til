@@ -332,6 +332,11 @@ StructDef : StructDef = struct {
     // can reject it. An interface has no fields, so there is nothing to
     // separate methods from.
     interface_ns_marker := false
+    // Issue #251: the interface name from `struct implements Iface { ... }`,
+    // empty when the struct implements nothing. The typer verifies the
+    // struct provides every abstract (ext_func/ext_proc) method of Iface
+    // with a matching signature.
+    implements_name := ""
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
         return a.fields.len().eq(b.fields.len())

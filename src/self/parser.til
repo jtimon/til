@@ -716,6 +716,14 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
         expect_token(p, TokenType.Gt)
     }
 
+    // Issue #251: `struct implements Iface { ... }` records the interface
+    // the struct conforms to; the typer verifies it provides every abstract
+    // method Iface lists. `implements` may not appear on an ext_struct.
+    if is_ext.not().and(check(p, TokenType.KwImplements)) {
+        advance(p) // consume 'implements'
+        sdd.implements_name = expect_text(p, TokenType.Ident)
+    }
+
     expect_token(p, TokenType.LBrace)
 
     // Save outer pending_doc so a /// run inside the struct body doesn't
