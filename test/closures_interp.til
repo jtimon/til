@@ -1,0 +1,57 @@
+mode test
+
+// --- Function closures: interpret mode (issue #54) ---
+// A capturing function/lambda `func(a: I64) returns I64 [scale] { ... }`
+// is a closure: it reads (and with `mut`, writes) the listed outer-scope
+// locals. The capture list is explicit -- the body may only touch the
+// captured names (plus its params, body-locals, globals and top-level
+// funcs/types), enforced by the typer.
+//
+// These run under the interpreter only: the C backend has no closure
+// environment yet (compile mode rejects capturing functions -- see the
+// closures_compile_reject build test), so this file is exercised via
+// `til interpret`.
+
+GLOBAL_BASE := 100
+
+UnaryOp := func(I64) returns I64
+
+apply_unary := func(op: UnaryOp, x: I64) returns I64 {
+    return op(x)
+}
+
+// A named local closure, called within its defining scope.
+test_closure_named_same_scope := test() {
+    scale := 10
+    scaled := func(a: I64) returns I64 [scale] { return a.mul(scale) }
+    assert_eq(__LOC__, scaled(3), 30)
+    assert_eq(__LOC__, scaled(5), 50)
+}
+
+// A lambda closure passed to a higher-order function (escapes its scope).
+test_closure_lambda_escape := test() {
+    factor := 7
+    assert_eq(__LOC__, apply_unary(func(x: I64) returns I64 [factor] { return x.mul(factor) }, 4), 28)
+}
+
+// A closure may freely use globals, params and body-locals alongside captures.
+test_closure_with_global := test() {
+    bump := 5
+    f := func(a: I64) returns I64 [bump] {
+        doubled := a.mul(2)
+        return doubled.add(bump).add(GLOBAL_BASE)
+    }
+    assert_eq(__LOC__, f(1), 107)
+}
+
+// A `mut` capture lets the closure mutate the captured outer local.
+test_closure_mut_capture := test() {
+    mut total := 0
+    add_to_total := func(x: I64) returns I64 [mut total] {
+        total = total.add(x)
+        return total
+    }
+    assert_eq(__LOC__, add_to_total(3), 3)
+    assert_eq(__LOC__, add_to_total(4), 7)
+    assert_eq(__LOC__, total, 7)
+}

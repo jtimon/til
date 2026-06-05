@@ -18,10 +18,24 @@
      rejects any capturing function/lambda with a clear "not yet
      implemented" diagnostic (it does not yet build a closure value).
      Test: test/capture_func_error.til (negative, both forms).
-   - [ ] Closure values (fn-ptr + captured environment) in both modes:
-     bind captured names at the literal, consult them at call time,
-     replacing the rejection diagnostic. Add capture name/type validation
-     against the enclosing scope here (the lift currently discards it).
+   - [X] Function closures run under the interpreter. Capturing
+     functions/lambdas are no longer lifted (typer) or hoisted (init), so
+     their bodies stay nested and the typer types + validates the captures
+     against the enclosing scope (name exists, mut modifier legal) and
+     enforces the explicit-capture restriction (body may only touch
+     captured outer locals + params + body-locals + globals/funcs/types).
+     At runtime the interpreter already resolves free variables through
+     the call chain, so a synchronously-called closure gets its captures
+     (const and `mut`) -- no closure-value type needed. The C backend has
+     no closure environment yet, so compile mode rejects capturing
+     functions with a clear message (typer gate on ctx.compile_mode).
+     Tests: test/closures_interp.til (interpret-only positive),
+     test/capture_func_error.til (validation negatives),
+     test/capture_compile_error.til (compile-mode rejection).
+   - [ ] Closure values for the C backend (fn-ptr + captured environment)
+     so closures also work in compile mode, plus escaping closures stored
+     and called later (the interpreter's dynamic resolution only covers
+     closures called while their defining scope is still on the stack).
    - [ ] copy/own capture modifiers (snapshot/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]

@@ -872,6 +872,7 @@ typedef struct Context {
     Mode mode;
     Str path;
     Map path_modes;
+    Bool compile_mode;
     Map imported;
     Set imports_init_done;
     Set imports_typer_decls_done;
@@ -1684,6 +1685,7 @@ Bool priv___src_self_typer_til__capture_is_mut(Vec * captures, Str * name);
 TypeScope * priv___src_self_typer_til__scope_root_ref(TypeScope * s);
 void priv___src_self_typer_til__capture_block_check_name(Expr * e, Str * name, I32 is_write, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec * captures, Context * ctx);
 void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec * captures, Context * ctx);
+void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec * captures, Expr * errnode, Context * ctx);
 void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void reregister_scope_defs(Expr * body, TypeScope * scope);

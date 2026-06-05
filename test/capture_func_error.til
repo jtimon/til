@@ -1,16 +1,16 @@
 mode script
 
-// Negative test (issue #54): function/lambda captures are parsed and
-// stored, but executing a closure is not implemented yet. Both the
-// FuncDef form (`[scale]` after `returns`) and the FuncSig form
-// (`[scale]` after the names) must be parsed and then rejected by the
-// typer with a clear "not yet implemented" diagnostic.
-scale := 10
-
-scaled_a := func(a: I64) returns I64 [scale] { return a.mul(scale) }
-scaled_b : func(I64) returns I64 = (a) [scale] { return a.mul(scale) }
-
+// Negative test (issue #54): the typer validates function captures the
+// same way as block captures. Capturing an immutable local with `mut` is
+// an error, and a closure body may only reference its captured outer
+// locals.
 main := proc() {
-    println(scaled_a(3).to_str())
-    println(scaled_b(4).to_str())
+    total := 0
+    other := 9
+    // `total` is immutable: capturing it as `mut` is rejected.
+    g := func(x: I64) returns I64 [mut total] { return x.add(total) }
+    // `other` is not captured: the body may not reference it.
+    h := func(x: I64) returns I64 [total] { return x.add(other) }
+    println(g(2).to_str())
+    println(h(2).to_str())
 }

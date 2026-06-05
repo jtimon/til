@@ -1,0 +1,12 @@
+mode script
+
+// Compile-mode rejection (issue #54): function closures rely on the
+// interpreter's dynamic resolution of free variables; the C backend has
+// no closure environment yet, so `til build` / `til run` must fail with a
+// clear message rather than emit broken C. (This file runs fine under
+// `til interpret`.)
+main := proc() {
+    scale := 10
+    f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
+    println(f(2).to_str())
+}

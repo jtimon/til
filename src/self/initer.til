@@ -2004,6 +2004,11 @@ priv init_is_lift_target := func(stmt: Expr) returns Bool {
         case NodeType.FuncDef(rhs_fd):
             if rhs_fd.func_type.is(FuncType.ExtFunc) { return false }
             if rhs_fd.func_type.is(FuncType.ExtProc) { return false }
+            // Issue #54: a capturing nested function is a closure -- it
+            // must stay nested so its body resolves the captured outer
+            // locals (hoisting to file scope would strand them). The typer
+            // enforces the explicit-capture restriction.
+            if rhs_fd.captures.len().gt(0) { return false }
             return true
         case:
             return false
