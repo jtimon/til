@@ -1864,7 +1864,7 @@ Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map * subs);
-Bool priv___src_self_loader_til__inline_lazy_call(Expr * call, Expr * fdef);
+Bool priv___src_self_loader_til__inline_lazy_call(Expr * call, Expr * fdef, Bool has_recv);
 void priv___src_self_loader_til__expand_lazy_in_expr(Expr * e, TypeScope * scope, I32 depth);
 void expand_lazy_calls_in_program(LoadedProgram * lp);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);

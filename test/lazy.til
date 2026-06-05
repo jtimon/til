@@ -31,6 +31,23 @@ test_lazy_or := test() {
     expect(__LOC__, lazy_or(false, false).not(), "F or F")
 }
 
+# --- UFCS method syntax: a.lazy_and(b) inlines with the receiver as the
+#     first argument, exactly like the bare call lazy_and(a, b) ---
+
+test_lazy_method_syntax := test() {
+    expect(__LOC__, true.lazy_and(true), "T.and(T)")
+    expect(__LOC__, true.lazy_and(false).not(), "T.and(F)")
+    expect(__LOC__, false.lazy_or(true), "F.or(T)")
+    expect(__LOC__, true.lazy_or(false), "T.or(F)")
+}
+
+test_method_short_circuits := test() {
+    eval_count = 0
+    r := false.lazy_and(bump())
+    expect(__LOC__, r.not(), "false.and(bump()) short-circuits")
+    assert_eq(__LOC__, eval_count, 0)
+}
+
 # --- nested lazy calls (re-expansion of the spliced body) ---
 
 test_lazy_nested := test() {

@@ -1717,10 +1717,11 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 // (being uncalled after inlining) they emit as ordinary dead functions,
 // exactly like macros.
 //
-// v1 scope: top-level lazy callables, called by bare name, fixed arity,
-// non-recursive. Variadic (Lisp-style) and first-class / recursive lazy
-// callables are deferred (issue #262). A call that does not match this
-// shape is simply left un-inlined and types as an ordinary (eager) call.
+// Scope: top-level lazy callables, called either by bare name `f(a, b)` or
+// by UFCS method syntax `a.f(b)` (the receiver becomes the first arg),
+// fixed arity, non-recursive. Variadic (Lisp-style) and first-class /
+// recursive lazy callables are deferred (issue #262). A call that does not
+// match this shape is left un-inlined and types as an ordinary eager call.
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map) {
     if e.is_null() { return }
@@ -1742,8 +1743,11 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map) {
 
 // Returns true if the call was inlined. Leaves `call` untouched (and
 // returns false) for any shape v1 does not handle, so the residual call
-// types as an ordinary eager call.
-priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
+// types as an ordinary eager call. `has_recv` is true when the callee is
+// a UFCS method form `recv.name(args)`: the FieldAccess receiver becomes
+// the lazy callable's first parameter (and/or are top-level funcs, so
+// `a.and(b)` means `and(a, b)`).
+priv inline_lazy_call := func(mut call: Expr, fdef: Expr, has_recv: Bool) returns Bool {
     if fdef.children.len().eq(0) { return false }
     ref body : Expr = fdef.child(0)
     if body.node_type.is(NodeType.Body).not() { return false }
@@ -1752,17 +1756,28 @@ priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
     ref ret_stmt : Expr = body.child(0)
     if ret_stmt.node_type.is(NodeType.Return).not() { return false }
     if ret_stmt.children.len().lt(1) { return false }
+    if has_recv.and(call.child(0).children.len().lt(1)) { return false }
 
     mut subs := Map.new(Str, Expr)
     mut ok := false
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.variadic_index.lt(0) {
-            nargs := call.children.len().sub(1)
+            // Effective arg count: the explicit args plus the UFCS receiver.
+            mut nargs := call.children.len().sub(1)
+            if has_recv { nargs = nargs.add(1) }
             if nargs.eq(fd.params.len()) {
                 for j in 0..fd.params.len() {
                     ref param : Declaration = fd.params[j]
-                    subs.set(own param.name.clone(), own call.child(j.add(1)).clone())
+                    if has_recv.and(j.eq(0)) {
+                        subs.set(own param.name.clone(), own call.child(0).child(0).clone())
+                    } else {
+                        // explicit arg index: with a receiver, param j>=1
+                        // maps to call.child(j); without, param j -> child(j+1).
+                        mut ci := j.add(1)
+                        if has_recv { ci = j }
+                        subs.set(own param.name.clone(), own call.child(ci).clone())
+                    }
                 }
                 ok = true
             }
@@ -1783,8 +1798,10 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     if e.node_type.is(NodeType.FCall).and(e.children.len().gt(0)) {
         ref callee : Expr = e.child(0)
         mut lname := ""
+        mut has_recv := false
         switch callee.node_type {
         case NodeType.Ident(idn): lname = idn.ident_name()
+        case NodeType.FieldAccess(fad): lname = fad.field_access_name(); has_recv = true
         case:
         }
         if lname.len().gt(0) {
@@ -1792,7 +1809,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
             if fdef.is_null().not() {
                 ft := func_def_type(fdef)
                 if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
-                    if inline_lazy_call(e, fdef) {
+                    if inline_lazy_call(e, fdef, has_recv) {
                         // The spliced body may contain further lazy calls
                         // (in the body itself or in the substituted args).
                         expand_lazy_in_expr(e, scope, depth.add(1))
