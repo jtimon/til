@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #212 Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
 
 *** Summary

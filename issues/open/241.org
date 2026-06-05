@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #241 precomp fold scope keys alias freed AST names -> non-deterministic build UAF
 
    `make clean && make` (and `make clean && make test`) fails

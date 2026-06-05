@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #159 Show the til logo as a single character in the REPL prompt
 
 We have ~img/til_logo.ttf~ (generated from ~img/logo-transparent.svg~

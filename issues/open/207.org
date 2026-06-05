@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #207 Consider removing Vec.move_from
 
 `Vec.move_from(self, other)` in [[file:../../src/core/vec.til][src/core/vec.til]] copies `other`'s

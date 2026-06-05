@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #209 Move the stack-vs-heap Str delete decision out of the builder into the AST
 
 *** Summary

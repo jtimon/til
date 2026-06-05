@@ -1,4 +1,5 @@
 # priority: medium
+# category: features
 ** WIP #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 
 *   Current state:

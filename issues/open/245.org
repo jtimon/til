@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #245 Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
 
    Attempted #239 option 1 (change ~StructInstance.struct_name~ and

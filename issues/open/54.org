@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #54 Explicit capture syntax (closures)
 
 :DEPENDENCIES: [[./61.org][#61]]

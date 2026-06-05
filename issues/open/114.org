@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #114 Source docs + repl help/introspection
 
 Add source-level documentation that can later be surfaced from the REPL and

@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #90 Til libraries: avoid symbol conflicts between independent libs
 
 When two til libraries are linked into the same C program, they both

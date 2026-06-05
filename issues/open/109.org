@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #109 Fix memory leaks (make test_asan clean)
 
 Related: [[./245.org][#245]] catalogs an ownership-model gap on

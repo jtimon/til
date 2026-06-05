@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #115 Remove or simplify ~ext_struct~
 
 Revisit whether ~ext_struct~ should exist as a separate concept at all.

@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #201 More built-in error types and safe_* methods
 
    Follow-up to [[../fixed/198.org][#198]]: extend the catalogue of

@@ -1,4 +1,5 @@
 # priority: low
+# category: experiments
 ** OPEN #215 Investigate mode safe_script (port from rstil)
 
 Idea taken from Roc's platforms.  Researched in the rstil repo

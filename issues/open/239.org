@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #239 Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
 
    ~StructInstance~ ([[file:../../src/self/interpreter.til][src/self/interpreter.til]]) and

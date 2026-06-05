@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #171 Stop hardcoding expected output strings in tests.til; use golden/cache files with diffs
 
 Symptom:

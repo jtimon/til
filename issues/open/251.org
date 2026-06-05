@@ -1,4 +1,5 @@
 # priority: medium
+# category: features
 ** OPEN #251 `interface` keyword: named bag of method signatures, desugars to a fieldless struct
 
    A new top-level type keyword, ~interface~, modelled loosely on Java

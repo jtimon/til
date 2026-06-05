@@ -1,4 +1,5 @@
 # priority: low
+# category: examples
 ** OPEN #24 Music scale viewer: ongoing improvements
 
 GUI music theory learning tool (examples/music.til). Uses mode gui

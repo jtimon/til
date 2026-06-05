@@ -1,4 +1,5 @@
 # priority: medium
+# category: features
 ** OPEN #255 lexer: richer number literals (hex/binary/octal, digit separators, exponents)
 
 The lexer only recognises base-10 integers and a single optional decimal

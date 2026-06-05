@@ -1,4 +1,5 @@
 # priority: high
+# category: features
 ** OPEN #182 Support ~/** */~ block doc comments (in addition to ~///~)
 
 Currently only Rust-style ~///~ line doc comments are parsed.

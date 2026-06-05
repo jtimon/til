@@ -1,4 +1,5 @@
 # priority: low
+# category: experiments
 ** OPEN #84 mode theme: cross-editor theme generation
 
 One .til file defines a color theme. The compiler generates all

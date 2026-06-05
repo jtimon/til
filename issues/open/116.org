@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #116 Imported files are parsed in isolation
 
 Imported files are currently lexed and parsed as standalone units, then

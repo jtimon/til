@@ -36,43 +36,30 @@ list_dir := proc(dir: Str) returns Vec {
     return files
 }
 
-// All the work happens here: takes `content` as a borrowed Str param so
-// the typer's ASAP-delete pass doesn't free it mid-function. Str.substr
-// returns a view (.cap=CAP_VIEW) whose c_str borrows the source's buffer;
-// the typer doesn't track view-borrow chains, so an owned local like
-// `content := raw_content.clone()` whose last direct use is a substr call
-// would be freed immediately, dangling every after_first / first_line /
-// title / num_str / after_num view derived from it. Borrowed params are
-// not subject to ASAP-delete, so content stays live for the whole body.
-// (Real fix: teach the typer about view-returning callees; tracked
-// alongside the open buckets in issue #109.)
-parse_issue_body := func(fname: Str, content: Str) returns Str {
-    nl1 := content.find(NL)
-    if nl1.lt(0) { return "" }
-    nl1u : USize = nl1.to_usize()
-    first_line := content.substr(0, nl1u)
+// Return the value after "<key>" on a header line, trimmed, as an owned
+// Str (e.g. field_after("# priority: high", "priority:") -> "high").
+// Returns "" when the key is absent. `line` is borrowed, so the substr
+// view we trim from it stays valid until we clone it on the way out.
+field_after := func(line: Str, key: Str) returns Str {
+    pos := line.find(key)
+    if pos.lt(0) { return "" }
+    start := pos.to_usize().add(key.len())
+    val := line.substr(start, line.len().sub(start))
+    return val.trim().clone()
+}
 
-    mut rest := content.substr(nl1u.add(1), content.len().sub(nl1u).sub(1))
-    mut nl2 := rest.find(NL)
-    if nl2.lt(0) { return "" }
-    mut nl2u : USize = nl2.to_usize()
-    // `title` is a view into `content` (a borrowed param that stays live
-    // for the whole function), so num_str/after_num views derived from it
-    // stay valid through their .clone() below. Cloning title into an owned
-    // local would let the typer's ASAP-delete free it at its last direct
-    // use, dangling those views (the bug class flagged at the top of file).
-    mut title := rest.substr(0, nl2u)
-    // Skip extra header comment lines (e.g. "# category: experiments")
-    // sitting between the "# priority:" line and the "** OPEN #NNN" title.
-    // All header views stay rooted in `content`, so reassigning them is safe.
-    while title.len().gt(0).and(title.get(0).eq('#')) {
-        rest = rest.substr(nl2u.add(1), rest.len().sub(nl2u).sub(1))
-        nl2 = rest.find(NL)
-        if nl2.lt(0) { return "" }
-        nl2u = nl2.to_usize()
-        title = rest.substr(0, nl2u)
-    }
+priority_tag := func(priority: Str) returns Str {
+    if priority.eq("high") { return "H" }
+    if priority.eq("medium") { return "M" }
+    return "L"
+}
 
+// Build the summary link for a single issue from its `** OPEN/WIP #NNN
+// Title` heading line. `title` is borrowed so the num_str/after_num views
+// it backs stay live through their .clone() calls (cloning title into an
+// owned local would let the typer's ASAP-delete free it first, dangling
+// the views -- see the parse notes below).
+make_link := func(fname: Str, title: Str) returns Str {
     hash_pos := title.find("#")
     if hash_pos.lt(0) { return "" }
     hp : USize = hash_pos.to_usize()
@@ -90,46 +77,75 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     }
     num_str := title.substr(hp, num_end.sub(hp))
     after_num := title.substr(num_end, title.len().sub(num_end))
-    num_str_own := num_str.clone()
-    after_num_own := after_num.clone()
-
-    link := format("** [[./open/", fname, "][", num_str_own, "]]", after_num_own)
-
-    // Priority comes from the "# priority: <level>" first line. Default to
-    // Low; a "medium" or "high" match upgrades it. WIP vs OPEN status is
-    // intentionally ignored -- the summary groups purely by priority.
-    mut tag := "L"
-    if first_line.find("medium").gte(0) { tag = "M" }
-    if first_line.find("high").gte(0) { tag = "H" }
-    return format(tag, NL, link)
+    return format("*** [[./open/", fname, "][", num_str.clone(), "]]", after_num.clone())
 }
 
-// Parse an issue file and return "<P>\nlink" where <P> is the priority
-// marker H, M, or L. Returns "" if the file has no parseable header.
+// Parse an issue file body into "<category> <P>\n<link>", where <P> is the
+// priority marker H/M/L. The header lines ("# priority: ...", "# category:
+// ...") may appear in any order; the issue heading is the first line that
+// starts with "**". Missing priority defaults to Low, missing category to
+// "unknown". Returns "" when there is no parseable heading.
+//
+// We split into owned line clones rather than carving views straight out
+// of `content`: split's clones decouple us from `content`'s lifetime and
+// sidestep the view-borrow ASAP-delete hazard that bit earlier revisions.
+parse_issue_body := func(fname: Str, content: Str) returns Str {
+    lines := content.split(NL)
+    mut priority := "low"
+    mut category := "unknown"
+    mut title := ""
+    for ln : Str in lines {
+        if ln.starts_with("# priority:") { priority = field_after(ln, "priority:") }
+        if ln.starts_with("# category:") { category = field_after(ln, "category:") }
+        if ln.starts_with("**") {
+            if title.is_empty() { title = ln.clone() }
+        }
+    }
+    if title.is_empty() { return "" }
+    link := make_link(fname, title)
+    if link.is_empty() { return "" }
+    return format(category, " ", priority_tag(priority), NL, link)
+}
+
 parse_issue := func(fname: Str) returns Str {
     path := format("issues/open/", fname)
     raw_content := File.readfile(path)
     return parse_issue_body(fname, raw_content)
 }
 
-// Emit every entry whose priority marker equals `want`, one link per line.
-emit_section := func(entries: Vec, want: Str) returns Str {
+// Emit the links of every entry matching both `cat` and priority `pri`,
+// one per line. Each entry is "<category> <P>\n<link>".
+emit_entries := func(entries: Vec, cat: Str, pri: Str) returns Str {
     mut out := ""
     for entry : Str in entries {
         nl_pos := entry.find(NL)
         if nl_pos.lt(0) { continue }
         nlp : USize = nl_pos.to_usize()
-        tag := entry.substr(0, nlp)
+        head := entry.substr(0, nlp)
         link := entry.substr(nlp.add(1), entry.len().sub(nlp).sub(1))
-        if tag.eq(want) { out = format(out, link, NL) }
+        sp := head.find(" ")
+        if sp.lt(0) { continue }
+        spu : USize = sp.to_usize()
+        ecat := head.substr(0, spu)
+        epri := head.substr(spu.add(1), head.len().sub(spu).sub(1))
+        if ecat.eq(cat).and(epri.eq(pri)) { out = format(out, link, NL) }
     }
+    return out
+}
+
+// One top-level category section with High/Medium/Low subsections.
+emit_category := func(entries: Vec, cat: Str, label: Str) returns Str {
+    mut out := format("* ", label, NL)
+    out = format(out, "** High", NL, emit_entries(entries, cat, "H"))
+    out = format(out, "** Medium", NL, emit_entries(entries, cat, "M"))
+    out = format(out, "** Low", NL, emit_entries(entries, cat, "L"))
     return out
 }
 
 main := proc() {
     files := list_dir("issues/open")
 
-    // Build entry lines
+    // Build "<category> <P>\n<link>" entry lines.
     mut entries := Vec.new(Str)
     for fname : Str in files {
         line := parse_issue(fname)
@@ -138,13 +154,21 @@ main := proc() {
         }
     }
 
-    // Build summary.org: one section per priority, OPEN and WIP together.
+    // Top level is the issue category; each category splits into High /
+    // Medium / Low. OPEN and WIP status is intentionally ignored.
     mut s := ""
-    s = format(s, "* High", NL, emit_section(entries, "H"))
-    s = format(s, "* Medium", NL, emit_section(entries, "M"))
-    s = format(s, "* Low", NL, emit_section(entries, "L"))
+    s = format(s, emit_category(entries, "bugs", "Bugs"))
+    s = format(s, emit_category(entries, "cleanups", "Cleanups"))
+    s = format(s, emit_category(entries, "features", "Features"))
+    s = format(s, emit_category(entries, "experiments", "Experiments"))
+    s = format(s, emit_category(entries, "examples", "Examples"))
+    s = format(s, emit_category(entries, "deferred", "Deferred"))
+
+    // Only surface an Unknown section when something actually failed to
+    // classify, so a fully-categorised tree stays clean.
+    unknown_block := emit_category(entries, "unknown", "Unknown")
+    if unknown_block.contains("[[") { s = format(s, unknown_block) }
 
     File.writefile("issues/summary.org", s)
     println("Generated: issues/summary.org")
-
 }

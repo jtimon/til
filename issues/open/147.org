@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #147 AST/Context redesign: lessons from rstil
 
 rstil (the previous Rust implementation, at ~../rstil~) was slower and

@@ -1,4 +1,5 @@
 # priority: medium
+# category: cleanups
 ** WIP #231 Use UFCS for standalone functions throughout the codebase
 
   til supports Uniform Function Call Syntax: ~x.func(args)~

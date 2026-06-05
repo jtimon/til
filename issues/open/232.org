@@ -1,4 +1,5 @@
 # priority: high
+# category: deferred
 ** WIP #232 Add LinuxX86 (32-bit) target support
 
 :DEPENDENCIES: [[./151.org][#151]] [[./81.org][#81]]

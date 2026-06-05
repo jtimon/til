@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #146 Unify typer desugar/insert passes into a single walk
 
 ~infer_body~ in typer.til (lines 2489-2495) runs 7 separate passes in

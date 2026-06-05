@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #124 Raw `Dynamic` ownership should not require explicit `free(...)` in til
 
 Today, typed owned values and containers mostly get their cleanup inserted

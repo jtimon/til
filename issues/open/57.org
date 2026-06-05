@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #57 First-class enums: EnumDef as values
 
 :DEPENDENCIES: [[./58.org][#58]]

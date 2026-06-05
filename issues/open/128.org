@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #128 Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
 
 The delete side of this issue is fixed ([[./126.org][#126]], now in [[../fixed/][issues/fixed/]]):

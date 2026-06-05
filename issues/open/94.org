@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #94 Generic Range: support any type with inc/dec
 
 :DEPENDENCIES: [[./91.org][#91]], [[./100.org][#100]]

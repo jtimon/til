@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #172 Add test_runner regen mode for expected outputs
 
 Symptom:

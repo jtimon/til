@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #210 Eliminate the per-literal malloc in dyn_type_to_str returns
 
 *** Summary

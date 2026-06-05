@@ -1,4 +1,5 @@
 # priority: low
+# category: deferred
 ** OPEN #228 Browser target: run mode gui programs in the browser via WASM
 
 :DEPENDENCIES: [[./151.org][#151]] [[./25.org][#25]]

@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #183 Adding ~///~ comments to core lib files forces full rebuild+test
 
 Every ~///~ doc comment in a core library file (e.g. [[file:../../src/core/vec.til][src/core/vec.til]])

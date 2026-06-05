@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #63 User-defined modes
 
 8 built-in modes are hardcoded in the compiler/runtime mode table:

@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #246 Slim down the cross-phase ~Context~ toward the rstil shape
 
 Companion to [[./247.org][#247]] (move layout facts off the AST). #246 = Context

@@ -1,9 +1,21 @@
 1. Read the next issue number from `issues/NEXT_ISSUE.txt`.
 2. Create a new file in issues/open/ with that number, e.g. issues/open/189.org
 3. First line: "# priority: high", "# priority: medium", or "# priority: low"
-4. Then: "** OPEN #189 Title" followed by the issue body
-5. After creating an issue, increment `issues/NEXT_ISSUE.txt` manually.
-6. To start work: change OPEN -> WIP in the title line (no directory move needed)
-7. When fixed:  git mv issues/open/NNN.org issues/fixed/NNN.org
-8. When cancelled: git mv issues/open/NNN.org issues/cancelled/NNN.org
-9. Run: make test  (regenerates issues/summary.org; increment `issues/NEXT_ISSUE.txt` manually)
+4. Second line: "# category: <cat>" where <cat> is one of bugs, cleanups,
+   features, experiments, examples, deferred (use "unknown" if none clearly
+   fit). summary.org groups by category first, then by priority.
+5. Then: "** OPEN #189 Title" followed by the issue body
+6. After creating an issue, increment `issues/NEXT_ISSUE.txt` manually.
+7. To start work: change OPEN -> WIP in the title line (no directory move needed)
+8. When fixed:  git mv issues/open/NNN.org issues/fixed/NNN.org
+9. When cancelled: git mv issues/open/NNN.org issues/cancelled/NNN.org
+10. Run: make test  (regenerates issues/summary.org; increment `issues/NEXT_ISSUE.txt` manually)
+
+Categories (topical, orthogonal to priority):
+  - bugs        correctness defects: memory safety, wrong behaviour
+  - cleanups    refactors, perf, internal restructuring, tech debt, tooling
+  - features    new language / stdlib / editor capabilities
+  - experiments exploratory or speculative directions
+  - examples    example programs / apps shipped under examples/
+  - deferred    cross-platform / OS / arch targets parked for later
+

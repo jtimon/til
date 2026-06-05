@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #55 Lambda functions and first-class bodies
 
 :DEPENDENCIES: [[./14.org][#14]] [[./54.org][#54]]

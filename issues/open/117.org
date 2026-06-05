@@ -1,4 +1,5 @@
 # priority: low
+# category: bugs
 ** OPEN #117 Bool and/or do not short-circuit
 
 ~and~ and ~or~ currently behave like ordinary Bool calls rather than

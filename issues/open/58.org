@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
 
 :DEPENDENCIES: [[./14.org][#14]]

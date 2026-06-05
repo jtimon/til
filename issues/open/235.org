@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #235 Vendor libsecp256k1 and expose sha256d via the HashFn interface
 
   Add ~libsecp256k1~ as a new vendor dependency under ~vendor/~ (next

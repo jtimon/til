@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #195 Consider removing ~mode test~
 
   Now that ~til test foo.til~ works on any file regardless of mode and

@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #256 Garbager clones (and leaks) an owned local at its last use instead of moving it
 
 Related: [[./109.org][#109]] (compiler leak baseline). This bug feeds

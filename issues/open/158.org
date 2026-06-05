@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** WIP #158 One pass per phase across the whole pipeline
 
    Progress / current state (read the source, the original list below

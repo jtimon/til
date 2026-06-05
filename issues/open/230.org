@@ -1,4 +1,5 @@
 # priority: medium
+# category: cleanups
 ** WIP #230 Consolidate per-primitive Type variants into Type.Primitive(Primitive)
 
    Final-form decision after the cancelled #205 prototype:

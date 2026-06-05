@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #102 Auto-generate eq and to_str for structs
 
 Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get

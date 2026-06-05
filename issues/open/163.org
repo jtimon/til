@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #163 Per-file AST/import graph + Context.path (prep for removing Expr.path)
 
 Goals:

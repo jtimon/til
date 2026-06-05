@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #174 Container types create cyclic dependencies that block typer-time methodgen
 
 Symptom:

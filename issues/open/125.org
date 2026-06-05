@@ -1,4 +1,5 @@
 # priority: high
+# category: bugs
 ** OPEN #125 Enum payload method generation should not assume ~eq~/~to_str~
 
 Related to ~[[./102.org][#102]]~, but separate: even if structs later auto-generate

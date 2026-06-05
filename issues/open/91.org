@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
 
 Vec/Map/Set currently dispatch clone/delete by type name string via

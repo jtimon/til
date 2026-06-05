@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** WIP #192 USize should not be hardwired to U32
 
 Current state mixes two separate problems:

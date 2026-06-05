@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #70 Precomp: constant folding for all types (not just scalars)
 
 The builder emits top-level constants as heap-allocated runtime

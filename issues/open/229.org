@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #229 Support user-defined enum/struct types as main() CLI args
 
   Today a program whose ~main()~ takes a CLI argument can only use the

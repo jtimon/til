@@ -1,4 +1,5 @@
 # priority: low
+# category: deferred
 ** OPEN #25 Support for the 4 main operative systems
 
 :DEPENDENCIES: [[./12.org][#12]]

@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #143 Avoid unnecessary heap round-trips for Expr construction
 
 ~Expr.new~ itself constructs on the stack, but the generated C for

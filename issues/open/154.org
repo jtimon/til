@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #154 Typer error for unused imports
 
 Follow-up to [[./86.org][#86]] (fixed). Now that unused function parameters and

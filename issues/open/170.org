@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #170 All-or-nothing caching for translate/build/run
 
 Symptom:

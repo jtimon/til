@@ -1,4 +1,5 @@
 # priority: low
+# category: deferred
 ** OPEN #152 True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
 
 :DEPENDENCIES: [[./150.org][#150]] (unrelated, just handy to mention)

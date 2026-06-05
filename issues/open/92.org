@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #92 Bundle GL headers and linker scripts (zero apt deps)
 
 Bundle Mesa/Khronos GL headers (~vendor/gl/include/~) and GNU ld linker

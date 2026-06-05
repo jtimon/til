@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #130 AST / ~Expr~ representation cleanup
 
 The current AST shape is confusing and duplicates state in ways that make

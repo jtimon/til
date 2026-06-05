@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #253 Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 
   Follow-up from #249. The parser now uses ~structdef_of~/~enumdef_of~

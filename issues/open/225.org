@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #225 Subscript assignment a[b] = c -> a.set(b, own c)!
 
    Mirror of the shipped read-side desugaring: the parser now turns

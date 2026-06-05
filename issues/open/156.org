@@ -1,4 +1,5 @@
 # priority: low
+# category: features
 ** OPEN #156 Improve til-mode indentation rules
 
 Commit ~6b441819~ ("Indentation: apply current til-mode

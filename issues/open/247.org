@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #247 Move layout facts off AST nodes, rstil-style (pairs with #246)
 
 Companion to [[./246.org][#246]] (Context slimming). Where #246 is about *Context*

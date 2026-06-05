@@ -1,4 +1,5 @@
 # priority: medium
+# category: cleanups
 ** OPEN #254 codegen: emit a real C switch (jump table) for dense int/char/enum switches
 
 The typer's ~infer_switch_stmt~ (src/self/typer.til) currently desugars

@@ -1,4 +1,5 @@
 # priority: medium
+# category: features
 ** OPEN #222 Dedicated bitwise operators and short-circuiting boolean operators
 
 Currently, TIL lacks short-circuiting boolean operators `&&` and `||`. The operators `&` and `|` map to `.and()` and `.or()` methods, which do not short-circuit because method arguments are strictly evaluated.

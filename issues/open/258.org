@@ -1,4 +1,5 @@
 # priority: medium
+# category: bugs
 ** OPEN #258 codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
 
 [[../fixed/250.org][#250]] fixed the *delete-ordering* half of the

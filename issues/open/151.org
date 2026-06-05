@@ -1,4 +1,5 @@
 # priority: low
+# category: deferred
 ** WIP #151 32-bit targets: wasm32 and templeos-x86
 
 :DEPENDENCIES: [[./81.org][#81]] [[./232.org][#232]]

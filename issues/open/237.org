@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** WIP #237 Advanced profiling for the self-host build
 
   ~examples/bench_hashmap.til~ tells us HashMap vs Map as standalone

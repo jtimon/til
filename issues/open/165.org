@@ -1,4 +1,5 @@
 # priority: high
+# category: cleanups
 ** OPEN #165 Declaration order should not matter inside a file or across imports
 
 Status (high level):

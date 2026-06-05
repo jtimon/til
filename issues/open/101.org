@@ -1,4 +1,5 @@
 # priority: low
+# category: cleanups
 ** OPEN #101 Deterministic temp variable names in generated C
 
 :DEPENDENCY_OF: [[./77.org][#77]]
