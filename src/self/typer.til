@@ -3039,13 +3039,17 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     }
     // Issue #251: enforce the interface contract. `interface {...}`
     // desugars to a StructDef(is_interface) whose members the parser
-    // accepts without checking (and strips the empty `{}` body from, so a
-    // well-formed signature arrives bodyless). Every member must be a
-    // func/proc signature; a non-empty body is an illegal implementation.
-    // Reported as ordinary type errors so they aggregate.
+    // accepts without checking. Each member must be ext_func/ext_proc
+    // (an ABSTRACT method, implemented by conforming types) or func/proc
+    // (a CONCRETE default with a body). A field, a test/macro/lazy member,
+    // and a `namespace:` marker are all type errors. Reported here so they
+    // aggregate in test/typer_errors.til.
     switch expr.node_type {
     case NodeType.StructDef(if_sdd):
         if if_sdd.is_interface {
+            if if_sdd.interface_ns_marker {
+                expr.type_error("interface has no 'namespace:' marker: it has no fields, so every declaration is already a method", ctx)
+            }
             for if_nd : Declaration in if_sdd.ns_decls {
                 if if_nd.default_value.is_null() { continue }
                 switch if_nd.default_value.node_type {
@@ -3054,13 +3058,14 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     // auto-generates for the (empty) interface struct --
                     // only user-written members carry the contract.
                     if if_fd.auto_generated { continue }
-                    if if_fd.func_type.is(FuncType.Func).or(if_fd.func_type.is(FuncType.Proc)).not() {
-                        if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a 'func'/'proc' signature, e.g. 'func(...) returns T {}'"), ctx)
-                    } else if if_nd.default_value.children.len().gt(0) {
-                        if_nd.default_value.type_error("interface method '".concat(if_nd.name).concat("' cannot have an implementation: its body must be empty, e.g. 'func(...) returns T {}'"), ctx)
+                    ift := if_fd.func_type
+                    ok_kind := ift.is(FuncType.Func).or(ift.is(FuncType.Proc))
+                        .or(ift.is(FuncType.ExtFunc)).or(ift.is(FuncType.ExtProc))
+                    if ok_kind.not() {
+                        if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
                     }
                 case:
-                    if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a 'func'/'proc' signature, e.g. 'func(...) returns T {}'"), ctx)
+                    if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a method: an interface cannot have fields"), ctx)
                 }
             }
         }

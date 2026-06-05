@@ -1,27 +1,25 @@
 mode test
 
-// Issue #251: interfaces are named bags of method signatures that desugar
-// to a fieldless struct. A method signature is written
-// `func(...) returns T {}` -- a func/proc with an empty body, consistent
-// with ext_func/ext_proc declarations. Phase 1: an interface is a usable,
-// empty type; it does not yet check conformance or dispatch dynamically.
+// Issue #251: an interface is an abstract-class-like contract that desugars
+// to a fieldless struct. A member is either ABSTRACT -- declared with
+// `ext_func`/`ext_proc` and an empty `{}` body, to be provided by
+// conforming types -- or a CONCRETE default -- an ordinary `func`/`proc`
+// with a real body, supplied by the interface itself. No fields, no
+// `namespace:` marker. The rejection cases live in test/typer_errors.til.
 // These tests pin down that interfaces compile end-to-end (interpret AND
-// build) and are usable as types. The rejection cases (illegal
-// implementation / non-func member) live in test/typer_errors.til.
+// build) and that concrete defaults are callable.
 
-// Collection: the get/len contract that `for ... in` relies on (Range and
-// Vec already satisfy it). A `namespace:` marker inside an interface is a
-// redundant no-op -- exercised here to confirm it is accepted, not an error.
+// Collection: the get/len contract that `for ... in` relies on -- both
+// abstract.
 Collection := interface {
-    get := func(self: Collection, i: U32) returns Dynamic {}
-namespace:
-    len := func(self: Collection) returns USize {}
+    get := ext_func(self: Collection, i: U32) returns Dynamic {}
+    len := ext_func(self: Collection) returns USize {}
 }
 
-// A second interface with unrelated methods, to confirm more than one
-// interface type compiles.
+// Drawable: an abstract method plus a concrete default method.
 Drawable := interface {
-    draw := func(self: Drawable) returns Str {}
+    draw := ext_func(self: Drawable) returns Str {}
+    label := func(_self: Drawable) returns Str { return "shape" }
 }
 
 // Usable as a parameter type ...
@@ -48,4 +46,10 @@ test_interface_value_passed_through := test() {
 
 test_second_interface_type := test() {
     assert_eq(__LOC__, drawable_tag(Drawable()), 9)
+}
+
+// A concrete default method is a real, callable implementation.
+test_interface_concrete_default_method := test() {
+    d := Drawable()
+    assert_eq_str(__LOC__, d.label(), "shape")
 }

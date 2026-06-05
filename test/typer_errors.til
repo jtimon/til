@@ -655,14 +655,21 @@ case 1: "a"
 case 2: "b"
 }
 
-// #251: an interface body holds only `func(...) returns T {}` signatures.
-// A non-func member (a "field") is rejected.
+// #251: an interface is fieldless -- a non-func member is rejected.
 TErrInterfaceField := interface {
     x := 0
 }
 
-// #251: an interface method declares only its signature; an empty `{}` body
-// is fine but a non-empty body is an illegal implementation.
-TErrInterfaceBody := interface {
-    run := func() returns I64 { return 1 }
+// #251: an interface has no `namespace:` marker (no fields to separate
+// from the methods).
+TErrInterfaceNamespace := interface {
+    a := ext_func(self: TErrInterfaceNamespace) returns I64 {}
+namespace:
+    b := ext_func(self: TErrInterfaceNamespace) returns I64 {}
+}
+
+// #251: a member must be func/proc (concrete) or ext_func/ext_proc
+// (abstract) -- a test()/macro member is rejected.
+TErrInterfaceBadKind := interface {
+    t := test() {}
 }

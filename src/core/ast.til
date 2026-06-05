@@ -321,10 +321,16 @@ StructDef : StructDef = struct {
     ns_decls := Vec.new(Declaration)
     c_tag := ""
     // Issue #251: set by parse_interface_def. The body desugars to this
-    // StructDef (empty fields, ns_decls = method signatures); the typer
-    // uses the flag to enforce the interface contract (every ns_decl must
-    // be a bodyless func/proc) as aggregatable type errors.
+    // StructDef (empty fields, ns_decls = methods); the typer uses the
+    // flag to enforce the interface contract (members must be
+    // ext_func/ext_proc abstract or func/proc concrete) as aggregatable
+    // type errors.
     is_interface := false
+    // Issue #251: set by parse_interface_def when a (redundant)
+    // `namespace:` marker appears inside an interface body, so the typer
+    // can reject it. An interface has no fields, so there is nothing to
+    // separate methods from.
+    interface_ns_marker := false
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
         return a.fields.len().eq(b.fields.len())

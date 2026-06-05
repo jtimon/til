@@ -415,6 +415,7 @@ typedef struct StructDef {
     Vec ns_decls;
     Str c_tag;
     Bool is_interface;
+    Bool interface_ns_marker;
 } StructDef;
 
 

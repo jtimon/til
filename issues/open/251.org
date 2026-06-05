@@ -1,102 +1,109 @@
 # priority: medium
 # category: features
-** OPEN #251 `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+** OPEN #251 `interface` keyword: an abstract-class-like contract, desugars to a fieldless struct
 
-   A new top-level type keyword, ~interface~, modelled loosely on Java
-   interfaces. An interface is a NAMED contract: a list of method
-   signatures and nothing else. In til it DESUGARS to a struct, with
-   two hard prohibitions enforced by the parser:
+   A top-level type keyword, ~interface~, modelled on Java interfaces and
+   C++ abstract classes. An interface is a NAMED, fieldless contract of
+   methods. It DESUGARS to a struct with EMPTY fields; the methods live in
+   the struct's namespace. Two hard prohibitions: an interface cannot have
+   instance fields, and it cannot carry a ~namespace:~ marker (there are no
+   fields to separate from the methods).
 
-   1. an interface CANNOT have instance fields, and
-   2. its body CANNOT contain anything except function-pointer
-      declarations (bodyless ~func~/~proc~ signatures).
+   A member is one of two kinds:
 
-   Because it desugars to a struct, an interface is a real (empty) type
-   that flows through the existing struct machinery; the method
-   signatures live in the struct's namespace as bodyless FuncDefs
-   (FuncSigs, ~Type.FuncPtr~), exactly the same node a top-level
-   ~BinaryOp := func(I64, I64) returns I64~ produces.
+   1. *Abstract* -- declared with ~ext_func~ / ~ext_proc~ and an empty
+      ~{}~ body. It has no implementation here; a type that declares it
+      implements the interface MUST provide it. This reuses the
+      ~ext_func(...) returns T {}~ shape (a declaration whose body is
+      supplied elsewhere), so abstract interface methods read exactly like
+      external declarations.
+
+   2. *Concrete (default)* -- an ordinary ~func~ / ~proc~ WITH a real body.
+      The interface supplies the implementation itself; conforming types
+      inherit it (like a non-pure method on a C++ abstract class). These
+      are regular namespace methods.
 
 *** Example
 
-    : CommonInterface := interface {
-    :     clone  := func(self: CommonInterface) returns CommonInterface {}
-    :     delete := proc(self: CommonInterface) {}
-    :     size   := func() returns USize {}
+    : Drawable := interface {
+    :     // abstract: every implementer must provide `draw`
+    :     draw := ext_func(self: Drawable) returns Str {}
+    :     // concrete default: provided by the interface
+    :     label := func(self: Drawable) returns Str { return "shape" }
     : }
     :
     : Collection := interface {
-    :     get := func(self: Collection, i: U32) returns Dynamic {}
-    :     len := func(self: Collection) returns USize {}
+    :     get := ext_func(self: Collection, i: U32) returns Dynamic {}
+    :     len := ext_func(self: Collection) returns USize {}
     : }
 
-    A method signature is written ~func(...) returns T {}~ -- a func/proc
-    with an EMPTY body, consistent with how ext_func/ext_proc declarations
-    are written. The parser strips the empty ~{}~ so the member is stored
-    as a bodyless FuncSig; the typer rejects a non-empty body (an illegal
-    implementation) and a non-func member.
+    ~Collection~ names the ~get~/~len~ pair a ~for ... in~ loop relies on
+    (both abstract). ~Drawable~ shows the mix: ~draw~ is abstract, ~label~
+    a concrete default.
 
-    ~CommonInterface~ names the trio (~clone~/~delete~/~size~) that the
-    compiler already auto-generates for every type; ~Collection~ names
-    the ~get~/~len~ pair a ~for ... in~ loop relies on. For now these
-    are just named contracts -- see "Non-goals".
+*** Conformance (`implements`) -- next step
 
-*** Semantics (this issue / phase 1)
+    A type declares it satisfies an interface with ~implements~:
 
-    - ~Name := interface { ... }~ desugars to a ~StructDef~ with EMPTY
-      ~fields~ and ~ns_decls~ = the parsed method signatures.
-    - Every member MUST be a bodyless ~func~/~proc~ signature. A member
-      with a body, or a non-func member (a "field"), is a parse error.
-    - No ~namespace:~ marker inside an interface body: there are no
-      fields to separate from the namespace, so every declaration is a
-      method signature.
-    - The interface type is usable anywhere a (fieldless) struct type
-      is: as a parameter / field / variable type annotation, etc.
+    : Circle := struct implements Drawable {
+    :     r := 1.0
+    : namespace:
+    :     draw := func(self: Circle) returns Str { return "circle" }
+    : }
+
+    The typer verifies ~Circle~ provides every ABSTRACT (ext_func/ext_proc)
+    method ~Drawable~ lists, with a matching signature; concrete defaults
+    are inherited and need not be re-declared. A missing or mis-typed
+    abstract method is a type error. Conformance checking is the NEXT step;
+    the interface-definition side -- the two member kinds plus the
+    no-fields / no-namespace rules below -- comes first.
+
+*** Semantics
+
+    - ~Name := interface { ... }~ desugars to a ~StructDef~ flagged
+      ~is_interface~, with EMPTY ~fields~ and ~ns_decls~ = the members.
+    - Members must be ~ext_func~/~ext_proc~ (abstract) or ~func~/~proc~
+      (concrete). All of these are reported by the TYPER (not a parser
+      panic) so the diagnostics aggregate in test/typer_errors.til:
+      - a non-func member (a "field") is a type error;
+      - a ~test~/~macro~/~lazy_func~/~lazy_proc~ member is a type error;
+      - a ~namespace:~ marker is a type error.
+    - The interface type is usable anywhere a (fieldless) struct type is:
+      as a parameter / field / variable type annotation.
 
 *** Non-goals (future issues)
 
-    - No ~implements~ relationship / conformance checking (does type T
-      provide every method the interface lists?).
     - No dynamic dispatch / vtables / interface values that erase the
       concrete type.
-    - Calling an interface method through the interface itself is
-      undefined (there is no body); phase 1 just records the contract.
-    - Edge case for the dispatch follow-up: an interface that re-declares
-      ~clone~/~delete~/~size~ (like ~CommonInterface~) suppresses the
-      compiler's auto-generated versions for that empty struct, so
-      INSTANTIATING such an interface would leave it without real
-      clone/delete/size bodies. Phase 1 only instantiates interfaces
-      whose method names do not collide with the auto-gen trio.
+    - Edge case: an interface that re-declares ~clone~/~delete~/~size~
+      suppresses the compiler's auto-generated versions for that empty
+      struct, so INSTANTIATING such an interface leaves it without real
+      clone/delete/size bodies. Only instantiate interfaces whose method
+      names do not collide with the auto-gen trio.
 
 *** Implementation (touch points)
 
-    1. *Lexer* ([[file:../../src/self/lexer.til][src/self/lexer.til]]):
-       add ~TokenType.KwInterface~, its ~tok_name~ ("interface") and
-       ~lookup_keyword~ ("interface") entries.
+    1. *Lexer* (src/self/lexer.til): ~TokenType.KwInterface~ keyword.
 
-    2. *Parser* ([[file:../../src/self/parser.til][src/self/parser.til]]):
-       new ~parse_interface_def~ producing a ~NodeType.StructDef~ with
-       empty fields; each body member parsed like a namespace decl and
-       validated to be a bodyless FuncDef. Hook ~KwInterface~ into
-       ~parse_primary~ next to ~KwStruct~/~KwEnum~.
+    2. *Parser* (src/self/parser.til): ~parse_interface_def~ produces a
+       ~NodeType.StructDef(is_interface = true)~ with empty fields; each
+       member parsed like a namespace decl, NO validation here (a
+       ~namespace:~ marker sets ~StructDef.interface_ns_marker~ for the
+       typer to reject). Hook ~KwInterface~ into ~parse_primary~.
 
-    3. *Bodyless namespace funcs must not crash the pipeline.* A struct
-       whose namespace holds a bodyless FuncDef currently panics
-       (~OutOfBounds~ in ~Expr.child~) because several namespace-method
-       walkers assume a body. They already guard top-level FuncSigs;
-       the namespace paths were missing the guard:
-       - ~ffi_init_scan_program~ scans namespace func bodies for nested
-         ext_func/ext_proc ([[file:../../src/self/dispatch.til][dispatch.til]]).
-       - ~emit_ns_method~ emits a C body for each namespace method
-         ([[file:../../src/self/builder.til][builder.til]]) -- skip
-         bodyless (a signature emits no code).
-       - the interpreter's call path dereferences a callee body
-         ([[file:../../src/self/interpreter.til][interpreter.til]]).
-       Each gets a ~children.len() == 0~ guard.
+    3. *Typer* (src/self/typer.til, ~infer_type_def_expr~): enforce the
+       member-kind rules and the no-namespace rule as aggregatable type
+       errors. Auto-generated clone/delete/size members are skipped.
+
+    4. *Pipeline guards.* Abstract (ext_func/ext_proc) and bodyless
+       members must not crash the namespace-method walkers
+       (ffi_init_scan_program, emit_ns_method, the interpreter call path);
+       each guards the no-body case.
 
 *** Tests
 
-    - Positive: define ~Collection~ in a ~mode test~ file; the program
-      compiles and runs on BOTH the interpret and build backends.
-    - Negative (parser): a field in an interface body is rejected; a
-      method WITH a body is rejected; a ~namespace:~ marker is rejected.
+    - Positive (test/interfaces.til): ~Collection~ (abstract ext_func
+      methods) and a ~Drawable~ mixing an abstract method and a concrete
+      default; compiles and runs on BOTH backends.
+    - Negative (test/typer_errors.til): a field, a ~namespace:~ marker,
+      and a non-func-kind member (e.g. ~test()~) are each rejected.
