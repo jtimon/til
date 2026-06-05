@@ -2492,6 +2492,7 @@ extern Str U64Name;
 extern Str F32Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
+extern Map side_effecting_names;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
 extern U32 ENUM_PAYLOAD_OFFSET;

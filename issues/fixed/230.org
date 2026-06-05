@@ -1,6 +1,30 @@
 # priority: medium
 # category: cleanups
-** WIP #230 Consolidate per-primitive Type variants into Type.Primitive(Primitive)
+** FIXED #230 Consolidate per-primitive Type variants into Type.Primitive(Primitive)
+
+   POST-MORTEM (fixed): all ten scalar primitives now live under
+   ~Type.Primitive(Primitive)~; ~Type~ carries no flat scalar variant and
+   no ~Type.Struct("I32"/"U8"/"I8")~ scar. Done as a sequence of two-pass
+   commits, one bootstrap boundary at a time: move each primitive into the
+   ~Primitive~ enum, regenerate boot so ~make_til_type_expr~ emits the
+   nested form, then drop the flat / Struct shape. Producers (the parser /
+   typer / initer / context name->Type resolvers, precomp literals) and
+   every consumer were migrated; the three resolvers were then unified
+   behind a single ~builtin_type_table~ Map. ~is_primitive~ is now
+   ~t.is(Type.Primitive)~; ~is_aggregate~ stays as a thin
+   ~is(Struct).or(is(Enum))~ (its redundant primitive guard dropped);
+   per-primitive discrimination uses ~type_is_primitive(t, p)~ / payload
+   switches instead of ~til_type_name_c(t).eq("X")~.
+
+   Bootstrap fixes the migration forced out: ~make_til_type_expr~ marks the
+   synthetic Primitive payload arg ~own~ (the ctor frees it); the interp
+   ~h_dyn_type_to_str~ and the issue-#58 macro-condition evaluator learned
+   the nested ~Type.Primitive(Primitive.X)~ shape; ~validate_fcall_arg~'s
+   tag-only ~is(ptype)~ compare (which treated any two Primitives as equal)
+   was made precise; and a latent precomp fold of reassigned loop-locals
+   (exposed once I32 became foldable) was fixed via
+   ~Context.precomp_assigned~. No new regression test -- exercised by the
+   full suite (make test).
 
    Final-form decision after the cancelled #205 prototype:
    primitives live in ~Type.Primitive(Primitive)~ rather than

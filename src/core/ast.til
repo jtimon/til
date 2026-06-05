@@ -78,14 +78,19 @@ namespace:
         // Non-payloaded variants: tag equality.
         if a.is(Type.Unknown)   { return b.is(Type.Unknown) }
         if a.is(Type.None)      { return b.is(Type.None) }
-        // Primitive group (#203): both must be Type.Primitive and carry the
-        // same inner Primitive. is() is tag-only and matches any Primitive, so
-        // distinguish the inner primitive by name (til_type_name_c maps
-        // Type.Primitive(Primitive.I16) -> "I16", U16 -> "U16", etc).
-        if a.is(Type.Primitive) {
-            if b.is(Type.Primitive).not() { return false }
-            return til_type_name_c(a).eq(til_type_name_c(b))
+        // Primitive group: both must be Type.Primitive carrying the same
+        // inner Primitive. The outer is() is tag-only (matches any
+        // Primitive), so destructure and compare the inner Primitive -- it
+        // is payload-free, so its own tag-only is() is exact.
+        switch a {
+        case Type.Primitive(pa):
+            switch b {
+            case Type.Primitive(pb): return pa.is(pb)
+            case: return false
+            }
+        case:
         }
+        if b.is(Type.Primitive) { return false }
         if a.is(Type.StructDef) { return b.is(Type.StructDef) }
         if a.is(Type.EnumDef)   { return b.is(Type.EnumDef) }
         if a.is(Type.FuncDef)   { return b.is(Type.FuncDef) }
@@ -152,13 +157,11 @@ is_primitive := func(t: Type) returns Bool {
     return t.is(Type.Primitive)
 }
 
-// Compound aggregate type: user-defined struct or enum that the
-// codegen represents as a multi-field record (and typically
-// heap-allocates / dispatches a generated delete on). Primitives are
-// Type.Primitive (never Type.Struct), so they are excluded by the
-// is_primitive guard.
+// Compound aggregate type: user-defined struct or enum that the codegen
+// represents as a multi-field record (and typically heap-allocates /
+// dispatches a generated delete on). Primitives are Type.Primitive, so
+// they fall out naturally -- no primitive guard needed.
 is_aggregate := func(t: Type) returns Bool {
-    if is_primitive(t) { return false }
     return t.is(Type.Struct).or(t.is(Type.Enum))
 }
 

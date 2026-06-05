@@ -46,70 +46,32 @@ precomp_has_func := func(ctx: Context, name: Str) returns Bool {
 // Side-effecting names that mustn't be invoked at compile time.
 // Mirrors rstil's hardcoded exit/malloc list, plus the I/O / FFI /
 // environment-dependent ext_funcs that til core ships.
+mut side_effecting_names := {
+    "exit": true, "panic": true, "TODO": true, "UNREACHABLE": true,
+    "malloc": true, "calloc": true, "realloc": true, "free": true,
+    "memcpy": true, "memmove": true, "memset": true,
+    "read_ptr": true, "write_ptr": true, "ptr_add": true, "ptr_eq": true,
+    "to_ptr": true, "deref": true,
+    "readfile": true, "writefile": true,
+    "print_single": true, "eprint_single": true, "print_flush": true,
+    "println": true, "print": true, "in_read_line": true,
+    "cfile_open": true, "cfile_open_update": true, "cfile_close": true,
+    "cfile_read_all": true, "cfile_write_str": true, "cfile_tell": true,
+    "cfile_seek": true, "cfile_seek_cur": true, "cfile_seek_end": true,
+    "cfile_read_n": true, "file_mtime": true, "unlink_path": true,
+    "spawn_cmd": true, "wait_cmd": true, "run_cmd": true, "system_cmd": true,
+    "check_cmd_status": true, "sleep_ms": true, "noop_proc": true,
+    "clock_ms": true, "get_thread_count": true, "peak_rss_bytes": true,
+    "current_rss_bytes": true, "process_id": true, "get_bin_dir": true,
+    "get_cwd_str": true,
+    "ffi_global_symbol": true, "ffi_user_symbol": true,
+    "ffi_load_global_lib": true, "ffi_open_user_so": true,
+    "ffi_close_user_so": true, "ffi_alloc_cif": true, "ffi_prep_cif": true,
+    "ffi_call": true, "dlopen": true, "dlsym": true, "dlclose": true,
+}
+
 is_side_effecting_name := func(name: Str) returns Bool {
-    if name.eq("exit")        { return true }
-    if name.eq("panic")       { return true }
-    if name.eq("TODO")        { return true }
-    if name.eq("UNREACHABLE") { return true }
-    if name.eq("malloc") { return true }
-    if name.eq("calloc") { return true }
-    if name.eq("realloc") { return true }
-    if name.eq("free")   { return true }
-    if name.eq("memcpy") { return true }
-    if name.eq("memmove") { return true }
-    if name.eq("memset") { return true }
-    if name.eq("read_ptr")  { return true }
-    if name.eq("write_ptr") { return true }
-    if name.eq("ptr_add")   { return true }
-    if name.eq("ptr_eq")    { return true }
-    if name.eq("to_ptr")    { return true }
-    if name.eq("deref")     { return true }
-    if name.eq("readfile")  { return true }
-    if name.eq("writefile") { return true }
-    if name.eq("print_single") { return true }
-    if name.eq("eprint_single") { return true }
-    if name.eq("print_flush") { return true }
-    if name.eq("println") { return true }
-    if name.eq("print")  { return true }
-    if name.eq("in_read_line") { return true }
-    if name.eq("cfile_open") { return true }
-    if name.eq("cfile_open_update") { return true }
-    if name.eq("cfile_close") { return true }
-    if name.eq("cfile_read_all") { return true }
-    if name.eq("cfile_write_str") { return true }
-    if name.eq("cfile_tell") { return true }
-    if name.eq("cfile_seek") { return true }
-    if name.eq("cfile_seek_cur") { return true }
-    if name.eq("cfile_seek_end") { return true }
-    if name.eq("cfile_read_n") { return true }
-    if name.eq("file_mtime") { return true }
-    if name.eq("unlink_path") { return true }
-    if name.eq("spawn_cmd") { return true }
-    if name.eq("wait_cmd")  { return true }
-    if name.eq("run_cmd")   { return true }
-    if name.eq("system_cmd") { return true }
-    if name.eq("check_cmd_status") { return true }
-    if name.eq("sleep_ms") { return true }
-    if name.eq("noop_proc") { return true }
-    if name.eq("clock_ms") { return true }
-    if name.eq("get_thread_count") { return true }
-    if name.eq("peak_rss_bytes") { return true }
-    if name.eq("current_rss_bytes") { return true }
-    if name.eq("process_id") { return true }
-    if name.eq("get_bin_dir") { return true }
-    if name.eq("get_cwd_str") { return true }
-    if name.eq("ffi_global_symbol") { return true }
-    if name.eq("ffi_user_symbol") { return true }
-    if name.eq("ffi_load_global_lib") { return true }
-    if name.eq("ffi_open_user_so") { return true }
-    if name.eq("ffi_close_user_so") { return true }
-    if name.eq("ffi_alloc_cif") { return true }
-    if name.eq("ffi_prep_cif") { return true }
-    if name.eq("ffi_call") { return true }
-    if name.eq("dlopen") { return true }
-    if name.eq("dlsym") { return true }
-    if name.eq("dlclose") { return true }
-    return false
+    return side_effecting_names.has(name)
 }
 
 // Inverse of str_to_source_form: convert source-form text (with C-style
