@@ -1,6 +1,41 @@
 # priority: high
 # category: bugs
-** OPEN #256 Garbager clones (and leaks) an owned local at its last use instead of moving it
+** FIXED #256 Garbager clones (and leaks) an owned local at its last use instead of moving it
+
+*** Post-mortem
+
+Root cause: an asymmetry between the two hoist helpers. The garbager
+already had a last-use unwrap (insert_post_stmt_deletes in
+src/self/garbager.til) that rewrites `field = T.clone(local)` into a bare
+move when `local`'s last use is the assignment. For plain Assign it fires
+because hoist_assign_rhs skips hoisting RHSs of aggregate targets, so the
+clone stays inline where the unwrap can see it. For FieldAssign,
+hoist_field_assign_rhs hoisted the defensive `T.clone(local)` into a
+`hoisted__` temp -- the FieldAssign RHS became a bare Ident referencing the
+temp, so the clone was invisible to the unwrap. Result: the deep clone
+survived (and leaked when retained) while the original local was still
+scope-deleted.
+
+Fix:
+1. src/self/typer.til hoist_field_assign_rhs: do NOT hoist a `.clone()`
+   call whose argument is a bare Ident (the typer's own defensive clone of
+   an owned-target FieldAssign RHS). Keeping it inline lets the garbager's
+   last-use unwrap see and dissolve it, mirroring the plain-Assign path.
+2. src/self/garbager.til insert_post_stmt_deletes: the FieldAssign unwrap
+   emitted a wrapper `free(local)` unconditionally. That is correct for a
+   Shallow (value) field, which deref-copies (`field = *local`), but a
+   use-after-free for an Own (pointer) field, where the assignment moves
+   the pointer itself into the field (the field then owns the wrapper).
+   Skip the free when `stmt.fa_own_type(scope)` is Own.
+
+Codegen before: `hoisted = Node_clone(val); h->child = hoisted;
+Node_delete(val, 1);`. After: `h->child = val;` -- a pure pointer move,
+no clone, no delete.
+
+Regression test: test/bug256.til (mode test,
+test_move_named_local_into_own_field), wired into src/tests.til so it runs
+under `make test`'s --asan. The compiler-level ASAN baseline in
+doc/bots/asan.org also tracks the leak at the compiler level.
 
 Related: [[./109.org][#109]] (compiler leak baseline). This bug feeds
 leaks into that baseline -- it is exactly how [[./252.org][#252]]

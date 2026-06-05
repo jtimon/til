@@ -440,6 +440,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/shallow.til", flags)
     add_mode(tests, "test/globals_cli.til", flags)
     add_mode(tests, "test/own_fields.til", flags)
+    add_mode(tests, "test/bug256.til", flags)
     add_mode(tests, "examples/priv_demo.til", flags)
     add_mode(tests, "test/imports.til", flags)
     add_mode(tests, "test/arrays.til", flags)

@@ -10059,6 +10059,31 @@ hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
         }
     }
     ref rhs : Expr = stmt.child(1)
+    // Issue #256: don't hoist the typer's defensive `.clone()` of a bare
+    // Ident (inserted at infer_field_assign_stmt for an owned-target
+    // FieldAssign). Hoisting it into a temp hides the clone from the
+    // garbager's last-use unwrap (insert_post_stmt_deletes), so a local
+    // assigned into an Own field at its last use got deep-cloned-then-
+    // deleted instead of moved -- the clone leaked. Keeping it inline lets
+    // the garbager replace `field = T.clone(local)` with the bare `local`
+    // move + wrapper free, exactly as it already does for plain Assign
+    // (hoist_assign_rhs likewise skips the hoist for aggregate targets).
+    // The clone arg must be a genuine user-named local, never a `hoisted__`
+    // temp. A hoisted temp can be a non-owning *view* into another buffer
+    // (e.g. `arg.substr(...)` lifted out of `field = arg.substr(...).clone()`);
+    // there the clone is what decouples the field from the view's source, so
+    // moving it instead would dangle the field once the source is freed
+    // (issues #238 / #250). hoist_expr above has already lifted such inner
+    // subexpressions, so by here the arg names either a user local or a temp.
+    if rhs.is_clone_fcall().and(rhs.children.len().gte(2)) {
+        switch rhs.child(1).node_type {
+        case NodeType.Ident(clone_arg_id):
+            if clone_arg_id.ident_name().starts_with("hoisted__").not() {
+                fa_hoist = false
+            }
+        case:
+        }
+    }
     if fa_hoist.and(
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
