@@ -160,6 +160,7 @@ typedef enum {
     TokenType_TAG_KwStruct,
     TokenType_TAG_KwEnum,
     TokenType_TAG_KwNamespace,
+    TokenType_TAG_KwInterface,
     TokenType_TAG_KwFunc,
     TokenType_TAG_KwProc,
     TokenType_TAG_KwTest,
@@ -1338,6 +1339,7 @@ Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_t
 StructDef * priv___src_self_parser_til__structdef_of(Expr * def);
 EnumDef * priv___src_self_parser_til__enumdef_of(Expr * def);
 Expr * parse_struct_def(priv___src_self_parser_til__Parser * p, Str * c_tag);
+Expr * parse_interface_def(priv___src_self_parser_til__Parser * p);
 Expr * parse_enum_def(priv___src_self_parser_til__Parser * p);
 void priv___src_self_parser_til__set_fcall_throw(Expr * fcall);
 void priv___src_self_parser_til__set_fcall_bang(Expr * fcall);
@@ -2397,6 +2399,7 @@ TokenType *TokenType_KwShallow();
 TokenType *TokenType_KwStruct();
 TokenType *TokenType_KwEnum();
 TokenType *TokenType_KwNamespace();
+TokenType *TokenType_KwInterface();
 TokenType *TokenType_KwFunc();
 TokenType *TokenType_KwProc();
 TokenType *TokenType_KwTest();

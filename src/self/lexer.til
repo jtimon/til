@@ -35,7 +35,7 @@ TokenType := enum {
 
     // Keywords
     KwMut, KwConst, KwOwn, KwRef, KwShallow,
-    KwStruct, KwEnum, KwNamespace,
+    KwStruct, KwEnum, KwNamespace, KwInterface,
     KwFunc, KwProc, KwTest, KwMacro, KwExtFunc, KwExtProc, KwExtStruct,
     KwLazyFunc, KwLazyProc,
     KwReturns, KwThrows,
@@ -117,6 +117,7 @@ priv keyword_map := func() returns Map {
         "struct":     TokenType.KwStruct,
         "enum":       TokenType.KwEnum,
         "namespace":  TokenType.KwNamespace,
+        "interface":  TokenType.KwInterface,
         "func":       TokenType.KwFunc,
         "proc":       TokenType.KwProc,
         "test":       TokenType.KwTest,

@@ -1,0 +1,96 @@
+# priority: medium
+# category: features
+** OPEN #265 `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+
+   A new top-level type keyword, ~interface~, modelled loosely on Java
+   interfaces. An interface is a NAMED contract: a list of method
+   signatures and nothing else. In til it DESUGARS to a struct, with
+   two hard prohibitions enforced by the parser:
+
+   1. an interface CANNOT have instance fields, and
+   2. its body CANNOT contain anything except function-pointer
+      declarations (bodyless ~func~/~proc~ signatures).
+
+   Because it desugars to a struct, an interface is a real (empty) type
+   that flows through the existing struct machinery; the method
+   signatures live in the struct's namespace as bodyless FuncDefs
+   (FuncSigs, ~Type.FuncPtr~), exactly the same node a top-level
+   ~BinaryOp := func(I64, I64) returns I64~ produces.
+
+*** Example
+
+    : CommonInterface := interface {
+    :     clone  := func(self: CommonInterface) returns CommonInterface
+    :     delete := proc(self: CommonInterface)
+    :     size   := func() returns USize
+    : }
+    :
+    : Collection := interface {
+    :     get := func(self: Collection, i: U32) returns Dynamic
+    :     len := func(self: Collection) returns USize
+    : }
+
+    ~CommonInterface~ names the trio (~clone~/~delete~/~size~) that the
+    compiler already auto-generates for every type; ~Collection~ names
+    the ~get~/~len~ pair a ~for ... in~ loop relies on. For now these
+    are just named contracts -- see "Non-goals".
+
+*** Semantics (this issue / phase 1)
+
+    - ~Name := interface { ... }~ desugars to a ~StructDef~ with EMPTY
+      ~fields~ and ~ns_decls~ = the parsed method signatures.
+    - Every member MUST be a bodyless ~func~/~proc~ signature. A member
+      with a body, or a non-func member (a "field"), is a parse error.
+    - No ~namespace:~ marker inside an interface body: there are no
+      fields to separate from the namespace, so every declaration is a
+      method signature.
+    - The interface type is usable anywhere a (fieldless) struct type
+      is: as a parameter / field / variable type annotation, etc.
+
+*** Non-goals (future issues)
+
+    - No ~implements~ relationship / conformance checking (does type T
+      provide every method the interface lists?).
+    - No dynamic dispatch / vtables / interface values that erase the
+      concrete type.
+    - Calling an interface method through the interface itself is
+      undefined (there is no body); phase 1 just records the contract.
+    - Edge case for the dispatch follow-up: an interface that re-declares
+      ~clone~/~delete~/~size~ (like ~CommonInterface~) suppresses the
+      compiler's auto-generated versions for that empty struct, so
+      INSTANTIATING such an interface would leave it without real
+      clone/delete/size bodies. Phase 1 only instantiates interfaces
+      whose method names do not collide with the auto-gen trio.
+
+*** Implementation (touch points)
+
+    1. *Lexer* ([[file:../../src/self/lexer.til][src/self/lexer.til]]):
+       add ~TokenType.KwInterface~, its ~tok_name~ ("interface") and
+       ~lookup_keyword~ ("interface") entries.
+
+    2. *Parser* ([[file:../../src/self/parser.til][src/self/parser.til]]):
+       new ~parse_interface_def~ producing a ~NodeType.StructDef~ with
+       empty fields; each body member parsed like a namespace decl and
+       validated to be a bodyless FuncDef. Hook ~KwInterface~ into
+       ~parse_primary~ next to ~KwStruct~/~KwEnum~.
+
+    3. *Bodyless namespace funcs must not crash the pipeline.* A struct
+       whose namespace holds a bodyless FuncDef currently panics
+       (~OutOfBounds~ in ~Expr.child~) because several namespace-method
+       walkers assume a body. They already guard top-level FuncSigs;
+       the namespace paths were missing the guard:
+       - ~ffi_init_scan_program~ scans namespace func bodies for nested
+         ext_func/ext_proc ([[file:../../src/self/dispatch.til][dispatch.til]]).
+       - ~emit_ns_method~ emits a C body for each namespace method
+         ([[file:../../src/self/builder.til][builder.til]]) -- skip
+         bodyless (a signature emits no code).
+       - the interpreter's call path dereferences a callee body
+         ([[file:../../src/self/interpreter.til][interpreter.til]]).
+       Each gets a ~children.len() == 0~ guard.
+
+*** Tests
+
+    - Positive: define ~Collection~ in a ~mode test~ file; the program
+      compiles and runs on BOTH the interpret and build backends.
+    - Negative (parser): a field in an interface body is rejected; a
+      method WITH a body is rejected; a ~namespace:~ marker is rejected.
