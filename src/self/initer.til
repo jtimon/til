@@ -2496,6 +2496,97 @@ priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
     return init_macro_pick_return(s.child(2), subs)
 }
 
+// Issue #267 (caveat 2): inline instantiation of a type-gen macro. `e` is a
+// macro-instantiation call `MACRO(arg1, ...)` when its callee is an Ident
+// naming a macro in `macros` (a StructDef/EnumDef/FuncDef-returning macro).
+priv init_is_macro_inst_call := func(e: Expr, macros: Map) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().lt(1) { return false }
+    ref callee : Expr = e.child(0)
+    if callee.node_type.is(NodeType.Ident).not() { return false }
+    mut nm := ""
+    switch callee.node_type {
+    case NodeType.Ident(cn): nm = cn.ident_name()
+    case:
+    }
+    return macros.has(nm)
+}
+
+// A top-level `Name := MACRO(args)` decl whose RHS is directly a macro
+// instantiation -- handled by the main expansion loop, so the inline-hoist
+// pass leaves it alone (its only nested calls are the type-arg idents).
+priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len().eq(0) { return false }
+    return init_is_macro_inst_call(stmt.child(0), macros)
+}
+
+// Deterministic, dedup-friendly name for a monomorphization: `MACRO__Arg1_Arg2`
+// (the same macro + same type-args always yields the same name, so inline uses
+// share one generated type).
+priv init_macro_inst_name := func(e: Expr) returns Str {
+    ref callee : Expr = e.child(0)
+    mut out := ""
+    switch callee.node_type {
+    case NodeType.Ident(cn): out = cn.ident_name().concat("__")
+    case:
+    }
+    for k in 1..e.children.len() {
+        if k.gt(1) { out = out.concat("_") }
+        ref arg : Expr = e.child(k)
+        switch arg.node_type {
+        case NodeType.Ident(an): out = out.concat(an.ident_name())
+        case: out = out.concat("anon")
+        }
+    }
+    return out
+}
+
+// Recursively rewrite every inline macro-instantiation call in `e`'s subtree
+// to an Ident referencing a synthesized monomorphization decl. Dedup via
+// `seen` (genname -> genname); accumulate the new `genname := MACRO(args)`
+// decls in `synthesized` (a separate Vec so we never realloc the tree being
+// walked). Replacing through `children.replace` frees the old call subtree.
+priv init_hoist_walk := func(mut e: Expr, macros: Map, mut seen: Map, mut synthesized: Vec) {
+    if e.is_null() { return }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        if init_is_macro_inst_call(c, macros) {
+            genname := init_macro_inst_name(c)
+            if seen.has(genname).not() {
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), c.line, c.col)
+                decl.add_child(own c.clone())
+                synthesized.push(own decl)
+                seen.set(own genname.clone(), own genname.clone())
+            }
+            mut idn := Expr.new(ident_node(genname), c.line, c.col)
+            e.children.replace(i, own idn)
+        } else {
+            init_hoist_walk(c, macros, seen, synthesized)
+        }
+    }
+}
+
+// Issue #267 (caveat 2): hoist inline type-gen macro instantiations (used as
+// `.new()` receivers, call args, etc.) into synthesized top-level decls, so
+// `mut v := TemplVec(Bool).new()` works without first binding the type to a
+// name. Synthesized decls are appended to `program` and then expanded by the
+// main loop below. Dedup keys on the generated name, so N inline uses of
+// `TemplVec(Bool)` compile to ONE generated type.
+priv init_hoist_inline_macros := func(mut program: Expr, macros: Map) {
+    mut seen := Map.new(Str, Str)
+    mut synthesized := Vec.new(Expr)
+    np := program.children.len()
+    for i in 0..np {
+        ref mut stmt : Expr = program.child(i)
+        if init_is_direct_macro_inst_decl(stmt, macros) { continue }
+        init_hoist_walk(stmt, macros, seen, synthesized)
+    }
+    for d : Expr in synthesized {
+        program.children.push(own d.clone())
+    }
+}
+
 priv init_expand_type_gen_macros := func(mut program: Expr) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
@@ -2523,6 +2614,12 @@ priv init_expand_type_gen_macros := func(mut program: Expr) {
         }
     }
     if macros.len().eq(0) { return }
+
+    // Issue #267 (caveat 2): first hoist inline instantiations (e.g.
+    // `TemplVec(Bool).new()`) into synthesized top-level decls, deduped, so
+    // the expansion loop below picks them up alongside the user's explicit
+    // `Name := MACRO(args)` decls.
+    init_hoist_inline_macros(program, macros)
 
     // Walk top-level decls, expand each `X := macroname(args)`.
     for i in 0..program.children.len() {

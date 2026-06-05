@@ -87,21 +87,17 @@ TemplVec := macro(T: Type) returns StructDef {
     }
 }
 
-// NOTE: each concrete type is bound to a name first, then used. The
-// fully-inline form the design aims for -- `mut v := TemplVec(Bool).new()`
-// and `mut v : TemplVec(Bool) = ...` -- does not compile yet: the macro
-// only expands at top-level `Name := TemplVec(T)` decl scope, and the
-// type-annotation position needs parser support. Inline instantiation +
-// dedup is tracked as a caveat in the "templated core types" feature issue.
-TemplVecI64  := TemplVec(I64)
-TemplVecStr  := TemplVec(Str)
-TemplVecBool := TemplVec(Bool)
-TemplVecU8   := TemplVec(U8)
+// Issue #267 (caveat 2): the templated type is used INLINE -- `TemplVec(T)`
+// directly as a `.new()` receiver, no pre-binding to a name needed. The
+// initer hoists each inline instantiation into one deduped monomorphization,
+// so repeated `TemplVec(Bool)` uses across the file share a single generated
+// type. (The type-annotation position -- `mut v : TemplVec(Bool) = ...` --
+// still needs parser support and stays tracked in the issue.)
 
 // --- I64: typed push/get/len, plus cross-check against a core Vec ---
 
 test_templvec_i64_basic := test() {
-    mut v := TemplVecI64.new()
+    mut v := TemplVec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -115,7 +111,7 @@ test_templvec_i64_basic := test() {
 }
 
 test_templvec_i64_index_bang := test() {
-    mut v := TemplVecI64.new()
+    mut v := TemplVec(I64).new()
     v.push(own 7)
     v.push(own 8)
     ref x : I64 = v[1.to_usize()]
@@ -123,7 +119,7 @@ test_templvec_i64_index_bang := test() {
 }
 
 test_templvec_i64_set := test() {
-    mut v := TemplVecI64.new()
+    mut v := TemplVec(I64).new()
     v.push(own 1)
     v.push(own 2)
     v.set(1, own 99)
@@ -132,7 +128,7 @@ test_templvec_i64_set := test() {
 }
 
 test_templvec_i64_grow := test() {
-    mut v := TemplVecI64.new()
+    mut v := TemplVec(I64).new()
     for i in 0..100 {
         v.push(own i)
     }
@@ -144,7 +140,7 @@ test_templvec_i64_grow := test() {
 // Functional equivalence: same push sequence into a core Vec and a
 // TemplVec yields identical length and per-element values.
 test_templvec_i64_equiv_vec := test() {
-    mut tv := TemplVecI64.new()
+    mut tv := TemplVec(I64).new()
     mut cv := Vec.new(I64)
     for i in 0..10 {
         tv.push(own i.mul(3))
@@ -161,7 +157,7 @@ test_templvec_i64_equiv_vec := test() {
 // --- Str: boxed elements (own heap buffers) ---
 
 test_templvec_str_basic := test() {
-    mut v := TemplVecStr.new()
+    mut v := TemplVec(Str).new()
     v.push(own "alpha".concat(""))
     v.push(own "beta".concat(""))
     assert_eq(__LOC__, v.len().to_i64(), 2)
@@ -172,7 +168,7 @@ test_templvec_str_basic := test() {
 }
 
 test_templvec_str_set := test() {
-    mut v := TemplVecStr.new()
+    mut v := TemplVec(Str).new()
     v.push(own "old".concat(""))
     v.set(0, own "new".concat(""))
     ref a : Str = v[0.to_usize()]
@@ -181,7 +177,7 @@ test_templvec_str_set := test() {
 
 // clone must deep-copy: mutating the clone leaves the original intact.
 test_templvec_str_clone_independent := test() {
-    mut v := TemplVecStr.new()
+    mut v := TemplVec(Str).new()
     v.push(own "one".concat(""))
     v.push(own "two".concat(""))
     mut w := v.clone()
@@ -195,7 +191,7 @@ test_templvec_str_clone_independent := test() {
 // --- Bool ---
 
 test_templvec_bool := test() {
-    mut v := TemplVecBool.new()
+    mut v := TemplVec(Bool).new()
     v.push(own true)
     v.push(own false)
     v.push(own true)
@@ -211,7 +207,7 @@ test_templvec_bool := test() {
 // --- U8 ---
 
 test_templvec_u8 := test() {
-    mut v := TemplVecU8.new()
+    mut v := TemplVec(U8).new()
     v.push(own 65.to_u8())
     v.push(own 66.to_u8())
     assert_eq(__LOC__, v.len().to_i64(), 2)

@@ -1,12 +1,37 @@
 # priority: medium
 # category: features
-** OPEN #267 Replace dynamic core containers with templated (monomorphized) ones
+** WIP #267 Replace dynamic core containers with templated (monomorphized) ones
 
    Move the core containers (Array, Vec, Set, Map, ...) from their current
    TYPE-ERASED ("dynamic") implementation -- one struct that stores
    elem_size + elem_clone/elem_delete function pointers and exposes a
    `Dynamic` element api -- to TEMPLATED (monomorphized) versions generated
    per element type, with a fully typed api and no stored type metadata.
+
+   *** Progress
+
+   - Caveat 2 (expression-position): DONE. Inline instantiation works for
+     value/receiver positions -- `mut v := TemplVec(Bool).new()` compiles
+     in both interpret and build modes (test/templ_vec.til now uses the
+     inline form for I64/Str/Bool/U8). The initer (`init_hoist_inline_macros`
+     in src/self/initer.til) walks each unit, hoists every inline
+     `MACRO(args)` call into a synthesized top-level `MACRO__Args := MACRO(args)`
+     decl, and rewrites the use to reference it; the existing expansion loop
+     then monomorphizes it. ASan-clean.
+   - Caveat 2 (DEDUP): DONE within a unit. The synthesized name is derived
+     deterministically from (macro, type-args), so N inline uses of
+     `TemplVec(Bool)` in one file compile to ONE struct + one method set
+     (verified in the generated C). STILL OPEN: cross-unit dedup -- two
+     files that both inline `TemplVec(Bool)` would each synthesize their own
+     `TemplVec__Bool`; the global merge needs to unify identical
+     monomorphizations (or reuse the AnonStructN structural unification).
+   - STILL OPEN: type-annotation position (`mut v : TemplVec(Bool) = ...`,
+     and `func(self: TemplVec(T))` / field types) -- a type slot holds a
+     name string today, not a call expression, so this needs parser support.
+   - STILL OPEN: caveats 1 (`struct<T>` sugar), 2b (drop `Self`), 3 (Dyn*
+     in std), 4 (migrate Array/Vec/Set/Map). Note 2b is now unblocked: with
+     inline instantiation working, methods can refer to their own type as
+     `TemplVec(T)` instead of the special-cased `Self`.
 
    *** Foundation already in place (issue #243)
 
