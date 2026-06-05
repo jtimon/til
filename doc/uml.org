@@ -47,6 +47,7 @@
 *** KwStruct
 *** KwEnum
 *** KwNamespace
+*** KwInterface
 *** KwFunc
 *** KwProc
 *** KwTest
@@ -54,6 +55,8 @@
 *** KwExtFunc
 *** KwExtProc
 *** KwExtStruct
+*** KwLazyFunc
+*** KwLazyProc
 *** KwReturns
 *** KwThrows
 *** KwIf
@@ -106,6 +109,7 @@
 *** Dynamic
 *** Custom:Str
 *** Primitive:Primitive
+*** FuncPtrSig:Str
 ** FuncType: EnumDef
 *** Func
 *** Proc
@@ -113,6 +117,8 @@
 *** Macro
 *** ExtFunc
 *** ExtProc
+*** LazyFunc
+*** LazyProc
 ** OwnType: EnumDef
 *** Own
 *** Ref
@@ -191,6 +197,8 @@
 ** MatchData: StructDef
 *** til_type := Type.Unknown
 *** result_temp := ""
+** CaptureBlockData: StructDef
+*** captures := Vec.new(Declaration)
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -217,6 +225,7 @@
 *** Throw
 *** Catch
 *** RestPattern
+*** CaptureBlock:CaptureBlockData
 ** Expr: StructDef
 *** node_type := NodeType.Body
 *** children := Vec.new(Expr)
@@ -232,6 +241,155 @@
 *** anon_cache := Map.new(Str, Str)
 *** pending_doc := ""
 *** source := ""
+* context
+** TypeBinding: StructDef
+*** name := ""
+*** type := Type.Unknown
+*** is_mut := false
+*** is_priv := false
+*** path := ""
+*** line : U32 = 0
+*** col : U32 = 0
+*** is_param := false
+*** own_type := OwnType.Shallow
+*** is_alias := false
+*** is_type_alias := false
+*** is_func_decl := false
+*** alias_target := ""
+*** func_type := FuncType.Func
+*** is_builtin := false
+*** used := false
+*** written := false
+*** mut_explicit := false
+*** orig_name := ""
+** ScopeFind: EnumDef
+*** NotFound
+*** Found:TypeBinding }
+** TypeScope: StructDef
+*** bindings := Map.new(Str, TypeBinding)
+*** func_defs := Map.new(Str, Dynamic)
+*** struct_defs := Map.new(Str, Dynamic)
+*** ref parent : TypeScope = NULL
+** ImportUnit: StructDef
+*** mode_str := ""
+*** mode := Mode()
+*** own ast := Expr.new(NodeType.Body, 0, 0)
+*** imports := Vec.new(Str)
+** Context: StructDef
+*** mode := Mode()
+*** path := ""
+*** path_modes := Map.new(Str, Mode)
+*** imported := Map.new(Str, ImportUnit)
+*** imports_init_done := Set.new(Str)
+*** imports_typer_decls_done := Set.new(Str)
+*** imports_typer_bodies_done := Set.new(Str)
+*** imports_precomp_done := Set.new(Str)
+*** imports_eval_done := Set.new(Str)
+*** scope := TypeScope()
+*** is_repl := false
+*** struct_layouts := Map.new(Str, StructLayout)
+*** precomp_macros := Set.new(Str)
+*** precomp_funcs := Set.new(Str)
+*** precomp_known := Map.new(Str, Value)
+*** precomp_assigned := Set.new(Str)
+*** has_return := false
+*** has_break := false
+*** has_continue := false
+*** return_value := Value.None
+*** ns_fields := Map.new(Str, Value)
+*** ns_keys := Vec.new(Dynamic)
+*** ns_inited := false
+*** typing_namespace_member := false
+*** local_fn_sigs := Map.new(Str, Dynamic)
+*** func_defs := Map.new(Str, Dynamic)
+*** struct_def_exprs := Map.new(Str, Dynamic)
+*** funcsig_names := Set.new(Str)
+*** script_globals := Set.new(Str)
+*** ref_globals := Set.new(Str)
+*** throw_type_registry := Vec.new(Str)
+*** throws_global := Map.new(Str, Vec)
+*** bang_counter : I64 = 0
+*** lowering_param_types := Map.new(Str, Str)
+*** typer_in_shallow_return : Bool = false
+*** typer_in_main_func : Bool = false
+*** typer_return_type_name : Str = ""
+*** ctor_seq : I32 = 0
+*** in_func_def : Bool = false
+*** in_main_func : Bool = false
+*** proc_calls_count : I32 = 0
+*** proc_def_depth : I32 = 0
+*** hoist_counter : I32 = 0
+*** va_counter : I32 = 0
+*** kw_counter : I32 = 0
+*** coll_counter : I32 = 0
+*** errors : I32 = 0
+*** current_type_name := ""
+*** current_top_func_name := ""
+*** auto_gen_depth : I32 = 0
+*** throw_used_local_names := Set.new(Str)
+*** stack_locals := Set.new(Str)
+*** stack_local_types := Map.new(Str, Str)
+*** unsafe_to_hoist := Set.new(Str)
+*** ref_locals := Set.new(Str)
+*** ptr_locals := Set.new(Str)
+*** ref_dyn_locals := Set.new(Str)
+*** ref current_fdef : Expr = NULL
+*** ref cached_str_def : Expr = NULL
+*** ref cached_str_name : Str = NULL
+*** ref cached_array_def : Expr = NULL
+*** ref cached_array_name : Str = NULL
+*** ref cached_vec_def : Expr = NULL
+*** ref cached_vec_name : Str = NULL
+*** interp_type_defs := Map.new(Str, Dynamic)
+*** dispatch_map := Map.new(Str, Dynamic)
+*** dispatch_inited := false
+*** ffi_map := Map.new(Str, FFIEntry)
+*** ffi_map_inited := false
+*** ffi_loaded := false
+*** ffi_struct_defs := Map.new(Str, Dynamic)
+*** ffi_type_cache := Vec.new(FFITypePtrBox)
+*** ffi_type_cache_inited := false
+* modes
+* targets
+** Lang: EnumDef
+*** C
+*** HolyC
+*** TIL
+** Target: EnumDef
+*** LinuxX64
+*** LinuxArm64
+*** LinuxRiscv64
+*** LinuxX86
+*** LinuxArm32
+*** LinuxRiscv32
+*** WindowsX64
+*** MacosX64
+*** MacosArm64
+*** Wasm32
+*** TempleosX86
+* loader
+** ProgramUnit: StructDef
+*** path := ""
+*** mode := Mode()
+*** imports := Vec.new(Str)
+** LoadedProgram: StructDef
+*** own core_units := Vec.new(ProgramUnit)
+*** own units := Vec.new(ProgramUnit)
+*** mode_files := Vec.new(Str)
+*** target := Target.LinuxX64
+*** cur_mode := Mode()
+*** ctx := Context()
+*** skip_core := false
+*** mode_str := ""
+*** path := ""
+*** ext_c_path := ""
+*** link_flags := ""
+*** include_flags := ""
+*** link_c_paths := ""
+*** run_tests := false
+** DeclRef: StructDef
+*** path := ""
+*** idx : U32 = 0
 * initer
 * typer
 ** CtorArg: EnumDef
@@ -241,6 +399,15 @@
 *** fully_covered := false
 *** sub_names := Vec.new(Str)
 *** sub_nodes := Vec.new(CoverageNode)
+* garbager
+** LocalInfo: StructDef
+*** ref name : Str = NULL
+*** type := Type.Unknown
+*** decl_index : I32 = 0
+*** last_use : I32 = 0
+*** own_transfer : I32 = -1
+*** skip_scope_delete := false
+*** is_heap := false
 * precomp
 * scavenger
 * builder
@@ -268,7 +435,7 @@
 ** FFIEntry: StructDef
 *** ref fn : U8 = NULL
 *** ref return_type : Str = NULL
-*** nparam : I32 = 0
+*** nparam : USize = 0
 *** ref param_shallows : U8 = NULL
 *** return_is_shallow := false
 *** ref cif : ffi_cif = NULL
@@ -321,4 +488,7 @@
 *** box_owned_dynamics := Vec.new_type_name("Fn")
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
-* modes
+* binder
+** BinderState: StructDef
+*** alias_to_primitive := "|"
+*** alias_to_dynamic := "|"

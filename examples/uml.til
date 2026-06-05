@@ -50,14 +50,19 @@ ordered_paths := func() returns Vec {
     paths.push(own "src/self/lexer.til")
     paths.push(own "src/core/ast.til")
     paths.push(own "src/self/parser.til")
+    paths.push(own "src/self/context.til")
+    paths.push(own "src/self/modes.til")
+    paths.push(own "src/self/targets.til")
+    paths.push(own "src/self/loader.til")
     paths.push(own "src/self/initer.til")
     paths.push(own "src/self/typer.til")
+    paths.push(own "src/self/garbager.til")
     paths.push(own "src/self/precomp.til")
     paths.push(own "src/self/scavenger.til")
     paths.push(own "src/self/builder.til")
     paths.push(own "src/self/dispatch.til")
     paths.push(own "src/self/interpreter.til")
-    paths.push(own "src/self/modes.til")
+    paths.push(own "src/self/binder.til")
     return paths
 }
 

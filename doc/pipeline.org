@@ -4,6 +4,26 @@ This is the current high-level pipeline implemented in
 [[file:../src/til.til][src/til.til]].
 It is intentionally short and code-oriented.
 
+* Orchestration and shared state
+
+Two modules sit underneath every phase below:
+
+- Load:
+  - `prepare_program(...)` and friends
+  - Implemented in til: [[file:../src/self/loader.til][src/self/loader.til]]
+  - Drives the whole pipeline: discovers and reads source files,
+    resolves recursive `import(...)`, picks the mode, then runs
+    tokenize -> parse -> init -> type -> asap -> precomp -> scavenge
+    in order before handing the merged AST to a back end. The CLI
+    (`src/til.til`) and the REPL both go through here.
+
+- Context:
+  - `Context`, `TypeScope`, `TypeBinding`, ...
+  - Implemented in til: [[file:../src/self/context.til][src/self/context.til]]
+  - The shared state threaded through the phases: imported units,
+    the active mode, the type scope and its name/type bindings, and
+    the FFI map. Every phase reads and mutates the same `Context`.
+
 1. Tokenize
 
 - `tokenize(source, path)`
@@ -93,12 +113,18 @@ There are two main back ends.
 - Interpret:
   - `interpret(ast, ...)`
   - [[file:../src/self/interpreter.til][src/self/interpreter.til]]
+  - For calls into native C libraries the interpreter routes through
+    the FFI dispatcher in
+    [[file:../src/self/dispatch.til][src/self/dispatch.til]]
+    (libffi-backed `ext_func`/`ext_proc` calls).
 
 - Build:
   - `build(ast, mode, run_tests, path, c_path)`
   - [[file:../src/self/builder.til][src/self/builder.til]]
   - emits C, headers, and optional til bindings
   - then `compile_c(...)` / `compile_lib(...)` compiles the emitted C
+  - target/platform selection (the `Target` and `Lang` enums) lives in
+    [[file:../src/self/targets.til][src/self/targets.til]]
 
 9. Runtime/ext layer
 
@@ -109,8 +135,19 @@ There are two main back ends.
   `modes.til`, and handwritten C sees til declarations through generated
   `boot/til_forward.h`.
 
+* Bindings generator (separate tool)
+
+- `generate_bindings(in_path, out_path)`
+- Implemented in til: [[file:../src/self/binder.til][src/self/binder.til]]
+- Not part of the translate/interpret pipeline above. Driven from
+  `bin/til bindings <header> -o <out>`: reads one C header and emits a
+  `mode lib` til file mirroring its typedefs, enums, function
+  declarations and numeric `#define`s, so til can `import` the vendor
+  binding files under `vendor/bindings/`.
+
 * Notes
 
+- Loader orchestrates the phases; Context carries the shared state.
 - Lexer turns source into tokens.
 - Parser builds the AST.
 - Initer registers and synthesizes declarations.
@@ -118,10 +155,15 @@ There are two main back ends.
 - Garbager inserts the automatic destructor calls.
 - Precomp folds comptime work.
 - Scavenger removes unused leftovers.
-- Builder/interpreter are the final execution back ends.
+- Builder/interpreter are the final execution back ends; dispatch
+  handles the interpreter's FFI calls and targets defines build targets.
+- Binder is a standalone C-header -> til bindings generator, outside
+  the main pipeline.
 
 That is the current practical phase order to keep in mind when debugging:
 
+- file loading / import resolution / mode selection: `src/self/loader.til`
+- shared `Context` / `TypeScope` state: `src/self/context.til`
 - tokenize problem: `src/self/lexer.til`
 - parse problem: `src/self/parser.til`
 - missing declaration / auto-generated helper: `src/self/initer.til`
@@ -129,4 +171,7 @@ That is the current practical phase order to keep in mind when debugging:
 - missing/extra `delete`/`free` call, use-after-move: `src/self/garbager.til`
 - comptime folding issue: `src/self/precomp.til`
 - generated C / linkage issue: `src/self/builder.til`
+- cross-compile target/lang issue: `src/self/targets.til`
+- interpreter FFI call into native C: `src/self/dispatch.til`
 - runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`
+- generated vendor bindings wrong: `src/self/binder.til`
