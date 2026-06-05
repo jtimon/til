@@ -83,16 +83,19 @@ make_link := func(fname: Str, title: Str) returns Str {
 // Parse an issue file body into "<category> <P>\n<link>", where <P> is the
 // priority marker H/M/L. The header lines ("# priority: ...", "# category:
 // ...") may appear in any order; the issue heading is the first line that
-// starts with "**". Missing priority defaults to Low, missing category to
-// "unknown". Returns "" when there is no parseable heading.
+// starts with "**". A well-formed issue MUST carry both headers and a
+// parseable heading -- a missing one panics (naming the file) so the build
+// fails loudly instead of silently dropping or misfiling the issue. An
+// unrecognised category value is still tolerated and surfaces under the
+// Unknown section rather than aborting.
 //
 // We split into owned line clones rather than carving views straight out
 // of `content`: split's clones decouple us from `content`'s lifetime and
 // sidestep the view-borrow ASAP-delete hazard that bit earlier revisions.
 parse_issue_body := func(fname: Str, content: Str) returns Str {
     lines := content.split(NL)
-    mut priority := "low"
-    mut category := "unknown"
+    mut priority := ""
+    mut category := ""
     mut title := ""
     for ln : Str in lines {
         if ln.starts_with("# priority:") { priority = field_after(ln, "priority:") }
@@ -101,9 +104,19 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
             if title.is_empty() { title = ln.clone() }
         }
     }
-    if title.is_empty() { return "" }
+    if priority.is_empty() {
+        panic(__LOC__, "issues/open/", fname, ": missing '# priority:' header")
+    }
+    if category.is_empty() {
+        panic(__LOC__, "issues/open/", fname, ": missing '# category:' header")
+    }
+    if title.is_empty() {
+        panic(__LOC__, "issues/open/", fname, ": missing '** ... #NNN' heading")
+    }
     link := make_link(fname, title)
-    if link.is_empty() { return "" }
+    if link.is_empty() {
+        panic(__LOC__, "issues/open/", fname, ": could not parse issue number from heading")
+    }
     return format(category, " ", priority_tag(priority), NL, link)
 }
 
