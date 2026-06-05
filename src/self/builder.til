@@ -2056,6 +2056,10 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         emit_stmt_return(f, e, depth, ctx)
     case NodeType.Body:
         f.write("{\n"); emit_body_scoped(f, e, depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
+    case NodeType.CaptureBlock:
+        // Issue #54: capture restriction is a compile-time check; emit the
+        // body as a plain scoped block (child 0 is the Body).
+        f.write("{\n"); emit_body_scoped(f, e.child(0), depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.If:
         f.write("if ("); emit_deref(f, e.child(0), depth, ctx); f.write(") {\n")
         emit_body_scoped(f, e.child(1), depth.add(1), ctx); emit_indent(f, depth)

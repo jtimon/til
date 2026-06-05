@@ -76,6 +76,7 @@ typedef enum {
 } Literal_tag;
 typedef struct Literal Literal;
 typedef struct MatchData MatchData;
+typedef struct CaptureBlockData CaptureBlockData;
 typedef enum {
     NodeType_TAG_Body,
     NodeType_TAG_Literal,
@@ -101,7 +102,8 @@ typedef enum {
     NodeType_TAG_NoDefaultArg,
     NodeType_TAG_Throw,
     NodeType_TAG_Catch,
-    NodeType_TAG_RestPattern
+    NodeType_TAG_RestPattern,
+    NodeType_TAG_CaptureBlock
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -469,6 +471,11 @@ typedef struct MatchData {
 } MatchData;
 
 
+typedef struct CaptureBlockData {
+    Vec captures;
+} CaptureBlockData;
+
+
 struct NodeType {
     NodeType_tag tag;
     union {
@@ -485,6 +492,7 @@ struct NodeType {
         ForInData ForIn;
         Str NamedArg;
         MatchData Match;
+        CaptureBlockData CaptureBlock;
     } data;
 };
 
@@ -1202,6 +1210,10 @@ MatchData * MatchData_clone(MatchData * self);
 void MatchData_delete(MatchData * self, Bool call_free);
 U64 MatchData_hash(MatchData * self, HashFn hasher);
 U32 MatchData_size(void);
+CaptureBlockData * CaptureBlockData_clone(CaptureBlockData * self);
+void CaptureBlockData_delete(CaptureBlockData * self, Bool call_free);
+U64 CaptureBlockData_hash(CaptureBlockData * self, HashFn hasher);
+U32 CaptureBlockData_size(void);
 Bool NodeType_is_literal_str(NodeType * self);
 Bool NodeType_is_literal_num(NodeType * self);
 Bool NodeType_is_literal_bool(NodeType * self);
@@ -1646,6 +1658,12 @@ void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, E
 void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type, OwnType * return_own_type);
 Bool is_compile_directive(Expr * e);
+Bool priv___src_self_typer_til__capture_listed(Vec * captures, Str * name);
+Bool priv___src_self_typer_til__capture_is_mut(Vec * captures, Str * name);
+TypeScope * priv___src_self_typer_til__scope_root_ref(TypeScope * s);
+void priv___src_self_typer_til__capture_block_check_name(Expr * e, Str * name, I32 is_write, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec * captures, Context * ctx);
+void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec * captures, Context * ctx);
+void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void reregister_scope_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);

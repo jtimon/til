@@ -1200,6 +1200,12 @@ parse_primary := proc(mut p: Parser) returns Expr {
             continue
         }
         if check(p, TokenType.LBracket) {
+            // Issue #54: a '[' that starts a new line is a capture-block
+            // statement (`[a, b] { ... }`), not a postfix index on the
+            // previous expression. Only treat '[' as an index when it sits
+            // on the same line as the operand it would index.
+            ref prev_tok : Token = p.tokens[p.pos.sub(1)]
+            if peek_line(p).neq(prev_tok.line) { break }
             b_line := peek_line(p)
             b_col := peek_col(p)
             advance(p) // consume '['
@@ -1792,6 +1798,31 @@ parse_statement_body := proc(mut p: Parser) returns Expr {
     if t.type.is(TokenType.LBrace) {
         advance(p)
         return parse_block(p)
+    }
+    // Issue #54: bare capture block `[a, mut b] { ... }`. The bracket list
+    // restricts which outer-scope locals the block body may reference. `[`
+    // is otherwise only a postfix index token, so a leading `[` is an
+    // unambiguous capture block. Modifiers: bare (const ref) and `mut`;
+    // `own`/`shallow` capture modes on a block are not yet supported.
+    if t.type.is(TokenType.LBracket) {
+        advance(p) // consume '['
+        mut cbd := CaptureBlockData()
+        while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
+            if check(p, TokenType.KwOwn).or(check(p, TokenType.KwShallow)) {
+                panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                    ": 'own'/'shallow' capture modes on a block are not yet supported (issue #54)")
+            }
+            mut cap_is_mut := false
+            if check(p, TokenType.KwMut) { advance(p); cap_is_mut = true }
+            cname := expect_text(p, TokenType.Ident)
+            cbd.captures.push(own Declaration(name = cname.clone(), is_mut = cap_is_mut))
+            if check(p, TokenType.Comma) { advance(p) }
+        }
+        expect_token(p, TokenType.RBracket)
+        mut cb := Expr.new(NodeType.CaptureBlock(cbd), t_line, t_col)
+        expect_token(p, TokenType.LBrace)
+        cb.add_child(own parse_block(p))
+        return cb
     }
     if t.type.is(TokenType.KwWhile) {
         advance(p)

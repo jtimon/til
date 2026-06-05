@@ -1274,6 +1274,16 @@ eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 c.return_value = c.return_value.clone()
             }
             scope_free(own block_scope)
+        case NodeType.CaptureBlock:
+            // Issue #54: a capture block runs its body inline -- the typer
+            // already enforced the capture restriction, so at runtime it
+            // behaves exactly like a bare `{ ... }` block.
+            cb_scope := scope_new(scope)
+            eval_body(cb_scope, stmt.child(0), ctx)
+            if c.has_return {
+                c.return_value = c.return_value.clone()
+            }
+            scope_free(own cb_scope)
         case NodeType.If:
             cond := eval_expr(scope, stmt.child(0), ctx)
             mut cv := false

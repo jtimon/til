@@ -1,6 +1,20 @@
 # priority: low
 # category: features
-** OPEN #54 Explicit capture syntax (closures)
+** WIP #54 Explicit capture syntax (closures)
+
+   Progress (incremental, see commits):
+   - [X] Block captures (scope restriction): bare `[a, mut b] { ... }`
+     blocks now parse (new NodeType.CaptureBlock), and the typer enforces
+     that the body only references captured outer locals (plus globals,
+     top-level funcs/types, and block-locals). Const (`[x]`) and mutable
+     (`[mut x]`) captures; `own`/`shallow` block modes rejected for now.
+     The block stays inline at runtime (no closure machinery), so it
+     works in both interpret and compile mode. Tests: test/closures.til
+     (positive, both modes) and test/capture_block_error.til (negative).
+   - [ ] Func-def capture lists: parse + store on FunctionDef + typer
+     validation.
+   - [ ] Closure values (fn-ptr + captured environment) in both modes.
+   - [ ] copy/own capture modifiers (snapshot/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]
   :DEPENDENCIES_OF: [[./12.org][#12]] [[./13.org][#13]]

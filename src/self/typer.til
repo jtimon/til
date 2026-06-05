@@ -7455,6 +7455,121 @@ is_compile_directive := func(e: Expr) returns Bool {
     }
 }
 
+// Issue #54 capture-block helpers. -------------------------------------
+
+// Is `name` listed in the block's capture list?
+priv capture_listed := func(captures: Vec, name: Str) returns Bool {
+    for cap : Declaration in captures {
+        if cap.name.eq(name) { return true }
+    }
+    return false
+}
+
+// Was `name` captured with the `mut` modifier?
+priv capture_is_mut := func(captures: Vec, name: Str) returns Bool {
+    for cap : Declaration in captures {
+        if cap.name.eq(name) { return cap.is_mut }
+    }
+    return false
+}
+
+// Walk up to the file/global root scope.
+priv scope_root_ref := func(s: TypeScope) returns ref TypeScope {
+    if s.parent.is_null() { return s }
+    return scope_root_ref(s.parent)
+}
+
+// Issue #54: a single name reference inside a capture block must resolve
+// to a block-local, a captured name, a global/top-level func, or a type.
+// A reference to an un-captured enclosing *local* is an error -- that is
+// the whole point of the explicit capture list. `is_write` flags an
+// assignment target, which additionally requires a `mut` capture.
+priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
+        enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
+        captures: Vec, ctx: Context) {
+    if block_scope.bindings.has(name) { return }   // block-local (or shadow)
+    if capture_listed(captures, name) {
+        if is_write.eq(1).and(capture_is_mut(captures, name).not()) {
+            e.type_error(format("capture '", name,
+                "' is const here; capture it as 'mut' to assign to it"), ctx)
+        }
+        return
+    }
+    ref b : TypeBinding = enclosing.get_binding(name)
+    if b.is_null() { return }                      // unresolved: normal diagnostics handle it
+    if root.bindings.has(name) { return }          // global / top-level func / type
+    if b.is_func_decl.or(b.is_builtin) { return }
+    e.type_error(format("block does not capture '", name,
+        "'; add it to the '[...]' capture list to use it here"), ctx)
+}
+
+// Recurse the block body checking every variable reference. Nested
+// capture blocks and func literals carry their own capture rules, so
+// stop at them.
+priv capture_block_check_refs := proc(e: Expr,
+        enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
+        captures: Vec, ctx: Context) {
+    if e.is_null() { return }
+    switch e.node_type {
+    case NodeType.CaptureBlock: return
+    case NodeType.FuncDef: return
+    case NodeType.Ident(idd):
+        capture_block_check_name(e, idd.name, 0, enclosing, block_scope, root, captures, ctx)
+    case NodeType.Assign(ad):
+        capture_block_check_name(e, ad.name, 1, enclosing, block_scope, root, captures, ctx)
+    case:
+    }
+    for c : Expr in e.children {
+        capture_block_check_refs(c, enclosing, block_scope, root, captures, ctx)
+    }
+}
+
+// Issue #54: type-check a bare capture block `[a, mut b] { ... }`. The
+// body is typed in a normal inline child scope, then a read-only
+// restriction pass enforces that only captured outer locals are touched.
+priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
+        in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+    mut captures := Vec.new(Declaration)
+    switch stmt.node_type {
+    case NodeType.CaptureBlock(cbd):
+        captures = cbd.captures.clone()
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    // Each captured name must exist in the enclosing scope; mark it used
+    // (so listing it counts as a use) and validate the `mut` modifier.
+    for cap : Declaration in captures {
+        ref mut b : TypeBinding = scope.get_binding(cap.name)
+        if b.is_null() {
+            stmt.type_error(format("capture '", cap.name,
+                "': no such variable in the enclosing scope"), ctx)
+        } else {
+            b.used = true
+            if cap.is_mut {
+                if b.is_mut.not() {
+                    stmt.type_error(format("cannot capture immutable '", cap.name,
+                        "' as 'mut'"), ctx)
+                }
+                b.written = true
+            }
+        }
+    }
+    if stmt.children.len().eq(0) {
+        stmt.set_expr_til_type(Type.None)
+        return
+    }
+    ref mut body : Expr = stmt.child(0)
+    block_scope := TypeScope(parent = scope)
+    infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
+    ref root : TypeScope = scope_root_ref(scope)
+    capture_block_check_refs(body, scope, block_scope, root, captures, ctx)
+    garbager_destroy_body(ctx, body, block_scope)
+    check_unused_locals(block_scope, ctx.path, ctx)
+    check_unused_mut_locals(block_scope, ctx.path, ctx)
+    TypeScope.delete(own block_scope)
+    stmt.set_expr_til_type(Type.None)
+}
+
 infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     // Issue #244: a Match at statement position is either the lowering's
     // result-temp-tagged form (desugar it like a switch) or a bare user
@@ -7516,6 +7631,8 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
         TypeScope.delete(own block_scope)
     case NodeType.While:
         infer_while_stmt(scope, stmt, in_func, returns_ref, ctx)
+    case NodeType.CaptureBlock:
+        infer_capture_block(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case NodeType.Switch:
         infer_switch_stmt(scope, body, i, in_func, ctx)
         i = i.sub(1)

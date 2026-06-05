@@ -522,6 +522,21 @@ namespace:
     to_str := func(_self: MatchData) returns Str { return "" }
 }
 
+/// Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
+/// block carrying an explicit capture list. The captures restrict which
+/// outer-scope locals the block body may reference -- a compile-time
+/// "insurance policy". Each capture is a Declaration (name + is_mut);
+/// the block stays inline at runtime, so the only effect is the typer's
+/// scope-restriction check. Child 0 is the Body.
+CaptureBlockData := struct {
+    captures := Vec.new(Declaration)
+namespace:
+    eq := func(a: CaptureBlockData, b: CaptureBlockData) returns Bool {
+        return a.captures.len().eq(b.captures.len())
+    }
+    to_str := func(_self: CaptureBlockData) returns Str { return "CaptureBlock" }
+}
+
 /// AST node kind. Each variant carries an optional payload (struct, string, bool).
 NodeType := enum {
     Body,
@@ -564,6 +579,11 @@ NodeType := enum {
     // its presence to allow missing-field cases and rejects patterns
     // that omit fields without the marker.
     RestPattern,
+    // Issue #54: bare capture block `[a, mut b] { ... }`. Child 0 is the
+    // Body; the payload holds the capture list. The typer restricts the
+    // body's visible outer locals to the captured names; downstream
+    // stages treat it as the inline block it wraps.
+    CaptureBlock: CaptureBlockData,
 namespace:
     // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
     // cannot tell the literal kinds apart -- it matches any Literal. These
@@ -737,6 +757,7 @@ expr_til_type := func(e: Expr) returns Type {
         return e.child(0).expr_til_type()
     case NodeType.Catch:       return Type.None
     case NodeType.RestPattern: return Type.Unknown
+    case NodeType.CaptureBlock: return Type.None
     }
     return Type.Unknown
 }
@@ -831,6 +852,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.NoDefaultArg:   return "NoDefaultArg"
     case NodeType.Throw:          return "Throw"
     case NodeType.Catch:          return "Catch"
+    case NodeType.CaptureBlock:   return "CaptureBlock"
     case: return "?"
     }
 }
@@ -887,6 +909,7 @@ node_name := func(data: NodeType) returns Str {
     case NodeType.Case:        return "case"
     case NodeType.Throw:       return "throw"
     case NodeType.Catch:       return "catch"
+    case NodeType.CaptureBlock: return "capture_block"
     case: return "?"
     }
 }

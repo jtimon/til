@@ -1,0 +1,16 @@
+mode script
+
+// Negative test (issue #54): a capture block may only reference the
+// outer locals listed in its `[...]` capture list. Referencing or
+// assigning an un-captured enclosing local is a compile-time error.
+main := proc() {
+    a := 1
+    b := 2
+    mut c := 0
+    // Only `a` is captured: reading `b` and assigning `c` must both error.
+    [a] {
+        c = b.add(1)
+    }
+    println(a.to_str())
+    println(c.to_str())
+}

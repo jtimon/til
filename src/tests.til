@@ -426,6 +426,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/tuples.til", flags)
     add_mode(tests, "test/auto.til", flags)
     add_mode(tests, "test/first_class.til", flags)
+    add_mode(tests, "test/closures.til", flags)
     add_mode(tests, "test/regression.til", flags)
     add_mode(tests, "test/files.til", flags)
     add_mode(tests, "test/import_diamond.til", flags)
@@ -537,6 +538,9 @@ main := proc(args: ..Str) {
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 140,
                format(til_bin, " interpret test/typer_errors.til"))
+    add_count(tests, "capture_block_error", "typer",
+              "block does not capture", 2,
+              format(til_bin, " interpret test/capture_block_error.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
                format(til_bin, " interpret test/qualifier_shallow_local_error.til"))

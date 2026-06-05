@@ -1,0 +1,88 @@
+mode test
+
+// --- Block captures: scope restriction (issue #54) ---
+// A bare `[names] { ... }` block limits which outer-scope locals the
+// block body may touch. Captures follow parameter modifier rules:
+// `[x]` is a const-by-reference capture, `[mut x]` a mutable one.
+// Globals, top-level functions and types need no capture. The block
+// stays inline at runtime, so the only effect is the compile-time check.
+
+GLOBAL_SCALE := 10
+
+helper_double := func(n: I64) returns I64 { return n.mul(2) }
+
+// Const capture: read a captured outer local, write a captured mut local.
+test_block_capture_const_read := test() {
+    base := 10
+    mut result := 0
+    [base, mut result] {
+        result = base.add(5)
+    }
+    assert_eq(__LOC__, result, 15)
+}
+
+// A global is always visible without being captured.
+test_block_capture_global_allowed := test() {
+    mut r := 0
+    [mut r] {
+        r = GLOBAL_SCALE.add(2)
+    }
+    assert_eq(__LOC__, r, 12)
+}
+
+// A top-level function is always callable without being captured.
+test_block_capture_func_allowed := test() {
+    seed := 6
+    mut out := 0
+    [seed, mut out] {
+        out = helper_double(seed)
+    }
+    assert_eq(__LOC__, out, 12)
+}
+
+// Block-local declarations are free to use inside the block.
+test_block_capture_block_local := test() {
+    seed := 3
+    mut out := 0
+    [seed, mut out] {
+        doubled := seed.mul(2)
+        out = doubled.add(1)
+    }
+    assert_eq(__LOC__, out, 7)
+}
+
+// A for-loop inside a capture block, accumulating into a captured mut.
+test_block_capture_loop := test() {
+    mut total := 0
+    [mut total] {
+        for i in 1..4 {
+            total = total.add(i)
+        }
+    }
+    assert_eq(__LOC__, total, 6)
+}
+
+// Nested capture blocks each restrict to their own list.
+test_block_capture_nested := test() {
+    a := 1
+    b := 2
+    mut sum := 0
+    [a, b, mut sum] {
+        [a, mut sum] {
+            sum = sum.add(a)
+        }
+        sum = sum.add(b)
+    }
+    assert_eq(__LOC__, sum, 3)
+}
+
+// A capture block leaves untouched outer locals genuinely untouched.
+test_block_capture_isolation := test() {
+    mut touched := 0
+    untouched := 99
+    [mut touched] {
+        touched = touched.add(1)
+    }
+    assert_eq(__LOC__, touched, 1)
+    assert_eq(__LOC__, untouched, 99)
+}
