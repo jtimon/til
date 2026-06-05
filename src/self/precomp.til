@@ -1048,7 +1048,7 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 // Issue #191: always fold macro calls. Typer already
                 // validated that all args are comptime.
                 mut lit : Expr = try_eval_call(scope, child, true, ctx)
-                if lit.is_null().not() { e.children.set(i, own lit) }
+                if lit.is_null().not() { e.children.replace(i, own lit) }
             } else if is_func_call(child, ctx) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
@@ -1062,14 +1062,16 @@ fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                     mut lit : Expr = try_fast_fold_call(scope, child, ctx)
                     if lit.is_null().not() {
                         // try_fast_fold_call / try_eval_call malloc a heap Expr
-                        // and return it; MOVE it into e.children rather than
-                        // clone-and-drop (the dropped heap original + its
-                        // children Vec leaked on every comptime fold).
-                        e.children.set(i, own lit)
+                        // and return it; .replace (not .set) MOVES it into the
+                        // slot AND frees the folded-away original child (the
+                        // FCall subtree -- often a hoisted temp's RHS clone).
+                        // .set bit-overwrote the slot and orphaned that whole
+                        // subtree, leaking it on every comptime fold.
+                        e.children.replace(i, own lit)
                     } else {
                         mut lit2 : Expr = try_eval_call(scope, child, false, ctx)
                         if lit2.is_null().not() {
-                            e.children.set(i, own lit2)
+                            e.children.replace(i, own lit2)
                         }
                     }
                 }
