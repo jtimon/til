@@ -2330,8 +2330,9 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                 }
                 f.write(")")
             } else if name.ident_name().eq("cast") {
-                // Issue #212: same-size integer reinterpret -> bare C cast.
-                // The typer set this FCall's til_type to the target type T.
+                // Issue #212: integer reinterpret or same-signedness
+                // widening -> bare C cast. The typer set this FCall's
+                // til_type to the target type T.
                 mut cast_c_type := til_type_name_c(e.expr_til_type())
                 // Issue #58: cast-to-FuncSig. til_type_name_c yields "Fn",
                 // which is not a C type. For Dynamic -> FuncPtr the source

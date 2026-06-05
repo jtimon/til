@@ -2343,10 +2343,10 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // Issue #212: byte size of an integer primitive Type, or 0 for any
 // non-integer-reinterpret-able type. F32 (4 bytes) and Bool are
 // deliberately excluded -- `cast` is a bit reinterpret, not a value
-// conversion. Only the sizes with a full same-size signed/unsigned pair
-// in both the codegen and interpreter value model are returned (4 and 8);
-// 1-byte (I8 has no interpreter Value variant) and 2-byte (no U16) are
-// intentionally left at 0 for now.
+// conversion. All four integer widths (1/2/4/8) carry a full same-size
+// signed/unsigned pair in both the codegen and interpreter value model
+// (Value.Sbyte/Byte, Value.Short/Ushort, Value.Int32/Uint32,
+// Value.Int/Uint64).
 cast_int_size := func(t: Type) returns USize {
     tn := til_type_name_c(t)
     if tn.eq("I8").or(tn.eq("U8"))   { return 1 }

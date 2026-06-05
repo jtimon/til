@@ -3,14 +3,20 @@ mode lib
 import("ast")
 import("dyn")
 
-// Issue #212: same-size integer reinterpret cast.
+// Issue #212: integer reinterpret / same-signedness widening cast.
 //
 //   a : U32 = 0
 //   b : I32 = a.cast(I32)   // UFCS; or cast(a, I32)
 //
-// `cast(e, T)` reinterprets the bits of `e` as the target integer type
-// T of the SAME byte size (I32<->U32, I64<->U64 for now). It is a free
-// C cast at the programmer's own risk -- no range check, no panic.
+// `cast(e, T)` reinterprets the bits of `e` as the target integer type T.
+// Two shapes are legal:
+//   - same-size reinterpret, any signedness (I8<->U8, I16<->U16,
+//     I32<->U32, I64<->U64)
+//   - same-signedness widening (e.g. I8 -> I64, U16 -> U32)
+// Cross-signedness widening (e.g. I32 -> U64) is NOT a cast -- the
+// signed interpretation changes, so it stays as the explicit `.to_X()`
+// method. It is a free C cast at the programmer's own risk -- no range
+// check, no panic.
 //
 // The declared `returns Dynamic` is a stopgap: the honest signature is
 // `returns T` (the result type is the *value* of the T argument), but

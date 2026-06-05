@@ -343,10 +343,11 @@ h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     }
 }
 
-// Issue #212: same-size integer reinterpret cast. The typer set this
-// FCall's til_type to the target type T; reinterpret the operand's bits
-// into the matching Value variant. value_to_u64 gives the raw bits; the
-// val_* constructors mask/sign-interpret to the target width.
+// Issue #212: integer reinterpret or same-signedness widening cast. The
+// typer set this FCall's til_type to the target type T; reinterpret the
+// operand's bits into the matching Value variant. value_to_u64 gives
+// the raw bits; the val_* constructors mask/sign-interpret to the
+// target width.
 h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     mut v := eval_expr(s, e.child(1), ctx)
     // For non-scalar operand variants (Value.Ref from `ref c : I8 =
