@@ -1942,6 +1942,7 @@ Bool callee_param_is_own(Str * callee_name, U32 arg_index, Context * ctx);
 Bool priv___src_self_builder_til__fcall_is_shallow_return(Expr * fcall, Context * ctx);
 Bool fcall_returns_dynamic(Expr * fcall, Context * ctx);
 Str * priv___src_self_builder_til__til_type_to_c(Type t);
+void priv___src_self_builder_til__seed_primitive_names(Set * emitted);
 Str * extern_decl_ctype(Type t, Type rhs_t, Context * ctx);
 Str * resolve_decl_ctype(Type t, Type rhs_t, Str * explicit, Context * ctx);
 Str * c_type_name(Type t, Str * struct_name, Context * ctx);

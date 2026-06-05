@@ -388,7 +388,7 @@ test_nested_struct_alias := test() {
 // --- ext_struct tests ---
 
 // Anonymous ext_struct (like libffi's ffi_cif)
-AnonPair := ext_struct("") {
+AnonPair := ext_struct {
     a : I32 = 0
     b : I32 = 0
 }

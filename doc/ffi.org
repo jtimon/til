@@ -98,6 +98,37 @@ ABI shape), use ~shallow~ on the arg and ~returns shallow T~ on
 the return -- those map to plain ~T arg~ / ~T return~ in the
 generated C.
 
+** ext_struct vs struct: the field-layout contract
+
+~ext_struct~ is not just "a struct whose methods live in C".  Its
+reason to exist is field layout:
+
+- ~struct~ reserves til's right to reorder fields (for packing,
+  alignment, or any future layout optimization).  Source order is
+  not a promise; two structs with the same fields in a different
+  order may compile to the same layout.
+- ~ext_struct~ guarantees declaration order == memory order.  The
+  fields are laid out exactly as written, because the type has to
+  match a C struct's ABI for FFI.  This holds even though the
+  reordering optimization for ~struct~ is not implemented yet: it is
+  a contract about what each form is *allowed* to do, not a snapshot
+  of today's codegen.
+
+Consequence: any type that crosses the C boundary by value (or whose
+address is handed to C and read back field-by-field) must be an
+~ext_struct~, never a plain ~struct~.  You cannot express "match this
+exact C layout" with a form that is permitted to reorder.
+
+~ext_struct~ takes an optional C struct tag for the cases where the C
+library names the aggregate twice (the ~struct foo~ tag vs the
+~typedef~ name):
+
+- ~ext_struct {}~          -- anonymous (no C struct tag)
+- ~ext_struct("foo") {}~   -- emits ~struct foo~
+
+There is no ~ext_struct("")~ form: an empty tag is the same as no
+tag, so the parser rejects it and points you at bare ~ext_struct {}~.
+
 ** noop_proc: forcing precomp to skip a wrapper
 
 Some user-level wrappers depend on runtime state but cannot

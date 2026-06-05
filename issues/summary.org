@@ -47,7 +47,6 @@
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
 *** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 *** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
-*** [[./open/263.org][#263]] Drop redundant ext_struct("") spelling; use bare ext_struct {}
 * Features
 ** High
 *** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)

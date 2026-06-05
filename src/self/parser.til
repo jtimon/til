@@ -1166,9 +1166,17 @@ parse_primary := proc(mut p: Parser) returns Expr {
         mut tag := "@anon"
         if check(p, TokenType.LParen) {
             advance(p)
+            es_line := peek_line(p)
+            es_col := peek_col(p)
             ref tag_tok : Token = expect_token(p, TokenType.StringTok)
             tag = tok_text(p, tag_tok).clone()
-            if tag.len().eq(0) { tag = "@anon" }
+            // An empty tag is the same as no tag at all; reject the
+            // redundant `ext_struct("")` spelling and steer to bare
+            // `ext_struct {}` (#263).
+            if tag.len().eq(0) {
+                panic(__LOC__, p.path, ":", es_line.to_str(), ":", es_col.to_str(),
+                    ": empty ext_struct tag: write 'ext_struct {' instead of 'ext_struct(\"\") {'")
+            }
             expect_token(p, TokenType.RParen)
         }
         return parse_struct_def(p, tag)

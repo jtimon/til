@@ -663,6 +663,17 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     }
 }
 
+// Single source of truth for the set of primitive type names. The header
+// emission passes seed their "already emitted / builtin scalar" sets with
+// every primitive so they are not re-declared; centralizing the list here
+// keeps adding a primitive a one-place edit instead of an N-place one
+// (#115).
+priv seed_primitive_names := func(mut emitted: Set) {
+    emitted.add(own "U8"); emitted.add(own "I8"); emitted.add(own "I16"); emitted.add(own "U16"); emitted.add(own "I32")
+    emitted.add(own "U32"); emitted.add(own "U64"); emitted.add(own "I64")
+    emitted.add(own "F32"); emitted.add(own "Bool")
+}
+
 // Resolve the C type for an `extern` global decl. Replaces the
 // `mut ctype := ""; if dyn { ... } else { ... }` reassign-leak
 // pattern in emit_header_global_decls / emit_funcsig_typedefs.
@@ -3772,9 +3783,7 @@ emit_header_func_fwds_prog := proc(f: File, prog: Expr, is_core_pass: Bool, ctx:
 
 emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr, ctx: Context) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "U16"); emitted_h.add(own "I32")
-    emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
-    emitted_h.add(own "F32"); emitted_h.add(own "Bool")
+    seed_primitive_names(emitted_h)
     if core_program.is_null().not() { topo_emit_struct_enum_defs(f, core_program, emitted_h, ctx) }
     topo_emit_struct_enum_defs(f, program, emitted_h, ctx)
     own emitted_h.delete()
@@ -3838,9 +3847,7 @@ emit_header_defs_and_funcs := proc(f: File, core_program: Expr, program: Expr, c
 
 emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     mut emitted_h := Set.new(Str)
-    emitted_h.add(own "U8"); emitted_h.add(own "I8"); emitted_h.add(own "I16"); emitted_h.add(own "U16"); emitted_h.add(own "I32")
-    emitted_h.add(own "U32"); emitted_h.add(own "U64"); emitted_h.add(own "I64")
-    emitted_h.add(own "F32"); emitted_h.add(own "Bool")
+    seed_primitive_names(emitted_h)
     topo_emit_struct_enum_defs_lp(f, emitted_h, lp)
     own emitted_h.delete()
 
@@ -4952,9 +4959,7 @@ emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode:
 
     // Topo-sort struct/enum defs
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "U16"); emitted_mh.add(own "I32")
-    emitted_mh.add(own "U32"); emitted_mh.add(own "U64"); emitted_mh.add(own "I64")
-    emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
+    seed_primitive_names(emitted_mh)
     if core_program.is_null().not() { topo_emit_struct_enum_defs(f, core_program, emitted_mh, ctx) }
     topo_emit_struct_enum_defs(f, program, emitted_mh, ctx)
     own emitted_mh.delete()
@@ -5021,9 +5026,7 @@ emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
 
     // Topo-sort struct/enum defs across all units
     mut emitted_mh := Set.new(Str)
-    emitted_mh.add(own "U8"); emitted_mh.add(own "I8"); emitted_mh.add(own "I16"); emitted_mh.add(own "U16"); emitted_mh.add(own "I32")
-    emitted_mh.add(own "U32"); emitted_mh.add(own "U64"); emitted_mh.add(own "I64")
-    emitted_mh.add(own "F32"); emitted_mh.add(own "Bool")
+    seed_primitive_names(emitted_mh)
     topo_emit_struct_enum_defs_lp(f, emitted_mh, lp)
     own emitted_mh.delete()
 

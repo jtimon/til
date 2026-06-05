@@ -163,7 +163,7 @@ FFI_BAD_TYPEDEF : I32 = 1.to_i32()
 FFI_BAD_ABI : I32 = 2.to_i32()
 FFI_BAD_ARGTYPE : I32 = 3.to_i32()
 
-ffi_cif := ext_struct("") {
+ffi_cif := ext_struct {
     abi : ffi_abi = 0
     nargs : U32 = 0
     ref arg_types : Dynamic = NULL
@@ -200,16 +200,16 @@ ffi_java_raw_size := ext_proc(mut cif : ffi_cif) returns shallow USize {}
 
 /* ---- Definitions for closures ----------------------------------------- */
 
-ffi_closure := ext_struct("") {}  // opaque: unsupported field shape
+ffi_closure := ext_struct {}  // opaque: unsupported field shape
 
 ffi_closure_alloc := ext_proc(shallow size : USize, mut code : Dynamic) returns Dynamic {}
 ffi_closure_free := ext_proc(mut _arg : Dynamic) {}
 
 ffi_prep_closure_loc := ext_proc(mut _arg : ffi_closure, mut _arg : ffi_cif, fun : Dynamic, mut user_data : Dynamic, mut codeloc : Dynamic) returns shallow ffi_status {}
 
-ffi_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
+ffi_raw_closure := ext_struct {}  // opaque: unsupported field shape
 
-ffi_java_raw_closure := ext_struct("") {}  // opaque: unsupported field shape
+ffi_java_raw_closure := ext_struct {}  // opaque: unsupported field shape
 
 ffi_prep_raw_closure := ext_proc(mut _arg : ffi_raw_closure, mut cif : ffi_cif, fun : Dynamic, mut user_data : Dynamic) returns shallow ffi_status {}
 
@@ -219,7 +219,7 @@ ffi_prep_java_raw_closure := ext_proc(mut _arg : ffi_java_raw_closure, mut cif :
 
 ffi_prep_java_raw_closure_loc := ext_proc(mut _arg : ffi_java_raw_closure, mut cif : ffi_cif, fun : Dynamic, mut user_data : Dynamic, mut codeloc : Dynamic) returns shallow ffi_status {}
 
-ffi_go_closure := ext_struct("") {}  // opaque: unsupported field shape
+ffi_go_closure := ext_struct {}  // opaque: unsupported field shape
 
 ffi_prep_go_closure := ext_proc(mut _arg : ffi_go_closure, mut _arg : ffi_cif, fun : Dynamic) returns shallow ffi_status {}
 

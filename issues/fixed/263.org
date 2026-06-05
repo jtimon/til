@@ -1,6 +1,19 @@
 # priority: low
 # category: cleanups
-** OPEN #263 Drop redundant ext_struct("") spelling; use bare ext_struct {}
+** FIXED #263 Drop redundant ext_struct("") spelling; use bare ext_struct {}
+
+Post-mortem: the bare ~ext_struct {}~ form already parsed (the paren is
+optional), so the empty-tag spelling ~ext_struct("") {}~ was pure noise --
+identical meaning, more characters. Fix had two parts: (1) rewrote the six
+call sites (~test/structs.til~ ~AnonPair~ and the five libffi closures /
+~ffi_cif~) to the bare form; (2) closed the door so it cannot creep back --
+~parse_struct_def~'s ~KwExtStruct~ caller in ~src/self/parser.til~ now
+panics on an empty string tag with "empty ext_struct tag: write
+'ext_struct {' instead of 'ext_struct(\"\") {'" instead of silently
+mapping ~""~ to ~@anon~. Regression coverage: ~test/structs.til~'s
+~test_ext_struct_anon~ exercises the bare ~ext_struct {}~ form (the
+converted ~AnonPair~). Documented in doc/ffi.org's new "ext_struct vs
+struct" section.
 
 ~ext_struct~ takes an optional ~Str~ C struct tag. The empty-string form
 ~ext_struct("") {}~ means "anonymous, no tag" -- which is exactly what the

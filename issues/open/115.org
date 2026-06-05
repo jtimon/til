@@ -1,6 +1,29 @@
 # priority: low
 # category: cleanups
-** OPEN #115 Reduce primitive special-casing; keep ext_struct, document its contract
+** WIP #115 Reduce primitive special-casing; keep ext_struct, document its contract
+
+*Progress.*
+
+  - Layout contract documented: doc/ffi.org now has an "ext_struct vs
+    struct" section spelling out that ~struct~ reserves the right to
+    reorder fields while ~ext_struct~ guarantees declaration order ==
+    memory order for the C ABI. This is the "document its contract" half
+    of the issue.
+  - First special-casing reduction: builder.til had the full primitive
+    name list (~U8 I8 I16 U16 I32 U32 U64 I64 F32 Bool~) spelled out four
+    times to seed the header-emission "already emitted" sets. Collapsed
+    those into one ~seed_primitive_names~ helper, so adding a primitive is
+    no longer a four-place edit in that file.
+
+*Remaining.* The bulk of the special-casing is still scattered: hundreds
+  of individual ~name.eq("U32")~-style checks and parallel
+  ~switch~/~if~-chains across builder, initer, typer, and dispatch. Each
+  tests one primitive (or a near-full subset) for a property -- builtin
+  scalar, forward-decl skip, C representation, default value, etc. Folding
+  those onto a single source of truth needs a shared cross-file helper
+  (home TBD: core/ast.til or context.til) and care around the ~USize~ /
+  ~UPtr~ aliases that some lists include and others do not. That is the
+  incremental work this issue still tracks.
 
 *Rescoped.* The original premise -- "remove or simplify ~ext_struct~,
 maybe fold it into ordinary ~struct~" -- is wrong and is dropped.
