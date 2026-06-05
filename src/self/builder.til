@@ -4089,17 +4089,6 @@ emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     f.write("\n")
 }
 
-build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, ctx: Context) returns I32 {
-    build_register_funcsig_names(core_program, program, ctx)
-    f := File.new(fwd_path, true)
-    f.write("#pragma once\n#include \"ext.h\"\n\n")
-    emit_header_forward_decls(f, core_program, program)
-    emit_funcsig_typedefs(f, core_program, program, ctx)
-    emit_header_defs_and_funcs(f, core_program, program, ctx)
-    emit_header_global_decls(f, core_program, program, ctx)
-    return 0
-}
-
 build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(fwd_path, true)
@@ -4108,18 +4097,6 @@ build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns I32 {
     emit_funcsig_typedefs_lp(f, lp)
     emit_header_defs_and_funcs_lp(f, lp)
     emit_header_global_decls_lp(f, lp)
-    return 0
-}
-
-build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Context) returns I32 {
-    build_register_funcsig_names(core_program, program, ctx)
-    f := File.new(h_path, true)
-    f.write("#pragma once\n#include \"ext.h\"\n\n")
-    emit_header_forward_decls(f, core_program, program)
-    emit_funcsig_typedefs(f, core_program, program, ctx)
-    emit_header_defs_and_funcs(f, core_program, program, ctx)
-    emit_header_global_decls(f, core_program, program, ctx)
-    f.write("#include \"ext.h\"\n\n")
     return 0
 }
 
@@ -4851,12 +4828,6 @@ emit_global_inits := proc(f: File, lp: LoadedProgram) {
     }
 }
 
-build_register_funcsig_names := func(core_program: Expr, program: Expr, ctx: Context) {
-    ctx.funcsig_names = Set.new(Str)
-    if core_program.is_null().not() { register_funcsig_prog(core_program, ctx) }
-    if program.is_null().not()      { register_funcsig_prog(program, ctx) }
-}
-
 build_register_funcsig_names_lp := func(lp: LoadedProgram) {
     lp.ctx.funcsig_names = Set.new(Str)
     if lp.skip_core.not() {
@@ -4918,21 +4889,6 @@ register_lookups_prog := func(prog: Expr, ctx: Context) {
             UNREACHABLE(__LOC__)
         }
     }
-}
-
-// #135: can't use for prog_idx in 0..2 with ref mut prog here because
-// the clone bug makes stored pointers point to cloned nodes
-build_register_lookups := func(core_program: Expr, program: Expr, ctx: Context) {
-    ctx.struct_def_exprs = Map.new(Str, Dynamic)
-    ctx.func_defs = Map.new(Str, Dynamic)
-    ctx.stack_locals = Set.new(Str)
-    ctx.stack_local_types = Map.new(Str, Str)
-    ctx.unsafe_to_hoist = Set.new(Str)
-    ctx.ref_locals = Set.new(Str)
-    ctx.ref_dyn_locals = Set.new(Str)
-    ctx.ptr_locals = Set.new(Str)
-    if core_program.is_null().not() { register_lookups_prog(core_program, ctx) }
-    register_lookups_prog(program, ctx)
 }
 
 build_register_lookups_lp := func(lp: LoadedProgram) {
@@ -4998,72 +4954,6 @@ emit_monolithic_header_func_decls_prog := proc(f: File, prog: Expr, mode: Mode, 
     }
 }
 
-emit_monolithic_header := proc(f: File, core_program: Expr, program: Expr, mode: Mode, ctx: Context) {
-    f.write("#include \"ext.h\"\n\n")
-    emit_header_forward_decls(f, core_program, program)
-    emit_funcsig_typedefs(f, core_program, program, ctx)
-
-    // Topo-sort struct/enum defs
-    mut emitted_mh := Set.new(Str)
-    seed_primitive_names(emitted_mh)
-    if core_program.is_null().not() { topo_emit_struct_enum_defs(f, core_program, emitted_mh, ctx) }
-    topo_emit_struct_enum_defs(f, program, emitted_mh, ctx)
-    own emitted_mh.delete()
-
-    // Emit function declarations
-    if core_program.is_null().not() { emit_monolithic_header_func_decls_prog(f, core_program, mode, ctx) }
-    if program.is_null().not()      { emit_monolithic_header_func_decls_prog(f, program, mode, ctx) }
-    // Enum auto-helper declarations (user program only)
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
-        if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
-        switch stmt.node_type {
-        case NodeType.Decl(dd):
-            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            mut has_eq_fdef := false
-            ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
-            for d_j : Declaration in sh3_eq_ns {
-                ref nsd : Declaration = d_j
-                if nsd.name.eq("eq").and(nsd.default_value.is_null().not()) {
-                    if nsd.default_value.node_type.is(NodeType.FuncDef) {
-                        eq_fdef = nsd.default_value.clone()
-                        has_eq_fdef = true
-                        break
-                    }
-                }
-            }
-            mut eq_ret := "Bool *"
-            if has_eq_fdef {
-                switch eq_fdef.node_type {
-                case NodeType.FuncDef(eqfd):
-                    if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
-            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
-            switch stmt.child(0).node_type {
-            case NodeType.EnumDef(hdr_edd):
-                mut hdr_vi : USize = 0
-                for hdr_vn : Str in hdr_edd.variants {
-                    hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.cast(I32))
-                    if hdr_vt.len().gt(0) {
-                        tnc := type_name_to_c(hdr_vt, ctx)
-                        f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("("); f.write(tnc); f.write(");\n")
-                    } else {
-                        f.write(dd.name); f.write(" *"); f.write(dd.name); f.write("_"); f.write(hdr_vn); f.write("();\n")
-                    }
-                    hdr_vi = hdr_vi.add(1)
-                }
-            case:
-                UNREACHABLE(__LOC__)
-            }
-        case:
-            UNREACHABLE(__LOC__)
-        }
-    }
-}
 
 emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")

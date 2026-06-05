@@ -1495,7 +1495,6 @@ Bool is_pod_enum_clone_of(Expr * e, Expr * edef);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
-void mode_register(Str * name, Mode * mode_def);
 Mode * mode_resolve(Str * name);
 Bool Lang_is(Lang * self, Lang * other);
 Bool Lang_eq(Lang * self, Lang * other);

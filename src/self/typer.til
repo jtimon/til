@@ -8860,40 +8860,6 @@ type_to_name := func(t: Type) returns Str {
     }
 }
 
-make_field_delete := func(field_assign: Expr, shallow field_own_type: OwnType) returns Expr {
-    ref rhs : Expr = field_assign.child(1)
-    tname := type_to_name(rhs.expr_til_type())
-    if tname.len().eq(0) { return NULL }
-
-    mut call := Expr.new(NodeType.FCall(FCallData()), field_assign.line, field_assign.col)
-    call.set_expr_til_type(Type.None)
-
-    mut type_id := Expr.new(ident_node(tname), field_assign.line, field_assign.col)
-    type_id.set_expr_til_type(Type.Custom(tname.clone()))
-
-    mut fa := Expr.new(field_access_node("delete"), field_assign.line, field_assign.col)
-    fa.add_child(own type_id)
-    call.add_child(own fa)
-
-    mut fa_name := ""
-    switch field_assign.node_type {
-    case NodeType.FieldAssign(fad):
-        fn := fad.name
-        fa_name = fn.clone()
-    case:
-        UNREACHABLE(__LOC__)
-    }
-    mut field_acc := Expr.new(field_access_node(fa_name), field_assign.line, field_assign.col)
-    field_acc.set_expr_til_type(rhs.expr_til_type())
-    field_acc.add_child(own field_assign.child(0).clone())
-    call.add_child(own field_acc)
-
-    mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(field_own_type.is(OwnType.Own))), field_assign.line, field_assign.col)
-    call.add_child(own cf_lit)
-
-    return call
-}
-
 make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, call_free: Bool, src: Expr) returns Expr {
     tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }

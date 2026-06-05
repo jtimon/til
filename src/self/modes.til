@@ -28,10 +28,6 @@ mut mode_registry := {
     "mode": Mode(decls_only = true, auto_import = "src/std/mode_type")
 }
 
-mode_register := func(name: Str, mode_def: Mode) {
-    mode_registry.set(own name.clone(), own mode_def.clone())
-}
-
 mode_resolve := func(name: Str) returns ref Mode {
     ref mr : Map = mode_registry
     ref m : Mode = mr.get(name)?

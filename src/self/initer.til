@@ -890,14 +890,6 @@ register_enum_and_gen_nonclone_methods_for_stmt := proc(ctx: Context, stmt: Expr
     return 0
 }
 
-register_enums_and_generate_nonclone_methods := proc(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
-    mut errors : I32 = 0
-    for stmt : Expr in program.children {
-        errors = errors.add(register_enum_and_gen_nonclone_methods_for_stmt(ctx, stmt, scope))
-    }
-    return errors
-}
-
 gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
@@ -936,12 +928,6 @@ gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
 }
 
-generate_missing_enum_clones := func(program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        gen_missing_enum_clone_for_stmt(stmt, scope)
-    }
-}
-
 register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if is_func_decl(stmt).not() { return }
     if stmt.child(0).children.len().neq(0) { return }
@@ -953,12 +939,6 @@ register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeSco
         fb.is_func_decl = true
     case:
         UNREACHABLE(__LOC__)
-    }
-}
-
-register_funcsig_aliases := func(ctx: Context, program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_funcsig_alias_for_stmt(ctx, stmt, scope)
     }
 }
 
@@ -1022,12 +1002,6 @@ register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope)
     }
 }
 
-register_type_aliases := func(ctx: Context, program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_type_alias_for_stmt(ctx, stmt, scope)
-    }
-}
-
 register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref rhs : Expr = stmt.child(0)
@@ -1062,12 +1036,6 @@ register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
         tlv_b.orig_name = sdecl.orig_name.clone()
     case:
         UNREACHABLE(__LOC__)
-    }
-}
-
-register_top_level_values := func(ctx: Context, program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_top_level_value_for_stmt(ctx, stmt, scope)
     }
 }
 
@@ -1157,14 +1125,7 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
     }
 }
 
-register_function_definitions := func(ctx: Context, program: Expr, scope: TypeScope) {
-    for stmt : Expr in program.children {
-        register_function_def_for_stmt(ctx, stmt, scope)
-    }
-}
-
-gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {
-    if stmt.node_type.is(NodeType.Decl).not() { return }
+gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {    if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.child(0)
     if def.node_type.is(NodeType.StructDef).not() { return }
 

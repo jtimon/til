@@ -61,34 +61,13 @@ __doc_lookup__ := func(blob: Str, name: Str) returns Str {
     return ""
 }
 
-/// True iff the named declaration has a /// doc comment registered.
-__til_has_doc__ := func(name: Str) returns Bool {
-    return __doc_lookup__(__til_docs_blob__, name).is_empty().not()
-}
-
-/// True iff the named declaration is registered with a kind/signature
-/// info string.
-__til_has_info__ := func(name: Str) returns Bool {
-    return __doc_lookup__(__til_info_blob__, name).is_empty().not()
-}
-
-/// Get the registered /// doc comment for a declaration, or "" if none.
-__til_get_doc__ := func(name: Str) returns Str {
-    return __doc_lookup__(__til_docs_blob__, name)
-}
-
-/// Get the registered info string for a declaration, or "" if not found.
-__til_get_info__ := func(name: Str) returns Str {
-    return __doc_lookup__(__til_info_blob__, name)
-}
-
 /// Print the doc comment and the kind/signature info for a top-level
 /// declaration or struct/enum member (`Type.method`). When both are
 /// registered, print the doc first then the info. If neither is
 /// registered print "undefined symbol: <name>".
 help := proc(name: Str) {
-    doc := __til_get_doc__(name)
-    info := __til_get_info__(name)
+    doc := __doc_lookup__(__til_docs_blob__, name)
+    info := __doc_lookup__(__til_info_blob__, name)
     if doc.is_empty().not() {
         println(doc)
     }

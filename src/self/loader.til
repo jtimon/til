@@ -817,7 +817,7 @@ load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                         panic(__LOC__, disp, ": Mode arguments must be named (e.g. needs_main = true)")
                                     }
                                 }
-                                mode_register(decl.name, m)
+                                mode_registry.set(own decl.name.clone(), own m.clone())
                             }
                         case:
                         }
@@ -1504,14 +1504,6 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
 // Build a single source-level __doc_init__("...", "...") line for use by
 // the REPL. Non-REPL pipelines don't synthesize doc init calls. `scope`
 // carries inferred types so e.g. `a := 1` shows up as "a is a I64".
-doc_init_src_line := func(core_ast: Expr, user_ast: Expr, scope: TypeScope) returns Str {
-    cap : USize = 262144
-    mut packed_info := Str.with_capacity(cap)
-    mut packed_docs := Str.with_capacity(cap)
-    collect_decl_packed(core_ast, scope, packed_info, packed_docs)
-    collect_decl_packed(user_ast, scope, packed_info, packed_docs)
-    return build_doc_init_line(packed_info, packed_docs)
-}
 
 // Run init/typecheck/precomp/scavenge on the loaded program. Sets
 // lp.run_tests and exits with code 1 if the typer reports any errors.
