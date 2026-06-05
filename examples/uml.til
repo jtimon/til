@@ -1,6 +1,7 @@
 mode cli
 
 import("../src/core/io")
+import("../src/std/sys")
 import("../src/core/ast")
 import("../src/self/lexer")
 import("../src/self/parser")
@@ -22,6 +23,10 @@ PANEL_PAD_Y := 18
 PANEL_GAP_X := 34
 PANEL_LABEL_H := 28
 EMPTY_PANEL_W := 120
+// Cap on how many lines a single type box renders. Two types (TokenType,
+// Context) carry ~70+ members and would otherwise dominate the diagram, so
+// large boxes are collapsed to MAX_BOX_LINES with a trailing "... (N more)".
+MAX_BOX_LINES := 28
 
 UmlType := struct {
     file := ""
@@ -45,7 +50,11 @@ file_label := func(path: Str) returns Str {
     return path.strip_suffix(".til").clone()
 }
 
-ordered_paths := func() returns Vec {
+// Preferred left-to-right order, following the compiler pipeline. This is
+// only an ordering hint: every src/self/*.til file is rendered regardless
+// (see ordered_paths), so a newly added module can never silently vanish
+// from the diagram -- it just lands at the end until it is slotted in here.
+pipeline_order := func() returns Vec {
     mut paths := Vec.new(Str)
     paths.push(own "src/self/lexer.til")
     paths.push(own "src/core/ast.til")
@@ -63,6 +72,77 @@ ordered_paths := func() returns Vec {
     paths.push(own "src/self/dispatch.til")
     paths.push(own "src/self/interpreter.til")
     paths.push(own "src/self/binder.til")
+    return paths
+}
+
+vec_contains_str := func(v: Vec, s: Str) returns Bool {
+    mut i : USize = 0
+    while i.lt(v.len()) {
+        ref e : Str = v.get(i)!
+        if e.eq(s) { return true }
+        i = i.add(1)
+    }
+    return false
+}
+
+// Selection sort by byte order (Str.cmp), so discovery is deterministic and
+// locale-independent rather than relying on `ls` collation.
+sort_paths := func(mut v: Vec) {
+    mut i : USize = 0
+    while i.lt(v.len()) {
+        mut min_idx := i
+        mut j := i.add(1)
+        while j.lt(v.len()) {
+            ref cand : Str = v.get(j)!
+            ref cur : Str = v.get(min_idx)!
+            if Str.cmp(cand, cur).lt(0) { min_idx = j }
+            j = j.add(1)
+        }
+        if min_idx.neq(i) {
+            ref ai : Str = v.get(i)!
+            tmp_i := ai.clone()
+            ref am : Str = v.get(min_idx)!
+            tmp_m := am.clone()
+            v.set(i, own tmp_m)
+            v.set(min_idx, own tmp_i)
+        }
+        i = i.add(1)
+    }
+}
+
+// Enumerate every src/self/*.til on disk, sorted, as full repo-relative
+// paths. Uses `ls` via run_cmd so no new runtime primitive is needed.
+discover_self_files := proc() returns Vec {
+    mut listing := ""
+    run_cmd(listing, "ls", "src/self")
+    names := listing.split(NL)
+    mut out := Vec.new(Str)
+    mut i : USize = 0
+    while i.lt(names.len()) {
+        ref name : Str = names.get(i)!
+        if name.ends_with(".til") {
+            out.push(own "src/self/".concat(name))
+        }
+        i = i.add(1)
+    }
+    sort_paths(out)
+    return out
+}
+
+// The full path list: the explicit pipeline order first, then any
+// src/self/*.til not already listed (sorted), so the diagram always
+// reflects the current src/self/ directory.
+ordered_paths := proc() returns Vec {
+    mut paths := pipeline_order()
+    discovered := discover_self_files()
+    mut i : USize = 0
+    while i.lt(discovered.len()) {
+        ref f : Str = discovered.get(i)!
+        if vec_contains_str(paths, f).not() {
+            paths.push(own f.clone())
+        }
+        i = i.add(1)
+    }
     return paths
 }
 
@@ -231,6 +311,25 @@ parse_file := proc(path: Str) returns Expr {
     return parse(tokens, source, path, mode_str)
 }
 
+// Collapse oversized boxes: keep the first MAX_BOX_LINES-1 lines and append
+// a "... (N more)" marker so a single giant type doesn't dominate the page.
+cap_lines := func(lines: Vec) returns Vec {
+    if lines.len().lte(MAX_BOX_LINES.to_usize()) {
+        return lines.clone()
+    }
+    keep := MAX_BOX_LINES.sub(1).to_usize()
+    mut out := Vec.new(Str)
+    mut i : USize = 0
+    while i.lt(keep) {
+        ref line : Str = lines.get(i)!
+        out.push(own line.clone())
+        i = i.add(1)
+    }
+    remaining := lines.len().sub(keep)
+    out.push(own format("... (", remaining.to_str(), " more)"))
+    return out
+}
+
 extract_types_from_file := proc(path: Str) returns Vec {
     source := File.readfile(path)
     lines := source.split(NL)
@@ -256,7 +355,7 @@ extract_types_from_file := proc(path: Str) returns Vec {
                         file = label.clone(),
                         name = dd.name.clone(),
                         kind = kind.clone(),
-                        lines = rendered_lines
+                        lines = cap_lines(rendered_lines)
                     ))
                 }
             }
@@ -299,30 +398,31 @@ collect_panels := func(paths: Vec, types: Vec) returns Vec {
             }
             j = j.add(1)
         }
-        out.push(own panel)
+        // Skip files that declare no struct/enum (modes, precomp, scavenger,
+        // initer, ...) so they don't render as empty boxes.
+        if panel.types.len().gt(0) {
+            out.push(own panel)
+        }
         i = i.add(1)
     }
     return out
 }
 
-generate_org := func(paths: Vec, types: Vec) returns Str {
+generate_org := func(panels: Vec) returns Str {
     mut out := ""
     mut i : USize = 0
-    while i.lt(paths.len()) {
-        ref path : Str = paths.get(i)!
-        label := file_label(path)
-        out = out.format("* ", label, NL)
+    while i.lt(panels.len()) {
+        ref p : UmlPanel = panels.get(i)!
+        out = out.format("* ", p.file, NL)
         mut j : USize = 0
-        while j.lt(types.len()) {
-            ref t : UmlType = types.get(j)!
-            if t.file.eq(label) {
-                out = out.format("** ", t.name, ": ", t.kind, NL)
-                mut k : USize = 0
-                while k.lt(t.lines.len()) {
-                    ref line : Str = t.lines.get(k)!
-                    out = out.format("*** ", line, NL)
-                    k = k.add(1)
-                }
+        while j.lt(p.types.len()) {
+            ref t : UmlType = p.types.get(j)!
+            out = out.format("** ", t.name, ": ", t.kind, NL)
+            mut k : USize = 0
+            while k.lt(t.lines.len()) {
+                ref line : Str = t.lines.get(k)!
+                out = out.format("*** ", line, NL)
+                k = k.add(1)
             }
             j = j.add(1)
         }
@@ -508,7 +608,7 @@ main := proc() {
     paths := ordered_paths()
     types := collect_types(paths)
     panels := collect_panels(paths, types)
-    File.writefile("doc/uml.org", generate_org(paths, types))
+    File.writefile("doc/uml.org", generate_org(panels))
     File.writefile("doc/uml.svg", generate_svg(panels))
     println("Generated: doc/uml.org")
     println("Generated: doc/uml.svg")
