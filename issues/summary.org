@@ -35,7 +35,6 @@
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
-*** [[./open/101.org][#101]] Deterministic temp variable names in generated C
 *** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
 *** [[./open/195.org][#195]] Consider removing ~mode test~
 *** [[./open/207.org][#207]] Consider removing Vec.move_from

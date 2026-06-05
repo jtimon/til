@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass profile
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass check_idempotent profile
 
 all: bin/til
 
@@ -134,6 +134,25 @@ bin/til: bin/til_boot $(CORE) $(SELF) $(LIB_TIL) src/til.til
 two_pass: bin/til
 	bin/til build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
+
+# --- Idempotency check (issue #101 / #77) ---
+#
+# Self-build must be deterministic: building src/til.til with the freshly
+# self-built bin/til must regenerate byte-identical C to what `make` already
+# copied into boot/. Any drift means the generated temp-variable names depend
+# on processing order or memory layout (issue #101), which breaks the ability
+# to diff generated C to verify correctness (issue #77). Fails loudly on drift.
+# Standalone target -- not wired into `make test` so the default suite stays
+# fast; run it manually (or after a codegen change touching temp naming).
+check_idempotent: bin/til
+	bin/til build src/til.til
+	@if diff -q boot/til.c gen/til/til.c >/dev/null; then \
+		echo "idempotent: bin/til regenerates byte-identical boot/til.c"; \
+	else \
+		echo "NON-DETERMINISTIC: boot/til.c != self-rebuilt gen/til/til.c"; \
+		diff boot/til.c gen/til/til.c | head -40; \
+		exit 1; \
+	fi
 
 # --- ASAN build (for memory debugging) ---
 #
@@ -291,6 +310,7 @@ help:
 	echo "make test_fast      Build + run tests (no --asan; faster, less strict)"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
+	echo "make check_idempotent  Assert self-build emits byte-identical C (issue #101)"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
 	echo "make profile        Time the self-host build + record/flag regressions (doc/profiling.org)"

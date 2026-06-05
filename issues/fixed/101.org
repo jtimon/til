@@ -1,0 +1,39 @@
+# priority: low
+# category: cleanups
+** FIXED #101 Deterministic temp variable names in generated C
+
+   Post-mortem (2026-06-05):
+   Root cause: the synthesised temp-name counters once lived as module-level
+   globals seeded/incremented in an order that could vary with processing
+   order or heap layout, so two `til build` runs of the same source could
+   emit the same logic under different temp names (`_t4253` vs `_t...`).
+
+   Resolution: the counters were migrated onto Context (bang_counter,
+   ctor_seq, hoist_counter, va_counter, kw_counter, coll_counter -- see
+   src/self/context.til) and are now bumped purely by the deterministic AST
+   walk in typer/builder. The synthesised names are also type-qualified
+   (`_wcond_Bool_<N>`, `_rc_<elem>_<N>`, `_sw_<T>_<N>`, ...) instead of bare
+   sequence numbers. The compiler self-build is byte-identical idempotent:
+   the committed boot/til.c equals a fresh self-build, and til_boot and
+   bin/til emit identical C for the same source. This unblocked #77 (DONE).
+
+   Regression guard: `make check_idempotent` rebuilds src/til.til with the
+   freshly self-built bin/til and diffs boot/til.c against the regenerated
+   gen/til/til.c, failing loudly on any drift (Makefile check_idempotent
+   target). Run it after any codegen change touching temp naming.
+
+:DEPENDENCY_OF: [[../fixed/77.org][#77]]
+  The builder/typer generates temp variable names (e.g. ~_t4253~,
+  ~_rc4617~, ~_wcond4618~) using counters that depend on processing
+  order or memory layout, making the output non-deterministic.
+  Two identical ~til build~ runs on the same source can produce
+  different C files (same logic, different temp names).
+
+  This blocks [[../fixed/77.org][#77]]: ~til build src/til.til~ must be idempotent --
+  the self-built binary must produce identical output to the
+  bootstrap binary. Without deterministic names, we can't diff
+  generated C to verify correctness.
+
+  Fix: ensure temp variable counters are reset or seeded
+  deterministically per translation unit, so the same input
+  always produces the same output.
