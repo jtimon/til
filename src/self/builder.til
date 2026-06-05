@@ -2146,12 +2146,44 @@ emit_str_lit_expr := proc(f: File, s: Str) {
     f.write("ULL, .cap = TIL_CAP_LIT}; _lit; })")
 }
 
+// Issue #255: number literals accept base prefixes (0x/0b/0o), '_' digit
+// separators, and exponents. C accepts hex, decimal, and exponents
+// directly but not 0b/0o or '_', so normalise the literal text into a
+// valid C constant. Binary/octal are converted to a decimal constant
+// (via Str.to_i64); hex/decimal/float pass through with separators
+// stripped. The U64 path (#219, huge hex/decimal) is preserved because
+// those forms never route through to_i64 here.
+priv num_lit_to_c := func(text: Str) returns Str {
+    n := text.len()
+    mut start : USize = 0
+    mut neg := false
+    if n.gte(1).and(text.byte_at(0).eq('-')) {
+        neg = true
+        start = 1
+    }
+    body := text.substr(start, n.sub(start))
+    // Binary/octal -> decimal constant (C has no 0b/0o literal syntax).
+    if body.len().gte(2).and(body.byte_at(0).eq('0')) {
+        ref p1 : I8 = body.byte_at(1)
+        if p1.eq('b').or(p1.eq('B')).or(p1.eq('o')).or(p1.eq('O')) {
+            v := body.to_i64().to_str()
+            if neg { return "-".concat(v) }
+            return v.clone()
+        }
+    }
+    // Hex / decimal / float: drop '_' separators (the rest is valid C).
+    mut out := body.clone()
+    if body.contains("_") { out = body.replace("_", "") }
+    if neg { return "-".concat(out) }
+    return out
+}
+
 emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
     switch e.node_type {
     case NodeType.Literal(Literal.Str(s)):
         emit_str_lit_expr(f, s)
     case NodeType.Literal(Literal.Num(num)):
-        f.write(num.literal_num_text())
+        f.write(num_lit_to_c(num.literal_num_text()))
         // Issue #219: U64 literals whose value exceeds LLONG_MAX need
         // the ULL suffix or `cc -Werror` rejects "integer constant is
         // so large that it is unsigned". The constfolder marks the

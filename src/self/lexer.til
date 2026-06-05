@@ -82,6 +82,22 @@ is_alnum := func(c: I8) returns Bool {
     return is_alpha(c).or(is_digit(c))
 }
 
+// Digit-class helpers for base-prefixed integer literals (issue #255).
+// is_digit stays decimal-only; these recognise the alphabet of each base.
+is_hex_digit := func(c: I8) returns Bool {
+    return is_digit(c)
+    .or(c.gte('a').and(c.lte('f')))
+    .or(c.gte('A').and(c.lte('F')))
+}
+
+is_bin_digit := func(c: I8) returns Bool {
+    return c.eq('0').or(c.eq('1'))
+}
+
+is_oct_digit := func(c: I8) returns Bool {
+    return c.gte('0').and(c.lte('7'))
+}
+
 // --- Keyword map ---
 // Single source of truth for the keyword <-> TokenType mapping. Both
 // lookup_keyword (source spelling -> TokenType) and tok_name's keyword
@@ -408,19 +424,74 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             continue
 
-        // Numbers
+        // Numbers (issue #255): base-prefixed integers (0x/0b/0o), digit
+        // separators ('_'), decimal fractions, and exponents (1e9, 1.5e-3).
         case '0'..'9':
-            while pos.lt(src_len) {
-                if is_digit(src.byte_at(pos)).not() { break }
-                pos++
-            }
-            // Check for decimal point
-            if pos.add(1).lt(src_len) {
-                if src.byte_at(pos).eq('.').and(is_digit(src.byte_at(pos.add(1)))) {
-                    pos++
+            mut handled_prefix := false
+            // Base-prefixed integer literal: 0x.., 0b.., 0o..
+            if c.eq('0').and(pos.add(2).lt(src_len)) {
+                ref p1 : I8 = src.byte_at(pos.add(1))
+                ref p2 : I8 = src.byte_at(pos.add(2))
+                if p1.eq('x').or(p1.eq('X')).and(is_hex_digit(p2)) {
+                    pos = pos.add(2)
                     while pos.lt(src_len) {
-                        if is_digit(src.byte_at(pos)).not() { break }
+                        ref d : I8 = src.byte_at(pos)
+                        if is_hex_digit(d).or(d.eq('_')).not() { break }
                         pos++
+                    }
+                    handled_prefix = true
+                } else if p1.eq('b').or(p1.eq('B')).and(is_bin_digit(p2)) {
+                    pos = pos.add(2)
+                    while pos.lt(src_len) {
+                        ref d : I8 = src.byte_at(pos)
+                        if is_bin_digit(d).or(d.eq('_')).not() { break }
+                        pos++
+                    }
+                    handled_prefix = true
+                } else if p1.eq('o').or(p1.eq('O')).and(is_oct_digit(p2)) {
+                    pos = pos.add(2)
+                    while pos.lt(src_len) {
+                        ref d : I8 = src.byte_at(pos)
+                        if is_oct_digit(d).or(d.eq('_')).not() { break }
+                        pos++
+                    }
+                    handled_prefix = true
+                }
+            }
+            if handled_prefix.not() {
+                // Decimal integer part (with digit separators)
+                while pos.lt(src_len) {
+                    ref d : I8 = src.byte_at(pos)
+                    if is_digit(d).or(d.eq('_')).not() { break }
+                    pos++
+                }
+                // Fractional part: '.' immediately followed by a digit
+                if pos.add(1).lt(src_len) {
+                    if src.byte_at(pos).eq('.').and(is_digit(src.byte_at(pos.add(1)))) {
+                        pos++
+                        while pos.lt(src_len) {
+                            ref d : I8 = src.byte_at(pos)
+                            if is_digit(d).or(d.eq('_')).not() { break }
+                            pos++
+                        }
+                    }
+                }
+                // Exponent: e/E with optional sign, then at least one digit
+                if pos.lt(src_len) {
+                    ref e : I8 = src.byte_at(pos)
+                    if e.eq('e').or(e.eq('E')) {
+                        mut epos := pos.add(1)
+                        if epos.lt(src_len).and(src.byte_at(epos).eq('+').or(src.byte_at(epos).eq('-'))) {
+                            epos = epos.add(1)
+                        }
+                        if epos.lt(src_len).and(is_digit(src.byte_at(epos))) {
+                            pos = epos
+                            while pos.lt(src_len) {
+                                ref d : I8 = src.byte_at(pos)
+                                if is_digit(d).or(d.eq('_')).not() { break }
+                                pos++
+                            }
+                        }
                     }
                 }
             }
