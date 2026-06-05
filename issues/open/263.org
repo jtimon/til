@@ -1,0 +1,24 @@
+# priority: low
+# category: cleanups
+** OPEN #263 Drop redundant ext_struct("") spelling; use bare ext_struct {}
+
+~ext_struct~ takes an optional ~Str~ C struct tag. The empty-string form
+~ext_struct("") {}~ means "anonymous, no tag" -- which is exactly what the
+bare ~ext_struct {}~ already means. The paren form should be reserved for
+a real tag.
+
+The bare form already parses today: the paren is optional in
+~parse_struct_def~'s caller (~src/self/parser.til~, the ~KwExtStruct~
+case), which defaults the tag to ~@anon~ when no ~(...)~ follows. So this
+is purely a call-site cleanup, no compiler change needed.
+
+Replace ~ext_struct("") {...}~ with ~ext_struct {...}~ at every call site:
+
+  - ~test/structs.til~ (~AnonPair~)
+  - ~vendor/bindings/libffi.til~ (~ffi_cif~, ~ffi_closure~,
+    ~ffi_raw_closure~, ~ffi_java_raw_closure~, ~ffi_go_closure~)
+
+Leave ~ext_struct("foo") {}~ (real tags) alone.
+
+After this, only two spellings remain: ~ext_struct {}~ (anonymous) and
+~ext_struct("tag") {}~ (named). Prerequisite/sibling of the rescoped #115.

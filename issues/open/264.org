@@ -1,0 +1,43 @@
+# priority: low
+# category: features
+** OPEN #264 Let enum specify its discriminant type: enum(U8), enum(U64), ...
+
+An ~enum~ has an implicit discriminant (tag) type. Conceptually the
+default is ~enum(U32)~. The user should be able to override it:
+
+    Color  := enum(U8)  { Red, Green, Blue }       // 1-byte tag
+    Big    := enum(U64) { ... }                    // 8-byte tag
+    Status := enum      { Ok, Err }                // default == enum(U32)
+
+The point is control over the in-memory size of the tag (compactness, and
+matching a C enum's backing type for FFI).
+
+*** Current state
+
+  Enums emit their tag as a C ~enum {}~ typedef named ~<name>_tag~
+  (~src/self/builder.til~, the ~EnumDef~ forward-decl path), which is C
+  ~int~ by default. There is no user-facing way to choose the width.
+
+*** Scope
+
+  - Syntax: ~enum(Type) { ... }~. Decide whether to also accept the
+    paren-less ~enum Type { ... }~; recommend the paren form for symmetry
+    with ~ext_struct("tag")~ and to keep the grammar unambiguous.
+  - Allowed Types: unsigned integer primitives at least (~U8~ ~U16~ ~U32~
+    ~U64~); decide on signed.
+  - Parser: ~parse_enum_def~ reads the optional ~(Type)~ before the ~{~
+    and stores it on ~EnumDef~ (new field, default ~U32~).
+  - Builder: emit the tag field with the chosen integer type instead of a
+    bare C ~enum~ typedef (or pin the enum's underlying type), so
+    ~sizeof~ matches.
+  - Validation: reject types too small to hold all variants? (N variants
+    need a tag that can represent 0..N-1.) At minimum document the
+    behavior.
+
+*** Open questions
+
+  - Does any current code assume the tag is exactly ~int~/~U32~ width
+    (e.g. ~dyn_size_of~, clone/delete, the ~.tag~ accesses)? Audit before
+    changing the default representation.
+  - Interaction with payload-carrying variants (the union following the
+    tag): only the tag width changes; payload layout is unaffected.

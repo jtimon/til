@@ -36,7 +36,7 @@
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/101.org][#101]] Deterministic temp variable names in generated C
-*** [[./open/115.org][#115]] Remove or simplify ~ext_struct~
+*** [[./open/115.org][#115]] Reduce primitive special-casing; keep ext_struct, document its contract
 *** [[./open/195.org][#195]] Consider removing ~mode test~
 *** [[./open/207.org][#207]] Consider removing Vec.move_from
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
@@ -46,6 +46,7 @@
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
 *** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 *** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
+*** [[./open/263.org][#263]] Drop redundant ext_struct("") spelling; use bare ext_struct {}
 * Features
 ** High
 *** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
@@ -74,6 +75,7 @@
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
 *** [[./open/262.org][#262]] lazy_func / lazy_proc: lazily-evaluated call arguments
+*** [[./open/264.org][#264]] Let enum specify its discriminant type: enum(U8), enum(U64), ...
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
