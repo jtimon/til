@@ -9832,23 +9832,30 @@ hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: V
     case ScopeFind.Found(ab):
         if ab.is_param.not() { return }
         if ab.is_mut.not() { return }
-        // only rewrite for compound aggregates -- primitives (Type.Primitive)
-        // keep value semantics
-        // and don't need the swap dance.
         if is_aggregate(ab.type).not() { return }
 
-        mut call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+        call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
         call.set_expr_til_type(Type.None)
-        mut fn := Expr.new(ident_node("swap"), stmt.line, stmt.col)
+        fn := Expr.new(ident_node("swap"), stmt.line, stmt.col)
         call.add_child(own fn)
-        mut a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
+        a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
         a.set_expr_til_type(ab.type)
         call.add_child(own a)
         call.add_child(own stmt.child(0).clone())
         tname := type_to_name(ab.type)
         sz_call := make_ns_call(tname, "size", usize_type(scope, ctx), stmt)
-        mut sz := hoist_to_temp(ctx, sz_call, hoisted, scope, false)
+        sz := hoist_to_temp(ctx, sz_call, hoisted, scope, false)
         call.add_child(own sz)
+        // Issue #210: only use swap_replace for Str so the builder can
+        // emit the explicit delete-copy-free pattern (unblocking
+        // CAP_LIT-safe wrapper-free skipping in Str.delete).
+        if tname.eq("Str") {
+            switch call.node_type {
+            case NodeType.FCall(fcd):
+                fcd.swap_replace = true
+            case:
+            }
+        }
         stmt = call
     case:
     }

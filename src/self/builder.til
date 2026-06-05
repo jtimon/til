@@ -1410,7 +1410,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         emit_usize(f, c_lit_byte_count(s))
                     case:
                     }
-                    f.write("ULL, .cap = TIL_CAP_LIT};\n")
+        f.write("ULL, .cap = TIL_CAP_LIT};\n")
                     ctx.stack_locals.add(own dd.name.clone())
                     ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
                 } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
@@ -1992,6 +1992,41 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
         }
     case NodeType.FCall:
+        // Issue #210: emit explicit delete-copy-free for swap calls
+        // marked by hoist_param_swap_assign.
+        switch e.node_type {
+        case NodeType.FCall(fcd):
+            if fcd.swap_replace.and(e.children.len().gte(3)) {
+                ref swap_target : Expr = e.child(1)
+                ref swap_temp : Expr = e.child(2)
+                mut target_name := ""
+                mut temp_name := ""
+                switch swap_target.node_type {
+                case NodeType.Ident(tid): target_name = tid.ident_name()
+                case:
+                }
+                switch swap_temp.node_type {
+                case NodeType.Ident(stid): temp_name = stid.ident_name()
+                case:
+                }
+                if target_name.len().gt(0).and(temp_name.len().gt(0)) {
+                    arg_type := swap_target.expr_til_type()
+                    arg_tname := til_type_name(arg_type)
+                    if arg_tname.eq("Str") {
+                        // If the temp is a stack-local (Str value, not pointer),
+                        // assign directly without dereference and free.
+                        if is_stack_local(temp_name, ctx) {
+                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(temp_name).write("; }\n")
+                        } else {
+                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); }\n")
+                            ctx.swap_freed.add(own temp_name.clone())
+                        }
+                        return
+                    }
+                }
+            }
+        case:
+        }
         if e.children.len().gt(0) {
             ref c0 : Expr = e.child(0)
             switch c0.node_type {
@@ -2000,6 +2035,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     ref c1 : Expr = e.child(1)
                     switch c1.node_type {
                     case NodeType.Ident(del_arg):
+                        if ctx.swap_freed.has(del_arg.ident_name()) {
+                            return
+                        }
                         // Stack-local primitive deletes are filtered out by
                         // is_noop_delete_stmt above before any indent is
                         // written, so we never reach here for them.
@@ -6085,21 +6123,80 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec, mut v
 // this function in lockstep.
 emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     f.write("Str *dyn_type_to_str(Type *type) {\n")
-    f.write("    switch (type->tag) {\n")
     mut variant_names := Vec.new(Str)
     mut variant_types := Vec.new(Str)
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() {
         panic(__LOC__, "emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
     }
+    // First pass: collect all unique display strings so we can emit
+    // static-local Str variables for the literal cases (one
+    // malloc-free static wrapper per unique name).
+    mut static_displays := Vec.new(Str)
+    mut static_index_by_display := Map.new(Str, USize)
+    mut seq : USize = 0
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
         ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
+            if static_index_by_display.has(display).not() {
+                display_clone := display.clone()
+                val : USize = seq
+                static_index_by_display.set(own display_clone, own val)
+                static_displays.push(own display)
+                seq = seq.add(1)
+            }
+        } else if vt.eq("Str") {
+        } else {
+            // Nested enum: collect inner variant names
+            mut inner_names := Vec.new(Str)
+            mut inner_types := Vec.new(Str)
+            if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
+                panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
+            }
+            for k in 0..inner_names.len() {
+                ref ivn : Str = inner_names[k]
+                if static_index_by_display.has(ivn).not() {
+                    ivn_clone := ivn.clone()
+                    val2 : USize = seq
+                    static_index_by_display.set(own ivn_clone, own val2)
+                    static_displays.push(own ivn.clone())
+                    seq = seq.add(1)
+                }
+            }
+            Vec.delete(own inner_names, true)
+            Vec.delete(own inner_types, true)
+        }
+    }
+    // Fallback "?" literal
+    if static_index_by_display.has("?").not() {
+        fallback_val : USize = seq
+        static_index_by_display.set(own "?", own fallback_val)
+        static_displays.push(own "?")
+        seq = seq.add(1)
+    }
+    // Emit static-local Str variables before the switch
+    for j in 0..static_displays.len() {
+        ref display : Str = static_displays[j]
+        f.write("    static Str _dts_")
+        emit_usize(f, j)
+        f.write(" = (Str){.c_str = (void *)\"")
+        f.write(display)
+        f.write("\", .count = ")
+        emit_usize(f, c_lit_byte_count(display))
+        f.write("ULL, .cap = TIL_CAP_STATIC};\n")
+    }
+    f.write("    switch (type->tag) {\n")
+    for j in 0..variant_names.len() {
+        ref vn : Str = variant_names[j]
+        ref vt : Str = variant_types[j]
+        if vt.len().eq(0) {
+            display := dyn_type_str_display(vn)
+            ref idx : USize = static_index_by_display[display]
             f.write("    case Type_TAG_")
             f.write(vn)
-            f.write(": return ")
-            emit_str_lit_expr(f, display)
+            f.write(": return &_dts_")
+            emit_usize(f, idx)
             f.write(";\n")
         } else if vt.eq("Str") {
             f.write("    case Type_TAG_")
@@ -6108,6 +6205,7 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write(vn)
             f.write(");\n")
         } else {
+            // Nested enum
             mut inner_names := Vec.new(Str)
             mut inner_types := Vec.new(Str)
             if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
@@ -6121,12 +6219,13 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write(".tag) {\n")
             for k in 0..inner_names.len() {
                 ref ivn : Str = inner_names[k]
+                ref idx : USize = static_index_by_display[ivn]
                 f.write("        case ")
                 f.write(vt)
                 f.write("_TAG_")
                 f.write(ivn)
-                f.write(": return ")
-                emit_str_lit_expr(f, ivn)
+                f.write(": return &_dts_")
+                emit_usize(f, idx)
                 f.write(";\n")
             }
             f.write("        }\n")
@@ -6135,13 +6234,11 @@ emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             Vec.delete(own inner_types, true)
         }
     }
-    // Fallback: reachable only for runtime tag values that don't
-    // match any variant we emitted (corrupted Type, future shape
-    // mismatch). The ~?~ string mirrors til_type_name_c's default.
     f.write("    default: break;\n")
     f.write("    }\n")
-    f.write("    return ")
-    emit_str_lit_expr(f, "?")
+    ref fallback_idx : USize = static_index_by_display["?"]
+    f.write("    return &_dts_")
+    emit_usize(f, fallback_idx)
     f.write(";\n")
     f.write("}\n\n")
     Vec.delete(own variant_names, true)
@@ -6777,6 +6874,7 @@ build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram
     f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
+    f.write("#define TIL_CAP_STATIC ((USize)-3)\n")
     f.write("void print_single(Str *s) {\n")
     f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
     f.write("}\n")

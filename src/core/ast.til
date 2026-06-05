@@ -220,6 +220,7 @@ FCallData := struct {
     // declared throw type, then clears the flag.
     is_bang := false
     own_args : U64 = 0
+    swap_replace := false
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
     // set_fcall_til_type helper at FCall infer time, and
@@ -453,6 +454,7 @@ AssignData := struct {
     name := ""
     save_old_delete := false
     is_payload_alias := false
+    swap_replace := false
 namespace:
     eq := func(a: AssignData, b: AssignData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: AssignData) returns Str { return self.name }

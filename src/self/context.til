@@ -465,6 +465,7 @@ Context := struct {
     // the cast the codegen would emit `DEREF(x)` on a `void *`,
     // which is invalid C.
     ref_dyn_locals := Set.new(Str)
+    swap_freed := Set.new(Str)
     ref current_fdef : Expr = NULL
 
     // #177 interpreter caches for well-known core types, populated during

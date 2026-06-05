@@ -388,6 +388,7 @@ typedef struct FCallData {
     Bool does_throw;
     Bool is_bang;
     U64 own_args;
+    Bool swap_replace;
     Type til_type;
 } FCallData;
 
@@ -444,6 +445,7 @@ typedef struct AssignData {
     Str name;
     Bool save_old_delete;
     Bool is_payload_alias;
+    Bool swap_replace;
 } AssignData;
 
 
@@ -928,6 +930,7 @@ typedef struct Context {
     Set ref_locals;
     Set ptr_locals;
     Set ref_dyn_locals;
+    Set swap_freed;
     Expr *current_fdef;
     Expr *cached_str_def;
     Str *cached_str_name;
@@ -2496,6 +2499,7 @@ Value *Value_Ushort(U16 *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
+extern U32 CAP_STATIC;
 extern U32 ELEM_POD;
 extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;

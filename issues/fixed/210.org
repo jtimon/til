@@ -1,6 +1,65 @@
 # priority: low
 # category: cleanups
-** OPEN #210 Eliminate the per-literal malloc in dyn_type_to_str returns
+** FIXED #210 Eliminate the per-literal malloc in dyn_type_to_str returns
+
+*** Post-mortem
+
+Root cause: ~emit_dyn_type_to_str_body~ in src/self/builder.til emitted a
+fresh ~malloc(sizeof(Str))~ wrapper for each literal Type name (I64,
+Bool, etc.) returned by ~dyn_type_to_str~.  That is ~17 mallocs per
+call, hit on every ~Vec.new~ / ~Array.new~ / ~Map.new~ / ~dyn_fn~ /
+dyn_size_of dispatch.
+
+The wrapper couldn't simply be made static because:
+1. ~Str.delete(result, true)~ in callers would ~free(own self)~ on a
+   static pointer -> crash.
+2. Making ~Str.delete~ skip ~free(own self)~ when cap == CAP_LIT leaked
+   heap wrappers that inherited CAP_LIT through the ~swap~-lowering of
+   ~mut Str~ parameter assignments (the "swap idiom").
+
+*** What changed
+
+Three pieces, done together:
+
+1. *Reworked the ~swap~-lowering for ~mut Str~ parameter assignments.*
+   In ~hoist_param_swap_assign~ (typer.til), the swap FCall for Str
+   params is now marked with ~swap_replace = true~ (new field on
+   FCallData).  The builder recognises this and emits an explicit
+   delete-copy-free pattern:
+
+     Str_delete(out, &(Bool){0});  // free old c_str if owned
+     *out = *temp;                  // move fields
+     free(temp);                    // free wrapper (known heap)
+
+   instead of the old ~swap(out, temp, sizeof(Str)); Str_delete(temp, 1)~.
+   This keeps the heap wrapper's cap field un-contaminated -- no heap
+   wrapper ever sees CAP_LIT or CAP_VIEW from the old ~*out~ value.
+
+2. *Introduced CAP_STATIC.*  A new sentinel ~CAP_STATIC = -3~ (as USize)
+   sits alongside CAP_LIT (-1) and CAP_VIEW (-2).  In ~Str.delete~, the
+   c_str-free check uses ~cap.lt(CAP_STATIC)~ (lowest sentinel) and the
+   wrapper-free check adds ~cap.neq(CAP_STATIC)~ so only CAP_STATIC
+   wrappers survive ~call_free=true~ without being freed.
+
+3. *~emit_dyn_type_to_str_body~ returns static wrappers.*  Unique per-
+   name ~static Str~ variables (initialised with ~_dts_N~ naming and
+   ~.cap = TIL_CAP_STATIC~) are emitted before the switch.  The literal
+   cases now return ~&_dts_N~ instead of a malloc'd wrapper.  The
+   ~Str_clone~ cases (Struct/Custom/Enum payloads) are unchanged --
+   they still return heap-owned ~Str *~ wrappers, and ~Str.delete~
+   correctly frees those because clone-returned wrappers have normal
+   capacities (not CAP_STATIC).
+
+The combination eliminates the 17 per-call mallocs in dyn_type_to_str.
+Callers still do ~Str_delete(result, true)~ uniformly; for literal
+returns the delete is now a safe no-op for both c_str and wrapper.
+
+*** Regression test
+
+Existing ~test/dynamic.til~ (test_dyn_type_to_str) and all container
+tests exercise ~dyn_type_to_str~ through ~Vec.new~ / ~Array.new~ /
+~Map.new~ / ~Set.new~ / ~Tuple.push~ path.  No new test file needed;
+the behaviour is already covered.
 
 *** Summary
 

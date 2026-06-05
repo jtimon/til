@@ -40,7 +40,6 @@
 *** [[./open/195.org][#195]] Consider removing ~mode test~
 *** [[./open/207.org][#207]] Consider removing Vec.move_from
 *** [[./open/209.org][#209]] Move the stack-vs-heap Str delete decision out of the builder into the AST
-*** [[./open/210.org][#210]] Eliminate the per-literal malloc in dyn_type_to_str returns
 *** [[./open/237.org][#237]] Advanced profiling for the self-host build
 *** [[./open/246.org][#246]] Slim down the cross-phase ~Context~ toward the rstil shape
 *** [[./open/247.org][#247]] Move layout facts off AST nodes, rstil-style (pairs with #246)
