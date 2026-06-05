@@ -101,7 +101,7 @@ This is more predictable, but sill not completely deterministic. And can be more
 
 Bundled internal dependency licenses:
 
-- project: [[file:LICENSE/TIL.txt]]
+- project: [[file:LICENSE/MIT.txt]] (MIT License)
 - ~vendor/libffi/~ — [[file:LICENSE/libffi.txt]]
 - ~vendor/raylib/~ — [[file:LICENSE/raylib.txt]]
 - ~vendor/tinyfiledialogs/~ — [[file:LICENSE/tinyfiledialogs.txt]]
