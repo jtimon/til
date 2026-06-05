@@ -4005,7 +4005,6 @@ build_forward_header := proc(core_program: Expr, program: Expr, fwd_path: Str, c
     emit_funcsig_typedefs(f, core_program, program, ctx)
     emit_header_defs_and_funcs(f, core_program, program, ctx)
     emit_header_global_decls(f, core_program, program, ctx)
-    f.close()
     return 0
 }
 
@@ -4017,7 +4016,6 @@ build_forward_header_lp := proc(fwd_path: Str, lp: LoadedProgram) returns I32 {
     emit_funcsig_typedefs_lp(f, lp)
     emit_header_defs_and_funcs_lp(f, lp)
     emit_header_global_decls_lp(f, lp)
-    f.close()
     return 0
 }
 
@@ -4030,7 +4028,6 @@ build_header := proc(core_program: Expr, program: Expr, h_path: Str, ctx: Contex
     emit_header_defs_and_funcs(f, core_program, program, ctx)
     emit_header_global_decls(f, core_program, program, ctx)
     f.write("#include \"ext.h\"\n\n")
-    f.close()
     return 0
 }
 
@@ -4043,7 +4040,6 @@ build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns I32 {
     emit_header_defs_and_funcs_lp(f, lp)
     emit_header_global_decls_lp(f, lp)
     f.write("#include \"ext.h\"\n\n")
-    f.close()
     return 0
 }
 
@@ -4158,7 +4154,6 @@ build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) retur
             }
         }
     }
-    f.close()
     return 0
 }
 
@@ -4489,8 +4484,6 @@ build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) ret
             }
         }
     }
-
-    f.close()
     return 0
 }
 
@@ -6813,8 +6806,6 @@ build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram
             }
         }
     }
-
-    f.close()
     lp.ctx.func_defs = Map.new(Str, Dynamic)
     lp.ctx.stack_locals = Set.new(Str)
     lp.ctx.stack_local_types = Map.new(Str, Str)

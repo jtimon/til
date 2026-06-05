@@ -29,7 +29,10 @@ print := proc(parts: ..Str) {
 
 cfile_open := ext_func(path: Str, shallow is_write: Bool) returns ref Dynamic {}
 cfile_open_update := ext_func(path: Str) returns ref Dynamic {}
-cfile_close := ext_proc(handle: Dynamic) {}
+// Declared ext_func (not ext_proc) so File.delete -- which the garbager
+// inserts into arbitrary func bodies -- can release the handle. Same
+// rationale as `free` being an ext_func despite freeing memory.
+cfile_close := ext_func(handle: Dynamic) {}
 cfile_write_str := ext_proc(handle: Dynamic, s: Str) {}
 cfile_read_all := ext_func(handle: Dynamic) returns Str {}
 cfile_tell := ext_func(handle: Dynamic) returns shallow I64 {}
@@ -106,9 +109,20 @@ namespace:
         return self
     }
 
-    /// Close the file handle. Sets handle to NULL afterwards.
-    close := proc(mut self: File) {
+    /// Close the underlying file handle and NULL it. Private: invoked
+    /// only from `delete`, which the garbager inserts after a File
+    /// local's last use.
+    priv close := func(mut self: File) {
         cfile_close(self.handle)
         self.handle = NULL
+    }
+
+    /// Release the File: close the handle, then free the struct shell
+    /// unless the caller still owns it (`call_free = false` for a
+    /// stack/value local). The garbager inserts this call right after the
+    /// File's last use.
+    delete := func(own self: File, call_free: Bool = true) {
+        File.close(self)
+        if call_free { free(own self) }
     }
 }

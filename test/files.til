@@ -5,11 +5,9 @@ test_file_write_and_read := test() {
     f := File.new(path, true)
     f.write("hello ")
     f.write("world")
-    f.close()
 
     f2 := File.new(path, false)
     content := f2.read_all()
-    f2.close()
 
     assert_eq_str(__LOC__, content, "hello world")
 }
@@ -20,7 +18,6 @@ test_file_read_all := test() {
 
     f := File.new(path, false)
     content := f.read_all()
-    f.close()
 
     assert_eq_str(__LOC__, content, "abc123")
 }
@@ -32,7 +29,6 @@ test_file_multiple_writes := test() {
         f.write(i.to_str())
         f.write(" ")
     }
-    f.close()
 
     content := File.readfile(path)
     assert_eq_str(__LOC__, content, "0 1 2 3 4 ")
@@ -55,7 +51,6 @@ test_file_seek_tell_read := test() {
     assert_eq(__LOC__, f.tell(), 6)
     rest := f.read(5)
     assert_eq_str(__LOC__, rest, "world")
-    f.close()
 }
 
 test_file_read_past_eof := test() {
@@ -67,7 +62,6 @@ test_file_read_past_eof := test() {
     got := f.read(100)
     assert_eq_str(__LOC__, got, "abc")
     assert_eq(__LOC__, f.tell(), 3)
-    f.close()
 }
 
 test_file_update_in_place := test() {
@@ -78,7 +72,6 @@ test_file_update_in_place := test() {
     f := File.update(path)
     f.seek(6)
     f.write("there")
-    f.close()
 
     content := File.readfile(path)
     assert_eq_str(__LOC__, content, "hello there")
