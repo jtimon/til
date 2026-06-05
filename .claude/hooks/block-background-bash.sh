@@ -62,6 +62,21 @@ fi
 self_pgid=$(awk '{print $5}' /proc/$$/stat 2>/dev/null)
 match_regex='(^|[/[:space:]])(make|cc|gcc|clang|gdb|bin/til|bin/til_boot|bin/til_asan|bin/til_debug)([[:space:]]|$)'
 
+# Collect the hook's full ancestor chain (this bash -> ... -> the Claude
+# harness -> init). The harness is ALWAYS an ancestor, so skipping the
+# whole chain makes the scan structurally immune to whatever the harness
+# stuffs into its own argv (Anthropic embeds the entire system prompt /
+# CLAUDE.md there, which contains "make"/"cc"/"bin/til" and otherwise
+# false-flags the harness as a leftover build). Belt-and-suspenders with
+# the argv[0]-only match below.
+ancestors=" "
+_p=$$
+while [ -n "$_p" ] && [ "$_p" != "0" ] && [ "$_p" != "1" ]; do
+    ancestors="${ancestors}${_p} "
+    _p=$(awk '{print $4}' "/proc/$_p/stat" 2>/dev/null)
+    case "$ancestors" in *" $_p "*) break;; esac
+done
+
 for cmdline_file in /proc/[0-9]*/cmdline; do
     [ -r "$cmdline_file" ] || continue
     pid_dir=${cmdline_file%/cmdline}
@@ -69,14 +84,22 @@ for cmdline_file in /proc/[0-9]*/cmdline; do
     # Skip our own process and our direct shell parent (the hook tree).
     [ "$pid" = "$$" ] && continue
     [ "$pid" = "$PPID" ] && continue
+    # Skip any ancestor of the hook (the harness lives up this chain).
+    case "$ancestors" in *" $pid "*) continue;; esac
     other_pgid=$(awk '{print $5}' "/proc/$pid/stat" 2>/dev/null)
     # Skip anything in the same process group as the hook (its own
     # forks: the python invocations above, etc).
     [ -n "$self_pgid" ] && [ "$other_pgid" = "$self_pgid" ] && continue
-    # cmdline is NUL-separated; convert to spaces for grep.
-    other_cmdline=$(tr '\0' ' ' < "$cmdline_file" 2>/dev/null)
-    if echo "$other_cmdline" | grep -qE "$match_regex"; then
-        offender=$(echo "$other_cmdline" | head -c 120)
+    # cmdline is NUL-separated. Match only argv[0] (the executable),
+    # NOT the whole arg vector. The Claude harness runs as
+    # `claude ... --append-system-prompt <ENTIRE project instructions>`,
+    # and that giant argument embeds "make"/"cc"/"bin/til"/... -- so
+    # matching the full cmdline flagged the SDK process itself as a
+    # leftover build and blocked every Bash call. Real long jobs always
+    # have make/cc/bin/til as argv[0]; the harness has claude/node/bun.
+    argv0=$(tr '\0' '\n' < "$cmdline_file" 2>/dev/null | sed -n '1p')
+    if echo "$argv0" | grep -qE "$match_regex"; then
+        offender=$(tr '\0' ' ' < "$cmdline_file" 2>/dev/null | head -c 120)
         echo "BLOCKED: a long-running task from a previous tool call is still alive (pid $pid: ${offender}...). End this turn and wait for the SDK's task-notification before issuing the next Bash call -- piling on top creates the 'wait for make / build' ghost tasks that accumulate in the sidebar." >&2
         exit 2
     fi
