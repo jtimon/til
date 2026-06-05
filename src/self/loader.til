@@ -1883,11 +1883,6 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
         context_enter_file(lp.ctx, last.path)
     }
 
-    // #165 step 1: resolve any Type.Custom(name) bindings (written by
-    // initer's scope-free registration helpers) to Struct/Enum now that
-    // every name is in scope.
-    normalize_scope_bindings(lp.ctx.scope)
-
     // Issue #262: inline lazy_func / lazy_proc calls before type-checking so
     // the spliced bodies (and the short-circuit `match` inside them) are
     // typed and lowered as ordinary code.

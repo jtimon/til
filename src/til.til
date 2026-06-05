@@ -92,9 +92,6 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
         context_enter_file(lp.ctx, last.path)
     }
 
-    // Resolve Type.Custom(name) bindings now that every name is in scope.
-    normalize_scope_bindings(lp.ctx.scope)
-
     mut errs : I32 = 0
     if lp.skip_core.not() {
         ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]

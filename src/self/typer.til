@@ -7773,32 +7773,6 @@ infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_sco
 // the name resolves to a real struct/enum. Bindings whose type does
 // not resolve are left as ~Custom~ and surface as undefined-symbol
 // errors during type_check (same as today).
-normalize_scope_bindings := func(scope: TypeScope) {
-    for bi in 0..scope.bindings.len() {
-        ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
-        switch b.type {
-        case Type.Custom(name):
-            ref alias_b : TypeBinding = scope.get_binding(name)
-            if alias_b.is_null().not() {
-                if alias_b.is_type_alias {
-                    if alias_b.type.is(Type.Custom).not() {
-                        b.type = alias_b.type.clone()
-                        continue
-                    }
-                }
-            }
-            ref sdef : Expr = scope.get_struct(name)
-            if sdef.is_null() { continue }
-            if sdef.node_type.is(NodeType.EnumDef) {
-                b.type = Type.Enum(name.clone())
-            } else {
-                b.type = Type.Struct(name.clone())
-            }
-        case:
-        }
-    }
-}
-
 // --- Lambda lifting -----------------------------------------------------
 //
 // Anonymous `func(...) {...}` literals in expression positions (FCall

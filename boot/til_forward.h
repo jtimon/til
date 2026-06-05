@@ -1671,7 +1671,6 @@ void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 i
 void reregister_scope_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void infer_body_unit(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
-void normalize_scope_bindings(TypeScope * scope);
 Bool priv___src_self_typer_til__typer_is_lambda_target(Expr * e);
 I64 priv___src_self_typer_til__typer_lift_one_default_value(Declaration * dd, Vec * top_level, I64 * counter);
 I64 priv___src_self_typer_til__typer_lift_lambdas_in_expr(Expr * e, Vec * top_level, I64 * counter);
