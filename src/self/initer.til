@@ -2271,6 +2271,17 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
             // Ident were none, so no further recursion at this node.
             return
         }
+    case NodeType.Decl(dd):
+        // Issue #243: a body-local declaration (`ref x : T = ...`,
+        // `mut y : T = ...`) carries its type as a Declaration.explicit_type
+        // string, not an Ident expr, so substitute it here too -- otherwise
+        // T stays unresolved inside macro-templated method bodies. Then fall
+        // through to recurse into the RHS value child below.
+        new_type := init_subst_ident_name(subs, dd.explicit_type)
+        if new_type.len().gt(0) {
+            dd.explicit_type = new_type.clone()
+            dd.til_type = til_type_from_explicit_type(dd.explicit_type)
+        }
     case:
     }
     for mut c : Expr in e.children {
