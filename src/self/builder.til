@@ -1294,11 +1294,18 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if e.expr_til_type().is_funcptr().and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not()) {
         mut ct := "void *"
         mut is_typedef := false
-        if dd.explicit_type.len().gt(0) {
-            if is_funcsig_type(dd.explicit_type, ctx) {
-                ct = dd.explicit_type.clone()
-                is_typedef = true
-            }
+        // Issue #58 / #147 step 5: the FuncSig alias name now lives on
+        // the type itself (Type.FuncPtrSig(name)). til_type_name extracts
+        // it for FuncPtrSig and returns "" for the bare Type.FuncPtr
+        // (anonymous), so the empty-check below correctly skips the
+        // typedef branch for un-named function-pointer locals -- same
+        // gate the previous `is_funcsig_type(dd.explicit_type, ctx)`
+        // check effectively gave, but read from til_type instead of from
+        // Declaration.explicit_type (#147 step 5 path).
+        sig_name := til_type_name(e.expr_til_type())
+        if sig_name.len().gt(0) {
+            ct = sig_name
+            is_typedef = true
         }
         // Issue #236: a script-global FuncPtr decl already has its
         // `void * X;` emitted by emit_globals; the init in main() must
