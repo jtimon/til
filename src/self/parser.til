@@ -354,6 +354,8 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     case TokenType.KwMacro: ft = FuncType.Macro
     case TokenType.KwExtFunc: ft = FuncType.ExtFunc
     case TokenType.KwExtProc: ft = FuncType.ExtProc
+    case TokenType.KwLazyFunc: ft = FuncType.LazyFunc
+    case TokenType.KwLazyProc: ft = FuncType.LazyProc
     case: panic(__LOC__, "expected function keyword")
     }
 
@@ -1072,6 +1074,8 @@ parse_primary := proc(mut p: Parser) returns Expr {
     case TokenType.KwMacro:   return parse_func_def(p)
     case TokenType.KwExtFunc: return parse_func_def(p)
     case TokenType.KwExtProc: return parse_func_def(p)
+    case TokenType.KwLazyFunc: return parse_func_def(p)
+    case TokenType.KwLazyProc: return parse_func_def(p)
     case TokenType.KwStruct:
         mut sdef := parse_struct_def(p, "")
         // Anonymous struct instantiation: `struct { ... }(args)`. Lift the

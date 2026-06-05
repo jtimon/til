@@ -3279,7 +3279,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
     ctx.typing_namespace_member = false
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
-        is_func := fdef.func_type.is(FuncType.Func)
+        // Issue #262: a lazy_func types like a func (cannot call proc,
+        // tracks its return type); a lazy_proc types like neither func nor
+        // proc here so its body may call procs without the "proc has no
+        // proc calls" diagnostic. All lazy calls are inlined before this
+        // pass runs, so these defs are dead -- they only need to type and
+        // emit as ordinary functions.
+        is_func := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.LazyFunc))
         is_macro := fdef.func_type.is(FuncType.Macro)
         // Issue #57: macros that are pure templates (returning
         // StructDef / EnumDef / FuncDef, or with a `Type` parameter) are
@@ -3307,6 +3313,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
         // directly to a hand-written C signature (e.g. U64_clone takes a
         // 'const U64 *'), so their shallow-ness must be preserved exactly.
         auto_shallow_ok := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
+            .or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.LazyProc))
         if fdef.func_type.is(FuncType.Test) {
             // Allowed at root scope, or at the immediate namespace
             // level of a struct/enum (issue #51).  Tests in arbitrary

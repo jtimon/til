@@ -400,6 +400,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/strings.til", flags)
     add_mode(tests, "test/enums.til", flags)
     add_mode(tests, "test/match.til", flags)
+    add_mode(tests, "test/lazy.til", flags)
     add_mode(tests, "test/dynamic.til", flags)
     add_mode(tests, "test/maps.til", flags)
     add_mode(tests, "test/hashes.til", flags)
