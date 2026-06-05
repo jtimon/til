@@ -124,7 +124,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
 }
 
 rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_func: I32, ctx: Context) {
-    if ptype.eq(Type.Enum("Type")).not() { return }
+    if is_type_metatype(ptype).not() { return }
     switch arg.node_type {
     case NodeType.Ident(arg_name):
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
@@ -552,7 +552,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         // `enum { ... }`) into this form via make_til_type_expr, so recognise
         // it before the binding lookup below (there is no `Type_Enum` binding
         // for the receiver-qualified method name).
-        if e.expr_til_type().eq(Type.Enum("Type")) {
+        if is_type_metatype(e.expr_til_type()) {
             for ai in 1..e.children.len() {
                 if e.child(ai).expr_is_comptime(scope).not() { return false }
             }
@@ -598,7 +598,7 @@ expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         // Issue #57: `Type.<Variant>` (no payload, e.g. `Type.None` produced
         // by make_til_type_expr for primitive type-token args) is a Type
         // metatype value -- pure and comptime.
-        if e.expr_til_type().eq(Type.Enum("Type")) {
+        if is_type_metatype(e.expr_til_type()) {
             return true
         }
         return false

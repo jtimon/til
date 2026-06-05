@@ -58,59 +58,6 @@ Type := enum {
     // eventually be dropped (#147 step 5). Same append-at-end rule as
     // Primitive: keeps the existing tags stable for bootstrapping.
     FuncPtrSig: Str,
-namespace:
-    /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
-    /// compare equal regardless of variant if their name payloads match.
-    // #165 step 1: treat Custom(x) as equal to Struct(x) or Enum(x).
-    // initer's registration helpers can write Custom(name) without
-    // resolving against scope; typer lookups that return Struct/Enum
-    // still compare equal. Uses .is() throughout (tag-only) because
-    // ~switch~ on an enum desugars to recursive ~eq~ calls.
-    eq := func(a: Type, b: Type) returns Bool {
-        // Named-payload group: Custom, Struct, Enum compare equal across
-        // variants iff their name payloads match.
-        a_named := a.is(Type.Custom).or(a.is(Type.Struct)).or(a.is(Type.Enum))
-        b_named := b.is(Type.Custom).or(b.is(Type.Struct)).or(b.is(Type.Enum))
-        if a_named.and(b_named) {
-            return til_type_name(a).eq(til_type_name(b))
-        }
-        if a_named.or(b_named) { return false }
-        // Non-payloaded variants: tag equality.
-        if a.is(Type.Unknown)   { return b.is(Type.Unknown) }
-        if a.is(Type.None)      { return b.is(Type.None) }
-        // Primitive group: both must be Type.Primitive carrying the same
-        // inner Primitive. The outer is() is tag-only (matches any
-        // Primitive), so destructure and compare the inner Primitive -- it
-        // is payload-free, so its own tag-only is() is exact.
-        switch a {
-        case Type.Primitive(pa):
-            switch b {
-            case Type.Primitive(pb): return pa.is(pb)
-            case: return false
-            }
-        case:
-        }
-        if b.is(Type.Primitive) { return false }
-        if a.is(Type.StructDef) { return b.is(Type.StructDef) }
-        if a.is(Type.EnumDef)   { return b.is(Type.EnumDef) }
-        if a.is(Type.FuncDef)   { return b.is(Type.FuncDef) }
-        // Issue #58: FuncPtr and FuncPtrSig are equivalent for "is this a
-        // function pointer?" semantics. Two FuncPtrSig with different names
-        // are not equal; FuncPtrSig with any name matches a bare FuncPtr
-        // (the wildcard) so legacy callsites continue to work while names
-        // get migrated in.
-        a_fn := a.is(Type.FuncPtr).or(a.is(Type.FuncPtrSig))
-        b_fn := b.is(Type.FuncPtr).or(b.is(Type.FuncPtrSig))
-        if a_fn.and(b_fn) {
-            an := til_type_name(a)
-            bn := til_type_name(b)
-            if an.is_empty().or(bn.is_empty()) { return true }
-            return an.eq(bn)
-        }
-        if a_fn.or(b_fn) { return false }
-        if a.is(Type.Dynamic)   { return b.is(Type.Dynamic) }
-        return false
-    }
 }
 
 til_type_name_c := func(t: Type) returns Str {

@@ -637,6 +637,16 @@ type_is_primitive := func(t: Type, p: Primitive) returns Bool {
     }
 }
 
+// True when `t` is the `Type` metatype value itself (Issue #57): a type
+// value whose payload name is "Type", regardless of whether inference
+// produced it as Type.Enum("Type"), Type.Struct("Type") or
+// Type.Custom("Type"). til_type_name returns "" for non-named variants,
+// so those correctly compare false. Replaces the cross-variant
+// `t.eq(Type.Enum("Type"))` comparisons that needed the bespoke Type.eq.
+is_type_metatype := func(t: Type) returns Bool {
+    return til_type_name(t).eq("Type")
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }

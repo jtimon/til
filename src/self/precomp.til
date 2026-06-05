@@ -853,11 +853,11 @@ try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Conte
             //     it through to the interpreter as-is.
             //   * A bare type-ident whose narrowed til_type is Type.Enum("Type")
             //     -- build the equivalent `Type.Custom("<TypeName>")` ctor on
-            //     the fly so the macro eval sees a literal expression. Both
-            //     Type.Custom and Type.Struct/Type.Enum compare equal on payload
-            //     name (ast.til Type.eq), so til_type_name picks up the right
-            //     name regardless of which variant is constructed.
-            if arg.expr_til_type().eq(Type.Enum("Type")) {
+            //     the fly so the macro eval sees a literal expression. is_type_metatype
+            //     matches Type.Custom/Type.Struct/Type.Enum by payload name, so
+            //     til_type_name picks up the right name regardless of which
+            //     variant is constructed.
+            if is_type_metatype(arg.expr_til_type()) {
                 switch arg.node_type {
                 case NodeType.FCall:
                     ec.add_child(own arg.clone())
