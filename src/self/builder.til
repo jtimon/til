@@ -3182,7 +3182,7 @@ emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedP
         UNREACHABLE(__LOC__)
         return
     }
-    // A bodyless namespace signature (interface method, issue #265) is a
+    // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
     if fdef.children.len().eq(0) { return }
     full_name := name.format("_", dd_name)

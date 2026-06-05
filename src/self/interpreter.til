@@ -1471,7 +1471,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         }
 
         // Regular function body call
-        // A bodyless namespace signature (interface method, issue #265)
+        // A bodyless namespace signature (interface method, issue #251)
         // has no implementation to execute.
         if func_def.children.len().eq(0) {
             interp_error(e, "cannot call an interface method through the interface: it has no implementation", ctx)

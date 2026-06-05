@@ -1,26 +1,27 @@
 mode test
 
-// Issue #265: interfaces are named bags of method signatures that desugar
-// to a fieldless struct whose namespace holds only bodyless func/proc
-// signatures (FuncSigs). Phase 1: an interface is a usable, empty type; it
-// does not yet check conformance or dispatch dynamically. These tests pin
-// down that interfaces compile end-to-end (interpret AND build) and are
-// usable as types. The rejection cases (field / method body / non-func
-// member) live in test/typer_errors.til.
+// Issue #251: interfaces are named bags of method signatures that desugar
+// to a fieldless struct. A method signature is written
+// `func(...) returns T {}` -- a func/proc with an empty body, consistent
+// with ext_func/ext_proc declarations. Phase 1: an interface is a usable,
+// empty type; it does not yet check conformance or dispatch dynamically.
+// These tests pin down that interfaces compile end-to-end (interpret AND
+// build) and are usable as types. The rejection cases (illegal
+// implementation / non-func member) live in test/typer_errors.til.
 
 // Collection: the get/len contract that `for ... in` relies on (Range and
 // Vec already satisfy it). A `namespace:` marker inside an interface is a
 // redundant no-op -- exercised here to confirm it is accepted, not an error.
 Collection := interface {
-    get := func(self: Collection, i: U32) returns Dynamic
+    get := func(self: Collection, i: U32) returns Dynamic {}
 namespace:
-    len := func(self: Collection) returns USize
+    len := func(self: Collection) returns USize {}
 }
 
 // A second interface with unrelated methods, to confirm more than one
 // interface type compiles.
 Drawable := interface {
-    draw := func(self: Drawable) returns Str
+    draw := func(self: Drawable) returns Str {}
 }
 
 // Usable as a parameter type ...

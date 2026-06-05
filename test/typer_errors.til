@@ -655,14 +655,14 @@ case 1: "a"
 case 2: "b"
 }
 
-// #265: an interface body holds only bodyless func/proc signatures. A
-// non-func member (a "field") is rejected.
+// #251: an interface body holds only `func(...) returns T {}` signatures.
+// A non-func member (a "field") is rejected.
 TErrInterfaceField := interface {
     x := 0
 }
 
-// #265: an interface method declares only its signature -- it cannot carry
-// a body.
+// #251: an interface method declares only its signature; an empty `{}` body
+// is fine but a non-empty body is an illegal implementation.
 TErrInterfaceBody := interface {
     run := func() returns I64 { return 1 }
 }

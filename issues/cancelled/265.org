@@ -1,0 +1,10 @@
+# priority: medium
+# category: features
+** CANCELLED #265 `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+
+   CANCELLED as a duplicate of #251 (the canonical interface-keyword
+   issue). The interface feature was renumbered repeatedly across rebases
+   (243 -> 245 -> 250 -> 261 -> 265) and finally merged carrying #265,
+   while #251 had separately been assigned to the same issue -- leaving two
+   copies. See issues/open/251.org for the live issue; this number is
+   retired so the interface issue is listed once.

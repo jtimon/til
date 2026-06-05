@@ -20,15 +20,21 @@
 *** Example
 
     : CommonInterface := interface {
-    :     clone  := func(self: CommonInterface) returns CommonInterface
-    :     delete := proc(self: CommonInterface)
-    :     size   := func() returns USize
+    :     clone  := func(self: CommonInterface) returns CommonInterface {}
+    :     delete := proc(self: CommonInterface) {}
+    :     size   := func() returns USize {}
     : }
     :
     : Collection := interface {
-    :     get := func(self: Collection, i: U32) returns Dynamic
-    :     len := func(self: Collection) returns USize
+    :     get := func(self: Collection, i: U32) returns Dynamic {}
+    :     len := func(self: Collection) returns USize {}
     : }
+
+    A method signature is written ~func(...) returns T {}~ -- a func/proc
+    with an EMPTY body, consistent with how ext_func/ext_proc declarations
+    are written. The parser strips the empty ~{}~ so the member is stored
+    as a bodyless FuncSig; the typer rejects a non-empty body (an illegal
+    implementation) and a non-func member.
 
     ~CommonInterface~ names the trio (~clone~/~delete~/~size~) that the
     compiler already auto-generates for every type; ~Collection~ names

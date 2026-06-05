@@ -758,7 +758,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 // ns_decl must be a bodyless func/proc -- so violations surface as
 // aggregatable type errors (test/typer_errors.til) rather than a parser
 // panic that aborts the file. There is no field/namespace split: a
-// `namespace:` marker, if written, is a redundant no-op. See issue #265.
+// `namespace:` marker, if written, is a redundant no-op. See issue #251.
 parse_interface_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
@@ -801,7 +801,25 @@ parse_interface_def := proc(mut p: Parser) returns Expr {
         }
         m_doc := p.pending_doc.clone()
         p.pending_doc = ""
-        m_value := parse_expression(p)
+        mut m_value := parse_expression(p)
+        // Issue #251: an interface method is written `func(...) returns T {}`
+        // -- a func/proc with an EMPTY body, consistent with how
+        // ext_func/ext_proc declarations are written. Strip that empty `{}`
+        // so the member is stored as a bodyless FuncSig (the function-pointer
+        // shape it desugars to): no return check, no emitted code. A
+        // non-empty body is left in place for the typer to reject as an
+        // illegal implementation.
+        switch m_value.node_type {
+        case NodeType.FuncDef:
+            if m_value.children.len().eq(1) {
+                ref ifm_body : Expr = m_value.child(0)
+                if ifm_body.node_type.is(NodeType.Body).and(ifm_body.children.len().eq(0)) {
+                    ifm_sig := Expr.new(m_value.node_type.clone(), m_value.line, m_value.col)
+                    m_value = ifm_sig
+                }
+            }
+        case:
+        }
         mut m_dd := Declaration(name = m_name,
             is_mut = false, explicit_type = m_explicit_type,
             til_type = til_type_from_explicit_type(m_explicit_type),

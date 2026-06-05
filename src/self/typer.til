@@ -3037,10 +3037,12 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         typer_resolve_enum_payload_types(tc_edd, inner, ctx)
     case:
     }
-    // Issue #265: enforce the interface contract. `interface {...}`
+    // Issue #251: enforce the interface contract. `interface {...}`
     // desugars to a StructDef(is_interface) whose members the parser
-    // accepts without checking; every member must be a bodyless func/proc
-    // signature. Reported as ordinary type errors so they aggregate.
+    // accepts without checking (and strips the empty `{}` body from, so a
+    // well-formed signature arrives bodyless). Every member must be a
+    // func/proc signature; a non-empty body is an illegal implementation.
+    // Reported as ordinary type errors so they aggregate.
     switch expr.node_type {
     case NodeType.StructDef(if_sdd):
         if if_sdd.is_interface {
@@ -3053,12 +3055,12 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     // only user-written members carry the contract.
                     if if_fd.auto_generated { continue }
                     if if_fd.func_type.is(FuncType.Func).or(if_fd.func_type.is(FuncType.Proc)).not() {
-                        if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a bodyless 'func'/'proc' signature"), ctx)
+                        if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a 'func'/'proc' signature, e.g. 'func(...) returns T {}'"), ctx)
                     } else if if_nd.default_value.children.len().gt(0) {
-                        if_nd.default_value.type_error("interface method '".concat(if_nd.name).concat("' cannot have a body: an interface declares only the signature (a bodyless 'func'/'proc')"), ctx)
+                        if_nd.default_value.type_error("interface method '".concat(if_nd.name).concat("' cannot have an implementation: its body must be empty, e.g. 'func(...) returns T {}'"), ctx)
                     }
                 case:
-                    if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a function pointer declaration (a bodyless 'func'/'proc' signature)"), ctx)
+                    if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a 'func'/'proc' signature, e.g. 'func(...) returns T {}'"), ctx)
                 }
             }
         }

@@ -1795,7 +1795,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                         } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
                             // Scan function body for nested ext_func/ext_proc.
                             // A bodyless namespace signature (interface
-                            // method, issue #265) has no body to scan.
+                            // method, issue #251) has no body to scan.
                             if fdef.children.len().eq(0) { continue }
                             ref fbody : Expr = fdef.child(0)
                             for inner : Expr in fbody.children {
