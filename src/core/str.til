@@ -323,10 +323,11 @@ namespace:
         return Str(c_str = buf, count = 1, cap = 1)
     }
 
-    /// Parse the string as a base-10 signed integer. Panics on invalid input.
+    /// Parse the string as a signed integer. Accepts an optional leading
+    /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
+    /// Bare digit runs are base-10. Panics on invalid input.
     to_i64 := func(self: Str) returns I64 {
         if self.count.eq(0) { panic(__LOC__, "Str.to_i64: empty string") }
-        mut result := 0
         mut start : USize = 0
         mut neg := false
         ref first : I8 = self.get(0)
@@ -335,14 +336,35 @@ namespace:
             start = 1
         }
         if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
+        // Base prefix: 0x (hex), 0b (binary), 0o (octal).
+        mut base : I64 = 10
+        if self.get(start).eq('0').and(start.add(1).lt(self.count)) {
+            ref pch : I8 = self.get(start.add(1))
+            if pch.eq('x').or(pch.eq('X')) {
+                base = 16
+                start = start.add(2)
+            } else if pch.eq('b').or(pch.eq('B')) {
+                base = 2
+                start = start.add(2)
+            } else if pch.eq('o').or(pch.eq('O')) {
+                base = 8
+                start = start.add(2)
+            }
+        }
+        if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits in '", self, "'") }
+        mut result := 0
+        mut any := false
         for i in start..self.count {
             ref ch : I8 = self.get(i)
-            d := ch.cast(I64).sub(48)
-            if d.lt(0).or(d.gt(9)) {
+            if ch.eq('_') { continue }
+            d := digit_value(ch)
+            if d.lt(0).or(d.gte(base)) {
                 panic(__LOC__, "Str.to_i64: invalid char in '", self, "'")
             }
-            result = result.mul(10).add(d)
+            result = result.mul(base).add(d)
+            any = true
         }
+        if any.not() { panic(__LOC__, "Str.to_i64: no digits in '", self, "'") }
         if neg { return 0.sub(result) }
         return result
     }
@@ -375,7 +397,12 @@ namespace:
     /// Parse as a floating-point number. Backed by C strtof: handles
     /// decimal and scientific notation at full precision, so a value
     /// printed by F32.to_repr round-trips exactly back to the same F32.
+    /// '_' digit separators (issue #255) are stripped first since strtof
+    /// does not accept them.
     to_f32 := func(self: Str) returns F32 {
+        if self.contains("_") {
+            return str_parse_f32(self.replace("_", ""))
+        }
         return str_parse_f32(self)
     }
 
@@ -416,6 +443,16 @@ join := func(parts: Vec, sep: Str) returns Str {
         out.push_str(p)
     }
     return out
+}
+
+// Value of a single base digit: '0'-'9' -> 0-9, 'a'-'f'/'A'-'F' -> 10-15.
+// Returns -1 for any other byte. Shared by Str.to_i64's base parsing.
+digit_value := func(ch: I8) returns I64 {
+    v := ch.cast(I64)
+    if v.gte(48).and(v.lte(57)) { return v.sub(48) }
+    if v.gte(97).and(v.lte(102)) { return v.sub(97).add(10) }
+    if v.gte(65).and(v.lte(70)) { return v.sub(65).add(10) }
+    return -1
 }
 
 // c-string length (strlen).  Can't bind libc's strlen directly: til's
