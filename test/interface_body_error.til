@@ -1,7 +1,0 @@
-mode script
-
-// Issue #265: an interface declares only signatures. A method WITH a
-// body must be rejected by the parser.
-Bad := interface {
-    run := func() { }
-}

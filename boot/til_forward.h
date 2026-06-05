@@ -413,6 +413,7 @@ typedef struct StructDef {
     Vec fields;
     Vec ns_decls;
     Str c_tag;
+    Bool is_interface;
 } StructDef;
 
 

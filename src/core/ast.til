@@ -305,6 +305,11 @@ StructDef : StructDef = struct {
     fields := Vec.new(Declaration)
     ns_decls := Vec.new(Declaration)
     c_tag := ""
+    // Issue #265: set by parse_interface_def. The body desugars to this
+    // StructDef (empty fields, ns_decls = method signatures); the typer
+    // uses the flag to enforce the interface contract (every ns_decl must
+    // be a bodyless func/proc) as aggregatable type errors.
+    is_interface := false
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
         return a.fields.len().eq(b.fields.len())

@@ -712,17 +712,20 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 
 // parse_interface_def: current token is 'interface'.
 // An interface is a named bag of method signatures. It desugars to a
-// StructDef with EMPTY fields and ns_decls = the parsed signatures, each
-// of which MUST be a bodyless func/proc (a FuncSig). Two prohibitions are
-// enforced here: no instance fields, and nothing in the body except
-// function-pointer declarations. There is no `namespace:` split -- every
-// declaration is already a namespace method signature. See issue #265.
+// StructDef flagged is_interface, with EMPTY fields and ns_decls = the
+// parsed members. Parsing is permissive: every member is read as a
+// namespace declaration (`name := value` / `name : Type = value`) with no
+// validation here. The TYPER enforces the interface contract -- each
+// ns_decl must be a bodyless func/proc -- so violations surface as
+// aggregatable type errors (test/typer_errors.til) rather than a parser
+// panic that aborts the file. There is no field/namespace split: a
+// `namespace:` marker, if written, is a redundant no-op. See issue #265.
 parse_interface_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
     advance(p) // consume 'interface'
 
-    def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
+    def := Expr.new(NodeType.StructDef(StructDef(is_interface = true)), kw_line, kw_col)
     expect_token(p, TokenType.LBrace)
 
     saved_doc := p.pending_doc.clone()
@@ -733,20 +736,18 @@ parse_interface_def := proc(mut p: Parser) returns Expr {
             drain_doc_comments(p)
             continue
         }
+        // An interface has no fields, so every declaration is already a
+        // method signature: a `namespace:` marker is redundant -- skip it.
         if check(p, TokenType.KwNamespace) {
-            panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                ": 'namespace:' is not allowed in an interface body: an interface has no fields, so every declaration is already a method signature; drop 'namespace:'")
+            advance(p)
+            expect_token(p, TokenType.Colon)
+            p.pending_doc = ""
+            continue
         }
         mut member_priv := false
         if check(p, TokenType.KwPriv) {
             advance(p)
             member_priv = true
-        }
-        m_line := peek_line(p)
-        m_col := peek_col(p)
-        if check(p, TokenType.KwMut) {
-            panic(__LOC__, p.path, ":", m_line.to_str(), ":", m_col.to_str(),
-                ": 'mut' is not allowed on an interface method: signatures are immutable; drop it")
         }
         m_name := expect_text(p, TokenType.Ident)
         mut m_explicit_type := ""
@@ -762,23 +763,6 @@ parse_interface_def := proc(mut p: Parser) returns Expr {
         m_doc := p.pending_doc.clone()
         p.pending_doc = ""
         m_value := parse_expression(p)
-        // Validate: an interface member is a bodyless func/proc signature.
-        // Anything else is a "field", which interfaces forbid.
-        switch m_value.node_type {
-        case NodeType.FuncDef(m_fd):
-            ft_ok := m_fd.func_type.is(FuncType.Func).or(m_fd.func_type.is(FuncType.Proc))
-            if ft_ok.not() {
-                panic(__LOC__, p.path, ":", m_line.to_str(), ":", m_col.to_str(),
-                    ": interface member '", m_name, "' must be a 'func' or 'proc' signature")
-            }
-            if m_value.children.len().gt(0) {
-                panic(__LOC__, p.path, ":", m_line.to_str(), ":", m_col.to_str(),
-                    ": interface method '", m_name, "' cannot have a body: an interface declares only the signature (a bodyless 'func'/'proc')")
-            }
-        case:
-            panic(__LOC__, p.path, ":", m_line.to_str(), ":", m_col.to_str(),
-                ": interface '", m_name, "' cannot have fields: an interface body contains only function pointer declarations (bodyless 'func'/'proc' signatures)")
-        }
         mut m_dd := Declaration(name = m_name,
             is_mut = false, explicit_type = m_explicit_type,
             til_type = til_type_from_explicit_type(m_explicit_type),

@@ -654,3 +654,15 @@ terr_match_nonexhaustive := match 9 {
 case 1: "a"
 case 2: "b"
 }
+
+// #265: an interface body holds only bodyless func/proc signatures. A
+// non-func member (a "field") is rejected.
+TErrInterfaceField := interface {
+    x := 0
+}
+
+// #265: an interface method declares only its signature -- it cannot carry
+// a body.
+TErrInterfaceBody := interface {
+    run := func() returns I64 { return 1 }
+}

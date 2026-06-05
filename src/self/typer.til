@@ -3025,6 +3025,33 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         typer_resolve_enum_payload_types(tc_edd, inner, ctx)
     case:
     }
+    // Issue #265: enforce the interface contract. `interface {...}`
+    // desugars to a StructDef(is_interface) whose members the parser
+    // accepts without checking; every member must be a bodyless func/proc
+    // signature. Reported as ordinary type errors so they aggregate.
+    switch expr.node_type {
+    case NodeType.StructDef(if_sdd):
+        if if_sdd.is_interface {
+            for if_nd : Declaration in if_sdd.ns_decls {
+                if if_nd.default_value.is_null() { continue }
+                switch if_nd.default_value.node_type {
+                case NodeType.FuncDef(if_fd):
+                    // Skip clone/delete/size/hash etc. that the initer
+                    // auto-generates for the (empty) interface struct --
+                    // only user-written members carry the contract.
+                    if if_fd.auto_generated { continue }
+                    if if_fd.func_type.is(FuncType.Func).or(if_fd.func_type.is(FuncType.Proc)).not() {
+                        if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a bodyless 'func'/'proc' signature"), ctx)
+                    } else if if_nd.default_value.children.len().gt(0) {
+                        if_nd.default_value.type_error("interface method '".concat(if_nd.name).concat("' cannot have a body: an interface declares only the signature (a bodyless 'func'/'proc')"), ctx)
+                    }
+                case:
+                    if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a function pointer declaration (a bodyless 'func'/'proc' signature)"), ctx)
+                }
+            }
+        }
+    case:
+    }
     // Type-check ns_decls (stored directly by parser, not via body).
     // Flip ctx.typing_namespace_member so infer_func_def_expr accepts
     // test() decls at the namespace level (issue #51).
