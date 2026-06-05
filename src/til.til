@@ -18,7 +18,7 @@ import("self/loader")
 import("self/builder")
 import("self/interpreter")
 import("self/dispatch")
-import("self/binder")
+import("self/bindgen")
 import("../vendor/bindings/raylib")
 link("vendor/raylib/src/libraylib.a")
 link("m")
@@ -539,7 +539,7 @@ main := proc(args: ..Str) {
         return
     }
 
-    // `bindings` runs the C-header -> til translator (src/self/binder.til).
+    // `bindings` runs the C-header -> til translator (src/self/bindgen.til).
     // Skip the load_program pipeline -- the input is a .h, not a .til, and
     // -o carries the output path.
     if cli.command.eq("bindings") {

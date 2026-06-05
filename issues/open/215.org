@@ -332,7 +332,7 @@ and move non-essential syscalls into src/std".  Scope:
 - Add ~Str.trim~ / ~Str.trim_start~ in ~src/core/str.til~ for
   argv[0] extraction.
 - Update every caller in ~src/self/~, ~src/test_runner.til~,
-  ~src/til.til~, ~src/self/binder.til~, ~src/self/targets.til~ etc.
+  ~src/til.til~, ~src/self/bindgen.til~, ~src/self/targets.til~ etc.
 - Once that lands, ~mode safe_script~ can ban any transitive import
   of ~std/sys~ and ban user-declared ~ext_proc~ / ~ext_func~ inside
   a safe_script file.

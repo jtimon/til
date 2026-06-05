@@ -1,11 +1,17 @@
 mode lib
 
-// Generic C header -> til bindings translator. `generate_bindings(in_path,
-// out_path)` reads one C header and produces a `mode lib` til file that
-// mirrors every typedef, enum, function declaration and numeric #define
-// from the header (and any header it #includes that lives in the same
-// directory). Driven from `bin/til bindings <header> -o <out>` via
-// src/til.til; the Makefile invokes that for each vendor/bindings/<name>.til.
+// FFI bindings generator (bindgen): a generic C header -> til bindings
+// translator. This is NOT a compiler pipeline phase -- it does no name
+// binding, scope resolution or type checking. It is a standalone tool that
+// reads one C header and writes the `mode lib` til file we then `import`
+// to call the C library through ext_func/ext_proc.
+//
+// `generate_bindings(in_path, out_path)` reads one C header and produces a
+// `mode lib` til file that mirrors every typedef, enum, function
+// declaration and numeric #define from the header (and any header it
+// #includes that lives in the same directory). Driven from `bin/til
+// bindings <header> -o <out>` via src/til.til; the Makefile invokes that
+// for each vendor/bindings/<name>.til.
 
 // Lexer exports is_digit / is_alpha / is_alnum (same I8 -> Bool helpers
 // that classify identifier bytes), so reuse them rather than redefining.
@@ -25,10 +31,10 @@ import("../std/sys")
 
 // --- char helpers ------------------------------------------------------
 // is_digit / is_alpha / is_alnum live in src/self/lexer.til; we use those
-// here rather than redefining. Whitespace detection is binder-local --
+// here rather than redefining. Whitespace detection is bindgen-local --
 // the lexer skips raw whitespace inline and has no is_ws helper to share.
 
-priv bind_is_ws := func(c: I8) returns Bool {
+priv bindgen_is_ws := func(c: I8) returns Bool {
     return c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq('\n'))
 }
 
@@ -37,7 +43,7 @@ priv bind_is_ws := func(c: I8) returns Bool {
 priv skip_ws := func(s: Str, from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
-        if bind_is_ws(s.byte_at(i)).not() { break }
+        if bindgen_is_ws(s.byte_at(i)).not() { break }
         i = i.add(1)
     }
     return i
@@ -57,7 +63,7 @@ priv skip_word := func(s: Str, from: USize) returns USize {
 priv trim_right := func(s: Str, from: USize, to: USize) returns USize {
     mut end := to
     while end.gt(from) {
-        if bind_is_ws(s.byte_at(end.sub(1))).not() { break }
+        if bindgen_is_ws(s.byte_at(end.sub(1))).not() { break }
         end = end.sub(1)
     }
     return end
@@ -180,33 +186,33 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
 // Stored as a single `|NAME|...|` Str so the lookup is a `.contains` check
 // with no Vec<Str> ownership to manage.
 // alias_to_primitive / alias_to_dynamic accumulate the typedef names
-// emitted so far in this run. They were module globals; the binder is
+// emitted so far in this run. They were module globals; bindgen is
 // a standalone tool with no pipeline Context, so they live in a
-// BinderState threaded through the emit tree instead (no module-level
+// BindgenState threaded through the emit tree instead (no module-level
 // mutable state). Stored as single `|NAME|...|` Strs so lookups are a
 // `.contains` check with no Vec<Str> ownership to manage.
-priv BinderState := struct {
+priv BindgenState := struct {
     alias_to_primitive := "|"
     alias_to_dynamic := "|"
 }
 
-priv register_alias := func(mut bs: BinderState, name: Str) {
+priv register_alias := func(mut bs: BindgenState, name: Str) {
     bs.alias_to_primitive = format(bs.alias_to_primitive, name, "|")
 }
 
-priv register_dynamic_alias := func(mut bs: BinderState, name: Str) {
+priv register_dynamic_alias := func(mut bs: BindgenState, name: Str) {
     bs.alias_to_dynamic = format(bs.alias_to_dynamic, name, "|")
 }
 
-priv is_alias_to_primitive := func(bs: BinderState, name: Str) returns Bool {
+priv is_alias_to_primitive := func(bs: BindgenState, name: Str) returns Bool {
     return bs.alias_to_primitive.contains(format("|", name, "|"))
 }
 
-priv is_alias_to_dynamic := func(bs: BinderState, name: Str) returns Bool {
+priv is_alias_to_dynamic := func(bs: BindgenState, name: Str) returns Bool {
     return bs.alias_to_dynamic.contains(format("|", name, "|"))
 }
 
-priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
+priv push_til_default := func(bs: BindgenState, mut out: Str, c: Str) {
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
     if c.eq("void") { out.push_str("0"); return }
     if c.eq("char").or(c.eq("unsigned char")).or(c.eq("signed char"))
@@ -244,7 +250,7 @@ priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
 
 // --- field declaration -------------------------------------------------
 
-priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: Str) returns Bool {
+priv bindgen_emit_field := func(bs: BindgenState, mut out: Str, line: Str, comment: Str) returns Bool {
     n := line.len()
     if n.eq(0) { return true }
     // Pre-filter unsupported shapes (arrays, function pointers, bitfields,
@@ -375,7 +381,7 @@ priv emit_comment_line := func(mut out: Str, line: Str) {
 
 // --- struct body ------------------------------------------------------
 
-priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, open: USize, close: USize) returns Bool {
+priv emit_struct_body := func(bs: BindgenState, mut out: Str, lines: Vec, open: USize, close: USize) returns Bool {
     for i in open.add(1)..close {
         ref line : Str = lines[i]
         n := line.len()
@@ -448,17 +454,17 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, open: U
         // check explicitly to avoid an OOB read when ce/comment_end is 0.
         mut cs := comment_start
         while cs.lt(comment_end) {
-            if bind_is_ws(line.byte_at(cs)).not() { break }
+            if bindgen_is_ws(line.byte_at(cs)).not() { break }
             cs = cs.add(1)
         }
         mut ce := comment_end
         while ce.gt(cs) {
-            if bind_is_ws(line.byte_at(ce.sub(1))).not() { break }
+            if bindgen_is_ws(line.byte_at(ce.sub(1))).not() { break }
             ce = ce.sub(1)
         }
         comment_view := line.substr(cs, ce.sub(cs))
         code_view := line.substr(lead, new_code_end.sub(lead))
-        if bind_emit_field(bs, out, code_view, comment_view).not() {
+        if bindgen_emit_field(bs, out, code_view, comment_view).not() {
             return false
         }
     }
@@ -467,7 +473,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec, open: U
 
 // --- typedef struct ---------------------------------------------------
 
-priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, start: USize, open: USize, close: USize) returns USize {
+priv emit_typedef_struct := func(bs: BindgenState, mut out: Str, lines: Vec, start: USize, open: USize, close: USize) returns USize {
     ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -484,10 +490,10 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, star
     mut name_start := cp
     mut nk := cp
     while nk.lt(cright) {
-        if bind_is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
+        if bindgen_is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
         nk = nk.add(1)
     }
-    while name_start.lt(cright).and(bind_is_ws(close_line.byte_at(name_start))) {
+    while name_start.lt(cright).and(bindgen_is_ws(close_line.byte_at(name_start))) {
         name_start = name_start.add(1)
     }
     name_len := cright.sub(name_start)
@@ -584,7 +590,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec, star
 
 // --- typedef enum -----------------------------------------------------
 
-priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, start: USize, open: USize, close: USize) returns USize {
+priv emit_typedef_enum := func(mut bs: BindgenState, mut out: Str, lines: Vec, start: USize, open: USize, close: USize) returns USize {
     ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
@@ -698,7 +704,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec, st
 
 // --- typedef alias (single line) --------------------------------------
 
-priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) returns Bool {
+priv emit_typedef_alias := func(mut bs: BindgenState, mut out: Str, line: Str) returns Bool {
     mut n := line.len()
     lead := skip_ws(line, 0)
     if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
@@ -731,7 +737,7 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
     while p.lt(body_end) {
         ref c : I8 = line.byte_at(p)
         if c.eq('(').or(c.eq('[')) { return false }
-        if bind_is_ws(c) { p = p.add(1); continue }
+        if bindgen_is_ws(c) { p = p.add(1); continue }
         if c.eq('*') { ptrs = ptrs.add(1); p = p.add(1); continue }
         word_end := skip_word(line, p)
         if word_end.eq(p) { return false }
@@ -783,7 +789,7 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
 
 // --- typedef function-pointer (one line) ------------------------------
 
-priv emit_typedef_fnptr := func(mut bs: BinderState, mut out: Str, line: Str) returns Bool {
+priv emit_typedef_fnptr := func(mut bs: BindgenState, mut out: Str, line: Str) returns Bool {
     // `typedef RET (*NAME)(ARGS);` -> emit `NAME := Dynamic`.
     n := line.len()
     lead := skip_ws(line, 0)
@@ -835,7 +841,7 @@ priv emit_define := func(mut out: Str, line: Str) returns Bool {
 
 // --- function declaration ---------------------------------------------
 
-priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USize, end: USize) returns Bool {
+priv emit_function := func(bs: BindgenState, mut out: Str, lines: Vec, start: USize, end: USize) returns Bool {
     // Join [start, end] into one signature, dropping line comments. End-of-
     // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
     // push_str so we never re-bind a function-returning Str to a local.
@@ -915,7 +921,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
     cp_u := cp.to_usize()
     mut before_end := op_u
     while before_end.gt(0) {
-        if bind_is_ws(sig.byte_at(before_end.sub(1))).not() { break }
+        if bindgen_is_ws(sig.byte_at(before_end.sub(1))).not() { break }
         before_end = before_end.sub(1)
     }
     if before_end.eq(0) { return false }
@@ -928,7 +934,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
     if name_start.eq(before_end) { return false }
     mut ret_end := name_start
     while ret_end.gt(0) {
-        if bind_is_ws(sig.byte_at(ret_end.sub(1))).not() { break }
+        if bindgen_is_ws(sig.byte_at(ret_end.sub(1))).not() { break }
         ret_end = ret_end.sub(1)
     }
     // Walk [0, ret_end) of sig for the return-type's base + pointer depth.
@@ -940,7 +946,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
     while rt.lt(ret_end) {
         ref rc : I8 = sig.byte_at(rt)
         if rc.eq('*') { ret_ptrs = ret_ptrs.add(1); rt = rt.add(1); continue }
-        if bind_is_ws(rc) { rt = rt.add(1); continue }
+        if bindgen_is_ws(rc) { rt = rt.add(1); continue }
         rw := skip_word(sig, rt)
         if rw.eq(rt) { return false }
         if range_eq_lit(sig, rt, rw, "const")
@@ -977,7 +983,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
             e = e.add(1)
         }
         mut a := pp
-        while a.lt(e).and(bind_is_ws(params_view.byte_at(a))) { a = a.add(1) }
+        while a.lt(e).and(bindgen_is_ws(params_view.byte_at(a))) { a = a.add(1) }
         b := trim_right(params_view, a, e)
         if a.lt(b) {
             if range_eq_lit(params_view, a, b, "void").not() {
@@ -1024,7 +1030,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
                     mut t := a
                     while t.lt(b) {
                         ref c : I8 = params_view.byte_at(t)
-                        if bind_is_ws(c) { t = t.add(1); continue }
+                        if bindgen_is_ws(c) { t = t.add(1); continue }
                         if c.eq('*') { p_ptrs = p_ptrs.add(1); t = t.add(1); continue }
                         if c.eq('[') {
                             p_ptrs = p_ptrs.add(1)
@@ -1163,7 +1169,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec, start: USi
 //     function
 //   * other top-level `Type name;` -> drop (extern var)
 
-priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
+priv walk_header := func(mut bs: BindgenState, mut out: Str, lines: Vec) {
     n_lines := lines.len()
     mut i : USize = 0
     // Track whether we're currently inside an unterminated `/* ... */`
@@ -1432,10 +1438,10 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec) {
                         mut name_a := cl_p
                         mut nk := cl_p
                         while nk.lt(cl_right) {
-                            if bind_is_ws(close_l.byte_at(nk)) { name_a = nk.add(1) }
+                            if bindgen_is_ws(close_l.byte_at(nk)) { name_a = nk.add(1) }
                             nk = nk.add(1)
                         }
-                        while name_a.lt(cl_right).and(bind_is_ws(close_l.byte_at(name_a))) {
+                        while name_a.lt(cl_right).and(bindgen_is_ws(close_l.byte_at(name_a))) {
                             name_a = name_a.add(1)
                         }
                         if name_a.lt(cl_right) {
@@ -1526,7 +1532,7 @@ priv looks_like_macro_fragment := func(line: Str) returns Bool {
         ref b : I8 = line.byte_at(i)
         if b.eq(';').or(b.eq('{')).or(b.eq('}')).or(b.eq('('))
         .or(b.eq(')')).or(b.eq(',')).or(b.eq('/')) { return false }
-        if bind_is_ws(b).or(b.eq('*')) {
+        if bindgen_is_ws(b).or(b.eq('*')) {
             i = i.add(1)
             continue
         }
@@ -1753,7 +1759,7 @@ generate_bindings := proc(in_path: Str, out_path: Str) {
     if lines.len().eq(0) { panic(__LOC__, "no lines from ", in_path, " after filtering by ", incdir) }
     mut out := Str.with_capacity(262144)
     out.push_str("mode lib\n\n")
-    mut bs := BinderState()
+    mut bs := BindgenState()
     walk_header(bs, out, lines)
     collapsed := collapse_blank_runs(out)
     File.writefile(out_path, collapsed)

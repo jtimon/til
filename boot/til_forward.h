@@ -268,7 +268,7 @@ typedef struct priv___src_self_dispatch_til__ExtStr priv___src_self_dispatch_til
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
-typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
+typedef struct priv___src_self_bindgen_til__BindgenState priv___src_self_bindgen_til__BindgenState;
 typedef struct Vector3 Vector3;
 typedef struct Vector4 Vector4;
 typedef struct Texture Texture;
@@ -786,10 +786,10 @@ typedef struct FFITypePtrBox {
 } FFITypePtrBox;
 
 
-typedef struct priv___src_self_binder_til__BinderState {
+typedef struct priv___src_self_bindgen_til__BindgenState {
     Str alias_to_primitive;
     Str alias_to_dynamic;
-} priv___src_self_binder_til__BinderState;
+} priv___src_self_bindgen_til__BindgenState;
 
 
 typedef struct Vector3 {
@@ -2299,37 +2299,37 @@ void ffi_register(Str * name, void * fn, Expr * fdef, Context * ctx);
 void ffi_init_scan_program(Expr * program, Context * ctx);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
 void ffi_cleanup(Context * ctx);
-Bool priv___src_self_binder_til__bind_is_ws(I8 c);
-U32 priv___src_self_binder_til__skip_ws(Str * s, U32 from);
-U32 priv___src_self_binder_til__skip_word(Str * s, U32 from);
-U32 priv___src_self_binder_til__trim_right(Str * s, U32 from, U32 to);
-Bool priv___src_self_binder_til__range_eq_lit(Str * s, U32 start, U32 end, Str * lit);
-I64 priv___src_self_binder_til__parse_c_int_literal(Str * s, U32 from, U32 to, Bool * success);
-Bool priv___src_self_binder_til__push_til_base(Str * out, Str * c);
-priv___src_self_binder_til__BinderState * priv___src_self_binder_til__BinderState_clone(priv___src_self_binder_til__BinderState * self);
-void priv___src_self_binder_til__BinderState_delete(priv___src_self_binder_til__BinderState * self, Bool call_free);
-U64 priv___src_self_binder_til__BinderState_hash(priv___src_self_binder_til__BinderState * self, HashFn hasher);
-U32 priv___src_self_binder_til__BinderState_size(void);
-void priv___src_self_binder_til__register_alias(priv___src_self_binder_til__BinderState * bs, Str * name);
-void priv___src_self_binder_til__register_dynamic_alias(priv___src_self_binder_til__BinderState * bs, Str * name);
-Bool priv___src_self_binder_til__is_alias_to_primitive(priv___src_self_binder_til__BinderState * bs, Str * name);
-Bool priv___src_self_binder_til__is_alias_to_dynamic(priv___src_self_binder_til__BinderState * bs, Str * name);
-void priv___src_self_binder_til__push_til_default(priv___src_self_binder_til__BinderState * bs, Str * out, Str * c);
-Bool priv___src_self_binder_til__bind_emit_field(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line, Str * comment);
-void priv___src_self_binder_til__emit_comment_line(Str * out, Str * line);
-Bool priv___src_self_binder_til__emit_struct_body(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 open, U32 close);
-U32 priv___src_self_binder_til__emit_typedef_struct(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 start, U32 open, U32 close);
-U32 priv___src_self_binder_til__emit_typedef_enum(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 start, U32 open, U32 close);
-Bool priv___src_self_binder_til__emit_typedef_alias(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line);
-Bool priv___src_self_binder_til__emit_typedef_fnptr(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line);
-Bool priv___src_self_binder_til__emit_define(Str * out, Str * line);
-Bool priv___src_self_binder_til__emit_function(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 start, U32 end);
-void priv___src_self_binder_til__walk_header(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines);
-Str * priv___src_self_binder_til__header_dir_of(Str * path);
-Bool priv___src_self_binder_til__path_in_dir(Str * marker_path, Str * incdir);
-Bool priv___src_self_binder_til__looks_like_macro_fragment(Str * line);
-Vec * priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
-Str * priv___src_self_binder_til__collapse_blank_runs(Str * s);
+Bool priv___src_self_bindgen_til__bindgen_is_ws(I8 c);
+U32 priv___src_self_bindgen_til__skip_ws(Str * s, U32 from);
+U32 priv___src_self_bindgen_til__skip_word(Str * s, U32 from);
+U32 priv___src_self_bindgen_til__trim_right(Str * s, U32 from, U32 to);
+Bool priv___src_self_bindgen_til__range_eq_lit(Str * s, U32 start, U32 end, Str * lit);
+I64 priv___src_self_bindgen_til__parse_c_int_literal(Str * s, U32 from, U32 to, Bool * success);
+Bool priv___src_self_bindgen_til__push_til_base(Str * out, Str * c);
+priv___src_self_bindgen_til__BindgenState * priv___src_self_bindgen_til__BindgenState_clone(priv___src_self_bindgen_til__BindgenState * self);
+void priv___src_self_bindgen_til__BindgenState_delete(priv___src_self_bindgen_til__BindgenState * self, Bool call_free);
+U64 priv___src_self_bindgen_til__BindgenState_hash(priv___src_self_bindgen_til__BindgenState * self, HashFn hasher);
+U32 priv___src_self_bindgen_til__BindgenState_size(void);
+void priv___src_self_bindgen_til__register_alias(priv___src_self_bindgen_til__BindgenState * bs, Str * name);
+void priv___src_self_bindgen_til__register_dynamic_alias(priv___src_self_bindgen_til__BindgenState * bs, Str * name);
+Bool priv___src_self_bindgen_til__is_alias_to_primitive(priv___src_self_bindgen_til__BindgenState * bs, Str * name);
+Bool priv___src_self_bindgen_til__is_alias_to_dynamic(priv___src_self_bindgen_til__BindgenState * bs, Str * name);
+void priv___src_self_bindgen_til__push_til_default(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Str * c);
+Bool priv___src_self_bindgen_til__bindgen_emit_field(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Str * line, Str * comment);
+void priv___src_self_bindgen_til__emit_comment_line(Str * out, Str * line);
+Bool priv___src_self_bindgen_til__emit_struct_body(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Vec * lines, U32 open, U32 close);
+U32 priv___src_self_bindgen_til__emit_typedef_struct(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Vec * lines, U32 start, U32 open, U32 close);
+U32 priv___src_self_bindgen_til__emit_typedef_enum(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Vec * lines, U32 start, U32 open, U32 close);
+Bool priv___src_self_bindgen_til__emit_typedef_alias(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Str * line);
+Bool priv___src_self_bindgen_til__emit_typedef_fnptr(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Str * line);
+Bool priv___src_self_bindgen_til__emit_define(Str * out, Str * line);
+Bool priv___src_self_bindgen_til__emit_function(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Vec * lines, U32 start, U32 end);
+void priv___src_self_bindgen_til__walk_header(priv___src_self_bindgen_til__BindgenState * bs, Str * out, Vec * lines);
+Str * priv___src_self_bindgen_til__header_dir_of(Str * path);
+Bool priv___src_self_bindgen_til__path_in_dir(Str * marker_path, Str * incdir);
+Bool priv___src_self_bindgen_til__looks_like_macro_fragment(Str * line);
+Vec * priv___src_self_bindgen_til__filter_preprocessed(Str * pre, Str * incdir);
+Str * priv___src_self_bindgen_til__collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
 Vector3 * Vector3_clone(Vector3 * self);
 void Vector3_delete(Vector3 * self, Bool call_free);

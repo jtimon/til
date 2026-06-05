@@ -27,7 +27,7 @@ that the C header simply does not encode.  C has no syntax for:
   at raylib-internal scratch that mustn't be freed by anyone but
   raylib?
 
-So the auto-generator (~src/self/binder.til~, run via
+So the auto-generator (~src/self/bindgen.til~, run via
 ~make update_c_libs~) produces a starting point: structs spelled
 correctly, primitive args mapped through, but every function
 defaults to ~ext_func~ with ~shallow~ everywhere it could
@@ -48,7 +48,7 @@ in the output and ask:
    is purity, not arity).
 
 2. *Does the C function take a pointer arg that it stores or
-   frees?*  By default the binder emits ~shallow~ for primitives
+   frees?*  By default bindgen emits ~shallow~ for primitives
    passed by value.  For a single-level pointer arg it follows the
    C ~const~ qualifier: a ~const T *p~ (read-only pointee) maps to
    the borrowed default ~p : T~, while a non-const ~T *p~ maps to
@@ -63,7 +63,7 @@ in the output and ask:
    ~GetWorkingDirectory~ return internal static buffers; the
    matching binding return type should be ~returns ref I8~ (not
    ~returns I8~, which would mean "caller owns and must free").
-   The binder emits ~ref~ for raw-pointer returns by default,
+   Bindgen emits ~ref~ for raw-pointer returns by default,
    which is the safe choice -- audit the few cases where the C
    call actually hands ownership over.
 
@@ -176,7 +176,7 @@ before committing the regenerated files.
 nng has four hand-edits the generator cannot produce, all of
 which must be re-applied after regeneration:
 
-0. *Every binding is ext_proc.*  The binder defaults to ext_func,
+0. *Every binding is ext_proc.*  Bindgen defaults to ext_func,
    but nng has no pure functions -- each call mutates or reads live
    socket/pipe/dialer/listener/ctx/aio/msg state, does I/O,
    allocates, or returns an internal pointer.  Folding any of them
@@ -184,7 +184,7 @@ which must be re-applied after regeneration:
    compiler-process pointer into the output) is wrong, so flip the
    whole file: ~sed -i 's/:= ext_func(/:= ext_proc(/g'~.
 
-1. *~nng_logger~ alias.*  The binder leaves the ~nng_logger~
+1. *~nng_logger~ alias.*  Bindgen leaves the ~nng_logger~
    function-pointer typedef undefined; add ~nng_logger := Dynamic~
    before the logging functions.
 2. *Non-shallow logger param.*  ~nng_log_set_logger~ takes a
@@ -223,7 +223,7 @@ touch ~vendor/bindings/~ -- they consume the committed files.
 ** Ownership audit (raylib), 2026-05
 
 A pass over every pointer-returning and free-style function in
-~vendor/bindings/raylib.til~.  Conclusion: the binder's defaults are
+~vendor/bindings/raylib.til~.  Conclusion: bindgen's defaults are
 correct for raylib's *manual* memory model, where the user pairs
 each ~LoadX~ with an explicit ~UnloadX~ / ~MemFree~ and til stays
 out of the lifecycle.  Specifically:

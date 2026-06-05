@@ -138,8 +138,10 @@ There are two main back ends.
 * Bindings generator (separate tool)
 
 - `generate_bindings(in_path, out_path)`
-- Implemented in til: [[file:../src/self/binder.til][src/self/binder.til]]
-- Not part of the translate/interpret pipeline above. Driven from
+- Implemented in til: [[file:../src/self/bindgen.til][src/self/bindgen.til]]
+- Not part of the translate/interpret pipeline above. It does NO name
+  binding / scope resolution -- "bindgen" means it *generates FFI
+  bindings*, the `mode lib` til files under `vendor/bindings/`. Driven from
   `bin/til bindings <header> -o <out>`: reads one C header and emits a
   `mode lib` til file mirroring its typedefs, enums, function
   declarations and numeric `#define`s, so til can `import` the vendor
@@ -157,8 +159,8 @@ There are two main back ends.
 - Scavenger removes unused leftovers.
 - Builder/interpreter are the final execution back ends; dispatch
   handles the interpreter's FFI calls and targets defines build targets.
-- Binder is a standalone C-header -> til bindings generator, outside
-  the main pipeline.
+- Bindgen is a standalone C-header -> til FFI bindings generator,
+  outside the main pipeline (it does no name binding/resolution).
 
 That is the current practical phase order to keep in mind when debugging:
 
@@ -174,4 +176,4 @@ That is the current practical phase order to keep in mind when debugging:
 - cross-compile target/lang issue: `src/self/targets.til`
 - interpreter FFI call into native C: `src/self/dispatch.til`
 - runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`
-- generated vendor bindings wrong: `src/self/binder.til`
+- generated vendor bindings wrong: `src/self/bindgen.til`

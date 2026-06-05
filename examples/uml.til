@@ -71,7 +71,7 @@ pipeline_order := func() returns Vec {
     paths.push(own "src/self/builder.til")
     paths.push(own "src/self/dispatch.til")
     paths.push(own "src/self/interpreter.til")
-    paths.push(own "src/self/binder.til")
+    paths.push(own "src/self/bindgen.til")
     return paths
 }
 

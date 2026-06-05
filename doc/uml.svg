@@ -465,9 +465,9 @@
   <text x="3758" y="1140" class="title">DynPtrBox: StructDef</text>
   <text x="3758" y="1158" class="line">own p : U8 = 0</text>
   <rect x="4186" y="24" width="268" height="164" rx="14" ry="14" class="panel"/>
-  <text x="4206" y="62" class="panel-label">binder</text>
+  <text x="4206" y="62" class="panel-label">bindgen</text>
   <rect x="4206" y="88" width="228" height="82" rx="10" ry="10" class="box"/>
-  <text x="4220" y="126" class="title">BinderState: StructDef</text>
+  <text x="4220" y="126" class="title">BindgenState: StructDef</text>
   <text x="4220" y="144" class="line">alias_to_primitive := &quot;|&quot;</text>
   <text x="4220" y="162" class="line">alias_to_dynamic := &quot;|&quot;</text>
 </svg>

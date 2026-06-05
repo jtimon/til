@@ -1,4 +1,4 @@
-#+TITLE: src/self/binder.til
+#+TITLE: src/self/bindgen.til
 #+OPTIONS: toc:t
 
 * generate_bindings

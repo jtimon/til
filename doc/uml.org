@@ -389,7 +389,7 @@
 *** box_owned_dynamics := Vec.new_type_name("Fn")
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
-* binder
-** BinderState: StructDef
+* bindgen
+** BindgenState: StructDef
 *** alias_to_primitive := "|"
 *** alias_to_dynamic := "|"

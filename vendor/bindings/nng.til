@@ -1,6 +1,6 @@
 mode lib
 
-// AUDIT: every binding here is ext_proc, not the binder's default
+// AUDIT: every binding here is ext_proc, not bindgen's default
 // ext_func. nng has no pure functions: each call either mutates or
 // reads live socket/pipe/dialer/listener/ctx/aio/msg state, performs
 // I/O, allocates, or returns an internal pointer. Folding any of these
@@ -1371,8 +1371,8 @@ nng_listener_get_url := ext_proc(shallow _arg : nng_listener, _arg : Dynamic) re
 
 // --- Protocol constructors ---
 //
-// These live in nng/protocol/<proto>/<proto>.h, not in nng.h, so the
-// binder (which processes a single header) does not see them. They are
+// These live in nng/protocol/<proto>/<proto>.h, not in nng.h, so bindgen
+// (which processes a single header) does not see them. They are
 // hand-added here. Each opens a socket of the given protocol, writing the
 // handle into the nng_socket out-parameter (passed non-shallow, i.e. by
 // address, so the C side fills in the caller's struct). ext_proc: opening

@@ -59,7 +59,7 @@ vendor/libffi/.built:
 	touch $@
 
 # Bindings are produced by `bin/til bindings <header> -o <output.til>`
-# (src/self/binder.til wired through src/til.til). The binder takes one
+# (src/self/bindgen.til wired through src/til.til). The generator takes one
 # C header, preprocesses with `cc -E -CC -dD`, filters back to the input
 # directory, and writes a `mode lib` til file. No library-specific
 # knowledge baked in -- callers add their own `link("...")` directive
@@ -81,7 +81,7 @@ vendor/libffi/.built:
 # the second `mode lib` so the combined file has exactly one mode
 # header. rcamera.h references Camera / Vector3 / Matrix without
 # including raylib.h; cc -E only preprocesses (no type checking) so the
-# binder emits those decls verbatim and they resolve against the
+# generator emits those decls verbatim and they resolve against the
 # raylib.h block once the two are joined.
 #
 # nng generates from the single umbrella header nng/nng.h. The protocol
