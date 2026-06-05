@@ -49,16 +49,15 @@ resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: C
         if fdef.is_null().not() { return fdef }
     case:
     }
-    // Fall back to the declared FuncSig alias name.
-    if dd.explicit_type.len().eq(0) { return NULL }
-    sf := scope.find(dd.explicit_type.clone())
-    switch sf {
-    case ScopeFind.Found(b):
-        ref bfd : Expr = scope.lookup_func(b.name)
-        if bfd.is_null().not() {
-            if bfd.children.len().eq(0) { return bfd }
-        }
-    case:
+    // Fall back to the declared FuncSig alias name. Issue #58 / #147
+    // step 5: read the name off dd.til_type's FuncPtrSig payload instead
+    // of dd.explicit_type. til_type_name returns "" for a non-FuncPtrSig
+    // type, so the empty-check below still guards the lookup.
+    sig_name := til_type_name(dd.til_type)
+    if sig_name.len().eq(0) { return NULL }
+    ref sig_bfd : Expr = scope.lookup_func(sig_name)
+    if sig_bfd.is_null().not() {
+        if sig_bfd.children.len().eq(0) { return sig_bfd }
     }
     return NULL
 }

@@ -739,12 +739,13 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
         case NodeType.StructDef(sdd):
             for fd : Declaration in sdd.fields {
                 if fd.name.eq(method.field_access_name()).not() { continue }
-                if fd.explicit_type.len().eq(0) { continue }
-                // Same UAF guard as the Ident branch above -- use
-                // get_binding directly, not the ScopeFind destructure.
-                ref ftb : TypeBinding = scope.get_binding(fd.explicit_type)
-                if ftb.is_null() { continue }
-                ref ftb_fd : Expr = scope.lookup_func(ftb.name)
+                // Issue #58 / #147 step 5: read the FuncSig alias name
+                // from fd.til_type's FuncPtrSig payload (set by
+                // type_from_name at field-typing time) instead of
+                // fd.explicit_type + get_binding indirection.
+                fsig_name := til_type_name(fd.til_type)
+                if fsig_name.len().eq(0) { continue }
+                ref ftb_fd : Expr = scope.lookup_func(fsig_name)
                 if ftb_fd.is_null() { continue }
                 if ftb_fd.children.len().neq(0) { continue }
                 return ftb_fd
@@ -913,39 +914,37 @@ infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, o
     case NodeType.StructDef(fpf_sdd):
         for fd : Declaration in fpf_sdd.fields {
             if fd.name.eq(method).not() { continue }
-            if fd.explicit_type.len().eq(0) { continue }
-            sf_ftb := scope.find(fd.explicit_type)
-            switch sf_ftb {
-            case ScopeFind.Found(ftb):
-                ref ftb_fd : Expr = scope.lookup_func(ftb.name)
-                if ftb_fd.is_null().or(ftb_fd.children.len().neq(0)) { continue }
-                fa.set_expr_til_type(Type.FuncPtr)
-                ref sig : Expr = ftb_fd
-                mut nargs : U32 = e.children.len()
-                nargs = nargs.sub(1)
-                switch sig.node_type {
-                case NodeType.FuncDef(sig_fdef):
-                    if nargs.neq(sig_fdef.params.len()) {
-                        e.type_error("function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
-                    }
-                    mut ai : U32 = 0
-                    while ai.lt(nargs) {
-                        if ai.gte(sig_fdef.params.len()) { break }
-                        infer_expr(scope, e.child(ai.add(1)), in_func, ctx)
-                        ai = ai.add(1)
-                    }
-                    if sig_fdef.return_type.len().gt(0) {
-                        e.set_expr_til_type(type_from_name(sig_fdef.return_type, scope, ctx))
-                    } else {
-                        e.set_expr_til_type(Type.None)
-                    }
-                case:
-                    UNREACHABLE(__LOC__)
+            // Issue #58 / #147 step 5: read the FuncSig alias name from
+            // fd.til_type's FuncPtrSig payload instead of fd.explicit_type
+            // + scope.find indirection.
+            fpf_sig_name := til_type_name(fd.til_type)
+            if fpf_sig_name.len().eq(0) { continue }
+            ref ftb_fd : Expr = scope.lookup_func(fpf_sig_name)
+            if ftb_fd.is_null().or(ftb_fd.children.len().neq(0)) { continue }
+            fa.set_expr_til_type(Type.FuncPtr)
+            ref sig : Expr = ftb_fd
+            mut nargs : U32 = e.children.len()
+            nargs = nargs.sub(1)
+            switch sig.node_type {
+            case NodeType.FuncDef(sig_fdef):
+                if nargs.neq(sig_fdef.params.len()) {
+                    e.type_error("function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
                 }
-                return true
+                mut ai : U32 = 0
+                while ai.lt(nargs) {
+                    if ai.gte(sig_fdef.params.len()) { break }
+                    infer_expr(scope, e.child(ai.add(1)), in_func, ctx)
+                    ai = ai.add(1)
+                }
+                if sig_fdef.return_type.len().gt(0) {
+                    e.set_expr_til_type(type_from_name(sig_fdef.return_type, scope, ctx))
+                } else {
+                    e.set_expr_til_type(Type.None)
+                }
             case:
-                continue
+                UNREACHABLE(__LOC__)
             }
+            return true
         }
     case:
     }
