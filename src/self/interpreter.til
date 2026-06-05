@@ -1353,7 +1353,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         ref func_def : Expr = deref(fn_ptr)
 
         // FuncPtr field: stored function may be ext_func from another type
-        if callee_expr.expr_til_type().is(Type.FuncPtr) {
+        if callee_expr.expr_til_type().is_funcptr() {
             mut fp_func_type := FuncType.Func
             switch func_def.node_type {
             case NodeType.FuncDef(fp_fdef):
@@ -1486,7 +1486,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         // ref-Dynamic binding the user expects to keep alive. Compile
         // mode doesn't apply own-semantics across the function-pointer
         // bridge either, so skip the guard for FuncPtr callees.
-        if callee_expr.expr_til_type().is(Type.FuncPtr).not() {
+        if callee_expr.expr_til_type().is_funcptr().not() {
             if guard_own_param_skip(scope, e, func_def) { return val_none() }
         }
         call_scope := scope_new(scope)

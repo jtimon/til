@@ -647,6 +647,23 @@ is_type_metatype := func(t: Type) returns Bool {
     return til_type_name(t).eq("Type")
 }
 
+// Issue #58 / #147 step 5: two FuncPtr-family types are call-compatible
+// iff both name the same FuncSig OR at least one side is the wildcard
+// (`Type.FuncPtr` with no payload, or `Type.FuncPtrSig` with empty
+// name). Master's structural Type-eq (Issue #165) would otherwise treat
+// `Type.FuncPtr` and `Type.FuncPtrSig("X")` as distinct because the
+// tags AND payloads differ; this helper restores the wildcard semantic
+// the migration needs while the FuncSig name moves off
+// `Declaration.explicit_type` and onto the type itself.
+funcptr_eq := func(a: Type, b: Type) returns Bool {
+    if a.is_funcptr().not() { return false }
+    if b.is_funcptr().not() { return false }
+    an := til_type_name(a)
+    bn := til_type_name(b)
+    if an.is_empty().or(bn.is_empty()) { return true }
+    return an.eq(bn)
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
@@ -729,7 +746,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if type_name.len().eq(0) { return false }
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
-    if t.is(Type.FuncPtr) { return true }
+    if t.is_funcptr() { return true }
     if scope.is_null() { return false }
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }

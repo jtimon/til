@@ -708,7 +708,7 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
     case NodeType.Ident(name):
         ref cb : TypeBinding = scope.get_binding(name.ident_name())
         if cb.is_null() { return NULL }
-        if cb.type.is(Type.FuncPtr).not() { return NULL }
+        if cb.type.is_funcptr().not() { return NULL }
         ref cb_fd : Expr = scope.lookup_func(cb.name)
         if cb_fd.is_null() { return NULL }
         // A func-pointer value (not a function declaration) carries a
@@ -1443,6 +1443,13 @@ validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_na
     if arg.expr_til_type().is(Type.Primitive).and(ptype.is(Type.Primitive)) {
         type_matches = arg.expr_til_type().eq(ptype)
     }
+    // Issue #58 / #147 step 5: FuncPtr / FuncPtrSig live on different
+    // tags but are the same family. funcptr_eq applies the wildcard
+    // semantic (bare FuncPtr matches any FuncPtrSig; named FuncPtrSig
+    // must match exactly).
+    if funcptr_eq(arg.expr_til_type(), ptype) {
+        type_matches = true
+    }
     if type_matches.not() {
         arg.type_error("argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
     } else if is_aggregate(ptype) {
@@ -1618,7 +1625,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     if fn_type.is(Type.Unknown) {
         e.type_error("undefined function '".concat(name).concat("'"), ctx)
     }
-    if fn_type.is(Type.FuncPtr) {
+    if fn_type.is_funcptr() {
         if callee_bind.is_null().not() {
             // A FuncPtr-typed binding that is a function-pointer value (not a
             // function/sig declaration) is called through its signature.
@@ -1703,7 +1710,7 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
             debug_exempt = true
         }
     }
-    if fn_type.is(Type.FuncPtr).not() {
+    if fn_type.is_funcptr().not() {
         if in_func.neq(0) {
             callee_ft := scope.get_func_type(name)
             if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)) {
@@ -2382,8 +2389,8 @@ cast_pair_ok := func(src: Type, target: Type) returns Bool {
     // signature -- used to pull a fn ptr out of a Dynamic-element Vec
     // (`Vec.new(BinaryOp)`) and call it. FuncPtr -> FuncPtr (same shape)
     // is accepted as an identity / nominal cast for completeness.
-    if target.is(Type.FuncPtr) {
-        if src.is(Type.Dynamic).or(src.is(Type.FuncPtr)) { return true }
+    if target.is_funcptr() {
+        if src.is(Type.Dynamic).or(src.is_funcptr()) { return true }
     }
     return false
 }
@@ -2441,7 +2448,7 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
     // and pick the right C function-pointer cast in codegen. The
     // integer-cast path needs the Type-value rewrite; the FuncPtr path
     // intentionally skips it.
-    if target_type.is(Type.FuncPtr).and(src_type.is(Type.FuncPtr).not()) {
+    if target_type.is_funcptr().and(src_type.is_funcptr().not()) {
         e.child(2).set_expr_til_type(Type.Enum("Type"))
         e.set_expr_til_type(target_type)
         return
@@ -2462,7 +2469,7 @@ infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Conte
 infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
     ref callee : Expr = e.child(0)
     if callee.node_type.is(NodeType.FCall).not() { return false }
-    if callee.expr_til_type().is(Type.FuncPtr).not() { return false }
+    if callee.expr_til_type().is_funcptr().not() { return false }
     if callee.children.len().neq(3) { return false }
     ref cast_head : Expr = callee.child(0)
     switch cast_head.node_type {
@@ -2479,7 +2486,7 @@ infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32,
     }
     ref sig_bind : TypeBinding = scope.get_binding(sig_name)
     if is_null(sig_bind) { return false }
-    if sig_bind.type.is(Type.FuncPtr).not() { return false }
+    if sig_bind.type.is_funcptr().not() { return false }
     ref sig_def : Expr = scope.lookup_func(sig_bind.name)
     if is_null(sig_def) { return false }
     switch sig_def.node_type {
@@ -2992,7 +2999,7 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                 }
             }
             inner.set(fd.name, fd.til_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type)
-            if fd.til_type.is(Type.FuncPtr) {
+            if fd.til_type.is_funcptr() {
                 ref fb : TypeBinding = inner.get_binding(fd.name)
                 if fd.default_value.is_null().not() {
                     switch fd.default_value.node_type {
@@ -3186,7 +3193,7 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             // Type, so look it up.
             if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
                 ref pbind : TypeBinding = scope.get_binding(resolved_ptype)
-                if pbind.is_null().not().and(pbind.type.is(Type.FuncPtr)) {
+                if pbind.is_null().not().and(pbind.type.is_funcptr()) {
                     param.own_type = OwnType.Shallow
                 }
             }
@@ -3448,7 +3455,7 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
                     param.own_type = OwnType.Shallow
                 }
                 func_scope.set(param.name, pt, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
-                if pt.is(Type.FuncPtr) {
+                if pt.is_funcptr() {
                     sf_fsb := scope.find(ptn)
                     switch sf_fsb {
                     case ScopeFind.Found(fsb):
@@ -3820,7 +3827,8 @@ infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, return
                     }
                         if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
                             tname := type_to_name(stmt.expr_til_type())
-                            if tname.len().gt(0) {
+                            // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
+                            if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
                                 mc := make_clone_call(tname, stmt.expr_til_type(), stmt.child(0), stmt)
                                 stmt.children.replace(0, own mc)
                             }
@@ -3996,7 +4004,9 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                         }
                         if handled_lit.not() {
                             rhs_type := rhs.expr_til_type()
-                            if rhs_type.is(fld.til_type).not() {
+                            // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig
+                            // wildcard-aware family-equality.
+                            if rhs_type.is(fld.til_type).not().and(funcptr_eq(rhs_type, fld.til_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error("field '".concat(fname).concat("' type mismatch"), ctx)
@@ -4032,7 +4042,7 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
                         }
                         if handled_lit2.not() {
                             rhs_type := rhs.expr_til_type()
-                            if rhs_type.is(nsd.til_type).not() {
+                            if rhs_type.is(nsd.til_type).not().and(funcptr_eq(rhs_type, nsd.til_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error("field '".concat(fname).concat("' type mismatch"), ctx)
@@ -4058,7 +4068,8 @@ infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         )
     ) {
         tname := type_to_name(rhs.expr_til_type())
-        if tname.len().gt(0) {
+        // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
+        if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
             mc := make_clone_call(tname, rhs.expr_til_type(), rhs, rhs)
             stmt.children.replace(1, own mc)
         }
@@ -4330,6 +4341,8 @@ infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) {
             stmt.type_error("null can only be assigned to 'ref' declarations", ctx)
         } else if can_implicit_usize_coerce(val.expr_til_type(), declared, sdecl.explicit_type).not()
         .and(val.expr_til_type().is(declared).not())
+        // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
+        .and(funcptr_eq(val.expr_til_type(), declared).not())
         .and(val.expr_til_type().is(Type.Dynamic).not())
     .and(declared.is(Type.Dynamic).not()) {
         stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
@@ -4405,7 +4418,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
         if ctx.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
         decl_b.is_priv = sdecl.is_priv
         decl_b.orig_name = sdecl.orig_name.clone()
-        if stmt.expr_til_type().is(Type.FuncPtr) {
+        if stmt.expr_til_type().is_funcptr() {
             switch rhs.node_type {
             case NodeType.Ident(rhs_id):
                 ref src : TypeBinding = scope.get_binding(rhs_id.ident_name())
@@ -4475,7 +4488,7 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
         if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
             stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
         }
-        if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.expr_til_type().is(Type.FuncPtr).not()) {
+        if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.expr_til_type().is_funcptr().not()) {
             switch rhs.node_type {
             case NodeType.Ident(rhs_id2):
                 ref rb : TypeBinding = scope.get_binding(rhs_id2.ident_name())
@@ -4496,7 +4509,9 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
         ) {
             if sdecl.own_type.is(OwnType.Ref).not() {
                 tname := type_to_name(stmt.expr_til_type())
-                if tname.len().gt(0) {
+                // Issue #58 / #147 step 5: a FuncPtr/FuncPtrSig has no
+                // T_clone method; it's a plain 8-byte pointer.
+                if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
                     mc := make_clone_call(tname, stmt.expr_til_type(), rhs, stmt)
                     stmt.children.replace(0, own mc)
                 }
@@ -8258,7 +8273,9 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
         }
         rhs.set_expr_til_type(existing)
         stmt.set_expr_til_type(existing)
-    } else if rhs.expr_til_type().is(existing).not().and(rhs.expr_til_type().is(Type.Unknown).not()) {
+    } else if rhs.expr_til_type().is(existing).not().and(rhs.expr_til_type().is(Type.Unknown).not())
+        // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
+        .and(funcptr_eq(rhs.expr_til_type(), existing).not()) {
         // Issue #244: a `_m_*` target is a synthesized match result temp; an
         // arm-type mismatch was already reported cleanly by infer_match_expr,
         // so don't also surface the internal temp name here.
@@ -8306,7 +8323,8 @@ infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: C
             )
         ) {
             tname := type_to_name(rhs.expr_til_type())
-            if tname.len().gt(0) {
+            // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
+            if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
                 mc := make_clone_call(tname, rhs.expr_til_type(), rhs, stmt)
                 // (Issue #109) Use Vec.replace to drop-old: the slot at
                 // index 0 held the original rhs Expr; make_clone_call
@@ -8533,7 +8551,17 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
             ref b_fd : Expr = scope.lookup_func(b.name)
             if b_fd.is_null().not() {
                 if b_fd.children.len().eq(0) {
-                    return Type.FuncPtr
+                    // Issue #58 / #147 step 5: a name that resolves to a
+                    // bodyless FuncDef (a FuncSig alias like `BinaryOp`)
+                    // now carries the alias name in the type itself.
+                    // Callsites that ask "is this a FuncPtr?" go through
+                    // `t.is_funcptr()` (helper accepting both `FuncPtr`
+                    // and `FuncPtrSig`). Consumers needing the FuncSig
+                    // name read it from `til_type_name(t)` instead of
+                    // from the carrier's `Declaration.explicit_type`,
+                    // which is the migration that eventually drops the
+                    // field.
+                    return Type.FuncPtrSig(name.clone())
                 }
             }
         }
@@ -9054,7 +9082,8 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
 
     mut out_val := val.clone()
     if val.node_type.is(NodeType.Ident).or(val.node_type.is(NodeType.FieldAccess)) {
-        if tname.len().gt(0) {
+        // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
+        if tname.len().gt(0).and(val.expr_til_type().is_funcptr().not()) {
             out_val = make_clone_call(tname, val.expr_til_type(), val, val)
         }
     }
@@ -9104,7 +9133,8 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, vi
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.expr_til_type())
-        if tname.len().gt(0) {
+        // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
+        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()) {
             val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
         }
     }
@@ -9145,7 +9175,8 @@ build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str, j: 
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.expr_til_type())
-        if tname.len().gt(0) {
+        // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
+        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()) {
             val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
         }
     }

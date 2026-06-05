@@ -104,6 +104,16 @@ is_primitive := func(t: Type) returns Bool {
     return t.is(Type.Primitive)
 }
 
+// Issue #58 / #147 step 5: a FuncSig-typed value can carry the alias
+// name in ~Type.FuncPtrSig: Str~ or remain anonymous as ~Type.FuncPtr~.
+// Callers asking "is this a function pointer at all?" use this helper
+// so callsites work transparently across both shapes during the
+// migration that moves the FuncSig name off ~Declaration.explicit_type~
+// and onto the type itself.
+is_funcptr := func(t: Type) returns Bool {
+    return t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig))
+}
+
 // Compound aggregate type: user-defined struct or enum that the codegen
 // represents as a multi-field record (and typically heap-allocates /
 // dispatches a generated delete on). Primitives are Type.Primitive, so

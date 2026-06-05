@@ -1130,6 +1130,7 @@ U32 Type_size(void);
 Str * til_type_name_c(Type * t);
 Str * til_type_name(Type * t);
 Bool is_primitive(Type * t);
+Bool is_funcptr(Type * t);
 Bool is_aggregate(Type * t);
 Bool FuncType_is(FuncType * self, FuncType * other);
 Bool FuncType_eq(FuncType * self, FuncType * other);
@@ -1412,6 +1413,7 @@ Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, U32 lin
 Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col, Bool is_mut);
 Bool type_is_primitive(Type * t, Primitive * p);
 Bool is_type_metatype(Type * t);
+Bool funcptr_eq(Type * a, Type * b);
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 Str * field_inferred_type_name(Declaration * fd);

@@ -71,7 +71,7 @@ fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
     // Only FuncPtr-typed callees go through the indirect-call emit path, so
     // this is the only shape that actually needs an answer. Other callees
     // (struct constructors, regular func calls) have null fn_sig today.
-    if callee.expr_til_type().is(Type.FuncPtr).not() { return NULL }
+    if callee.expr_til_type().is_funcptr().not() { return NULL }
     ref s : TypeScope = ctx.scope
     ref via_scope : Expr = resolve_fn_sig(fcall, s)
     if via_scope.is_null().not() { return via_scope }
@@ -658,7 +658,8 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.Primitive(Primitive.Bool):    return "Bool"
     case Type.None:    return "void"
     case Type.Dynamic: return "void *"
-    case Type.FuncPtr: return "void *"
+    case Type.FuncPtr:    return "void *"
+    case Type.FuncPtrSig: return "void *"
     case:                 return "I64"
     }
 }
@@ -687,7 +688,7 @@ extern_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, ctx: Context) re
 // Struct/Enum/FuncPtr (where the name actually matters) -- saves the Str_lit("")
 // leak per call.
 resolve_decl_ctype := func(shallow t: Type, shallow rhs_t: Type, explicit: Str, ctx: Context) returns Str {
-    if t.is(Type.Struct).or(t.is(Type.Enum)).or(t.is(Type.FuncPtr)) {
+    if t.is(Type.Struct).or(t.is(Type.Enum)).or(t.is_funcptr()) {
         sn := til_type_name(t)
         if sn.len().gt(0) { return c_type_name(t, sn, ctx) }
         sn2 := til_type_name(rhs_t)
@@ -705,7 +706,7 @@ c_type_name := func(shallow t: Type, struct_name: Str, ctx: Context) returns Str
             }
         }
     }
-    if t.is(Type.FuncPtr) {
+    if t.is_funcptr() {
         if struct_name.is_null().not() {
             if struct_name.len().gt(0) {
                 if is_funcsig_type(struct_name, ctx) { return struct_name }
@@ -1281,7 +1282,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
     // pin the FuncDef pointer here while we still have access to the rhs.
-    if e.expr_til_type().is(Type.FuncPtr) {
+    if e.expr_til_type().is_funcptr() {
         ref decl_sig : Expr = resolve_decl_fn_sig(rhs, dd, ctx.scope, ctx)
         if decl_sig.is_null().not() {
             sig_buf : Dynamic = malloc(I64.size().cast(U64))
@@ -1290,7 +1291,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             m.set(own dd.name.clone(), own sig_buf)
         }
     }
-    if e.expr_til_type().is(Type.FuncPtr).and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not()) {
+    if e.expr_til_type().is_funcptr().and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not()) {
         mut ct := "void *"
         mut is_typedef := false
         if dd.explicit_type.len().gt(0) {
@@ -1349,7 +1350,7 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 emit_deref(f, rhs, depth, ctx); f.write(";\n")
             } else {
                 can_hoist := is_global.not().and(dd.own_type.is(OwnType.Own).not())
-                .and(e.expr_til_type().is(Type.FuncPtr).not()).and(e.expr_til_type().is(Type.Dynamic).not())
+                .and(e.expr_til_type().is_funcptr().not()).and(e.expr_til_type().is(Type.Dynamic).not())
                 .and(rhs.node_type.is(NodeType.FCall).and(fcall_returns_dynamic(rhs, ctx)).not())
                 // Struct constructor
                 rhs_sname := til_type_name(rhs.expr_til_type())
@@ -1906,7 +1907,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     f.write(aname); f.write(" = ")
                 }
                 emit_expr(f, rhs, depth, ctx)
-            } else if e.expr_til_type().is(Type.FuncPtr) {
+            } else if e.expr_til_type().is_funcptr() {
                 f.write(aname); f.write(" = "); emit_expr(f, rhs, depth, ctx)
             } else {
                 f.write("*"); f.write(aname); f.write(" = "); emit_deref(f, rhs, depth, ctx)
@@ -2211,7 +2212,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
     case NodeType.Literal(Literal.Null):
         f.write("NULL")
     case NodeType.Ident(ident):
-        if e.expr_til_type().is(Type.FuncPtr) {
+        if e.expr_til_type().is_funcptr() {
             f.write("(void *)")
             fc := func_to_c(ident.ident_name())
             f.write(fc)
@@ -2227,7 +2228,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
         // args. fcall_fn_sig resolves the FuncSig via the cast's
         // child(2) Ident.
         if callee.node_type.is(NodeType.FCall) {
-            if callee.expr_til_type().is(Type.FuncPtr) {
+            if callee.expr_til_type().is_funcptr() {
                 ref sig_cc : Expr = fcall_fn_sig(e, ctx)
                 if is_null(sig_cc).not() {
                     emit_fcall_funcptr_cast(f, e, sig_cc)
@@ -2242,7 +2243,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
         }
         // Indirect call through FuncSig-typed struct field
         if callee.node_type.is(NodeType.FieldAccess) {
-            if callee.expr_til_type().is(Type.FuncPtr) {
+            if callee.expr_til_type().is_funcptr() {
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 if sig.is_null().not() {
                     emit_fcall_funcptr_cast(f, e, sig)
@@ -2419,7 +2420,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                 f.write(" _sc")
                 emit_i32(f, id)
                 f.write("; })")
-            } else if callee.expr_til_type().is(Type.FuncPtr) {
+            } else if callee.expr_til_type().is_funcptr() {
                 // Indirect call through function pointer variable
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 emit_fcall_funcptr_cast(f, e, sig)
@@ -2663,7 +2664,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context
                 case:
                 }
                 if is_ctor_call.not() {
-                    if field_type.is(Type.FuncPtr).or(field_type.is(Type.Dynamic))
+                    if field_type.is_funcptr().or(field_type.is(Type.Dynamic))
                     .or(fcall_is_shallow_return(arg, ctx)).or(fcall_returns_dynamic(arg, ctx)) {
                         emit_field(f, var, fname, ctx)
                         f.write(" = ")
@@ -2681,7 +2682,7 @@ emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context
                     }
                 }
             } else {
-                if field_type.is(Type.FuncPtr).or(field_type.is(Type.Dynamic))
+                if field_type.is_funcptr().or(field_type.is(Type.Dynamic))
                 .or(fcall_is_shallow_return(arg, ctx)).or(fcall_returns_dynamic(arg, ctx)) {
                     emit_field(f, var, fname, ctx)
                     f.write(" = ")
@@ -2781,7 +2782,7 @@ emit_body_scoped := proc(f: File, body: Expr, depth: I32, ctx: Context) {
 priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
     if e.expr_til_type().is(Type.Dynamic) {
         emit_expr(f, e, depth, ctx)
-    } else if e.expr_til_type().is(Type.FuncPtr) {
+    } else if e.expr_til_type().is_funcptr() {
         switch e.node_type {
         case NodeType.Ident(ident):
             if is_ref_local(ident.ident_name(), ctx) {
