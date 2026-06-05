@@ -304,7 +304,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr 
         e.set_expr_til_type(Type.Primitive(Primitive.U8))
         return e
     case Value.Sbyte(x):
-        mut e := Expr.new(literal_num_node(x.cast(I64).to_str()), src.line, src.col)
+        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
         e.set_expr_til_type(Type.Primitive(Primitive.I8))
         return e
     case Value.Short(x):
@@ -404,8 +404,8 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         case Type.Primitive(Primitive.U8):  return Value.Byte(num.to_u8())
         case Type.Primitive(Primitive.U32): return Value.Uint32(num.to_u32())
         case Type.Primitive(Primitive.U64): return Value.Uint64(num.to_u64())
-        case Type.Primitive(Primitive.I16): return val_i16(num.to_i64())
-        case Type.Primitive(Primitive.U16): return val_u16(num.to_i64())
+        case Type.Primitive(Primitive.I16): return Value.Short(num.to_i16())
+        case Type.Primitive(Primitive.U16): return Value.Ushort(num.to_u16())
         case Type.Primitive(Primitive.I32): return Value.Int32(num.to_i32())
         case Type.Primitive(Primitive.F32): return Value.Float(num.to_f32())
         case: return Value.Int(num.to_i64())
@@ -807,7 +807,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Conte
                         ec.add_child(own lit)
                         continue
                     case Value.Sbyte(bv):
-                        mut lit := Expr.new(literal_num_node(bv.cast(I64).to_str()), arg.line, arg.col)
+                        mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
                         lit.set_expr_til_type(Type.Primitive(Primitive.I8))
                         ec.add_child(own lit)
                         continue

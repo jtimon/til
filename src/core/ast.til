@@ -230,6 +230,9 @@ namespace:
     to_str := func(self: LiteralNumData) returns Str { return self.text }
     to_i64 := func(self: LiteralNumData) returns I64 { return self.text.to_i64() }
     to_u8 := func(self: LiteralNumData) returns U8 { return self.text.to_u8() }
+    to_i8 := func(self: LiteralNumData) returns I8 { return self.text.to_i8() }
+    to_i16 := func(self: LiteralNumData) returns I16 { return self.text.to_i16() }
+    to_u16 := func(self: LiteralNumData) returns U16 { return self.text.to_u16() }
     to_i32 := func(self: LiteralNumData) returns I32 { return self.text.to_i32() }
     to_u32 := func(self: LiteralNumData) returns U32 { return self.text.to_u32() }
     to_u64 := func(self: LiteralNumData) returns U64 { return self.text.to_u64() }

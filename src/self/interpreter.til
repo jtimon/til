@@ -500,9 +500,9 @@ parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Valu
     if type_name.eq("Str") { return make_str_value(s.c_str, s.count, ctx) }
     if type_name.eq("I64") { return Value.Int(s.to_i64()) }
     if type_name.eq("U8") { return Value.Byte(s.to_u8()) }
-    if type_name.eq("I8") { return val_i8(s.to_i64()) }
-    if type_name.eq("I16") { return val_i16(s.to_i64()) }
-    if type_name.eq("U16") { return val_u16(s.to_i64()) }
+    if type_name.eq("I8") { return Value.Sbyte(s.to_i8()) }
+    if type_name.eq("I16") { return Value.Short(s.to_i16()) }
+    if type_name.eq("U16") { return Value.Ushort(s.to_u16()) }
     if type_name.eq("I32") { return Value.Int32(s.to_i32()) }
     if type_name.eq("U32") { return Value.Uint32(s.to_u32()) }
     if type_name.eq("U64") { return Value.Uint64(s.to_u64()) }
@@ -596,11 +596,11 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         lit_t := e.expr_til_type()
         switch lit_t {
         case Type.Primitive(Primitive.U8):  return Value.Byte(num_str.to_u8())
-        case Type.Primitive(Primitive.I8):  return val_i8(num_str.to_i64())
+        case Type.Primitive(Primitive.I8):  return Value.Sbyte(num_str.to_i8())
         case Type.Primitive(Primitive.U32): return Value.Uint32(num_str.to_u32())
         case Type.Primitive(Primitive.U64): return Value.Uint64(num_str.to_u64())
-        case Type.Primitive(Primitive.I16): return val_i16(num_str.to_i64())
-        case Type.Primitive(Primitive.U16): return val_u16(num_str.to_i64())
+        case Type.Primitive(Primitive.I16): return Value.Short(num_str.to_i16())
+        case Type.Primitive(Primitive.U16): return Value.Ushort(num_str.to_u16())
         case Type.Primitive(Primitive.I32): return Value.Int32(num_str.to_i32())
         case Type.Primitive(Primitive.F32): return Value.Float(num_str.to_f32())
         case: return Value.Int(num_str.to_i64())
@@ -2065,18 +2065,18 @@ widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
         return Value.Int(ival)
     }
     if ptype.eq("U64") { return Value.Uint64(uval) }
-    if ptype.eq("USize") { return val_u32(uval.cast(I64)) }
+    if ptype.eq("USize") { return Value.Uint32(uval.to_u32()) }
     if ptype.eq("UPtr") {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
-        if uptr_name.eq("U32") { return val_u32(uval.cast(I64)) }
+        if uptr_name.eq("U32") { return Value.Uint32(uval.to_u32()) }
         return Value.Uint64(uval)
     }
     if ptype.eq("U32") {
-        if v.is(Value.Byte) { return val_u32(uval.cast(I64)) }
+        if v.is(Value.Byte) { return Value.Uint32(uval.to_u32()) }
     }
     if ptype.eq("I32") {
-        if v.is(Value.Byte) { return val_i32(ival) }
-        if v.is(Value.Short) { return val_i32(ival) }
+        if v.is(Value.Byte) { return Value.Int32(ival.to_i32()) }
+        if v.is(Value.Short) { return Value.Int32(ival.to_i32()) }
     }
     if ptype.eq("I16") {
         if v.is(Value.Byte) { return val_i16(ival) }

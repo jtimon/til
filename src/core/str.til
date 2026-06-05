@@ -374,6 +374,21 @@ namespace:
         return self.to_i64().to_u8()
     }
 
+    /// Parse as base-10 signed 8-bit integer.
+    to_i8 := func(self: Str) returns I8 {
+        return self.to_i64().to_i8()
+    }
+
+    /// Parse as base-10 signed 16-bit integer.
+    to_i16 := func(self: Str) returns I16 {
+        return self.to_i64().to_i16()
+    }
+
+    /// Parse as base-10 unsigned 16-bit integer.
+    to_u16 := func(self: Str) returns U16 {
+        return self.to_i64().to_u16()
+    }
+
     /// Parse as base-10 signed 32-bit integer.
     to_i32 := func(self: Str) returns I32 {
         return self.to_i64().to_i32()
