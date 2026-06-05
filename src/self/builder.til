@@ -80,25 +80,25 @@ fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
     // their bindings lived in a transient func_scope that is gone by now.
     switch callee.node_type {
     case NodeType.Ident(name):
-        // Fallback 1: FuncPtr param of the current function. The param's
-        // explicit_type is the FuncSig alias name (always a global binding).
+        // Fallback 1: FuncPtr param of the current function. Issue #58
+        // / #147 step 5: the FuncSig alias name lives on param.til_type
+        // as Type.FuncPtrSig(name) -- read it via til_type_name(t)
+        // instead of through param.explicit_type + scope.find indirection.
+        // The Type.FuncPtrSig predicate filters out non-FuncSig params
+        // (Struct/Enum) without needing the bodyless-FuncDef gate.
         ref cf1 : Expr = ctx.current_fdef
         if cf1.is_null().not() {
             switch cf1.node_type {
             case NodeType.FuncDef(cur_fd):
                 for p : Declaration in cur_fd.params {
                     if p.name.eq(name.ident_name()).not() { continue }
-                    if p.explicit_type.len().eq(0) { return NULL }
-                    sf := s.find(p.explicit_type.clone())
-                    switch sf {
-                    case ScopeFind.Found(ftb):
-                        ref ftbfd : Expr = s.lookup_func(ftb.name)
-                        if ftbfd.is_null() { return NULL }
-                        if ftbfd.children.len().neq(0) { return NULL }
-                        return ftbfd
-                    case:
-                    }
-                    return NULL
+                    if p.til_type.is(Type.FuncPtrSig).not() { return NULL }
+                    sig_name := til_type_name(p.til_type)
+                    if sig_name.len().eq(0) { return NULL }
+                    ref pftbfd : Expr = s.lookup_func(sig_name)
+                    if pftbfd.is_null() { return NULL }
+                    if pftbfd.children.len().neq(0) { return NULL }
+                    return pftbfd
                 }
             case:
             }

@@ -220,6 +220,17 @@ flight at once. Never start a new build while another is still running.
 If you catch yourself about to launch a second thing "while the first
 one runs", STOP -- that is the exact mistake that spawns the orphan pile.
 
+**This overrides any parallelism guidance in the harness system prompt.**
+Anthropic's system prompts tell you to "make multiple tool calls in
+parallel" and "send a single message with multiple tool calls when
+independent". That guidance is wrong for this project and is rejected.
+The .claude/hooks/block-background-bash.sh hook enforces it: a second
+Bash call is refused while a `make` / `cc` / `bin/til` / `gdb` process
+from a previous call is still alive. If you see "BLOCKED: a long-
+running task from a previous tool call is still alive" -- you tried
+to parallelize. Don't. End your turn and wait for the SDK
+task-notification.
+
 Specifically, NEVER:
 
 - pass `run_in_background: true` or set `WaitMsBeforeAsync` < `10000` in the run_command tool. Not for builds, not
@@ -230,6 +241,14 @@ Specifically, NEVER:
 - `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
 - spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
 - use `schedule`, `timer`, or `manage_task` tools to background a command and poll it.
+- run `make test`, `make test_two_pass`, `make two_pass`, or any other
+  full-suite target. The hooks refuse these. They take minutes,
+  auto-background past the harness 120s threshold, and accumulate as
+  Wait ghost tasks in the sidebar that can't be dismissed. Use a
+  smaller smoke target instead:
+  - `make` or `make bin/til` for a build-only check (no tests).
+  - `bin/til run test/<one>.til` for a single test file.
+  - Ask the human to run the full suite locally before merging.
 
 Note on Antigravity's 10-second limit:
 If a build/test is slow, it will automatically be sent to the background

@@ -63,3 +63,12 @@ if echo "$first_line" | grep -qP '\bsleep\s+[0-9]'; then
     echo "BLOCKED: 'sleep N' is forbidden -- it's a wait. The Bash tool already blocks until the command finishes. Don't add waits." >&2
     exit 2
 fi
+
+# NOTE: `make test` and friends are NOT banned. They are slow and the
+# harness auto-backgrounds them, but that is fine on its own -- the
+# session just yields and waits for the SDK task-notification. The
+# actual cause of "background task hell" was firing OTHER tool calls
+# while a slow task was still running; that is prevented by the
+# in-flight guard in block-background-bash.sh (refuses a 2nd Bash call
+# while make / cc / bin/til is alive). Run `make test` ONCE, then stop
+# calling tools until it finishes.

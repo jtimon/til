@@ -3013,10 +3013,16 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                     }
                 }
                 if inner.lookup_func(fb.name).is_null() {
-                    if fd.explicit_type.len().gt(0) {
-                        ref fsb : TypeBinding = inner.get_binding(fd.explicit_type)
-                        if fsb.is_null().not() {
-                            ref fsb_fd : Expr = inner.lookup_func(fsb.name)
+                    // Issue #58 / #147 step 5: read the FuncSig alias
+                    // name from fd.til_type (Type.FuncPtrSig payload)
+                    // instead of from fd.explicit_type + get_binding
+                    // round-trip. The FuncPtrSig predicate already gates
+                    // "this is a FuncSig"; the bodyless-FuncDef check
+                    // below is the same belt-and-braces it always was.
+                    if fd.til_type.is(Type.FuncPtrSig) {
+                        fsig_name := til_type_name(fd.til_type)
+                        if fsig_name.len().gt(0) {
+                            ref fsb_fd : Expr = inner.lookup_func(fsig_name)
                             if fsb_fd.is_null().not() {
                                 if fsb_fd.children.len().eq(0) {
                                     inner.set_func_def(fd.name, fsb_fd)
@@ -3174,6 +3180,20 @@ infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
             param.explicit_type = resolved_ptype
             param.til_type =til_type_from_explicit_type(resolved_ptype)
+            // Issue #58 / #147 step 5: if the param's type resolves to a
+            // FuncSig alias (a bodyless FuncDef in scope), upgrade
+            // til_type from Type.Custom(name) to Type.FuncPtrSig(name)
+            // so downstream consumers (builder's fcall_fn_sig fallback,
+            // typer's func_def propagation) can read the FuncSig name
+            // off the type instead of off `param.explicit_type`. This
+            // is what makes the FuncPtrSig migration reach param-level
+            // til_type, not just expr-level inferred types.
+            ref sig_fd_param : Expr = scope.lookup_func(resolved_ptype)
+            if sig_fd_param.is_null().not() {
+                if sig_fd_param.children.len().eq(0) {
+                    param.til_type = Type.FuncPtrSig(resolved_ptype.clone())
+                }
+            }
             // Issue #223 step 2: forbid redundant 'shallow' on a primitive
             // funcptr parameter. COMMENTED OUT during rollout (see infer_func_def_expr).
             // if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Shallow)).and(param.is_mut.not()).and(is_primitive(param.til_type)) {
@@ -3401,6 +3421,13 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
             param.til_type =til_type_from_explicit_type(resolved_ptype)
             ref ptn : Str = param.explicit_type
             pt := type_from_name_at(ptn, scope, expr, ctx)
+            // Issue #58 / #147 step 5: same FuncPtrSig upgrade as in
+            // infer_func_sig_expr -- if the param's type resolves to a
+            // FuncSig (Type.FuncPtrSig(name)), store that on til_type so
+            // downstream readers don't need to go through param.explicit_type.
+            if pt.is(Type.FuncPtrSig) {
+                param.til_type = pt.clone()
+            }
             // Issue #57: skip the undefined-type diagnostic for template
             // macros -- a param like `T` is a stand-in resolved at
             // expansion time, not a real type.
@@ -4434,10 +4461,13 @@ finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I3
             case:
             }
             if scope.lookup_func(decl_b.name).is_null() {
-                if sdecl.explicit_type.len().gt(0) {
-                    ref fsb : TypeBinding = scope.get_binding(sdecl.explicit_type)
-                    if fsb.is_null().not() {
-                        ref fsb_fd : Expr = scope.lookup_func(fsb.name)
+                // Issue #58 / #147 step 5: read FuncSig alias name from
+                // sdecl.til_type (Type.FuncPtrSig payload) instead of
+                // sdecl.explicit_type + get_binding indirection.
+                if sdecl.til_type.is(Type.FuncPtrSig) {
+                    sdsig_name := til_type_name(sdecl.til_type)
+                    if sdsig_name.len().gt(0) {
+                        ref fsb_fd : Expr = scope.lookup_func(sdsig_name)
                         if fsb_fd.is_null().not() {
                             if fsb_fd.children.len().eq(0) {
                                 scope.set_func_def(sdecl.name, fsb_fd)
