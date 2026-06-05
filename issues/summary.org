@@ -9,7 +9,6 @@
 *** [[./open/256.org][#256]] Garbager clones (and leaks) an owned local at its last use instead of moving it
 ** Medium
 *** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
-** Low
 * Cleanups
 ** High
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
@@ -74,24 +73,19 @@
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
-*** [[./open/260.org][#260]] lazy_func / lazy_proc: lazily-evaluated call arguments
+*** [[./open/262.org][#262]] lazy_func / lazy_proc: lazily-evaluated call arguments
 * Experiments
-** High
-** Medium
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
-*** [[./open/259.org][#259]] desugar if/else chains into switch (Gleam-inspired)
+*** [[./open/261.org][#261]] desugar if/else chains into switch (Gleam-inspired)
 * Examples
-** High
-** Medium
 ** Low
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
 * Deferred
 ** High
 *** [[./open/232.org][#232]] Add LinuxX86 (32-bit) target support
-** Medium
 ** Low
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/151.org][#151]] 32-bit targets: wasm32 and templeos-x86
