@@ -2553,6 +2553,199 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map) {
     }
 }
 
+// Issue #58 "Phase now": a top-level `name := func(T: Type, ...)` is a
+// GENERIC function -- a func/proc whose param list has at least one
+// `Type`-typed param. Unlike a macro it is CALLED DIRECTLY with the
+// type-arg inline (`identity(I64, 42)`, `swap(I64, x, y)`); init
+// monomorphizes it per distinct type-arg tuple, synthesizes the
+// concrete copy, and rewrites each call to that copy with the type-args
+// dropped. The generic decl itself is removed (its body can't type-check
+// with T undefined).
+priv init_func_is_generic := func(rhs: Expr) returns Bool {
+    switch rhs.node_type {
+    case NodeType.FuncDef(fd):
+        gok := fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc))
+        if gok.not() { return false }
+        // A `P: Type` param is a generic TYPE-PARAMETER only if its name
+        // is actually USED as a type elsewhere in the signature -- as
+        // another param's explicit_type, or as the return type. A plain
+        // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
+        // never used to type anything, e.g. til_type_name_c) is NOT a
+        // generic and must be left untouched.
+        for p : Declaration in fd.params {
+            if p.explicit_type.eq("Type").not() { continue }
+            tname := p.name
+            if fd.return_type.eq(tname) { return true }
+            for q : Declaration in fd.params {
+                if q.explicit_type.eq(tname) { return true }
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Expand a single generic-func call `call` = `gname(typearg, ..., valargs)`
+// against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
+// (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
+// in place to the concrete `gname__T1_T2(valargs)`.
+priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr, generics: Map, mut seen: Map, mut synthesized: Vec) {
+    switch gfd_expr.node_type {
+    case NodeType.FuncDef(gfd):
+        // Build the type-param substitution map and the mono name from
+        // the type-args at the Type-param positions.
+        mut subs := Map.new(Str, Expr)
+        mut mono := gname.concat("__")
+        mut first := true
+        mut ok := true
+        for i in 0..gfd.params.len() {
+            ref p : Declaration = gfd.params[i]
+            argidx := i.add(1)
+            if argidx.gte(call.children.len()) { ok = false; break }
+            if p.explicit_type.eq("Type") {
+                ref arg : Expr = call.child(argidx)
+                switch arg.node_type {
+                case NodeType.Ident(an):
+                    tn := an.ident_name()
+                    mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
+                    subs.set(own p.name.clone(), own tid)
+                    if first.not() { mono = mono.concat("_") }
+                    mono = mono.concat(tn)
+                    first = false
+                case:
+                    ok = false
+                }
+            }
+        }
+        if ok.not() { return }
+
+        // Synthesize the concrete copy once per distinct mono name.
+        if seen.has(mono).not() {
+            mut cloned := gfd_expr.clone()
+            switch cloned.node_type {
+            case NodeType.FuncDef(cfd):
+                mut kept := Vec.new(Declaration)
+                for kp : Declaration in cfd.params {
+                    if kp.explicit_type.eq("Type") { continue }
+                    kept.push(own kp.clone())
+                }
+                cfd.params.clear()
+                for kp2 : Declaration in kept {
+                    cfd.params.push(own kp2.clone())
+                }
+            case:
+            }
+            init_substitute_type_params(cloned, subs)
+            // Composition: the freshly-substituted body may now contain
+            // calls to OTHER generic funcs (or to this one with different
+            // type-args). Walk it with the same generics/seen/synthesized,
+            // so those calls get rewritten and any new monomorphizations
+            // get appended -- the program-level outer loop will then pick
+            // them up alongside the rest.
+            init_generic_walk(cloned, generics, seen, synthesized)
+            mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone())), call.line, call.col)
+            decl.add_child(own cloned)
+            synthesized.push(own decl)
+            seen.set(own mono.clone(), own mono.clone())
+        }
+
+        // Rewrite the call: callee -> Ident(mono); keep only the value
+        // args (drop the type-args). own-arg markers are not preserved
+        // (v1 limitation; generic funcs taking `own` args aren't covered).
+        mut newcall := Expr.new(NodeType.FCall(FCallData()), call.line, call.col)
+        mut mono_id := Expr.new(ident_node(mono), call.line, call.col)
+        newcall.add_child(own mono_id)
+        for j in 0..gfd.params.len() {
+            ref vp : Declaration = gfd.params[j]
+            if vp.explicit_type.eq("Type") { continue }
+            vargidx := j.add(1)
+            if vargidx.lt(call.children.len()) {
+                newcall.add_child(own call.child(vargidx).clone())
+            }
+        }
+        move(call, newcall, Expr.size().cast(U64))
+    case:
+    }
+}
+
+// Walk `e`'s subtree rewriting every generic-func call to its
+// monomorphization. `generics` maps name -> generic funcdef Expr.
+priv init_generic_walk := func(mut e: Expr, generics: Map, mut seen: Map, mut synthesized: Vec) {
+    if e.is_null() { return }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        mut handled := false
+        if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
+            ref callee : Expr = c.child(0)
+            switch callee.node_type {
+            case NodeType.Ident(cn):
+                gnm := cn.ident_name()
+                if generics.has(gnm) {
+                    // Recurse into the args first (nested generic calls),
+                    // then expand this call.
+                    init_generic_walk(c, generics, seen, synthesized)
+                    ref gfd_expr : Expr = generics[gnm]
+                    // generics threaded through so the expander can
+                    // recursively walk the synthesized body for composed
+                    // generic calls (init_generic_expand_call signature
+                    // now takes generics).
+                    init_generic_expand_call(c, gnm, gfd_expr, generics, seen, synthesized)
+                    handled = true
+                }
+            case:
+            }
+        }
+        if handled.not() {
+            init_generic_walk(c, generics, seen, synthesized)
+        }
+    }
+}
+
+priv init_expand_generic_funcs := func(mut program: Expr) {
+    // Collect top-level generic func/proc decls.
+    mut generics := Map.new(Str, Expr)
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        ref rhs : Expr = stmt.child(0)
+        if init_func_is_generic(rhs).not() { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            generics.set(own dd.name.clone(), own rhs.clone())
+        case:
+        }
+    }
+    if generics.len().eq(0) { return }
+
+    // Rewrite all calls (skipping the generic decls themselves, whose
+    // bodies reference the still-unbound type-param).
+    mut seen := Map.new(Str, Str)
+    mut synthesized := Vec.new(Expr)
+    for i in 0..program.children.len() {
+        ref mut stmt : Expr = program.child(i)
+        is_generic_decl := stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(init_func_is_generic(stmt.child(0)))
+        if is_generic_decl { continue }
+        init_generic_walk(stmt, generics, seen, synthesized)
+    }
+
+    // Rebuild program.children: drop the generic decls, keep everything
+    // else, then append the synthesized monomorphizations.
+    mut kept_stmts := Vec.new(Expr)
+    for stmt2 : Expr in program.children {
+        drop := stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)).and(init_func_is_generic(stmt2.child(0)))
+        if drop { continue }
+        kept_stmts.push(own stmt2.clone())
+    }
+    program.children.clear()
+    for ks : Expr in kept_stmts {
+        program.children.push(own ks.clone())
+    }
+    for d : Expr in synthesized {
+        program.children.push(own d.clone())
+    }
+}
+
 priv init_expand_type_gen_macros := func(mut program: Expr) {
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
@@ -2666,6 +2859,13 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     // body's return literal with type-params substituted, so X becomes a
     // normal named struct/enum decl for the registration walk below.
     init_expand_type_gen_macros(program)
+
+    // Issue #58 "Phase now": monomorphize direct generic functions
+    // `name := func(T: Type, ...)` called as `name(I64, args)`. Runs
+    // after macro expansion so a macro-generated generic func would also
+    // be picked up. Rewrites each call to its concrete copy and removes
+    // the generic decl.
+    init_expand_generic_funcs(program)
 
     // Single AST walk: register every type name in scope (struct, enum,
     // funcsig) and bucket each remaining Decl's index for post-walk work.

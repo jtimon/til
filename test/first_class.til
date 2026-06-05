@@ -757,3 +757,51 @@ test_func_sig_of := test() {
     assert_eq_str(__LOC__, "I64", sig.return_type)
     assert_eq(__LOC__, sig.throw_types.len().to_i64(), 0)
 }
+
+// --- Direct generic functions: func(T: Type, ...) (issue #58 "Phase now") ---
+// A top-level func/proc whose param list uses a `Type`-named param as the
+// type of another param (or the return type) is a GENERIC function. It is
+// called directly with the type-arg inline -- `gid(I64, 42)` -- and init
+// monomorphizes it per distinct type-arg tuple, dropping the type-args at
+// the call site and synthesizing one concrete copy per tuple (deduped).
+// Distinct from a plain `func(t: Type)` runtime-Type-value param, which is
+// left untouched. Distinct from the macro path (`macro(T: Type) returns
+// FuncDef`), which requires a separate naming step.
+
+Point58g := struct { x: I64 = 0; y: I64 = 0 }
+
+gid := func(T: Type, v: T) returns T { return v }
+gdefault := func(T: Type) returns T { return T() }
+gcombine := func(A: Type, B: Type, a: A, b: B) returns A { return a.add(b) }
+
+uses_gid := func(n: I64) returns I64 { return gid(I64, n) }
+
+test_generic_func_identity := test() {
+    assert_eq(__LOC__, gid(I64, 42), 42)
+}
+test_generic_func_constructor := test() {
+    p := gdefault(Point58g)
+    assert_eq(__LOC__, p.x, 0)
+}
+test_generic_func_multi_param := test() {
+    assert_eq(__LOC__, gcombine(I64, I64, 7, 8), 15)
+}
+test_generic_func_dedup := test() {
+    // Two uses of gid(I64, ..) share one monomorphization.
+    assert_eq(__LOC__, gid(I64, 1).add(gid(I64, 2)), 3)
+}
+test_generic_func_nested_call := test() {
+    assert_eq(__LOC__, uses_gid(99), 99)
+}
+
+// Composition: a generic func calling another generic func with the
+// type-param threaded through. The synthesized body of gid2__I64
+// contains `gid(I64, v)` after substitution; the post-substitute walk
+// expands that to `gid__I64(v)`, otherwise the typer sees an
+// unresolved generic-shaped call.
+gid58g := func(T: Type, v: T) returns T { return v }
+gid58g_compose := func(T: Type, v: T) returns T { return gid58g(T, v) }
+
+test_generic_func_compose := test() {
+    assert_eq(__LOC__, gid58g_compose(I64, 99), 99)
+}

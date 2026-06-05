@@ -278,17 +278,41 @@
      / FuncDef returns all work. Conditions beyond that exact shape
      still leave the macro un-expanded (the pre-pass returns NULL,
      caller continues without rewrite).
-   - [ ] Value-param substitution in function generators:
+   - [X] Value-param substitution in function generators:
      ~make_adder := macro(N: I64) returns FuncDef { return func(x: I64) returns I64 { return x.add(N) } }~
-     currently substitutes only type-name idents; an ~Ident(N)~ that
-     should become a literal ~5~ stays unresolved.
-   - [ ] User namespace methods inside type-generator macros merged
-     with auto-generated ones (rstil precomp.rs ~349-385).
+     works -- value-param Idents are replaced by the call-site arg
+     expression (test_macro_func_gen_value_param).
+   - [X] User namespace methods inside type-generator macros coexist
+     with the auto-generated clone/delete (test_macro_struct_ns_*).
+     to_str is not auto-generated for any struct, so there is nothing
+     to merge there.
+   - [X] Direct generic functions ~func(T: Type, v: T) returns T~
+     (~Phase now~). A top-level func/proc that uses a ~Type~-named
+     param as the type of another param (or the return type) is a
+     generic; init monomorphizes it per distinct type-arg tuple,
+     synthesizes one concrete copy per tuple (deduped), and rewrites
+     each call ~gid(I64, 42)~ to the concrete ~gid__I64(42)~ with the
+     type-args dropped, then removes the generic decl. Plain
+     ~func(t: Type)~ runtime-Type-value params (e.g. dyn_type_to_str,
+     til_type_name_c) are left untouched. ~T()~ constructor calls in
+     the body resolve at the monomorphized type. init_expand_generic_funcs
+     in initer.til; tests test_generic_func_* in first_class.til.
+     Composition works: a generic func calling another generic func
+     (`g2 := func(T: Type, v: T) returns T { return g1(T, v) }`) is
+     fixpoint-expanded -- after substituting the synthesized body the
+     expander walks it again, so the inner `g1(T, v)` becomes
+     `g1__I64(v)` (test_generic_func_compose).
+     Remaining v1 limitation: ~own~ value args aren't preserved across
+     the call rewrite, so a generic taking `own v: T` is not yet
+     covered (the own-marker would need carrying onto the rewritten
+     call without introducing the double-/no-free hazard).
 
    Beyond rstil parity:
 
-   - [ ] ~func<T>(...)~ sugar (~Phase later~ in this issue) -- desugar
-     to a ~macro(T: Type)~ call with inference at the call site.
+   - [ ] ~func<T>(...)~ angle-bracket sugar (~Phase later~) -- desugar
+     to the direct ~func(T: Type)~ generic above with the type
+     inferred from the value args at the call site (today the type-arg
+     is explicit and leads the arg list).
    - [ ] First-class ~Body~ values (Issue #181 cross-references).
    - [ ] Generic-arg inference for macros / value-level deduction (an
      analog of Rust/Haskell type-inference).

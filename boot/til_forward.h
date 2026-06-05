@@ -1486,6 +1486,10 @@ Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
 void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, Map * seen, Vec * synthesized);
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * macros);
+Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
+void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map * generics, Map * seen, Vec * synthesized);
+void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map * seen, Vec * synthesized);
+void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
