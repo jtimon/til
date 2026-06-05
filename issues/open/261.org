@@ -1,0 +1,114 @@
+# priority: medium
+# category: features
+** OPEN #261 Self-hosted build system: a make.til to replace the Makefile
+
+Goal: drive til's own build from a TIL program (~make.til~) instead of
+the hand-written GNU ~Makefile~, the way the sibling ~rstil~ project
+already does. ~rstil/make.til~ (its Issue #82) is a ~mode make~ TIL
+script that handles clean/build/test/regen plus dependency tracking and
+self-rebuild; a 35-line bootstrap ~Makefile~ builds the compiler once,
+compiles ~make.til~, then delegates every other target to the compiled
+binary via a ~%~ pattern rule.
+
+This issue is scoped to "get at least *there*" -- reach parity with what
+our current ~Makefile~ already does, driven from til -- *before* getting
+better (parallel builds, a real dependency graph, etc., which are out of
+scope here and tracked separately if/when we want them).
+
+*** Why this is harder for til than it was for rstil
+
+  - rstil's make.til has no vendored C libraries to build. Our Makefile
+    builds four heavyweight native deps from source: raylib (recursive
+    ~make~), tinyfiledialogs (~cc~+~ar~), nng (~cmake~), and libffi
+    (~./configure~+~make~). Those recipes stay shell/cmake; make.til
+    should *invoke* them, not reimplement them.
+  - Our boot model is git-based: ~bin/til_boot~ is compiled from ~boot/~
+    and ~src/c/~ *as committed at HEAD* (snapshotted into ~tmp/boot/~),
+    completely isolated from the working tree. make.til has to reproduce
+    that ~git ls-tree~ / ~git show~ snapshot dance, not just ~cc~ the
+    current files. See ~doc/self.org~.
+  - We have far more targets than rstil: ~two_pass~, ~test_two_pass~,
+    ~test_fast~, ~test_asan~/~test_asan_full~, ~test_nogui~,
+    ~test_repl_help~, ~doc~, ~profile~, ~install~, ~build_win~ (Windows
+    cross), ~update_c_libs~ (FFI bindgen). All must be reachable.
+
+*** Primitives already present (good news)
+
+  ~src/std/sys.til~ already exposes most of what rstil's make.til leans
+  on: ~spawn_cmd~, ~wait_cmd~, ~run_cmd~, ~file_mtime~, ~mkdir_p~,
+  ~copy_file~, ~copy_tree~, ~host_os~, ~clock_ms~. So command spawning
+  and mtime-based ~needs_rebuild~ are doable today.
+
+*** Primitive gap to close first
+
+  The Makefile uses ~$(wildcard src/core/*.til)~, ~$(wildcard
+  src/self/*.til)~, ~lib/*.til~, ~vendor/bindings/*.til~, ~examples/*.til~
+  to enumerate dependencies. til has *no* directory-listing / glob
+  function exposed (the ~readdir~ in ~src/c/ext.c~ is private to
+  ~copy_tree~). rstil's make.til calls ~glob_files("src/std/*.til")~.
+
+  Step 0 below adds that primitive; without it make.til would have to
+  shell out to ~ls~, which is fragile.
+
+*** Incremental plan (each step independently committable + testable)
+
+  - Step 0: Add a ~glob_files(pattern: Str) returns Vec~ (or
+    ~list_dir~) ext primitive in ~src/c/ext.c~ + ~src/c/ext.h~, declared
+    in ~src/std/sys.til~. Mirror rstil's ~glob_files~ signature/behavior.
+    Add a test in the sys/test suite. This unblocks dependency
+    enumeration in TIL. Nothing else changes yet.
+
+  - Step 1: Write ~make.til~ (~mode script~ or a new ~mode make~) that
+    implements the *core* targets only, shelling out where needed:
+      * ~clean~  -> ~rm -rf bin/* gen/* tmp/boot~
+      * ~build~  -> snapshot HEAD boot/+src/c into tmp/boot, ~cc~
+                    til_boot, then ~til_boot build -o bin/til src/til.til~,
+                    then copy gen/til/til.c + til_forward.h into boot/.
+      * ~test~   -> build + the test_runner/plot/tests binaries +
+                    ~bin/tests --asan~, then copy constfold.c.
+    Use ~file_mtime~ + ~glob_files~ for ~needs_rebuild~ on $CORE/$SELF/
+    $LIB_TIL exactly as the Makefile prerequisites do. Keep the existing
+    Makefile working in parallel -- run ~make.til~ by hand
+    (~bin/til run make.til build~) and diff its results against ~make~.
+
+  - Step 2: Add self-rebuild (~go_build_yourself~): make.til checks
+    whether ~make.til~ + compiler + std/core sources are newer than its
+    own compiled binary, rebuilds itself, and re-execs with the same
+    args. Direct port of rstil's ~go_build_yourself~.
+
+  - Step 3: Shrink the ~Makefile~ to a bootstrap stub mirroring
+    rstil's: build til_boot, build vendored C libs (raylib/tinyfd/nng/
+    libffi -- *keep* these recipes), compile ~make.til~ once, then a ~%~
+    rule delegating unknown goals to the compiled make binary with
+    ~$(MAKECMDGOALS)~. Guard ~%.til~/~%.c~/~Makefile~ against the pattern
+    like rstil does. After this step ~make test~ runs through make.til.
+
+  - Step 4: Port the remaining targets into make.til so nothing is lost:
+    ~test_fast~, ~two_pass~, ~test_two_pass~, ~test_asan~,
+    ~test_asan_full~, ~test_nogui~, ~test_repl_help~, ~doc~, ~profile~,
+    ~install~, ~build_win~, ~update_c_libs~. The vendored-lib build
+    recipes remain shelled out (cmake/configure/recursive-make).
+
+  - Step 5: CI + docs. Update ~doc/self.org~ and ~CLAUDE.md~ build
+    instructions, the ~/build~ skill, and ~.github/~ workflows to call
+    the new entry points. Confirm ~make clean && make test~ (the
+    contract every commit must satisfy) still passes end to end.
+
+*** Definition of "there" (acceptance)
+
+  - ~make clean && make test~ still works and goes through ~make.til~.
+  - Every current Makefile target has an equivalent make.til target.
+  - The git-snapshot boot model (til_boot from HEAD) is preserved
+    exactly -- no regression in bootstrap isolation.
+  - Vendored C libs still build from source (recipes unchanged, just
+    invoked from the thin Makefile/make.til).
+
+  Anything beyond this -- parallel job scheduling, a proper DAG instead
+  of per-target ~needs_rebuild~, incremental C recompilation -- is
+  "getting better" and explicitly deferred.
+
+*** Reference
+
+  Sibling implementation to mirror: ~rstil/make.til~ and ~rstil/Makefile~
+  (github.com/jtimon/rstil), its Issue #82. Bug #141 there (rstil emits
+  to ~bin/rs/~) is rstil-specific and does not apply to us.

@@ -54,6 +54,7 @@
 *** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/251.org][#251]] `interface` keyword: named bag of method signatures, desugars to a fieldless struct
+*** [[./open/261.org][#261]] Self-hosted build system: a make.til to replace the Makefile
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies
