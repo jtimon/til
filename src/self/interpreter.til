@@ -453,6 +453,12 @@ val_u32 := func(v: I64) returns shallow Value {
 
 ENUM_PAYLOAD_OFFSET : USize = 8
 
+// Issue #239: callers MUST pass a `enum_name` rooted in long-lived
+// storage (e.g. `ctx.scope.get_binding(name).name`). The returned
+// EnumInstance's `enum_name` is a `ref Str` into the caller's buffer
+// and would dangle if that buffer dies before the EnumInstance is
+// read. See c00af27 (resolve_ptr_to_struct) and d6c3554 (read_field)
+// for the template.
 val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize) returns shallow Value {
     mut alloc_size : USize = total_enum_size
     if alloc_size.lt(8) {
@@ -665,7 +671,15 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                             tag := enum_variant_tag(edef, fname.field_access_name())
                                             if tag.gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, tag, NULL, 0, total_size)
+                                                    // Issue #239: stable_name from scope binding so
+                                                    // the new EnumInstance's ref Str enum_name does
+                                                    // not dangle when this function's local sname
+                                                    // (cloned from til_type_name / ident_name) dies
+                                                    // at return.
+                                                    ref vbnd : TypeBinding = ctx.scope.get_binding(sname)
+                                                    mut vstable : Str = sname
+                                                    if vbnd.is_null().not() { vstable = vbnd.name }
+                                                    return val_enum_flat(vstable, tag, NULL, 0, total_size)
                                                 } else {
                                                     return Value.Int32(tag)
                                                 }
@@ -789,19 +803,37 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                 if enum_has_payloads(tdef) {
                     total_size : USize = ctx_total_size(type_name, ctx)
                     ref ei : EnumInstance = deref(p)
-                    if ei.is_null() { return val_enum_simple(type_name, 0, total_size) }
+                    // Issue #239: stable_name is the long-lived scope-
+                    // binding name (program-lifetime) rather than the
+                    // transient type_name parameter or ei.enum_name
+                    // (which is itself a ref Str that may have been
+                    // populated from a now-dead source). Same template
+                    // master's d6c3554 used in read_field and c00af27
+                    // used in resolve_ptr_to_struct.
+                    ref bnd : TypeBinding = ctx.scope.get_binding(type_name)
+                    mut stable_name : Str = type_name
+                    if bnd.is_null().not() { stable_name = bnd.name }
+                    if ei.is_null() { return val_enum_simple(stable_name, 0, total_size) }
                     ref etag_ref : Dynamic = ei.data
                     ref etag : I32 = etag_ref
                     mut psz_final : USize = 0
                     if ei.data_size.gte(ENUM_PAYLOAD_OFFSET) {
                         psz_final = ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
                     }
-                    return val_enum_flat(ei.enum_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), psz_final, total_size)
+                    return val_enum_flat(stable_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), psz_final, total_size)
                 }
                 ref etag : I32 = p
                 return Value.Int32(etag)
             }
             if tdef.node_type.is(NodeType.StructDef) {
+                // Issue #239: same stable-name pattern as the enum branch
+                // above -- use the scope-binding name for the new
+                // StructInstance's struct_name so it doesn't dangle when
+                // the caller's type_name storage dies.
+                ref bnd_s : TypeBinding = ctx.scope.get_binding(type_name)
+                if bnd_s.is_null().not() {
+                    return make_struct_value(bnd_s.name, tdef, p, true, ctx)
+                }
                 return make_struct_value(type_name, tdef, p, true, ctx)
             }
         }
@@ -1935,6 +1967,12 @@ box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: B
     return r
 }
 
+// Issue #239: callers MUST pass an `sname` rooted in long-lived
+// storage (e.g. `ctx.scope.get_binding(name).name`). The returned
+// StructInstance's `struct_name` is a `ref Str` into the caller's
+// buffer and would dangle if that buffer dies before the
+// StructInstance is read. See c00af27 (resolve_ptr_to_struct) and
+// d6c3554 (read_field) for the template.
 make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool, ctx: Context) returns shallow Value {
     mut r := Value.None
     tag : I32 = 10
