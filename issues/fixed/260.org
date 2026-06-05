@@ -1,0 +1,25 @@
+# priority: low
+** FIXED #260 Add cursor-relative File seek helpers
+
+Post-mortem:
+
+Follow-up to #193, which added absolute `File.seek(pos)` but left the
+"cursor-relative helpers" shape from that issue's wanted-direction list
+unimplemented.
+
+Resolution: added two relative-seek methods on the `File` namespace in
+`src/core/io.til`:
+
+- `f.seek_cur(delta)` moves the cursor by `delta` bytes from its current
+  position (`delta` may be negative).
+- `f.seek_end(delta)` moves the cursor to `delta` bytes from end-of-file;
+  `f.seek_end(0)` then `f.tell()` yields the file size without reading the
+  whole file.
+
+Both chain via UFCS (return `ref File`). Backed by new C ext procs
+`cfile_seek_cur` / `cfile_seek_end` (`fseek` with `SEEK_CUR` / `SEEK_END`)
+in `src/c/ext.c` and `src/c/ext.h`, wired into the self-hosted interpreter
+via dispatch handlers in `src/self/dispatch.til` and marked side-effecting
+in `src/self/precomp.til`.
+
+Regression test: `test/files.til` -- `test_file_seek_cur_and_end`.

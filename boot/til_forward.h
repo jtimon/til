@@ -2235,6 +2235,8 @@ Bool h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_seek(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cfile_seek_cur(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool h_cfile_seek_end(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool h_cfile_read_n(Scope * s, Expr * e, Value * r, Context * ctx);
 void reg_dispatch(Str * name, DispatchFn handler, Context * ctx);
 void dispatch_init(Context * ctx);

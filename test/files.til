@@ -53,6 +53,30 @@ test_file_seek_tell_read := test() {
     assert_eq_str(__LOC__, rest, "world")
 }
 
+test_file_seek_cur_and_end := test() {
+    path := "tmp/_test_file_relseek.txt"
+    File.writefile(path, "hello world")
+
+    f := File.new(path, false)
+
+    // seek_end(0) parks the cursor at EOF, so tell() gives the file size.
+    f.seek_end(0)
+    assert_eq(__LOC__, f.tell(), 11)
+
+    // Relative seek from the start: read "wor", then step back 3 and reread.
+    f.seek(6)
+    mid := f.read(3)
+    assert_eq_str(__LOC__, mid, "wor")
+    f.seek_cur(-3)
+    again := f.read(3)
+    assert_eq_str(__LOC__, again, "wor")
+
+    // Negative offset from the end reads the final bytes.
+    f.seek_end(-5)
+    tail := f.read(5)
+    assert_eq_str(__LOC__, tail, "world")
+}
+
 test_file_read_past_eof := test() {
     path := "tmp/_test_file_eof.txt"
     File.writefile(path, "abc")

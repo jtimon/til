@@ -1202,6 +1202,24 @@ h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool
     return true
 }
 
+h_cfile_seek_cur := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
+    delta_v := eval_expr(s, e.child(2), ctx)
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    cfile_seek_cur(deref(hp), value_to_u64(delta_v).cast(I64))
+    r = val_none()
+    return true
+}
+
+h_cfile_seek_end := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    handle_v := eval_expr(s, e.child(1), ctx)
+    delta_v := eval_expr(s, e.child(2), ctx)
+    ref hp : Dynamic = val_to_ptr(handle_v)
+    cfile_seek_end(deref(hp), value_to_u64(delta_v).cast(I64))
+    r = val_none()
+    return true
+}
+
 h_cfile_read_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     count_v := eval_expr(s, e.child(2), ctx)
@@ -1278,6 +1296,8 @@ dispatch_init := func(ctx: Context) {
     reg_dispatch("cfile_read_all", h_cfile_read_all, ctx)
     reg_dispatch("cfile_tell", h_cfile_tell, ctx)
     reg_dispatch("cfile_seek", h_cfile_seek, ctx)
+    reg_dispatch("cfile_seek_cur", h_cfile_seek_cur, ctx)
+    reg_dispatch("cfile_seek_end", h_cfile_seek_end, ctx)
     reg_dispatch("cfile_read_n", h_cfile_read_n, ctx)
     ctx.dispatch_inited = true
 }
