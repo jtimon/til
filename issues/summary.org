@@ -58,7 +58,6 @@
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies
 *** [[./open/56.org][#56]] First-class structs: StructDef as values
 *** [[./open/57.org][#57]] First-class enums: EnumDef as values
-*** [[./open/58.org][#58]] First-class functions: Type hierarchy and FuncSig/FuncDef
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 *** [[./open/102.org][#102]] Auto-generate eq and to_str for structs

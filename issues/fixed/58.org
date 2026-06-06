@@ -1,6 +1,65 @@
 # priority: low
 # category: features
-** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
+** FIXED #58 First-class functions: Type hierarchy and FuncSig/FuncDef
+
+*** Post-mortem
+
+   Long-running feature rollout, not a bug fix -- closed once all the
+   rstil-parity items in the Progress section landed and the angle-
+   bracket sugar reached its canonical curried form.
+
+   What this issue actually shipped, end-to-end:
+
+   - The metatype hierarchy: ~Type.StructDef~, ~Type.EnumDef~,
+     ~Type.FuncDef~, ~Type.FuncPtr~ all round-trip through
+     ~dyn_type_to_str~ and are accepted in annotation position.
+   - ~: <Metatype> =~ explicit annotations and the matching inference
+     rules (~Point := struct { ... }~ infers StructDef, bodied
+     ~func~ infers FuncDef, bodyless infers FuncPtr).
+   - FuncSig form (~add : BinaryOp = (a, b) { ... }~) parses to the
+     same FuncDef as the FuncDef form.
+   - Collections of types -- ~Vec.new(BinaryOp)~, ~Vec.new(StructDef)~,
+     ~Vec.new(EnumDef)~, ~Vec.new(FuncDef)~ -- create + push + pull-and-
+     call via FuncSig-typed ref bindings, plus inline
+     ~cast(slot, BinaryOp)(args)~.
+   - ~func_sig_of~ / ~struct_def_of~ / ~enum_def_of~ introspection.
+   - Type-parameter macros (~Phase now~): ~macro(T: Type) returns
+     StructDef|EnumDef|FuncDef~ with inline instantiation hoisted into
+     deduped monomorphizations; namespace methods that name ~T~ and
+     ~Self~; value-param substitution; if-else macro bodies.
+   - Direct generic functions (~Phase now~):
+     ~func(T: Type, v: T) returns T~ monomorphized per type-arg tuple,
+     composing across generic callees, ~own~/~mut~ value-args carried
+     through, ASAN-clean.
+   - Angle-bracket sugar (~Phase later~):
+     ~func<T: Type>(v: T) returns T { body }~ is identical to
+     ~macro(T: Type) returns FuncDef { return func(v: T) returns T { body } }~,
+     mirroring how ~struct<T: Type> { ... }~ equals
+     ~macro(T: Type) returns StructDef { return struct { ... } }~
+     (TemplVec / #267). The shared parse_generic_params helper lives in
+     parser.til; wrap_func_def_in_macro is the sibling of
+     wrap_struct_def_in_macro; the SAME init_hoist_inline_macros +
+     init_expand_type_gen_macros pipeline drives both, so
+     ~gid(I64)(7)~ reads as ~gid__I64(7)~ exactly as
+     ~TemplVec(I64).new()~ reads as ~TemplVec__I64.new()~.
+
+   Regression tests: first_class.til has the full ~test_*~ family
+   covering the items above -- ~test_lambda_*~, ~test_funcsig_*~,
+   ~test_vec_funcsig_*~, ~test_explicit_funcdef_annotation~,
+   ~test_macro_struct_gen~, ~test_macro_enum_gen~, ~test_macro_func_*~,
+   ~test_cond_macro_*~, ~test_generic_func_*~ (including the curried
+   ~test_generic_func_angle_identity~ / ~test_generic_func_angle_swap~).
+   templ_vec.til exercises the StructDef analogue of the same pipeline.
+
+   Explicitly out of scope for #58 (deliberately, not "missing"):
+
+   - First-class ~Body~ values -- lives in #55.
+   - Generic-arg inference at the call site (~gid(7)~ deducing
+     ~T = I64~ from the value arg). Useful follow-up, but a separate
+     research-scale piece; deferred to its own future issue rather than
+     held inside #58.
+
+*** Original issue body
 
 :DEPENDENCIES: [[./14.org][#14]]
   Based on rstil/doc/first_class.org. Everything in til is a value —

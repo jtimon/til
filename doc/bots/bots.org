@@ -183,6 +183,18 @@ the merger decides whether to accept them.
   FIXED in the title line, and write a post-mortem at the top of the file
   (what the root cause was, what you changed to fix it, and the name of
   the regression test). Cancelled issues move to `issues/cancelled/`.
+- "The fix" means THE COMMIT THAT LANDS THE LAST MISSING PIECE. It does
+  not have to be a single-commit bug fix. A long-running feature issue
+  (#56, #57, #58, ...) is fixed by the commit that finishes the last
+  item from its plan -- THAT commit also does the
+  `git mv` + OPEN -> FIXED + post-mortem. Same commit. Not "later, in a
+  cleanup". Not "wait for the human to ask". If you think the next
+  commit might be the last one, it usually is -- close it. The Progress
+  section in the issue file is for tracking work in flight; once the
+  last [ ] becomes done, the file moves to fixed/ in the same commit
+  that flips it, with a post-mortem summarising the arc. The
+  bug-vs-feature distinction is not in this file and is not a reason
+  to defer the close.
 - `make test` regenerates `issues/summary.org`. Increment `issues/NEXT_ISSUE.txt` manually.
 - "Regen the issues summary" means rebuild `issues/summary.org` from the
   current `issues/open/*.org` set WITHOUT running the whole suite. Run the
