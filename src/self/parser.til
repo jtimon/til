@@ -415,15 +415,29 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     }
 
     // Issue #58: optional generic params `<T: Type, ...>` right after the
-    // func/proc keyword. `name := func<T: Type>(v: T) returns T { ... }`
-    // desugars (at the end of this function) into the type-gen macro form
-    // `name := macro(T: Type) returns FuncDef { return func(v: T) returns T { ... } }`,
-    // mirroring how `struct<T: Type> { ... }` desugars to a macro returning
-    // StructDef. Inline `name(I64)(7)` then works the same way as
-    // `TemplVec(I64).new()`: init_hoist_inline_macros lifts the inner
-    // `name(I64)` into a synthesized monomorphization decl, and the outer
-    // call dispatches to the concrete function. Shared `<...>` grammar with
-    // struct<T>/enum<T> via the parse_generic_params helper.
+    // func/proc keyword. This is PURE SUGAR for a type-gen macro -- the
+    // EXACT same trick struct<T: Type> uses, just returning FuncDef instead
+    // of StructDef. Concretely, this source:
+    //
+    //     gid := func<T: Type>(v: T) returns T { return v }
+    //
+    // is identical to writing the macro out by hand:
+    //
+    //     gid := macro(T: Type) returns FuncDef {
+    //         return func(v: T) returns T { return v }
+    //     }
+    //
+    // exactly as `TemplVec := struct<T: Type> { ... }` is identical to
+    // `TemplVec := macro(T: Type) returns StructDef { return struct { ... } }`.
+    // The wrap happens at the end of this function (wrap_func_def_in_macro,
+    // sibling of wrap_struct_def_in_macro). From there the SAME pipeline
+    // handles both: init_hoist_inline_macros lifts an inline call
+    // `gid(I64)` into a deduped decl `gid__I64 := gid(I64)` and
+    // init_expand_type_gen_macros runs the macro body, substituting T,
+    // leaving `gid__I64 := func(v: I64) returns I64 { return v }`. So the
+    // curried call `gid(I64)(7)` reads as `gid__I64(7)` -- the FuncDef
+    // analogue of `TemplVec(I64).new()` reading as `TemplVec__I64.new()`.
+    // Shared `<...>` grammar with struct<T>/enum<T> via parse_generic_params.
     mut fd := FunctionDef()
     fd.func_type = ft
     mut gparams := Vec.new(Declaration)
