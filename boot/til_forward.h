@@ -427,6 +427,7 @@ typedef struct EnumDef {
     Vec variants;
     Map payload_types;
     Vec payload_consts;
+    Str implements_name;
 } EnumDef;
 
 

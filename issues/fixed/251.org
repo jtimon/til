@@ -6,16 +6,22 @@
    fieldless StructDef), abstract-class member kinds (~ext_func~/~ext_proc~
    = abstract, ~func~/~proc~ = concrete default), the no-fields and
    no-~namespace:~ rules (typer-enforced), and ~struct implements Iface
-   { ... }~ conformance: the typer (interface_method_conforms /
-   infer_type_def_expr) verifies a conforming struct provides every abstract
-   method the interface lists, with a matching signature -- the interface's
-   own name is "Self" and substitutes to the implementing type.
+   { ... }~ / ~enum implements Iface { ... }~ conformance: the typer
+   (interface_method_conforms / infer_type_def_expr) verifies a conforming
+   struct or enum provides every abstract method the interface lists, with a
+   matching signature -- the interface's own name is "Self" and substitutes
+   to the implementing type. Structs and enums both carry methods in their
+   namespace, so the conformance check is shared; only where the interface
+   name is recorded (StructDef.implements_name / EnumDef.implements_name)
+   differs.
 
    Regression tests: test/interfaces.til (positive -- abstract ext_func
-   methods, a callable concrete default, and ~Circle implements Drawable~
-   with a callable provided method, on both backends); test/typer_errors.til
-   (interface field / namespace / bad-kind rejections, and the implements
-   missing-method / wrong-signature / not-an-interface rejections).
+   methods, a callable concrete default, ~Circle implements Drawable~ (a
+   struct) and ~Polygon implements Drawable~ (an enum), each with a callable
+   provided method, on both backends); test/typer_errors.til (interface
+   field / namespace / bad-kind rejections, and the implements missing-method
+   / wrong-signature / not-an-interface rejections for both structs and
+   enums).
 
    Out of scope, deferred to a future issue: dynamic dispatch / vtables and
    the *runtime* inheritance of concrete default methods -- i.e. an

@@ -356,6 +356,12 @@ EnumDef : StructDef = struct {
     // whose payload was declared `const Type`. Appended at the end of
     // the field list to minimise layout disturbance for til_boot.
     payload_consts := Vec.new(Bool)
+    // Issue #251: the interface name from `enum implements Iface { ... }`,
+    // empty when the enum implements nothing. Like StructDef.implements_name,
+    // the typer verifies the enum provides every abstract (ext_func/ext_proc)
+    // method of Iface with a matching signature. Enums carry methods in their
+    // namespace just as structs do, so conformance checks identically.
+    implements_name := ""
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len().eq(b.variants.len())

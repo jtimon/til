@@ -898,6 +898,15 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
 
     def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     ref edd : EnumDef = enumdef_of(def)
+
+    // Issue #251: `enum implements Iface { ... }` records the interface the
+    // enum conforms to; the typer verifies it provides every abstract method
+    // Iface lists, exactly as for `struct implements Iface`.
+    if check(p, TokenType.KwImplements) {
+        advance(p) // consume 'implements'
+        edd.implements_name = expect_text(p, TokenType.Ident)
+    }
+
     expect_token(p, TokenType.LBrace)
 
     saved_doc := p.pending_doc.clone()

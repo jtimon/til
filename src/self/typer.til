@@ -3101,48 +3101,53 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         }
     case:
     }
-    // Issue #251: `struct implements Iface` -- verify the struct provides
-    // every ABSTRACT (ext_func/ext_proc) method the interface lists, with a
-    // matching signature. Concrete defaults are inherited and not required.
-    // Reported as aggregatable type errors.
+    // Issue #251: `struct implements Iface` / `enum implements Iface` --
+    // verify the type provides every ABSTRACT (ext_func/ext_proc) method the
+    // interface lists, with a matching signature. Concrete defaults are
+    // inherited and not required. Structs and enums both carry methods in
+    // their namespace, so the check is identical; only where the interface
+    // name is recorded differs. Reported as aggregatable type errors.
+    mut impl_iface_name := ""
     switch expr.node_type {
     case NodeType.StructDef(impl_sdd):
-        if impl_sdd.implements_name.len().gt(0) {
-            ref impl_iface_name : Str = impl_sdd.implements_name
-            impl_self_name := ctx.current_type_name
-            ref iface_def : Expr = scope.get_struct(impl_iface_name)
-            mut is_iface := false
-            if iface_def.is_null().not() {
-                switch iface_def.node_type {
-                case NodeType.StructDef(iface_idd):
-                    if iface_idd.is_interface { is_iface = true }
+        impl_iface_name = impl_sdd.implements_name.clone()
+    case NodeType.EnumDef(impl_edd):
+        impl_iface_name = impl_edd.implements_name.clone()
+    case:
+    }
+    if impl_iface_name.len().gt(0) {
+        impl_self_name := ctx.current_type_name
+        ref iface_def : Expr = scope.get_struct(impl_iface_name)
+        mut is_iface := false
+        if iface_def.is_null().not() {
+            switch iface_def.node_type {
+            case NodeType.StructDef(iface_idd):
+                if iface_idd.is_interface { is_iface = true }
+            case:
+            }
+        }
+        if is_iface.not() {
+            expr.type_error("'".concat(impl_self_name).concat("' implements '").concat(impl_iface_name).concat("', which is not an interface"), ctx)
+        } else {
+            ref iface_members : Vec = def_ns_decls(iface_def)
+            for am : Declaration in iface_members {
+                if am.default_value.is_null() { continue }
+                switch am.default_value.node_type {
+                case NodeType.FuncDef(am_fd):
+                    if am_fd.auto_generated { continue }
+                    // Only abstract (ext_func/ext_proc) methods must be
+                    // provided; func/proc defaults are inherited.
+                    if am_fd.func_type.is(FuncType.ExtFunc).or(am_fd.func_type.is(FuncType.ExtProc)).not() { continue }
+                    ref impl_m : Declaration = find_ns_decl(expr, am.name)
+                    if impl_m.is_null() {
+                        expr.type_error("'".concat(impl_self_name).concat("' does not implement abstract method '").concat(am.name).concat("' required by interface '").concat(impl_iface_name).concat("'"), ctx)
+                    } else if interface_method_conforms(impl_iface_name, impl_self_name, am.default_value, impl_m.default_value).not() {
+                        impl_m.default_value.type_error("'".concat(impl_self_name).concat(".").concat(am.name).concat("' does not match the signature of '").concat(impl_iface_name).concat(".").concat(am.name).concat("' declared in the interface"), ctx)
+                    }
                 case:
                 }
             }
-            if is_iface.not() {
-                expr.type_error("'".concat(impl_self_name).concat("' implements '").concat(impl_iface_name).concat("', which is not an interface"), ctx)
-            } else {
-                ref iface_members : Vec = def_ns_decls(iface_def)
-                for am : Declaration in iface_members {
-                    if am.default_value.is_null() { continue }
-                    switch am.default_value.node_type {
-                    case NodeType.FuncDef(am_fd):
-                        if am_fd.auto_generated { continue }
-                        // Only abstract (ext_func/ext_proc) methods must be
-                        // provided; func/proc defaults are inherited.
-                        if am_fd.func_type.is(FuncType.ExtFunc).or(am_fd.func_type.is(FuncType.ExtProc)).not() { continue }
-                        ref impl_m : Declaration = find_ns_decl(expr, am.name)
-                        if impl_m.is_null() {
-                            expr.type_error("'".concat(impl_self_name).concat("' does not implement abstract method '").concat(am.name).concat("' required by interface '").concat(impl_iface_name).concat("'"), ctx)
-                        } else if interface_method_conforms(impl_iface_name, impl_self_name, am.default_value, impl_m.default_value).not() {
-                            impl_m.default_value.type_error("'".concat(impl_self_name).concat(".").concat(am.name).concat("' does not match the signature of '").concat(impl_iface_name).concat(".").concat(am.name).concat("' declared in the interface"), ctx)
-                        }
-                    case:
-                    }
-                }
-            }
         }
-    case:
     }
     // Type-check ns_decls (stored directly by parser, not via body).
     // Flip ctx.typing_namespace_member so infer_func_def_expr accepts

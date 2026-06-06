@@ -31,6 +31,17 @@ namespace:
     draw := func(_self: Circle) returns Str { return "circle" }
 }
 
+// An enum conforms to an interface exactly as a struct does: it carries
+// methods in its namespace, so it provides the abstract `draw` there and the
+// typer verifies it (Self-substitution maps `self: Drawable` to `self:
+// Polygon`).
+Polygon := enum implements Drawable {
+    Tri,
+    Quad,
+namespace:
+    draw := func(_self: Polygon) returns Str { return "polygon" }
+}
+
 // Usable as a parameter type ...
 collection_tag := func(_c: Collection) returns I64 {
     return 7
@@ -67,4 +78,10 @@ test_interface_concrete_default_method := test() {
 test_implements_conformance := test() {
     c := Circle(r = 2)
     assert_eq_str(__LOC__, c.draw(), "circle")
+}
+
+// A conforming enum compiles and its provided method is callable.
+test_enum_implements_conformance := test() {
+    p := Polygon.Tri
+    assert_eq_str(__LOC__, p.draw(), "polygon")
 }

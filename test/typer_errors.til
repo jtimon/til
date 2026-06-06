@@ -696,3 +696,25 @@ TErrConfNotIface := struct { y := 0 }
 TErrConfImplNonIface := struct implements TErrConfNotIface {
     z := 0
 }
+
+// #251: the same conformance rules apply to `enum implements Iface`. Enums
+// carry methods in their namespace, so the three failure modes mirror the
+// struct ones exactly.
+
+// missing abstract method: the enum names the interface but omits `must`.
+TErrConfEnumMissing := enum implements TErrConfIface {
+    A,
+    B,
+}
+
+// wrong signature: provides `must` but returns Str, not I64.
+TErrConfEnumBadSig := enum implements TErrConfIface {
+    A,
+namespace:
+    must := func(_self: TErrConfEnumBadSig) returns Str { return "" }
+}
+
+// implements a non-interface (a plain struct).
+TErrConfEnumImplNonIface := enum implements TErrConfNotIface {
+    A,
+}
