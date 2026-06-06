@@ -32,35 +32,6 @@ func __doc_init__(info_data: Str, docs_data: Str)
 func __doc_lookup__(blob: Str, name: Str) returns Str
 #+end_src
 
-* __til_has_doc__
-True iff the named declaration has a /// doc comment registered.
-
-#+begin_src til
-func __til_has_doc__(name: Str) returns shallow Bool
-#+end_src
-
-* __til_has_info__
-True iff the named declaration is registered with a kind/signature
-info string.
-
-#+begin_src til
-func __til_has_info__(name: Str) returns shallow Bool
-#+end_src
-
-* __til_get_doc__
-Get the registered /// doc comment for a declaration, or "" if none.
-
-#+begin_src til
-func __til_get_doc__(name: Str) returns Str
-#+end_src
-
-* __til_get_info__
-Get the registered info string for a declaration, or "" if not found.
-
-#+begin_src til
-func __til_get_info__(name: Str) returns Str
-#+end_src
-
 * help
 Print the doc comment and the kind/signature info for a top-level
 declaration or struct/enum member (`Type.method`). When both are

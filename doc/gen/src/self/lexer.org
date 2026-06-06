@@ -51,6 +51,8 @@ enum TokenType {
     KwStruct
     KwEnum
     KwNamespace
+    KwInterface
+    KwImplements
     KwFunc
     KwProc
     KwTest
@@ -58,6 +60,8 @@ enum TokenType {
     KwExtFunc
     KwExtProc
     KwExtStruct
+    KwLazyFunc
+    KwLazyProc
     KwReturns
     KwThrows
     KwIf
@@ -128,6 +132,8 @@ namespace:
     KwStruct
     KwEnum
     KwNamespace
+    KwInterface
+    KwImplements
     KwFunc
     KwProc
     KwTest
@@ -135,6 +141,8 @@ namespace:
     KwExtFunc
     KwExtProc
     KwExtStruct
+    KwLazyFunc
+    KwLazyProc
     KwReturns
     KwThrows
     KwIf
@@ -182,16 +190,6 @@ namespace:
 }
 #+end_src
 
-* is_digit
-#+begin_src til
-func is_digit(shallow c: I8) returns shallow Bool
-#+end_src
-
-* is_alpha
-#+begin_src til
-func is_alpha(shallow c: I8) returns shallow Bool
-#+end_src
-
 * is_alnum
 #+begin_src til
 func is_alnum(shallow c: I8) returns shallow Bool
@@ -200,11 +198,6 @@ func is_alnum(shallow c: I8) returns shallow Bool
 * tok_name
 #+begin_src til
 func tok_name(type: TokenType) returns Str
-#+end_src
-
-* lookup_two_char
-#+begin_src til
-func lookup_two_char(shallow c: I8, shallow c2: I8) returns shallow TokenType
 #+end_src
 
 * tokenize

@@ -54,10 +54,8 @@ enum Type {
     Dynamic
     Custom: Str
     Primitive: Primitive
+    FuncPtrSig: Str
 namespace:
-    /// Compare two Types. Named-payload variants (Struct/Enum/Custom)
-    /// compare equal regardless of variant if their name payloads match.
-    func eq(a: Type, b: Type) returns shallow Bool
     ext_func Unknown() returns Type
     ext_func None() returns Type
     ext_func Struct(own val: Str) returns Type
@@ -69,7 +67,9 @@ namespace:
     ext_func Dynamic() returns Type
     ext_func Custom(own val: Str) returns Type
     ext_func Primitive(own val: Primitive) returns Type
+    ext_func FuncPtrSig(own val: Str) returns Type
     func is(self: Type, other: Type) returns shallow Bool
+    func eq(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, shallow call_free: Bool)
     func to_str(self: Type) returns Str
     func clone(self: Type) returns Type
@@ -90,6 +90,11 @@ func til_type_name(t: Type) returns Str
 * is_primitive
 #+begin_src til
 func is_primitive(t: Type) returns shallow Bool
+#+end_src
+
+* is_funcptr
+#+begin_src til
+func is_funcptr(t: Type) returns shallow Bool
 #+end_src
 
 * is_aggregate
@@ -113,6 +118,8 @@ enum FuncType {
     Macro
     ExtFunc
     ExtProc
+    LazyFunc
+    LazyProc
 namespace:
     Func
     Proc
@@ -120,6 +127,8 @@ namespace:
     Macro
     ExtFunc
     ExtProc
+    LazyFunc
+    LazyProc
     func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
@@ -189,6 +198,7 @@ struct FunctionDef {
     mut return_own_type : OwnType
     mut auto_generated : Bool
     mut is_enum_variant_ctor : Bool
+    mut captures : Vec
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -219,6 +229,7 @@ struct FCallData {
     mut does_throw : Bool
     mut is_bang : Bool
     mut own_args : U64
+    mut swap_replace : Bool
     mut til_type : Type
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns shallow Bool
@@ -240,6 +251,9 @@ namespace:
     func to_str(self: LiteralNumData) returns Str
     func to_i64(self: LiteralNumData) returns shallow I64
     func to_u8(self: LiteralNumData) returns shallow U8
+    func to_i8(self: LiteralNumData) returns shallow I8
+    func to_i16(self: LiteralNumData) returns shallow I16
+    func to_u16(self: LiteralNumData) returns shallow U16
     func to_i32(self: LiteralNumData) returns shallow I32
     func to_u32(self: LiteralNumData) returns shallow U32
     func to_u64(self: LiteralNumData) returns shallow U64
@@ -332,6 +346,9 @@ struct StructDef {
     mut fields : Vec
     mut ns_decls : Vec
     mut c_tag : Str
+    mut is_interface : Bool
+    mut interface_ns_marker : Bool
+    mut implements_name : Str
 namespace:
     func eq(a: StructDef, b: StructDef) returns shallow Bool
     func to_str(_self: StructDef) returns Str
@@ -354,6 +371,7 @@ struct EnumDef {
     mut variants : Vec
     mut payload_types : Map
     mut payload_consts : Vec
+    mut implements_name : Str
 namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
     func to_str(_self: EnumDef) returns Str
@@ -418,6 +436,7 @@ struct AssignData {
     mut name : Str
     mut save_old_delete : Bool
     mut is_payload_alias : Bool
+    mut swap_replace : Bool
 namespace:
     func eq(a: AssignData, b: AssignData) returns shallow Bool
     func to_str(self: AssignData) returns Str
@@ -508,6 +527,27 @@ namespace:
 }
 #+end_src
 
+* CaptureBlockData
+Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
+block carrying an explicit capture list. The captures restrict which
+outer-scope locals the block body may reference -- a compile-time
+"insurance policy". Each capture is a Declaration (name + is_mut);
+the block stays inline at runtime, so the only effect is the typer's
+scope-restriction check. Child 0 is the Body.
+
+#+begin_src til
+struct CaptureBlockData {
+    mut captures : Vec
+namespace:
+    func eq(a: CaptureBlockData, b: CaptureBlockData) returns shallow Bool
+    func to_str(_self: CaptureBlockData) returns Str
+    func clone(self: CaptureBlockData) returns CaptureBlockData
+    func delete(own self: CaptureBlockData, shallow call_free: Bool)
+    func hash(self: CaptureBlockData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 * NodeType
 AST node kind. Each variant carries an optional payload (struct, string, bool).
 
@@ -538,6 +578,7 @@ enum NodeType {
     Throw
     Catch
     RestPattern
+    CaptureBlock: CaptureBlockData
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -571,6 +612,7 @@ namespace:
     ext_func Throw() returns NodeType
     ext_func Catch() returns NodeType
     ext_func RestPattern() returns NodeType
+    ext_func CaptureBlock(own val: CaptureBlockData) returns NodeType
     func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)

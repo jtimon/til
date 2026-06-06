@@ -27,7 +27,7 @@
 *** Neq
 *** Lt
 *** LtEq
-*** ... (52 more)
+*** ... (53 more)
 ** Token: StructDef
 *** const type := TokenType.Eof
 *** const start : USize = 0
@@ -94,11 +94,13 @@
 *** return_own_type := OwnType.Own
 *** auto_generated := false
 *** is_enum_variant_ctor := false
+*** captures := Vec.new(Declaration)
 ** FCallData: StructDef
 *** is_splat := false
 *** does_throw := false
 *** is_bang := false
 *** own_args : U64 = 0
+*** swap_replace := false
 *** til_type := Type.Unknown
 ** LiteralNumData: StructDef
 *** text := ""
@@ -114,11 +116,14 @@
 *** ns_decls := Vec.new(Declaration)
 *** c_tag := ""
 *** is_interface := false
+*** interface_ns_marker := false
+*** implements_name := ""
 ** EnumDef: StructDef
 *** ns_decls := Vec.new(Declaration)
 *** variants := Vec.new(Str)
 *** payload_types : Map = Map.new(I64, Str)
 *** payload_consts := Vec.new(Bool)
+*** implements_name := ""
 ** FieldLayout: StructDef
 *** offset : USize = 0
 *** size : USize = 0
@@ -130,6 +135,7 @@
 *** name := ""
 *** save_old_delete := false
 *** is_payload_alias := false
+*** swap_replace := false
 ** FieldAssignData: StructDef
 *** name := ""
 *** save_old_delete := false
@@ -229,12 +235,14 @@
 *** mode := Mode()
 *** path := ""
 *** path_modes := Map.new(Str, Mode)
+*** compile_mode := false
 *** imported := Map.new(Str, ImportUnit)
 *** imports_init_done := Set.new(Str)
 *** imports_typer_decls_done := Set.new(Str)
 *** imports_typer_bodies_done := Set.new(Str)
 *** imports_precomp_done := Set.new(Str)
 *** imports_eval_done := Set.new(Str)
+*** type_gen_synths := Set.new(Str)
 *** scope := TypeScope()
 *** is_repl := false
 *** struct_layouts := Map.new(Str, StructLayout)
@@ -251,9 +259,7 @@
 *** ns_inited := false
 *** typing_namespace_member := false
 *** local_fn_sigs := Map.new(Str, Dynamic)
-*** func_defs := Map.new(Str, Dynamic)
-*** struct_def_exprs := Map.new(Str, Dynamic)
-*** ... (46 more)
+*** ... (49 more)
 * targets
 ** Lang: EnumDef
 *** C

@@ -27,9 +27,9 @@ namespace:
     func neg(shallow a: I16) returns shallow I16
     /// Absolute value.
     func abs(shallow a: I16) returns shallow I16
-    ext_func and(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func or(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func xor(shallow a: I16, shallow b: I16) returns shallow I16
+    ext_func band(shallow a: I16, shallow b: I16) returns shallow I16
+    ext_func bor(shallow a: I16, shallow b: I16) returns shallow I16
+    ext_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
     ext_func clone(val: I16) returns shallow I16
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64

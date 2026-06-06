@@ -6,19 +6,9 @@
 ext_func system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
-* interp_error_path
-#+begin_src til
-func interp_error_path(ctx: Context) returns Str
-#+end_src
-
 * interp_error
 #+begin_src til
 proc interp_error(e: Expr, msg: Str, ctx: Context)
-#+end_src
-
-* interp_lang_error
-#+begin_src til
-proc interp_lang_error(e: Expr, msg: Str, ctx: Context)
 #+end_src
 
 * StructInstance
@@ -150,11 +140,6 @@ func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
 func val_none() returns shallow Value
 #+end_src
 
-* val_i64
-#+begin_src til
-func val_i64(shallow v: I64) returns shallow Value
-#+end_src
-
 * val_u8
 #+begin_src til
 func val_u8(shallow v: I64) returns shallow Value
@@ -185,21 +170,6 @@ func val_i32(shallow v: I64) returns shallow Value
 func val_u32(shallow v: I64) returns shallow Value
 #+end_src
 
-* val_u64
-#+begin_src til
-func val_u64(shallow v: U64) returns shallow Value
-#+end_src
-
-* val_f32
-#+begin_src til
-func val_f32(shallow v: F32) returns shallow Value
-#+end_src
-
-* val_bool
-#+begin_src til
-func val_bool(shallow v: Bool) returns shallow Value
-#+end_src
-
 * ENUM_PAYLOAD_OFFSET
 #+begin_src til
 ENUM_PAYLOAD_OFFSET is a U32
@@ -208,26 +178,6 @@ ENUM_PAYLOAD_OFFSET is a U32
 * val_enum_flat
 #+begin_src til
 func val_enum_flat(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: U32, shallow total_enum_size: U32) returns shallow Value
-#+end_src
-
-* val_enum_simple
-#+begin_src til
-func val_enum_simple(enum_name: Str, shallow etag: I32, shallow total_enum_size: U32) returns shallow Value
-#+end_src
-
-* elem_size_for_type
-#+begin_src til
-func elem_size_for_type(type_name: Str) returns shallow U32
-#+end_src
-
-* parse_cli_arg
-#+begin_src til
-func parse_cli_arg(s: Str, type_name: Str, ctx: Context) returns shallow Value
-#+end_src
-
-* value_ptr_view
-#+begin_src til
-func value_ptr_view(v: Value) returns ref Dynamic
 #+end_src
 
 * is_value_ptr
@@ -245,39 +195,9 @@ proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 func reinterpret_ptr_value(val: Value, type_name: Str, scope: Scope, ctx: Context) returns Value
 #+end_src
 
-* guard_own_param_skip
-#+begin_src til
-func guard_own_param_skip(scope: Scope, e: Expr, func_def: Expr) returns shallow Bool
-#+end_src
-
-* resolve_field_assign_base
-#+begin_src til
-func resolve_field_assign_base(scope: Scope, obj_expr: Expr) returns ref Dynamic
-#+end_src
-
-* resolve_field_assign_sdef
-#+begin_src til
-func resolve_field_assign_sdef(scope: Scope, obj_expr: Expr) returns ref Expr
-#+end_src
-
-* eval_body
-#+begin_src til
-proc eval_body(scope: Scope, body: Expr, mut ctx: Context)
-#+end_src
-
 * eval_call
 #+begin_src til
 proc eval_call(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
-#+end_src
-
-* free_value
-#+begin_src til
-func free_value(shallow v: Value)
-#+end_src
-
-* cleanup_value_payload
-#+begin_src til
-func cleanup_value_payload(shallow v: Value)
 #+end_src
 
 * free_value_full
@@ -285,34 +205,9 @@ func cleanup_value_payload(shallow v: Value)
 func free_value_full(shallow v: Value)
 #+end_src
 
-* needs_widen
-#+begin_src til
-func needs_widen(val: Value, ptype: Str) returns shallow Bool
-#+end_src
-
-* shallow_copy_value
-#+begin_src til
-func shallow_copy_value(v: Value) returns shallow Value
-#+end_src
-
-* borrow_value
-#+begin_src til
-func borrow_value(v: Value) returns shallow Value
-#+end_src
-
-* box_scalar_to_dynamic
-#+begin_src til
-func box_scalar_to_dynamic(mut call_scope: Scope, v: Value, shallow track_for_free: Bool) returns Value
-#+end_src
-
 * make_struct_value
 #+begin_src til
 func make_struct_value(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool, ctx: Context) returns shallow Value
-#+end_src
-
-* widen_numeric
-#+begin_src til
-func widen_numeric(v: Value, ptype: Str, ctx: Context) returns Value
 #+end_src
 
 * scope_get
@@ -325,59 +220,14 @@ func scope_get(mut s: Scope, name: Str) returns ref Cell
 func scope_new(parent: Scope) returns Scope
 #+end_src
 
-* scope_get_payload_alias
-#+begin_src til
-func scope_get_payload_alias(mut s: Scope, name: Str) returns Str
-#+end_src
-
-* interp_is_primitive_type_name
-#+begin_src til
-func interp_is_primitive_type_name(name: Str) returns shallow Bool
-#+end_src
-
-* scope_get_ref_primitive_ptr
-#+begin_src til
-func scope_get_ref_primitive_ptr(mut s: Scope, name: Str) returns ref Dynamic
-#+end_src
-
 * scope_set_owned
 #+begin_src til
 func scope_set_owned(mut s: Scope, name: Str, mut val: Value)
 #+end_src
 
-* scope_set_borrowed
-#+begin_src til
-func scope_set_borrowed(mut s: Scope, name: Str, cell: Cell)
-#+end_src
-
 * scope_free
 #+begin_src til
 func scope_free(own s: Scope)
-#+end_src
-
-* interp_fa_is_ns_inner
-#+begin_src til
-func interp_fa_is_ns_inner(scope: Scope, e: Expr, sname: Str) returns shallow Bool
-#+end_src
-
-* field_assign_dyn_move_src
-#+begin_src til
-func field_assign_dyn_move_src(mut scope: Scope, val_expr: Expr) returns ref Cell
-#+end_src
-
-* interp_fa_is_ns
-#+begin_src til
-func interp_fa_is_ns(scope: Scope, e: Expr) returns shallow Bool
-#+end_src
-
-* value_to_buf
-#+begin_src til
-func value_to_buf(dest: Dynamic, val: Value, type_name: Str)
-#+end_src
-
-* build_argv_array
-#+begin_src til
-func build_argv_array(argv: Vec, shallow offset: U32, shallow count: U32, elem_type: Str, ctx: Context) returns shallow Value
 #+end_src
 
 * populate_cached_aggregate_defs
@@ -393,11 +243,6 @@ proc interpreter_init_ns(mut ctx: Context, global: Scope, program: Expr)
 * ns_get
 #+begin_src til
 func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Value
-#+end_src
-
-* ns_set
-#+begin_src til
-func ns_set(sname: Str, fname: Str, shallow val: Value, mut ctx: Context)
 #+end_src
 
 * make_str_value
@@ -420,11 +265,6 @@ func make_str_value_own(data: Dynamic, shallow len: U32, ctx: Context) returns s
 func str_view(shallow v: Value) returns shallow Str
 #+end_src
 
-* find_field_decl
-#+begin_src til
-func find_field_decl(struct_def: Expr, fname: Str) returns ref Declaration
-#+end_src
-
 * ENUM_PAYLOAD_OFFSET
 #+begin_src til
 ENUM_PAYLOAD_OFFSET is a U32
@@ -433,31 +273,6 @@ ENUM_PAYLOAD_OFFSET is a U32
 * read_field
 #+begin_src til
 func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, ctx: Context) returns shallow Value
-#+end_src
-
-* write_field
-#+begin_src til
-func write_field(mut inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, shallow field_size: U32, val: Value, ctx: Context)
-#+end_src
-
-* interpret_register_defs
-#+begin_src til
-func interpret_register_defs(mut global: Scope, prog: Expr)
-#+end_src
-
-* interpret_register_aliases
-#+begin_src til
-func interpret_register_aliases(mut global: Scope, prog: Expr)
-#+end_src
-
-* interpret_copy_alias_ns
-#+begin_src til
-func interpret_copy_alias_ns(prog: Expr, global: Scope, ctx: Context)
-#+end_src
-
-* interpret
-#+begin_src til
-proc interpret(core_program: Expr, program: Expr, mode: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns shallow I32
 #+end_src
 
 * cmd_interpret

@@ -1,36 +1,6 @@
 #+TITLE: src/self/parser.til
 #+OPTIONS: toc:t
 
-* advance
-#+begin_src til
-func advance(mut p: priv___src_self_parser_til__Parser) returns ref Token
-#+end_src
-
-* check
-#+begin_src til
-func check(p: priv___src_self_parser_til__Parser, type: TokenType) returns shallow Bool
-#+end_src
-
-* expect_token
-#+begin_src til
-func expect_token(mut p: priv___src_self_parser_til__Parser, type: TokenType) returns ref Token
-#+end_src
-
-* expect_text
-#+begin_src til
-func expect_text(mut p: priv___src_self_parser_til__Parser, type: TokenType) returns Str
-#+end_src
-
-* peek_line
-#+begin_src til
-func peek_line(p: priv___src_self_parser_til__Parser) returns shallow U32
-#+end_src
-
-* peek_col
-#+begin_src til
-func peek_col(p: priv___src_self_parser_til__Parser) returns shallow U32
-#+end_src
-
 * builtin_type_table
 #+begin_src til
 builtin_type_table is a Map
@@ -54,61 +24,6 @@ func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, s
 * anon_struct_counter
 #+begin_src til
 anon_struct_counter is a I64
-#+end_src
-
-* parse_func_def
-#+begin_src til
-proc parse_func_def(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_struct_def
-#+begin_src til
-proc parse_struct_def(mut p: priv___src_self_parser_til__Parser, c_tag: Str) returns Expr
-#+end_src
-
-* parse_enum_def
-#+begin_src til
-proc parse_enum_def(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_call
-#+begin_src til
-proc parse_call(mut p: priv___src_self_parser_til__Parser, own callee: Expr, shallow call_line: U32, shallow call_col: U32) returns Expr
-#+end_src
-
-* make_binop_call
-#+begin_src til
-func make_binop_call(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, own rhs: Expr) returns Expr
-#+end_src
-
-* parse_primary
-#+begin_src til
-proc parse_primary(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_expression
-#+begin_src til
-proc parse_expression(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_statement_ident
-#+begin_src til
-proc parse_statement_ident(mut p: priv___src_self_parser_til__Parser, shallow is_mut: Bool, shallow own_type: OwnType) returns Expr
-#+end_src
-
-* drain_doc_comments
-#+begin_src til
-func drain_doc_comments(mut p: priv___src_self_parser_til__Parser)
-#+end_src
-
-* parse_switch
-#+begin_src til
-proc parse_switch(mut p: priv___src_self_parser_til__Parser) returns Expr
-#+end_src
-
-* parse_statement_body
-#+begin_src til
-proc parse_statement_body(mut p: priv___src_self_parser_til__Parser) returns Expr
 #+end_src
 
 * parse

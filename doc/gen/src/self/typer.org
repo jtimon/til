@@ -1,26 +1,6 @@
 #+TITLE: src/self/typer.til
 #+OPTIONS: toc:t
 
-* fa_is_ns
-#+begin_src til
-func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* type_binding_is_type_token
-#+begin_src til
-func type_binding_is_type_token(scope: TypeScope, b: TypeBinding) returns shallow Bool
-#+end_src
-
-* make_til_type_expr
-#+begin_src til
-func make_til_type_expr(src: Expr, t: Type) returns Expr
-#+end_src
-
-* rewrite_til_type_arg
-#+begin_src til
-proc rewrite_til_type_arg(scope: TypeScope, mut arg: Expr, ptype: Type, shallow in_func: I32, ctx: Context)
-#+end_src
-
 * fa_own_type
 #+begin_src til
 func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
@@ -76,19 +56,9 @@ F32Name is a Str
 BoolName is a Str
 #+end_src
 
-* free_expr_slot_in_place
-#+begin_src til
-func free_expr_slot_in_place(mut e: Expr)
-#+end_src
-
 * type_error
 #+begin_src til
 proc type_error(e: Expr, msg: Str, ctx: Context)
-#+end_src
-
-* type_error_at
-#+begin_src til
-proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx: Context)
 #+end_src
 
 * find_namespace_func
@@ -96,19 +66,9 @@ proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx
 func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr
 #+end_src
 
-* expr_is_comptime
-#+begin_src til
-func expr_is_comptime(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
 * find_ns_decl
 #+begin_src til
 func find_ns_decl(sdef: Expr, method: Str) returns ref Declaration
-#+end_src
-
-* try_ufcs_rewrite
-#+begin_src til
-func try_ufcs_rewrite(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns shallow Bool
 #+end_src
 
 * resolve_fn_sig
@@ -116,249 +76,14 @@ func try_ufcs_rewrite(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, me
 func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns ref Expr
 #+end_src
 
-* fdef_returns_unborrowable
-#+begin_src til
-func fdef_returns_unborrowable(fd: FunctionDef, scope: TypeScope) returns shallow Bool
-#+end_src
-
 * fcall_returns_own
 #+begin_src til
 func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
-* check_ref_decl_owned_init
-#+begin_src til
-proc check_ref_decl_owned_init(stmt: Expr, scope: TypeScope, ctx: Context)
-#+end_src
-
-* check_ref_field_owned_default
-#+begin_src til
-proc check_ref_field_owned_default(fd: Declaration, scope: TypeScope, ctx: Context)
-#+end_src
-
-* check_ref_assign_owned_rhs
-#+begin_src til
-proc check_ref_assign_owned_rhs(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope, ctx: Context)
-#+end_src
-
-* check_ref_local_null_init
-#+begin_src til
-proc check_ref_local_null_init(stmt: Expr, ctx: Context)
-#+end_src
-
-* infer_func_ptr_field_call
-#+begin_src til
-proc infer_func_ptr_field_call(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* is_clone_fcall
-#+begin_src til
-func is_clone_fcall(e: Expr) returns shallow Bool
-#+end_src
-
-* validate_fcall_own_args
-#+begin_src til
-proc validate_fcall_own_args(scope: TypeScope, e: Expr, callee_bind: TypeBinding, ctx: Context)
-#+end_src
-
-* infer_struct_constructor_fcall
-#+begin_src til
-proc infer_struct_constructor_fcall(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* infer_struct_constructor_fcall_impl
-#+begin_src til
-proc infer_struct_constructor_fcall_impl(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* desugar_user_func_fcall_args
-#+begin_src til
-proc desugar_user_func_fcall_args(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context)
-#+end_src
-
-* redundant_literal_conversion
-#+begin_src til
-func redundant_literal_conversion(e: Expr, expected: Type) returns shallow Bool
-#+end_src
-
-* redundant_conversion_error
-#+begin_src til
-proc redundant_conversion_error(at: Expr, expected: Type, ctx: Context)
-#+end_src
-
-* validate_fcall_arg
-#+begin_src til
-proc validate_fcall_arg(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context)
-#+end_src
-
-* infer_and_validate_fcall_args
-#+begin_src til
-proc infer_and_validate_fcall_args(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* resolve_fcall_return_type
-#+begin_src til
-proc resolve_fcall_return_type(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* is_self_conversion_method
-#+begin_src til
-func is_self_conversion_method(method: Str, type_name: Str) returns shallow Bool
-#+end_src
-
-* obj_method_type_name
-#+begin_src til
-func obj_method_type_name(obj: Expr) returns Str
-#+end_src
-
-* infer_field_access_fcall
-#+begin_src til
-proc infer_field_access_fcall(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* check_member_priv
-#+begin_src til
-proc check_member_priv(mut e: Expr, owner_name: Str, member_name: Str, shallow member_is_priv: Bool, ctx: Context)
-#+end_src
-
-* cast_int_size
-#+begin_src til
-func cast_int_size(t: Type) returns shallow I32
-#+end_src
-
-* cast_is_signed
-#+begin_src til
-func cast_is_signed(t: Type) returns shallow Bool
-#+end_src
-
-* cast_pair_ok
-#+begin_src til
-func cast_pair_ok(src: Type, target: Type) returns shallow Bool
-#+end_src
-
-* infer_cast_fcall
-#+begin_src til
-proc infer_cast_fcall(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* infer_funcptr_call_via_cast
-#+begin_src til
-proc infer_funcptr_call_via_cast(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* infer_fcall_expr
-#+begin_src til
-proc infer_fcall_expr(scope: TypeScope, mut e: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* infer_match_expr
-#+begin_src til
-proc infer_match_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* match_arm_value_type
-#+begin_src til
-proc match_arm_value_type(scope: TypeScope, case_node: Expr, subj: Expr, shallow in_func: I32, ctx: Context) returns Type
-#+end_src
-
-* stmt_contains_match
-#+begin_src til
-func stmt_contains_match(e: Expr) returns shallow Bool
-#+end_src
-
-* lower_matches_in_stmt
-#+begin_src til
-proc lower_matches_in_stmt(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context) returns shallow U32
-#+end_src
-
-* replace_matches_rec
-#+begin_src til
-proc replace_matches_rec(scope: TypeScope, mut node: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context, mut pre: Vec)
-#+end_src
-
-* lower_one_match
-#+begin_src til
-proc lower_one_match(scope: TypeScope, match_node: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context, mut pre: Vec) returns Str
-#+end_src
-
-* splice_stmts_before
-#+begin_src til
-func splice_stmts_before(mut body: Expr, shallow idx: U32, mut pre: Vec)
-#+end_src
-
-* infer_ident_expr
-#+begin_src til
-proc infer_ident_expr(scope: TypeScope, mut expr: Expr, ctx: Context)
-#+end_src
-
-* infer_named_arg_expr
-#+begin_src til
-proc infer_named_arg_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* infer_map_lit_expr
-#+begin_src til
-proc infer_map_lit_expr(scope: TypeScope, expr: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* infer_set_lit_expr
-#+begin_src til
-proc infer_set_lit_expr(scope: TypeScope, expr: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* infer_type_def_expr
-#+begin_src til
-proc infer_type_def_expr(scope: TypeScope, mut expr: Expr, ctx: Context)
-#+end_src
-
 * PTR_SIZE_BYTES
 #+begin_src til
 PTR_SIZE_BYTES is a U32
-#+end_src
-
-* is_shallow_struct
-#+begin_src til
-func is_shallow_struct(type_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
-#+end_src
-
-* is_auto_shallow_type
-#+begin_src til
-func is_auto_shallow_type(t: Type, type_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
-#+end_src
-
-* infer_func_sig_expr
-#+begin_src til
-func infer_func_sig_expr(scope: TypeScope, mut expr: Expr)
-#+end_src
-
-* check_ref_function_returns
-#+begin_src til
-proc check_ref_function_returns(func_scope: TypeScope, expr: Expr, ctx: Context)
-#+end_src
-
-* infer_func_def_expr
-#+begin_src til
-proc infer_func_def_expr(scope: TypeScope, mut expr: Expr, mut ctx: Context)
-#+end_src
-
-* check_unused_params
-#+begin_src til
-proc check_unused_params(func_scope: TypeScope, expr: Expr, ctx: Context)
-#+end_src
-
-* check_unused_mut_params
-#+begin_src til
-proc check_unused_mut_params(func_scope: TypeScope, expr: Expr, path: Str, ctx: Context)
-#+end_src
-
-* check_unused_locals
-#+begin_src til
-proc check_unused_locals(scope: TypeScope, path: Str, ctx: Context)
-#+end_src
-
-* check_unused_mut_locals
-#+begin_src til
-proc check_unused_mut_locals(scope: TypeScope, path: Str, ctx: Context)
 #+end_src
 
 * check_unused_priv_top_level
@@ -371,169 +96,9 @@ proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow
 proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
 #+end_src
 
-* narrow_return_literal
-#+begin_src til
-proc narrow_return_literal(scope: TypeScope, mut rv: Expr, ctx: Context)
-#+end_src
-
-* infer_return_stmt
-#+begin_src til
-proc infer_return_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context)
-#+end_src
-
-* infer_if_stmt
-#+begin_src til
-proc infer_if_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, ctx: Context)
-#+end_src
-
-* infer_field_access_expr
-#+begin_src til
-proc infer_field_access_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* mark_field_assign_root_written
-#+begin_src til
-func mark_field_assign_root_written(scope: TypeScope, obj: Expr)
-#+end_src
-
-* infer_field_assign_stmt
-#+begin_src til
-proc infer_field_assign_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* infer_while_stmt
-#+begin_src til
-proc infer_while_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32, ctx: Context)
-#+end_src
-
-* infer_decl_type_def
-#+begin_src til
-proc infer_decl_type_def(scope: TypeScope, mut stmt: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* infer_decl_func_def
-#+begin_src til
-proc infer_decl_func_def(scope: TypeScope, mut stmt: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* infer_decl_type_alias_passthrough
-#+begin_src til
-func infer_decl_type_alias_passthrough(scope: TypeScope, mut stmt: Expr) returns shallow Bool
-#+end_src
-
-* declared_type_for_decl
-#+begin_src til
-func declared_type_for_decl(scope: TypeScope, stmt: Expr, ctx: Context) returns Type
-#+end_src
-
-* pre_coerce_decl_numeric_literals
-#+begin_src til
-proc pre_coerce_decl_numeric_literals(mut expr: Expr, target: Type)
-#+end_src
-
-* infer_decl_typed_value
-#+begin_src til
-proc infer_decl_typed_value(scope: TypeScope, mut stmt: Expr, ctx: Context)
-#+end_src
-
-* infer_decl_untyped_value
-#+begin_src til
-proc infer_decl_untyped_value(mut stmt: Expr, ctx: Context)
-#+end_src
-
-* finalize_decl_binding
-#+begin_src til
-proc finalize_decl_binding(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32, ctx: Context)
-#+end_src
-
-* infer_decl_stmt
-#+begin_src til
-proc infer_decl_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_type_body: I32, ctx: Context)
-#+end_src
-
-* is_simple_lvalue_expr
-#+begin_src til
-func is_simple_lvalue_expr(e: Expr) returns shallow Bool
-#+end_src
-
-* make_switch_case_condition
-#+begin_src til
-func make_switch_case_condition(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
-#+end_src
-
-* replace_switch_stmt_with_block
-#+begin_src til
-func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, mut block: Expr)
-#+end_src
-
-* append_switch_else_if
-#+begin_src til
-proc append_switch_else_if(mut root_if: Expr, if_node: Expr)
-#+end_src
-
-* attach_switch_default_body
-#+begin_src til
-proc attach_switch_default_body(mut root_if: Expr, default_body: Expr)
-#+end_src
-
-* infer_switch_stmt
-#+begin_src til
-proc infer_switch_stmt(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context)
-#+end_src
-
-* replace_body_stmt_with_block
-#+begin_src til
-func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, mut block: Expr)
-#+end_src
-
-* make_for_in_range_while_body
-#+begin_src til
-func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr
-#+end_src
-
-* desugar_for_in_range_stmt
-#+begin_src til
-proc desugar_for_in_range_stmt(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* desugar_for_in_collection_stmt
-#+begin_src til
-proc desugar_for_in_collection_stmt(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32, ctx: Context) returns shallow Bool
-#+end_src
-
-* extend_throwing_func_sigs
-#+begin_src til
-proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
-#+end_src
-
-* process_throw_catch_in_func_body
-#+begin_src til
-proc process_throw_catch_in_func_body(mut ctx: Context, mut body: Expr, fdef_throws: Vec, return_type: Str, return_own_type: OwnType)
-#+end_src
-
 * is_compile_directive
 #+begin_src til
 func is_compile_directive(e: Expr) returns shallow Bool
-#+end_src
-
-* infer_body_stmt
-#+begin_src til
-proc infer_body_stmt(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
-#+end_src
-
-* reregister_scope_defs
-#+begin_src til
-func reregister_scope_defs(body: Expr, scope: TypeScope)
-#+end_src
-
-* infer_body
-#+begin_src til
-proc infer_body(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
-#+end_src
-
-* infer_body_unit
-#+begin_src til
-proc infer_body_unit(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
 #+end_src
 
 * normalize_scope_bindings
@@ -541,29 +106,9 @@ proc infer_body_unit(scope: TypeScope, mut body: Expr, shallow in_func: I32, sha
 func normalize_scope_bindings(scope: TypeScope)
 #+end_src
 
-* type_check_unit
-#+begin_src til
-proc type_check_unit(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns shallow I32
-#+end_src
-
 * type_file
 #+begin_src til
 proc type_file(path: Str, ctx: Context) returns shallow I32
-#+end_src
-
-* type_decls_file
-#+begin_src til
-proc type_decls_file(path: Str, ctx: Context) returns shallow I32
-#+end_src
-
-* type_bodies_file
-#+begin_src til
-proc type_bodies_file(path: Str, ctx: Context) returns shallow I32
-#+end_src
-
-* infer_assign_stmt
-#+begin_src til
-proc infer_assign_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
 * rhs_is_clone_fcall
@@ -571,89 +116,9 @@ proc infer_assign_stmt(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, c
 func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
 #+end_src
 
-* assign_target_is_func_local
-#+begin_src til
-func assign_target_is_func_local(mut scope: TypeScope, name: Str) returns shallow Bool
-#+end_src
-
-* is_numeric_type
-#+begin_src til
-func is_numeric_type(t: Type) returns shallow Bool
-#+end_src
-
-* is_integral_numeric_type
-#+begin_src til
-func is_integral_numeric_type(t: Type) returns shallow Bool
-#+end_src
-
-* type_ctor_consumes
-#+begin_src til
-func type_ctor_consumes(t: Type) returns shallow Bool
-#+end_src
-
-* is_usize_name
-#+begin_src til
-func is_usize_name(name: Str) returns shallow Bool
-#+end_src
-
-* is_uptr_name
-#+begin_src til
-func is_uptr_name(name: Str) returns shallow Bool
-#+end_src
-
-* can_implicit_usize_coerce
-#+begin_src til
-func can_implicit_usize_coerce(from: Type, to: Type, to_name: Str) returns shallow Bool
-#+end_src
-
-* literal_in_range
-#+begin_src til
-func literal_in_range(val_str: Str, target: Type) returns shallow Bool
-#+end_src
-
-* can_implicit_widen
-#+begin_src til
-func can_implicit_widen(from: Type, to: Type) returns shallow Bool
-#+end_src
-
-* type_from_name_at
-#+begin_src til
-proc type_from_name_at(name: Str, scope: TypeScope, mut e: Expr, ctx: Context) returns Type
-#+end_src
-
-* type_from_name
-#+begin_src til
-func type_from_name(name: Str, scope: TypeScope, ctx: Context) returns Type
-#+end_src
-
 * resolve_type_alias
 #+begin_src til
 func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
-#+end_src
-
-* usize_name
-#+begin_src til
-func usize_name(scope: TypeScope) returns Str
-#+end_src
-
-* usize_type
-#+begin_src til
-func usize_type(scope: TypeScope, ctx: Context) returns Type
-#+end_src
-
-* type_has_cmp
-#+begin_src til
-func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
-#+end_src
-
-* type_has_to_str
-#+begin_src til
-func type_has_to_str(scope: TypeScope, type_name: Str) returns shallow Bool
-#+end_src
-
-* expr_contains_fcall
-#+begin_src til
-func expr_contains_fcall(e: Expr) returns shallow Bool
 #+end_src
 
 * expr_uses_var
@@ -671,29 +136,9 @@ func expr_contains_decl(e: Expr, name: Str) returns shallow Bool
 func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
 #+end_src
 
-* find_kwargs_fcall
-#+begin_src til
-func find_kwargs_fcall(e: Expr, scope: TypeScope) returns ref Expr
-#+end_src
-
-* find_array_vec_fcall
-#+begin_src til
-func find_array_vec_fcall(e: Expr) returns ref Expr
-#+end_src
-
-* type_prefix
-#+begin_src til
-func type_prefix(t: Type) returns Str
-#+end_src
-
 * type_to_name
 #+begin_src til
 func type_to_name(t: Type) returns Str
-#+end_src
-
-* make_field_delete
-#+begin_src til
-func make_field_delete(field_assign: Expr, shallow field_own_type: OwnType) returns Expr
 #+end_src
 
 * make_delete_call
@@ -711,248 +156,13 @@ func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeSco
 func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
 #+end_src
 
-* make_clone_call
-#+begin_src til
-func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
-#+end_src
-
-* make_to_str_call
-#+begin_src til
-func make_to_str_call(type_name: Str, arg: Expr) returns Expr
-#+end_src
-
-* make_ns_call
-#+begin_src til
-func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
-#+end_src
-
-* sync_own_args_from_callee
-#+begin_src til
-func sync_own_args_from_callee(mut call: Expr, scope: TypeScope)
-#+end_src
-
-* build_kwargs_dynmap_decl
-#+begin_src til
-func build_kwargs_dynmap_decl(fcall: Expr, kw_name: Str) returns Expr
-#+end_src
-
-* build_kwargs_dynmap_set
-#+begin_src til
-func build_kwargs_dynmap_set(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr, ctx: Context) returns Expr
-#+end_src
-
-* build_variadic_array_decl
-#+begin_src til
-func build_variadic_array_decl(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32, ctx: Context) returns Expr
-#+end_src
-
-* build_variadic_array_set
-#+begin_src til
-func build_variadic_array_set(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32, ctx: Context) returns Expr
-#+end_src
-
-* build_builtin_vec_decl
-#+begin_src til
-func build_builtin_vec_decl(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, ctx: Context) returns Expr
-#+end_src
-
-* build_builtin_vec_push
-#+begin_src til
-func build_builtin_vec_push(fcall: Expr, scope: TypeScope, vec_name: Str, shallow j: U32) returns Expr
-#+end_src
-
-* rewrite_collection_fcall_to_ident
-#+begin_src til
-func rewrite_collection_fcall_to_ident(mut fcall: Expr, coll_name: Str, coll_type: Type)
-#+end_src
-
-* desugar_array_vec_fcall
-#+begin_src til
-func desugar_array_vec_fcall(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec, mut scope: TypeScope) returns shallow Bool
-#+end_src
-
-* desugar_array_vec_decl
-#+begin_src til
-func desugar_array_vec_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool
-#+end_src
-
-* desugar_set_literal_decl
-#+begin_src til
-proc desugar_set_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool
-#+end_src
-
-* desugar_map_literal_decl
-#+begin_src til
-proc desugar_map_literal_decl(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns shallow Bool
-#+end_src
-
-* process_call_desugars
-#+begin_src til
-func process_call_desugars(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_array_vec: Bool, shallow has_variadic: Bool, shallow has_kwargs: Bool)
-#+end_src
-
-* apply_hoist_to_stmt
-#+begin_src til
-proc apply_hoist_to_stmt(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope)
-#+end_src
-
-* apply_call_hoist_delete
-#+begin_src til
-proc apply_call_hoist_delete(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, shallow has_array_vec: Bool, shallow has_variadic: Bool, shallow has_kwargs: Bool, shallow do_hoist: Bool, shallow needs_delete: Bool)
-#+end_src
-
-* hoist_param_swap_assign
-#+begin_src til
-func hoist_param_swap_assign(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* fcall_variant_ctor_arg_is_own
-#+begin_src til
-func fcall_variant_ctor_arg_is_own(expr: Expr, shallow i: U32, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* is_enum_variant_ctor_with_payload
-#+begin_src til
-func is_enum_variant_ctor_with_payload(expr: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* hoist_expr
-#+begin_src til
-proc hoist_expr(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* hoist_decl_rhs
-#+begin_src til
-proc hoist_decl_rhs(mut ctx: Context, stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* hoist_if_cond
-#+begin_src til
-proc hoist_if_cond(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* hoist_return_expr
-#+begin_src til
-proc hoist_return_expr(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* hoist_assign_rhs
-#+begin_src til
-proc hoist_assign_rhs(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* hoist_field_assign_rhs
-#+begin_src til
-proc hoist_field_assign_rhs(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* hoist_stmt_fcall
-#+begin_src til
-proc hoist_stmt_fcall(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
-#+end_src
-
-* rewrite_variadic_fcall_args
-#+begin_src til
-func rewrite_variadic_fcall_args(mut fcall: Expr, va_name: Str, shallow vi: I32, shallow vc: U32)
-#+end_src
-
-* fcall_variadic_count_via_scope
-#+begin_src til
-func fcall_variadic_count_via_scope(fcall: Expr, scope: TypeScope) returns shallow U32
-#+end_src
-
-* fcall_callee_has_variadic_via_scope
-#+begin_src til
-func fcall_callee_has_variadic_via_scope(fcall: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* fcall_variadic_index_via_scope
-#+begin_src til
-func fcall_variadic_index_via_scope(fcall: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
-* fcall_kwargs_index_via_scope
-#+begin_src til
-func fcall_kwargs_index_via_scope(fcall: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
-* resolve_variadic_elem_type
-#+begin_src til
-func resolve_variadic_elem_type(fcall: Expr, scope: TypeScope) returns ref Str
-#+end_src
-
-* desugar_pure_splat_variadic_call
-#+begin_src til
-func desugar_pure_splat_variadic_call(mut fcall: Expr, shallow vi: I32, shallow vc: U32) returns shallow Bool
-#+end_src
-
-* rewrite_kwargs_fcall_args
-#+begin_src til
-func rewrite_kwargs_fcall_args(mut fcall: Expr, kw_name: Str, shallow ki: I32)
-#+end_src
-
-* check_own_args
-#+begin_src til
-func check_own_args(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool
-#+end_src
-
-* fcall_has_own_arg
-#+begin_src til
-func fcall_has_own_arg(fcall: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
-#+end_src
-
 * expr_transfers_own
 #+begin_src til
 func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
-* expr_is_borrow_source
-#+begin_src til
-func expr_is_borrow_source(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* expr_is_stable_field_base
-#+begin_src til
-func expr_is_stable_field_base(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* expr_is_ref_decl_source
-#+begin_src til
-func expr_is_ref_decl_source(e: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* field_assign_needs_delete
-#+begin_src til
-func field_assign_needs_delete(stmt: Expr, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* infer_literal_expr
-#+begin_src til
-func infer_literal_expr(mut expr: Expr)
-#+end_src
-
-* narrow_dynamic
-#+begin_src til
-func narrow_dynamic(mut expr: Expr, target: Type)
-#+end_src
-
-* fcall_returns_ref
-#+begin_src til
-func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
 * fcall_returns_shallow
 #+begin_src til
 func fcall_returns_shallow(fcall: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
-* hoist_to_temp
-#+begin_src til
-func hoist_to_temp(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: TypeScope, shallow is_own: Bool) returns Expr
-#+end_src
-
-* type_check
-#+begin_src til
-proc type_check(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32
 #+end_src
 

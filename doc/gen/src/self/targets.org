@@ -70,29 +70,9 @@ func target_uptr_name(target: Target) returns Str
 func target_usize_name(target: Target) returns Str
 #+end_src
 
-* default_lang_for_target
-#+begin_src til
-func default_lang_for_target(target: Target) returns Lang
-#+end_src
-
-* is_lang_supported_for_target
-#+begin_src til
-func is_lang_supported_for_target(lang: Lang, target: Target) returns shallow Bool
-#+end_src
-
-* validate_lang_for_target
-#+begin_src til
-func validate_lang_for_target(lang: Lang, target: Target)
-#+end_src
-
 * toolchain_command
 #+begin_src til
 func toolchain_command(target: Target, lang: Lang) returns Str
-#+end_src
-
-* target_prefix_args
-#+begin_src til
-func target_prefix_args(target: Target) returns Str
 #+end_src
 
 * toolchain_extra_args

@@ -6,24 +6,9 @@
 ext_func realpath_str(path: Str) returns Str
 #+end_src
 
-* display_path
-#+begin_src til
-func display_path(p: Str, cwd: Str) returns Str
-#+end_src
-
 * forward_header_path
 #+begin_src til
 func forward_header_path(path: Str) returns Str
-#+end_src
-
-* dir_of
-#+begin_src til
-func dir_of(abs: Str) returns Str
-#+end_src
-
-* resolve_link_path
-#+begin_src til
-func resolve_link_path(base_dir: Str, root_dir: Str, path: Str) returns Str
 #+end_src
 
 * ProgramUnit
@@ -38,21 +23,6 @@ namespace:
     func hash(self: ProgramUnit, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
-#+end_src
-
-* resolve_import_disps
-#+begin_src til
-func resolve_import_disps(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec
-#+end_src
-
-* extract_imports
-#+begin_src til
-func extract_imports(body: Expr, path: Str) returns Vec
-#+end_src
-
-* resolve_imports
-#+begin_src til
-proc resolve_imports(import_paths: Vec, base_dir: Str, mut resolved_set: Set, mut stack: Vec, mut units: Vec, lib_dir: Str, mut ctx: Context, default_mode: Str, cwd: Str) returns shallow I32
 #+end_src
 
 * LoadedProgram
@@ -79,49 +49,9 @@ namespace:
 }
 #+end_src
 
-* retarget_alias_binding
-#+begin_src til
-func retarget_alias_binding(mut scope: TypeScope, alias_name: Str, target_name: Str)
-#+end_src
-
 * retarget_loaded_aliases
 #+begin_src til
 func retarget_loaded_aliases(lp: LoadedProgram)
-#+end_src
-
-* precomp_imported
-#+begin_src til
-proc precomp_imported(mut lp: LoadedProgram)
-#+end_src
-
-* find_ns_decl_fdef_imported
-#+begin_src til
-func find_ns_decl_fdef_imported(ctx: Context, top: Map, name: Str) returns ref Expr
-#+end_src
-
-* scavenge_visited_imported
-#+begin_src til
-func scavenge_visited_imported(lp: LoadedProgram) returns Set
-#+end_src
-
-* validate_cli_main
-#+begin_src til
-func validate_cli_main(lp: LoadedProgram)
-#+end_src
-
-* scavenge_imported
-#+begin_src til
-proc scavenge_imported(mut lp: LoadedProgram)
-#+end_src
-
-* extract_link_info
-#+begin_src til
-func extract_link_info(mut lp: LoadedProgram)
-#+end_src
-
-* load_mode_file
-#+begin_src til
-proc load_mode_file(mut lp: LoadedProgram, path: Str, cwd: Str)
 #+end_src
 
 * load_program
@@ -129,89 +59,9 @@ proc load_mode_file(mut lp: LoadedProgram, path: Str, cwd: Str)
 proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec) returns LoadedProgram
 #+end_src
 
-* escape_doc_for_literal_str
-#+begin_src til
-func escape_doc_for_literal_str(raw: Str) returns Str
-#+end_src
-
-* func_kind
-#+begin_src til
-func func_kind(ft: FuncType) returns Str
-#+end_src
-
-* til_type_user
-#+begin_src til
-func til_type_user(t: Type) returns Str
-#+end_src
-
-* append_packed_entry
-#+begin_src til
-func append_packed_entry(mut packed: Str, name: Str, value: Str)
-#+end_src
-
-* append_qualifier_prefix
-#+begin_src til
-func append_qualifier_prefix(mut out: Str, d: Declaration, default_own: OwnType)
-#+end_src
-
-* append_fn_signature
-#+begin_src til
-func append_fn_signature(mut out: Str, fd: FunctionDef)
-#+end_src
-
-* append_doc_lines_indented
-#+begin_src til
-func append_doc_lines_indented(mut out: Str, doc: Str, indent: Str)
-#+end_src
-
-* append_field_indented
-#+begin_src til
-func append_field_indented(mut out: Str, d: Declaration)
-#+end_src
-
-* append_ns_method_indented
-#+begin_src til
-func append_ns_method_indented(mut out: Str, d: Declaration)
-#+end_src
-
-* format_var_info
-#+begin_src til
-func format_var_info(name: Str, dd: Declaration, scope: TypeScope) returns Str
-#+end_src
-
-* format_func_info
-#+begin_src til
-func format_func_info(name: Str, fd: FunctionDef) returns Str
-#+end_src
-
-* format_struct_info
-#+begin_src til
-func format_struct_info(name: Str, sdef: StructDef) returns Str
-#+end_src
-
-* format_enum_info
-#+begin_src til
-func format_enum_info(name: Str, edef: EnumDef) returns Str
-#+end_src
-
 * format_decl_info
 #+begin_src til
 func format_decl_info(stmt: Expr, scope: TypeScope) returns Str
-#+end_src
-
-* collect_member_method_packed
-#+begin_src til
-func collect_member_method_packed(type_name: Str, d: Declaration, mut info: Str, mut docs: Str)
-#+end_src
-
-* collect_struct_members_packed
-#+begin_src til
-func collect_struct_members_packed(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str)
-#+end_src
-
-* collect_enum_members_packed
-#+begin_src til
-func collect_enum_members_packed(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str)
 #+end_src
 
 * collect_decl_packed
@@ -222,11 +72,6 @@ func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: 
 * build_doc_init_line
 #+begin_src til
 func build_doc_init_line(packed_info: Str, packed_docs: Str) returns Str
-#+end_src
-
-* doc_init_src_line
-#+begin_src til
-func doc_init_src_line(core_ast: Expr, user_ast: Expr, scope: TypeScope) returns Str
 #+end_src
 
 * init_and_type_program

@@ -11,99 +11,14 @@ func precomp_clear_known(mut ctx: Context)
 func precomp_reset_state(mut ctx: Context)
 #+end_src
 
-* collect_assign_targets
+* side_effecting_names
 #+begin_src til
-proc collect_assign_targets(e: Expr, mut names: Set)
-#+end_src
-
-* precomp_has_macro
-#+begin_src til
-func precomp_has_macro(ctx: Context, name: Str) returns shallow Bool
-#+end_src
-
-* precomp_has_func
-#+begin_src til
-func precomp_has_func(ctx: Context, name: Str) returns shallow Bool
-#+end_src
-
-* is_side_effecting_name
-#+begin_src til
-func is_side_effecting_name(name: Str) returns shallow Bool
-#+end_src
-
-* value_to_expr
-#+begin_src til
-func value_to_expr(shallow val: Value, src: Expr, ctx: Context) returns Expr
-#+end_src
-
-* expr_to_value
-#+begin_src til
-func expr_to_value(e: Expr, ctx: Context) returns shallow Value
-#+end_src
-
-* is_known
-#+begin_src til
-func is_known(ctx: Context, e: Expr, mut out: Value) returns shallow Bool
-#+end_src
-
-* is_known_check
-#+begin_src til
-func is_known_check(ctx: Context, e: Expr) returns shallow Bool
-#+end_src
-
-* body_has_local
-#+begin_src til
-proc body_has_local(body: Expr, name: Str) returns shallow Bool
-#+end_src
-
-* func_uses_unknown_globals
-#+begin_src til
-proc func_uses_unknown_globals(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, shallow lenient: Bool, mut visiting: Set, ctx: Context) returns shallow Bool
-#+end_src
-
-* ns_lookup_flat
-#+begin_src til
-func ns_lookup_flat(name: Str, ctx: Context) returns shallow Dynamic
-#+end_src
-
-* fa_recv_type_name
-#+begin_src til
-func fa_recv_type_name(callee: Expr, ctx: Context) returns Str
-#+end_src
-
-* try_fast_fold_call
-#+begin_src til
-func try_fast_fold_call(scope: Scope, fcall: Expr, ctx: Context) returns Expr
-#+end_src
-
-* try_eval_call
-#+begin_src til
-proc try_eval_call(scope: Scope, fcall: Expr, shallow require_known: Bool, ctx: Context) returns Expr
-#+end_src
-
-* track_literal
-#+begin_src til
-func track_literal(scope: Scope, name: Str, rhs: Expr, ctx: Context)
-#+end_src
-
-* track_literal_known_only
-#+begin_src til
-func track_literal_known_only(name: Str, rhs: Expr, ctx: Context)
+side_effecting_names is a Map
 #+end_src
 
 * is_macro_call
 #+begin_src til
 func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* is_func_call
-#+begin_src til
-func is_func_call(e: Expr, ctx: Context) returns shallow Bool
-#+end_src
-
-* fold_subtree
-#+begin_src til
-proc fold_subtree(scope: Scope, mut e: Expr, ctx: Context)
 #+end_src
 
 * process_body

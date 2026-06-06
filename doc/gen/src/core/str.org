@@ -11,6 +11,11 @@ CAP_LIT is a U32
 CAP_VIEW is a U32
 #+end_src
 
+* CAP_STATIC
+#+begin_src til
+CAP_STATIC is a U32
+#+end_src
+
 * format
 Concatenate multiple strings into one.
 
@@ -90,10 +95,18 @@ namespace:
     func strip_suffix(self: Str, suffix: Str) returns Str
     /// Create a 1-byte Str from a U8 value.
     func from_byte(shallow byte: U8) returns Str
-    /// Parse the string as a base-10 signed integer. Panics on invalid input.
+    /// Parse the string as a signed integer. Accepts an optional leading
+    /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
+    /// Bare digit runs are base-10. Panics on invalid input.
     func to_i64(self: Str) returns shallow I64
     /// Parse as base-10 unsigned 8-bit integer.
     func to_u8(self: Str) returns shallow U8
+    /// Parse as base-10 signed 8-bit integer.
+    func to_i8(self: Str) returns shallow I8
+    /// Parse as base-10 signed 16-bit integer.
+    func to_i16(self: Str) returns shallow I16
+    /// Parse as base-10 unsigned 16-bit integer.
+    func to_u16(self: Str) returns shallow U16
     /// Parse as base-10 signed 32-bit integer.
     func to_i32(self: Str) returns shallow I32
     /// Parse as base-10 unsigned 32-bit integer.
@@ -105,6 +118,8 @@ namespace:
     /// Parse as a floating-point number. Backed by C strtof: handles
     /// decimal and scientific notation at full precision, so a value
     /// printed by F32.to_repr round-trips exactly back to the same F32.
+    /// '_' digit separators (issue #255) are stripped first since strtof
+    /// does not accept them.
     func to_f32(self: Str) returns shallow F32
     /// Split the string on `delim`, returning a Vec of Str clones.
     func split(self: Str, delim: Str) returns Vec
@@ -121,6 +136,11 @@ namespace:
 * join
 #+begin_src til
 func join(parts: Vec, sep: Str) returns Str
+#+end_src
+
+* digit_value
+#+begin_src til
+func digit_value(shallow ch: I8) returns shallow I64
 #+end_src
 
 * str_parse_f32

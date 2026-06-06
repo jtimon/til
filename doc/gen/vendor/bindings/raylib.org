@@ -22,9 +22,9 @@ struct Vector2 {
     mut x : F32
     mut y : F32
 namespace:
-    func clone(self: Vector2) returns Vector2
+    func clone(shallow self: Vector2) returns shallow Vector2
     func delete(own self: Vector2, shallow call_free: Bool)
-    func hash(self: Vector2, hasher: HashFn) returns shallow U64
+    func hash(shallow self: Vector2, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src

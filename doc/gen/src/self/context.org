@@ -50,11 +50,6 @@ namespace:
 }
 #+end_src
 
-* func_defs_lookup_one
-#+begin_src til
-func func_defs_lookup_one(m: Map, name: Str) returns ref Expr
-#+end_src
-
 * TypeScope
 #+begin_src til
 struct TypeScope {
@@ -110,12 +105,14 @@ struct Context {
     mut mode : Mode
     mut path : Str
     mut path_modes : Map
+    mut compile_mode : Bool
     mut imported : Map
     mut imports_init_done : Set
     mut imports_typer_decls_done : Set
     mut imports_typer_bodies_done : Set
     mut imports_precomp_done : Set
     mut imports_eval_done : Set
+    mut type_gen_synths : Set
     mut scope : TypeScope
     mut is_repl : Bool
     mut struct_layouts : Map
@@ -164,6 +161,7 @@ struct Context {
     mut ref_locals : Set
     mut ptr_locals : Set
     mut ref_dyn_locals : Set
+    mut swap_freed : Set
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
     ref mut cached_str_name : Str
@@ -222,6 +220,21 @@ func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow line
 func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool) returns Expr
 #+end_src
 
+* type_is_primitive
+#+begin_src til
+func type_is_primitive(t: Type, p: Primitive) returns shallow Bool
+#+end_src
+
+* is_type_metatype
+#+begin_src til
+func is_type_metatype(t: Type) returns shallow Bool
+#+end_src
+
+* funcptr_eq
+#+begin_src til
+func funcptr_eq(a: Type, b: Type) returns shallow Bool
+#+end_src
+
 * type_from_name_init
 #+begin_src til
 func type_from_name_init(name: Str, scope: TypeScope) returns Type
@@ -240,11 +253,6 @@ func field_inferred_type_name(fd: Declaration) returns Str
 * is_pod_type_for_clone
 #+begin_src til
 func is_pod_type_for_clone(type_name: Str, scope: TypeScope) returns shallow Bool
-#+end_src
-
-* is_decl_with_child
-#+begin_src til
-func is_decl_with_child(stmt: Expr) returns shallow Bool
 #+end_src
 
 * is_struct_or_enum
