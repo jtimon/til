@@ -1494,6 +1494,8 @@ void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map
 void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program);
 I32 init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
+void gen_implements_defaults_for_stmt(Expr * stmt, TypeScope * scope);
+void priv___src_self_initer_til__gen_substitute_self_type(Expr * fexpr, Str * from_name, Str * to_name);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 U32 count_ast_imports(Expr * body);
 I32 init_file(Str * path, Context * ctx);

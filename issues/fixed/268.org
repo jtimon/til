@@ -1,0 +1,51 @@
+# priority: medium
+# category: features
+** FIXED #268 Copy interface concrete-default methods into each implementer's namespace
+
+   FIXED. Follow-up to #251. A `struct/enum implements Iface` now gets each of
+   the interface's CONCRETE default methods (a ~func~/~proc~ WITH a body)
+   copied into its own namespace, so the method is callable directly on the
+   concrete type. There is NO inheritance chain (no Java-style ~extends~):
+   every implementer receives its own independent copy. Abstract methods
+   (~ext_func~/~ext_proc~, empty body) are not copied -- the type must supply
+   those itself, which the typer's conformance check already enforces.
+
+   Root mechanism: a new initer helper ~gen_implements_defaults_for_stmt~
+   (src/self/initer.til), called from ~init_declarations_global~ alongside the
+   other gen_* synthesis passes (clone/delete/...), after every type across
+   all files is registered in scope. For each concrete default the interface
+   declares, if the implementing type does not already define a method by that
+   name, it deep-clones the default's FuncDef Expr, rewrites the interface
+   Self type to the implementing type in the cloned signature
+   (~gen_substitute_self_type~: param types and return type), and pushes it
+   into the type's ns_decls. A method the type defines itself OVERRIDES the
+   default (the copy is skipped). Self-substitution on the signature is enough
+   for the common cases: a default body that calls ~self.draw()~ resolves to
+   the implementer's own method because the copied ~self~ param now has the
+   implementing type. (Body references to the interface type *name* are not
+   rewritten -- a known limitation, irrelevant to the return-literal and
+   call-self-method cases and revisitable if needed.)
+
+   Regression tests (test/interfaces.til, both backends): ~Drawable~ gains a
+   second default ~describe~ that calls ~self.draw()~;
+   test_struct_inherits_default / test_enum_inherits_default (the copied
+   ~label~ is callable on Circle and Polygon), test_default_calls_self_method
+   (~c.describe()~ -> "circle", ~p.describe()~ -> "polygon" via
+   Self-substitution), and test_default_override (~Labeled~ defines its own
+   ~label~ -> "custom" wins, while still inheriting ~describe~).
+
+   Out of scope, see #269: dynamic dispatch -- passing a concrete type where
+   the interface is expected and dispatching at runtime. This commit only
+   makes the defaults callable on the concrete types; it does not make
+   interface-typed values polymorphic.
+
+   --- Original issue below ---
+
+   When a type declares `struct implements Iface { ... }`, the interface's
+   concrete default methods (func/proc with bodies) should become callable on
+   the implementing type. Per the agreed design this is a pure compile-time
+   COPY into the type's namespace (one independent copy per implementer), not
+   inheritance: there is no `extends` chain and no shared method table. A
+   method the type defines itself overrides the interface default. The
+   interface's own name acts as Self in the copied method and is rewritten to
+   the implementing type.

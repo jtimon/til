@@ -16,10 +16,13 @@ Collection := interface {
     len := ext_func(self: Collection) returns USize {}
 }
 
-// Drawable: an abstract method plus a concrete default method.
+// Drawable: an abstract method plus two concrete defaults. `label` ignores
+// self; `describe` calls the abstract `self.draw()`, so once copied into an
+// implementer (#268) it dispatches to that implementer's own draw.
 Drawable := interface {
     draw := ext_func(self: Drawable) returns Str {}
     label := func(_self: Drawable) returns Str { return "shape" }
+    describe := func(self: Drawable) returns Str { return self.draw() }
 }
 
 // Circle conforms to Drawable: it provides the abstract `draw`. The typer
@@ -40,6 +43,16 @@ Polygon := enum implements Drawable {
     Quad,
 namespace:
     draw := func(_self: Polygon) returns Str { return "polygon" }
+}
+
+// Labeled provides the abstract `draw` AND defines its own `label`, which
+// overrides the interface default -- the copy must keep Labeled's version.
+// It does not define `describe`, so it still inherits that default.
+Labeled := struct implements Drawable {
+    n := 0
+namespace:
+    draw := func(_self: Labeled) returns Str { return "labeled" }
+    label := func(_self: Labeled) returns Str { return "custom" }
 }
 
 // Usable as a parameter type ...
@@ -84,4 +97,34 @@ test_implements_conformance := test() {
 test_enum_implements_conformance := test() {
     p := Polygon.Tri
     assert_eq_str(__LOC__, p.draw(), "polygon")
+}
+
+// #268: the interface's concrete default is copied into the implementer's
+// namespace, so it is callable directly on the concrete value -- for both a
+// struct and an enum.
+test_struct_inherits_default := test() {
+    c := Circle(r = 1)
+    assert_eq_str(__LOC__, c.label(), "shape")
+}
+
+test_enum_inherits_default := test() {
+    p := Polygon.Quad
+    assert_eq_str(__LOC__, p.label(), "shape")
+}
+
+// #268: a default that calls an abstract method (`self.draw()`) dispatches to
+// the implementer's own method, because Self was substituted on copy.
+test_default_calls_self_method := test() {
+    c := Circle(r = 1)
+    assert_eq_str(__LOC__, c.describe(), "circle")
+    p := Polygon.Tri
+    assert_eq_str(__LOC__, p.describe(), "polygon")
+}
+
+// #268: a type that defines its own copy of a default method overrides it;
+// methods it does not define are still inherited.
+test_default_override := test() {
+    l := Labeled(n = 1)
+    assert_eq_str(__LOC__, l.label(), "custom")
+    assert_eq_str(__LOC__, l.describe(), "labeled")
 }

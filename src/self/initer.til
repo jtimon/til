@@ -3009,6 +3009,93 @@ init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: 
     return errors
 }
 
+// Issue #268: `struct/enum implements Iface` copies each of the interface's
+// CONCRETE default methods (a func/proc WITH a body) into the implementing
+// type's own namespace, so the type can call them as its own. There is no
+// inheritance chain -- every implementer gets its own copy. Abstract methods
+// (ext_func/ext_proc, empty body) are NOT copied; the type must supply those
+// itself, which the typer's conformance check already enforces. A method the
+// type already defines OVERRIDES the default and is left untouched. The
+// interface's own name acts as Self in the copied signature and is rewritten
+// to the implementing type (so `self: Drawable` becomes `self: Circle`),
+// which is why a default body that calls `self.draw()` resolves to the
+// implementer's own method. Mirrors the other gen_* synthesis helpers.
+gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    mut impl_name := ""
+    switch stmt.node_type {
+    case NodeType.Decl(idecl):
+        impl_name = idecl.name.clone()
+    case:
+        return
+    }
+    ref tdef : Expr = stmt.child(0)
+    mut iface_name := ""
+    switch tdef.node_type {
+    case NodeType.StructDef(sdd_n):
+        iface_name = sdd_n.implements_name.clone()
+    case NodeType.EnumDef(edd_n):
+        iface_name = edd_n.implements_name.clone()
+    case:
+        return
+    }
+    if iface_name.len().eq(0) { return }
+    ref iface_def : Expr = scope.get_struct(iface_name)
+    if iface_def.is_null() { return }
+    // Only copy from an actual interface; the typer reports the non-interface
+    // / unknown-name cases as conformance errors.
+    mut is_iface := false
+    switch iface_def.node_type {
+    case NodeType.StructDef(idd):
+        if idd.is_interface { is_iface = true }
+    case:
+    }
+    if is_iface.not() { return }
+
+    ref iface_ns : Vec = def_ns_decls(iface_def)
+    for am : Declaration in iface_ns {
+        if am.default_value.is_null() { continue }
+        // A concrete default is a func/proc WITH a body, not abstract and not
+        // an auto-generated helper (clone/delete/...).
+        mut is_default := false
+        switch am.default_value.node_type {
+        case NodeType.FuncDef(am_fd):
+            if am_fd.auto_generated.not().and(am_fd.func_type.is(FuncType.Func).or(am_fd.func_type.is(FuncType.Proc))) {
+                is_default = true
+            }
+        case:
+        }
+        if is_default.not() { continue }
+        // Override: the implementing type already provides this method.
+        if find_ns_decl(tdef, am.name).is_null().not() { continue }
+        mut copy := am.default_value.clone()
+        gen_substitute_self_type(copy, iface_name, impl_name)
+        switch tdef.node_type {
+        case NodeType.StructDef(sdd):
+            sdd.ns_decls.push(own Declaration(name = am.name.clone(), default_value = copy))
+        case NodeType.EnumDef(edd):
+            edd.ns_decls.push(own Declaration(name = am.name.clone(), default_value = copy))
+        case:
+        }
+    }
+}
+
+// Rewrite the interface Self type to the implementing type in a copied
+// default method's signature: any param whose declared type is the interface
+// name, and a return type equal to it, become the implementing type. Body
+// references resolve through the (now-substituted) `self` param, so only the
+// signature needs touching for the common cases.
+priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: Str) {
+    switch fexpr.node_type {
+    case NodeType.FuncDef(fd):
+        for mut pd : Declaration in fd.params {
+            if pd.explicit_type.eq(from_name) { pd.explicit_type = to_name.clone() }
+        }
+        if fd.return_type.eq(from_name) { fd.return_type = to_name.clone() }
+    case:
+    }
+}
+
 // Run the global init steps that require a full program view.
 init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) returns I32 {
     errors : I32 = 0
@@ -3044,9 +3131,11 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // typer's first sweep) as part of #147 step 3-4 / #174 work.
     for si : U32 in struct_idxs {
         gen_struct_clone_delete_for_stmt(program.child(si), scope, ctx)
+        gen_implements_defaults_for_stmt(program.child(si), scope)
     }
     for ei : U32 in enum_idxs {
         gen_missing_enum_clone_for_stmt(program.child(ei), scope)
+        gen_implements_defaults_for_stmt(program.child(ei), scope)
     }
     // Re-register function/value decls -- new ones may have been generated
     // above (size methods etc) but those go into ns_decls, not program.children.
