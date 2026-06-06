@@ -1,0 +1,13 @@
+mode lib
+
+import("templ_cross_base")
+
+cross_a_box := func() returns CrossBox(I64) {
+    return CrossBox(I64).new(own 11)
+}
+
+cross_a_value := func() returns I64 {
+    b := CrossBox(I64).new(own 12)
+    ref v : I64 = b.get()
+    return v.clone()
+}

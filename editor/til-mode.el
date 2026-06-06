@@ -41,7 +41,7 @@
     "format" "to_str" "to_i64" "to_u8"
     "len" "size_of"
     "malloc" "memcpy" "memset" "free"
-    "print" "println" "readfile" "runfile" "exit" "import" "loc"
+    "print" "println" "readfile" "runfile" "exit" "import" "LOC"
     "assert" "assertm" "assert_eq" "assert_eq_str"
     "input_read_line" "eval_to_str"
     ;; Implemented modes

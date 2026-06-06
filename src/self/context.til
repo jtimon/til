@@ -289,6 +289,12 @@ Context := struct {
     imports_precomp_done := Set.new(Str)
     imports_eval_done := Set.new(Str)
 
+    // Issue #267: deterministic type-gen macro instantiations such as
+    // `TemplVec__Bool` are shared across all initialized units. The first
+    // unit that sees an inline `TemplVec(Bool)` owns the synthesized decl;
+    // later units rewrite to the same name without emitting another type.
+    type_gen_synths := Set.new(Str)
+
     scope := TypeScope()
     is_repl := false
 
