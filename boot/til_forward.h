@@ -1353,6 +1353,7 @@ Str * priv___src_self_parser_til__parse_type_ref(priv___src_self_parser_til__Par
 Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til__Parser * p, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parser * p);
 Vec * priv___src_self_parser_til__parse_capture_list(priv___src_self_parser_til__Parser * p, Bool allow_modes);
+Vec * parse_generic_params(priv___src_self_parser_til__Parser * p);
 Expr * parse_func_def(priv___src_self_parser_til__Parser * p);
 Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_til__Parser * p, Bool member_priv);
 StructDef * priv___src_self_parser_til__structdef_of(Expr * def);

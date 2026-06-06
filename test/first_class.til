@@ -840,3 +840,26 @@ test_generic_func_swap := test() {
     assert_eq(__LOC__, x, 7)
     assert_eq(__LOC__, y, 3)
 }
+
+// `func<T: Type>(...)` angle-bracket sugar (parser-level): desugars to
+// the leading-Type-param form above by prepending each `<...>` entry to
+// the regular param list. Reuses the same parse_generic_params helper as
+// struct<T>/enum<T>. Caller still passes the type-arg inline -- the
+// monomorphizer is unchanged.
+gid_angle := func<T: Type>(v: T) returns T { return v }
+gswap_angle := func<T: Type>(mut a: T, mut b: T) {
+    t := a
+    a = b
+    b = t
+}
+
+test_generic_func_angle_identity := test() {
+    assert_eq(__LOC__, gid_angle(I64, 7), 7)
+}
+test_generic_func_angle_swap := test() {
+    mut x := 1
+    mut y := 2
+    gswap_angle(I64, x, y)
+    assert_eq(__LOC__, x, 2)
+    assert_eq(__LOC__, y, 1)
+}

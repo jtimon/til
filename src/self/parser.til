@@ -368,6 +368,34 @@ priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec {
     return caps
 }
 
+// Issue #267 / #58: parse an optional `<T: Type, ...>` generic-parameter
+// list. Shared by struct<T>/enum<T> type templates (parse_struct_def /
+// parse_enum_def) and func<T> generic functions (parse_func_def). Returns
+// the collected Declarations (own_type Ref, explicit_type "Type" unless a
+// `: <Type>` annotation narrows it); an empty Vec when the next token is
+// not `<`. Each generic param defaults to `: Type` when the colon is
+// omitted, so `<T>` means `<T: Type>`.
+parse_generic_params := proc(mut p: Parser) returns Vec {
+    mut gparams := Vec.new(Declaration)
+    if check(p, TokenType.Lt).not() { return gparams }
+    advance(p) // consume '<'
+    while check(p, TokenType.Gt).not().and(check(p, TokenType.Eof).not()) {
+        gpname := expect_text(p, TokenType.Ident)
+        mut gp := Declaration(is_mut = false, own_type = OwnType.Ref)
+        gp.name = gpname.clone()
+        if check(p, TokenType.Colon) {
+            advance(p)
+            set_decl_type(gp, parse_type_ref(p))
+        } else {
+            set_decl_type(gp, "Type")
+        }
+        gparams.push(own gp)
+        if check(p, TokenType.Comma) { advance(p) }
+    }
+    expect_token(p, TokenType.Gt)
+    return gparams
+}
+
 // parse_func_def: current token is func/proc/etc keyword
 parse_func_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
@@ -386,10 +414,22 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     case: panic(__LOC__, "expected function keyword")
     }
 
-    expect_token(p, TokenType.LParen)
-
+    // Issue #58: optional generic params `<T: Type, ...>` right after the
+    // func/proc keyword. `name := func<T: Type>(v: T) returns T { ... }`
+    // desugars to `name := func(T: Type, v: T) returns T { ... }` -- the
+    // angle-bracket params are prepended as leading `Type` params, and
+    // init_expand_generic_funcs monomorphizes the calls (`name(I64, 42)`).
+    // Same `<...>` grammar as struct<T> via the shared helper.
     mut fd := FunctionDef()
     fd.func_type = ft
+    if check(p, TokenType.Lt) {
+        gparams := parse_generic_params(p)
+        for gp : Declaration in gparams {
+            fd.params.push(own gp.clone())
+        }
+    }
+
+    expect_token(p, TokenType.LParen)
 
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut own_type := OwnType.Ref
@@ -694,26 +734,13 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 
     // Issue #267 (caveat 1): optional generic params `<T: Type, ...>` right
     // after `struct`. When present, the whole def is wrapped into a
-    // type-gen macro (see wrap_struct_def_in_macro) at the end.
+    // type-gen macro (see wrap_struct_def_in_macro) at the end. Uses the
+    // shared parse_generic_params helper (also used by func<T>).
     mut gparams := Vec.new(Declaration)
     mut is_generic := false
     if is_ext.not().and(check(p, TokenType.Lt)) {
         is_generic = true
-        advance(p) // consume '<'
-        while check(p, TokenType.Gt).not().and(check(p, TokenType.Eof).not()) {
-            gpname := expect_text(p, TokenType.Ident)
-            mut gp := Declaration(is_mut = false, own_type = OwnType.Ref)
-            gp.name = gpname.clone()
-            if check(p, TokenType.Colon) {
-                advance(p)
-                set_decl_type(gp, parse_type_ref(p))
-            } else {
-                set_decl_type(gp, "Type")
-            }
-            gparams.push(own gp)
-            if check(p, TokenType.Comma) { advance(p) }
-        }
-        expect_token(p, TokenType.Gt)
+        gparams = parse_generic_params(p)
     }
 
     // Issue #251: `struct implements Iface { ... }` records the interface
