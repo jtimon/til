@@ -1593,7 +1593,6 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs
                             new_decl.add_child(own def)
                             new_ch.push(own new_decl)
                         }
-                        Vec.delete(own exp_symbols, false)
                     }
                 }
             }
