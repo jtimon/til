@@ -605,6 +605,16 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
     ref callee : Expr = fcall.child(0)
     switch callee.node_type {
     case NodeType.Ident(ident):
+        // Issue #54: a direct call to a capturing-closure local follows the
+        // closure's own return mode.
+        if ctx.closure_local_sigs.has(ident.ident_name()) {
+            ref cscell : Dynamic = ctx.closure_local_sigs[ident.ident_name()]
+            ref csig : Expr = deref(cscell)
+            switch csig.node_type {
+            case NodeType.FuncDef(csfd): return csfd.return_own_type.is(OwnType.Shallow)
+            case:
+            }
+        }
         if callee_returns_shallow(ident.ident_name(), ctx) { return true }
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee.child(0).expr_til_type())
@@ -1317,7 +1327,32 @@ emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         else { f.write(ct); f.write(dd.name); f.write(" = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
     } else if rhs.node_type.is(NodeType.FuncDef) {
-        f.write("/* TODO: nested func "); f.write(dd.name); f.write(" */\n")
+        // Issue #54: a capturing closure assigned to a local. Build the
+        // by-reference environment + tagged _Clos value on the stack.
+        mut handled_closure := false
+        switch rhs.node_type {
+        case NodeType.FuncDef(rfd):
+            if rfd.captures.len().gt(0).and(rfd.closure_id.gte(0)) {
+                cid := rfd.closure_id
+                f.write("_ClosEnv_"); emit_i32(f, cid); f.write(" _cenv_"); f.write(dd.name); f.write(" = { ")
+                for cap : Declaration in rfd.captures { f.write("&"); f.write(cap.name); f.write(", ") }
+                f.write("};\n")
+                emit_indent(f, depth); f.write("_Clos _cobj_"); f.write(dd.name)
+                f.write(" = { (void *)_closfn_"); emit_i32(f, cid); f.write(", &_cenv_"); f.write(dd.name); f.write(" };\n")
+                emit_indent(f, depth); f.write("void *"); f.write(dd.name); f.write(" = _TIL_TAG(&_cobj_"); f.write(dd.name); f.write(");\n")
+                emit_indent(f, depth); f.write("(void)"); f.write(dd.name); f.write(";\n")
+                // Record so direct calls `name(args)` dispatch through the tag.
+                cl_sig_buf : Dynamic = malloc(I64.size().cast(U64))
+                write_ptr(cl_sig_buf, rhs)
+                ref mut clm : Map = ctx.closure_local_sigs
+                clm.set(own dd.name.clone(), own cl_sig_buf)
+                handled_closure = true
+            }
+        case:
+        }
+        if handled_closure.not() {
+            f.write("/* TODO: nested func "); f.write(dd.name); f.write(" */\n")
+        }
     } else if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
         f.write("/* ")
         if rhs.node_type.is(NodeType.EnumDef) { f.write("enum") } else { f.write("struct") }
@@ -1758,6 +1793,14 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     case NodeType.Decl:
         emit_stmt_decl(f, e, depth, ctx)
     case NodeType.Assign(ad):
+        // Issue #54: assignment to a captured (mut) name inside a closure
+        // body writes through the by-reference environment.
+        if ctx.in_closure_body.and(ctx.closure_cap_names.has(ad.name)) {
+            f.write("*__e->"); f.write(ad.name); f.write(" = ")
+            emit_expr(f, e.child(0), depth, ctx)
+            f.write(";\n")
+            return
+        }
         aname := ad.name
         ref rhs : Expr = e.child(0)
         if is_ref_local(aname, ctx) {
@@ -2130,7 +2173,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     }
 }
 
-emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
+emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr, with_env: Bool) {
     switch sig.node_type {
     case NodeType.FuncDef(sfd):
         ret_shallow := sfd.return_own_type.is(OwnType.Shallow)
@@ -2149,6 +2192,11 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
         f.write("((")
         f.write(ret_c)
         f.write(" (*)(")
+        // Issue #54: closure-branch casts take a leading `void *` env param.
+        if with_env {
+            f.write("void *")
+            if e.children.len().gt(1) { f.write(", ") }
+        }
         for i in 1..e.children.len() {
             if i.gt(1) { f.write(", ") }
             ref arg : Expr = e.child(i)
@@ -2168,7 +2216,7 @@ emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
             }
             f.write(arg_c)
         }
-        if e.children.len().eq(1) { f.write("void") }
+        if e.children.len().eq(1).and(with_env.not()) { f.write("void") }
     case:
         UNREACHABLE(__LOC__)
     }
@@ -2256,7 +2304,11 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
     case NodeType.Literal(Literal.Null):
         f.write("NULL")
     case NodeType.Ident(ident):
-        if e.expr_til_type().is_funcptr() {
+        // Issue #54: inside a compiled closure body, a captured name reads
+        // through the by-reference environment: `name` -> `(*__e->name)`.
+        if ctx.in_closure_body.and(ctx.closure_cap_names.has(ident.ident_name())) {
+            f.write("(*__e->"); f.write(ident.ident_name()); f.write(")")
+        } else if e.expr_til_type().is_funcptr() {
             f.write("(void *)")
             fc := func_to_c(ident.ident_name())
             f.write(fc)
@@ -2275,7 +2327,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
             if callee.expr_til_type().is_funcptr() {
                 ref sig_cc : Expr = fcall_fn_sig(e, ctx)
                 if is_null(sig_cc).not() {
-                    emit_fcall_funcptr_cast(f, e, sig_cc)
+                    emit_fcall_funcptr_cast(f, e, sig_cc, false)
                     f.write("))(void *)(")
                     emit_expr(f, callee, depth, ctx)
                     f.write("))(")
@@ -2290,7 +2342,7 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
             if callee.expr_til_type().is_funcptr() {
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 if sig.is_null().not() {
-                    emit_fcall_funcptr_cast(f, e, sig)
+                    emit_fcall_funcptr_cast(f, e, sig, false)
                     f.write("))(void *)(")
                     emit_expr(f, callee, depth, ctx)
                     f.write("))(")
@@ -2465,21 +2517,56 @@ emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns re
                 f.write(" _sc")
                 emit_i32(f, id)
                 f.write("; })")
+            } else if ctx.closure_local_sigs.has(name.ident_name()) {
+                // Issue #54: direct call to a capturing-closure local. The
+                // value is always a tagged closure, so call fn(env, args).
+                nm := name.ident_name()
+                ref cl_scell : Dynamic = ctx.closure_local_sigs[nm]
+                ref cl_sig : Expr = deref(cl_scell)
+                emit_fcall_funcptr_cast(f, e, cl_sig, true)
+                f.write("))_TIL_UNTAG("); f.write(nm); f.write(")->fn)(_TIL_UNTAG("); f.write(nm); f.write(")->env")
+                if e.children.len().gt(1) {
+                    f.write(", ")
+                    emit_fcall_funcptr_args(f, e, cl_sig, depth, ctx)
+                }
+                f.write(")")
             } else if callee.expr_til_type().is_funcptr() {
-                // Indirect call through function pointer variable
+                // Indirect call through a function-pointer value. Issue #54:
+                // the value may be a plain function or a tagged closure, so
+                // dispatch on the tag: closure -> call fn(env, args); plain
+                // -> call directly (exactly as before). Non-closure programs
+                // only ever take the plain branch.
                 ref sig : Expr = fcall_fn_sig(e, ctx)
-                emit_fcall_funcptr_cast(f, e, sig)
-                if is_ref_local(name.ident_name(), ctx) {
+                nm := name.ident_name()
+                is_rl := is_ref_local(nm, ctx)
+                f.write("(_TIL_IS_CLOS(")
+                if is_rl { f.write("(*"); f.write(nm); f.write(")") } else { f.write(nm) }
+                f.write(") ? ")
+                // closure branch
+                emit_fcall_funcptr_cast(f, e, sig, true)
+                f.write("))_TIL_UNTAG(")
+                if is_rl { f.write("(*"); f.write(nm); f.write(")") } else { f.write(nm) }
+                f.write(")->fn)(_TIL_UNTAG(")
+                if is_rl { f.write("(*"); f.write(nm); f.write(")") } else { f.write(nm) }
+                f.write(")->env")
+                if e.children.len().gt(1) {
+                    f.write(", ")
+                    emit_fcall_funcptr_args(f, e, sig, depth, ctx)
+                }
+                f.write(") : ")
+                // plain branch
+                emit_fcall_funcptr_cast(f, e, sig, false)
+                if is_rl {
                     f.write("))(void *)(*")
-                    f.write(name.ident_name())
+                    f.write(nm)
                     f.write("))(")
                 } else {
                     f.write("))(void *)")
-                    f.write(name.ident_name())
+                    f.write(nm)
                     f.write(")(")
                 }
                 emit_fcall_funcptr_args(f, e, sig, depth, ctx)
-                f.write(")")
+                f.write("))")
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
@@ -2825,6 +2912,16 @@ emit_body_scoped := proc(f: File, body: Expr, depth: I32, ctx: Context) {
 }
 
 priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
+    // Issue #54: a captured name in a closure body is the value behind the
+    // by-reference env pointer; emit `(*__e->name)` directly (no extra DEREF).
+    switch e.node_type {
+    case NodeType.Ident(cap_id):
+        if ctx.in_closure_body.and(ctx.closure_cap_names.has(cap_id.ident_name())) {
+            f.write("(*__e->"); f.write(cap_id.ident_name()); f.write(")")
+            return f
+        }
+    case:
+    }
     if e.expr_til_type().is(Type.Dynamic) {
         emit_expr(f, e, depth, ctx)
     } else if e.expr_til_type().is_funcptr() {
@@ -3024,6 +3121,121 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
     f.write(ind); f.write(ttype); f.write(" *"); f.write(var); f.write(" = "); f.write(expr); f.write(";\n")
 }
 
+// Issue #54: compiled closures. A capturing FuncDef literal is lowered to
+// a top-level body function `_closfn_<id>(void *env, params)` plus an
+// environment struct `_ClosEnv_<id>` holding by-reference pointers to the
+// captured outer locals. The closure VALUE is a tagged pointer to a
+// stack `_Clos {fn, env}`; plain function pointers stay untagged, so
+// non-closure code is unchanged. Indirect calls through a FuncSig value
+// dispatch on the tag (see emit_funcptr_dispatch).
+
+// Walk an AST subtree assigning closure ids to capturing FuncDef literals
+// and collecting the literal nodes (in id order). Mutates closure_id on
+// the real nodes so use-sites read the same id.
+priv collect_closures_walk := proc(mut e: Expr, mut acc: Vec, mut counter: I64) returns I64 {
+    if e.is_null() { return counter }
+    switch e.node_type {
+    case NodeType.FuncDef(cfd):
+        // Skip template macro bodies (their inner literals are templates).
+        if cfd.func_type.is(FuncType.Macro) { return counter }
+        if cfd.captures.len().gt(0).and(e.children.len().gt(0)).and(cfd.closure_id.lt(0)) {
+            cfd.closure_id = counter.to_i32()
+            acc.push(own e.clone())
+            counter = counter.add(1)
+        }
+    case:
+    }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        counter = collect_closures_walk(c, acc, counter)
+    }
+    return counter
+}
+
+// Emit the environment struct typedef for one closure: a by-reference
+// field (pointer) per capture. (Primitive captures only for now.)
+priv emit_closure_env_struct := proc(f: File, e: Expr, ctx: Context) {
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        f.write("typedef struct { ")
+        for cap : Declaration in fd.captures {
+            f.write(type_name_to_c(cap.explicit_type, ctx)); f.write(" "); f.write(cap.name); f.write("; ")
+        }
+        if fd.captures.len().eq(0) { f.write("char _; ") }
+        f.write("} _ClosEnv_"); emit_i32(f, fd.closure_id); f.write(";\n")
+    case:
+    }
+}
+
+// Emit `_closfn_<id>` forward declaration.
+priv emit_closure_fwd := proc(f: File, e: Expr, ctx: Context) {
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        f.write(func_return_ctype(fd, ctx)); f.write(" _closfn_"); emit_i32(f, fd.closure_id); f.write("(void *")
+        for i in 0..fd.params.len() { f.write(", "); f.write(param_ctype(fd, i, ctx)) }
+        f.write(");\n")
+    case:
+    }
+}
+
+// Emit the closure body function. Captured names are rewritten to
+// `(*__e->name)` via the in_closure_body emission flag.
+priv emit_closure_body := proc(f: File, e: Expr, lp: LoadedProgram) {
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        ref body : Expr = e.child(0)
+        f.write(func_return_ctype(fd, lp.ctx)); f.write(" _closfn_"); emit_i32(f, fd.closure_id); f.write("(void *__envp")
+        for i in 0..fd.params.len() {
+            ref p : Declaration = fd.params[i]
+            f.write(", "); f.write(param_ctype(fd, i, lp.ctx)); f.write(" "); f.write(p.name)
+        }
+        f.write(") {\n")
+        f.write("    _ClosEnv_"); emit_i32(f, fd.closure_id); f.write(" *__e = (_ClosEnv_")
+        emit_i32(f, fd.closure_id); f.write(" *)__envp; (void)__e;\n")
+        lp.ctx.in_func_def = true
+        lp.ctx.current_fdef = e
+        lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.stack_local_types = Map.new(Str, Str)
+        lp.ctx.unsafe_to_hoist = Set.new(Str)
+        lp.ctx.ref_locals = Set.new(Str)
+        lp.ctx.ref_dyn_locals = Set.new(Str)
+        lp.ctx.ptr_locals = Set.new(Str)
+        lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
+        lp.ctx.closure_local_sigs = Map.new(Str, Dynamic)
+        collect_unsafe_to_hoist(lp.ctx, body)
+        mut cap_set := Set.new(Str)
+        for cap : Declaration in fd.captures { cap_set.add(own cap.name.clone()) }
+        lp.ctx.closure_cap_names = cap_set
+        lp.ctx.in_closure_body = true
+        emit_body(f, body, 1, lp.ctx)
+        lp.ctx.in_closure_body = false
+        lp.ctx.closure_cap_names = Set.new(Str)
+        lp.ctx.in_func_def = false
+        f.write("}\n")
+    case:
+    }
+}
+
+// Driver: collect every closure across user (and core) units, then emit
+// env structs + forward decls + bodies. Returns the collected closures.
+priv emit_closures := proc(f: File, lp: LoadedProgram) {
+    mut acc := Vec.new(Expr)
+    mut ctr : I64 = 0
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            ctr = collect_closures_walk(iu.ast, acc, ctr)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ctr = collect_closures_walk(iu.ast, acc, ctr)
+    }
+    for c : Expr in acc { emit_closure_env_struct(f, c, lp.ctx) }
+    for c : Expr in acc { emit_closure_fwd(f, c, lp.ctx) }
+    for c : Expr in acc { emit_closure_body(f, c, lp) }
+}
+
 emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
@@ -3109,6 +3321,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static:
         lp.ctx.ref_dyn_locals = Set.new(Str)
         lp.ctx.ptr_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
+        lp.ctx.closure_local_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, body)
         lp.ctx.in_main_func = true
         emit_body(f, body, 1, lp.ctx)
@@ -3144,6 +3357,7 @@ emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static:
         lp.ctx.ref_dyn_locals = Set.new(Str)
         lp.ctx.ptr_locals = Set.new(Str)
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
+        lp.ctx.closure_local_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.in_func_def = false
@@ -6740,7 +6954,7 @@ build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram
     f := File.new(c_output_path, true)
     if f.is_null() { return 1 }
 
-    f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
+    f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stdint.h>\n\n")
 
     mut is_script := true
     if mode.is_null().not() {
@@ -6765,6 +6979,15 @@ build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
     f.write("#define TIL_CAP_STATIC ((USize)-3)\n")
+    // Issue #54: closure runtime. A FuncSig value is a void*; a plain
+    // function is its (even-aligned) address, a closure is a tagged pointer
+    // (low bit set) to a _Clos {fn, env}. _TIL_CLOS_TAG/_TIL_UNTAG/_TIL_IS_CLOS
+    // let indirect-call sites dispatch: plain -> call directly, closure ->
+    // call fn(env, args). The env captures outer locals by reference.
+    f.write("typedef struct { void *fn; void *env; } _Clos;\n")
+    f.write("#define _TIL_IS_CLOS(p) (((uintptr_t)(p)) & 1u)\n")
+    f.write("#define _TIL_UNTAG(p) ((_Clos *)(((uintptr_t)(p)) & ~(uintptr_t)1u))\n")
+    f.write("#define _TIL_TAG(p) ((void *)(((uintptr_t)(p)) | 1u))\n")
     f.write("void print_single(Str *s) {\n")
     f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
     f.write("}\n")
@@ -6773,6 +6996,9 @@ build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram
     f.write("}\n\n")
 
     emit_global_declarations(f, lp)
+    // Issue #54: emit closure env structs + body functions before the
+    // regular function bodies that construct closures.
+    emit_closures(f, lp)
     emit_function_bodies(f, mode, lp)
 
     emit_dyn_call_bodies(f, lp)

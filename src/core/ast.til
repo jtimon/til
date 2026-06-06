@@ -190,6 +190,11 @@ FunctionDef := struct {
     // Declaration carrying the captured name plus its modifier
     // (is_mut / own_type). Empty for ordinary (non-capturing) functions.
     captures := Vec.new(Declaration)
+    // Issue #54: id assigned by the C backend's closure pre-pass to a
+    // capturing FuncDef literal (-1 = not a compiled closure). Links the
+    // use-site (creation) to the generated _ClosEnv_<id> struct and
+    // _closfn_<id> body function.
+    closure_id : I32 = -1
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }

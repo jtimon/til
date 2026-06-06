@@ -3417,16 +3417,6 @@ infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Context) 
     ctx.typing_namespace_member = false
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
-        // Issue #54: capturing closures rely on the interpreter's dynamic
-        // resolution of free variables; the C backend has no closure
-        // environment yet. In compile mode, reject them with a clear
-        // message (and stop before body typing) instead of emitting broken
-        // C. In interpret mode they type and run normally (validated below).
-        if fdef.captures.len().gt(0).and(ctx.compile_mode) {
-            expr.type_error("function captures (closures) are not yet supported in compile mode (issue #54); run with 'til interpret'", ctx)
-            ctx.typing_namespace_member = ifd_in_ns
-            return
-        }
         // Issue #262: a lazy_func types like a func (cannot call proc,
         // tracks its return type); a lazy_proc types like neither func nor
         // proc here so its body may call procs without the "proc has no
@@ -7705,7 +7695,7 @@ priv capture_block_check_refs := proc(e: Expr,
 // and check the `mut` modifier against the source binding's mutability.
 // Shared by capture blocks and capturing functions.
 priv validate_captures := proc(scope: TypeScope, captures: Vec, errnode: Expr, ctx: Context) {
-    for cap : Declaration in captures {
+    for mut cap : Declaration in captures {
         ref mut b : TypeBinding = scope.get_binding(cap.name)
         if b.is_null() {
             errnode.type_error(format("capture '", cap.name,
@@ -7719,6 +7709,13 @@ priv validate_captures := proc(scope: TypeScope, captures: Vec, errnode: Expr, c
                 }
                 b.written = true
             }
+            // Issue #54: record the captured variable's resolved type on the
+            // capture Declaration so the C backend can lay out the closure
+            // environment (name for aggregates, C-name for primitives).
+            cap.til_type = b.type.clone()
+            mut cap_tn := til_type_name(b.type)
+            if cap_tn.len().eq(0) { cap_tn = til_type_name_c(b.type) }
+            cap.explicit_type = cap_tn.clone()
         }
     }
 }
@@ -10048,7 +10045,18 @@ hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope
         }
         if arg.node_type.is(NodeType.FCall).not() {
             if arg.node_type.is_nonnull_literal().not() {
-                continue
+                // Issue #54: hoist a capturing closure literal passed as an
+                // argument into a temp Decl, so the C backend constructs its
+                // by-reference environment + value in the enclosing frame
+                // (reusing the Decl-RHS closure path) and passes the tagged
+                // pointer. Non-capturing lambdas are lifted elsewhere.
+                mut is_cap_closure := false
+                switch arg.node_type {
+                case NodeType.FuncDef(afd):
+                    if afd.captures.len().gt(0).and(arg.children.len().gt(0)) { is_cap_closure = true }
+                case:
+                }
+                if is_cap_closure.not() { continue }
             }
         }
 

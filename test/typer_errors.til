@@ -718,3 +718,28 @@ namespace:
 TErrConfEnumImplNonIface := enum implements TErrConfNotIface {
     A,
 }
+
+// --- Issue #54: closure / capture errors ---
+
+// Block capture: the body may only touch captured outer locals. `b` is
+// referenced but not captured -> error.
+terr_cap_block := func(z: I64) returns I64 {
+    a := 1
+    b := 2
+    mut out := 0
+    [a, mut out] { out = b.add(a) }
+    return out.add(z)
+}
+
+// Function capture: capturing an immutable local with `mut` -> error.
+terr_cap_immut := func(z: I64) returns I64 {
+    fixed := 5
+    g := func(x: I64) returns I64 [mut fixed] { return x.add(fixed) }
+    return g(z)
+}
+
+// Function capture: capturing a name that does not exist -> error.
+terr_cap_missing := func() returns I64 {
+    h := func(x: I64) returns I64 [nope] { return x.add(1) }
+    return h(1)
+}

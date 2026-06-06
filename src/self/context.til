@@ -266,12 +266,6 @@ Context := struct {
     mode := Mode()
     path := ""
     path_modes := Map.new(Str, Mode)
-    // Issue #54: true when the program is headed for the C backend
-    // (build/run/translate/install/test) rather than the interpreter.
-    // Capturing closures currently run only under the interpreter, so the
-    // typer rejects them in compile mode. Set by main() before the typer
-    // runs (default false = interpret).
-    compile_mode := false
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map.new(Str, ImportUnit)
@@ -400,6 +394,16 @@ Context := struct {
     // append `return 0;` after the user code.
     in_func_def : Bool = false
     in_main_func : Bool = false
+    // Issue #54: set while emitting a compiled closure's body function.
+    // closure_cap_names holds the current closure's captured names so the
+    // Ident/Assign emitters rewrite them to `(*__e->name)` (the by-reference
+    // environment access). Empty / false outside closure bodies.
+    in_closure_body : Bool = false
+    closure_cap_names := Set.new(Str)
+    // Issue #54: names of closure-value locals in the current function body
+    // (name -> the closure's FuncDef Expr ptr). A call to one of these
+    // dispatches through the closure tag instead of a direct C call.
+    closure_local_sigs := Map.new(Str, Dynamic)
 
     // Typer proc/func validation: proc_def_depth counts the nesting
     // depth of `proc` definitions currently being typed (>0 means we

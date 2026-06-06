@@ -381,6 +381,7 @@ typedef struct FunctionDef {
     Bool auto_generated;
     Bool is_enum_variant_ctor;
     Vec captures;
+    I32 closure_id;
 } FunctionDef;
 
 
@@ -878,7 +879,6 @@ typedef struct Context {
     Mode mode;
     Str path;
     Map path_modes;
-    Bool compile_mode;
     Map imported;
     Set imports_init_done;
     Set imports_typer_decls_done;
@@ -916,6 +916,9 @@ typedef struct Context {
     I32 ctor_seq;
     Bool in_func_def;
     Bool in_main_func;
+    Bool in_closure_body;
+    Set closure_cap_names;
+    Map closure_local_sigs;
     I32 proc_calls_count;
     I32 proc_def_depth;
     I32 hoist_counter;
@@ -2000,7 +2003,7 @@ void emit_return_box(File * f, Expr * e, I32 depth, Context * ctx);
 void emit_stmt_return(File * f, Expr * e, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__is_noop_delete_stmt(Expr * e, Context * ctx);
 void priv___src_self_builder_til__emit_stmt(File * f, Expr * e, I32 depth, Context * ctx);
-void emit_fcall_funcptr_cast(File * f, Expr * e, Expr * sig);
+void emit_fcall_funcptr_cast(File * f, Expr * e, Expr * sig, Bool with_env);
 void emit_fcall_funcptr_args(File * f, Expr * e, Expr * sig, I32 depth, Context * ctx);
 void emit_str_lit_expr(File * f, Str * s);
 Str * priv___src_self_builder_til__num_lit_to_c(Str * text);
@@ -2014,6 +2017,11 @@ File * emit_as_ptr(File * f, Expr * e, I32 depth, Bool is_own, Context * ctx);
 Str * priv___src_self_builder_til__cli_view_box(Str * ctype, Str * conv, Str * arg);
 Str * priv___src_self_builder_til__cli_box_expr(Str * ttype, Str * arg);
 void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg);
+I64 priv___src_self_builder_til__collect_closures_walk(Expr * e, Vec * acc, I64 * counter);
+void priv___src_self_builder_til__emit_closure_env_struct(File * f, Expr * e, Context * ctx);
+void priv___src_self_builder_til__emit_closure_fwd(File * f, Expr * e, Context * ctx);
+void priv___src_self_builder_til__emit_closure_body(File * f, Expr * e, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_closures(File * f, LoadedProgram * lp);
 void emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static, LoadedProgram * lp);
 void emit_struct_typedef(File * f, Str * name, Expr * struct_def);
 void emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, LoadedProgram * lp);
