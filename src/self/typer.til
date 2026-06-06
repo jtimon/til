@@ -1247,8 +1247,6 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                     if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        ref slot_e : Expr = new_args[slot.cast(U32)]
-                        slot_e.free_expr_slot_in_place()
                         new_args.set(slot.cast(U32), own arg.child(0).clone())
                     }
                 }
@@ -1260,13 +1258,9 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                     if pos_idx.gte(fixed_count) {
                         va_args.push(own arg.clone())
                     } else if pos_idx.lt(nparam) {
-                        ref pos_slot_va : Expr = new_args[pos_idx]
-                        pos_slot_va.free_expr_slot_in_place()
                         new_args.set(pos_idx, own arg.clone())
                     }
                 } else if pos_idx.lt(nparam) {
-                    ref pos_slot : Expr = new_args[pos_idx]
-                    pos_slot.free_expr_slot_in_place()
                     new_args.set(pos_idx, own arg.clone())
                 }
                 pos_idx = pos_idx.add(1)
@@ -1279,7 +1273,6 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params[i]
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    slot_arg.free_expr_slot_in_place()
                     new_args.set(i, own param.default_value.clone())
                 } else {
                     e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
@@ -10136,8 +10129,6 @@ hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mu
     if rhs.node_type.is(NodeType.FCall)
     .or(rhs.node_type.is_nonnull_literal()) {
         replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
-        ref slot_hoist : Expr = stmt.children[0]
-        slot_hoist.free_expr_slot_in_place()
         stmt.children.set(0, own replacement)
     }
 }

@@ -193,6 +193,9 @@ namespace:
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
+        if self.elem_kind.eq(ELEM_BOXED) {
+            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+        }
         memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
         free(own val)
     }

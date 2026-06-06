@@ -621,8 +621,6 @@ insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mut new
                             if clone_arg_name.ident_name().eq(local.name) {
                                 mut bare := Expr.new(ident_node(local.name), fa_rhs.line, fa_rhs.col)
                                 bare.set_expr_til_type(local.type.clone())
-                                ref slot_fa : Expr = stmt.children[1]
-                                slot_fa.free_expr_slot_in_place()
                                 stmt.children.set(1, own bare)
                                 // A Shallow (value) field deref-copies the move
                                 // source (`field = *local`), so the inner data
@@ -684,8 +682,6 @@ insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mut new
                                 .and(var_aliases_target(local.name, assign_target, preceding).not()) {
                                 mut bare_ident := Expr.new(ident_node(local.name), assign_rhs.line, assign_rhs.col)
                                 bare_ident.set_expr_til_type(local.type.clone())
-                                ref slot_assign : Expr = stmt.children[0]
-                                slot_assign.free_expr_slot_in_place()
                                 stmt.children.set(0, own bare_ident)
                                 continue
                             }
