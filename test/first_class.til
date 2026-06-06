@@ -805,3 +805,38 @@ gid58g_compose := func(T: Type, v: T) returns T { return gid58g(T, v) }
 test_generic_func_compose := test() {
     assert_eq(__LOC__, gid58g_compose(I64, 99), 99)
 }
+
+// own value-args flow through the generic-call rewrite. The source
+// `own a` marker is carried onto the rewritten `store__Item(vec, own a)`
+// so the monomorphized callee receives ownership and consumes it
+// (pushes into the Vec). ASAN-clean when the callee actually consumes
+// the value (a callee that takes `own` and drops it on the floor leaks,
+// exactly as a non-generic `own` func would -- that is user error, not
+// a monomorphizer bug).
+GItem58 := struct { n : USize = 0 }
+
+gstore58 := func(T: Type, mut into: Vec, own v: T) { into.push(own v) }
+
+test_generic_func_own_arg := test() {
+    mut vec := Vec.new(GItem58)
+    a := GItem58(n = 5)
+    gstore58(GItem58, vec, own a)
+    assert_eq(__LOC__, vec.len().to_i64(), 1)
+    ref got : GItem58 = vec[0.to_usize()]
+    assert_eq(__LOC__, got.n.to_i64(), 5)
+}
+
+// Canonical swap (issue #58 example): mut value-args through a generic.
+gswap58 := func(T: Type, mut a: T, mut b: T) {
+    t := a
+    a = b
+    b = t
+}
+
+test_generic_func_swap := test() {
+    mut x := 3
+    mut y := 7
+    gswap58(I64, x, y)
+    assert_eq(__LOC__, x, 7)
+    assert_eq(__LOC__, y, 3)
+}

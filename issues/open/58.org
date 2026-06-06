@@ -302,10 +302,14 @@
      fixpoint-expanded -- after substituting the synthesized body the
      expander walks it again, so the inner `g1(T, v)` becomes
      `g1__I64(v)` (test_generic_func_compose).
-     Remaining v1 limitation: ~own~ value args aren't preserved across
-     the call rewrite, so a generic taking `own v: T` is not yet
-     covered (the own-marker would need carrying onto the rewritten
-     call without introducing the double-/no-free hazard).
+     ~mut~ and ~own~ value args both work: the source own-marker is
+     carried onto the rewritten call so a generic taking `own v: T`
+     (e.g. `store(T, mut into: Vec, own v: T) { into.push(own v) }`)
+     keeps move semantics; ASAN-clean when the callee consumes the
+     value (test_generic_func_own_arg, test_generic_func_swap). A
+     generic that takes `own` and drops it leaks exactly as a
+     non-generic `own` func would -- user error, not a monomorphizer
+     bug.
 
    Beyond rstil parity:
 

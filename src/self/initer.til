@@ -2651,17 +2651,22 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
         }
 
         // Rewrite the call: callee -> Ident(mono); keep only the value
-        // args (drop the type-args). own-arg markers are not preserved
-        // (v1 limitation; generic funcs taking `own` args aren't covered).
+        // args (drop the type-args). own-arg markers from the source
+        // call carry over to the matching new positions, so a generic
+        // taking `own v: T` keeps its move semantics after the rewrite.
         mut newcall := Expr.new(NodeType.FCall(FCallData()), call.line, call.col)
         mut mono_id := Expr.new(ident_node(mono), call.line, call.col)
         newcall.add_child(own mono_id)
+        mut new_arg_pos := 1
         for j in 0..gfd.params.len() {
             ref vp : Declaration = gfd.params[j]
             if vp.explicit_type.eq("Type") { continue }
             vargidx := j.add(1)
             if vargidx.lt(call.children.len()) {
+                src_own := get_own_arg(call, vargidx)
                 newcall.add_child(own call.child(vargidx).clone())
+                if src_own { set_own_arg(newcall, new_arg_pos.to_usize()) }
+                new_arg_pos = new_arg_pos.add(1)
             }
         }
         move(call, newcall, Expr.size().cast(U64))
