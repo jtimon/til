@@ -696,6 +696,54 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
     }
 }
 
+priv init_ns_has_func := func(def: Expr, method: Str) returns Bool {
+    if def.is_null() { return false }
+    ref ns : Vec = def_ns_decls(def)
+    for d_j : Declaration in ns {
+        if d_j.name.eq(method).and(d_j.default_value.is_null().not()) {
+            if d_j.default_value.node_type.is(NodeType.FuncDef) { return true }
+        }
+    }
+    return false
+}
+
+priv init_type_supports_generated_method := func(type_name: Str, method: Str, scope: TypeScope) returns Bool {
+    if type_name.len().eq(0) { return true }
+    resolved := type_from_name_init(type_name, scope)
+    if is_primitive(resolved) { return true }
+    if resolved.is_funcptr() { return true }
+    if type_name.eq("Str").and(method.eq("to_str")) { return true }
+    if type_name.eq("Dynamic") { return false }
+
+    ref def : Expr = scope.get_struct(type_name)
+    if def.is_null() { return false }
+    if init_ns_has_func(def, method) { return true }
+    if method.eq("eq").and(init_ns_has_func(def, "cmp")) { return true }
+
+    // Enum helpers may be generated in declaration order, so an enum payload
+    // can be supportable even before its own generated method has been pushed.
+    switch def.node_type {
+    case NodeType.EnumDef(ed):
+        for j in 0..ed.variants.len() {
+            idx := j.to_i64()
+            if ed.payload_types.has(idx).not() { continue }
+            ref payload_type : Str = ed.payload_types[idx]
+            if init_type_supports_generated_method(payload_type, method, scope).not() { return false }
+        }
+        return true
+    case:
+    }
+    return false
+}
+
+priv enum_payloads_support_generated_method := func(variant_types: Vec, method: Str, scope: TypeScope) returns Bool {
+    for vt_j : Str in variant_types {
+        if vt_j.len().eq(0) { continue }
+        if init_type_supports_generated_method(vt_j, method, scope).not() { return false }
+    }
+    return true
+}
+
 priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     // Tag-only enums (no variant carries a payload) need an if-guard
@@ -869,13 +917,13 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if has_is.not() {
         generate_enum_is_method(stmt.child(0), ename, line, col)
     }
-    if has_eq.not() {
+    if has_eq.not().and(enum_payloads_support_generated_method(variant_types, "eq", scope)) {
         generate_enum_eq_method(stmt.child(0), ename, line, col, variant_names, variant_types, scope)
     }
     if has_delete.not() {
         generate_enum_delete_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
     }
-    if has_to_str.not() {
+    if has_to_str.not().and(enum_payloads_support_generated_method(variant_types, "to_str", scope)) {
         generate_enum_to_str_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
     }
 

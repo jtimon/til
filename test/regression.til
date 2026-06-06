@@ -39,6 +39,30 @@ bug47 := test() {
     assert_eq_str(__LOC__, s, "")
 }
 
+// --- #125: enum payload helpers are capability-gated -----------------
+//
+// Payload enums remain usable when a payload type has no eq/to_str. The
+// initer should omit those generated enum methods instead of emitting bodies
+// that fail later while typing generated helper code.
+
+Bug125Payload := struct {
+    const value : I64 = 0
+}
+
+Bug125Enum := enum { Empty, Filled: Bug125Payload }
+
+bug125 := test() {
+    v := Bug125Enum.Filled(Bug125Payload(value = 7))
+    mut got := 0
+    switch v {
+    case Bug125Enum.Filled(p):
+        got = p.value
+    case Bug125Enum.Empty:
+        got = -1
+    }
+    assert_eq(__LOC__, got, 7)
+}
+
 // --- #150 / #153: module-level enum-valued Map literal ---------------
 //
 // #150: scavenger dropped top-level init statements in test mode (so

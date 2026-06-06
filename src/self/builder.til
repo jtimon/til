@@ -3616,6 +3616,38 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
     f.write("\n")
 }
 
+priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
+    if def.is_null() { return false }
+    ref ns : Vec = def_ns_decls(def)
+    for nsd : Declaration in ns {
+        if nsd.name.eq(method).and(nsd.default_value.is_null().not()) {
+            if nsd.default_value.node_type.is(NodeType.FuncDef) { return true }
+        }
+    }
+    return false
+}
+
+priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Bool {
+    if def.is_null() { return false }
+    ref ns : Vec = def_ns_decls(def)
+    for nsd : Declaration in ns {
+        if nsd.name.eq(method).and(nsd.default_value.is_null().not()) {
+            switch nsd.default_value.node_type {
+            case NodeType.FuncDef(fd): return fd.return_own_type.is(OwnType.Shallow)
+            case:
+            }
+        }
+    }
+    return false
+}
+
+priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
+    if builder_ns_has_func(enum_def, "eq").not() { return }
+    mut eq_ret := "Bool *"
+    if builder_ns_func_returns_shallow(enum_def, "eq") { eq_ret = "Bool" }
+    f.write(eq_ret); f.write(" "); f.write(enum_name); f.write("_eq("); f.write(enum_name); f.write(" *, "); f.write(enum_name); f.write(" *);\n")
+}
+
 priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     mut emitted_h := Set.new(Str)
     seed_primitive_names(emitted_h)
@@ -3699,29 +3731,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                // Find eq fdef from ns_decls
-                mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col)
-                mut has_eq_fdef := false
-                ref eq_ns : Vec = def_ns_decls(stmt.child(0))
-                for nsd : Declaration in eq_ns {
-                    if nsd.name.eq("eq").and(nsd.default_value.is_null().not()) {
-                        if nsd.default_value.node_type.is(NodeType.FuncDef) {
-                            eq_fdef = nsd.default_value.clone()
-                            has_eq_fdef = true
-                            break
-                        }
-                    }
-                }
-                mut eq_ret := "Bool *"
-                if has_eq_fdef {
-                    switch eq_fdef.node_type {
-                    case NodeType.FuncDef(eqfd):
-                        if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
-                    case:
-                        UNREACHABLE(__LOC__)
-                    }
-                }
-                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+                emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
                 switch stmt.child(0).node_type {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
@@ -4187,27 +4197,19 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 sname := dd.name
                 hp := enum_has_payloads(rhs)
 
-                // Find eq fdef to check return shallow
-                mut eq_shallow := false
-                ref py_eq_ns : Vec = def_ns_decls(rhs)
-                for nsd : Declaration in py_eq_ns {
-                    if nsd.name.eq("eq").and(nsd.default_value.is_null().not()) {
-                        switch nsd.default_value.node_type {
-                        case NodeType.FuncDef(eqfd):
-                            eq_shallow = eqfd.return_own_type.is(OwnType.Shallow)
-                        case:
-                        }
-                        break
-                    }
-                }
+                has_eq := builder_ns_has_func(rhs, "eq")
                 mut eq_ret := "ctypes.POINTER(ctypes.c_bool)"
-                if eq_shallow { eq_ret = "ctypes.c_bool" }
+                if builder_ns_func_returns_shallow(rhs, "eq") { eq_ret = "ctypes.c_bool" }
+                mut is_ret := "ctypes.POINTER(ctypes.c_bool)"
+                if builder_ns_func_returns_shallow(rhs, "is") { is_ret = "ctypes.c_bool" }
 
                 // eq
-                f.write("_lib."); f.write(sname); f.write("_eq.argtypes = [ctypes.POINTER(")
-                f.write(sname); f.write("), ctypes.POINTER("); f.write(sname); f.write(")]\n")
-                f.write("_lib."); f.write(sname); f.write("_eq.restype = ")
-                f.write(eq_ret); f.write("\n\n")
+                if has_eq {
+                    f.write("_lib."); f.write(sname); f.write("_eq.argtypes = [ctypes.POINTER(")
+                    f.write(sname); f.write("), ctypes.POINTER("); f.write(sname); f.write(")]\n")
+                    f.write("_lib."); f.write(sname); f.write("_eq.restype = ")
+                    f.write(eq_ret); f.write("\n\n")
+                }
 
                 // Per-variant helpers
                 switch rhs.node_type {
@@ -4221,7 +4223,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                             f.write("_lib."); f.write(sname); f.write("_is_"); f.write(py_vn)
                             f.write(".argtypes = [ctypes.POINTER("); f.write(sname); f.write(")]\n")
                             f.write("_lib."); f.write(sname); f.write("_is_"); f.write(py_vn)
-                            f.write(".restype = "); f.write(eq_ret); f.write("\n\n")
+                            f.write(".restype = "); f.write(is_ret); f.write("\n\n")
                         }
 
                         if py_vt.len().gt(0) {
@@ -4722,28 +4724,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col)
-                mut has_eq_fdef := false
-                ref sh3_eq_ns : Vec = def_ns_decls(stmt.child(0))
-                for nsd : Declaration in sh3_eq_ns {
-                    if nsd.name.eq("eq").and(nsd.default_value.is_null().not()) {
-                        if nsd.default_value.node_type.is(NodeType.FuncDef) {
-                            eq_fdef = nsd.default_value.clone()
-                            has_eq_fdef = true
-                            break
-                        }
-                    }
-                }
-                mut eq_ret := "Bool *"
-                if has_eq_fdef {
-                    switch eq_fdef.node_type {
-                    case NodeType.FuncDef(eqfd):
-                        if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
-                    case:
-                        UNREACHABLE(__LOC__)
-                    }
-                }
-                f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+                emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
                 switch stmt.child(0).node_type {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
@@ -4861,28 +4842,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col)
-                    mut has_eq_fdef := false
-                    ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
-                    for nsd : Declaration in sh_eq_ns {
-                        if nsd.name.eq("eq").and(nsd.default_value.is_null().not()) {
-                            if nsd.default_value.node_type.is(NodeType.FuncDef) {
-                                eq_fdef = nsd.default_value.clone()
-                                has_eq_fdef = true
-                                break
-                            }
-                        }
-                    }
-                    mut eq_ret := "Bool *"
-                    if has_eq_fdef {
-                        switch eq_fdef.node_type {
-                        case NodeType.FuncDef(eqfd):
-                            if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
-                        case:
-                            UNREACHABLE(__LOC__)
-                        }
-                    }
-                    f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+                    emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
                     switch stmt.child(0).node_type {
                     case NodeType.EnumDef(shdr_edd):
                         mut shdr_vi : USize = 0
@@ -4914,28 +4874,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            mut eq_fdef := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            mut has_eq_fdef := false
-            ref sh_eq_ns : Vec = def_ns_decls(stmt.child(0))
-            for nsd : Declaration in sh_eq_ns {
-                if nsd.name.eq("eq").and(nsd.default_value.is_null().not()) {
-                    if nsd.default_value.node_type.is(NodeType.FuncDef) {
-                        eq_fdef = nsd.default_value.clone()
-                        has_eq_fdef = true
-                        break
-                    }
-                }
-            }
-            mut eq_ret := "Bool *"
-            if has_eq_fdef {
-                switch eq_fdef.node_type {
-                case NodeType.FuncDef(eqfd):
-                    if eqfd.return_own_type.is(OwnType.Shallow) { eq_ret = "Bool" }
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-            }
-            f.write(eq_ret); f.write(" "); f.write(dd.name); f.write("_eq("); f.write(dd.name); f.write(" *, "); f.write(dd.name); f.write(" *);\n")
+            emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
             switch stmt.child(0).node_type {
             case NodeType.EnumDef(shdr_edd):
                 mut shdr_vi : USize = 0

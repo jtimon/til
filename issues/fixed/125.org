@@ -1,6 +1,24 @@
 # priority: high
 # category: bugs
-** OPEN #125 Enum payload method generation should not assume ~eq~/~to_str~
+** FIXED #125 Enum payload method generation should not assume ~eq~/~to_str~
+
+Post-mortem:
+
+The root cause was that ~gen_enum_nonclone_methods_for_stmt~ always
+  generated enum ~eq~ and ~to_str~ when the enum namespace did not already
+  define them. For payload enums, those generated bodies called payload
+  ~.eq(...)~ and ~.to_str()~ without proving the payload type supported
+  those methods, so otherwise-valid payload enums failed later during
+  generated helper typing.
+
+The fix adds conservative capability checks in ~src/self/initer.til~ and
+  generates enum ~eq~ / ~to_str~ only when every payload variant supports
+  the method that the generated body would call. Tag-only variants and
+  function-pointer payloads remain supported. ~src/self/builder.til~ now
+  also emits enum ~_eq~ C/Python binding declarations only when an enum
+  actually has an ~eq~ method.
+
+Regression test: ~test/regression.til:bug125~.
 
 This is the concrete bug case for ~[[./102.org][#102]]~. Enum helper
   generation currently emits ~eq~ and ~to_str~ for payload enums without

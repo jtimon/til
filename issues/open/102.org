@@ -26,3 +26,11 @@ Auto-generated namespace helpers are synthesized during init
   proving those methods exist. This issue should fix that by using the
   same support check for struct fields and enum payloads. Once this is
   implemented, ~#125~ should be closed by the same commit.
+
+Progress:
+
+  - [X] Enum payload ~eq~ / ~to_str~ generation is capability-gated
+    ([[../fixed/125.org][#125]]).
+  - [ ] Struct field-wise ~eq~ generation.
+  - [ ] Struct literal-style ~to_str~ generation.
+  - [ ] Follow-up issue for own/ref deep generated ~eq~ / ~to_str~ support.
