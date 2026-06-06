@@ -106,6 +106,10 @@ See doc/self.org for the build workflow.
 
 When a task spans multiple files or multiple commits, create a dedicated git
 worktree so the task stays isolated and the main tree is free for other work.
+For a local session, keep using that same worktree for follow-up commits on
+the same task thread. Do NOT create a fresh sibling worktree for each next
+commit in the same session; rebase the existing worktree onto master after
+merged work lands, then continue there.
 
 Directory: `~/sync/data_common/code/jt/til_worktrees/<descriptive-name>`
 
