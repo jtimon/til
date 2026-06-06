@@ -128,20 +128,20 @@ target_usize_name := func(target: Target) returns Str {
 
 // ---------- Target/Lang compatibility
 
-default_lang_for_target := func(target: Target) returns Lang {
+priv default_lang_for_target := func(target: Target) returns Lang {
     switch target {
     case Target.TempleosX86: return Lang.HolyC
     case: return Lang.C
     }
 }
 
-is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
+priv is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
     // TIL is always supported (for debugging)
     if lang.is(Lang.TIL) { return true }
     return default_lang_for_target(target).eq(lang)
 }
 
-validate_lang_for_target := func(lang: Lang, target: Target) {
+priv validate_lang_for_target := func(lang: Lang, target: Target) {
     if is_lang_supported_for_target(lang, target).not() {
         panic(__LOC__, "Lang '", lang_to_str(lang), "' is not supported for target '", target_to_str(target), "'")
     }
@@ -167,7 +167,7 @@ toolchain_command := func(target: Target, lang: Lang) returns Str {
     return ""
 }
 
-target_prefix_args := func(target: Target) returns Str {
+priv target_prefix_args := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX86:     return " -m32 -I/usr/include/x86_64-linux-gnu"
     case Target.MacosArm64: return " -target arm64-apple-macos11"

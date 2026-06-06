@@ -51,9 +51,9 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
     return to_ptr(ffi_global_symbol(name))
 }
 
-ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().cast(U64)) }
+priv ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().cast(U64)) }
 
-ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
+priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
     if cif.rtype.is_null() { return false }
     ref rt : ffi_type = cif.rtype
     return rt.type.eq(FFI_TYPE_STRUCT.to_i16())
@@ -70,7 +70,7 @@ system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 unlink_path := ext_proc(path: Str) {}
 process_id := ext_func() returns shallow I32 {}
 
-ffi_dlsym := func(name: Str) returns ref U8 {
+priv ffi_dlsym := func(name: Str) returns ref U8 {
     ref fn : U8 = ffi_user_symbol(name)
     if fn.is_null().not() {
         return fn
@@ -78,7 +78,7 @@ ffi_dlsym := func(name: Str) returns ref U8 {
     return ffi_global_symbol(name)
 }
 
-ffi_init_link_libs := func(link_flags: Str) {
+priv ffi_init_link_libs := func(link_flags: Str) {
     if link_flags.is_null() {
         return
     }
@@ -104,7 +104,7 @@ ffi_init_link_libs := func(link_flags: Str) {
     }
 }
 
-ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
+priv ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
     if user_c_path.is_null() { return 0 }
     if user_c_path.len().eq(0) { return 0 }
@@ -139,7 +139,7 @@ ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_
     return 0
 }
 
-ffi_init_struct_defs := func(program: Expr, ctx: Context) {
+priv ffi_init_struct_defs := func(program: Expr, ctx: Context) {
     ctx.ffi_struct_defs = Map.new(Str, ExprPtrBox)
     ffi_init_struct_defs_append(program, ctx)
 }
@@ -164,7 +164,7 @@ ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
     }
 }
 
-value_to_u64 := func(v: Value) returns U64 {
+priv value_to_u64 := func(v: Value) returns U64 {
     switch v {
     case Value.Int(x):     return x.cast(U64)
     case Value.Byte(x):    return x.cast(U64)
@@ -181,13 +181,13 @@ value_to_u64 := func(v: Value) returns U64 {
     }
 }
 
-uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
+priv uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
     ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
     if uptr_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
     return ffi_type_ref("ffi_type_uint64")
 }
 
-usize_ffi_type := func(ctx: Context) returns ref ffi_type {
+priv usize_ffi_type := func(ctx: Context) returns ref ffi_type {
     ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
     if usize_name.eq("U32") { return ffi_type_ref("ffi_type_uint32") }
     return ffi_type_ref("ffi_type_uint64")
@@ -251,27 +251,27 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
     }
 }
 
-h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.child(1), ctx)
     bv := narrow_bool_arg(s, e.child(2), ctx)
     r = Value.Boolean(and(av, bv))
     return true
 }
 
-h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.child(1), ctx)
     bv := narrow_bool_arg(s, e.child(2), ctx)
     r = Value.Boolean(or(av, bv))
     return true
 }
 
-h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     bv := narrow_bool_arg(s, e.child(1), ctx)
     r = Value.Boolean(not(bv))
     return true
 }
 
-h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -283,7 +283,7 @@ h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
     }
 }
 
-h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -295,7 +295,7 @@ h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     }
 }
 
-h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -307,7 +307,7 @@ h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     }
 }
 
-h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -319,7 +319,7 @@ h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     }
 }
 
-h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -331,7 +331,7 @@ h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     }
 }
 
-h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.child(1), ctx)
     switch v {
     case Value.Int(i):
@@ -348,7 +348,7 @@ h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
 // operand's bits into the matching Value variant. value_to_u64 gives
 // the raw bits; the val_* constructors mask/sign-interpret to the
 // target width.
-h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     mut v := eval_expr(s, e.child(1), ctx)
     // For non-scalar operand variants (Value.Ref from `ref c : I8 =
     // ...`, Value.Struct carrying a primitive's bits via
@@ -436,13 +436,13 @@ priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     return true
 }
 
-h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns Bool {
+priv h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns Bool {
     print_flush()
     r = val_none()
     return true
 }
 
-h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     a := eval_expr(s, e.child(1), ctx)
     switch a {
     case Value.Int(code):
@@ -454,14 +454,14 @@ h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     return true
 }
 
-h_readfile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_readfile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
     content := File.readfile(str_view(path))
     r = make_str_value(content.c_str, content.count, ctx)
     return true
 }
 
-h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
     content := eval_expr(s, e.child(2), ctx)
     File.writefile(str_view(path), str_view(content))
@@ -469,7 +469,7 @@ h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     return true
 }
 
-h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     cmd := eval_expr(s, e.child(1), ctx)
     r = Value.Int(spawn_cmd(str_view(cmd)))
     return true
@@ -479,7 +479,7 @@ h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 // Value, without transferring ownership. It never frees and is never an
 // ownership escape hatch -- it only produces read/write views, never
 // hands off an owning pointer for deletion.
-val_to_ptr := func(v: Value) returns ref Dynamic {
+priv val_to_ptr := func(v: Value) returns ref Dynamic {
     switch v {
     case Value.Ref(p):     return p
     case Value.Dynamic(p): return p
@@ -497,14 +497,14 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
     }
 }
 
-h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     method := eval_str_owned(s, e.child(2), ctx)
     r = Value.Boolean(ns_get(type_name, method, ctx).is_null().not())
     return true
 }
 
-h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name_val := eval_expr(s, e.child(1), ctx)
     method_val := eval_expr(s, e.child(2), ctx)
     // str_view returns a Str that BORROWS its arg Value's c_str. Inline the
@@ -524,7 +524,7 @@ h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     return true
 }
 
-h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     sz := get_elem_size(s, type_name, e, ctx)
     r = Value.Uint32(sz)
@@ -558,14 +558,14 @@ priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
 priv value_str_clone := func(v: Value) returns Str {
     return str_view(v).clone()
 }
-eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
+priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
     return value_str_clone(eval_expr(s, arg, ctx))
 }
 
 // Look up a registered struct type's AST node by name, erroring out if
 // the name is unknown or not a struct. Shared by the struct_field_*
 // introspection handlers (issue #56/#58).
-interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if tc.is_null() {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
@@ -586,7 +586,7 @@ interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: C
     }
 }
 
-h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     switch node.node_type {
@@ -606,7 +606,7 @@ priv eval_index_arg := proc(s: Scope, e: Expr, ctx: Context) returns USize {
     return value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
 }
 
-h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
@@ -624,7 +624,7 @@ h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     return true
 }
 
-h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
@@ -642,7 +642,7 @@ h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     return true
 }
 
-h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
@@ -663,7 +663,7 @@ h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 // Look up a registered enum type's AST node by name, erroring out if
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
-interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if tc.is_null() {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
@@ -684,7 +684,7 @@ interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Con
     }
 }
 
-h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     switch node.node_type {
@@ -696,7 +696,7 @@ h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
     return true
 }
 
-h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
@@ -714,7 +714,7 @@ h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     return true
 }
 
-h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
@@ -736,7 +736,7 @@ h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     return true
 }
 
-h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
@@ -761,7 +761,7 @@ h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
 // Look up a registered FuncSig type's bodyless FuncDef node by name,
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
-interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
+priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if tc.is_null() {
         interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
@@ -782,7 +782,7 @@ interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: 
     }
 }
 
-h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     switch node.node_type {
@@ -794,7 +794,7 @@ h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     return true
 }
 
-h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
@@ -812,7 +812,7 @@ h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     return true
 }
 
-h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     switch node.node_type {
@@ -824,7 +824,7 @@ h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
     return true
 }
 
-h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
@@ -841,7 +841,7 @@ h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     return true
 }
 
-h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     switch node.node_type {
@@ -853,7 +853,7 @@ h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     return true
 }
 
-h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
@@ -871,7 +871,7 @@ h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
     return true
 }
 
-h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_val := eval_expr(s, e.child(1), ctx)
     switch type_val {
     case Value.Enum(ei):
@@ -993,7 +993,7 @@ h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
     }
 }
 
-h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     pidv := eval_expr(s, e.child(1), ctx)
     switch pidv {
     case Value.Int(pid):
@@ -1005,7 +1005,7 @@ h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
     }
 }
 
-h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     msv := eval_expr(s, e.child(1), ctx)
     switch msv {
     case Value.Int(ms):
@@ -1018,29 +1018,29 @@ h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     }
 }
 
-h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_expr(s, e.child(1), ctx)
     r = Value.Int(file_mtime(str_view(path)))
     return true
 }
 
-h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     arg := eval_expr(s, e.child(1), ctx)
     r = Value.Float(str_parse_f32(str_view(arg)))
     return true
 }
 
-h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
+priv h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
     r = Value.Int(clock_ms())
     return true
 }
 
-h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
+priv h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
     r = Value.Int(get_thread_count())
     return true
 }
 
-h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_str_owned(s, e.child(1), ctx)
     is_write_v := eval_expr(s, e.child(2), ctx)
     switch is_write_v {
@@ -1089,7 +1089,7 @@ priv shallow_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type
     return ffi_type_ref("ffi_type_pointer")
 }
 
-field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type {
+priv field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type {
     if dd.own_type.is(OwnType.Shallow).not() { return ffi_type_ref("ffi_type_pointer") }
     if dd.explicit_type.len().eq(0) { return ffi_type_ref("ffi_type_sint64") }
     ref t : ffi_type = known_ffi_type(dd.explicit_type, ctx)
@@ -1097,7 +1097,7 @@ field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type {
     return ffi_type_ref("ffi_type_sint64")
 }
 
-build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_type {
+priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_type {
     if ctx.ffi_type_cache_inited.not() {
         ctx.ffi_type_cache = Vec.new(FFITypePtrBox)
         ctx.ffi_type_cache_inited = true
@@ -1127,7 +1127,7 @@ build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_ty
     }
 }
 
-h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     switch e.child(1).node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(s, ident.ident_name())
@@ -1145,7 +1145,7 @@ h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     return true
 }
 
-h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_close(deref(hp))
@@ -1153,7 +1153,7 @@ h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
     return true
 }
 
-h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     sv := eval_str_owned(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1162,7 +1162,7 @@ h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
     return true
 }
 
-h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     buf := eval_expr(s, e.child(1), ctx)
     offset := eval_expr(s, e.child(2), ctx)
     ref base : Dynamic = val_to_ptr(buf)
@@ -1171,7 +1171,7 @@ h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     return true
 }
 
-h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     content := cfile_read_all(deref(hp))
@@ -1179,7 +1179,7 @@ h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     return true
 }
 
-h_cfile_open_update := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_open_update := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     path := eval_str_owned(s, e.child(1), ctx)
     // FILE* handle: closed via cfile_close (fclose), never free()'d, so
     // it is a borrowed view, not a free()-owned Value.Dynamic.
@@ -1187,14 +1187,14 @@ h_cfile_open_update := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
     return true
 }
 
-h_cfile_tell := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_tell := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     r = Value.Int(cfile_tell(deref(hp)))
     return true
 }
 
-h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     pos_v := eval_expr(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1203,7 +1203,7 @@ h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool
     return true
 }
 
-h_cfile_seek_cur := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_seek_cur := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     delta_v := eval_expr(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1212,7 +1212,7 @@ h_cfile_seek_cur := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     return true
 }
 
-h_cfile_seek_end := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_seek_end := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     delta_v := eval_expr(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1221,7 +1221,7 @@ h_cfile_seek_end := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns 
     return true
 }
 
-h_cfile_read_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_cfile_read_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     count_v := eval_expr(s, e.child(2), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1230,9 +1230,9 @@ h_cfile_read_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     return true
 }
 
-DispatchFn := proc(Scope, Expr, mut Value, Context) returns Bool
+priv DispatchFn := proc(Scope, Expr, mut Value, Context) returns Bool
 
-reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
+priv reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
     v : Dynamic = malloc(8)
     write_ptr(v, handler)
     ctx.dispatch_map.set(own name.clone(), own v)
@@ -1303,7 +1303,7 @@ dispatch_init := func(ctx: Context) {
     ctx.dispatch_inited = true
 }
 
-ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
+priv ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     ref dm : Map = ctx.dispatch_map
     if dm.has(name) {
         ref slot : Dynamic = dm[name]
@@ -1313,7 +1313,7 @@ ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: Value
     return false
 }
 
-h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.child(1), ctx)
     method := eval_str_owned(s, e.child(2), ctx)
 
@@ -1343,7 +1343,7 @@ h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     return true
 }
 
-get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns USize {
+priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns USize {
     ref size_fn : Value = ns_get(type_name, "size", ctx)
     if size_fn.is_null() {
         interp_error(src, type_name.concat(" has no size() method"), ctx)
@@ -1442,7 +1442,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
     return false
 }
 
-ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns Bool {
+priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Context) returns Bool {
     if rtype.eq("I64")        { ref rv : I64 = p;   result = Value.Int(rv);            return true }
     else if rtype.eq("U8")    { ref rv : U8 = p;    result = Value.Byte(rv);    return true }
     else if rtype.eq("I16")   { ref rv : I16 = p;   result = Value.Short(rv);   return true }
@@ -1471,7 +1471,7 @@ ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: Contex
 
 // Look up the StructDef Expr for fe's shallow-struct return type, or
 // NULL if the return type isn't a known shallow struct.
-ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
+priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
     if fe.return_is_shallow.not() { return NULL }
     if fe.return_type.is_null() { return NULL }
     if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
@@ -1529,7 +1529,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     return true
 }
 
-ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
+priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if ctx.ffi_loaded.not() { return false }
     if ctx.ffi_map.has(name).not() { return false }
 
@@ -1676,7 +1676,7 @@ ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
-ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
+priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         np := fd.params.len()

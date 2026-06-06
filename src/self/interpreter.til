@@ -7,7 +7,7 @@ import("../std/sys")
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
-interp_error_path := func(ctx: Context) returns Str {
+priv interp_error_path := func(ctx: Context) returns Str {
     return ctx.path.clone()
 }
 
@@ -15,7 +15,7 @@ interp_error := proc(e: Expr, msg: Str, ctx: Context) {
     println(interp_error_path(ctx), ":", e.line.to_str(), ":", e.col.to_str(), ": error: ", msg)
 }
 
-interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
+priv interp_lang_error := proc(e: Expr, msg: Str, ctx: Context) {
     interp_error(e, msg, ctx)
     println("  note: this is a bug in the language, please report it")
 }
@@ -474,11 +474,11 @@ val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_
     return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
 }
 
-val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize) returns shallow Value {
+priv val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize) returns shallow Value {
     return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size)
 }
 
-elem_size_for_type := func(type_name: Str) returns USize {
+priv elem_size_for_type := func(type_name: Str) returns USize {
     if type_name.eq("I64")  { return I64.size() }
     if type_name.eq("U8")   { return U8.size() }
     if type_name.eq("I16")  { return I16.size() }
@@ -496,7 +496,7 @@ elem_size_for_type := func(type_name: Str) returns USize {
 // value or unsupported type, so `til interpret` and compiled binaries agree.
 // (panic exits 1 like the compiled backend's exit(1); the diagnostic stream
 // differs -- interpreter via panic, compiled via stderr -- but both bail.)
-parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Value {
+priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Value {
     if type_name.eq("Str") { return make_str_value(s.c_str, s.count, ctx) }
     if type_name.eq("I64") { return Value.Int(s.to_i64()) }
     if type_name.eq("U8") { return Value.Byte(s.to_u8()) }
@@ -521,7 +521,7 @@ parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Valu
 // Borrowed pointer-view accessor: returns the slot ref backing a
 // Value.Ref (borrowed view) or Value.Dynamic (owning opaque pointer).
 // Neither variant is freed here; this is a read-only view helper.
-value_ptr_view := func(v: Value) returns ref Dynamic {
+priv value_ptr_view := func(v: Value) returns ref Dynamic {
     switch v {
     case Value.Ref(p):     return p
     case Value.Dynamic(p): return p
@@ -849,7 +849,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
 
 // Check if call should be skipped because first own param is None/borrowed/pointer-like.
 // Returns true if call should be skipped (caller returns val_none).
-guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns Bool {
+priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns Bool {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) { return false }
@@ -877,7 +877,7 @@ guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns Bool
     }
 }
 
-resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dynamic {
+priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dynamic {
     switch obj_expr.node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident.ident_name())
@@ -893,7 +893,7 @@ resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dyna
     }
 }
 
-resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr {
+priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr {
     switch obj_expr.node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident.ident_name())
@@ -909,7 +909,7 @@ resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr
     }
 }
 
-eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
+priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
         if c.has_return { return }
@@ -1835,7 +1835,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     }
 }
 
-free_value := func(shallow v: Value) {
+priv free_value := func(shallow v: Value) {
     switch v {
     case Value.Struct(si):
         if si.borrowed.not() {
@@ -1851,27 +1851,6 @@ free_value := func(shallow v: Value) {
 // free_value: also frees the c_str of a Value.Struct whose name is "Str".
 // Used by scope_free and precomp's known-map teardown, where the Value
 // genuinely owns the payload.
-cleanup_value_payload := func(shallow v: Value) {
-    switch v {
-    case Value.Struct(si):
-        if si.borrowed.not() {
-            if si.data.is_null().not() {
-                if si.struct_name.eq("Str") {
-                    ref s_str : Str = to_ptr(si.data)
-                    // Only free c_str when count > 0: StructInstance.clone
-                    // for "Str" memcpy-shares c_str when count == 0.
-                    if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
-                        if s_str.c_str.is_null().not() { free(own s_str.c_str) }
-                    }
-                }
-                free(own si.data)
-            }
-        }
-    case Value.Enum(ei):
-        if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
-    case:
-    }
-}
 
 // Single owning-pointer box. Lets free_value_full reinterpret a
 // Value.Dynamic payload slot as a struct with one `own` field so the raw
@@ -1898,7 +1877,7 @@ free_value_full := func(shallow v: Value) {
     }
 }
 
-needs_widen := func(val: Value, ptype: Str) returns Bool {
+priv needs_widen := func(val: Value, ptype: Str) returns Bool {
     if ptype.is_null() { return false }
     if ptype.len().eq(0) { return false }
     if val.is(Value.Byte) {
@@ -1919,7 +1898,7 @@ needs_widen := func(val: Value, ptype: Str) returns Bool {
     return false
 }
 
-shallow_copy_value := func(v: Value) returns shallow Value {
+priv shallow_copy_value := func(v: Value) returns shallow Value {
     r := Value.None
     memcpy(r, v, Value.size().cast(U64))
     return r
@@ -1932,7 +1911,7 @@ shallow_copy_value := func(v: Value) returns shallow Value {
 // sites where the value is consumed transiently; any store of it clones
 // (value semantics), so the borrow never outlives the owner. Scalars carry
 // no heap, so the flag is a harmless no-op for them.
-borrow_value := func(v: Value) returns shallow Value {
+priv borrow_value := func(v: Value) returns shallow Value {
     mut r := shallow_copy_value(v)
     switch r {
     case Value.Struct(si): si.borrowed = true
@@ -1961,7 +1940,7 @@ borrow_value := func(v: Value) returns shallow Value {
 // via the cell's Value.Dynamic, because plenty of other paths put
 // borrowed Value.Dynamic into local cells and freeing those would
 // also double-free.
-box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: Bool) returns Value {
+priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: Bool) returns Value {
     mut dp : Dynamic = 0
     switch v {
     case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
@@ -2022,7 +2001,7 @@ priv value_is_borrowed := func(v: Value) returns Bool {
     }
 }
 
-widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
+priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     // A borrowed view (a method's `mut self` aliasing the caller's storage,
     // or any read_field borrow) passes through UNCHANGED: it is never a
     // numeric value, so no widening is lost, and cloning it would break
@@ -2110,7 +2089,7 @@ scope_new := func(parent: Scope) returns Scope {
 // for `name`. Returns the encoded "<enum_var>|<type>" string when found
 // (registered by the Decl handler for `ref T = get_payload(<ident>)`),
 // or "" otherwise. The Assign handler uses this to mirror the write.
-scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
+priv scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
     ref mut cur : Scope = s
     while true {
         if cur.is_null() { return "" }
@@ -2125,7 +2104,7 @@ scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
 
 // #227: matches builder.til's is_primitive_type by name. Inlined
 // here because interpreter.til doesn't import that helper.
-interp_is_primitive_type_name := func(name: Str) returns Bool {
+priv interp_is_primitive_type_name := func(name: Str) returns Bool {
     if name.eq("I8") { return true }
     if name.eq("U8") { return true }
     if name.eq("I16") { return true }
@@ -2144,7 +2123,7 @@ interp_is_primitive_type_name := func(name: Str) returns Bool {
 // #227: returns NULL if `name` is not a ref-to-primitive binding.
 // Otherwise returns the source address (the ptr_add result the ref
 // was bound to) so the Assign handler can write through it.
-scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dynamic {
+priv scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dynamic {
     ref mut cur : Scope = s
     while true {
         if is_null(cur) { return NULL }
@@ -2199,7 +2178,7 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     s.bindings.set(own k, own v)
 }
 
-scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
+priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     k : Dynamic = malloc(Str.size().cast(U64))
     memcpy(k, name, Str.size().cast(U64))
     memcpy(ptr_add(k, 12), CAP_VIEW, U32.size().cast(U64))
@@ -2324,7 +2303,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     return false
 }
 
-interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
+priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
     ref obj_expr : Expr = e.child(0)
     ref tc : Cell = scope_get(scope, sname)
     if tc.is_null() { return false }
@@ -2351,7 +2330,7 @@ interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
 // source Cell so the caller can shallow-copy its value (move semantics
 // for Dynamic). Returns NULL when the rhs isn't an Ident or isn't
 // Dynamic, signalling "evaluate the expression normally".
-field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
+priv field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
     if val_expr.expr_til_type().is(Type.Dynamic).not() { return NULL }
     switch val_expr.node_type {
     case NodeType.Ident(vi): return scope_get(scope, vi.ident_name())
@@ -2360,7 +2339,7 @@ field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref 
     }
 }
 
-interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
+priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
     ref obj_expr : Expr = e.child(0)
     sname := til_type_name(obj_expr.expr_til_type())
     if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
@@ -2377,7 +2356,7 @@ interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
     return false
 }
 
-value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
+priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     switch val {
     case Value.Int(v):     if type_name.eq("I64")  { memcpy(dest, v, 8); return }
     case Value.Byte(v):    if type_name.eq("U8")   { memcpy(dest, v, 1); return }
@@ -2410,7 +2389,7 @@ value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     }
 }
 
-build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx: Context) returns shallow Value {
+priv build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx: Context) returns shallow Value {
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
@@ -2521,7 +2500,7 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns ref Value {
 }
 
 
-ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context) {
+priv ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context) {
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
     mut vcopy := val
@@ -2581,7 +2560,7 @@ str_view := func(shallow v: Value) returns shallow Str {
     return result
 }
 
-find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
+priv find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
     switch struct_def.node_type {
     case NodeType.StructDef(ffd_sdd):
         for dd : Declaration in ffd_sdd.fields {
@@ -2712,7 +2691,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     return Value.Int(fi)
 }
 
-write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
+priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
     ref ptr : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     fsz := field_size
     // Enum-typed fields use the same heap-EnumInstance encoding regardless
@@ -2814,7 +2793,7 @@ write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize
     }
 }
 
-interpret_register_defs := func(mut global: Scope, prog: Expr) {
+priv interpret_register_defs := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             if stmt.child(0).node_type.is(NodeType.FuncDef)
@@ -2833,7 +2812,7 @@ interpret_register_defs := func(mut global: Scope, prog: Expr) {
     }
 }
 
-interpret_register_aliases := func(mut global: Scope, prog: Expr) {
+priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.expr_til_type().is(Type.None).not() { }
@@ -2866,7 +2845,7 @@ interpret_register_aliases := func(mut global: Scope, prog: Expr) {
     }
 }
 
-interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
+priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.expr_til_type().is(Type.None).not() { }
@@ -2899,160 +2878,6 @@ interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
             }
         }
     }
-}
-
-interpret := proc(core_program: Expr, program: Expr, mode: Mode, run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec, fwd_path: Str) returns I32 {
-    mut lp := LoadedProgram()
-    ref mut c : Context = lp.ctx
-    context_enter_file(lp.ctx, path)
-    mut user_argc : U32 = 0
-    if user_argv.is_null().not() { user_argc = user_argv.len() }
-
-    ffi_rc := ffi_init(program, fwd_path, user_c, ext_c, link_flags, lp.ctx)
-    if ffi_rc.eq(0).not() { return ffi_rc }
-    if core_program.is_null().not() { ffi_init_scan_program(core_program, lp.ctx) }
-
-    global := scope_new(NULL)
-
-    // Pre-register func/struct/enum definitions
-    if core_program.is_null().not() { interpret_register_defs(global, core_program) }
-    interpret_register_defs(global, program)
-
-    // Pre-register type aliases
-    if core_program.is_null().not() { interpret_register_aliases(global, core_program) }
-    interpret_register_aliases(global, program)
-
-    // Initialize namespace fields
-    if core_program.is_null().not() { interpreter_init_ns(lp.ctx, global, core_program) }
-    interpreter_init_ns(lp.ctx, global, program)
-
-    // Copy namespace entries for type aliases
-    if core_program.is_null().not() { interpret_copy_alias_ns(core_program, global, lp.ctx) }
-    interpret_copy_alias_ns(program, global, lp.ctx)
-
-    // Evaluate top-level declarations
-    if core_program.is_null().not() { eval_body(global, core_program, lp.ctx) }
-    eval_body(global, program, lp.ctx)
-
-    // Run tests
-    if run_tests {
-        mut test_count : I32 = 0
-        mut pass_count : I32 = 0
-        for stmt : Expr in program.children {
-            if is_func_decl(stmt) {
-                switch stmt.child(0).node_type {
-                case NodeType.FuncDef(fd):
-                    if fd.func_type.is(FuncType.Test) {
-                        switch stmt.node_type {
-                        case NodeType.Decl(dd):
-                            test_count = test_count.add(1)
-                            test_scope := scope_new(global)
-                            eval_body(test_scope, stmt.child(0).child(0), lp.ctx)
-                            if c.has_return {
-                                c.return_value = c.return_value.clone()
-                            }
-                            scope_free(own test_scope)
-                            pass_count = pass_count.add(1)
-                            eprint_single("  pass: ")
-                            eprint_single(dd.name)
-                            eprint_single("\n")
-                        case:
-                        }
-                    }
-                case:
-                }
-            }
-        }
-        if test_count.eq(0) {
-            eprint_single("no tests found\n")
-        } else {
-            eprint_single(pass_count.to_str())
-            eprint_single("/")
-            eprint_single(test_count.to_str())
-            eprint_single(" tests passed\n")
-        }
-        ffi_cleanup(lp.ctx)
-        if pass_count.eq(test_count).not() { exit(1) }
-        // Fall through to final cleanup
-    }
-
-    // In needs_main mode, call main()
-    if mode.is_null().not() { if mode.needs_main {
-        ref main_cell : Cell = scope_get(global, "main")
-        if main_cell.is_null().or(main_cell.val.is(Value.Func).not()) {
-            eprint_single(path)
-            eprint_single(": error: this mode requires a 'main' proc\n")
-            exit(1)
-        }
-        switch main_cell.val {
-        case Value.Func(fptr):
-            ref func_def : Expr = deref(fptr)
-            switch func_def.node_type {
-            case NodeType.FuncDef(fd):
-                nparam := fd.params.len()
-                vi := fd.variadic_index
-                ref body : Expr = func_def.child(0)
-                main_scope := scope_new(global)
-
-                if nparam.gt(0) {
-                    mut fixed := nparam
-                    if vi.gte(0) {
-                        fixed = nparam.sub(1)
-                        if user_argc.lt(fixed) {
-                            eprint_single("error: main expects at least ")
-                            eprint_single(fixed.to_str())
-                            eprint_single(" argument(s), got ")
-                            eprint_single(user_argc.to_str())
-                            eprint_single("\n")
-                            exit(1)
-                        }
-                    } else {
-                        if user_argc.eq(nparam).not() {
-                            eprint_single("error: main expects ")
-                            eprint_single(nparam.to_str())
-                            eprint_single(" argument(s), got ")
-                            eprint_single(user_argc.to_str())
-                            eprint_single("\n")
-                            exit(1)
-                        }
-                    }
-                    mut argi : I32 = 0
-                    for pi in 0..nparam {
-                        ref param : Declaration = fd.params[pi]
-                        if pi.to_i64().eq(vi.cast(I64)) {
-                            va_count := user_argc.sub(fixed)
-                            ref va_param : Declaration = fd.params[vi.to_usize()]
-                            arr := build_argv_array(user_argv, argi.cast(U32), va_count, va_param.explicit_type, lp.ctx)
-                            scope_set_owned(main_scope, param.name, arr)
-                            argi = argi.add(va_count.cast(I32))
-                        } else {
-                            ref arg_s : Str = user_argv[argi.to_usize()]
-                            v := parse_cli_arg(arg_s, param.explicit_type, lp.ctx)
-                            scope_set_owned(main_scope, param.name, v)
-                            argi = argi.add(1)
-                        }
-                    }
-                } else if user_argc.gt(0) {
-                    eprint_single("error: main expects no arguments, got ")
-                    eprint_single(user_argc.to_str())
-                    eprint_single("\n")
-                    exit(1)
-                }
-
-                eval_body(main_scope, body, lp.ctx)
-                scope_free(own main_scope)
-            case:
-                UNREACHABLE(__LOC__)
-            }
-        case:
-            UNREACHABLE(__LOC__)
-        }
-    } }
-
-    scope_free(own global)
-    ffi_cleanup(lp.ctx)
-    c.ns_inited = false
-    return 0
 }
 
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file

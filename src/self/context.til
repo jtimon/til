@@ -66,7 +66,7 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 // Kept as a standalone leaf so the catch/?-unwrap is the function's
 // whole body -- inlining it into lookup_func's parent-walk produced a
 // multi-branch CFG that GCC rejected with -Werror=return-type.
-func_defs_lookup_one := func(m: Map, name: Str) returns ref Expr {
+priv func_defs_lookup_one := func(m: Map, name: Str) returns ref Expr {
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
@@ -785,7 +785,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
 
 // Self-compiler AST inspection helpers.
 
-is_decl_with_child := func(stmt: Expr) returns Bool {
+priv is_decl_with_child := func(stmt: Expr) returns Bool {
     return stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0))
 }
 

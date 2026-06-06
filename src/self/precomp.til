@@ -22,7 +22,7 @@ precomp_reset_state := func(mut ctx: Context) {
 // initial value). Descends into nested FuncDef bodies too -- the set is a
 // conservative program-wide blocklist, which only ever suppresses an
 // optimisation (the scope-read fold), never macro folding via precomp_known.
-collect_assign_targets := proc(e: Expr, mut names: Set) {
+priv collect_assign_targets := proc(e: Expr, mut names: Set) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Assign(ad):
@@ -34,11 +34,11 @@ collect_assign_targets := proc(e: Expr, mut names: Set) {
     }
 }
 
-precomp_has_macro := func(ctx: Context, name: Str) returns Bool {
+priv precomp_has_macro := func(ctx: Context, name: Str) returns Bool {
     return ctx.precomp_macros.has(name)
 }
 
-precomp_has_func := func(ctx: Context, name: Str) returns Bool {
+priv precomp_has_func := func(ctx: Context, name: Str) returns Bool {
     return ctx.precomp_funcs.has(name)
 }
 
@@ -70,7 +70,7 @@ mut side_effecting_names := {
     "ffi_call": true, "dlopen": true, "dlsym": true, "dlclose": true,
 }
 
-is_side_effecting_name := func(name: Str) returns Bool {
+priv is_side_effecting_name := func(name: Str) returns Bool {
     return side_effecting_names.has(name)
 }
 
@@ -179,7 +179,7 @@ priv str_to_source_form := func(s: Str) returns Str {
     return out
 }
 
-value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr {
+priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr {
     // If the source expression returns an enum, the interpreter folded a
     // no-payload variant access to its integer tag (Value.Int32, set up in
     // interpreter_init_ns). Naively turning that into a Num literal would
@@ -396,7 +396,7 @@ value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr 
     }
 }
 
-expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
+priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
     switch e.node_type {
     case NodeType.Literal(Literal.Num(num)):
         lit_t := e.expr_til_type()
@@ -439,7 +439,7 @@ expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
     }
 }
 
-is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
+priv is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):
         out = expr_to_value(e, ctx)
@@ -465,7 +465,7 @@ is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
 // Cheap is_known check that doesn't allocate or fill an out-Value.
 // Use when callers only need the boolean and would otherwise leak the
 // throwaway temporary they pass to is_known.
-is_known_check := func(ctx: Context, e: Expr) returns Bool {
+priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Str):  return true
@@ -478,7 +478,7 @@ is_known_check := func(ctx: Context, e: Expr) returns Bool {
 // Walk `body` looking for a local Decl named `name`. Used to recognise
 // typer-hoisted temps and other body-locals so func_uses_unknown_globals
 // can skip flagging them as unknown globals.
-body_has_local := proc(body: Expr, name: Str) returns Bool {
+priv body_has_local := proc(body: Expr, name: Str) returns Bool {
     switch body.node_type {
     case NodeType.Decl(dd):
         if dd.name.eq(name) { return true }
@@ -498,7 +498,7 @@ body_has_local := proc(body: Expr, name: Str) returns Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set, ctx: Context) returns Bool {
+priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set, ctx: Context) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
@@ -616,7 +616,7 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
 // pair via ns_get. Returns the first match's payload pointer or NULL.
 // Lets the fast path resolve a typer/builder-flattened namespace
 // callee like "Str_size" back to ns_get("Str", "size", ctx).
-ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
+priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
     n := name.len()
     for i in 1..n {
         ref b : I8 = name.byte_at(i)
@@ -641,7 +641,7 @@ ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
 // to dispatch on. If recv is an Ident that names a struct/enum (e.g.
 // `Str.size`), use the Ident text. Otherwise fall back to recv.expr_til_type()
 // so method calls on values (`x.add(y)` where x: I64) still resolve.
-fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
+priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
     if callee.children.len().eq(0) { return "" }
     ref recv : Expr = callee.child(0)
     switch recv.node_type {
@@ -657,7 +657,7 @@ fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
 
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
-try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Expr {
+priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Expr {
     if fcall.children.len().eq(1).not() { return NULL }
     ref fc_callee : Expr = fcall.child(0)
     mut fc_fp : Dynamic = 0
@@ -701,7 +701,7 @@ try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Expr
     return lit_clone
 }
 
-try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Context) returns Expr {
+priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Context) returns Expr {
     mut fast : Expr = try_fast_fold_call(scope, fcall, ctx)
     if fast.is_null().not() { return fast }
 
@@ -943,7 +943,7 @@ try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Conte
     return lit_local
 }
 
-track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
+priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
     if is_known(ctx, rhs, v) {
         // Map.set deletes the old value via Value.delete (now deep), so a
@@ -960,7 +960,7 @@ track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
 // the entire compilation). Without this split, freeing known's payloads
 // during the FuncDef save/restore would dangle the shared scope binding
 // and corrupt the heap on the next interpreter lookup that touched it.
-track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
+priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     mut v := val_none()
     if is_known(ctx, rhs, v) {
         // Map.set deletes the old value via Value.delete (now deep), so a
@@ -989,7 +989,7 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
-is_func_call := func(e: Expr, ctx: Context) returns Bool {
+priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
     ref callee : Expr = e.child(0)
@@ -1011,7 +1011,7 @@ is_func_call := func(e: Expr, ctx: Context) returns Bool {
 // literal. Issue #191: macros are always folded (typer already rejected
 // non-comptime args). Funcs fold when all args are comptime. Procs are
 // never folded.
-fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
+priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
         ref child : Expr = e.child(i)
         // Save+restore `known` around any nested FuncDef body so user-named

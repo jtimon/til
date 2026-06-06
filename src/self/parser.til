@@ -41,7 +41,7 @@ priv tok_text := func(p: Parser, t: Token) returns Str {
     return p.source.substr(t.start, t.len)
 }
 
-advance := func(mut p: Parser) returns ref Token {
+priv advance := func(mut p: Parser) returns ref Token {
     ref t : Token = p.tokens[p.pos]
     if t.type.is(TokenType.Eof).not() {
         p.pos = p.pos.add(1)
@@ -49,11 +49,11 @@ advance := func(mut p: Parser) returns ref Token {
     return t
 }
 
-check := func(p: Parser, type: TokenType) returns Bool {
+priv check := func(p: Parser, type: TokenType) returns Bool {
     return peek(p).type.eq(type)
 }
 
-expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
+priv expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
@@ -63,7 +63,7 @@ expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
 }
 
 // Like expect but returns the text of the consumed token
-expect_text := func(mut p: Parser, type: TokenType) returns Str {
+priv expect_text := func(mut p: Parser, type: TokenType) returns Str {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
@@ -75,8 +75,8 @@ expect_text := func(mut p: Parser, type: TokenType) returns Str {
 }
 
 // Save line/col before advancing
-peek_line := func(p: Parser) returns U32 { return peek(p).line }
-peek_col := func(p: Parser) returns U32 { return peek(p).col }
+priv peek_line := func(p: Parser) returns U32 { return peek(p).line }
+priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
 
 // Resolve an explicit type name from the source into a Type. Fixed-name
 // primitives are returned directly. Empty name -> Unknown. Anything else
@@ -375,7 +375,7 @@ priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec {
 // `: <Type>` annotation narrows it); an empty Vec when the next token is
 // not `<`. Each generic param defaults to `: Type` when the colon is
 // omitted, so `<T>` means `<T: Type>`.
-parse_generic_params := proc(mut p: Parser) returns Vec {
+priv parse_generic_params := proc(mut p: Parser) returns Vec {
     mut gparams := Vec.new(Declaration)
     if check(p, TokenType.Lt).not() { return gparams }
     advance(p) // consume '<'
@@ -397,7 +397,7 @@ parse_generic_params := proc(mut p: Parser) returns Vec {
 }
 
 // parse_func_def: current token is func/proc/etc keyword
-parse_func_def := proc(mut p: Parser) returns Expr {
+priv parse_func_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
     ref kw : Token = advance(p)
@@ -767,7 +767,7 @@ priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec, line: U32, col
 // c_tag: "" = normal struct (advance past 'struct' keyword)
 //        "@anon" = ext_struct anonymous (no struct tag)
 //        other = ext_struct with custom tag
-parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
+priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
     is_ext := c_tag.len().gt(0)
@@ -891,7 +891,7 @@ parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 // `namespace:` marker -- so violations surface as aggregatable type errors
 // (test/typer_errors.til) rather than a parser panic that aborts the file.
 // See issue #251.
-parse_interface_def := proc(mut p: Parser) returns Expr {
+priv parse_interface_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
     advance(p) // consume 'interface'
@@ -965,7 +965,7 @@ parse_interface_def := proc(mut p: Parser) returns Expr {
 }
 
 // parse_enum_def: current token is 'enum'
-parse_enum_def := proc(mut p: Parser) returns Expr {
+priv parse_enum_def := proc(mut p: Parser) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
     advance(p)
@@ -1154,7 +1154,7 @@ priv parse_throw_bang_suffix := func(mut p: Parser, mut call: Expr) {
 // parse_call: callee Expr already built, current token is '('. The callee
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
-parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U32) returns Expr {
+priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U32) returns Expr {
     advance(p) // consume '('
 
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
@@ -1204,7 +1204,7 @@ parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U3
 // from the result, so `e = make_binop_call(e, ...)` cannot also move `e`
 // out. rhs is taken `own` -- callers never reuse it -- which drops one
 // full AST clone per binary operator.
-make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr) returns Expr {
+priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, own rhs: Expr) returns Expr {
     mut callee := Expr.new(field_access_node(method), op_line, op_col)
     Expr.add_child(callee, own lhs.clone())
     call := Expr.new(NodeType.FCall(FCallData()), op_line, op_col)
@@ -1224,7 +1224,7 @@ priv take_expr := func(mut e: Expr) returns Expr {
 }
 
 // parse_primary: literals, identifiers, calls, field access, grouping parens
-parse_primary := proc(mut p: Parser) returns Expr {
+priv parse_primary := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     ref t : Token = peek(p)
@@ -1609,7 +1609,7 @@ priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
 }
 
 // parse_expression: top-level expression (binary operators + range)
-parse_expression := proc(mut p: Parser) returns Expr {
+priv parse_expression := proc(mut p: Parser) returns Expr {
     mut e := parse_binop(p, 1)
     // Range expression: e..rhs → Range.new(e, rhs)
     if check(p, TokenType.DotDot) {
@@ -1630,7 +1630,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
 }
 
 // parse_statement_ident: identifier is current token
-parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: OwnType) returns Expr {
+priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: OwnType) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     mut name := ""
@@ -1896,7 +1896,7 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: Own
 // Consume any leading DocComment tokens, accumulating their text into
 // p.pending_doc (joined with '\n'). The next call to parse_statement
 // attaches and clears the accumulator.
-drain_doc_comments := func(mut p: Parser) {
+priv drain_doc_comments := func(mut p: Parser) {
     while check(p, TokenType.DocComment) {
         ref t : Token = peek(p)
         if p.pending_doc.is_empty() {
@@ -1967,7 +1967,7 @@ priv parse_case_head := proc(mut p: Parser) returns Expr {
 // (parse_statement_body) and expression position (parse_primary). In
 // expression position the typer rejects the resulting node and points at
 // `match` (issue #244). Each case body is a statement list.
-parse_switch := proc(mut p: Parser) returns Expr {
+priv parse_switch := proc(mut p: Parser) returns Expr {
     sw_line := peek_line(p)
     sw_col := peek_col(p)
     advance(p)
@@ -1987,7 +1987,7 @@ parse_switch := proc(mut p: Parser) returns Expr {
     return node
 }
 
-parse_statement_body := proc(mut p: Parser) returns Expr {
+priv parse_statement_body := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     ref t : Token = peek(p)

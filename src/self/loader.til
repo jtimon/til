@@ -25,7 +25,7 @@ priv normalize_mode_name := func(mode_name: Str) returns Str {
 
 // Strip CWD prefix so embedded file:line:col strings are repo-relative,
 // not absolute. Prepend "./" so emacs recognizes the path as relative.
-display_path := func(p: Str, cwd: Str) returns Str {
+priv display_path := func(p: Str, cwd: Str) returns Str {
     prefix := cwd.concat("/")
     rel := p.strip_prefix(prefix)
     if rel.starts_with("/") {
@@ -55,7 +55,7 @@ forward_header_path := func(path: Str) returns Str {
 }
 
 // Directory part of an absolute path (no trailing slash).
-dir_of := func(abs: Str) returns Str {
+priv dir_of := func(abs: Str) returns Str {
     if abs.len().eq(0) { return "." }
     mut last_slash := abs.len().sub(1)
     while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
@@ -64,7 +64,7 @@ dir_of := func(abs: Str) returns Str {
     return abs.substr(0, last_slash).clone()
 }
 
-resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
+priv resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
     if path.starts_with("/") {
         return path
     }
@@ -90,7 +90,7 @@ ProgramUnit := struct {
 }
 
 // Resolve a file's direct import paths to display paths.
-resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec {
+priv resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec {
     mut out := Vec.new(Str)
     for import_path : Str in import_paths {
         mut try_path := base_dir.format("/", import_path)
@@ -130,7 +130,7 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec) {
     }
 }
 
-extract_imports := func(body: Expr, path: Str) returns Vec {
+priv extract_imports := func(body: Expr, path: Str) returns Vec {
     mut paths := Vec.new(Str)
     for stmt : Expr in body.children {
         mut is_imp := false
@@ -158,7 +158,7 @@ extract_imports := func(body: Expr, path: Str) returns Vec {
 }
 
 // Recursively resolve imports.
-resolve_imports := proc(import_paths: Vec, base_dir: Str,
+priv resolve_imports := proc(import_paths: Vec, base_dir: Str,
     mut resolved_set: Set, mut stack: Vec,
     mut units: Vec, lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
@@ -244,7 +244,7 @@ LoadedProgram := struct {
     run_tests := false
 }
 
-retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
+priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
     ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
     if alias_binding.is_null() { return }
     ref target_binding : TypeBinding = scope.get_binding(target_name)
@@ -269,7 +269,7 @@ retarget_loaded_aliases := func(lp: LoadedProgram) {
 
 // Precomp across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
-precomp_imported := proc(mut lp: LoadedProgram) {
+priv precomp_imported := proc(mut lp: LoadedProgram) {
     // Make codegen_lp() available so dispatch helpers like make_str_value can
     // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
@@ -378,7 +378,7 @@ priv DeclRef := struct {
     idx : U32 = 0
 }
 
-find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns ref Expr {
+priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns ref Expr {
     dot := name.find(".")
     if dot.lt(0) { return NULL }
     type_part := name.substr(0, dot.to_u32())
@@ -401,7 +401,7 @@ find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns re
     return NULL
 }
 
-scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
+priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     mut is_cli := false
     if lp.cur_mode.is_null().not() {
         if lp.cur_mode.needs_main {
@@ -645,7 +645,7 @@ scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
 // usable message. The variadic param is checked by its element type, which is
 // what the builder parses. Runs on the compile path (scavenge_imported); the
 // interpreter additionally guards at runtime in parse_cli_arg.
-validate_cli_main := func(lp: LoadedProgram) {
+priv validate_cli_main := func(lp: LoadedProgram) {
     if lp.cur_mode.is_null() { return }
     if lp.cur_mode.needs_main.not() { return }
     if lp.run_tests { return }
@@ -679,7 +679,7 @@ validate_cli_main := func(lp: LoadedProgram) {
     }
 }
 
-scavenge_imported := proc(mut lp: LoadedProgram) {
+priv scavenge_imported := proc(mut lp: LoadedProgram) {
     validate_cli_main(lp)
     visited := scavenge_visited_imported(lp)
 
@@ -711,7 +711,7 @@ scavenge_imported := proc(mut lp: LoadedProgram) {
 
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
-extract_link_info := func(mut lp: LoadedProgram) {
+priv extract_link_info := func(mut lp: LoadedProgram) {
     root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them. Move iu.ast.children into a local Vec
@@ -767,7 +767,7 @@ extract_link_info := func(mut lp: LoadedProgram) {
     }
 }
 
-load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
+priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     abs_path := realpath_str(path)
     if abs_path.eq("") { return }
     disp := display_path(abs_path, cwd)
@@ -1086,7 +1086,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 // (eval_expr in interpreter.til) and the C codegen (Str_lit in builder.til)
 // both expect the source-level form: \\, \", \n, \t. Escaping here keeps
 // both paths happy when synthesised doc text contains newlines or quotes.
-escape_doc_for_literal_str := func(raw: Str) returns Str {
+priv escape_doc_for_literal_str := func(raw: Str) returns Str {
     mut out := ""
     for c : I8 in raw {
         if c.eq('\\') {
@@ -1105,7 +1105,7 @@ escape_doc_for_literal_str := func(raw: Str) returns Str {
 }
 
 // Classify a top-level Decl's FuncType into a kind string.
-func_kind := func(ft: FuncType) returns Str {
+priv func_kind := func(ft: FuncType) returns Str {
     switch ft {
     case FuncType.Proc:    return "proc"
     case FuncType.Test:    return "test"
@@ -1117,7 +1117,7 @@ func_kind := func(ft: FuncType) returns Str {
 }
 
 // User-facing Type name for help() info strings. "" for Unknown/None.
-til_type_user := func(t: Type) returns Str {
+priv til_type_user := func(t: Type) returns Str {
     switch t {
     case Type.Primitive(Primitive.I64):       return "I64"
     case Type.Primitive(Primitive.U8):        return "U8"
@@ -1144,7 +1144,7 @@ til_type_user := func(t: Type) returns Str {
 // Append "name<0x01>value<0x02>" to packed. 0x01/0x02 are control bytes
 // that won't appear in identifiers or /// doc text, so they make safe
 // field/record separators for __doc_lookup__ in core/doc.til.
-append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
+priv append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(name)
     packed.push_str(Str.from_byte(1))
     packed.push_str(value)
@@ -1153,7 +1153,7 @@ append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
 
 // Append "[own |ref |shallow ][mut ]" prefix for d, omitting whichever
 // ownership the surrounding context already implies.
-append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: OwnType) {
+priv append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: OwnType) {
     if d.own_type.is(default_own).not() {
         switch d.own_type {
         case OwnType.Own:     out.push_str("own ")
@@ -1165,7 +1165,7 @@ append_qualifier_prefix := func(mut out: Str, d: Declaration, default_own: OwnTy
 }
 
 // Append "(p1: T1, name: ..TN)" plus optional " returns [shallow|ref ]T".
-append_fn_signature := func(mut out: Str, fd: FunctionDef) {
+priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     out.push_str("(")
     var_idx_i64 : I64 = fd.variadic_index.cast(I64)
     for i in 0..fd.params.len() {
@@ -1193,7 +1193,7 @@ append_fn_signature := func(mut out: Str, fd: FunctionDef) {
 }
 
 // Append "<indent>/// <line>\n" for each line of doc.
-append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
+priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
     if doc.is_empty() { return }
     mut start : USize = 0
     for i in 0..doc.len() {
@@ -1213,7 +1213,7 @@ append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
 }
 
 // Append "    [own |ref |shallow ][mut ]name : Type" for a struct field.
-append_field_indented := func(mut out: Str, d: Declaration) {
+priv append_field_indented := func(mut out: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     append_qualifier_prefix(out, d, OwnType.Shallow)
@@ -1225,7 +1225,7 @@ append_field_indented := func(mut out: Str, d: Declaration) {
 }
 
 // Append "    [kind ]name(sig) returns T" for a namespace method.
-append_ns_method_indented := func(mut out: Str, d: Declaration) {
+priv append_ns_method_indented := func(mut out: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     mut handled := false
@@ -1249,7 +1249,7 @@ append_ns_method_indented := func(mut out: Str, d: Declaration) {
     }
 }
 
-format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns Str {
+priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns Str {
     mut t := dd.til_type.clone()
     if t.is(Type.Unknown) { t = scope.get_type(name) }
     type_str := til_type_user(t)
@@ -1262,7 +1262,7 @@ format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) returns St
     return name
 }
 
-format_func_info := func(name: Str, fd: FunctionDef) returns Str {
+priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
     mut cap : USize = name.len().add(fd.return_type.len()).add(64)
     for p : Declaration in fd.params {
         cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
@@ -1275,7 +1275,7 @@ format_func_info := func(name: Str, fd: FunctionDef) returns Str {
     return out
 }
 
-format_struct_info := func(name: Str, sdef: StructDef) returns Str {
+priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     mut cap : USize = name.len().add(128)
     for f : Declaration in sdef.fields {
         cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len().mul(2)).add(128)
@@ -1313,7 +1313,7 @@ format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     return out
 }
 
-format_enum_info := func(name: Str, edef: EnumDef) returns Str {
+priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     mut cap : USize = name.len().add(128)
     for v : Str in edef.variants {
         cap = cap.add(v.len()).add(96)
@@ -1377,7 +1377,7 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
 }
 
 // Append "Type.method" qualified entry for a single namespace method.
-collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
+priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
     qual := type_name.format(".", d.name)
     mut info_cap : USize = qual.len().add(64)
     mut is_func := false
@@ -1421,7 +1421,7 @@ collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: S
 
 // Register "Type.field" entries for each struct field, plus "Type.method"
 // entries for each namespace method.
-collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
+priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
     for f : Declaration in sdef.fields {
         qual := type_name.format(".", f.name)
         mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64))
@@ -1444,7 +1444,7 @@ collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info:
 
 // Register "Type.Variant" entries for each enum variant, plus
 // "Type.method" entries for each namespace method.
-collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
+priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
     for i in 0..edef.variants.len() {
         ref v : Str = edef.variants[i]
         qual := type_name.format(".", v)
@@ -1798,7 +1798,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     }
 }
 
-expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
+priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
             ref ciu : ImportUnit = lp.ctx.imported[cu.path]
