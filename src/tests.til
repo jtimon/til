@@ -395,6 +395,7 @@ main := proc(args: ..Str) {
     }
 
     // === mode tests (sorted slowest-first) ===
+    add_mode(tests, "test/hashmaps.til", flags)
     add_mode(tests, "test/kwargs.til", flags)
     add_mode(tests, "test/constfold.til", flags)
     add_mode(tests, "test/strings.til", flags)
@@ -404,7 +405,6 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/dynamic.til", flags)
     add_mode(tests, "test/maps.til", flags)
     add_mode(tests, "test/hashes.til", flags)
-    add_mode(tests, "test/hashmaps.til", flags)
     add_mode(tests, "test/operators.til", flags)
     add_mode(tests, "test/flow.til", flags)
     add_mode(tests, "test/asting.til", flags)
