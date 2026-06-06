@@ -313,10 +313,22 @@
 
    Beyond rstil parity:
 
-   - [ ] ~func<T>(...)~ angle-bracket sugar (~Phase later~) -- desugar
-     to the direct ~func(T: Type)~ generic above with the type
-     inferred from the value args at the call site (today the type-arg
-     is explicit and leads the arg list).
+   - [~] ~func<T>(...)~ angle-bracket sugar (~Phase later~). A first cut
+     shipped that desugars the angle-bracket params into LEADING ~Type~
+     params of the direct ~func(T: Type)~ generic above, so today
+     ~gid := func<T: Type>(v: T)~ is called inline ~gid(I64, 7)~
+     (parse_generic_params, shared with struct<T>; tests
+     test_generic_func_angle_*). This is NOT the intended final form.
+     The CANONICAL ~func<T>~ must be consistent with ~struct<T: Type>~ /
+     ~TemplVec~ (#267): the ~<...>~ list desugars into a type-gen MACRO
+     returning ~FuncDef~, and type-application is its own call --
+     ~gid(I64)~ yields a concrete first-class function value, then
+     ~gid(I64)(7)~ calls it (mirroring ~TemplVec(I64).new()~). That
+     curried form is what we want; the leading-Type-param inline cut is
+     a stepping stone to retire once the macro-wrapped form lands
+     (reuse wrap_struct_def_in_macro's shape via a wrap_func_def_in_macro
+     returning FuncDef). Type inference of ~T~ from the value args
+     (~gid(7)~ with ~T~ deduced) is a further follow-up.
    - [ ] First-class ~Body~ values (Issue #181 cross-references).
    - [ ] Generic-arg inference for macros / value-level deduction (an
      analog of Rust/Haskell type-inference).

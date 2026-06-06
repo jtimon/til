@@ -416,17 +416,19 @@ parse_func_def := proc(mut p: Parser) returns Expr {
 
     // Issue #58: optional generic params `<T: Type, ...>` right after the
     // func/proc keyword. `name := func<T: Type>(v: T) returns T { ... }`
-    // desugars to `name := func(T: Type, v: T) returns T { ... }` -- the
-    // angle-bracket params are prepended as leading `Type` params, and
-    // init_expand_generic_funcs monomorphizes the calls (`name(I64, 42)`).
-    // Same `<...>` grammar as struct<T> via the shared helper.
+    // desugars (at the end of this function) into the type-gen macro form
+    // `name := macro(T: Type) returns FuncDef { return func(v: T) returns T { ... } }`,
+    // mirroring how `struct<T: Type> { ... }` desugars to a macro returning
+    // StructDef. Inline `name(I64)(7)` then works the same way as
+    // `TemplVec(I64).new()`: init_hoist_inline_macros lifts the inner
+    // `name(I64)` into a synthesized monomorphization decl, and the outer
+    // call dispatches to the concrete function. Shared `<...>` grammar with
+    // struct<T>/enum<T> via the parse_generic_params helper.
     mut fd := FunctionDef()
     fd.func_type = ft
+    mut gparams := Vec.new(Declaration)
     if check(p, TokenType.Lt) {
-        gparams := parse_generic_params(p)
-        for gp : Declaration in gparams {
-            fd.params.push(own gp.clone())
-        }
+        gparams = parse_generic_params(p)
     }
 
     expect_token(p, TokenType.LParen)
@@ -630,6 +632,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         }
     }
 
+    // Issue #58: angle-bracket generic params wrap the def into a type-gen
+    // macro now that the inner FuncDef is fully parsed. Mirrors the wrap
+    // parse_struct_def does for struct<T: Type>.
+    if gparams.len().gt(0) {
+        return wrap_func_def_in_macro(own def.clone(), gparams, kw_line, kw_col)
+    }
+
     return def
 }
 
@@ -711,6 +720,30 @@ priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec, line: U32, c
     mut body := Expr.new(NodeType.Body, line, col)
     mut ret := Expr.new(NodeType.Return, line, col)
     ret.add_child(own sdef)
+    body.add_child(own ret)
+    def.add_child(own body)
+    return def
+}
+
+// Issue #58: same shape as wrap_struct_def_in_macro, for
+// `Name := func<T: Type, ...>(...) returns ... { BODY }`. The parsed
+// FuncDef literal is wrapped into `macro(T: Type, ...) returns FuncDef
+// { return func(...) returns ... { BODY } }`, so the rest of the pipeline
+// (init_expand_type_gen_macros + init_hoist_inline_macros) treats it like a
+// hand-written function-generator macro: `Name(I64)` produces a
+// monomorphized FuncDef, and inline `Name(I64)(7)` works the same way as
+// `TemplVec(I64).new()`.
+priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec, line: U32, col: U32) returns Expr {
+    mut fd := FunctionDef()
+    fd.func_type = FuncType.Macro
+    fd.return_type = "FuncDef"
+    for gp : Declaration in gparams {
+        fd.params.push(own gp.clone())
+    }
+    mut def := Expr.new(NodeType.FuncDef(fd), line, col)
+    mut body := Expr.new(NodeType.Body, line, col)
+    mut ret := Expr.new(NodeType.Return, line, col)
+    ret.add_child(own fdef)
     body.add_child(own ret)
     def.add_child(own body)
     return def
@@ -1810,9 +1843,18 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: Own
         return assign
     }
 
-    // Function call: name(...)
+    // Function call: name(...) -- with optional postfix-call chaining so
+    // that curried first-class calls work at statement level (issue #58:
+    // `gswap_angle(I64)(x, y)` mirrors expression-position chaining done
+    // by parse_primary).
     if check(p, TokenType.LParen) {
-        return parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
+        mut call := parse_call(p, own Expr.new(ident_node(name), t_line, t_col), t_line, t_col)
+        while check(p, TokenType.LParen) {
+            pc_line := peek_line(p)
+            pc_col := peek_col(p)
+            call = parse_call(p, own call.clone(), pc_line, pc_col)
+        }
+        return call
     }
 
     // Postfix increment/decrement: name++ or name--

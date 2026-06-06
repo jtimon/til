@@ -842,10 +842,13 @@ test_generic_func_swap := test() {
 }
 
 // `func<T: Type>(...)` angle-bracket sugar (parser-level): desugars to
-// the leading-Type-param form above by prepending each `<...>` entry to
-// the regular param list. Reuses the same parse_generic_params helper as
-// struct<T>/enum<T>. Caller still passes the type-arg inline -- the
-// monomorphizer is unchanged.
+// `macro(T: Type) returns FuncDef { return func(...) { ... } }`, mirroring
+// how `struct<T: Type> { ... }` desugars to a StructDef-returning macro
+// (TemplVec, #267). Reuses parse_generic_params and the existing
+// init_hoist_inline_macros / init_expand_type_gen_macros pipeline: the
+// inner `gid_angle(I64)` gets lifted to a synthesized monomorphization, so
+// the curried call `gid_angle(I64)(7)` resolves to a concrete function
+// call -- exactly analogous to `TemplVec(I64).new()`.
 gid_angle := func<T: Type>(v: T) returns T { return v }
 gswap_angle := func<T: Type>(mut a: T, mut b: T) {
     t := a
@@ -854,12 +857,12 @@ gswap_angle := func<T: Type>(mut a: T, mut b: T) {
 }
 
 test_generic_func_angle_identity := test() {
-    assert_eq(__LOC__, gid_angle(I64, 7), 7)
+    assert_eq(__LOC__, gid_angle(I64)(7), 7)
 }
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2
-    gswap_angle(I64, x, y)
+    gswap_angle(I64)(x, y)
     assert_eq(__LOC__, x, 2)
     assert_eq(__LOC__, y, 1)
 }
