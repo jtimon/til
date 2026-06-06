@@ -521,6 +521,70 @@ test_macro_enum_ns_t_and_self := test() {
     assert_eq(__LOC__, PairEnumI64.Empty.unwrap_or(42), 42)
 }
 
+// --- Issue #56 close-out: macro StructDef + user namespace method.
+// The merge with the auto-generated clone/delete is automatic; the
+// auto-gen runs on the substituted struct literal and the user
+// namespace methods are kept as-is. Symmetric with
+// test_macro_enum_ns_t_and_self on the enum side (#57).
+make_box56 := macro(T: Type) returns StructDef {
+    return struct {
+        v: T = 0
+    namespace:
+        twice := func(self: Self) returns T { return self.v.add(self.v) }
+    }
+}
+BoxI64 := make_box56(I64)
+
+test_macro_struct_ns_method := test() {
+    b := BoxI64(v = 5)
+    assert_eq(__LOC__, b.twice(), 10)
+}
+
+// Issue #56 close-out: INFER_TYPE -- a field declared without an
+// explicit `: Type` annotation but with a default value pulled from a
+// macro arg infers its type from the substituted default.
+make_holder56 := macro(N: I64) returns StructDef {
+    return struct {
+        val := N
+    }
+}
+Holder56 := make_holder56(42)
+
+test_macro_struct_infer_type := test() {
+    h := Holder56()
+    assert_eq(__LOC__, h.val, 42)
+}
+
+// Issue #56 close-out: precomp of a default-value EXPRESSION inside an
+// expanded struct. The default is `N.add(1)` -- after N is substituted,
+// the expression evaluates at compile time.
+make_sized56 := macro(N: I64) returns StructDef {
+    return struct {
+        size: I64 = N.add(1)
+    }
+}
+Sized5 := make_sized56(4)
+
+test_macro_struct_precomp_default := test() {
+    s := Sized5()
+    assert_eq(__LOC__, s.size, 5)
+}
+
+// Issue #57 close-out: reflection helper to count an arbitrary enum's
+// variants. `enum_def_of` + `variants.len()` round-trips through the
+// registered enum metadata.
+Dir57 := enum { N57; S57; E57; W57 }
+
+count_variants57 := func(E: Type) returns I64 {
+    name := dyn_type_to_str(E)
+    def := enum_def_of(name)
+    return def.variants.len().to_i64()
+}
+
+test_macro_enum_count_variants := test() {
+    assert_eq(__LOC__, count_variants57(Dir57), 4)
+}
+
 // --- Function generators (issue #57) ---
 // A macro returning FuncDef is the symmetric analog of macros returning
 // StructDef / EnumDef: `id_i64 := make_id(I64)` expands to

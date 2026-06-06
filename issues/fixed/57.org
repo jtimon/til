@@ -1,6 +1,50 @@
 # priority: low
 # category: features
-** OPEN #57 First-class enums: EnumDef as values
+** FIXED #57 First-class enums: EnumDef as values
+
+*** Post-mortem
+
+   Long-running feature rollout closed alongside #56; #58 (its
+   dependency) closed the metatype foundation, and every
+   "Still missing for rstil parity" bullet here either had already
+   landed in the #58 arc or just lacked a dedicated regression test in
+   ~test/first_class.til~. Verified-and-tested by this commit:
+
+   - Enum-type macros merging a user ~namespace:~ block with the
+     auto-generated ~eq~ / ~to_str~ / ~delete~ -- already covered by
+     ~make_pair_enum~ / ~test_macro_enum_ns_t_and_self~ (user-defined
+     ~unwrap_or~ coexists with auto-gen ~to_str~ on the same
+     macro-generated enum).
+   - Reflection helper to iterate variants of an arbitrary enum value
+     -- ~count_variants57~ / ~test_macro_enum_count_variants~. The
+     pattern from the issue's "open question" works through
+     ~enum_def_of~ + the registered variants list.
+
+   See #56's post-mortem for the typer use-after-free fix shipped in
+   this same commit; the bug surfaced on first_class.til once the new
+   tests perturbed heap layout, but it was latent on master.
+
+   Out of scope for the close, deliberately:
+
+   - Variant payload-type substitution that follows references through
+     nested anonymous / generic-application types (e.g. ~Pair: Vec(T)~).
+     The substitution itself reaches inside, but the parser currently
+     rejects generic-type-application and inline anonymous struct/enum
+     literals in variant payload position, so no current syntax can
+     express the case. Future parser-side issue.
+   - ~func<T>(...)~ sugar -- landed under #58 (curried macro form).
+   - Conditional macro bodies for variant generation -- already landed
+     under #58 (~make_default_fn~ / ~test_cond_macro_funcdef~ is the
+     FuncDef analogue; enum follows the same pattern via the same init
+     pre-pass).
+   - Anonymous enum literals in niche positions (~cast(e, enum {
+     ... })~, ext_func types) -- parser-side, dedicated future issue.
+
+   Regression tests: ~test_macro_enum_count_variants~ (plus the
+   pre-existing ~test_macro_enum_gen~ / ~test_macro_enum_ns_t_and_self~ /
+   ~test_anon_enum_*~ / ~test_enum_*~ / ~test_vec_of_enum_*~ families).
+
+*** Original issue body
 
 :DEPENDENCIES: [[./58.org][#58]]
   Based on rstil/doc/first_class.org. Enum definitions as first-class values

@@ -1,6 +1,60 @@
 # priority: low
 # category: features
-** OPEN #56 First-class structs: StructDef as values
+** FIXED #56 First-class structs: StructDef as values
+
+*** Post-mortem
+
+   Long-running feature rollout closed alongside #57; #58 (its
+   dependency) closed the metatype foundation, and every
+   "Still missing for rstil parity" bullet here either had already
+   landed in the #58 arc or just lacked a dedicated regression test in
+   ~test/first_class.til~. Verified-and-tested by this commit:
+
+   - Struct-type macros merging a user ~namespace:~ block with the
+     auto-generated ~clone~ / ~delete~ -- ~make_box56~ /
+     ~test_macro_struct_ns_method~. ~to_str~ is not auto-generated for
+     any struct, so there is nothing to merge there.
+   - INFER_TYPE resolution: a field with no explicit ~: Type~ but a
+     default value pulled from a macro arg -- ~make_holder56~ /
+     ~test_macro_struct_infer_type~.
+   - Precomp of default-value expressions inside an expanded struct --
+     ~make_sized56~ / ~test_macro_struct_precomp_default~ uses
+     ~size: I64 = N.add(1)~ and the expression evaluates at compile
+     time.
+   - Calling a struct *type* as a generic constructor:
+     ~make_default := func(T: Type) returns T { return T() }~ -- this
+     landed in the #58 ~Phase now~ direct-generic-functions arc as
+     ~gdefault~ / ~test_generic_func_constructor~.
+
+   Side effect: the new tests shifted heap layout in the typer enough
+   to deterministically trigger a latent use-after-free in
+   ~typer_lift_lambdas~ (it registered the scope's func_def pointer
+   against a temporary Expr, then pushed only a CLONE into the AST --
+   the pointer dangled once the temporary Vec was freed and
+   ~func_def_type~ later read freed memory). Fix: push the clone
+   first, register against the pushed copy. Surfaced as ASAN
+   heap-use-after-free at ~src/c/ext.c:587~ on this commit and was a
+   real bug on master, not test churn -- the test additions just made
+   the heap layout reproduce it.
+
+   "Beyond rstil parity" items are deliberately out of scope for the
+   close, exactly as the issue text already labelled them:
+
+   - ~func<T>(...)~ sugar -- landed under #58 (curried macro form).
+   - Conditional macro bodies for generic types whose shape depends
+     on macro args -- also already landed under #58
+     (~make_tagged~ / ~test_cond_macro_struct_else_if~).
+   - Anonymous struct literals in niche positions (~cast(e, struct {
+     ... })~, ext_func param/return types) -- parser-side work,
+     dedicated future issue if a real user case shows up.
+
+   Regression tests: ~test_macro_struct_ns_method~,
+   ~test_macro_struct_infer_type~, ~test_macro_struct_precomp_default~
+   (plus the pre-existing ~test_macro_struct_gen~ /
+   ~test_macro_struct_gen_multi_param~ /
+   ~test_anon_*~ / ~test_struct_*~ / ~test_vec_of_struct_*~ families).
+
+*** Original issue body
 
 :DEPENDENCIES: [[./58.org][#58]]
   Based on rstil/doc/first_class.org. Struct definitions as first-class

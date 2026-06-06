@@ -8128,8 +8128,15 @@ priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Conte
     mut ctr : I64 = 0
     ctr = typer_lift_lambdas_in_expr(prog, top_level, ctr)
     for l : Expr in top_level {
-        typer_register_lifted_lambda(scope, l, ctx)
+        // Push the lifted decl into the AST FIRST, then register the
+        // scope's func_def pointer against the PUSHED copy. set_func_def
+        // stores a raw pointer (write_ptr) into the Expr and expects it
+        // to live in the AST; registering against `l` instead would
+        // dangle as soon as the `top_level` Vec is freed on return,
+        // causing a use-after-free when func_def_type later reads it.
         prog.children.push(own l.clone())
+        ref pushed : Expr = prog.child(prog.children.len().sub(1.to_usize()))
+        typer_register_lifted_lambda(scope, pushed, ctx)
     }
 }
 
