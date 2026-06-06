@@ -1,10 +1,10 @@
-# Auto-generated methods (initer.c)
+# Auto-generated methods (initer.til)
 #
 # The initer auto-generates namespace methods for structs and enums
 # when the user hasn't defined them. All generation is skipped if the
 # method already exists in the namespace: section.
 #
-# Source of truth: src/c/initer.c
+# Source of truth: src/self/initer.til
 
 * Structs
 
@@ -20,48 +20,75 @@
    without freeing the pointer). ref and FuncPtr fields are skipped.
    Calls free(own self) when call_free is true.
 
-** size := func() returns U64
+** size := func() returns USize
    Returns the struct's total_struct_size (computed from field layout
-   with alignment padding). Skipped for core ext_structs (they define
-   size in core.til). For enums: 4 bytes (simple) or 8 bytes (payload).
+   with alignment padding).
+
+** hash := func(self: T, hasher: HashFn) returns U64
+   Generated only when every field is shallow (no own / no ref). This
+   avoids bytewise hashing pointer addresses for managed content. Types
+   with owned or borrowed fields must define a content-aware hash if they
+   need one.
+
+** eq / to_str (planned, #102)
+   Structs do not currently get field-wise ~eq~ or ~to_str~ unless those
+   methods are derived from an explicit ~cmp~ or written by the user.
+   Issue #102 tracks generating them when every instance field supports
+   the required method.
 
 * Enums
 
 ** eq := func(self: E, other: E) returns Bool
    Tag comparison. For payload variants, also compares payloads via
    their type's eq method. FuncPtr payloads use tag-only comparison.
+   This is currently unconditional for payload enums; #125 tracks fixing
+   it so generation is skipped unless every payload type is comparable.
+
+** is := func(self: E, other: E) returns Bool
+   Calls the runtime tag comparison helper.
 
 ** clone := func(self: E) returns E
    Payload variants: clone the payload via get_Variant + constructor.
    Simple variants: copy via eq check + constructor.
 
 ** delete := func(own self: E, call_free: Bool = true)
-   Calls free(own self) if call_free. Payload cleanup handled by free.
+   Calls payload delete for managed payload variants, then calls
+   free(own self) if call_free.
+
+** size := func() returns USize
+   Returns the computed enum layout size.
 
 ** to_str := func(self: E) returns Str
    Returns variant name as string. Payload variants append the
    payload's to_str in parens: "Variant(payload)". FuncPtr payloads
-   use "Variant(func)".
+   use "Variant(func)". This is currently unconditional for payload
+   enums; #125 tracks fixing it so generation is skipped unless every
+   payload type is printable.
+
+** Variant constructors / constants
+   Tag-only enums get variant constants in the enum namespace. Payload
+   enums get one constructor per variant, with payload constructors taking
+   the payload value.
 
 * Derived from cmp (structs and enums)
 
   If a type has ~cmp := func(a: T, b: T) returns I64~, the following
   are auto-generated (each skipped if already defined):
 
-** eq(a, b)  → a.cmp(b).eq(0)
-** neq(a, b) → a.eq(b).not()
-** lt(a, b)  → a.cmp(b).eq(-1)
-** gt(a, b)  → a.cmp(b).eq(1)
-** lte(a, b) → a.gt(b).not()
-** gte(a, b) → a.lt(b).not()
+** eq(a, b)  -> a.cmp(b).eq(0)
+** neq(a, b) -> a.eq(b).not()
+** lt(a, b)  -> a.cmp(b).eq(-1)
+** gt(a, b)  -> a.cmp(b).eq(1)
+** lte(a, b) -> a.gt(b).not()
+** gte(a, b) -> a.lt(b).not()
 
-* Derived from add+sub+unity (planned, #94)
+* Derived from add+sub+unity (structs and enums)
 
   If a type has ~add~ and ~unity~, auto-generate (if missing):
-** inc(mut self) → self = self.add(self.unity())
+** inc(mut self) -> self = self.add(self.unity())
 
   If a type has ~sub~ and ~unity~, auto-generate (if missing):
-** dec(mut self) → self = self.sub(self.unity())
+** dec(mut self) -> self = self.sub(self.unity())
 
   Numeric ext_structs define their own inc/dec directly (C's ++/--).
 
@@ -88,7 +115,7 @@
   The count is stored as U64 and returned by ~len()~.
 
   All numeric builtins (I64, U8, I16, I32, U32, U64) are rangeable
-  — they have all the required methods.
+  -- they have all the required methods.
 
 ** Example: builtin range
 
@@ -125,25 +152,25 @@
    }
    // Auto-generated from cmp: eq, neq, lt, gt, lte, gte
    // Auto-generated from add/sub + unity: inc, dec
-   // Rangeable: has inc, dec, lte ✓
+   // Rangeable: has inc, dec, lte
 
-   // Ascending: (0,0) → (1,1) → (2,2), count=3
+   // Ascending: (0,0) -> (1,1) -> (2,2), count=3
    test_range_vec2_ascending := test() {
        mut sum := 0
        for v : Vec2 in Vec2(x=0, y=0)..Vec2(x=3, y=3) {
            sum = sum.add(v.x).add(v.y)
        }
-       // (0,0)→0, (1,1)→2, (2,2)→4, total=6
+       // (0,0)->0, (1,1)->2, (2,2)->4, total=6
        assert_eq(__LOC__, sum, 6)
    }
 
-   // Descending: (3,3) → (2,2) → (1,1), count=3
+   // Descending: (3,3) -> (2,2) -> (1,1), count=3
    test_range_vec2_descending := test() {
        mut sum := 0
        for v : Vec2 in Vec2(x=3, y=3)..Vec2(x=0, y=0) {
            sum = sum.add(v.x).add(v.y)
        }
-       // (3,3)→6, (2,2)→4, (1,1)→2, total=12
+       // (3,3)->6, (2,2)->4, (1,1)->2, total=12
        assert_eq(__LOC__, sum, 12)
    }
    #+end_src
@@ -233,10 +260,10 @@
 ** Range element type inference
 
    The typer infers the element type from the ~..~ operands:
-   - ~0..5~ → both literals → I64
-   - ~0..count~ where count : U32 → U32 (non-literal wins)
-   - ~0..v.len()~ where len returns USize → USize
-   - ~for i : I32 in -5..5~ → explicit annotation overrides
+   - ~0..5~ -> both literals -> I64
+   - ~0..count~ where count : U32 -> U32 (non-literal wins)
+   - ~0..v.len()~ where len returns USize -> USize
+   - ~for i : I32 in -5..5~ -> explicit annotation overrides
 
    The typer transforms ~Range.new(start, end)~ to include type info:
    ~Range.new("I64", I64.size(), own start, own end)~
@@ -257,6 +284,6 @@
        unity := func(self: Counter) returns Counter { return Counter(val = 1) }
    }
    // Gets inc auto-generated (from add + unity)
-   // No cmp → no lte → NOT rangeable
+   // No cmp -> no lte -> NOT rangeable
    // Can still use ++ / -- directly
    #+end_src

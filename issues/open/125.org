@@ -2,11 +2,12 @@
 # category: bugs
 ** OPEN #125 Enum payload method generation should not assume ~eq~/~to_str~
 
-Related to ~[[./102.org][#102]]~, but separate: even if structs later auto-generate
-  ~eq~ and ~to_str~, enum auto-generation still needs a clear rule for
-  payload variants.
+This is the concrete bug case for ~[[./102.org][#102]]~. Enum helper
+  generation currently emits ~eq~ and ~to_str~ for payload enums without
+  first checking that every payload type supports the methods the generated
+  body will call.
 
-  Right now payload enums auto-generate:
+  Current behavior:
   - ~eq~ by calling payload ~.eq(...)~
   - ~to_str~ by calling payload ~.to_str()~
 
@@ -17,9 +18,15 @@ Related to ~[[./102.org][#102]]~, but separate: even if structs later auto-gener
   Example that currently fails during self-hosting:
   - ~CtorArg := enum { Unfilled, Filled: Expr }~
 
-  Open design question:
-  - should enums auto-generate ~eq~/~to_str~ only when all payload types
-    support them?
-  - should those methods be skipped entirely unless explicitly requested?
-  - should payload and non-payload enums follow different defaults?
+  Expected rule:
+  - generate enum ~eq~ only when all payload variants are comparable
+  - generate enum ~to_str~ only when all payload variants are printable
+  - tag-only variants do not block generation
+  - existing user-written namespace methods still win
+  - if the check fails, omit the generated method instead of emitting a
+    body that will fail later in the pipeline
 
+  This should be fixed as part of ~#102~. If ~#102~ implements the shared
+  support-gated generation rule for structs and enum payloads, this issue
+  becomes a duplicate symptom and should be closed by that implementation
+  commit.

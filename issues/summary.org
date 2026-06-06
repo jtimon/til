@@ -58,7 +58,7 @@
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
-*** [[./open/102.org][#102]] Auto-generate eq and to_str for structs
+*** [[./open/102.org][#102]] Auto-generate eq and to_str for structs and enums
 *** [[./open/114.org][#114]] Source docs + repl help/introspection
 *** [[./open/117.org][#117]] Bool and/or do not short-circuit
 *** [[./open/154.org][#154]] Typer error for unused imports
