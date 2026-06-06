@@ -245,7 +245,32 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     if check(p, TokenType.KwEnum) {
         return anon_lift(p, own parse_enum_def(p), tr_line, tr_col)
     }
-    return expect_text(p, TokenType.Ident)
+    name := expect_text(p, TokenType.Ident)
+    // Issue #267 (type-annotation position): a parametric type `Name(A, B)`
+    // is a type-gen macro instantiation used where a type is expected
+    // (`mut v : TemplVec(Bool) = ...`, `func(x: TemplVec(I64))`, `returns
+    // TemplVec(Bool)`). Mangle it to the SAME name the init inline-hoist
+    // generates for the value occurrence (`Name__A_B`), so the annotation
+    // resolves to that one monomorphization. The init hoist synthesizes the
+    // `Name__A_B := Name(A, B)` decl from the value-position occurrence.
+    if check(p, TokenType.LParen).not() {
+        return name
+    }
+    if name.eq("Fn") {
+        return name
+    }
+    advance(p) // consume '('
+    mut mangled := name.concat("__")
+    mut argi := 0
+    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        if argi.gt(0) { mangled = mangled.concat("_") }
+        argname := expect_text(p, TokenType.Ident)
+        mangled = mangled.concat(argname)
+        argi = argi.add(1)
+        if check(p, TokenType.Comma) { advance(p) }
+    }
+    expect_token(p, TokenType.RParen)
+    return mangled
 }
 
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.

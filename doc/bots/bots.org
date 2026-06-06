@@ -220,6 +220,55 @@ the merger decides whether to accept them.
 
 ## Background vs Foreground
 
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+
+The problem is NOT (only) backgrounding. The problem is running MORE
+stuff after you have already run something. Run one command. WAIT for
+its output. Only then consider the next one. Whether or not a command
+auto-backgrounds is irrelevant: never have a second action in flight.
+Do not "queue up" the next step. Do not act in parallel. One. At. A. Time.
+
+ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
+ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
+ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
+ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
+
+Issue exactly ONE Bash call, then STOP. Do not issue another Bash call
+until that one has returned its output. Never chain "while I'm here" or
+"to save a round trip". If a command backgrounds, END THE TURN and wait
+for the completion notification -- do NOT send another command. Every
+extra in-flight command is an orphan the human has to hand-kill.
+
+DO NOT RUN `make`, `make test`, `make clean`, `make two_pass`,
+`make test_two_pass`, or any full build/suite target. EVER. In this
+remote/cloud session they take MINUTES, blow past the harness timeout,
+get auto-backgrounded, get killed (exit 137 / OOM), and pile up as
+ghost background tasks that the human then has to kill by hand. This is
+THE thing that creates "background task hell". A killed `make` is not a
+test result -- it is a mess.
+
+What to do INSTEAD of `make` / `make test`:
+- Build/typecheck a change cheaply: there is NO cheap full build here.
+  Prefer reasoning + a SINGLE-FILE smoke run: `bin/til run test/<one>.til`
+  or `bin/til interpret test/<one>.til` (only if `bin/til` already exists;
+  do NOT build it with `make`).
+- To verify the whole suite: ASK THE HUMAN to run `make test` locally and
+  report back. Do not run it yourself. Commit, push, and say "please run
+  make test locally before merging".
+- boot/ is stale after a rebase? Leave it. Say so. The human's merge
+  script regenerates boot/ from source. Do not run `make` to regenerate.
+
+If you catch yourself typing `make`, STOP. That is the mistake.
+
 NEVER run commands in the background. No exceptions. This is the single
 most important operational rule on this machine: backgrounded builds
 pile up, run concurrently, thrash the CPU, and have to be hand-killed.

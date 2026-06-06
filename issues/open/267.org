@@ -31,9 +31,15 @@
      files that both inline `TemplVec(Bool)` would each synthesize their own
      `TemplVec__Bool`; the global merge needs to unify identical
      monomorphizations (or reuse the AnonStructN structural unification).
-   - STILL OPEN: type-annotation position (`mut v : TemplVec(Bool) = ...`,
-     and `func(self: TemplVec(T))` / field types) -- a type slot holds a
-     name string today, not a call expression, so this needs parser support.
+   - Caveat (type-annotation position): DONE for concrete instantiations.
+     `mut v : TemplVec(Bool) = ...`, `func(x: TemplVec(I64))`, `returns
+     TemplVec(Bool)` parse (parser.til parse_type_ref accepts `Name(args)`
+     and mangles it to the same `Name__Args` the value-position hoist
+     generates), so the annotation resolves to that monomorphization. The
+     synthesis still comes from a value occurrence; a type-ONLY occurrence
+     of an instantiation never constructed anywhere would be an undefined
+     type (init-time synthesis from type strings is the remaining bit).
+     The macro-body `TemplVec(T)` self-reference case stays on `Self` (2b).
    - STILL OPEN: caveats 1 (`struct<T>` sugar), 2b (drop `Self`), 3 (Dyn*
      in std), 4 (migrate Array/Vec/Set/Map). Note 2b is now unblocked: with
      inline instantiation working, methods can refer to their own type as
