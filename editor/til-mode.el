@@ -24,10 +24,11 @@
   "Syntax table for `til-mode'.")
 
 (defconst til-keywords
-  '("mode" "mut" "ref" "shallow" "copy" "own" "struct" "enum" "namespace" "interface" "implements"
+  '("mode" "const" "mut" "ref" "own" "shallow"
+    "struct" "enum" "namespace" "interface" "implements"
     "func" "proc" "ext_func" "ext_proc" "macro"
     "returns" "return" "throws" "catch"
-    "if" "else" "while" "for" "in" "switch" "case" "true" "false"
+    "if" "else" "while" "for" "in" "switch" "match" "case" "true" "false"
     ))
 
 (defconst til-types
@@ -38,10 +39,9 @@
   '("and" "or" "not" "eq" "branchless"
     "lt" "lteq" "gt" "gteq"
     "add" "sub" "mul" "div" "mod"
-    "format" "to_str" "to_i64" "to_u8"
-    "len" "size_of"
-    "malloc" "memcpy" "memset" "free"
-    "print" "println" "readfile" "runfile" "exit" "import" "LOC"
+    "format" "to_str" "cast"
+    "len" "size"
+    "print" "println" "exit" "import" "LOC"
     "assert" "assertm" "assert_eq" "assert_eq_str"
     "input_read_line" "eval_to_str"
     ;; Implemented modes
@@ -52,15 +52,9 @@
 
 (defconst til-error-words
   '(;; Because they're kind of "dangerous" and it's nice to see them in red
-    "throw" "panic" "exit" "TODO" "UNREACHABLE" "NULL"
+    "throw" "panic" "exit" "TODO" "UNREACHABLE" "NULL" "priv"
     ;; Because they are planned, but not implemented yet
     "defer"
-    "priv" "private" ;; decide on one once implemmented
-    "when" ;; should we replace switch with this or reserve it for other possible uses (not the odin use case, just use if, but there are more)
-    "with" ;; do we really need this?
-    ;; Because they don't belong in this language and can help learning the syntax by trying to compile them
-    "static" "let" "var" "const" "global" "fn" "function" "try"
-    "public" "pub" ;; TODO add to lexer errors
     )
   "Words that are invalid in til and should be highlighted as errors.")
 
