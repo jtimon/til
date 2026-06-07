@@ -14,6 +14,222 @@ import("../../lib/hash")
 
 HASHMAP_INIT_BUCKETS : USize = 16
 
+// DynHashMap preserves the current type-erased HashMap implementation while
+// HashMap is migrated toward a templated, monomorphized API.
+DynHashMap := struct {
+    keys : Vec = Vec.new(Dynamic)
+    values : Vec = Vec.new(Dynamic)
+    buckets : Vec = Vec.new(I64)  // bucket head entry index, -1 if empty
+    nexts : Vec = Vec.new(I64)    // per-entry next-in-chain index, -1 if end
+    key_hash : TypeHashFn = default_type_hash
+    key_cmp  : CmpFn      = default_cmp
+
+namespace:
+    mut hasher : HashFn = fnv1a
+
+    new_type_names := func(key_type: Str, val_type: Str) returns DynHashMap {
+        if key_type.is_empty() {
+            panic(__LOC__, "DynHashMap.new: key_type required")
+        }
+        if val_type.is_empty() {
+            panic(__LOC__, "DynHashMap.new: val_type required")
+        }
+        if dyn_has_method(key_type, "hash").not() {
+            panic(__LOC__, "DynHashMap.new: type ", key_type, " must implement hash")
+        }
+        if dyn_has_method(key_type, "cmp").not() {
+            panic(__LOC__, "DynHashMap.new: type ", key_type, " must implement cmp")
+        }
+        mut m := DynHashMap()
+        m.keys = Vec.new_type_name(key_type)
+        m.values = Vec.new_type_name(val_type)
+        m.buckets = Vec.new(I64)
+        m.nexts = Vec.new(I64)
+        m.key_hash = dyn_fn(key_type, "hash")
+        m.key_cmp  = dyn_fn(key_type, "cmp")
+        for _ in 0..HASHMAP_INIT_BUCKETS {
+            m.buckets.push(own -1)
+        }
+        return m
+    }
+
+    new := func(K: Type, V: Type) returns DynHashMap {
+        key_type := dyn_type_to_str(K)
+        val_type := dyn_type_to_str(V)
+        return DynHashMap.new_type_names(key_type, val_type)
+    }
+
+    len := func(self: DynHashMap) returns USize { return self.keys.count }
+
+    hash_key := func(self: DynHashMap, key: Dynamic) returns U64 {
+        return self.key_hash(key, DynHashMap.hasher)
+    }
+
+    keys_equal := func(self: DynHashMap, a: Dynamic, b: Dynamic) returns Bool {
+        return self.key_cmp(a, b).eq(0)
+    }
+
+    find := func(self: DynHashMap, key: Dynamic) returns I64 {
+        if self.keys.count.eq(0) { return -1 }
+        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        ref head : I64 = self.buckets[bi]
+        mut entry : I64 = head.clone()
+        while entry.gte(0) {
+            entry_u : USize = entry.to_usize()
+            ref k : Dynamic = self.keys[entry_u]
+            if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
+            ref nxt : I64 = self.nexts[entry_u]
+            entry = nxt.clone()
+        }
+        return -1
+    }
+
+    has := func(self: DynHashMap, key: Dynamic) returns Bool {
+        return self.find(key).gte(0)
+    }
+
+    get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic {
+        idx := self.find(key)
+        if idx.lt(0) { panic(__LOC__, "DynHashMap.get: key not found") }
+        return self.values[idx.to_usize()]
+    }
+
+    set := func(mut self: DynHashMap, own key: Dynamic, own val: Dynamic) {
+        bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
+        ref head : I64 = self.buckets[bi]
+        mut entry : I64 = head.clone()
+        mut existing : I64 = -1
+        while entry.gte(0) {
+            entry_u : USize = entry.to_usize()
+            ref k : Dynamic = self.keys[entry_u]
+            if self.keys_equal(to_ptr(key), to_ptr(k)) {
+                existing = entry.clone()
+                break
+            }
+            ref nxt : I64 = self.nexts[entry_u]
+            entry = nxt.clone()
+        }
+        if existing.gte(0) {
+            slot_idx : USize = existing.to_usize()
+            slot_off : USize = slot_idx.mul(self.values.elem_size)
+            self.values.elem_delete(ptr_add(self.values.data, slot_off.cast(U64)), false)
+            memcpy(ptr_add(self.values.data, slot_off.cast(U64)), val, self.values.elem_size.cast(U64))
+            self.keys.elem_delete(key, false)
+            free(own key)
+            free(own val)
+        } else {
+            new_idx : I64 = self.keys.count.to_i64()
+            ref head2 : I64 = self.buckets[bi]
+            head_val : I64 = head2.clone()
+            self.nexts.push(own head_val)
+            self.keys.push(own key)
+            self.values.push(own val)
+            self.buckets.set(bi, own new_idx)
+            if self.keys.count.mul(4).gt(self.buckets.count.mul(3)) {
+                self.rehash()
+            }
+        }
+    }
+
+    rehash := func(mut self: DynHashMap) {
+        new_count : USize = self.buckets.count.mul(2)
+        for i in 0..self.buckets.count {
+            self.buckets.set(i, own -1)
+        }
+        while self.buckets.count.lt(new_count) {
+            self.buckets.push(own -1)
+        }
+        for i in 0..self.keys.count {
+            ref k : Dynamic = self.keys[i]
+            bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
+            ref head : I64 = self.buckets[bi]
+            head_val : I64 = head.clone()
+            self.nexts.set(i, own head_val)
+            self.buckets.set(bi, own i.to_i64())
+        }
+    }
+
+    delete := func(own self: DynHashMap, call_free: Bool = true) {
+        Vec.delete(own self.keys, false)
+        Vec.delete(own self.values, false)
+        Vec.delete(own self.buckets, false)
+        Vec.delete(own self.nexts, false)
+        if call_free { free(own self) }
+    }
+
+    remove := func(mut self: DynHashMap, key: Dynamic) {
+        if self.keys.count.eq(0) { return }
+        bi := bucket(self.hash_key(key), self.buckets.count)
+
+        ref head : I64 = self.buckets[bi]
+        mut prev : I64 = -1
+        mut entry : I64 = head.clone()
+        mut found := false
+        while entry.gte(0) {
+            entry_u : USize = entry.to_usize()
+            ref k : Dynamic = self.keys[entry_u]
+            if self.keys_equal(key, k) {
+                found = true
+                break
+            }
+            prev = entry.clone()
+            ref nxt : I64 = self.nexts[entry_u]
+            entry = nxt.clone()
+        }
+        if found.not() { return }
+
+        idx_u : USize = entry.to_usize()
+        keys_off : USize = idx_u.mul(self.keys.elem_size)
+        values_off : USize = idx_u.mul(self.values.elem_size)
+
+        self.keys.elem_delete(ptr_add(self.keys.data, keys_off.cast(U64)), false)
+        self.values.elem_delete(ptr_add(self.values.data, values_off.cast(U64)), false)
+
+        ref nxt_of_idx : I64 = self.nexts[idx_u]
+        nxt_val : I64 = nxt_of_idx.clone()
+        if prev.lt(0) {
+            self.buckets.set(bi, own nxt_val)
+        } else {
+            self.nexts.set(prev.to_usize(), own nxt_val)
+        }
+
+        last_idx : I64 = self.keys.count.to_i64().sub(1)
+        if entry.eq(last_idx).not() {
+            last_u : USize = last_idx.to_usize()
+            ref last_key : Dynamic = self.keys[last_u]
+            last_bi := bucket(self.hash_key(last_key), self.buckets.count)
+            ref last_head : I64 = self.buckets[last_bi]
+            if last_head.eq(last_idx) {
+                self.buckets.set(last_bi, own entry.clone())
+            } else {
+                mut walker : I64 = last_head.clone()
+                while walker.gte(0) {
+                    walker_u : USize = walker.to_usize()
+                    ref walker_nxt : I64 = self.nexts[walker_u]
+                    if walker_nxt.eq(last_idx) {
+                        self.nexts.set(walker_u, own entry.clone())
+                        break
+                    }
+                    walker = walker_nxt.clone()
+                }
+            }
+
+            last_keys_off : USize = last_u.mul(self.keys.elem_size)
+            last_values_off : USize = last_u.mul(self.values.elem_size)
+            memcpy(ptr_add(self.keys.data, keys_off.cast(U64)),
+                   ptr_add(self.keys.data, last_keys_off.cast(U64)), self.keys.elem_size.cast(U64))
+            memcpy(ptr_add(self.values.data, values_off.cast(U64)),
+                   ptr_add(self.values.data, last_values_off.cast(U64)), self.values.elem_size.cast(U64))
+            ref last_nxt : I64 = self.nexts[last_u]
+            self.nexts.set(idx_u, own last_nxt.clone())
+        }
+
+        self.keys.count = self.keys.count.sub(1)
+        self.values.count = self.values.count.sub(1)
+        self.nexts.count = self.nexts.count.sub(1)
+    }
+}
+
 HashMap := struct {
     keys : Vec = Vec.new(Dynamic)
     values : Vec = Vec.new(Dynamic)

@@ -42,12 +42,16 @@
      `Name__Args := Name(args)` decl during parse, and the initer dedups
      deterministic synthesized decls across units with the same Context-level
      set used by value-position hoisting. Covered by test/templ_type_only.til.
-   - STILL OPEN: 2b (drop `Self`), 3 (Dyn* in std), 4 (migrate HashMap as
-     the pilot, then Array/Vec/Set/Map). Type-only synthesis is enough for
-     concrete annotations, but removing `Self` globally is not correct yet:
-     explicit user aliases like `Alias := make_type(I64)` still need method
-     bodies to resolve `Self` to the alias LHS, not to a deterministic
-     `make_type__I64` name.
+   - Caveat 3 (Dyn* in std): STARTED. The current type-erased `HashMap`
+     implementation has been preserved as `DynHashMap`, with duplicated
+     regression coverage in test/dyn_hashmaps.til, before the `HashMap<K,V>`
+     pilot rewrite.
+   - STILL OPEN: 2b (drop `Self`), remaining Dyn* containers, and 4 (migrate
+     HashMap as the pilot, then Array/Vec/Set/Map). Type-only synthesis is
+     enough for concrete annotations, but removing `Self` globally is not
+     correct yet: explicit user aliases like `Alias := make_type(I64)` still
+     need method bodies to resolve `Self` to the alias LHS, not to a
+     deterministic `make_type__I64` name.
 
    *** Foundation already in place (issue #243)
 
@@ -159,10 +163,10 @@
    *** Suggested order
 
    1. Type-only instantiation synthesis. DONE.
-   2. Caveat 2b: drop `Self` after type-only synthesis makes explicit
-      `Name(T)` self-references reliable everywhere. DONE.
+   2. Caveat 2b: drop `Self` after explicit user aliases have an equivalent
+      way to refer to their own LHS type.
    3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
-      tests.
-   4. Pilot migration: duplicate current `HashMap` to `DynHashMap`, then make
-      `HashMap<K, V>` templated.
+      tests. STARTED with DynHashMap.
+   4. Pilot migration: make `HashMap<K, V>` templated now that current
+      HashMap is preserved as `DynHashMap`.
    5. Caveat 4 core migration: Array, then Vec, then Set, then Map.
