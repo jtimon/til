@@ -52,13 +52,15 @@
       been preserved as `DynVec`, `DynSet`, and `DynMap` in src/std/, with
       duplicated regression coverage in test/dyn_vecs.til, test/dyn_sets.til,
       and test/dyn_maps.til.
-    - STILL OPEN: 2b (drop `Self`) and 4 (migrate Array/Vec/Set/Map; leave
-      `HashMap<K,V>` until typed Vec/buffer support is
-     ready). Type-only synthesis is
-     enough for concrete annotations, but removing `Self` globally is not
-     correct yet: explicit user aliases like `Alias := make_type(I64)` still
-     need method bodies to resolve `Self` to the alias LHS, not to a
-     deterministic `make_type__I64` name.
+    - Caveat 2b (`Self`): DEFERRED. Type-only synthesis is enough for concrete
+      annotations, but removing `Self` globally is not correct yet: explicit
+      user aliases like `Alias := make_type(I64)` still need method bodies to
+      resolve `Self` to the alias LHS, not to a deterministic
+      `make_type__I64` name. Keeping `Self` is not a blocker for starting the
+      `Array` migration.
+    - STILL OPEN: 4 (migrate Array/Vec/Set/Map; leave `HashMap<K,V>` until
+      typed Vec/buffer support is ready). The remaining `Self` compatibility
+      path is not a blocker for starting the `Array` migration.
 
    *** Foundation already in place (issue #243)
 
@@ -117,17 +119,17 @@
 
    *** Caveat 2b: solving #2 retires the special-cased `Self`
 
-   Templated types use a `Self` placeholder so namespace methods can name
-   their own monomorphized type (`self: Self`, `returns Self`, `Self(...)`
-   ctor calls). `Self` is a SPECIAL CASE added by the expansion
-   (src/self/initer.til): it maps `Self -> <decl-LHS-name>` because aliases
-   such as `Alias := make_type(I64)` need the method body to name `Alias`,
-   not the deterministic macro-instantiation name.
+    Templated types use a `Self` placeholder so namespace methods can name
+    their own monomorphized type (`self: Self`, `returns Self`, `Self(...)`
+    ctor calls). `Self` is a SPECIAL CASE added by the expansion
+    (src/self/initer.til): it maps `Self -> <decl-LHS-name>` because aliases
+    such as `Alias := make_type(I64)` need the method body to name `Alias`,
+    not the deterministic macro-instantiation name.
 
-   With type-only synthesis solved, a method on a deterministically generated
-   inline type can write `TemplVec(T)` everywhere `Self` appears -- the SAME
-   macro-call with the same `T` already in scope -- and dedup can resolve it
-   to the monomorphized type:
+    With type-only synthesis solved, a method on a deterministically generated
+    inline type should eventually be able to write `TemplVec(T)` everywhere
+    `Self` appears -- the SAME macro-call with the same `T` already in scope --
+    and dedup should resolve it to the monomorphized type:
 
    : TemplVec := struct<T: Type> {
    :     ...
@@ -136,8 +138,9 @@
    :     clone := func(self: TemplVec(T)) returns TemplVec(T) { ... }
    : }
 
-   But `Self` cannot be removed globally until explicit user aliases have an
-   equivalent way to refer to their own LHS type.
+    That remains future cleanup. `Self` cannot be removed globally until
+    explicit user aliases have an equivalent way to refer to their own LHS
+    type, but that does not block templating `Array`.
 
    *** Caveat 3: keep the dynamic versions in std as DynArray/DynVec/...
 
@@ -169,9 +172,8 @@
 
    *** Suggested order
 
-   1. Type-only instantiation synthesis. DONE.
-   2. Caveat 2b: drop `Self` after explicit user aliases have an equivalent
-      way to refer to their own LHS type.
+    1. Type-only instantiation synthesis. DONE.
+    2. Caveat 2b: keep `Self` for now; not a blocker for `Array`.
     3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
        tests. STARTED with DynHashMap, DynArray, DynVec, DynSet, and DynMap.
    4. Caveat 4 core migration: Array, then Vec, then Set, then Map.
