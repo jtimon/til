@@ -2333,10 +2333,20 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
         env_type := fd.closure_name.concat("_env")
         f.write("({ ").write(env_type).write(" *til_env = malloc(sizeof(").write(env_type).write(")); ")
         for cap : Declaration in fd.captures {
-            f.write("til_env->").write(cap.name).write(" = &").write(cap.name).write("; ")
+            ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), _ctx)
+            if cap.is_mut {
+                f.write("til_env->").write(cap.name).write(" = &").write(cap.name).write("; ")
+            } else {
+                f.write("til_env->").write(cap.name).write(" = malloc(sizeof(").write(ctype).write(")); ")
+                f.write("*til_env->").write(cap.name).write(" = ")
+                mut cap_expr := Expr.new(ident_node(cap.name), e.line, e.col)
+                cap_expr.set_expr_til_type(cap.til_type.clone())
+                emit_deref(f, cap_expr, _depth, _ctx)
+                f.write("; ")
+            }
         }
         f.write("TilClosure *til_closure = malloc(sizeof(TilClosure)); ")
-        f.write("*til_closure = (TilClosure){ (void *)").write(fd.closure_name).write(", til_env, free }; til_closure; })")
+        f.write("*til_closure = (TilClosure){ (void *)").write(fd.closure_name).write(", til_env, ").write(fd.closure_name).write("_drop }; til_closure; })")
     case:
         UNREACHABLE(__LOC__)
     }
@@ -3319,6 +3329,15 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
             f.write("    ").write(ctype).write(" *").write(cap.name).write(";\n")
         }
         f.write("} ").write(env_type).write(";\n")
+        f.write("static void ").write(fd.closure_name).write("_drop(void *til_env_raw) {\n")
+        f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
+        for drop_cap : Declaration in fd.captures {
+            if drop_cap.is_mut.not() {
+                f.write("    free(til_env->").write(drop_cap.name).write(");\n")
+            }
+        }
+        f.write("    free(til_env);\n")
+        f.write("}\n")
         ret := func_return_ctype(fd, lp.ctx)
         f.write("static ").write(ret).write(" ").write(fd.closure_name).write("(void *til_env_raw")
         if fd.params.len().gt(0) {

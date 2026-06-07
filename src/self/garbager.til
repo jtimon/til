@@ -229,6 +229,10 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                         if b.type.is_funcptr().and(rhs_fd.captures.len().gt(0)).and(b.own_type.is(OwnType.Ref).not()) {
                             li.is_heap = true
                         }
+                    case NodeType.FCall:
+                        if b.type.is_funcptr().and(b.own_type.is(OwnType.Ref).not()) {
+                            li.is_heap = true
+                        }
                     case:
                     }
                 }

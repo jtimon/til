@@ -1,0 +1,13 @@
+mode test
+
+UnaryOp := func(I64) returns I64
+
+make_multiplier := func(factor: I64) returns UnaryOp {
+    local_factor := factor
+    return func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
+}
+
+test_closure_return_captures_local := test() {
+    triple := make_multiplier(3)
+    assert_eq(__LOC__, triple(6), 18)
+}

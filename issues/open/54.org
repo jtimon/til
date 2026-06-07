@@ -38,9 +38,14 @@
       closures, explicit FuncSig locals, named FuncSig-form captured
       lambdas, direct FuncSig arguments, and mut captures work in compile
       mode. Tests: test/closures_interp.til and test/first_class.til.
-   - [ ] Escaping closure lifetimes for stored/returned closures. C closure
-      environments currently borrow captured locals, so a closure called
-      after its defining stack scope exits can dangle.
+    - [ ] Escaping closure lifetimes for stored/returned closures. C closure
+       environments currently borrow captured locals, so a closure called
+       after its defining stack scope exits can dangle.
+      Progress: non-mut value captures now get closure-owned heap slots and
+      returned closures clean them up through the closure drop hook. Test:
+      test/closures_compile_escape.til::test_closure_return_captures_local.
+      Remaining: escaping mut captures and aggregate ownership/deep-copy
+      semantics.
    - [ ] copy/own capture modifiers (snapshot/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]
