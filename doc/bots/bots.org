@@ -95,6 +95,11 @@ ALWAYS read a file before writing or editing it. No exceptions. If you haven't r
 Always run `make clean && make test` and verify all tests pass before committing.
 If you are about to run `make clean && make test`, do NOT run `make` first;
 `make clean` deletes that work and only wastes time.
+For "Two-pass: "-prefixed commits, use `make test_two_pass` instead
+(`make two_pass` rebuilds with the freshly-built `bin/til` so `boot/`
+reflects the new compiler self-applied; `make test_two_pass` adds the
+full suite). `make && make two_pass` is redundant -- `make two_pass`
+already depends on `bin/til` so the initial build runs implicitly.
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
 Remote sessions (Claude in the cloud): long commands work, but the

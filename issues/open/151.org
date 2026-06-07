@@ -1,41 +1,29 @@
 # priority: low
 # category: deferred
-** WIP #151 32-bit targets: wasm32 and templeos-x86
+** OPEN #151 TempleOS target
 
-:DEPENDENCIES: [[./81.org][#81]] [[./232.org][#232]]
+:DEPENDENCIES: [[../fixed/12.org][#12]]
 
-  [[file:../../src/self/targets.til][src/self/targets.til]] already has ~Target.Wasm32~ and
-  ~Target.TempleosX86~ in the enum (mirrored from rstil), with
-  toolchain selection (~clang --target=wasm32~, ~holyc~) and
-  executable extension (~.wasm~, no ext) wired up. Nothing actually
-  builds for these targets because til's generated C assumes 64-bit
-  pointers everywhere (~USize~, raw pointer arithmetic), and the
-  32-bit targets would generate C that's unsound on 32-bit ABIs.
+  Add a TempleOS target. This is not part of the hosted 32-bit target
+  work anymore: TempleOS is a separate toolchain, runtime, filesystem,
+  graphics, and testing environment.
 
-  Progress so far (via [[./232.org][#232]] LinuxX86 canary):
+  The old broad 32-bit scope was split:
 
-  * Fixed ~get_payload~ in [[file:../../src/c/ext.c][src/c/ext.c]] to use ~sizeof(void*)~
-    instead of ~sizeof(I64)~ for the tag-offset computation. On 64-bit
-    both are 8, but on 32-bit ~sizeof(I64)=8~ (off by 4) while
-    ~sizeof(void*)=4~ (correct). This was the primary crash in all
-    32-bit til programs (Type_delete reading garbage payload pointers).
+  - Hosted 32-bit Linux/Windows targets are tracked in [[./232.org][#232]].
+  - Browser WASM is tracked in [[./228.org][#228]].
 
-  * Fixed ~dyn_size_of~ in [[file:../../src/self/builder.til][src/self/builder.til]] to use
-    ~sizeof(Dynamic)~ instead of hardcoded 8.
+*** Scope
 
-  * Cross-compiled ~examples/hello_script.til~ (~echo Hello World~) and
-    ~tmp/hello_simple.til~ (~println(~["Hello"]~)~) for linux-x86
-    with ~gcc -m32~ and verified they run correctly under ~qemu-i386~.
+  - Emit or translate til programs to HolyC or another TempleOS-native
+    representation.
+  - Replace POSIX/Windows runtime assumptions with TempleOS primitives.
+  - Implement ~mode gui~ on TempleOS using native graphics rather than
+    raylib.
+  - Define a QEMU-based test loop using a TempleOS VM image.
 
-  * Added ~Target.LinuxArm32~ and ~Target.LinuxRiscv32~ to the enum
-    with all switch cases wired (toolchain: ~arm-linux-gnueabihf-gcc~
-    and ~riscv32-linux-gnu-gcc~).
+*** Notes
 
-  * Added CI jobs for linux-x86 (file verify + qemu-i386 run) and
-    linux-arm32 (file verify) in [[file:../../.github/workflows/tests.yml][tests.yml]].
-
-  Remaining (per [[./232.org][#232]]):
-  - Build 32-bit vendor libs (libffi, raylib, tinyfd)
-  - Run full test suite for linux-x86 via qemu
-  - riscv32 CI (blocked on standard toolchain package)
-
+  TempleOS has no normal C compiler path comparable to the Linux,
+  Windows, or browser targets. Treat it as deferred platform work, not
+  as one more clang cross target.

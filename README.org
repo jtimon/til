@@ -93,6 +93,18 @@ This is more predictable, but sill not completely deterministic. And can be more
 - ~gcc~
 - ~xvfb~ (for GUI tests)
 
+** Cross-compilation targets
+
+Building for non-native targets requires target-specific compilers and
+sysroots. Install these packages (Ubuntu/Debian) for each target:
+
+- ~linux-arm64~: ~gcc-aarch64-linux-gnu~
+- ~linux-riscv64~: ~gcc-riscv64-linux-gnu~
+- ~linux-x86~ (32-bit): ~gcc-multilib~, ~qemu-user~ (for testing)
+- ~linux-arm32~: ~gcc-arm-linux-gnueabihf~, ~qemu-user~ (for testing)
+- ~linux-riscv32~: No standard Ubuntu packages exist; use a Bootlin prebuilt toolchain (see CI configuration)
+- ~windows-x64~: ~mingw-w64~
+
 * Internal dependencies (bundled in the repository)
 
 - [[https://github.com/libffi/libffi][libffi]]
