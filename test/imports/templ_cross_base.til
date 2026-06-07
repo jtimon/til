@@ -1,0 +1,14 @@
+mode lib
+
+CrossBox := struct<T: Type> {
+    val : T
+
+    namespace:
+    new := func(own val: T) returns Self {
+        return Self(val = val)
+    }
+
+    get := func(self: Self) returns ref T {
+        return self.val
+    }
+}

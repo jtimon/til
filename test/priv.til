@@ -1,5 +1,5 @@
 mode test
-import("priv_helper")
+import("imports/priv_helper")
 
 // Same-file priv is fine; importer can call the public add_one which
 // internally uses priv internal_inc inside priv_helper.til.

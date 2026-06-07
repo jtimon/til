@@ -126,6 +126,12 @@ Commit policy for local sessions:
 
 - If you are editing the main checkout directly on `master`, do not commit
   until the human explicitly asks for a commit.
+  Direct edits to `master` therefore remain as uncommitted changes by
+  design; this is not only a failure/recovery state. Report them clearly.
+  If the human says "cherry-pick to master" but the changes are already
+  uncommitted in the main `master` checkout, there is no worktree commit to
+  cherry-pick. Say that plainly and wait for, or follow, an explicit commit
+  instruction.
 - If you are working in a dedicated worktree for the task, commit your own
   completed work in that worktree after the required focused verification
   passes. Do not wait for a separate "commit" instruction just because the
@@ -139,6 +145,9 @@ Merging to master (local sessions)::
 
   # Start this sequence from a committed worktree branch. If your fix is
   # still uncommitted, finish the edit/test/commit cycle first.
+  # Do NOT use this sequence for edits that are already uncommitted in the
+  # main master checkout; those need an explicit commit request, not a
+  # cherry-pick.
   #
   # 1. Cherry-pick the single worktree commit onto master.
   git checkout master

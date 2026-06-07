@@ -37,16 +37,17 @@
      `mut v : TemplVec(Bool) = ...`, `func(x: TemplVec(I64))`, `returns
      TemplVec(Bool)` parse (parser.til parse_type_ref accepts `Name(args)`
      and mangles it to the same `Name__Args` the value-position hoist
-     generates), so the annotation resolves to that monomorphization. The
-     synthesis still comes from a value occurrence; a type-ONLY occurrence
-     of an instantiation never constructed anywhere would be an undefined
-     type (init-time synthesis from type strings is the remaining bit).
-     The macro-body `TemplVec(T)` self-reference case stays on `Self` (2b).
-   - STILL OPEN: type-only instantiation synthesis, 2b (drop `Self`), 3
-     (Dyn* in std), 4 (migrate HashMap as the pilot, then
-     Array/Vec/Set/Map). Note 2b is now unblocked: with inline
-     instantiation working, methods can refer to their own type as
-     `TemplVec(T)` instead of the special-cased `Self`.
+     generates), so the annotation resolves to that monomorphization.
+     Type-only occurrences now synthesize the matching top-level
+     `Name__Args := Name(args)` decl during parse, and the initer dedups
+     deterministic synthesized decls across units with the same Context-level
+     set used by value-position hoisting. Covered by test/templ_type_only.til.
+   - STILL OPEN: 2b (drop `Self`), 3 (Dyn* in std), 4 (migrate HashMap as
+     the pilot, then Array/Vec/Set/Map). Type-only synthesis is enough for
+     concrete annotations, but removing `Self` globally is not correct yet:
+     explicit user aliases like `Alias := make_type(I64)` still need method
+     bodies to resolve `Self` to the alias LHS, not to a deterministic
+     `make_type__I64` name.
 
    *** Foundation already in place (issue #243)
 
@@ -95,9 +96,8 @@
    Two problems, now mostly done:
 
    1. Inline `TemplVec(Bool)` expands in value/receiver positions and in
-      concrete type-annotation positions. STILL OPEN: a type-only occurrence
-      with no value-position `Name(args)` occurrence does not synthesize the
-      monomorphization yet.
+      concrete type-annotation positions, including type-only occurrences
+      with no value-position `Name(args)` occurrence in that unit.
 
    2. DEDUP: DONE within and across units. `test/templ_cross_unit.til`
       imports two sibling units that both inline the same imported template
@@ -106,16 +106,17 @@
 
    *** Caveat 2b: solving #2 retires the special-cased `Self`
 
-   Today's templated types use a `Self` placeholder so namespace methods
-   can name their own monomorphized type (`self: Self`, `returns Self`,
-   `Self(...)` ctor calls). `Self` is a SPECIAL CASE added by the
-   expansion (src/self/initer.til): it maps `Self -> <decl-LHS-name>` only
-   because the body has no other way to refer to the type being generated.
+   Templated types use a `Self` placeholder so namespace methods can name
+   their own monomorphized type (`self: Self`, `returns Self`, `Self(...)`
+   ctor calls). `Self` is a SPECIAL CASE added by the expansion
+   (src/self/initer.til): it maps `Self -> <decl-LHS-name>` because aliases
+   such as `Alias := make_type(I64)` need the method body to name `Alias`,
+   not the deterministic macro-instantiation name.
 
-   Once caveat 2 is solved, that special case goes away. A method can
-   simply write `TemplVec(T)` everywhere `Self` appears -- the SAME
-   macro-call with the same `T` already in scope -- and dedup guarantees
-   it resolves to the one monomorphized type the method is part of:
+   With type-only synthesis solved, a method on a deterministically generated
+   inline type can write `TemplVec(T)` everywhere `Self` appears -- the SAME
+   macro-call with the same `T` already in scope -- and dedup can resolve it
+   to the monomorphized type:
 
    : TemplVec := struct<T: Type> {
    :     ...
@@ -124,11 +125,8 @@
    :     clone := func(self: TemplVec(T)) returns TemplVec(T) { ... }
    : }
 
-   So `Self` is a workaround for the missing inline-call-with-dedup. When
-   #2 lands, remove the `Self` substitution from the expansion and update
-   any callers (templ_vec.til today, plus the in-progress migrations from
-   caveat 4) to use the explicit `TemplVec(T)` form. One fewer privileged
-   identifier in the language.
+   But `Self` cannot be removed globally until explicit user aliases have an
+   equivalent way to refer to their own LHS type.
 
    *** Caveat 3: keep the dynamic versions in std as DynArray/DynVec/...
 
@@ -160,9 +158,9 @@
 
    *** Suggested order
 
-   1. Type-only instantiation synthesis.
+   1. Type-only instantiation synthesis. DONE.
    2. Caveat 2b: drop `Self` after type-only synthesis makes explicit
-      `Name(T)` self-references reliable everywhere.
+      `Name(T)` self-references reliable everywhere. DONE.
    3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
       tests.
    4. Pilot migration: duplicate current `HashMap` to `DynHashMap`, then make

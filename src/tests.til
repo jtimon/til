@@ -421,6 +421,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/vecs.til", flags)
     add_mode(tests, "test/templ_vec.til", flags)
     add_mode(tests, "test/templ_cross_unit.til", flags)
+    add_mode(tests, "test/templ_type_only.til", flags)
     add_mode(tests, "test/priv.til", flags)
     add_mode(tests, "test/trailing.til", flags)
     add_mode(tests, "test/globals.til", flags)

@@ -1,0 +1,12 @@
+mode test
+
+import("imports/templ_type_only_a")
+import("imports/templ_type_only_b")
+
+RootTypeOnlyHolder := struct {
+    box : CrossBox(I64)
+}
+
+test_templ_type_only_instantiation := test() {
+    assert(__LOC__, RootTypeOnlyHolder.size().gt(0))
+}

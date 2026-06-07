@@ -9,6 +9,13 @@ priv Parser := struct {
     pos : USize = 0
     path := ""
     fn_sig_decls := Vec.new(Expr)
+    // Issue #267: top-level decls synthesized for type-position type-gen
+    // macro instantiations (`Name(Arg)` where a type is expected). The type
+    // annotation itself stores the deterministic generated name `Name__Arg`;
+    // this side table emits the matching `Name__Arg := Name(Arg)` decl so a
+    // type-only occurrence still produces the monomorphization.
+    type_gen_decls := Vec.new(Expr)
+    type_gen_seen := Set.new(Str)
     // Issue #56/#57: top-level decls synthesised for anonymous struct/enum
     // literals (`struct { ... }(args)`, `enum { ... }.V`, and inline defs in
     // type positions). anon_cache maps a literal's structural key (anon_def_key)
@@ -233,6 +240,21 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     return name.clone()
 }
 
+priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec, mangled: Str, line: U32, col: U32) {
+    if p.type_gen_seen.has(mangled) { return }
+    mut callee := Expr.new(ident_node(name), line, col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own callee)
+    for arg : Str in args {
+        mut arg_expr := Expr.new(ident_node(arg), line, col)
+        call.add_child(own arg_expr)
+    }
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = mangled.clone())), line, col)
+    decl.add_child(own call)
+    p.type_gen_decls.push(own decl)
+    p.type_gen_seen.add(own mangled.clone())
+}
+
 // parse_type_ref: parse a type annotation. Normally a bare identifier, but
 // an inline `struct { ... }` / `enum { ... }` is lifted to a generated
 // AnonStructN/AnonEnumN type (issue #56/#57) and its name returned.
@@ -250,9 +272,8 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     // is a type-gen macro instantiation used where a type is expected
     // (`mut v : TemplVec(Bool) = ...`, `func(x: TemplVec(I64))`, `returns
     // TemplVec(Bool)`). Mangle it to the SAME name the init inline-hoist
-    // generates for the value occurrence (`Name__A_B`), so the annotation
-    // resolves to that one monomorphization. The init hoist synthesizes the
-    // `Name__A_B := Name(A, B)` decl from the value-position occurrence.
+    // generates for the value occurrence (`Name__A_B`) and synthesize the
+    // matching top-level decl so type-only occurrences instantiate too.
     if check(p, TokenType.LParen).not() {
         return name
     }
@@ -261,15 +282,18 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     }
     advance(p) // consume '('
     mut mangled := name.concat("__")
+    mut args := Vec.new(Str)
     mut argi := 0
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         if argi.gt(0) { mangled = mangled.concat("_") }
         argname := expect_text(p, TokenType.Ident)
         mangled = mangled.concat(argname)
+        args.push(own argname.clone())
         argi = argi.add(1)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
+    type_gen_lift(p, name, args, mangled, tr_line, tr_col)
     return mangled
 }
 
@@ -277,7 +301,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
 // Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
 // bodyless FuncDef Decl, stores it in p.fn_sig_decls, and returns the name.
 // Returns "" if not followed by '(' (bare "Fn" type).
-priv parse_fn_signature := func(mut p: Parser, line: U32, col: U32) returns Str {
+priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str {
     if check(p, TokenType.LParen).not() {
         return ""
     }
@@ -293,7 +317,7 @@ priv parse_fn_signature := func(mut p: Parser, line: U32, col: U32) returns Str 
             panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                 ": redundant 'const' on parameter: parameters are immutable by default; drop it")
         }
-        ptype := expect_text(p, TokenType.Ident)
+        ptype := parse_type_ref(p)
         ptypes.push(own ptype)
         pmuts.push(own is_mut)
         if check(p, TokenType.Comma) { advance(p) }
@@ -304,7 +328,7 @@ priv parse_fn_signature := func(mut p: Parser, line: U32, col: U32) returns Str 
     mut return_type := ""
     if check(p, TokenType.KwReturns) {
         advance(p)
-        return_type = expect_text(p, TokenType.Ident)
+        return_type = parse_type_ref(p)
     }
 
     // Build synthetic name: _Fn_[mut_]T1_[mut_]T2_ret_R
@@ -2260,6 +2284,11 @@ parse := proc(tokens: Vec, source: Str, path: Str, mut mode_out: Str) returns Ex
         root.add_child(own parse_statement(p))
     }
     p.pending_doc = ""
+    // Append synthetic type-gen declarations before synthetic Fn signatures that
+    // may refer to their generated names.
+    for td : Expr in p.type_gen_decls {
+        root.add_child(own td.clone())
+    }
     // Append synthetic Fn type declarations (initer registers them before typer runs)
     for d : Expr in p.fn_sig_decls {
         root.add_child(own d.clone())

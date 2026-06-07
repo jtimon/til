@@ -1,5 +1,5 @@
 mode test
-import("import_helper")
+import("imports/import_helper")
 
 test_import_func := test() {
     result := double(21)
@@ -12,7 +12,7 @@ test_import_struct := test() {
     expect(__LOC__, p.y.eq(4), "Point.y")
 }
 
-helper := import("import_helper")
+helper := import("imports/import_helper")
 
 test_namespace_import := test() {
     r := helper.double(21)
@@ -21,7 +21,7 @@ test_namespace_import := test() {
     expect(__LOC__, p.x.eq(1), "helper.Point.x")
 }
 
-import("import_helper", MyConst)
+import("imports/import_helper", MyConst)
 
 test_selective_import := test() {
     expect(__LOC__, MyConst.eq(123), "MyConst")

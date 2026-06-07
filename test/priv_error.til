@@ -1,5 +1,5 @@
 mode script
-import("priv_helper")
+import("imports/priv_helper")
 
 // Negative tests: cross-file references to priv items must error.
 main := proc() {

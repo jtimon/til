@@ -1,0 +1,12 @@
+mode lib
+
+double := func(x: I64) returns I64 {
+    return x.add(x)
+}
+
+Point := struct {
+    const x := 0
+    const y := 0
+}
+
+MyConst := 123

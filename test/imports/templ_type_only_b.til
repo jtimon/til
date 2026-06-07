@@ -1,0 +1,21 @@
+mode lib
+
+import("templ_cross_base")
+
+TypeOnlyHolderB := struct {
+    box : CrossBox(I64)
+
+    namespace:
+    value := func(self: TypeOnlyHolderB) returns I64 {
+        ref v : I64 = self.box.get()
+        return v.clone()
+    }
+}
+
+type_only_b_id := func(b: CrossBox(I64)) returns CrossBox(I64) {
+    return b.clone()
+}
+
+type_only_b_holder := func(b: CrossBox(I64)) returns TypeOnlyHolderB {
+    return TypeOnlyHolderB(box = b.clone())
+}

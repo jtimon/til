@@ -1,0 +1,6 @@
+mode lib
+import("import_diamond_d")
+
+from_b := func() returns I64 {
+    return SHARED_VAL
+}

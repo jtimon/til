@@ -1,7 +1,7 @@
 mode test
 
-import("templ_cross_a")
-import("templ_cross_b")
+import("imports/templ_cross_a")
+import("imports/templ_cross_b")
 
 test_templ_cross_unit_dedup := test() {
     a : CrossBox(I64) = cross_a_box()
