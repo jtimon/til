@@ -190,6 +190,9 @@ FunctionDef := struct {
     // Declaration carrying the captured name plus its modifier
     // (is_mut / own_type). Empty for ordinary (non-capturing) functions.
     captures := Vec.new(Declaration)
+    // C backend name for the generated env-backed closure call function.
+    // Empty until the typer assigns one to a capturing FuncDef.
+    closure_name := ""
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
@@ -1019,4 +1022,3 @@ fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool
         return 0
     }
 }
-

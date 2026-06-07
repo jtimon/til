@@ -122,6 +122,19 @@ For a new branch, add `-b <branch-name>`.
 
 All `make` targets work from the worktree. The main tree stays clean.
 
+Commit policy for local sessions:
+
+- If you are editing the main checkout directly on `master`, do not commit
+  until the human explicitly asks for a commit.
+- If you are working in a dedicated worktree for the task, commit your own
+  completed work in that worktree after the required focused verification
+  passes. Do not wait for a separate "commit" instruction just because the
+  session is local; the worktree exists so bot commits stay isolated from
+  `master`.
+- Local agents still must not cherry-pick, merge to `master`, fetch, or push
+  unless explicitly instructed. The human handles integration from the
+  committed worktree branch.
+
 Merging to master (local sessions)::
 
   # Start this sequence from a committed worktree branch. If your fix is

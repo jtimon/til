@@ -1746,6 +1746,13 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             }
             if is_fsf.and(check(p, TokenType.RParen)) {
                 advance(p) // skip )
+                if check(p, TokenType.LBracket) {
+                    advance(p)
+                    while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
+                        advance(p)
+                    }
+                    if check(p, TokenType.RBracket) { advance(p) }
+                }
                 if check(p, TokenType.LBrace).not() { is_fsf = false }
             } else {
                 is_fsf = false
@@ -1762,6 +1769,10 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     if check(p, TokenType.Comma) { advance(p) }
                 }
                 expect_token(p, TokenType.RParen)
+                mut captures := Vec.new(Declaration)
+                if check(p, TokenType.LBracket) {
+                    captures = parse_capture_list(p, true)
+                }
                 // Parse { body }
                 expect_token(p, TokenType.LBrace)
                 mut body := parse_block(p)
@@ -1773,6 +1784,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 for pn : Str in pnames {
                     ffd.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
                 }
+                ffd.captures.move_from(captures)
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col)
                 fdef.add_child(own body)
                 // Wrap in NODE_DECL with explicit_type

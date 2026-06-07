@@ -129,7 +129,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // scope-end delete.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(ctx.typer_in_main_func.not()) { continue }
         if scope.struct_def_of(b.name).is_null().not() { continue }
-        if scope.lookup_func(b.name).is_null().not() { continue }
+        if scope.lookup_func(b.name).is_null().not().and(b.type.is_funcptr().not()) { continue }
 
         mut decl_idx : I32 = -1
         for j in 0..body.children.len() {
@@ -204,6 +204,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
         li.is_heap = b.own_type.is(OwnType.Own).or(main_cli_param)
+        if b.type.is_funcptr().and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         // Decls whose RHS the builder will stack-allocate must use
         // call_free=false in their cleanup or `free()` would touch a
         // stack pointer. Two flavors:
@@ -222,6 +223,14 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                     li.is_heap = false
                 } else if li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(li_rhs, scope).neq(0)) {
                     li.is_heap = false
+                } else {
+                    switch li_rhs.node_type {
+                    case NodeType.FuncDef(rhs_fd):
+                        if b.type.is_funcptr().and(rhs_fd.captures.len().gt(0)).and(b.own_type.is(OwnType.Ref).not()) {
+                            li.is_heap = true
+                        }
+                    case:
+                    }
                 }
                 if is_pod_enum_clone_wrap(li_rhs, scope) {
                     // POD-enum clone wrap (`c := Color.clone(Color.Red)`):

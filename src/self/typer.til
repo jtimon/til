@@ -3410,16 +3410,6 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
     ctx.typing_namespace_member = false
     switch expr.node_type {
     case NodeType.FuncDef(fdef):
-        // Issue #54: capturing closures rely on the interpreter's dynamic
-        // resolution of free variables; the C backend has no closure
-        // environment yet. In compile mode, reject them with a clear
-        // message (and stop before body typing) instead of emitting broken
-        // C. In interpret mode they type and run normally (validated below).
-        if fdef.captures.len().gt(0).and(ctx.compile_mode) {
-            expr.type_error("function captures (closures) are not yet supported in compile mode (issue #54); run with 'til interpret'", ctx)
-            ctx.typing_namespace_member = ifd_in_ns
-            return
-        }
         // Issue #262: a lazy_func types like a func (cannot call proc,
         // tracks its return type); a lazy_proc types like neither func nor
         // proc here so its body may call procs without the "proc has no
@@ -4331,6 +4321,21 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
     if is_func_decl(stmt).not() { return false }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
+        switch stmt.child(0).node_type {
+        case NodeType.FuncDef(rhs_fd0):
+            if rhs_fd0.captures.len().gt(0) { return false }
+        case:
+        }
+        if sdecl.explicit_type.len().gt(0) {
+            declared_t := type_from_name(sdecl.explicit_type, scope, ctx)
+            if declared_t.is_funcptr() {
+                switch stmt.child(0).node_type {
+                case NodeType.FuncDef(rhs_fd):
+                    if rhs_fd.captures.len().gt(0) { return false }
+                case:
+                }
+            }
+        }
         // Issue #58: the metatype name from rstil's first_class.org is
         // ~FuncDef~; til's internal name is ~FunctionDef~ (the data
         // struct in src/core/ast.til). Accept both as the annotation
@@ -4463,6 +4468,17 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, ctx: Conte
             val.set_expr_til_type(declared)
         } else if val.node_type.is_literal_null().and(sdecl.own_type.is(OwnType.Ref).not()) {
             stmt.type_error("null can only be assigned to 'ref' declarations", ctx)
+        } else if declared.is_funcptr().and(val.node_type.is(NodeType.FuncDef)) {
+            switch val.node_type {
+            case NodeType.FuncDef(vfd):
+                if vfd.captures.len().gt(0) {
+                    val.set_expr_til_type(declared.clone())
+                } else {
+                    stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
+                        .concat(" but value is ").concat(type_to_name(val.expr_til_type())), ctx)
+                }
+            case:
+            }
         } else if can_implicit_usize_coerce(val.expr_til_type(), declared, sdecl.explicit_type).not()
         .and(val.expr_til_type().is(declared).not())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
@@ -4509,7 +4525,17 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, ctx: Conte
 }
 
 priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
-    stmt.set_expr_til_type(stmt.child(0).expr_til_type())
+    ref rhs : Expr = stmt.child(0)
+    mut inferred := rhs.expr_til_type()
+    switch rhs.node_type {
+    case NodeType.FuncDef(rhs_fd):
+        if rhs_fd.captures.len().gt(0) {
+            inferred = Type.FuncPtr
+            rhs.set_expr_til_type(inferred.clone())
+        }
+    case:
+    }
+    stmt.set_expr_til_type(inferred)
     if stmt.expr_til_type().is(Type.Dynamic) {
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
@@ -4555,6 +4581,8 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 if rfc_sig.is_null().not() {
                     scope.set_func_def(sdecl.name, rfc_sig)
                 }
+            case NodeType.FuncDef(rhs_fd):
+                if rhs_fd.captures.len().gt(0) { scope.set_func_def(sdecl.name, rhs) }
             case:
             }
             if scope.lookup_func(decl_b.name).is_null() {
@@ -4675,6 +4703,35 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
                 declared := declared_type_for_decl(scope, stmt, ctx)
                 if is_numeric_type(declared) {
                     pre_coerce_decl_numeric_literals(stmt.child(0), declared)
+                }
+                switch stmt.child(0).node_type {
+                case NodeType.FuncDef(rhs_fd):
+                    mut needs_sig_fill := false
+                    if rhs_fd.params.len().gt(0) {
+                        ref first_rhs_param : Declaration = rhs_fd.params[0]
+                        needs_sig_fill = first_rhs_param.explicit_type.len().eq(0)
+                    }
+                    if needs_sig_fill {
+                        ref sig_expr : Expr = scope.lookup_func(sdecl.explicit_type)
+                        if sig_expr.is_null().not() {
+                            switch sig_expr.node_type {
+                            case NodeType.FuncDef(sig_fd):
+                                if sig_fd.params.len().eq(rhs_fd.params.len()) {
+                                    for sig_i in 0..rhs_fd.params.len() {
+                                        ref mut dst_p : Declaration = rhs_fd.params[sig_i]
+                                        ref src_p : Declaration = sig_fd.params[sig_i]
+                                        dst_p.explicit_type = src_p.explicit_type.clone()
+                                        dst_p.til_type = src_p.til_type.clone()
+                                        if src_p.own_type.is(OwnType.Shallow).not() { dst_p.own_type = src_p.own_type }
+                                    }
+                                    rhs_fd.return_type = sig_fd.return_type.clone()
+                                    if sig_fd.return_own_type.is(OwnType.Shallow).not() { rhs_fd.return_own_type = sig_fd.return_own_type }
+                                }
+                            case:
+                            }
+                        }
+                    }
+                case:
                 }
             }
             if stmt.child(0).node_type.is(NodeType.FuncDef) {
@@ -7697,13 +7754,16 @@ priv capture_block_check_refs := proc(e: Expr,
 // captured name must exist; mark it used (so listing it counts as a use)
 // and check the `mut` modifier against the source binding's mutability.
 // Shared by capture blocks and capturing functions.
-priv validate_captures := proc(scope: TypeScope, captures: Vec, errnode: Expr, ctx: Context) {
-    for cap : Declaration in captures {
+priv validate_captures := proc(scope: TypeScope, mut captures: Vec, errnode: Expr, ctx: Context) {
+    for ci in 0..captures.len() {
+        ref mut cap : Declaration = captures[ci]
         ref mut b : TypeBinding = scope.get_binding(cap.name)
         if b.is_null() {
             errnode.type_error(format("capture '", cap.name,
                 "': no such variable in the enclosing scope"), ctx)
         } else {
+            cap.til_type = b.type.clone()
+            if cap.explicit_type.len().eq(0) { cap.explicit_type = til_type_name_c(b.type) }
             b.used = true
             if cap.is_mut {
                 if b.is_mut.not() {
@@ -8031,6 +8091,10 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut cou
     // immediately fail under the lifted lambda's normal-typing path).
     switch e.node_type {
     case NodeType.FuncDef(lift_fd_check):
+        if lift_fd_check.captures.len().gt(0).and(lift_fd_check.closure_name.len().eq(0)) {
+            lift_fd_check.closure_name = format("closure_", counter.to_str())
+            counter = counter.add(1)
+        }
         if lift_fd_check.func_type.is(FuncType.Macro) {
             mtg_ret_lift := lift_fd_check.return_type.eq("StructDef")
                 .or(lift_fd_check.return_type.eq("EnumDef"))
@@ -8938,7 +9002,25 @@ type_to_name := func(t: Type) returns Str {
     }
 }
 
+make_closure_delete_call := func(var_name: Str, src: Expr) returns Expr {
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    call.set_expr_til_type(Type.None)
+
+    mut callee := Expr.new(ident_node("til_closure_delete"), src.line, src.col)
+    call.add_child(own callee)
+
+    mut arg := Expr.new(ident_node(var_name), src.line, src.col)
+    arg.set_expr_til_type(Type.FuncPtr)
+    call.add_child(own arg)
+
+    return call
+}
+
 make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, call_free: Bool, src: Expr) returns Expr {
+    if type.is_funcptr() {
+        if call_free.not() { return NULL }
+        return make_closure_delete_call(var_name, src)
+    }
     tname := type_to_name(type)
     if tname.len().eq(0) { return NULL }
 
@@ -9050,6 +9132,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
 // type's destructor. Used after value-copy ownership transfer to a Shallow
 // struct field, where the field's own destructor will free the inner data.
 make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Expr {
+    if type.is_funcptr() { return make_closure_delete_call(var_name, src) }
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.set_expr_til_type(Type.None)
 

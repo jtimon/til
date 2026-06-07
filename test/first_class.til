@@ -71,6 +71,19 @@ test_lambda_as_value_unary := test() {
     assert_eq(__LOC__, apply_unary(f, 5), 10)
 }
 
+test_capturing_lambda_as_value_unary := test() {
+    scale := 10
+    f : UnaryOp = func(x: I64) returns I64 [scale] { return x.mul(scale) }
+    assert_eq(__LOC__, f(7), 70)
+    assert_eq(__LOC__, apply_unary(f, 5), 50)
+}
+
+test_inferred_capturing_lambda_value_unary := test() {
+    scale := 10
+    f := func(x: I64) returns I64 [scale] { return x.mul(scale) }
+    assert_eq(__LOC__, f(3), 30)
+}
+
 test_lambda_as_value_binary := test() {
     g : BinaryOp = func(a: I64, b: I64) returns I64 { return a.add(b) }
     assert_eq(__LOC__, g(3, 4), 7)
@@ -106,6 +119,12 @@ test_funcsig_form_lambda_binary := test() {
 test_funcsig_form_lambda_as_value := test() {
     f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }
     assert_eq(__LOC__, f(10, 3), 7)
+}
+
+test_named_funcsig_form_capturing_lambda := test() {
+    scale := 10
+    f : UnaryOp = (x) [scale] { return x.mul(scale) }
+    assert_eq(__LOC__, f(3), 30)
 }
 
 // --- FuncSig as first-class Type value (issue #58) ---

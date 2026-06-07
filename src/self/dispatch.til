@@ -1145,6 +1145,13 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     return true
 }
 
+priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    val := eval_expr(s, e.child(1), ctx)
+    free_value_full(val)
+    r = val_none()
+    return true
+}
+
 priv h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.child(1), ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -1260,6 +1267,7 @@ dispatch_init := func(ctx: Context) {
     reg_dispatch("cast", h_cast, ctx)
     reg_dispatch("exit", h_exit, ctx)
     reg_dispatch("free", h_free, ctx)
+    reg_dispatch("til_closure_delete", h_til_closure_delete, ctx)
     reg_dispatch("ptr_add", h_ptr_add, ctx)
     reg_dispatch("dyn_call", h_dyn_call, ctx)
     reg_dispatch("dyn_call_ret", h_dyn_call, ctx)

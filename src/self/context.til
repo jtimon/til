@@ -343,12 +343,15 @@ Context := struct {
     // this from the typer (keyed by function name) so the builder reads
     // without a per-emit reset; this commit only moves the storage.
     local_fn_sigs := Map.new(Str, Dynamic)
+    closure_emit_env := ""
+    closure_emit_captures := Set.new(Str)
 
     // #178 builder lookup tables migrated from module-globals. Populated
     // at build registration time, read throughout codegen.
     func_defs := Map.new(Str, Dynamic)
     struct_def_exprs := Map.new(Str, Dynamic)
     funcsig_names := Set.new(Str)
+    closure_value_names := Set.new(Str)
     script_globals := Set.new(Str)
     ref_globals := Set.new(Str)
 

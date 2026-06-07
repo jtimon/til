@@ -1,16 +1,15 @@
 mode test
 
-// --- Function closures: interpret mode (issue #54) ---
+// --- Function closures (issue #54) ---
 // A capturing function/lambda `func(a: I64) returns I64 [scale] { ... }`
 // is a closure: it reads (and with `mut`, writes) the listed outer-scope
 // locals. The capture list is explicit -- the body may only touch the
 // captured names (plus its params, body-locals, globals and top-level
 // funcs/types), enforced by the typer.
 //
-// These run under the interpreter only: the C backend has no closure
-// environment yet (compile mode rejects capturing functions -- see the
-// closures_compile_reject build test), so this file is exercised via
-// `til interpret`.
+// These tests cover inferred local closure forms and direct closure
+// arguments. Explicit FuncSig-local closure values are covered in
+// test/first_class.til.
 
 GLOBAL_BASE := 100
 

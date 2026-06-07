@@ -32,10 +32,15 @@
      Tests: test/closures_interp.til (interpret-only positive),
      test/capture_func_error.til (validation negatives),
      test/capture_compile_error.til (compile-mode rejection).
-   - [ ] Closure values for the C backend (fn-ptr + captured environment)
-     so closures also work in compile mode, plus escaping closures stored
-     and called later (the interpreter's dynamic resolution only covers
-     closures called while their defining scope is still on the stack).
+   - [X] Closure values for the C backend (fn-ptr + captured environment)
+      for synchronous closures called while their defining scope is still
+      alive. Capturing FuncDefs lower to TilClosure values; inferred local
+      closures, explicit FuncSig locals, named FuncSig-form captured
+      lambdas, direct FuncSig arguments, and mut captures work in compile
+      mode. Tests: test/closures_interp.til and test/first_class.til.
+   - [ ] Escaping closure lifetimes for stored/returned closures. C closure
+      environments currently borrow captured locals, so a closure called
+      after its defining stack scope exits can dangle.
    - [ ] copy/own capture modifiers (snapshot/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]
@@ -162,4 +167,3 @@
    - Typer: validate captures exist in outer scope, enforce modifier rules
    - Interpreter: bind captured variables in call_scope from definition scope
    - Codegen: emit closure structs or pass captures as hidden parameters
-

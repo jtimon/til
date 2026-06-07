@@ -547,13 +547,11 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_func_error", "typer",
               "cannot capture immutable", 1,
               format(til_bin, " interpret test/capture_func_error.til"))
-    // Issue #54: function closures run under the interpreter (the C backend
-    // has no closure environment yet). Exercise them interpret-only, and
-    // assert that compile mode rejects them with a clear message.
+    // Issue #54: function closures run under both backends.
     add_single(tests, "closures_interp", "closures", 0, "",
                format(til_bin, " interpret test/closures_interp.til"))
-    add_single(tests, "capture_compile_error", "closures", 1, "",
-               format(til_bin, " build -o bin/capture_compile_error test/capture_compile_error.til"))
+    add_single(tests, "closures_compile", "closures", 0, "",
+               format(til_bin, " run", asan_flag, " test/closures_interp.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
                format(til_bin, " interpret test/qualifier_shallow_local_error.til"))
