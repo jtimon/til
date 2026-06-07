@@ -43,11 +43,14 @@
      deterministic synthesized decls across units with the same Context-level
      set used by value-position hoisting. Covered by test/templ_type_only.til.
    - Caveat 3 (Dyn* in std): STARTED. The current type-erased `HashMap`
-     implementation has been preserved as `DynHashMap`, with duplicated
-     regression coverage in test/dyn_hashmaps.til, before the `HashMap<K,V>`
-     pilot rewrite.
+     implementation has been preserved as `DynHashMap` in
+     src/std/dyn_hashmap.til, with duplicated regression coverage in
+     test/dyn_hashmaps.til. The current type-erased `Array` implementation has
+     also been preserved as `DynArray` in src/std/dyn_array.til, with initial
+     duplicated coverage in test/dyn_arrays.til, before `Array` is migrated.
    - STILL OPEN: 2b (drop `Self`), remaining Dyn* containers, and 4 (migrate
-     HashMap as the pilot, then Array/Vec/Set/Map). Type-only synthesis is
+     Array/Vec/Set/Map; leave `HashMap<K,V>` until typed Vec/buffer support is
+     ready). Type-only synthesis is
      enough for concrete annotations, but removing `Self` globally is not
      correct yet: explicit user aliases like `Alias := make_type(I64)` still
      need method bodies to resolve `Self` to the alias LHS, not to a
@@ -166,7 +169,6 @@
    2. Caveat 2b: drop `Self` after explicit user aliases have an equivalent
       way to refer to their own LHS type.
    3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
-      tests. STARTED with DynHashMap.
-   4. Pilot migration: make `HashMap<K, V>` templated now that current
-      HashMap is preserved as `DynHashMap`.
-   5. Caveat 4 core migration: Array, then Vec, then Set, then Map.
+      tests. STARTED with DynHashMap and DynArray.
+   4. Caveat 4 core migration: Array, then Vec, then Set, then Map.
+   5. Revisit `HashMap<K, V>` once typed Vec/buffer support is available.

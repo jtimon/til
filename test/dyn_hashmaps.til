@@ -1,6 +1,6 @@
 mode test
 
-import("../src/std/hashmap")
+import("../src/std/dyn_hashmap")
 
 test_dyn_hashmap_i64_basic := test() {
     m := DynHashMap.new(I64, I64)

@@ -447,6 +447,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "examples/priv_demo.til", flags)
     add_mode(tests, "test/imports.til", flags)
     add_mode(tests, "test/arrays.til", flags)
+    add_mode(tests, "test/dyn_arrays.til", flags)
     add_mode(tests, "test/test_in_namespace.til", flags)
     add_mode(tests, "test/forward_refs.til", flags)
     add_mode(tests, "test/functions.til", flags)
