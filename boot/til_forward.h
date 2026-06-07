@@ -1,6 +1,13 @@
 #pragma once
 #include "ext.h"
 
+typedef struct TilClosure TilClosure;
+struct TilClosure {
+    void *call;
+    void *env;
+    void (*drop)(void *);
+};
+
 typedef struct Mode Mode;
 typedef struct Vec Vec;
 typedef struct Str Str;
@@ -277,11 +284,11 @@ typedef struct RenderTexture RenderTexture;
 typedef struct Camera3D Camera3D;
 typedef struct CliArgs CliArgs;
 
-typedef void * (*CloneFn)(void *);
-typedef void (*DeleteFn)(void *, Bool);
-typedef I64 (*CmpFn)(void *, void *);
-typedef U64 (*HashFn)(void *, U32);
-typedef Bool (*priv___src_self_dispatch_til__DispatchFn)(Scope *, Expr *, Value *, Context *);
+typedef TilClosure *CloneFn;
+typedef TilClosure *DeleteFn;
+typedef TilClosure *CmpFn;
+typedef TilClosure *HashFn;
+typedef TilClosure *priv___src_self_dispatch_til__DispatchFn;
 
 
 
@@ -295,8 +302,8 @@ typedef struct Vec {
     U32 cap;
     U32 elem_size;
     U32 elem_kind;
-    void * elem_clone;
-    void * elem_delete;
+    TilClosure * elem_clone;
+    TilClosure * elem_delete;
 } Vec;
 
 
@@ -328,7 +335,7 @@ typedef struct Dynamic {
 typedef struct Map {
     Vec keys;
     Vec values;
-    void * key_cmp;
+    TilClosure * key_cmp;
 } Map;
 
 
@@ -518,8 +525,8 @@ typedef struct Array {
     U8 *data;
     U32 cap;
     U32 elem_size;
-    void * elem_clone;
-    void * elem_delete;
+    TilClosure * elem_clone;
+    TilClosure * elem_delete;
 } Array;
 
 
@@ -549,9 +556,9 @@ typedef struct Set {
     U32 count;
     U32 cap;
     U32 elem_size;
-    void * elem_clone;
-    void * elem_delete;
-    void * elem_cmp;
+    TilClosure * elem_clone;
+    TilClosure * elem_delete;
+    TilClosure * elem_cmp;
 } Set;
 
 
