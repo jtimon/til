@@ -969,7 +969,7 @@ ast_print := proc(e: Expr, indent: U32) {
 // NamedArg whose name matches a non-kwargs param). The count is
 // therefore the consecutive trailing NamedArg child count: pre-rewrite
 // = the kwargs args, post-rewrite = 0 (the rewrite replaces the
-// NamedArg children with a single DynMap-setter ident).
+// NamedArg children with a single KwargsMap-setter ident).
 fcall_kwargs_count := func(fcall: Expr) returns USize {
     switch fcall.node_type {
     case NodeType.FCall:

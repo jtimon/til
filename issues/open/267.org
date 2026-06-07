@@ -42,14 +42,18 @@
      `Name__Args := Name(args)` decl during parse, and the initer dedups
      deterministic synthesized decls across units with the same Context-level
      set used by value-position hoisting. Covered by test/templ_type_only.til.
-   - Caveat 3 (Dyn* in std): STARTED. The current type-erased `HashMap`
-     implementation has been preserved as `DynHashMap` in
-     src/std/dyn_hashmap.til, with duplicated regression coverage in
-     test/dyn_hashmaps.til. The current type-erased `Array` implementation has
-     also been preserved as `DynArray` in src/std/dyn_array.til, with initial
-     duplicated coverage in test/dyn_arrays.til, before `Array` is migrated.
-   - STILL OPEN: 2b (drop `Self`), remaining Dyn* containers, and 4 (migrate
-     Array/Vec/Set/Map; leave `HashMap<K,V>` until typed Vec/buffer support is
+    - Caveat 3 (Dyn* in std): STARTED. The current type-erased `HashMap`
+      implementation has been preserved as `DynHashMap` in
+      src/std/dyn_hashmap.til, with duplicated regression coverage in
+      test/dyn_hashmaps.til. The current type-erased `Array` implementation has
+      also been preserved as `DynArray` in src/std/dyn_array.til, with initial
+      duplicated coverage in test/dyn_arrays.til, before `Array` is migrated.
+      The current type-erased `Vec`, `Set`, and `Map` implementations have also
+      been preserved as `DynVec`, `DynSet`, and `DynMap` in src/std/, with
+      duplicated regression coverage in test/dyn_vecs.til, test/dyn_sets.til,
+      and test/dyn_maps.til.
+    - STILL OPEN: 2b (drop `Self`) and 4 (migrate Array/Vec/Set/Map; leave
+      `HashMap<K,V>` until typed Vec/buffer support is
      ready). Type-only synthesis is
      enough for concrete annotations, but removing `Self` globally is not
      correct yet: explicit user aliases like `Alias := make_type(I64)` still
@@ -168,7 +172,7 @@
    1. Type-only instantiation synthesis. DONE.
    2. Caveat 2b: drop `Self` after explicit user aliases have an equivalent
       way to refer to their own LHS type.
-   3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
-      tests. STARTED with DynHashMap and DynArray.
+    3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
+       tests. STARTED with DynHashMap, DynArray, DynVec, DynSet, and DynMap.
    4. Caveat 4 core migration: Array, then Vec, then Set, then Map.
    5. Revisit `HashMap<K, V>` once typed Vec/buffer support is available.

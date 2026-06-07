@@ -116,7 +116,7 @@ typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Array Array;
 typedef struct Tuple Tuple;
-typedef struct DynMap DynMap;
+typedef struct KwargsMap KwargsMap;
 typedef struct File File;
 typedef struct Set Set;
 typedef enum {
@@ -539,9 +539,9 @@ typedef struct Tuple {
 } Tuple;
 
 
-typedef struct DynMap {
+typedef struct KwargsMap {
     Map items;
-} DynMap;
+} KwargsMap;
 
 
 typedef struct File {
@@ -1290,10 +1290,10 @@ U32 Array_size(void);
 void Tuple_delete(Tuple * self, Bool call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 Tuple_size(void);
-DynMap * DynMap_clone(DynMap * self);
-void DynMap_delete(DynMap * self, Bool call_free);
-U64 DynMap_hash(DynMap * self, HashFn hasher);
-U32 DynMap_size(void);
+KwargsMap * KwargsMap_clone(KwargsMap * self);
+void KwargsMap_delete(KwargsMap * self, Bool call_free);
+U64 KwargsMap_hash(KwargsMap * self, HashFn hasher);
+U32 KwargsMap_size(void);
 void panic(Str * loc_str, Array * parts);
 void UNREACHABLE(Str * loc_str);
 void println(Array * parts);
@@ -1771,8 +1771,8 @@ Expr * priv___src_self_typer_til__make_clone_call(Str * type_name, Type type, Ex
 Expr * priv___src_self_typer_til__make_to_str_call(Str * type_name, Expr * arg);
 Expr * priv___src_self_typer_til__make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 void priv___src_self_typer_til__sync_own_args_from_callee(Expr * call, TypeScope * scope);
-Expr * priv___src_self_typer_til__build_kwargs_dynmap_decl(Expr * fcall, Str * kw_name);
-Expr * priv___src_self_typer_til__build_kwargs_dynmap_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
+Expr * priv___src_self_typer_til__build_kwargs_map_decl(Expr * fcall, Str * kw_name);
+Expr * priv___src_self_typer_til__build_kwargs_map_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
 Expr * priv___src_self_typer_til__build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, U32 vc, Context * ctx);
 Expr * priv___src_self_typer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * va_name, I32 vi, U32 j, Context * ctx);
 Expr * priv___src_self_typer_til__build_builtin_vec_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, Context * ctx);

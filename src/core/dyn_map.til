@@ -6,46 +6,46 @@ import("map")
 import("str")
 import("tuple")
 
-/// String-keyed map of dynamically-typed values.
-DynMap := struct {
+/// String-keyed map of dynamically-typed kwargs values.
+KwargsMap := struct {
     items := Map.new(Str, Tuple)
 
 namespace:
-    /// Create an empty DynMap.
-    new := func() returns DynMap {
-        return DynMap()
+    /// Create an empty KwargsMap.
+    new := func() returns KwargsMap {
+        return KwargsMap()
     }
 
-    len := func(self: DynMap) returns USize {
+    len := func(self: KwargsMap) returns USize {
         return self.items.len()
     }
 
     /// True if `key` exists in the map.
-    has := func(self: DynMap, key: Str) returns Bool {
+    has := func(self: KwargsMap, key: Str) returns Bool {
         return self.items.has(key)
     }
 
     /// Insert or overwrite `key` with typed value. The value is owned.
-    set := func(mut self: DynMap, key: Str, elem_type: Str, _elem_size: USize, own val: Dynamic) {
+    set := func(mut self: KwargsMap, key: Str, elem_type: Str, _elem_size: USize, own val: Dynamic) {
         mut tup := Tuple.new()
         tup.push_type_name(own elem_type.clone(), own val)
         self.items.set(key, own tup)
     }
 
     /// Ref to the value stored under `key`. Panics if not found.
-    get := func(self: DynMap, key: Str) returns ref Dynamic {
+    get := func(self: KwargsMap, key: Str) returns ref Dynamic {
         ref tup : Tuple = self.items[key]
         return tup.get(0)
     }
 
     /// Type name of the value stored under `key`.
-    type_at := func(self: DynMap, key: Str) returns ref Str {
+    type_at := func(self: KwargsMap, key: Str) returns ref Str {
         ref tup : Tuple = self.items[key]
         return tup.type_at(0)
     }
 
     /// Byte size of the value stored under `key`.
-    size_at := func(self: DynMap, key: Str) returns ref USize {
+    size_at := func(self: KwargsMap, key: Str) returns ref USize {
         ref tup : Tuple = self.items[key]
         return tup.size_at(0)
     }

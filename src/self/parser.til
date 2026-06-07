@@ -535,10 +535,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 fd.kwargs_index = fd.params.len().cast(I32)
                 is_kwargs = true
                 // For regular til funcs the codegen auto-inserts a
-                // DynMap.delete at the callee's scope exit, so the caller
+                // KwargsMap.delete at the callee's scope exit, so the caller
                 // can transfer ownership cleanly. ext_func/ext_proc bodies
                 // are user-written C with no auto-cleanup, so the synthesized
-                // DynMap would leak if ownership were transferred. Keep the
+                // KwargsMap would leak if ownership were transferred. Keep the
                 // caller as owner for ext bindings -- its normal ASAP delete
                 // at last_use will free the temp.
                 if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
@@ -547,7 +547,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                     param_decl.own_type = OwnType.Own
                 }
                 param_decl.name = pname.clone()
-                set_decl_type(param_decl, "DynMap")
+                set_decl_type(param_decl, "KwargsMap")
             } else if check(p, TokenType.DotDot) {
                 advance(p)
                 if own_type.is(OwnType.Own) { panic(__LOC__, "variadic param cannot be 'own'") }

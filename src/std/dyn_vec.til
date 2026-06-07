@@ -1,0 +1,238 @@
+mode lib
+
+/// Dynamic array of typed elements.
+DynVec := struct {
+    own data : U8 = 0
+    count : USize = 0
+    cap : USize = 0
+    const elem_size : USize = 0
+    const elem_kind : USize = ELEM_POD
+    const elem_clone : CloneFn = default_clone
+    const elem_delete : DeleteFn = default_delete
+
+namespace:
+    /// Create a new empty DynVec for elements of the given type.
+    new_type_name := func(elem_type: Str) returns DynVec {
+        if elem_type.is_empty() {
+            panic(__LOC__, "DynVec.new: elem_type required")
+        }
+        if elem_type.eq("Dynamic") {
+            return DynVec(data = malloc(8), cap = 1,
+                       elem_size = 8, elem_kind = ELEM_POD)
+        }
+        // Issue #58: function pointers are 8-byte plain values, not heap
+        // boxes. Use the same path as Dynamic so push/get/delete are
+        // byte-copy + no-op clone/delete instead of trying to dispatch
+        // through a non-existent FuncSig.clone/delete.
+        if elem_type.eq("Fn") {
+            return DynVec(data = malloc(8), cap = 1,
+                       elem_size = 8, elem_kind = ELEM_FN)
+        }
+        sz : USize = dyn_size_of(elem_type)
+        return DynVec(data = malloc(sz.cast(U64)), cap = 1,
+                   elem_size = sz, elem_kind = ELEM_BOXED,
+                   elem_clone = dyn_fn(elem_type, "clone"),
+                   elem_delete = dyn_fn(elem_type, "delete"))
+    }
+
+    new := func(T: Type) returns DynVec {
+        elem_type := dyn_type_to_str(T)
+        return DynVec.new_type_name(elem_type)
+    }
+
+    len := func(self: DynVec) returns USize { return self.count }
+
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the DynVec can be reused.
+    clear := func(mut self: DynVec) {
+        if self.elem_kind.eq(ELEM_BOXED) {
+            for i in 0..self.count {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+            }
+        }
+        self.count = 0
+    }
+
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    push := func(mut self: DynVec, own val: Dynamic) {
+        if self.count.eq(self.cap) {
+            new_cap := self.cap.mul(2)
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
+            self.cap = new_cap
+        }
+        // Issue #58: function pointers arrive as a direct pointer value
+        // (the code address), not a heap box of one. Store the pointer
+        // value itself into the slot and skip the free.
+        if self.elem_kind.eq(ELEM_FN) {
+            write_ptr(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val)
+            self.count = self.count.add(1)
+            return
+        }
+        memcpy(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
+        free(own val)
+        self.count = self.count.add(1)
+    }
+
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    append := func(mut self: DynVec, own other: DynVec) {
+        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
+            panic(__LOC__, "DynVec.append: incompatible vecs")
+        }
+        if other.count.eq(0) {
+            return
+        }
+        needed := self.count.add(other.count)
+        if needed.gt(self.cap) {
+            mut new_cap := self.cap
+            while needed.gt(new_cap) {
+                new_cap = new_cap.mul(2)
+            }
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), other.data, other.count.mul(self.elem_size).cast(U64))
+        self.count = needed
+        other.count = 0
+    }
+
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    move_from := func(mut self: DynVec, mut other: DynVec) {
+        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
+            panic(__LOC__, "DynVec.move_from: incompatible vecs")
+        }
+        if self.elem_kind.eq(ELEM_BOXED) {
+            for i in 0..self.count {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+            }
+        }
+        needed := other.count
+        if needed.gt(self.cap) {
+            mut new_cap := self.cap
+            while needed.gt(new_cap) {
+                new_cap = new_cap.mul(2)
+            }
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
+            self.cap = new_cap
+        }
+        if needed.gt(0) {
+            memcpy(self.data, other.data, needed.mul(self.elem_size).cast(U64))
+        }
+        self.count = needed
+        other.count = 0
+    }
+
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    get := func(self: DynVec, i: USize) returns ref Dynamic throws OutOfBounds {
+        if i.gte(self.count) {
+            throw OutOfBounds(msg = format(__LOC__, ":DynVec.get: index ", i.to_str(),
+                  " out of bounds (len ", self.count.to_str(), ")"))
+        }
+        return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
+    }
+
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    pop := func(mut self: DynVec) returns Dynamic {
+        if self.count.eq(0) {
+            panic(__LOC__, "DynVec.pop: empty vec")
+        }
+        last := self.count.sub(1)
+        out : Dynamic = malloc(self.elem_size.cast(U64))
+        memcpy(out, ptr_add(self.data, last.mul(self.elem_size).cast(U64)), self.elem_size.cast(U64))
+        self.count = last
+        return out
+    }
+
+    /// Split off the first `n` elements into a new DynVec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    take_prefix := func(mut self: DynVec, n: USize) returns DynVec {
+        if n.gt(self.count) {
+            panic(__LOC__, "DynVec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        mut prefix_cap : USize = 1
+        if n.gt(0) {
+            prefix_cap = n
+        }
+        prefix_data : Dynamic = malloc(prefix_cap.mul(self.elem_size).cast(U64))
+        if n.gt(0) {
+            memcpy(prefix_data, self.data, n.mul(self.elem_size).cast(U64))
+        }
+        tail_count := self.count.sub(n)
+        if tail_count.gt(0) {
+            memmove(self.data, ptr_add(self.data, n.mul(self.elem_size).cast(U64)), tail_count.mul(self.elem_size).cast(U64))
+        }
+        self.count = tail_count
+        return DynVec(data = prefix_data, count = n, cap = prefix_cap,
+                   elem_size = self.elem_size, elem_kind = self.elem_kind,
+                   elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+    }
+
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    set := func(mut self: DynVec, i: USize, own val: Dynamic) {
+        if i.gte(self.count) {
+            panic(__LOC__, "DynVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        if self.elem_kind.eq(ELEM_BOXED) {
+            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+        }
+        memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
+        free(own val)
+    }
+
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and DynVec.delete).
+    push_take := func(mut self: DynVec, mut src: DynVec, i: USize) {
+        if i.gte(src.count) {
+            panic(__LOC__, "DynVec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
+        }
+        if self.elem_size.eq(src.elem_size).not().or(self.elem_kind.eq(src.elem_kind).not()) {
+            panic(__LOC__, "DynVec.push_take: incompatible vecs")
+        }
+        if self.count.eq(self.cap) {
+            new_cap := self.cap.mul(2)
+            self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)),
+               ptr_add(src.data, i.mul(src.elem_size).cast(U64)), self.elem_size.cast(U64))
+        memset(ptr_add(src.data, i.mul(src.elem_size).cast(U64)), 0, src.elem_size.cast(U64))
+        self.count = self.count.add(1)
+    }
+
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    delete := func(own self: DynVec, call_free: Bool = true) {
+        DynVec.clear(self)
+        free(own self.data)
+        if call_free { free(own self) }
+    }
+
+    /// Deep-copy the DynVec and all its elements via elem_clone.
+    clone := func(self: DynVec) returns DynVec {
+        new_data : Dynamic = malloc(self.cap.mul(self.elem_size).cast(U64))
+        if self.elem_kind.eq(ELEM_BOXED) {
+            for i in 0..self.count {
+                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
+                memcpy(ptr_add(new_data, i.mul(self.elem_size).cast(U64)), cloned, self.elem_size.cast(U64))
+                free(own cloned)
+            }
+        } else {
+            memcpy(new_data, self.data, self.count.mul(self.elem_size).cast(U64))
+        }
+        return DynVec(data = new_data, count = self.count, cap = self.cap,
+                   elem_size = self.elem_size, elem_kind = self.elem_kind,
+                   elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+    }
+}

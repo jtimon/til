@@ -1,0 +1,159 @@
+mode lib
+
+import("dyn_vec")
+
+/// Ordered map from typed keys to typed values.
+DynMap := struct {
+    keys : DynVec = DynVec.new(Dynamic)
+    values : DynVec = DynVec.new(Dynamic)
+    key_cmp : CmpFn = default_cmp
+
+namespace:
+    priv new_type_names := func(key_type: Str, val_type: Str) returns DynMap {
+        if key_type.is_empty() { panic(__LOC__, "DynMap.new: key_type required") }
+        if dyn_has_method(key_type, "cmp").not() {
+            panic(__LOC__, "DynMap.new: type ", key_type, " must implement cmp")
+        }
+        if val_type.is_empty() {
+            panic(__LOC__, "DynMap.new: val_type required")
+        }
+        mut m := DynMap()
+        m.keys = DynVec.new_type_name(key_type)
+        m.values = DynVec.new_type_name(val_type)
+        m.key_cmp = dyn_fn(key_type, "cmp")
+        return m
+    }
+
+    /// Create an empty DynMap of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    new := func(K: Type, V: Type) returns DynMap {
+        key_type := dyn_type_to_str(K)
+        val_type := dyn_type_to_str(V)
+        return DynMap.new_type_names(key_type, val_type)
+    }
+
+    len := func(self: DynMap) returns USize { return self.keys.count }
+
+    /// Drop all live keys and values but keep the allocated storage and
+    /// comparator/type metadata so the DynMap can be reused.
+    clear := func(mut self: DynMap) {
+        DynVec.clear(self.keys)
+        DynVec.clear(self.values)
+    }
+
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (DynMap's binary-search consumers
+    /// always validate before calling). Bypasses DynVec.get's throwing
+    /// bounds check.
+    key_ptr := func(self: DynMap, i: USize) returns ref Dynamic {
+        return ptr_add(self.keys.data, i.mul(self.keys.elem_size).cast(U64))
+    }
+
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    val_ptr := func(self: DynMap, i: USize) returns ref Dynamic {
+        return ptr_add(self.values.data, i.mul(self.values.elem_size).cast(U64))
+    }
+
+    /// True if a value exists for the given key.
+    has := func(self: DynMap, key: Dynamic) returns Bool {
+        mut lo : USize = 0
+        mut hi : USize = self.keys.count
+        while lo.lt(hi) {
+            mid : USize = lo.add(hi.sub(lo).div(2))
+            c : I64 = self.key_cmp(self.key_ptr(mid), key)
+            if c.lt(0) { lo = mid.add(1) }
+            else {
+                if c.gt(0) { hi = mid }
+                else { return true }
+            }
+        }
+        return false
+    }
+
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    get := func(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound {
+        mut lo : USize = 0
+        mut hi : USize = self.keys.count
+        while lo.lt(hi) {
+            mid : USize = lo.add(hi.sub(lo).div(2))
+            c : I64 = self.key_cmp(self.key_ptr(mid), key)
+            if c.lt(0) { lo = mid.add(1) }
+            else {
+                if c.gt(0) { hi = mid }
+                else { return self.val_ptr(mid) }
+            }
+        }
+        throw KeyNotFound(msg = format(__LOC__, ":DynMap.get: key not found"))
+    }
+
+    /// Insert or overwrite the value for `key`. The value is owned.
+    set := func(mut self: DynMap, key: Dynamic, own val: Dynamic) {
+        mut lo : USize = 0
+        mut hi : USize = self.keys.count
+        mut found := false
+        while lo.lt(hi) {
+            mid : USize = lo.add(hi.sub(lo).div(2))
+            c : I64 = self.key_cmp(
+                          self.key_ptr(mid), key)
+            if c.lt(0) { lo = mid.add(1) }
+            else {
+                if c.gt(0) { hi = mid }
+                else { found = true; lo = mid; hi = mid }
+            }
+        }
+        if found {
+            // Delete old value at index lo. The stored key remains unchanged.
+            self.values.elem_delete(self.val_ptr(lo), false)
+
+            // Overwrite bytes with new value.
+            memcpy(self.val_ptr(lo), val, self.values.elem_size.cast(U64))
+            free(own val)
+        } else {
+            if self.keys.count.eq(self.keys.cap) {
+                new_cap : USize = self.keys.cap.mul(2)
+                self.keys.data = realloc(own self.keys.data, new_cap.mul(self.keys.elem_size).cast(U64))
+                self.values.data = realloc(own self.values.data, new_cap.mul(self.values.elem_size).cast(U64))
+                self.keys.cap = new_cap
+                self.values.cap = new_cap
+            }
+            memmove(ptr_add(self.keys.data, lo.add(1).mul(self.keys.elem_size).cast(U64)),
+                    ptr_add(self.keys.data, lo.mul(self.keys.elem_size).cast(U64)),
+                    self.keys.count.sub(lo).mul(self.keys.elem_size).cast(U64))
+            memmove(ptr_add(self.values.data, lo.add(1).mul(self.values.elem_size).cast(U64)),
+                    ptr_add(self.values.data, lo.mul(self.values.elem_size).cast(U64)),
+                    self.values.count.sub(lo).mul(self.values.elem_size).cast(U64))
+            cloned_key : Dynamic = malloc(self.keys.elem_size.cast(U64))
+            if self.keys.elem_kind.eq(ELEM_BOXED) {
+                key_copy : Dynamic = self.keys.elem_clone(key)
+                memcpy(cloned_key, key_copy, self.keys.elem_size.cast(U64))
+                free(own key_copy)
+            } else {
+                memcpy(cloned_key, key, self.keys.elem_size.cast(U64))
+            }
+            memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size).cast(U64)), cloned_key, self.keys.elem_size.cast(U64))
+            memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size).cast(U64)), val, self.values.elem_size.cast(U64))
+            free(own cloned_key)
+            free(own val)
+            self.keys.count = self.keys.count.add(1)
+            self.values.count = self.values.count.add(1)
+        }
+    }
+
+    delete := func(own self: DynMap, call_free: Bool = true) {
+        DynMap.clear(self)
+        DynVec.delete(own self.keys, false)
+        DynVec.delete(own self.values, false)
+        if call_free { free(own self) }
+    }
+
+    clone := func(self: DynMap) returns DynMap {
+        // Cloning the sorted key/value DynVecs directly preserves order and
+        // lets DynVec.clone handle per-element vs bulk (Dynamic) copying via
+        // each DynVec's elem_kind -- no need to re-derive types from a name.
+        return DynMap(keys = self.keys.clone(), values = self.values.clone(),
+                   key_cmp = self.key_cmp)
+    }
+}

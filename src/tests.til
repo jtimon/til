@@ -405,6 +405,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/lazy.til", flags)
     add_mode(tests, "test/dynamic.til", flags)
     add_mode(tests, "test/maps.til", flags)
+    add_mode(tests, "test/dyn_maps.til", flags)
     add_mode(tests, "test/hashes.til", flags)
     add_mode(tests, "test/operators.til", flags)
     add_mode(tests, "test/flow.til", flags)
@@ -420,6 +421,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/fn_ptr.til", flags)
     add_mode(tests, "test/comparisons.til", flags)
     add_mode(tests, "test/vecs.til", flags)
+    add_mode(tests, "test/dyn_vecs.til", flags)
     add_mode(tests, "test/templ_vec.til", flags)
     add_mode(tests, "test/templ_cross_unit.til", flags)
     add_mode(tests, "test/templ_type_only.til", flags)
@@ -439,6 +441,7 @@ main := proc(args: ..Str) {
     // skip the run-vs-interp comparison.
     add_mode(tests, "test/macros.til", format(flags, " -no-match"))
     add_mode(tests, "test/sets.til", flags)
+    add_mode(tests, "test/dyn_sets.til", flags)
     add_mode(tests, "test/local_defs.til", flags)
     add_mode(tests, "test/shallow.til", flags)
     add_mode(tests, "test/globals_cli.til", flags)

@@ -1,0 +1,240 @@
+mode test
+
+import("../src/std/dyn_vec")
+
+test_dyn_vec_push_get := test() {
+    v := DynVec.new(I64)
+    v.push(own 42)
+    v.push(own 99)
+    v.push(own 7)
+
+    ref a : I64 = v[0]
+    ref b : I64 = v[1]
+    ref c : I64 = v[2]
+
+    assert_eq(__LOC__, a, 42)
+    assert_eq(__LOC__, b, 99)
+    assert_eq(__LOC__, c, 7)
+    assert_eq(__LOC__, v.len().to_i64(), 3)
+}
+
+test_dyn_vec_grow := test() {
+    v := DynVec.new(I64)
+    // default cap is 4, push 8 to force growth
+    v.push(own 1)
+    v.push(own 2)
+    v.push(own 3)
+    v.push(own 4)
+    v.push(own 5)
+    v.push(own 6)
+    v.push(own 7)
+    v.push(own 8)
+
+    assert_eq(__LOC__, v.len().to_i64(), 8)
+    ref first : I64 = v[0]
+    ref last : I64 = v[7]
+    assert_eq(__LOC__, first, 1)
+    assert_eq(__LOC__, last, 8)
+}
+
+test_dyn_vec_strings := test() {
+    v := DynVec.new(Str)
+    v.push(own "hello")
+    v.push(own "world")
+
+    ref a : Str = v[0]
+    ref b : Str = v[1]
+
+    assert_eq_str(__LOC__, a, "hello")
+    assert_eq_str(__LOC__, b, "world")
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+}
+
+test_dyn_vec_set := test() {
+    v := DynVec.new(I64)
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+
+    // set middle element
+    v.set(1, own 99)
+    ref a : I64 = v[0]
+    ref b : I64 = v[1]
+    ref c : I64 = v[2]
+    assert_eq(__LOC__, a, 10)
+    assert_eq(__LOC__, b, 99)
+    assert_eq(__LOC__, c, 30)
+
+    // set first element
+    v.set(0, own 42)
+    ref d : I64 = v[0]
+    assert_eq(__LOC__, d, 42)
+}
+
+test_dyn_vec_set_str := test() {
+    v := DynVec.new(Str)
+    v.push(own "aaa")
+    v.push(own "bbb")
+
+    v.set(0, own "xxx")
+    ref a : Str = v[0]
+    ref b : Str = v[1]
+    assert_eq_str(__LOC__, a, "xxx")
+    assert_eq_str(__LOC__, b, "bbb")
+}
+
+test_dyn_vec_size := test() {
+    assert_eq(__LOC__, I64.size().to_i64(), 8)
+    assert_eq(__LOC__, U8.size().to_i64(), 1)
+    assert_eq(__LOC__, Str.size().to_i64(), 16)
+    assert_eq(__LOC__, Bool.size().to_i64(), 1)
+    assert_eq(__LOC__, DynVec.size().to_i64(), 40)
+}
+
+test_dyn_vec_dynamic := test() {
+    v := DynVec.new(Dynamic)
+    // Use pointer-sized allocs so FFI DynVec.push reads valid memory.
+    // Fill each with a distinct non-zero sentinel so the post-push
+    // is(a, b) check verifies stored bytes really differ (ASAN's
+    // malloc returns zeroed/uniform bytes, which would otherwise
+    // make uninitialized buffers compare equal).
+    p1 : Dynamic = malloc(Dynamic.size().cast(U64))
+    p2 : Dynamic = malloc(Dynamic.size().cast(U64))
+    memset(p1, 170, Dynamic.size().cast(U64))
+    memset(p2, 187, Dynamic.size().cast(U64))
+    v.push(own p1)
+    v.push(own p2)
+
+    ref a : Dynamic = v[0]
+    ref b : Dynamic = v[1]
+
+    expect(__LOC__, is_null(a).not(), "first dynamic pointer should not be null")
+    expect(__LOC__, is_null(b).not(), "second dynamic pointer should not be null")
+    expect(__LOC__, ptr_eq(a, b).not(), "distinct dynamic pointers stay distinct")
+}
+
+test_dyn_vec_pop := test() {
+    v := DynVec.new(I64)
+    v.push(own 11)
+    v.push(own 22)
+    v.push(own 33)
+
+    popped : I64 = v.pop()
+    assert_eq(__LOC__, popped, 33)
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+
+    ref a : I64 = v[0]
+    ref b : I64 = v[1]
+    assert_eq(__LOC__, a, 11)
+    assert_eq(__LOC__, b, 22)
+
+    v.push(own 44)
+    assert_eq(__LOC__, popped, 33)
+
+    ref c : I64 = v[2]
+    assert_eq(__LOC__, c, 44)
+    free(own popped)
+}
+
+test_dyn_vec_take_prefix := test() {
+    v := DynVec.new(I64)
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+    v.push(own 40)
+
+    prefix := v.take_prefix(2)
+
+    assert_eq(__LOC__, prefix.len().to_i64(), 2)
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+
+    ref p0 : I64 = prefix[0]
+    ref p1 : I64 = prefix[1]
+    ref v0 : I64 = v[0]
+    ref v1 : I64 = v[1]
+
+    assert_eq(__LOC__, p0, 10)
+    assert_eq(__LOC__, p1, 20)
+    assert_eq(__LOC__, v0, 30)
+    assert_eq(__LOC__, v1, 40)
+}
+
+test_dyn_vec_take_prefix_str := test() {
+    v := DynVec.new(Str)
+    v.push(own "aa")
+    v.push(own "bb")
+    v.push(own "cc")
+
+    prefix := v.take_prefix(1)
+
+    assert_eq(__LOC__, prefix.len().to_i64(), 1)
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+
+    ref p0 : Str = prefix[0]
+    ref v0 : Str = v[0]
+    ref v1 : Str = v[1]
+
+    assert_eq_str(__LOC__, p0, "aa")
+    assert_eq_str(__LOC__, v0, "bb")
+    assert_eq_str(__LOC__, v1, "cc")
+}
+
+test_dyn_vec_append := test() {
+    a := DynVec.new(I64)
+    b := DynVec.new(I64)
+    a.push(own 1)
+    a.push(own 2)
+    b.push(own 3)
+    b.push(own 4)
+
+    a.append(own b)
+
+    assert_eq(__LOC__, a.len().to_i64(), 4)
+    ref a0 : I64 = a[0]
+    ref a1 : I64 = a[1]
+    ref a2 : I64 = a[2]
+    ref a3 : I64 = a[3]
+    assert_eq(__LOC__, a0, 1)
+    assert_eq(__LOC__, a1, 2)
+    assert_eq(__LOC__, a2, 3)
+    assert_eq(__LOC__, a3, 4)
+}
+
+test_dyn_vec_append_str := test() {
+    a := DynVec.new(Str)
+    b := DynVec.new(Str)
+    a.push(own "aa")
+    b.push(own "bb")
+    b.push(own "cc")
+
+    a.append(own b)
+
+    assert_eq(__LOC__, a.len().to_i64(), 3)
+    ref a0 : Str = a[0]
+    ref a1 : Str = a[1]
+    ref a2 : Str = a[2]
+    assert_eq_str(__LOC__, a0, "aa")
+    assert_eq_str(__LOC__, a1, "bb")
+    assert_eq_str(__LOC__, a2, "cc")
+}
+
+test_dyn_vec_take_prefix_append_roundtrip := test() {
+    v := DynVec.new(I64)
+    v.push(own 5)
+    v.push(own 6)
+    v.push(own 7)
+    v.push(own 8)
+
+    prefix := v.take_prefix(2)
+    prefix.append(own v)
+
+    assert_eq(__LOC__, prefix.len().to_i64(), 4)
+    ref p0 : I64 = prefix[0]
+    ref p1 : I64 = prefix[1]
+    ref p2 : I64 = prefix[2]
+    ref p3 : I64 = prefix[3]
+    assert_eq(__LOC__, p0, 5)
+    assert_eq(__LOC__, p1, 6)
+    assert_eq(__LOC__, p2, 7)
+    assert_eq(__LOC__, p3, 8)
+}
