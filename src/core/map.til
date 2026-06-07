@@ -94,8 +94,8 @@ namespace:
         throw KeyNotFound(msg = format(__LOC__, ":Map.get: key not found"))
     }
 
-    /// Insert or overwrite the value for `key`. Both key and val are owned.
-    set := func(mut self: Map, own key: Dynamic, own val: Dynamic) {
+    /// Insert or overwrite the value for `key`. The value is owned.
+    set := func(mut self: Map, key: Dynamic, own val: Dynamic) {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         mut found := false
@@ -110,16 +110,11 @@ namespace:
             }
         }
         if found {
-            // Delete old key/value at index lo. elem_delete dispatches via
-            // the sub-Vecs' function pointers; for Dynamic values it is the
-            // no-op default_delete, so the call is safe unconditionally.
-            self.keys.elem_delete(self.key_ptr(lo), false)
+            // Delete old value at index lo. The stored key remains unchanged.
             self.values.elem_delete(self.val_ptr(lo), false)
 
-            // Overwrite bytes with new key/value.
-            memcpy(self.key_ptr(lo), key, self.keys.elem_size)
+            // Overwrite bytes with new value.
             memcpy(self.val_ptr(lo), val, self.values.elem_size)
-            free(own key)
             free(own val)
         } else {
             if self.keys.count.eq(self.keys.cap) {
@@ -135,9 +130,17 @@ namespace:
             memmove(ptr_add(self.values.data, lo.add(1).mul(self.values.elem_size)),
                     ptr_add(self.values.data, lo.mul(self.values.elem_size)),
                     self.values.count.sub(lo).mul(self.values.elem_size))
-            memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size)), key, self.keys.elem_size)
+            cloned_key : Dynamic = malloc(self.keys.elem_size.cast(U64))
+            if self.keys.elem_kind.eq(ELEM_BOXED) {
+                key_copy : Dynamic = self.keys.elem_clone(key)
+                memcpy(cloned_key, key_copy, self.keys.elem_size.cast(U64))
+                free(own key_copy)
+            } else {
+                memcpy(cloned_key, key, self.keys.elem_size.cast(U64))
+            }
+            memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size)), cloned_key, self.keys.elem_size)
             memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size)), val, self.values.elem_size)
-            free(own key)
+            free(own cloned_key)
             free(own val)
             self.keys.count = self.keys.count.add(1)
             self.values.count = self.values.count.add(1)

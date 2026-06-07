@@ -188,7 +188,7 @@ namespace:
         }
         cell : Dynamic = malloc(I64.size().cast(U64))
         write_ptr(cell, fdef)
-        self.func_defs.set(own name.clone(), own cell)
+        self.func_defs.set(name, own cell)
     }
     // Issue #147: register a binding's StructDef/EnumDef Expr in the
     // scope-side struct_defs map (the replacement for the removed
@@ -197,7 +197,7 @@ namespace:
     set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr) {
         cell : Dynamic = malloc(I64.size().cast(U64))
         write_ptr(cell, sdef)
-        self.struct_defs.set(own name.clone(), own cell)
+        self.struct_defs.set(name, own cell)
     }
     is_mut := func(self: TypeScope, name: Str) returns Bool {
         ref b : TypeBinding = self.get_binding(name)
@@ -227,7 +227,7 @@ namespace:
                 path = path.clone(),
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
-            self.bindings.set(own name.clone(), own nb)
+            self.bindings.set(name, own nb)
         }
 }
 

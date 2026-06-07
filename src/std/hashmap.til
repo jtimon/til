@@ -109,11 +109,8 @@ namespace:
         return self.values[idx.to_usize()]
     }
 
-    // Insert or overwrite. Both key and value are owned.
-    // Inlines the chain walk (cannot call self.find here -- a direct call
-    // would transfer ownership of `key` away before we know whether to
-    // free it as a duplicate or push it as a new entry).
-    set := func(mut self: HashMap, own key: Dynamic, own val: Dynamic) {
+    // Insert or overwrite. The value is owned.
+    set := func(mut self: HashMap, key: Dynamic, own val: Dynamic) {
         bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
         ref head : I64 = self.buckets[bi]
         mut entry : I64 = head.clone()
@@ -129,7 +126,7 @@ namespace:
             entry = nxt.clone()
         }
         if existing.gte(0) {
-            // Key already present: free the duplicate key, replace value.
+            // Key already present: keep the stored key and replace value.
             slot_idx : USize = existing.to_usize()
             // Issue #218: in interpret mode, capturing the slot via
             // `ref slot : Dynamic` then passing it to memcpy as dst
@@ -141,15 +138,21 @@ namespace:
             slot_off : USize = slot_idx.mul(self.values.elem_size)
             self.values.elem_delete(ptr_add(self.values.data, slot_off.cast(U64)), false)
             memcpy(ptr_add(self.values.data, slot_off.cast(U64)), val, self.values.elem_size.cast(U64))
-            self.keys.elem_delete(key, false)
-            free(own key)
             free(own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
             ref head2 : I64 = self.buckets[bi]
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
-            self.keys.push(own key)
+            cloned_key : Dynamic = malloc(self.keys.elem_size.cast(U64))
+            if self.keys.elem_kind.eq(ELEM_BOXED) {
+                key_copy : Dynamic = self.keys.elem_clone(key)
+                memcpy(cloned_key, key_copy, self.keys.elem_size.cast(U64))
+                free(own key_copy)
+            } else {
+                memcpy(cloned_key, key, self.keys.elem_size.cast(U64))
+            }
+            self.keys.push(own cloned_key)
             self.values.push(own val)
             self.buckets.set(bi, own new_idx)
             // Load factor 0.75 = count * 4 > buckets * 3.

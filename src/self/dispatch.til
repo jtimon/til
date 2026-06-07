@@ -158,7 +158,7 @@ ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
         case NodeType.Decl(dd):
             key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
             box := ExprPtrBox(ptr = sdef)
-            ctx.ffi_struct_defs.set(own key, own box)
+            ctx.ffi_struct_defs.set(key, own box)
         case:
         }
     }
@@ -1242,7 +1242,7 @@ priv DispatchFn := proc(Scope, Expr, mut Value, Context) returns Bool
 priv reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
     v : Dynamic = malloc(8)
     write_ptr(v, handler)
-    ctx.dispatch_map.set(own name.clone(), own v)
+    ctx.dispatch_map.set(name, own v)
 }
 
 dispatch_init := func(ctx: Context) {
@@ -1743,7 +1743,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         move(key, key_str, Str.size().cast(U64))
         val : Dynamic = malloc(FFIEntry.size().cast(U64))
         move(val, entry, FFIEntry.size().cast(U64))
-        ctx.ffi_map.set(own key, own val)
+        ctx.ffi_map.set(key, own val)
     case:
         UNREACHABLE(__LOC__)
     }

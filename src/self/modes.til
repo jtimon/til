@@ -6,7 +6,7 @@ import("initer")
 
 
 context_register_path_mode := func(mut ctx: Context, path: Str, mode: Mode) {
-    ctx.path_modes.set(own path.clone(), own mode.clone())
+    ctx.path_modes.set(path, own mode.clone())
 }
 
 context_set_mode_from_path := func(mut ctx: Context, path: Str) {

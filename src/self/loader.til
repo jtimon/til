@@ -213,7 +213,7 @@ priv resolve_imports := proc(import_paths: Vec, base_dir: Str,
             mut iu := ImportUnit(mode = sub_mode_def.clone())
             iu.ast.take_children(sub_ast)
             iu.imports = sub_import_disps.clone()
-            ctx.imported.set(own disp.clone(), own iu)
+            ctx.imported.set(disp, own iu)
 
             // Record ordering metadata as a ProgramUnit.
             mut unit := ProgramUnit(path = disp.clone(), mode = sub_mode_def.clone())
@@ -420,7 +420,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                 ref stmt : Expr = iu.ast.child(i)
                 switch stmt.node_type {
                 case NodeType.Decl(decl):
-                    core_top.set(own decl.name.clone(), own DeclRef(path = u.path.clone(), idx = i.clone()))
+                    core_top.set(decl.name, own DeclRef(path = u.path.clone(), idx = i.clone()))
                 case:
                 }
             }
@@ -433,7 +433,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
             ref stmt : Expr = iu.ast.child(i)
             switch stmt.node_type {
             case NodeType.Decl(decl):
-                top.set(own decl.name.clone(), own DeclRef(path = u.path.clone(), idx = i.clone()))
+                top.set(decl.name, own DeclRef(path = u.path.clone(), idx = i.clone()))
             case:
             }
         }
@@ -817,7 +817,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                         panic(__LOC__, disp, ": Mode arguments must be named (e.g. needs_main = true)")
                                     }
                                 }
-                                mode_registry.set(own decl.name.clone(), own m.clone())
+                                mode_registry.set(decl.name, own m.clone())
                             }
                         case:
                         }
@@ -841,7 +841,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     iu.mode = mode_mode_def.clone()
     iu.ast.take_children(ast)
     context_register_path_mode(lp.ctx, disp, iu.mode)
-    lp.ctx.imported.set(own disp.clone(), own iu)
+    lp.ctx.imported.set(disp, own iu)
     lp.mode_files.push(own disp.clone())
 }
 
@@ -894,7 +894,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     mut iu_auto := ImportUnit(mode_str = mode_auto.clone())
                     iu_auto.mode = mode_auto_def.clone()
                     iu_auto.ast.take_children(ast_auto)
-                    lp.ctx.imported.set(own disp_auto.clone(), own iu_auto)
+                    lp.ctx.imported.set(disp_auto, own iu_auto)
 
                     mut unit_auto := ProgramUnit(path = disp_auto.clone(), mode = mode_auto_def.clone())
                     core_units.push(own unit_auto)
@@ -986,7 +986,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut core_iu := ImportUnit(mode = core_mode.clone())
     core_iu.ast.take_children(core_ast)
     core_iu.imports = resolve_import_disps(core_imports, bin_dir.concat("/src/core"), "", cwd)
-    lp.ctx.imported.set(own core_disp.clone(), own core_iu)
+    lp.ctx.imported.set(core_disp, own core_iu)
 
     // Core entrypoint unit (after its imports).
     mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
@@ -1029,7 +1029,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         mut mode_iu := ImportUnit(mode = mode_mode_def.clone())
         mode_iu.ast.take_children(mode_ast)
         mode_iu.imports = resolve_import_disps(mode_imports, mode_dir, lib_dir, cwd)
-        lp.ctx.imported.set(own mode_disp.clone(), own mode_iu)
+        lp.ctx.imported.set(mode_disp, own mode_iu)
 
         // Mode auto-import unit.
         mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
@@ -1052,7 +1052,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     } else {
         user_iu.imports = user_import_disps.clone()
     }
-    lp.ctx.imported.set(own path.clone(), own user_iu)
+    lp.ctx.imported.set(path, own user_iu)
 
     // User entrypoint unit.
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
@@ -1753,7 +1753,7 @@ priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
             if nargs.eq(fd.params.len()) {
                 for j in 0..fd.params.len() {
                     ref param : Declaration = fd.params[j]
-                    subs.set(own param.name.clone(), own call.child(j.add(1)).clone())
+                    subs.set(param.name, own call.child(j.add(1)).clone())
                 }
                 ok = true
             }

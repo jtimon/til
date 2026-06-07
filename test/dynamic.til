@@ -2,8 +2,8 @@ mode test
 
 test_dyn_map_i64 := test() {
     dm := DynMap.new()
-    dm.set(own "answer", "I64", I64.size(), own 42)
-    dm.set(own "count", "I64", I64.size(), own 7)
+    dm.set("answer", "I64", I64.size(), own 42)
+    dm.set("count", "I64", I64.size(), own 7)
 
     assert_eq(__LOC__, dm.len().to_i64(), 2)
     assert(__LOC__, dm.has("answer"))
@@ -23,9 +23,9 @@ test_dyn_map_i64 := test() {
 
 test_dyn_map_mixed := test() {
     dm := DynMap.new()
-    dm.set(own "name", "Str", Str.size(), own "til")
-    dm.set(own "enabled", "Bool", Bool.size(), own true)
-    dm.set(own "size", "I64", I64.size(), own 64)
+    dm.set("name", "Str", Str.size(), own "til")
+    dm.set("enabled", "Bool", Bool.size(), own true)
+    dm.set("size", "I64", I64.size(), own 64)
 
     ref name : Str = dm.get("name")
     ref enabled : Bool = dm.get("enabled")
@@ -45,8 +45,8 @@ test_dyn_map_mixed := test() {
 
 test_dyn_map_overwrite := test() {
     dm := DynMap.new()
-    dm.set(own "v", "I64", I64.size(), own 1)
-    dm.set(own "v", "Str", Str.size(), own "two")
+    dm.set("v", "I64", I64.size(), own 1)
+    dm.set("v", "Str", Str.size(), own "two")
 
     assert_eq(__LOC__, dm.len().to_i64(), 1)
     ref v : Str = dm.get("v")

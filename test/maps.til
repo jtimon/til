@@ -2,9 +2,9 @@ mode test
 
 test_i64_map := test() {
     m := Map.new(I64, I64)
-    m.set(own 3, own 30)
-    m.set(own 1, own 10)
-    m.set(own 2, own 20)
+    m.set(3, own 30)
+    m.set(1, own 10)
+    m.set(2, own 20)
     assert_eq(__LOC__, m.len().to_i64(), 3)
     assert(__LOC__, m.has(1))
     assert(__LOC__, m.has(2))
@@ -19,7 +19,7 @@ test_i64_map := test() {
     assert_eq(__LOC__, v3, 30)
 
     // overwrite existing key
-    m.set(own 2, own 99)
+    m.set(2, own 99)
     assert_eq(__LOC__, m.len().to_i64(), 3)
     ref v2b : I64 = m[2]
     assert_eq(__LOC__, v2b, 99)
@@ -27,9 +27,9 @@ test_i64_map := test() {
 
 test_str_map := test() {
     sm := Map.new(Str, I64)
-    sm.set(own "banana", own 2)
-    sm.set(own "apple", own 1)
-    sm.set(own "cherry", own 3)
+    sm.set("banana", own 2)
+    sm.set("apple", own 1)
+    sm.set("cherry", own 3)
     assert_eq(__LOC__, sm.len().to_i64(), 3)
     assert(__LOC__, sm.has("apple"))
     assert(__LOC__, sm.has("banana"))

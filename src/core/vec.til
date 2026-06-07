@@ -186,28 +186,10 @@ namespace:
     }
 
     /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds. Does NOT drop the previous slot's contents -- use
-    /// Vec.replace for that (callers like the compiler typer rely on plain
-    /// bit-overwrite semantics when the prior slot was already moved out).
+    /// is out of bounds.
     set := func(mut self: Vec, i: USize, own val: Dynamic) {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
-        }
-        if self.elem_kind.eq(ELEM_BOXED) {
-            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
-        }
-        memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
-        free(own val)
-    }
-
-    /// Drop the existing element at index `i` via elem_delete, then store
-    /// `val` (owned) in its place. Use this when the slot holds a live
-    /// element whose inner heap data must be freed before being overwritten
-    /// (e.g. replacing a Str slot whose c_str would otherwise leak). Panics
-    /// if `i` is out of bounds.
-    replace := func(mut self: Vec, i: USize, own val: Dynamic) {
-        if i.gte(self.count) {
-            panic(__LOC__, "Vec.replace: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         if self.elem_kind.eq(ELEM_BOXED) {
             self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)

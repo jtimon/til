@@ -1377,7 +1377,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             sig_buf : Dynamic = malloc(I64.size().cast(U64))
             write_ptr(sig_buf, decl_sig)
             ref mut m : Map = ctx.local_fn_sigs
-            m.set(own dd.name.clone(), own sig_buf)
+            m.set(dd.name, own sig_buf)
         }
     }
     mut rhs_is_capturing_func := false
@@ -1482,7 +1482,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         emit_pod_compound_literal(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        ctx.stack_local_types.set(dd.name, own ctype.clone())
                     } else {
                         f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
@@ -1507,7 +1507,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     }
         f.write("ULL, .cap = TIL_CAP_LIT};\n")
                     ctx.stack_locals.add(own dd.name.clone())
-                    ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                    ctx.stack_local_types.set(dd.name, own ctype.clone())
                 } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
                 .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.expr_til_type().is(Type.Enum))) {
                     if is_global {
@@ -1531,7 +1531,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write(htype).write(" ").write(dd.name).write(" = ")
                         emit_expr(f, rhs, depth, ctx); f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own htype.clone())
+                        ctx.stack_local_types.set(dd.name, own htype.clone())
                     } else if can_hoist.and(is_pod_enum_clone_call(rhs, ctx)) {
                         // POD enum clone wrap: typer wraps
                         // `c := Color.Red` as `c := Color.clone(Color.Red)`
@@ -1547,7 +1547,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         emit_pod_enum_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        ctx.stack_local_types.set(dd.name, own ctype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
                         mut htype := fcall_return_ctype(rhs, ctx)
                         if htype.len().eq(0) { htype = ctype.clone() }
@@ -1555,13 +1555,13 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         emit_expr(f, rhs, depth, ctx)
                         f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own htype.clone())
+                        ctx.stack_local_types.set(dd.name, own htype.clone())
                     } else if can_hoist {
                         f.write(ctype).write(" ").write(dd.name).write("; { ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
                         emit_expr(f, rhs, depth, ctx)
                         f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        ctx.stack_local_types.set(dd.name, own ctype.clone())
                     } else if is_pod_enum_clone_call(rhs, ctx).and(is_global.not()) {
                         // POD-enum heap-Decl variant: emit as stack
                         // value, garbager skips heap-promote, delete
@@ -1570,14 +1570,14 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         emit_pod_enum_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        ctx.stack_local_types.set(dd.name, own ctype.clone())
                     } else if is_pod_struct_user_clone(rhs, ctx).and(is_global.not()) {
                         // POD-struct `.clone()`: emit a struct value-copy.
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        ctx.stack_local_types.set(dd.name, own ctype.clone())
                     } else {
                         if is_global { f.write(dd.name).write(" = ") }
                         else { f.write(ctype).write(" *").write(dd.name).write(" = ") }
@@ -1590,7 +1590,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_deref(f, rhs, depth, ctx); f.write(";\n")
                         ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(own dd.name.clone(), own ctype.clone())
+                        ctx.stack_local_types.set(dd.name, own ctype.clone())
                     } else {
                         f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
                         emit_indent(f, depth)
@@ -4904,7 +4904,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 sdv : Dynamic = malloc(I64.size().cast(U64))
                 write_ptr(sdv, rhs)
-                ctx.struct_def_exprs.set(own dd.name.clone(), own sdv)
+                ctx.struct_def_exprs.set(dd.name, own sdv)
                 // Register ns_decls methods into func_defs
                 ref rl_ns : Vec = def_ns_decls(rhs)
                 for d_j : Declaration in rl_ns {
@@ -4915,7 +4915,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                     if ctx.func_defs.has(key) { continue }
                     fv : Dynamic = malloc(I64.size().cast(U64))
                     write_ptr(fv, nsd.default_value)
-                    ctx.func_defs.set(own key, own fv)
+                    ctx.func_defs.set(key, own fv)
                     if nsd.default_value.children.len().gt(0) {
                         ref fbody : Expr = nsd.default_value.child(0)
                         for nested : Expr in fbody.children {
@@ -4925,7 +4925,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                             case NodeType.Decl(nd):
                                 nv : Dynamic = malloc(I64.size().cast(U64))
                                 write_ptr(nv, nfdef)
-                                ctx.func_defs.set(own nd.name.clone(), own nv)
+                                ctx.func_defs.set(nd.name, own nv)
                             case:
                                 UNREACHABLE(__LOC__)
                             }
@@ -4936,7 +4936,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
             if rhs.node_type.is(NodeType.FuncDef) {
                 fv2 : Dynamic = malloc(I64.size().cast(U64))
                 write_ptr(fv2, rhs)
-                ctx.func_defs.set(own dd.name.clone(), own fv2)
+                ctx.func_defs.set(dd.name, own fv2)
             }
         case:
             UNREACHABLE(__LOC__)
@@ -6013,9 +6013,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
             if static_index_by_display.has(display).not() {
-                display_clone := display.clone()
                 val : USize = seq
-                static_index_by_display.set(own display_clone, own val)
+                static_index_by_display.set(display, own val)
                 static_displays.push(own display)
                 seq = seq.add(1)
             }
@@ -6030,9 +6029,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             for k in 0..inner_names.len() {
                 ref ivn : Str = inner_names[k]
                 if static_index_by_display.has(ivn).not() {
-                    ivn_clone := ivn.clone()
                     val2 : USize = seq
-                    static_index_by_display.set(own ivn_clone, own val2)
+                    static_index_by_display.set(ivn, own val2)
                     static_displays.push(own ivn.clone())
                     seq = seq.add(1)
                 }
@@ -6044,7 +6042,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     // Fallback "?" literal
     if static_index_by_display.has("?").not() {
         fallback_val : USize = seq
-        static_index_by_display.set(own "?", own fallback_val)
+        static_index_by_display.set("?", own fallback_val)
         static_displays.push(own "?")
         seq = seq.add(1)
     }

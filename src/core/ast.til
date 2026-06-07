@@ -432,7 +432,7 @@ enum_def_of := func(type_name: Str) returns EnumDef {
         def.variants.push(own enum_variant_name(type_name, i))
         if enum_variant_has_payload(type_name, i).eq(1) {
             pt := enum_variant_payload_type(type_name, i)
-            def.payload_types.set(own i.clone(), own pt)
+            def.payload_types.set(i, own pt)
         }
     }
     return def

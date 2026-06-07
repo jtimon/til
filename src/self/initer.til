@@ -54,7 +54,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         // re-registers with the same value, which is idempotent.
         tdv : Dynamic = malloc(I64.size().cast(U64))
         write_ptr(tdv, stmt.child(0))
-        ctx.interp_type_defs.set(own sname.clone(), own tdv)
+        ctx.interp_type_defs.set(sname, own tdv)
         return 0
     case:
         UNREACHABLE(__LOC__)
@@ -334,7 +334,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
         // register_struct_def_for_stmt for rationale).
         tdv : Dynamic = malloc(I64.size().cast(U64))
         write_ptr(tdv, stmt.child(0))
-        ctx.interp_type_defs.set(own ename.clone(), own tdv)
+        ctx.interp_type_defs.set(ename, own tdv)
         return 0
     case:
         UNREACHABLE(__LOC__)
@@ -1578,7 +1578,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
     // Set sentinel so nested recursion into self-referential types
     // (e.g. linked-list-style struct with a ref field of its own type)
     // sees a non-empty entry and short-circuits.
-    ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = 1))
+    ctx.struct_layouts.set(name, own StructLayout(total_size = 1))
     switch struct_def.node_type {
     case NodeType.StructDef(struct_meta):
         mut offset : USize = 0
@@ -1707,7 +1707,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 
         sl.total_size = align_up(offset, max_align)
         if sl.total_size.eq(0) { sl.total_size = 1 }
-        ctx.struct_layouts.set(own name.clone(), own sl)
+        ctx.struct_layouts.set(name, own sl)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -1747,7 +1747,7 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
 compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns USize {
     if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
     // Set sentinel before recursing to break self-referential cycles.
-    ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = 4))
+    ctx.struct_layouts.set(name, own StructLayout(total_size = 4))
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         mut max_payload_size : USize = 0
@@ -1767,7 +1767,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
             total = total.add(max_payload_size)
         }
         total = align_up(total, max_payload_align)
-        ctx.struct_layouts.set(own name.clone(), own StructLayout(total_size = total))
+        ctx.struct_layouts.set(name, own StructLayout(total_size = total))
         return total
     case:
         UNREACHABLE(__LOC__)
@@ -2033,7 +2033,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
             ref pt_old : Str = edd.payload_types[vidx]
             new_pt := init_lookup_name(renamings, pt_old)
             if new_pt.len().gt(0) {
-                edd.payload_types.set(own vidx.clone(), own new_pt.clone())
+                edd.payload_types.set(vidx, own new_pt.clone())
             }
         }
         for mut nd : Declaration in edd.ns_decls {
@@ -2063,7 +2063,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
         switch child.node_type {
         case NodeType.Decl(child_dd):
             mangled := parent_prefix.concat("_").concat(child_dd.name)
-            renamings.set(own child_dd.name.clone(), own mangled.clone())
+            renamings.set(child_dd.name, own mangled.clone())
             child_dd.orig_name = child_dd.name.clone()
             child_dd.name = mangled.clone()
             child_dd.is_priv = true
@@ -2098,11 +2098,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
             UNREACHABLE(__LOC__)
         }
         mut empty_body := Expr.new(NodeType.Body, slot.line, slot.col)
-        // Vec.replace (not .set): the lifted decl was cloned into top_level
-        // above, so the original slot here is dead -- replace frees it. .set
-        // would overwrite the slot pointer and orphan the whole original
-        // subtree (its method bodies etc.), a per-lifted-decl leak.
-        body.children.replace(idx, own empty_body)
+        body.children.set(idx, own empty_body)
     }
 
     init_recurse_into_subbodies(body, parent_prefix, top_level)
@@ -2296,7 +2292,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
             ref pt : Str = edef.payload_types[k.to_i64()]
             new_pt := init_subst_ident_name(subs, pt)
             if new_pt.len().gt(0) {
-                edef.payload_types.set(own k.to_i64(), own new_pt.clone())
+                edef.payload_types.set(k.to_i64(), own new_pt.clone())
             }
         }
     }
@@ -2571,7 +2567,7 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Co
                 ctx.type_gen_synths.add(own genname.clone())
             }
             mut idn := Expr.new(ident_node(genname), c.line, c.col)
-            e.children.replace(i, own idn)
+            e.children.set(i, own idn)
         } else {
             init_hoist_walk(c, macros, scope, ctx, synthesized)
         }
@@ -2696,7 +2692,7 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
                 case NodeType.Ident(an):
                     tn := an.ident_name()
                     mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
-                    subs.set(own p.name.clone(), own tid)
+                    subs.set(p.name, own tid)
                     if first.not() { mono = mono.concat("_") }
                     mono = mono.concat(tn)
                     first = false
@@ -2734,7 +2730,7 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
             mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone())), call.line, call.col)
             decl.add_child(own cloned)
             synthesized.push(own decl)
-            seen.set(own mono.clone(), own mono.clone())
+            seen.set(mono, own mono.clone())
         }
 
         // Rewrite the call: callee -> Ident(mono); keep only the value
@@ -2804,7 +2800,7 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
         if init_func_is_generic(rhs).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            generics.set(own dd.name.clone(), own rhs.clone())
+            generics.set(dd.name, own rhs.clone())
         case:
         }
     }
@@ -2851,7 +2847,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
         if init_is_type_gen_macro_def(rhs).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            macros.set(own dd.name.clone(), own rhs.clone())
+            macros.set(dd.name, own rhs.clone())
         case:
         }
     }
@@ -2902,7 +2898,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
                 if j.add(1).gte(rhs.children.len()) { break }
                 ref param : Declaration = mfd.params[j]
                 ref arg : Expr = rhs.child(j.add(1))
-                subs.set(own param.name.clone(), own arg.clone())
+                subs.set(param.name, own arg.clone())
             }
         case:
         }
@@ -2924,7 +2920,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
         switch stmt.node_type {
         case NodeType.Decl(dd_self):
             mut self_ident := Expr.new(ident_node(dd_self.name), stmt.line, stmt.col)
-            subs.set(own "Self", own self_ident)
+            subs.set("Self", own self_ident)
         case:
         }
 
@@ -3043,7 +3039,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
             if pdd.orig_name.len().gt(0) { continue }
             mangled := priv_c_name(path, pdd.name)
             pdd.orig_name = pdd.name.clone()
-            priv_renamings.set(own pdd.name.clone(), own mangled.clone())
+            priv_renamings.set(pdd.name, own mangled.clone())
             pdd.name = mangled.clone()
         case:
         }

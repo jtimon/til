@@ -14,7 +14,7 @@ bench_map_i64 := func(n: I64) returns Vec {
     m := Map.new(I64, I64)
     t0 := clock_ms()
     for i in 0..n {
-        m.set(own i.clone(), own i.mul(2))
+        m.set(i, own i.mul(2))
     }
     t_ins := clock_ms().sub(t0)
 
@@ -45,7 +45,7 @@ bench_hashmap_i64 := func(n: I64) returns Vec {
     m := HashMap.new(I64, I64)
     t0 := clock_ms()
     for i in 0..n {
-        m.set(own i.clone(), own i.mul(2))
+        m.set(i, own i.mul(2))
     }
     t_ins := clock_ms().sub(t0)
 
@@ -83,7 +83,7 @@ bench_map_str := func(n: I64) returns Vec {
     t0 := clock_ms()
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!
-        m.set(own k.clone(), own i.mul(2))
+        m.set(k, own i.mul(2))
     }
     t_ins := clock_ms().sub(t0)
 
@@ -122,7 +122,7 @@ bench_hashmap_str := func(n: I64) returns Vec {
     t0 := clock_ms()
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!
-        m.set(own k.clone(), own i.mul(2))
+        m.set(k, own i.mul(2))
     }
     t_ins := clock_ms().sub(t0)
 

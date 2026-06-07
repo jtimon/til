@@ -4,9 +4,9 @@ import("../src/std/dyn_hashmap")
 
 test_dyn_hashmap_i64_basic := test() {
     m := DynHashMap.new(I64, I64)
-    m.set(own 1, own 10)
-    m.set(own 2, own 20)
-    m.set(own 3, own 30)
+    m.set(1, own 10)
+    m.set(2, own 20)
+    m.set(3, own 30)
     assert_eq(__LOC__, m.len().to_i64(), 3)
     assert(__LOC__, m.has(1))
     assert(__LOC__, m.has(2))
@@ -23,8 +23,8 @@ test_dyn_hashmap_i64_basic := test() {
 
 test_dyn_hashmap_i64_overwrite := test() {
     m := DynHashMap.new(I64, I64)
-    m.set(own 5, own 50)
-    m.set(own 5, own 500)
+    m.set(5, own 50)
+    m.set(5, own 500)
     assert_eq(__LOC__, m.len().to_i64(), 1)
     ref v : I64 = m.get(5)
     assert_eq(__LOC__, v, 500)
@@ -32,9 +32,9 @@ test_dyn_hashmap_i64_overwrite := test() {
 
 test_dyn_hashmap_str_keys := test() {
     m := DynHashMap.new(Str, I64)
-    m.set(own "apple", own 1)
-    m.set(own "banana", own 2)
-    m.set(own "cherry", own 3)
+    m.set("apple", own 1)
+    m.set("banana", own 2)
+    m.set("cherry", own 3)
     assert_eq(__LOC__, m.len().to_i64(), 3)
     assert(__LOC__, m.has("apple"))
     assert(__LOC__, m.has("banana"))
@@ -51,8 +51,8 @@ test_dyn_hashmap_str_keys := test() {
 
 test_dyn_hashmap_str_value := test() {
     m := DynHashMap.new(Str, Str)
-    m.set(own "key1", own "value1")
-    m.set(own "key2", own "value2")
+    m.set("key1", own "value1")
+    m.set("key2", own "value2")
     assert_eq(__LOC__, m.len().to_i64(), 2)
     ref v1 : Str = m.get("key1")
     ref v2 : Str = m.get("key2")
@@ -63,7 +63,7 @@ test_dyn_hashmap_str_value := test() {
 test_dyn_hashmap_grow_past_initial_buckets := test() {
     m := DynHashMap.new(I64, I64)
     for i in 0..100 {
-        m.set(own i, own i.mul(10))
+        m.set(i, own i.mul(10))
     }
     assert_eq(__LOC__, m.len().to_i64(), 100)
     for i in 0..100 {
@@ -77,8 +77,8 @@ test_dyn_hashmap_grow_past_initial_buckets := test() {
 
 test_dyn_hashmap_str_overwrite_releases_old_value := test() {
     m := DynHashMap.new(Str, Str)
-    m.set(own "k", own "first")
-    m.set(own "k", own "second")
+    m.set("k", own "first")
+    m.set("k", own "second")
     assert_eq(__LOC__, m.len().to_i64(), 1)
     ref v : Str = m.get("k")
     assert_eq_str(__LOC__, v, "second")
@@ -86,7 +86,7 @@ test_dyn_hashmap_str_overwrite_releases_old_value := test() {
 
 test_dyn_hashmap_remove_missing_is_noop := test() {
     m := DynHashMap.new(I64, I64)
-    m.set(own 1, own 10)
+    m.set(1, own 10)
     m.remove(99)
     assert_eq(__LOC__, m.len().to_i64(), 1)
     assert(__LOC__, m.has(1))
@@ -94,7 +94,7 @@ test_dyn_hashmap_remove_missing_is_noop := test() {
 
 test_dyn_hashmap_remove_only_entry := test() {
     m := DynHashMap.new(I64, I64)
-    m.set(own 5, own 50)
+    m.set(5, own 50)
     m.remove(5)
     assert_eq(__LOC__, m.len().to_i64(), 0)
     assert(__LOC__, m.has(5).not())
@@ -102,9 +102,9 @@ test_dyn_hashmap_remove_only_entry := test() {
 
 test_dyn_hashmap_remove_then_reinsert := test() {
     m := DynHashMap.new(I64, I64)
-    m.set(own 7, own 70)
+    m.set(7, own 70)
     m.remove(7)
-    m.set(own 7, own 700)
+    m.set(7, own 700)
     assert_eq(__LOC__, m.len().to_i64(), 1)
     ref v : I64 = m.get(7)
     assert_eq(__LOC__, v, 700)
@@ -113,7 +113,7 @@ test_dyn_hashmap_remove_then_reinsert := test() {
 test_dyn_hashmap_remove_swap_keeps_others_findable := test() {
     m := DynHashMap.new(I64, I64)
     for i in 0..50 {
-        m.set(own i.clone(), own i.mul(10))
+        m.set(i, own i.mul(10))
     }
     m.remove(7)
     m.remove(23)
@@ -133,7 +133,7 @@ test_dyn_hashmap_remove_swap_keeps_others_findable := test() {
 test_dyn_hashmap_remove_all := test() {
     m := DynHashMap.new(I64, I64)
     for i in 0..20 {
-        m.set(own i.clone(), own i.mul(10))
+        m.set(i, own i.mul(10))
     }
     for i in 0..20 {
         m.remove(i)
@@ -142,7 +142,7 @@ test_dyn_hashmap_remove_all := test() {
     for i in 0..20 {
         assert(__LOC__, m.has(i).not())
     }
-    m.set(own 99, own 990)
+    m.set(99, own 990)
     assert_eq(__LOC__, m.len().to_i64(), 1)
     ref v : I64 = m.get(99)
     assert_eq(__LOC__, v, 990)
@@ -150,8 +150,8 @@ test_dyn_hashmap_remove_all := test() {
 
 test_dyn_hashmap_remove_str_key_frees_c_str := test() {
     m := DynHashMap.new(Str, I64)
-    m.set(own "apple", own 1)
-    m.set(own "banana", own 2)
+    m.set("apple", own 1)
+    m.set("banana", own 2)
     m.remove("apple")
     assert_eq(__LOC__, m.len().to_i64(), 1)
     assert(__LOC__, m.has("apple").not())

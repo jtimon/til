@@ -1549,7 +1549,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                                             arg_tname := type_to_name(vk_arg.expr_til_type())
                                                 if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
                                                     if type_has_to_str(scope, arg_tname) {
-                                                        e.children.replace(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
+                                                        e.children.set(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
                                                         continue
                                                     }
                                             }
@@ -3381,7 +3381,7 @@ priv collect_switch_case_bindings := proc(mut ctx: Context, e: Expr) {
                         case NodeType.Ident(b_id):
                             payload_type := lookup_variant_payload_type(ctx.scope, en_id.ident_name(), fa.field_access_name())
                             if payload_type.len().gt(0) {
-                                ctx.lowering_param_types.set(own b_id.ident_name(), own payload_type)
+                                ctx.lowering_param_types.set(b_id.ident_name(), own payload_type)
                             }
                         case:
                         }
@@ -3616,7 +3616,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 mut lptn := lpp.explicit_type.clone()
                 if lpi.cast(I32).eq(fdef.variadic_index) { lptn = "Array" }
                 if lpi.cast(I32).eq(fdef.kwargs_index) { lptn = "DynMap" }
-                if lptn.len().gt(0) { ctx.lowering_param_types.set(own lpp.name.clone(), own lptn) }
+                if lptn.len().gt(0) { ctx.lowering_param_types.set(lpp.name, own lptn) }
             }
             // Also seed switch-case payload bindings: `case E.V(x):` binds
             // `x` to the variant's payload type. The case-body Decls don't
@@ -3944,7 +3944,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
                             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
                             if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
                                 mc := make_clone_call(tname, stmt.expr_til_type(), stmt.child(0), stmt)
-                                stmt.children.replace(0, own mc)
+                                stmt.children.set(0, own mc)
                             }
                         }
                 case:
@@ -4185,7 +4185,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
         if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
             mc := make_clone_call(tname, rhs.expr_til_type(), rhs, rhs)
-            stmt.children.replace(1, own mc)
+            stmt.children.set(1, own mc)
         }
     }
 }
@@ -4229,7 +4229,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         if_node.add_child(own else_body)
 
         mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
-        stmt.children.replace(0, own true_lit)
+        stmt.children.set(0, own true_lit)
 
         mut old := Vec.new(Expr)
         old.move_from(body.children)
@@ -4668,7 +4668,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 // T_clone method; it's a plain 8-byte pointer.
                 if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
                     mc := make_clone_call(tname, stmt.expr_til_type(), rhs, stmt)
-                    stmt.children.replace(0, own mc)
+                    stmt.children.set(0, own mc)
                 }
             }
         }
@@ -6396,7 +6396,7 @@ priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec)
     for t : Str in throws_list {
         tt.push(own t.clone())
     }
-    ctx.throws_global.set(own name.clone(), own tt)
+    ctx.throws_global.set(name, own tt)
 }
 
 priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
@@ -7092,7 +7092,7 @@ priv hoist_walk_consolidated := proc(
         vec_str_push_uniq(seen, tn)
         pre_stmts.push(own build_bang_lowered(ctx, tn, line, col))
     }
-    parent.children.replace(child_idx, own Expr.new(ident_node(tmp_name), line, col))
+    parent.children.set(child_idx, own Expr.new(ident_node(tmp_name), line, col))
 }
 
 // Walk stmt's expression tree hoisting nested bangs (not the
@@ -8155,7 +8155,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut cou
             decl.add_child(own c.clone())
             top_level.push(own decl)
             mut ident := Expr.new(ident_node(lname), c.line, c.col)
-            e.children.replace(i, own ident)
+            e.children.set(i, own ident)
         } else {
             counter = typer_lift_lambdas_in_expr(c, top_level, counter)
         }
@@ -8540,13 +8540,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
             if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
                 mc := make_clone_call(tname, rhs.expr_til_type(), rhs, stmt)
-                // (Issue #109) Use Vec.replace to drop-old: the slot at
-                // index 0 held the original rhs Expr; make_clone_call
-                // already cloned rhs into mc.children, so the original
-                // is now unreachable and its inner heap data (NodeType
-                // payload, til_type c_str, children Vec) would leak
-                // with a plain .set().
-                stmt.children.replace(0, own mc)
+                stmt.children.set(0, own mc)
                 if scope.bindings.has(aname).not() {
                     if is_aggregate(existing) {
                         if assign_target_is_func_local(scope, aname) {
@@ -10192,10 +10186,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut 
             set_own_arg(expr, i)
         }
 
-        // .replace (not .set): hoist_to_temp clones `arg` into the temp decl,
-        // so the slot's original arg subtree is now dead -- replace frees it
-        // instead of orphaning it (the orphan was a real per-arg leak).
-        expr.children.replace(i, own hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own))
+        expr.children.set(i, own hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own))
     }
 }
 
@@ -10207,8 +10198,7 @@ priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, m
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     ref cond : Expr = stmt.child(0)
     if cond.node_type.is(NodeType.FCall) {
-        // .replace: hoist_to_temp clones `cond`; free the dead original slot.
-        stmt.children.replace(0, own hoist_to_temp(ctx, cond, hoisted, scope, false))
+        stmt.children.set(0, own hoist_to_temp(ctx, cond, hoisted, scope, false))
     }
 }
 
@@ -10248,8 +10238,7 @@ priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        // .replace: hoist_to_temp clones `rhs`; free the dead original slot.
-        stmt.children.replace(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
+        stmt.children.set(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
 }
 
@@ -10292,8 +10281,7 @@ priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoiste
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        // .replace: hoist_to_temp clones `rhs`; free the dead original slot.
-        stmt.children.replace(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
+        stmt.children.set(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
     }
 }
 

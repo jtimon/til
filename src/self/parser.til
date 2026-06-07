@@ -233,7 +233,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     }
     name := kind.concat(anon_struct_counter.to_str())
     anon_struct_counter = anon_struct_counter.add(1)
-    p.anon_cache.set(own key.clone(), own name.clone())
+    p.anon_cache.set(key, own name.clone())
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
     decl.add_child(own def)
     p.anon_decls.push(own decl)
@@ -1090,7 +1090,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             }
             edd.variants.push(own vname.clone())
             if vtype.len().gt(0) {
-                edd.payload_types.set(own variant_idx.clone(), own vtype.clone())
+                edd.payload_types.set(variant_idx, own vtype.clone())
             }
             // payload_consts is dense, parallel to variants: push one
             // entry per variant (false for non-const / no-payload).

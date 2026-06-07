@@ -949,7 +949,7 @@ priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
         // Map.set deletes the old value via Value.delete (now deep), so a
         // same-name overwrite reclaims the old payload automatically.
         mut vcopy := v
-        ctx.precomp_known.set(own name.clone(), own vcopy)
+        ctx.precomp_known.set(name, own vcopy)
         scope_set_owned(scope, name, v)
     }
 }
@@ -966,7 +966,7 @@ priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
         // Map.set deletes the old value via Value.delete (now deep), so a
         // same-name overwrite reclaims the old payload automatically.
         mut vcopy := v
-        ctx.precomp_known.set(own name.clone(), own vcopy)
+        ctx.precomp_known.set(name, own vcopy)
     }
     // v is reclaimed by the garbager's function-exit deep Value.delete -- no
     // manual free needed.
@@ -1048,7 +1048,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 // Issue #191: always fold macro calls. Typer already
                 // validated that all args are comptime.
                 mut lit : Expr = try_eval_call(scope, child, true, ctx)
-                if lit.is_null().not() { e.children.replace(i, own lit) }
+                if lit.is_null().not() { e.children.set(i, own lit) }
             } else if is_func_call(child, ctx) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
@@ -1061,17 +1061,11 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 if all_comptime {
                     mut lit : Expr = try_fast_fold_call(scope, child, ctx)
                     if lit.is_null().not() {
-                        // try_fast_fold_call / try_eval_call malloc a heap Expr
-                        // and return it; .replace (not .set) MOVES it into the
-                        // slot AND frees the folded-away original child (the
-                        // FCall subtree -- often a hoisted temp's RHS clone).
-                        // .set bit-overwrote the slot and orphaned that whole
-                        // subtree, leaking it on every comptime fold.
-                        e.children.replace(i, own lit)
+                        e.children.set(i, own lit)
                     } else {
                         mut lit2 : Expr = try_eval_call(scope, child, false, ctx)
                         if lit2.is_null().not() {
-                            e.children.replace(i, own lit2)
+                            e.children.set(i, own lit2)
                         }
                     }
                 }
@@ -1247,4 +1241,3 @@ precomp_register_core_constants := func(mut global: Scope) {
     cap_lit_val := Value.Uint32(4294967295)
     scope_set_owned(global, "CAP_LIT", cap_lit_val)
 }
-

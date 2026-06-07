@@ -41,7 +41,7 @@ test_vec_payload_clone := test() {
 
     switch b {
     case PayloadBox.Bag(bag1):
-        bag1.items.replace(0, own "x")
+        bag1.items.set(0, own "x")
         switch b2 {
         case PayloadBox.Bag(bag2):
             ref s1 : Str = bag1.items[0]
