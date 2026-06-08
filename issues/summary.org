@@ -52,7 +52,7 @@
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/267.org][#267]] Replace dynamic core containers with templated (monomorphized) ones
 *** [[./open/269.org][#269]] Interface dynamic dispatch: polymorphic interface-typed values
-*** [[./open/270.org][#270]] Deterministic names for non-Type macro instantiations
+*** [[./open/271.org][#271]] Support circular core dependencies for templated Array(Str)
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies

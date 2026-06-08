@@ -1,6 +1,17 @@
 # priority: medium
 # category: features
-** OPEN #270 Deterministic names for non-Type macro instantiations
+** FIXED #270 Deterministic names for non-Type macro instantiations
+
+   Post-mortem: type-gen macro instantiation naming only preserved identifier
+   arguments. Literal and expression-shaped value arguments collapsed to the
+   shared `anon` segment, so distinct templated struct uses such as
+   `TemplCapVec(I64, 4)` and `TemplCapVec(I64, 8)` could dedup to one generated
+   type. The fix adds deterministic, collision-safe argument-name encoding for
+   non-ident values, uses it when substituting generated self-reference type
+   names, and lets direct aliases with value arguments normalize to the same
+   canonical generated type. Regression tests:
+   `test_templvec_value_arg_distinct_inline` and
+   `test_templvec_value_arg_alias_normalizes`.
 
    Revisit type-gen macro instantiation naming for macros that take non-`Type`
    parameters. Today alias normalization only handles pure type-argument

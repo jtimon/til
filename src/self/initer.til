@@ -2210,7 +2210,8 @@ priv init_subst_ident_name := func(subs: Map, name: Str) returns Str {
                 out = out.concat(idn_arg.ident_name())
                 changed = true
             case:
-                out = out.concat(arg)
+                out = out.concat(init_macro_inst_arg_name(repl_arg))
+                changed = true
             }
         } else {
             out = out.concat(arg)
@@ -2528,28 +2529,51 @@ priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr) re
     return false
 }
 
-priv init_macro_inst_all_args_are_type_args := func(rhs: Expr, macro_fdef: Expr) returns Bool {
-    if rhs.node_type.is(NodeType.FCall).not() { return false }
-    if macro_fdef.node_type.is(NodeType.FuncDef).not() { return false }
-    switch macro_fdef.node_type {
-    case NodeType.FuncDef(mfd):
-        if mfd.params.len().eq(0) { return false }
-        if rhs.children.len().neq(mfd.params.len().add(1)) { return false }
-        for i in 0..mfd.params.len() {
-            ref p : Declaration = mfd.params[i]
-            if p.explicit_type.eq("Type").not() { return false }
-            ref arg : Expr = rhs.child(i.add(1))
-            if arg.node_type.is(NodeType.Ident).not() { return false }
+priv init_macro_inst_name_byte := func(b: I8) returns Str {
+    if b.gte('a').and(b.lte('z')) { return Str.from_byte(b.cast(U8)) }
+    if b.gte('A').and(b.lte('Z')) { return Str.from_byte(b.cast(U8)) }
+    if b.gte('0').and(b.lte('9')) { return Str.from_byte(b.cast(U8)) }
+    if b.eq('_') { return Str.from_byte(b.cast(U8)) }
+    return "x".concat(b.cast(I64).to_str()).concat("x")
+}
+
+priv init_macro_inst_text_name := func(prefix: Str, text: Str) returns Str {
+    mut out := prefix.concat(text.len().to_str()).concat("_")
+    for i in 0..text.len() {
+        out = out.concat(init_macro_inst_name_byte(text.byte_at(i)))
+    }
+    return out
+}
+
+priv init_macro_inst_arg_name := func(arg: Expr) returns Str {
+    switch arg.node_type {
+    case NodeType.Ident(an): return an.ident_name()
+    case NodeType.Literal(Literal.Num(n)): return init_macro_inst_text_name("n", n.literal_num_text())
+    case NodeType.Literal(Literal.Str(s)): return init_macro_inst_text_name("s", s)
+    case NodeType.Literal(Literal.Bool(b)):
+        if b { return "btrue" }
+        return "bfalse"
+    case NodeType.Literal(Literal.Null): return "null"
+    case NodeType.FieldAccess(fa):
+        mut out := "fa".concat(init_macro_inst_text_name("f", fa.field_access_name()))
+        for c : Expr in arg.children {
+            out = out.concat("_").concat(init_macro_inst_arg_name(c))
         }
-        return true
+        return out
+    case NodeType.FCall:
+        mut out := "call"
+        for c : Expr in arg.children {
+            out = out.concat("_").concat(init_macro_inst_arg_name(c))
+        }
+        return out
     case:
     }
-    return false
+    return init_macro_inst_text_name("e", arg.to_str())
 }
 
 // Deterministic, dedup-friendly name for a monomorphization: `MACRO__Arg1_Arg2`
-// (the same macro + same type-args always yields the same name, so inline uses
-// share one generated type).
+// (the same macro + same compile-time args always yields the same name, so
+// inline uses share one generated type without conflating value arguments).
 priv init_macro_inst_name := func(e: Expr) returns Str {
     ref callee : Expr = e.child(0)
     mut out := ""
@@ -2560,10 +2584,7 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
     for k in 1..e.children.len() {
         if k.gt(1) { out = out.concat("_") }
         ref arg : Expr = e.child(k)
-        switch arg.node_type {
-        case NodeType.Ident(an): out = out.concat(an.ident_name())
-        case: out = out.concat("anon")
-        }
+        out = out.concat(init_macro_inst_arg_name(arg))
     }
     return out
 }
@@ -2642,10 +2663,9 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: Typ
     }
 }
 
-// A direct `Alias := Template(I64)` should not expand a second type whose
+// A direct `Alias := Template(I64, 4)` should not expand a second type whose
 // real name is `Alias`. Normalize it to an ordinary alias of the deterministic
-// monomorphization: `Alias := Template__I64`, plus one `Template__I64 :=
-// Template(I64)` decl if this unit owns that instantiation.
+// monomorphization, plus one canonical decl if this unit owns that instantiation.
 priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
     mut synthesized := Vec.new(Expr)
     for i in 0..program.children.len() {
@@ -2661,7 +2681,6 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
             case NodeType.Ident(cn):
                 ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope)
                 if mf.is_null() { continue }
-                if init_macro_inst_all_args_are_type_args(rhs, mf).not() { continue }
                 if ctx.type_gen_synths.has(genname).not() {
                     mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), stmt.line, stmt.col)
                     decl.add_child(own rhs.clone())
