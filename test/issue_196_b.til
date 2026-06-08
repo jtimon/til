@@ -10,7 +10,7 @@ mode test
 // when bin/til was self-compiled with the same pattern.
 
 priv Inner := struct {
-    items := Vec.new(Str)
+    items := Vec(Str).new()
 namespace:
     eq := func(a: Inner, b: Inner) returns Bool { return a.items.len().eq(b.items.len()) }
     to_str := func(_self: Inner) returns Str { return "Inner" }

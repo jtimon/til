@@ -10,25 +10,6 @@ ext_func array(type_name: Str, elements: ..Dynamic) returns Array
 Fixed-capacity array of typed elements.
 
 #+begin_src til
-struct Array {
-    own mut data : U8
-    cap : U32
-    elem_size : U32
-    elem_clone : CloneFn
-    elem_delete : DeleteFn
-namespace:
-    /// Create a zero-initialized Array with the given element type and capacity.
-    func new_type_name(elem_type: Str, shallow cap: U32) returns Array
-    func new(T: Type, shallow cap: U32) returns Array
-    func len(self: Array) returns shallow U32
-    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
-    /// past the end; call as `arr.get(i)!` to panic on a bad index.
-    func get(self: Array, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Dynamic
-    /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
-    func set(self: Array, shallow i: U32, own val: Dynamic)
-    func delete(own self: Array, shallow call_free: Bool)
-    func clone(self: Array) returns Array
-    func size() returns shallow U32
-}
+macro Array(T: Type) returns StructDef
 #+end_src
 

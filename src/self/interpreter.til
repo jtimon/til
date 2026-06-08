@@ -401,11 +401,7 @@ Scope := struct {
     // `free(own ...)` it explicitly). Empty by default -- only call
     // scopes whose params took scalar-to-Dynamic args populate it.
     //
-    // ELEM_FN element kind (despite the name -- see Vec.new_type_name)
-    // because we want push to store the pointer value directly via
-    // write_ptr rather than memcpy from its target, the way ordinary
-    // Vec(Dynamic) does.
-    box_owned_dynamics := Vec.new_type_name("Fn")
+    box_owned_dynamics := Vec(DynPtrBox).new()
 }
 
 // Return-value / control-flow state and namespace fields now live on
@@ -1952,7 +1948,7 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_fr
     }
     r := Value.Dynamic(dp)
     if track_for_free {
-        call_scope.box_owned_dynamics.push(own dp)
+        call_scope.box_owned_dynamics.push(own DynPtrBox(p = dp))
     }
     return r
 }
@@ -2201,15 +2197,14 @@ scope_free := func(own s: Scope) {
     memset(s.ref_primitive_ptrs, 0, Map.size().cast(U64))
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
-    // (ELEM_FN) stores raw pointer values; deref + reinterpret-as
-    // DynPtrBox gives us the `own` field that free() accepts.
-    for i in 0..s.box_owned_dynamics.count {
-        ref slot : Dynamic = ptr_add(s.box_owned_dynamics.data, i.mul(s.box_owned_dynamics.elem_size).cast(U64))
-        ref box : DynPtrBox = slot
+    // stores owning pointer boxes so the raw heap pointer can be passed to
+    // free() through an `own` field.
+    for i in 0..s.box_owned_dynamics.len() {
+        ref box : DynPtrBox = s.box_owned_dynamics[i]
         if box.p.is_null().not() { free(own box.p) }
     }
-    own s.box_owned_dynamics.delete(false)
-    memset(s.box_owned_dynamics, 0, Vec.size().cast(U64))
+    free(own s.box_owned_dynamics.data)
+    memset(s.box_owned_dynamics, 0, Vec(DynPtrBox).size().cast(U64))
     free(own s)
 }
 // Body of interp_fa_is_ns_inner pulled out so both FieldAccess and
@@ -2218,7 +2213,7 @@ scope_free := func(own s: Scope) {
 priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns Bool {
     mut has_ns := false
     mut has_inst := false
-    ref ins_ns : Vec = def_ns_decls(sdef)
+    ref ins_ns : Vec(Declaration) = def_ns_decls(sdef)
     for ins_d : Declaration in ins_ns {
         if ins_d.name.eq(fname) { has_ns = true }
     }
@@ -2366,7 +2361,7 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     }
 }
 
-priv build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str, ctx: Context) returns shallow Value {
+priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type: Str, ctx: Context) returns shallow Value {
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count.eq(0) { alloc_count = 1 }
@@ -2416,7 +2411,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
 interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
     if ctx.ns_inited.not() {
         ctx.ns_fields = Map.new(Str, Value)
-        ctx.ns_keys = Vec.new(Dynamic)
+        ctx.ns_keys = Vec(Dynamic).new()
         ctx.ns_inited = true
     }
     for stmt : Expr in program.children {
@@ -2440,7 +2435,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             tdv : Dynamic = malloc(I64.size().cast(U64))
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
-            ref ien_ns : Vec = def_ns_decls(sdef)
+            ref ien_ns : Vec(Declaration) = def_ns_decls(sdef)
             for d_j : Declaration in ien_ns {
                 ref nsd : Declaration = d_j
                 if nsd.default_value.is_null() { continue }
@@ -2836,7 +2831,7 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
                         case Value.Func(fptr):
                             ref sdef : Expr = deref(fptr)
                             if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                                ref ica_ns : Vec = def_ns_decls(sdef)
+                                ref ica_ns : Vec(Declaration) = def_ns_decls(sdef)
                                 for d_j : Declaration in ica_ns {
                                     ref nsd : Declaration = d_j
                                     ref v : Value = ns_get(rhs_ident.ident_name(), nsd.name, ctx)
@@ -2857,7 +2852,7 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
 // ASTs stored in lp.ctx.imported, but preserves the original overall
 // registration/eval ordering.
-priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: Str) returns I32 {
+priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_path: Str) returns I32 {
     // Ensure codegen_lp() is available throughout interpretation so
     // interpreter helpers can read shared Context fields (#177/#178).
     ref mut c : Context = lp.ctx
@@ -2987,7 +2982,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
                         case NodeType.Decl(sdd):
-                            ref ns : Vec = def_ns_decls(rhs)
+                            ref ns : Vec(Declaration) = def_ns_decls(rhs)
                             for nsd : Declaration in ns {
                                 ref nsfdef : Expr = nsd.default_value
                                 if nsfdef.is_null() { continue }
@@ -3110,7 +3105,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec, fwd_path: St
     return 0
 }
 
-cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec) returns I32 {
+cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     if lp.link_c_paths.len().gt(0) {

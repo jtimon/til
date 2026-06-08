@@ -23,20 +23,20 @@ priv qualified_name := func(type_name: Str, method_name: Str) returns Str {
     return type_name.format(".", method_name)
 }
 
-vec_push_str := func(mut v: Vec, s: Str) {
+vec_push_str := func(mut v: Vec(Str), s: Str) {
     v.push(own s.clone())
 }
 
 // Compact+delete: mark dropped indices in a bool buffer, delete them,
 // then compact kept elements forward.
-priv children_filter := func(mut v: Vec, marks: Dynamic, n: USize) {
+priv children_filter_expr := func(mut v: Vec(Expr), marks: Dynamic, n: USize) {
     // Delete marked elements and zero their bytes
     mut i : USize = 0
     while i.lt(n) {
         ref mark : Bool = ptr_add(marks, i.cast(U64))
         if mark {
-            v.elem_delete(ptr_add(v.data, i.mul(v.elem_size).cast(U64)), false)
-            memset(ptr_add(v.data, i.mul(v.elem_size).cast(U64)), 0, v.elem_size.cast(U64))
+            Expr.delete(own ptr_add(v.data, i.mul(Expr.size()).cast(U64)), false)
+            memset(ptr_add(v.data, i.mul(Expr.size()).cast(U64)), 0, Expr.size().cast(U64))
         }
         i = i.add(1)
     }
@@ -47,7 +47,32 @@ priv children_filter := func(mut v: Vec, marks: Dynamic, n: USize) {
         ref mark : Bool = ptr_add(marks, r.cast(U64))
         if mark.not() {
             if w.neq(r) {
-                memcpy(ptr_add(v.data, w.mul(v.elem_size).cast(U64)), ptr_add(v.data, r.mul(v.elem_size).cast(U64)), v.elem_size.cast(U64))
+                memcpy(ptr_add(v.data, w.mul(Expr.size()).cast(U64)), ptr_add(v.data, r.mul(Expr.size()).cast(U64)), Expr.size().cast(U64))
+            }
+            w = w.add(1)
+        }
+        r = r.add(1)
+    }
+    v.count = w
+}
+
+priv children_filter_decl := func(mut v: Vec(Declaration), marks: Dynamic, n: USize) {
+    mut i : USize = 0
+    while i.lt(n) {
+        ref mark : Bool = ptr_add(marks, i.cast(U64))
+        if mark {
+            Declaration.delete(own ptr_add(v.data, i.mul(Declaration.size()).cast(U64)), false)
+            memset(ptr_add(v.data, i.mul(Declaration.size()).cast(U64)), 0, Declaration.size().cast(U64))
+        }
+        i = i.add(1)
+    }
+    mut w : USize = 0
+    mut r : USize = 0
+    while r.lt(n) {
+        ref mark : Bool = ptr_add(marks, r.cast(U64))
+        if mark.not() {
+            if w.neq(r) {
+                memcpy(ptr_add(v.data, w.mul(Declaration.size()).cast(U64)), ptr_add(v.data, r.mul(Declaration.size()).cast(U64)), Declaration.size().cast(U64))
             }
             w = w.add(1)
         }
@@ -57,17 +82,17 @@ priv children_filter := func(mut v: Vec, marks: Dynamic, n: USize) {
 }
 
 // Push qualified "Type.method" refs into v
-push_qn := func(mut v: Vec, type_name: Str, method: Str) {
+push_qn := func(mut v: Vec(Str), type_name: Str, method: Str) {
     v.push(own qualified_name(type_name, method))
 }
 
-priv push_builtin_methods := func(mut v: Vec, builtin_name: Str, m1: Str, m2: Str, m3: Str) {
+priv push_builtin_methods := func(mut v: Vec(Str), builtin_name: Str, m1: Str, m2: Str, m3: Str) {
     v.push(own qualified_name(builtin_name, m1))
     v.push(own qualified_name(builtin_name, m2))
     v.push(own qualified_name(builtin_name, m3))
 }
 
-collect_refs := func(e: Expr, mut refs: Vec) {
+collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     if e.is_null() { return }
 
     switch e.node_type {
@@ -206,7 +231,7 @@ collect_refs := func(e: Expr, mut refs: Vec) {
     }
     // Also traverse ns_decls entries (not in Expr children tree)
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cr_ns : Vec = def_ns_decls(e)
+        ref cr_ns : Vec(Declaration) = def_ns_decls(e)
         for cr_d : Declaration in cr_ns {
             if cr_d.default_value.is_null().not() {
                 collect_refs(cr_d.default_value, refs)
@@ -248,14 +273,14 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
             }
         }
     }
-    children_filter(program.children, pm, pn)
+    children_filter_expr(program.children, pm, pn)
     free(own pm)
 
     for stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
-            ref scv_ns2 : Vec = def_ns_decls(stmt.child(0))
+            ref scv_ns2 : Vec(Declaration) = def_ns_decls(stmt.child(0))
             scv_nn2 := scv_ns2.len()
             if scv_nn2.gt(0) {
                 scv_nm2 : Dynamic = malloc(scv_nn2.cast(U64))
@@ -267,7 +292,7 @@ scavenge_filter := func(mut program: Expr, visited: Set) {
                         memset(ptr_add(scv_nm2, j.cast(U64)), 1, 1)
                     }
                 }
-                children_filter(scv_ns2, scv_nm2, scv_nn2)
+                children_filter_decl(scv_ns2, scv_nm2, scv_nn2)
                 free(own scv_nm2)
             }
         case:
@@ -431,7 +456,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
                 memset(ptr_add(marks, i.cast(U64)), 1, 1)
                 any = true
             }
-            if any { children_filter(e.children, marks, n) }
+            if any { children_filter_expr(e.children, marks, n) }
             free(own marks)
         }
     }
@@ -541,26 +566,22 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         // Rebuild body.children honoring the marks. DELETE skips the
         // stmt; REPLACE_RHS swaps the Decl for its RHS (the FCall is
         // moved in via push_take from a temporary Vec).
-        mut old := Vec.new(Expr)
+        mut old := Vec(Expr).new()
         old.move_from(body.children)
-        mut new_ch := Vec.new(Expr)
+        mut new_ch := Vec(Expr).new()
         for k in 0..n {
             ref mark : U8 = ptr_add(marks, k.cast(U64))
             if mark.eq(MARK_DELETE) { continue }
             if mark.eq(MARK_REPLACE_RHS) {
                 ref decl_stmt : Expr = old[k]
-                mut decl_children := Vec.new(Expr)
+                mut decl_children := Vec(Expr).new()
                 decl_children.move_from(decl_stmt.children)
                 new_ch.push_take(decl_children, 0)
-                Vec.delete(own decl_children, true)
                 continue
             }
             new_ch.push_take(old, k)
         }
         body.children.move_from(new_ch)
-        Vec.delete(own old, true)
-        Vec.delete(own new_ch, true)
-
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
         for j in 0..body.children.len() {
@@ -659,7 +680,7 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
 }
 
 priv body_dce_ns := proc(rhs: Expr) {
-    ref ns : Vec = def_ns_decls(rhs)
+    ref ns : Vec(Declaration) = def_ns_decls(rhs)
     for nsd_e : Declaration in ns {
         ref nsd : Declaration = nsd_e
         if nsd.default_value.is_null() { continue }

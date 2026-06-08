@@ -32,7 +32,7 @@ priv LocalInfo := struct {
     is_heap := false
 }
 
-priv alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns Bool {
+priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) returns Bool {
     for d : Expr in stmts {
         switch d.node_type {
         case NodeType.Decl(dd):
@@ -66,8 +66,8 @@ priv alias_used_in_stmts := func(stmts: Vec, name: Str, expr: Expr) returns Bool
 // (transitively) reads `target`. Such a temp may hold a non-owning *view*
 // into target's heap buffer (e.g. `target.substr(...)`), so any later use is
 // really a use of target's storage.
-priv collect_hoist_taint := func(target: Str, preceding: Vec) returns Vec {
-    mut tainted := Vec.new(Str)
+priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(Str) {
+    mut tainted := Vec(Str).new()
     mut changed := true
     while changed {
         changed = false
@@ -94,7 +94,7 @@ priv collect_hoist_taint := func(target: Str, preceding: Vec) returns Vec {
     return tainted
 }
 
-priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec) returns Bool {
+priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec(Expr)) returns Bool {
     if expr_uses_var(rhs, vname) { return true }
     tainted := collect_hoist_taint(vname, preceding)
     for t : Str in tainted {
@@ -103,7 +103,7 @@ priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec) returns B
     return false
 }
 
-priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec) returns Bool {
+priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr)) returns Bool {
     if varname.starts_with("hoisted__").not() { return false }
     tainted := collect_hoist_taint(target, preceding)
     for t : Str in tainted {
@@ -120,7 +120,7 @@ priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
     return is_pod_enum_clone_of(e, scope.get_struct(tname))
 }
 
-priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec) {
+priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec(LocalInfo)) {
     for i in 0..scope.bindings.len() {
         ref b : TypeBinding = Map.val_ptr(scope.bindings, i)
         // main()'s non-Own params are heap-allocated by the builder's CLI
@@ -257,7 +257,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
     }
 }
 
-priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec, scope: TypeScope) {
+priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
@@ -404,7 +404,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec, scope: Type
 // such temp. Deferring an owned local's delete is always memory-safe, so the
 // (slightly over-eager) transitive taint -- which also follows clone results
 // that no longer alias the buffer -- only pushes the delete a touch later.
-priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec) {
+priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
         tainted := collect_hoist_taint(local.name, body.children)
@@ -420,7 +420,7 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec) {
     }
 }
 
-priv check_use_after_own_transfer := proc(body: Expr, locals: Vec, ctx: Context) {
+priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), ctx: Context) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.child(local.last_use.to_usize())
@@ -432,7 +432,7 @@ priv check_use_after_own_transfer := proc(body: Expr, locals: Vec, ctx: Context)
     }
 }
 
-priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec, return_only: Bool) {
+priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), return_only: Bool) {
     // Quick check: any returns/breaks/continues or nested if/while/body?
     mut needs_scan := false
     for s : Expr in body.children {
@@ -447,10 +447,10 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec, return_only: Boo
     }
     if needs_scan.not() { return }
 
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(body.children)
 
-    mut new_ch := Vec.new(Expr)
+    mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
@@ -500,13 +500,13 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec, return_only: Boo
     body.children.move_from(new_ch)
 }
 
-priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec, stmt_idx: U32) {
+priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: U32) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() { return }
         }
     }
-    mut live_vec := Vec.new(LocalInfo)
+    mut live_vec := Vec(LocalInfo).new()
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.own_transfer.gte(0) { continue }
@@ -540,7 +540,7 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec, stmt_idx: U32) 
     }
 }
 
-priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, locals: Vec, stmt_idx: U32, mut new_ch: Vec) {
+priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), locals: Vec(LocalInfo), stmt_idx: U32, mut new_ch: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -570,7 +570,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec, locals: 
     }
 }
 
-priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mut new_ch: Vec, scope: TypeScope, preceding: Vec) {
+priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: U32, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -725,7 +725,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec, stmt_idx: U32, mu
     }
 }
 
-priv insert_assign_delete := func(mut stmt: Expr, locals: Vec, mut new_ch: Vec) {
+priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr)) {
     switch stmt.node_type {
     case NodeType.Assign(ad):
         vname := ad.name
@@ -753,7 +753,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec, mut new_ch: Vec) 
     }
 }
 
-priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec) {
+priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0) { continue }
         ref stmt : Expr = body.child(local.decl_index.cast(U32))
@@ -849,7 +849,7 @@ priv branch_unconditionally_transfers := func(branch: Expr, name: Str, scope: Ty
 // Str local can hold a borrowed view on the non-transfer path, and deleting
 // that frees the source's buffer. Vec/Set/Map/struct/enum locals are always
 // genuinely heap when owned, so they are safe to sink.
-priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec, scope: TypeScope, ctx: Context) {
+priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.decl_index.lt(0) { continue }
@@ -892,7 +892,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     if scope_exit.eq(0) { return false }
     is_program_scope := scope.parent.is_null()
 
-    mut locals_vec := Vec.new(LocalInfo)
+    mut locals_vec := Vec(LocalInfo).new()
     collect_scope_locals(ctx, body, scope, is_program_scope, locals_vec)
     if locals_vec.len().eq(0) { return false }
 
@@ -905,17 +905,17 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // statement that reads a hoisted view aliasing its buffer. See #250.
     extend_hoist_view_lifetimes(body, locals_vec)
 
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(body.children)
 
-    mut new_ch := Vec.new(Expr)
+    mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i)
         insert_assign_delete(stmt, locals_vec, new_ch)
-        mut post_deletes := Vec.new(Expr)
+        mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(stmt, locals_vec, i, post_deletes, scope, new_ch)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)

@@ -1,0 +1,30 @@
+#+TITLE: src/core/kwargs_map.til
+#+OPTIONS: toc:t
+
+* KwargsMap
+String-keyed map of dynamically-typed kwargs values.
+
+#+begin_src til
+struct KwargsMap {
+    mut items : Map
+namespace:
+    /// Create an empty KwargsMap.
+    func new() returns KwargsMap
+    func len(self: KwargsMap) returns shallow U32
+    /// True if `key` exists in the map.
+    func has(self: KwargsMap, key: Str) returns shallow Bool
+    /// Insert or overwrite `key` with typed value. The value is owned.
+    func set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: U32, own val: Dynamic)
+    /// Ref to the value stored under `key`. Panics if not found.
+    func get(self: KwargsMap, key: Str) returns ref Dynamic
+    /// Type name of the value stored under `key`.
+    func type_at(self: KwargsMap, key: Str) returns ref Str
+    /// Byte size of the value stored under `key`.
+    func size_at(self: KwargsMap, key: Str) returns ref U32
+    func clone(self: KwargsMap) returns KwargsMap
+    func delete(own self: KwargsMap, shallow call_free: Bool)
+    func hash(self: KwargsMap, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+

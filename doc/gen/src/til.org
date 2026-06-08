@@ -43,12 +43,12 @@ func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns shallow Bool
 
 * run_repl_session
 #+begin_src til
-proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec)
+proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
 #+end_src
 
 * run_repl
 #+begin_src til
-proc run_repl(initial_mode: Str, extra_modes: Vec)
+proc run_repl(initial_mode: Str, extra_modes: Vec__Str)
 #+end_src
 
 * usage
@@ -80,12 +80,12 @@ namespace:
 
 * parse_args
 #+begin_src til
-proc parse_args(args: Array) returns CliArgs
+proc parse_args(args: Array__Str) returns CliArgs
 #+end_src
 
 * collect_user_argv
 #+begin_src til
-func collect_user_argv(mut lp: LoadedProgram, args: Array, shallow start_idx: U32) returns Vec
+func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U32) returns Vec__Str
 #+end_src
 
 * main

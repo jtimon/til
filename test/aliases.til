@@ -189,8 +189,8 @@ add_usize := func(a: USize, b: USize) returns USize {
     return a.add(b)
 }
 
-make_vec_usize := func(_n: USize) returns Vec {
-    return Vec.new(U64)
+make_vec_usize := func(_n: USize) returns Vec(U64) {
+    return Vec(U64).new()
 }
 
 test_primitive_type_alias := test() {

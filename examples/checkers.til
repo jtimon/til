@@ -281,7 +281,7 @@ checkers_heuristic : Heuristic = (b) {
 
 // Recursively expand capture chains. Adds complete-turn boards to result.
 expand_jumps := func(mut cells: Array(I64), piece_pos: I64, side: I64,
-                      mut result: Vec, mut tmp_m: Array(I64), mut tmp_j: Array(I64)) {
+                      mut result: Vec(Board), mut tmp_m: Array(I64), mut tmp_j: Array(I64)) {
     mc := gen_captures(cells, piece_pos, side, tmp_m, tmp_j)
     if mc.eq(0) {
         opp := 3.sub(side)
@@ -323,7 +323,7 @@ checkers_next_boards : NextBoardsFn = (b) {
         ci = ci.add(1)
     }
     side := checkers_unpack_side(cb)
-    result := Vec.new(Board)
+    result := Vec(Board).new()
     mut tmp_m := Array(I64).new(64)
     mut tmp_j := Array(I64).new(64)
     must_cap := has_any_captures(cells, side, tmp_m, tmp_j)

@@ -86,12 +86,12 @@ priv resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns 
 ProgramUnit := struct {
     path := ""
     mode := Mode()
-    imports := Vec.new(Str)
+    imports := Vec(Str).new()
 }
 
 // Resolve a file's direct import paths to display paths.
-priv resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str, cwd: Str) returns Vec {
-    mut out := Vec.new(Str)
+priv resolve_import_disps := func(import_paths: Vec(Str), base_dir: Str, lib_dir: Str, cwd: Str) returns Vec(Str) {
+    mut out := Vec(Str).new()
     for import_path : Str in import_paths {
         mut try_path := base_dir.format("/", import_path)
         mut abs := realpath_str(try_path)
@@ -108,7 +108,7 @@ priv resolve_import_disps := func(import_paths: Vec, base_dir: Str, lib_dir: Str
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // The .til suffix is appended internally; paths already ending in ".til" are
 // rejected with a helpful error suggesting the bare-name form.
-priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec) {
+priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(Str)) {
     if imp_stmt.children.len().gte(2) {
         switch imp_stmt.child(0).node_type {
         case NodeType.Ident(c0id):
@@ -130,8 +130,8 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec) {
     }
 }
 
-priv extract_imports := func(body: Expr, path: Str) returns Vec {
-    mut paths := Vec.new(Str)
+priv extract_imports := func(body: Expr, path: Str) returns Vec(Str) {
+    mut paths := Vec(Str).new()
     for stmt : Expr in body.children {
         mut is_imp := false
         mut is_decl_rhs := false
@@ -158,9 +158,9 @@ priv extract_imports := func(body: Expr, path: Str) returns Vec {
 }
 
 // Recursively resolve imports.
-priv resolve_imports := proc(import_paths: Vec, base_dir: Str,
-    mut resolved_set: Set, mut stack: Vec,
-    mut units: Vec, lib_dir: Str,
+priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
+    mut resolved_set: Set, mut stack: Vec(Expr),
+    mut units: Vec(ProgramUnit), lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
         for import_path : Str in import_paths {
             // Try relative to importing file's directory, then lib_dir
@@ -227,9 +227,9 @@ priv resolve_imports := proc(import_paths: Vec, base_dir: Str,
 // --- LoadedProgram ---
 
 LoadedProgram := struct {
-    own core_units := Vec.new(ProgramUnit)
-    own units := Vec.new(ProgramUnit)
-    mode_files := Vec.new(Str)
+    own core_units := Vec(ProgramUnit).new()
+    own units := Vec(ProgramUnit).new()
+    mode_files := Vec(Str).new()
 
     target := Target.LinuxX64
     cur_mode := Mode()
@@ -390,7 +390,7 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) retur
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
-    ref ns : Vec = def_ns_decls(tdecl.child(0))
+    ref ns : Vec(Declaration) = def_ns_decls(tdecl.child(0))
     for nsd : Declaration in ns {
         if nsd.name.eq(method_part) {
             if nsd.default_value.is_null().not() {
@@ -440,7 +440,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     }
 
     // 2) Seed worklist from the concatenated user-unit stream
-    mut worklist := Vec.new(Str)
+    mut worklist := Vec(Str).new()
     vec_push_str(worklist, "Str")
     if is_cli {
         vec_push_str(worklist, "main")
@@ -499,7 +499,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
                             .or(stmt.child(0).node_type.is(NodeType.EnumDef))) {
                         switch stmt.node_type {
                         case NodeType.Decl(sdecl):
-                            ref nstv : Vec = def_ns_decls(stmt.child(0))
+                            ref nstv : Vec(Declaration) = def_ns_decls(stmt.child(0))
                             for nsd : Declaration in nstv {
                                 ref nsfdef : Expr = nsd.default_value
                                 if nsfdef.is_null() { continue }
@@ -720,9 +720,9 @@ priv extract_link_info := func(mut lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         base_dir := dir_of(u.path)
-        mut old_children := Vec.new(Expr)
+        mut old_children := Vec(Expr).new()
         old_children.move_from(iu.ast.children)
-        mut new_children := Vec.new(Expr)
+        mut new_children := Vec(Expr).new()
         for idx in 0..old_children.count {
             ref stmt : Expr = old_children[idx]
             mut keep := true
@@ -847,7 +847,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 
 // Load core.til + user file + imports + mode auto_import. Returns a
 // LoadedProgram with the merged ASTs and link info populated.
-load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec) returns LoadedProgram {
+load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str)) returns LoadedProgram {
     mut lp := LoadedProgram()
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
@@ -864,10 +864,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new(Str)
-    resolve_stack := Vec.new(Expr)
+    resolve_stack := Vec(Expr).new()
 
     // Resolve mode files' imports
-    core_units := Vec.new(ProgramUnit)
+    core_units := Vec(ProgramUnit).new()
     for mode_file : Str in lp.mode_files {
         ref miu_temp : ImportUnit = lp.ctx.imported[mode_file]
         mut mode_imports := extract_imports(miu_temp.ast, mode_file)
@@ -971,7 +971,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
-    units := Vec.new(ProgramUnit)
+    units := Vec(ProgramUnit).new()
     lib_dir := bin_dir.concat("/lib")
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
     if imports.len().gt(0) {
@@ -1045,7 +1045,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Ensure mode auto-import runs before the file's explicit imports.
     // This matches the merged AST order and keeps per-file init/type in sync.
     if mode_disp.len().gt(0) {
-        mut all_imports := Vec.new(Str)
+        mut all_imports := Vec(Str).new()
         all_imports.push(own mode_disp.clone())
         for dep : Str in user_import_disps { all_imports.push(own dep.clone()) }
         user_iu.imports = all_imports
@@ -1057,7 +1057,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // User entrypoint unit.
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
     if mode_disp.len().gt(0) {
-        mut all_imports2 := Vec.new(Str)
+        mut all_imports2 := Vec(Str).new()
         all_imports2.push(own mode_disp)
         for dep : Str in user_import_disps { all_imports2.push(own dep.clone()) }
         user_unit.imports = all_imports2
@@ -1510,7 +1510,7 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
 // Run init + typer + field-struct resolution. Stops short of precomp and
 // scavenge so callers that only need a typed AST (e.g. `til doc`) don't pay
 // the codegen-prep cost.
-priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs: Bool, decl_name: Str, is_mut: Bool, decl_line: U32, decl_col: U32, ctx: Context, resolved_path: Str) returns Bool {
+priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_decl_rhs: Bool, decl_name: Str, is_mut: Bool, decl_line: U32, decl_col: U32, ctx: Context, resolved_path: Str) returns Bool {
     mut handled := false
     if imp_stmt.children.len().gte(1) {
         switch imp_stmt.child(0).node_type {
@@ -1525,7 +1525,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs
                     }
 
                     if path.len().gt(0) {
-                        mut exp_symbols := Vec.new(Str)
+                        mut exp_symbols := Vec(Str).new()
                         if imp_stmt.children.len().gt(2) {
                             for arg_i in 2..imp_stmt.children.len() {
                                 switch imp_stmt.child(arg_i).node_type {
@@ -1603,9 +1603,9 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec, is_decl_rhs
 }
 
 priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(iu.ast.children)
-    mut new_ch := Vec.new(Expr)
+    mut new_ch := Vec(Expr).new()
     mut imp_idx : U32 = 0
 
     for i in 0..old.len() {
@@ -1693,8 +1693,6 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
     }
 
     iu.ast.children.move_from(new_ch)
-    Vec.delete(own new_ch, false)
-    Vec.delete(own old, false)
 }
 
 // Issue #262: lazy_func / lazy_proc inlining.

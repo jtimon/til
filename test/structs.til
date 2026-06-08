@@ -303,7 +303,7 @@ test_custom_delete := test() {
 }
 
 Container := struct {
-    items := Vec.new(I64)
+    items := Vec(I64).new()
 }
 
 test_vec_in_struct := test() {

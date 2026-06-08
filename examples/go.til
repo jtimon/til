@@ -76,7 +76,7 @@ clear_arr := func(mut arr: Array(I64), total: I64) {
 // Uses visited and lib_seen arrays (caller must clear them first)
 // Returns number of unique liberties
 count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_seen: Array(I64),
-                         mut stk: Vec, idx: I64, size: I64, color: I64) returns I64 {
+                         mut stk: Vec(I64), idx: I64, size: I64, color: I64) returns I64 {
     mut libs := 0
     stk.push(own idx.clone())
     visited.set(idx.to_u32(), own 1)
@@ -176,7 +176,7 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
 
 // Remove group containing stone at idx, returns stones removed
 // Caller must clear visited before calling
-remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec,
+remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(I64),
                       idx: I64, size: I64, color: I64) returns I64 {
     mut removed := 0
     stk.push(own idx.clone())
@@ -250,7 +250,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
 // Does NOT modify board — caller must copy tmp to board if legal.
 // ko_board is the board state from before the last move (for ko detection).
 try_place := func(mut tmp: Array(I64), mut visited: Array(I64), mut lib_seen: Array(I64),
-                   mut stk: Vec, idx: I64, size: I64, color: I64,
+                   mut stk: Vec(I64), idx: I64, size: I64, color: I64,
                    mut ko_board: Array(I64), has_ko: Bool) returns I64 {
     total := size.mul(size)
 
@@ -426,7 +426,7 @@ go_next_boards : NextBoardsFn = (b) {
         ko_cells.set(ci.to_u32(), own board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).cast(I64)).clone())
         ci = ci.add(1)
     }
-    result := Vec.new(Board)
+    result := Vec(Board).new()
     mut i := 0
     while i.lt(total) {
         ref p : I64 = cells[i.to_u32()]
@@ -435,7 +435,7 @@ go_next_boards : NextBoardsFn = (b) {
             copy_board(child, cells, total)
             mut child_vis := Array(I64).new(MAX_CELLS.cast(U32))
             mut child_lib := Array(I64).new(MAX_CELLS.cast(U32))
-            mut child_stk := Vec.new(I64)
+            mut child_stk := Vec(I64).new()
             cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_cells, has_ko)
             if cap.gte(0) {
                 opp := 3.sub(side)
@@ -451,7 +451,7 @@ go_next_boards : NextBoardsFn = (b) {
 
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
-score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec,
+score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(I64),
                     size: I64) returns I64 {
     total := size.mul(size)
     clear_arr(visited, total)
@@ -583,7 +583,7 @@ main := proc() {
     mut ko_board := Array(I64).new(MAX_CELLS.cast(U32))
     mut visited := Array(I64).new(MAX_CELLS.cast(U32))
     mut lib_seen := Array(I64).new(MAX_CELLS.cast(U32))
-    mut stk := Vec.new(I64)
+    mut stk := Vec(I64).new()
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 0   // 0=white, 1=black (default white so AI starts as black)

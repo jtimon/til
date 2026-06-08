@@ -2,11 +2,11 @@ mode gui
 
 import("../src/std/sys")
 
-push_line := func(lines: Vec, text: Str) {
+push_line := func(lines: Vec(Str), text: Str) {
     lines.push(own text.clone())
 }
 
-push_output := func(lines: Vec, output: Str) {
+push_output := func(lines: Vec(Str), output: Str) {
     if output.len() == 0 {
         push_line(lines, "")
         return
@@ -17,7 +17,7 @@ push_output := func(lines: Vec, output: Str) {
     }
 }
 
-run_shell_command := proc(lines: Vec, cmd: Str) {
+run_shell_command := proc(lines: Vec(Str), cmd: Str) {
     push_line(lines, "$ ".concat(cmd))
 
     if cmd == "help" {
@@ -39,7 +39,7 @@ main := proc(args: ..Str) {
     pad_y : I32 = 10
     input_h : I32 = 36
 
-    mut lines := Vec.new(Str)
+    mut lines := Vec(Str).new()
     push_line(lines, "tilminal")
     push_line(lines, "type a shell command and press Enter")
     push_line(lines, "builtins: clear, help")
@@ -66,7 +66,7 @@ main := proc(args: ..Str) {
             if input.len() > 0 {
                 cmd := input.clone()
                 if cmd == "clear" {
-                    fresh := Vec.new(Str)
+                    fresh := Vec(Str).new()
                     lines = fresh
                 } else {
                     run_shell_command(lines, cmd)

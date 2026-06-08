@@ -32,12 +32,12 @@ UmlType := struct {
     file := ""
     name := ""
     kind := ""
-    lines := Vec.new(Str)
+    lines := Vec(Str).new()
 }
 
 UmlPanel := struct {
     file := ""
-    types := Vec.new(UmlType)
+    types := Vec(UmlType).new()
 }
 
 file_label := func(path: Str) returns Str {
@@ -54,8 +54,8 @@ file_label := func(path: Str) returns Str {
 // only an ordering hint: every src/self/*.til file is rendered regardless
 // (see ordered_paths), so a newly added module can never silently vanish
 // from the diagram -- it just lands at the end until it is slotted in here.
-pipeline_order := func() returns Vec {
-    mut paths := Vec.new(Str)
+pipeline_order := func() returns Vec(Str) {
+    mut paths := Vec(Str).new()
     paths.push(own "src/self/lexer.til")
     paths.push(own "src/core/ast.til")
     paths.push(own "src/self/parser.til")
@@ -75,7 +75,7 @@ pipeline_order := func() returns Vec {
     return paths
 }
 
-vec_contains_str := func(v: Vec, s: Str) returns Bool {
+vec_contains_str := func(v: Vec(Str), s: Str) returns Bool {
     mut i : USize = 0
     while i.lt(v.len()) {
         ref e : Str = v.get(i)!
@@ -87,7 +87,7 @@ vec_contains_str := func(v: Vec, s: Str) returns Bool {
 
 // Selection sort by byte order (Str.cmp), so discovery is deterministic and
 // locale-independent rather than relying on `ls` collation.
-sort_paths := func(mut v: Vec) {
+sort_paths := func(mut v: Vec(Str)) {
     mut i : USize = 0
     while i.lt(v.len()) {
         mut min_idx := i
@@ -112,11 +112,11 @@ sort_paths := func(mut v: Vec) {
 
 // Enumerate every src/self/*.til on disk, sorted, as full repo-relative
 // paths. Uses `ls` via run_cmd so no new runtime primitive is needed.
-discover_self_files := proc() returns Vec {
+discover_self_files := proc() returns Vec(Str) {
     mut listing := ""
     run_cmd(listing, "ls", "src/self")
     names := listing.split(NL)
-    mut out := Vec.new(Str)
+    mut out := Vec(Str).new()
     mut i : USize = 0
     while i.lt(names.len()) {
         ref name : Str = names.get(i)!
@@ -132,7 +132,7 @@ discover_self_files := proc() returns Vec {
 // The full path list: the explicit pipeline order first, then any
 // src/self/*.til not already listed (sorted), so the diagram always
 // reflects the current src/self/ directory.
-ordered_paths := proc() returns Vec {
+ordered_paths := proc() returns Vec(Str) {
     mut paths := pipeline_order()
     discovered := discover_self_files()
     mut i : USize = 0
@@ -179,8 +179,8 @@ count_char := func(s: Str, ch: I8) returns I64 {
     return n
 }
 
-extract_body_lines := func(lines: Vec, start_line: U32) returns Vec {
-    mut out := Vec.new(Str)
+extract_body_lines := func(lines: Vec(Str), start_line: U32) returns Vec(Str) {
+    mut out := Vec(Str).new()
     mut started := false
     mut stop_collect := false
     mut depth := 0
@@ -229,7 +229,7 @@ extract_body_lines := func(lines: Vec, start_line: U32) returns Vec {
     return out
 }
 
-join_lines := func(lines: Vec) returns Str {
+join_lines := func(lines: Vec(Str)) returns Str {
     mut out := ""
     mut i : USize = 0
     while i.lt(lines.len()) {
@@ -264,8 +264,8 @@ trim_trailing_comma := func(s: Str) returns Str {
     return trimmed
 }
 
-split_enum_variants := proc(lines: Vec) returns Vec {
-    mut out := Vec.new(Str)
+split_enum_variants := proc(lines: Vec(Str)) returns Vec(Str) {
+    mut out := Vec(Str).new()
     body := join_lines(lines)
     tokens := tokenize(body, "uml_enum_body")
     mut current := ""
@@ -313,12 +313,12 @@ parse_file := proc(path: Str) returns Expr {
 
 // Collapse oversized boxes: keep the first MAX_BOX_LINES-1 lines and append
 // a "... (N more)" marker so a single giant type doesn't dominate the page.
-cap_lines := func(lines: Vec) returns Vec {
+cap_lines := func(lines: Vec(Str)) returns Vec(Str) {
     if lines.len().lte(MAX_BOX_LINES.to_usize()) {
         return lines.clone()
     }
     keep := MAX_BOX_LINES.sub(1).to_usize()
-    mut out := Vec.new(Str)
+    mut out := Vec(Str).new()
     mut i : USize = 0
     while i.lt(keep) {
         ref line : Str = lines.get(i)!
@@ -330,11 +330,11 @@ cap_lines := func(lines: Vec) returns Vec {
     return out
 }
 
-extract_types_from_file := proc(path: Str) returns Vec {
+extract_types_from_file := proc(path: Str) returns Vec(UmlType) {
     source := File.readfile(path)
     lines := source.split(NL)
     ast := parse_file(path)
-    mut out := Vec.new(UmlType)
+    mut out := Vec(UmlType).new()
     label := file_label(path)
 
     for stmt : Expr in ast.children {
@@ -366,8 +366,8 @@ extract_types_from_file := proc(path: Str) returns Vec {
     return out
 }
 
-collect_types := proc(paths: Vec) returns Vec {
-    mut out := Vec.new(UmlType)
+collect_types := proc(paths: Vec(Str)) returns Vec(UmlType) {
+    mut out := Vec(UmlType).new()
     mut i : USize = 0
     while i.lt(paths.len()) {
         ref path : Str = paths.get(i)!
@@ -383,8 +383,8 @@ collect_types := proc(paths: Vec) returns Vec {
     return out
 }
 
-collect_panels := func(paths: Vec, types: Vec) returns Vec {
-    mut out := Vec.new(UmlPanel)
+collect_panels := func(paths: Vec(Str), types: Vec(UmlType)) returns Vec(UmlPanel) {
+    mut out := Vec(UmlPanel).new()
     mut i : USize = 0
     while i.lt(paths.len()) {
         ref path : Str = paths.get(i)!
@@ -408,7 +408,7 @@ collect_panels := func(paths: Vec, types: Vec) returns Vec {
     return out
 }
 
-generate_org := func(panels: Vec) returns Str {
+generate_org := func(panels: Vec(UmlPanel)) returns Str {
     mut out := ""
     mut i : USize = 0
     while i.lt(panels.len()) {
@@ -517,7 +517,7 @@ panel_h := func(p: UmlPanel) returns I64 {
     return h.add(PANEL_PAD_Y)
 }
 
-generate_svg := func(panels: Vec) returns Str {
+generate_svg := func(panels: Vec(UmlPanel)) returns Str {
     mut total_w := PAGE_PAD_X
     mut max_h := 0
     mut i : USize = 0

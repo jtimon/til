@@ -35,7 +35,7 @@ main := proc() {
     WHITE := Color(r = 255, g = 255, b = 255, a = 255)
 
     // Flood fill stack
-    mut stack := Vec.new(I32)
+    mut stack := Vec(I32).new()
 
     while !WindowShouldClose() {
         // Input

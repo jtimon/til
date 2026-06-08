@@ -29,8 +29,8 @@ Segment := struct {
 
 // Returns the list of unique fill="..." values in the SVG, excluding "none".
 // A text scan, not a real XML parse. Good enough for our logo files.
-scan_fills := func(svg: Str) returns Vec {
-    fills := Vec.new(Str)
+scan_fills := func(svg: Str) returns Vec(Str) {
+    fills := Vec(Str).new()
     parts := svg.split("fill=\"")
     mut i : USize = 1
     while i.lt(parts.len()) {
@@ -109,8 +109,8 @@ check_viewbox := func(svg: Str) {
 
 // Return all d="..." attribute contents from the SVG, with newlines replaced
 // by spaces (so a single scan can parse multi-line path data).
-extract_paths := func(svg: Str) returns Vec {
-    out := Vec.new(Str)
+extract_paths := func(svg: Str) returns Vec(Str) {
+    out := Vec(Str).new()
     parts := svg.split("d=\"")
     mut i : USize = 1
     while i.lt(parts.len()) {
@@ -196,7 +196,7 @@ parse_int := func(d: Str, i: USize, mut out_idx: USize) returns I64 {
 //   q1 = (3*P1 - P0)/2    first control point
 //   q2 = (3*P2 - P3)/2    second control point
 //   m  = (q1 + q2)/2      shared on-curve midpoint
-parse_path_d := func(d: Str, mut segments: Vec) {
+parse_path_d := func(d: Str, mut segments: Vec(Segment)) {
     mut i : USize = skip_ws(d, 0)
     mut cur_x : I64 = 0
     mut cur_y : I64 = 0

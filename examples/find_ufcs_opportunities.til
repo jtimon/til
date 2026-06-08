@@ -8,7 +8,7 @@ import("../src/std/sys")
 import("../src/self/lexer")
 import("../src/self/parser")
 
-TARGETS := Vec.new(Str)
+TARGETS := Vec(Str).new()
 TARGETS.push(own "is_null")
 TARGETS.push(own "expr_til_type")
 TARGETS.push(own "ident_name")

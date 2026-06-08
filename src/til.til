@@ -155,7 +155,7 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
 // earlier inputs replay on every iteration, but declarative state (variable
 // definitions) is recomputed correctly. It's the simplest approach that
 // stays fully consistent with the rest of the compiler.
-run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec) {
+run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec(Str)) {
     mut mode_str := mode_name_in.clone()
     if mode_str.len().eq(0) { mode_str = "script" }
 
@@ -180,7 +180,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     mut have_core_cache := false
 
     // Keep block Strs alive so parsed AST views don't dangle.
-    source_keep := Vec.new(Str)
+    source_keep := Vec(Str).new()
 
     system_cmd("mkdir -p tmp")
     tmp_path := "tmp/repl_".concat(process_id().to_str()).concat(".til")
@@ -314,7 +314,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 }
 
 // Outer REPL driver: restarts the session when a `mode X` statement is entered.
-run_repl := proc(initial_mode: Str, extra_modes: Vec) {
+run_repl := proc(initial_mode: Str, extra_modes: Vec(Str)) {
     println(format("til ", VERSION, " REPL -- Ctrl-D to exit"))
     mut next_mode := initial_mode.clone()
     if next_mode.len().eq(0) { next_mode = "script" }
@@ -358,7 +358,7 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
-    own extra_modes := Vec.new(Str)
+    own extra_modes := Vec(Str).new()
 }
 
 parse_args := proc(args: Array(Str)) returns CliArgs {
@@ -507,8 +507,8 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
 
 // Split trailing args (after the source path) into -l flags (appended to
 // lp.link_flags) and user argv (returned).
-collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: USize) returns Vec {
-    mut user_argv := Vec.new(Str)
+collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: USize) returns Vec(Str) {
+    mut user_argv := Vec(Str).new()
     mut ai := start_idx
     while ai.lt(args.len()) {
         ref arg : Str = args[ai]

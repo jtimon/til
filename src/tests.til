@@ -157,7 +157,7 @@ print_test_result := proc(t: Test) {
 
 // --- Registration helpers ---
 
-add_mode := func(tests: Vec, file: Str, flags: Str) {
+add_mode := func(tests: Vec(Test), file: Str, flags: Str) {
     bn := test_basename(file)
     tests.push(own Test(
         label = file.clone(),
@@ -169,7 +169,7 @@ add_mode := func(tests: Vec, file: Str, flags: Str) {
     ))
 }
 
-add_single := func(tests: Vec, label: Str, category: Str,
+add_single := func(tests: Vec(Test), label: Str, category: Str,
                    expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
     mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
     if expected_out.len().gt(0) {
@@ -185,7 +185,7 @@ add_single := func(tests: Vec, label: Str, category: Str,
     ))
 }
 
-add_count := func(tests: Vec, label: Str, category: Str,
+add_count := func(tests: Vec(Test), label: Str, category: Str,
                   needle: Str, expected_count: I64, cmd_suffix: Str) {
     runner_cmd := format(RUNNER, " count ", label, " '", needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
     tests.push(own Test(
@@ -197,7 +197,7 @@ add_count := func(tests: Vec, label: Str, category: Str,
     ))
 }
 
-add_cli_pair := func(tests: Vec, name: Str, file: Str,
+add_cli_pair := func(tests: Vec(Test), name: Str, file: Str,
                      cli_args: Str, expected_exit: I64, expected_out: Str,
                      til: Str, asan_flag: Str) {
     mut cmd_i := format(til, " interpret ", file)
@@ -212,7 +212,7 @@ add_cli_pair := func(tests: Vec, name: Str, file: Str,
 
 // --- Blind parallel runner ---
 
-run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
+run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
     mut next : USize = 0
     mut active : USize = 0
 
@@ -357,7 +357,7 @@ main := proc(args: ..Str) {
     // Create output directories
     run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected tmp")
 
-    tests := Vec.new(Test)
+    tests := Vec(Test).new()
     flags := mode_flags(en_interp, en_run, asan_flag)
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel

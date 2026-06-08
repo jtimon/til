@@ -14,8 +14,8 @@ run := proc(cmd: Str) returns I64 {
     return wait_cmd(pid)
 }
 
-list_dir := proc(dir: Str) returns Vec {
-    mut files := Vec.new(Str)
+list_dir := proc(dir: Str) returns Vec(Str) {
+    mut files := Vec(Str).new()
     tmpf := "tmp/_issues_ls"
     // Sort numerically by issue number (the digits before the first '.')
     // rather than relying on `ls` order. Plain `ls` sorts using the
@@ -149,7 +149,7 @@ parse_issue := func(fname: Str) returns Str {
 
 // Emit the links of every entry matching both `cat` and priority `pri`,
 // one per line. Each entry is "<category> <P>\n<link>".
-emit_entries := func(entries: Vec, cat: Str, pri: Str) returns Str {
+emit_entries := func(entries: Vec(Str), cat: Str, pri: Str) returns Str {
     mut out := ""
     for entry : Str in entries {
         nl_pos := entry.find(NL)
@@ -171,7 +171,7 @@ emit_entries := func(entries: Vec, cat: Str, pri: Str) returns Str {
 // priority subsection is omitted when it has no entries, and the whole
 // category is omitted (returns "") when it has no entries at all -- empty
 // headers never appear.
-emit_category := func(entries: Vec, cat: Str, label: Str) returns Str {
+emit_category := func(entries: Vec(Str), cat: Str, label: Str) returns Str {
     high := emit_entries(entries, cat, "H")
     med := emit_entries(entries, cat, "M")
     low := emit_entries(entries, cat, "L")
@@ -185,7 +185,7 @@ emit_category := func(entries: Vec, cat: Str, label: Str) returns Str {
 
 // True if `v` (a Vec of Str) contains `needle`. for-in iteration avoids
 // Vec.get's throwing index path.
-vec_contains := func(v: Vec, needle: Str) returns Bool {
+vec_contains := func(v: Vec(Str), needle: Str) returns Bool {
     for x : Str in v {
         if x.eq(needle) { return true }
     }
@@ -201,7 +201,7 @@ check_no_dir_collisions := proc() {
     open_f := list_dir("issues/open")
     fixed_f := list_dir("issues/fixed")
     cancelled_f := list_dir("issues/cancelled")
-    mut errors := Vec.new(Str)
+    mut errors := Vec(Str).new()
     for f : Str in open_f {
         if vec_contains(fixed_f, f) {
             errors.push(own format("issues/", f, ": present in both open/ and fixed/"))
@@ -230,8 +230,8 @@ main := proc() {
 
     // Build "<category> <P>\n<link>" entry lines, collecting every
     // malformed file rather than aborting on the first.
-    mut entries := Vec.new(Str)
-    mut errors := Vec.new(Str)
+    mut entries := Vec(Str).new()
+    mut errors := Vec(Str).new()
     for fname : Str in files {
         line := parse_issue(fname)
         if line.starts_with("!") {

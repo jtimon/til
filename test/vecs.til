@@ -1,7 +1,7 @@
 mode test
 
 test_vec_push_get := test() {
-    v := Vec.new(I64)
+    v := Vec(I64).new()
     v.push(own 42)
     v.push(own 99)
     v.push(own 7)
@@ -17,7 +17,7 @@ test_vec_push_get := test() {
 }
 
 test_vec_grow := test() {
-    v := Vec.new(I64)
+    v := Vec(I64).new()
     // default cap is 4, push 8 to force growth
     v.push(own 1)
     v.push(own 2)
@@ -36,7 +36,7 @@ test_vec_grow := test() {
 }
 
 test_vec_strings := test() {
-    v := Vec.new(Str)
+    v := Vec(Str).new()
     v.push(own "hello")
     v.push(own "world")
 
@@ -49,7 +49,7 @@ test_vec_strings := test() {
 }
 
 test_vec_set := test() {
-    v := Vec.new(I64)
+    v := Vec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -70,7 +70,7 @@ test_vec_set := test() {
 }
 
 test_vec_set_str := test() {
-    v := Vec.new(Str)
+    v := Vec(Str).new()
     v.push(own "aaa")
     v.push(own "bbb")
 
@@ -86,11 +86,11 @@ test_vec_size := test() {
     assert_eq(__LOC__, U8.size().to_i64(), 1)
     assert_eq(__LOC__, Str.size().to_i64(), 16)
     assert_eq(__LOC__, Bool.size().to_i64(), 1)
-    assert_eq(__LOC__, Vec.size().to_i64(), 40)
+    assert_eq(__LOC__, Vec(Str).size().to_i64(), 16)
 }
 
 test_vec_dynamic := test() {
-    v := Vec.new(Dynamic)
+    v := Vec(Dynamic).new()
     // Use pointer-sized allocs so FFI Vec.push reads valid memory.
     // Fill each with a distinct non-zero sentinel so the post-push
     // is(a, b) check verifies stored bytes really differ (ASAN's
@@ -112,7 +112,7 @@ test_vec_dynamic := test() {
 }
 
 test_vec_pop := test() {
-    v := Vec.new(I64)
+    v := Vec(I64).new()
     v.push(own 11)
     v.push(own 22)
     v.push(own 33)
@@ -135,7 +135,7 @@ test_vec_pop := test() {
 }
 
 test_vec_take_prefix := test() {
-    v := Vec.new(I64)
+    v := Vec(I64).new()
     v.push(own 10)
     v.push(own 20)
     v.push(own 30)
@@ -158,7 +158,7 @@ test_vec_take_prefix := test() {
 }
 
 test_vec_take_prefix_str := test() {
-    v := Vec.new(Str)
+    v := Vec(Str).new()
     v.push(own "aa")
     v.push(own "bb")
     v.push(own "cc")
@@ -178,8 +178,8 @@ test_vec_take_prefix_str := test() {
 }
 
 test_vec_append := test() {
-    a := Vec.new(I64)
-    b := Vec.new(I64)
+    a := Vec(I64).new()
+    b := Vec(I64).new()
     a.push(own 1)
     a.push(own 2)
     b.push(own 3)
@@ -199,8 +199,8 @@ test_vec_append := test() {
 }
 
 test_vec_append_str := test() {
-    a := Vec.new(Str)
-    b := Vec.new(Str)
+    a := Vec(Str).new()
+    b := Vec(Str).new()
     a.push(own "aa")
     b.push(own "bb")
     b.push(own "cc")
@@ -217,7 +217,7 @@ test_vec_append_str := test() {
 }
 
 test_vec_take_prefix_append_roundtrip := test() {
-    v := Vec.new(I64)
+    v := Vec(I64).new()
     v.push(own 5)
     v.push(own 6)
     v.push(own 7)

@@ -122,7 +122,7 @@ struct Scope {
     ref mut parent : Scope
     mut payload_aliases : Map
     mut ref_primitive_ptrs : Map
-    mut box_owned_dynamics : Vec
+    mut box_owned_dynamics : Vec__DynPtrBox
 namespace:
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, shallow call_free: Bool)
@@ -277,6 +277,59 @@ func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, 
 
 * cmd_interpret
 #+begin_src til
-proc cmd_interpret(lp: LoadedProgram, user_argv: Vec) returns shallow I32
+proc cmd_interpret(lp: LoadedProgram, user_argv: Vec__Str) returns shallow I32
+#+end_src
+
+* Vec__DynPtrBox
+#+begin_src til
+struct Vec__DynPtrBox {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__DynPtrBox
+    func len(self: Vec__DynPtrBox) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__DynPtrBox)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__DynPtrBox, own other: Vec__DynPtrBox)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__DynPtrBox, mut other: Vec__DynPtrBox)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__DynPtrBox, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref priv___src_self_interpreter_til__DynPtrBox
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__DynPtrBox, shallow n: U32) returns Vec__DynPtrBox
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__DynPtrBox, shallow i: U32, own val: priv___src_self_interpreter_til__DynPtrBox)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__DynPtrBox, mut src: Vec__DynPtrBox, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
+    func size() returns shallow U32
+}
 #+end_src
 

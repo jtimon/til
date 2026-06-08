@@ -3,17 +3,17 @@
 
 * vec_push_str
 #+begin_src til
-func vec_push_str(mut v: Vec, s: Str)
+func vec_push_str(mut v: Vec__Str, s: Str)
 #+end_src
 
 * push_qn
 #+begin_src til
-func push_qn(mut v: Vec, type_name: Str, method: Str)
+func push_qn(mut v: Vec__Str, type_name: Str, method: Str)
 #+end_src
 
 * collect_refs
 #+begin_src til
-func collect_refs(e: Expr, mut refs: Vec)
+func collect_refs(e: Expr, mut refs: Vec__Str)
 #+end_src
 
 * scavenge_filter

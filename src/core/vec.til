@@ -9,85 +9,44 @@ import("u8")
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
 
 /// Dynamic array of typed elements.
-Vec := struct {
+Vec := struct<T: Type> {
     own data : U8 = 0
     count : USize = 0
     cap : USize = 0
-    const elem_size : USize = 0
-    const elem_kind : USize = ELEM_POD
-    const elem_clone : CloneFn = default_clone
-    const elem_delete : DeleteFn = default_delete
 
 namespace:
-    /// Create a new empty Vec for elements of the given type.
-    new_type_name := func(elem_type: Str) returns Vec {
-        if elem_type.is_empty() {
-            panic(__LOC__, "Vec.new: elem_type required")
-        }
-        if elem_type.eq("Dynamic") {
-            return Vec(data = malloc(8), cap = 1,
-                       elem_size = 8, elem_kind = ELEM_POD)
-        }
-        // Issue #58: function pointers are 8-byte plain values, not heap
-        // boxes. Use the same path as Dynamic so push/get/delete are
-        // byte-copy + no-op clone/delete instead of trying to dispatch
-        // through a non-existent FuncSig.clone/delete.
-        if elem_type.eq("Fn") {
-            return Vec(data = malloc(8), cap = 1,
-                       elem_size = 8, elem_kind = ELEM_FN)
-        }
-        sz : USize = dyn_size_of(elem_type)
-        return Vec(data = malloc(sz), cap = 1,
-                   elem_size = sz, elem_kind = ELEM_BOXED,
-                   elem_clone = dyn_fn(elem_type, "clone"),
-                   elem_delete = dyn_fn(elem_type, "delete"))
+    /// Create a new empty Vec for elements of type T.
+    new := func() returns Vec(T) {
+        return Vec(T)(data = malloc(T.size().cast(U64)), cap = 1)
     }
 
-    new := func(T: Type) returns Vec {
-        elem_type := dyn_type_to_str(T)
-        return Vec.new_type_name(elem_type)
-    }
-
-    len := func(self: Vec) returns USize { return self.count }
+    len := func(self: Vec(T)) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
-    clear := func(mut self: Vec) {
-        if self.elem_kind.eq(ELEM_BOXED) {
-            for i in 0..self.count {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
-            }
+    clear := func(mut self: Vec(T)) {
+        for i in 0..self.count {
+            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
         }
         self.count = 0
     }
 
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
-    push := func(mut self: Vec, own val: Dynamic) {
+    push := func(mut self: Vec(T), own val: T) {
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
-        // Issue #58: function pointers arrive as a direct pointer value
-        // (the code address), not a heap box of one. Store the pointer
-        // value itself into the slot and skip the free.
-        if self.elem_kind.eq(ELEM_FN) {
-            write_ptr(ptr_add(self.data, self.count.mul(self.elem_size)), val)
-            self.count = self.count.add(1)
-            return
-        }
-        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), val, self.elem_size)
-        free(own val)
+        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), val, T.size().cast(U64))
+        memset(val, 0, T.size().cast(U64))
         self.count = self.count.add(1)
     }
 
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
-    append := func(mut self: Vec, own other: Vec) {
-        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
-            panic(__LOC__, "Vec.append: incompatible vecs")
-        }
+    append := func(mut self: Vec(T), own other: Vec(T)) {
         if other.count.eq(0) {
             return
         }
@@ -97,10 +56,10 @@ namespace:
             while needed.gt(new_cap) {
                 new_cap = new_cap.mul(2)
             }
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)), other.data, other.count.mul(self.elem_size))
+        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), other.data, other.count.mul(T.size()).cast(U64))
         self.count = needed
         other.count = 0
     }
@@ -111,14 +70,9 @@ namespace:
     /// natural scope-end auto-delete frees other.data. Setting other.count = 0
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
-    move_from := func(mut self: Vec, mut other: Vec) {
-        if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
-            panic(__LOC__, "Vec.move_from: incompatible vecs")
-        }
-        if self.elem_kind.eq(ELEM_BOXED) {
-            for i in 0..self.count {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
-            }
+    move_from := func(mut self: Vec(T), mut other: Vec(T)) {
+        for i in 0..self.count {
+            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
         }
         needed := other.count
         if needed.gt(self.cap) {
@@ -126,11 +80,11 @@ namespace:
             while needed.gt(new_cap) {
                 new_cap = new_cap.mul(2)
             }
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
         if needed.gt(0) {
-            memcpy(self.data, other.data, needed.mul(self.elem_size))
+            memcpy(self.data, other.data, needed.mul(T.size()).cast(U64))
         }
         self.count = needed
         other.count = 0
@@ -140,30 +94,31 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    get := func(self: Vec, i: USize) returns ref Dynamic throws OutOfBounds {
+    get := func(self: Vec(T), i: USize) returns ref T throws OutOfBounds {
         if i.gte(self.count) {
             throw OutOfBounds(msg = format(__LOC__, ":Vec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
-        return ptr_add(self.data, i.mul(self.elem_size))
+        return ptr_add(self.data, i.mul(T.size()).cast(U64))
     }
 
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
-    pop := func(mut self: Vec) returns Dynamic {
+    pop := func(mut self: Vec(T)) returns T {
         if self.count.eq(0) {
             panic(__LOC__, "Vec.pop: empty vec")
         }
         last := self.count.sub(1)
-        out : Dynamic = malloc(self.elem_size)
-        memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
+        out : T = malloc(T.size().cast(U64))
+        memcpy(out, ptr_add(self.data, last.mul(T.size()).cast(U64)), T.size().cast(U64))
+        memset(ptr_add(self.data, last.mul(T.size()).cast(U64)), 0, T.size().cast(U64))
         self.count = last
         return out
     }
 
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
-    take_prefix := func(mut self: Vec, n: USize) returns Vec {
+    take_prefix := func(mut self: Vec(T), n: USize) returns Vec(T) {
         if n.gt(self.count) {
             panic(__LOC__, "Vec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
@@ -171,76 +126,67 @@ namespace:
         if n.gt(0) {
             prefix_cap = n
         }
-        prefix_data : Dynamic = malloc(prefix_cap.mul(self.elem_size))
+        prefix_data : Dynamic = malloc(prefix_cap.mul(T.size()).cast(U64))
         if n.gt(0) {
-            memcpy(prefix_data, self.data, n.mul(self.elem_size))
+            memcpy(prefix_data, self.data, n.mul(T.size()).cast(U64))
         }
         tail_count := self.count.sub(n)
         if tail_count.gt(0) {
-            memmove(self.data, ptr_add(self.data, n.mul(self.elem_size)), tail_count.mul(self.elem_size))
+            memmove(self.data, ptr_add(self.data, n.mul(T.size()).cast(U64)), tail_count.mul(T.size()).cast(U64))
+        }
+        if n.gt(0) {
+            memset(ptr_add(self.data, tail_count.mul(T.size()).cast(U64)), 0, n.mul(T.size()).cast(U64))
         }
         self.count = tail_count
-        return Vec(data = prefix_data, count = n, cap = prefix_cap,
-                   elem_size = self.elem_size, elem_kind = self.elem_kind,
-                   elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+        return Vec(T)(data = prefix_data, count = n, cap = prefix_cap)
     }
 
     /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
     /// is out of bounds.
-    set := func(mut self: Vec, i: USize, own val: Dynamic) {
+    set := func(mut self: Vec(T), i: USize, own val: T) {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
-        if self.elem_kind.eq(ELEM_BOXED) {
-            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
-        }
-        memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
-        free(own val)
+        T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+        memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
+        memset(val, 0, T.size().cast(U64))
     }
 
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
-    push_take := func(mut self: Vec, mut src: Vec, i: USize) {
+    push_take := func(mut self: Vec(T), mut src: Vec(T), i: USize) {
         if i.gte(src.count) {
             panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
-        if self.elem_size.eq(src.elem_size).not().or(self.elem_kind.eq(src.elem_kind).not()) {
-            panic(__LOC__, "Vec.push_take: incompatible vecs")
-        }
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
-            self.data = realloc(own self.data, new_cap.mul(self.elem_size))
+            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(self.elem_size)),
-               ptr_add(src.data, i.mul(src.elem_size)), self.elem_size)
-        memset(ptr_add(src.data, i.mul(src.elem_size)), 0, src.elem_size)
+        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)),
+               ptr_add(src.data, i.mul(T.size()).cast(U64)), T.size().cast(U64))
+        memset(ptr_add(src.data, i.mul(T.size()).cast(U64)), 0, T.size().cast(U64))
         self.count = self.count.add(1)
     }
 
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
-    delete := func(own self: Vec, call_free: Bool = true) {
-        Vec.clear(self)
+    delete := func(own self: Vec(T), call_free: Bool = true) {
+        self.clear()
         free(own self.data)
         if call_free { free(own self) }
     }
 
     /// Deep-copy the Vec and all its elements via elem_clone.
-    clone := func(self: Vec) returns Vec {
-        new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
-        if self.elem_kind.eq(ELEM_BOXED) {
-            for i in 0..self.count {
-                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
-                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
-                free(own cloned)
-            }
-        } else {
-            memcpy(new_data, self.data, self.count.mul(self.elem_size))
+    clone := func(self: Vec(T)) returns Vec(T) {
+        new_data : Dynamic = malloc(self.cap.mul(T.size()).cast(U64))
+        for i in 0..self.count {
+            ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
+            mut cloned : T = T.clone(src)
+            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
+            memset(cloned, 0, T.size().cast(U64))
         }
-        return Vec(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_kind = self.elem_kind,
-                   elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+        return Vec(T)(data = new_data, count = self.count, cap = self.cap)
     }
 }

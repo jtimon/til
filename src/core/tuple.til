@@ -13,8 +13,8 @@ Tuple := struct {
     own data : U8 = 0
     total_size : USize = 0
     cap : USize = 0
-    type_names := Vec.new(Str)
-    type_sizes := Vec.new(USize)
+    type_names := Vec(Str).new()
+    type_sizes := Vec(USize).new()
 
 namespace:
     /// Create an empty Tuple.
@@ -85,8 +85,10 @@ namespace:
             offset = offset.add(ts)
         }
         free(own self.data)
-        Vec.delete(own self.type_names, false)
-        Vec.delete(own self.type_sizes, false)
+        self.type_names.clear()
+        self.type_sizes.clear()
+        free(own self.type_names.data)
+        free(own self.type_sizes.data)
         if call_free { free(own self) }
     }
 

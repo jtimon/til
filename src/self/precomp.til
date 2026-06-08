@@ -1118,7 +1118,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             // Namespace method bodies live in StructDef/EnumDef ns_decls,
             // not in the AST children tree -- walk them here.
-            ref ns : Vec = def_ns_decls(rhs)
+            ref ns : Vec(Declaration) = def_ns_decls(rhs)
             for nsd_e : Declaration in ns {
                 ref nsd : Declaration = nsd_e
                 if nsd.default_value.is_null() { continue }
@@ -1147,7 +1147,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // so insert_post_stmt_deletes skips them and the heap malloc leaks.
     // Removing the Decl drops the entire allocation. Only literal RHS is
     // safe (no side effects to preserve).
-    mut keep := Vec.new(Expr)
+    mut keep := Vec(Expr).new()
     for di in 0..body.children.len() {
         ref dstmt : Expr = body.child(di)
         mut drop := false

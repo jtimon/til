@@ -33,7 +33,7 @@ bench_map_i64 := func(n: I64) returns Vec {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec.new(I64)
+    results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -64,7 +64,7 @@ bench_hashmap_i64 := func(n: I64) returns Vec {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec.new(I64)
+    results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -74,7 +74,7 @@ bench_hashmap_i64 := func(n: I64) returns Vec {
 
 bench_map_str := func(n: I64) returns Vec {
     // Pre-build the key set so the timed sections only measure map ops.
-    keys := Vec.new(Str)
+    keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }
@@ -104,7 +104,7 @@ bench_map_str := func(n: I64) returns Vec {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec.new(I64)
+    results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)
@@ -113,7 +113,7 @@ bench_map_str := func(n: I64) returns Vec {
 }
 
 bench_hashmap_str := func(n: I64) returns Vec {
-    keys := Vec.new(Str)
+    keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }
@@ -143,7 +143,7 @@ bench_hashmap_str := func(n: I64) returns Vec {
     }
     t_get := clock_ms().sub(t2)
 
-    results := Vec.new(I64)
+    results := Vec(I64).new()
     results.push(own t_ins)
     results.push(own t_has)
     results.push(own t_get)

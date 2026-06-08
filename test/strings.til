@@ -225,15 +225,15 @@ test_join := test() {
     assert_eq_str(__LOC__, join(parts, ","), "a,b,c")
     assert_eq_str(__LOC__, join(parts, " - "), "a - b - c")
 
-    single := Vec.new(Str)
+    single := Vec(Str).new()
     single.push(own "hello")
     assert_eq_str(__LOC__, join(single, ","), "hello")
 
-    empty := Vec.new(Str)
+    empty := Vec(Str).new()
     assert_eq_str(__LOC__, join(empty, ","), "")
 
     // Join with newline separator (escape sequence in literal)
-    lines := Vec.new(Str)
+    lines := Vec(Str).new()
     lines.push(own "aaa")
     lines.push(own "bbb")
     lines.push(own "ccc")

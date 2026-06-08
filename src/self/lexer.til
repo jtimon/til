@@ -293,7 +293,7 @@ priv scan_to_eol := func(src: Str, from: USize, src_len: USize) returns USize {
 // line/col plumbing is written once instead of at every emit site.
 // `start`/`len` record the token text's byte range in the source buffer.
 
-priv push_tok := func(mut tokens: Vec, type: TokenType, start: USize, len: USize, line: U32, col: U32) {
+priv push_tok := func(mut tokens: Vec(Token), type: TokenType, start: USize, len: USize, line: U32, col: U32) {
     tokens.push(own Token(type = type, start = start, len = len, line = line, col = col))
 }
 
@@ -302,8 +302,8 @@ priv push_tok := func(mut tokens: Vec, type: TokenType, start: USize, len: USize
 // char pointer. Each Token records the byte range of its text within
 // `src` (start/len) rather than copying it.
 
-tokenize := proc(src: Str, path: Str) returns Vec {
-    mut tokens := Vec.new(Token)
+tokenize := proc(src: Str, path: Str) returns Vec(Token) {
+    mut tokens := Vec(Token).new()
     mut pos : USize = 0
     mut line : U32 = 1
     mut line_start : USize = 0

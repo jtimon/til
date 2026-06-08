@@ -5,16 +5,16 @@ import("lexer")
 // --- Parser state ---
 
 priv Parser := struct {
-    tokens := Vec.new(Token)
+    tokens := Vec(Token).new()
     pos : USize = 0
     path := ""
-    fn_sig_decls := Vec.new(Expr)
+    fn_sig_decls := Vec(Expr).new()
     // Issue #267: top-level decls synthesized for type-position type-gen
     // macro instantiations (`Name(Arg)` where a type is expected). The type
     // annotation itself stores the deterministic generated name `Name__Arg`;
     // this side table emits the matching `Name__Arg := Name(Arg)` decl so a
     // type-only occurrence still produces the monomorphization.
-    type_gen_decls := Vec.new(Expr)
+    type_gen_decls := Vec(Expr).new()
     type_gen_seen := Set.new(Str)
     // Issue #56/#57: top-level decls synthesised for anonymous struct/enum
     // literals (`struct { ... }(args)`, `enum { ... }.V`, and inline defs in
@@ -23,7 +23,7 @@ priv Parser := struct {
     // literals in one file share a single type -- including a type-position
     // literal and the value-position literal it is assigned from. Flushed into
     // the program root by `parse`, like fn_sig_decls.
-    anon_decls := Vec.new(Expr)
+    anon_decls := Vec(Expr).new()
     anon_cache := Map.new(Str, Str)
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
@@ -240,7 +240,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     return name.clone()
 }
 
-priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec, mangled: Str, line: U32, col: U32) {
+priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), mangled: Str, line: U32, col: U32) {
     if p.type_gen_seen.has(mangled) { return }
     mut callee := Expr.new(ident_node(name), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -282,7 +282,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     }
     advance(p) // consume '('
     mut mangled := name.concat("__")
-    mut args := Vec.new(Str)
+    mut args := Vec(Str).new()
     mut argi := 0
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         if argi.gt(0) { mangled = mangled.concat("_") }
@@ -308,8 +308,8 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     advance(p) // consume '('
 
     // Parse parameter types: [mut] Type, [mut] Type, ...
-    mut ptypes := Vec.new(Str)
-    mut pmuts := Vec.new(Bool)
+    mut ptypes := Vec(Str).new()
+    mut pmuts := Vec(Bool).new()
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
@@ -394,9 +394,9 @@ priv parse_block := proc(mut p: Parser) returns Expr {
 // Vec<Declaration>. The current token must be '['. `allow_modes` enables
 // the own/shallow ownership modifiers (function captures); block captures
 // pass false and reject them. Issue #54.
-priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec {
+priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec(Declaration) {
     expect_token(p, TokenType.LBracket)
-    mut caps := Vec.new(Declaration)
+    mut caps := Vec(Declaration).new()
     while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
         mut own_type := OwnType.Ref
         if check(p, TokenType.KwShallow).or(check(p, TokenType.KwOwn)) {
@@ -424,8 +424,8 @@ priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec {
 // `: <Type>` annotation narrows it); an empty Vec when the next token is
 // not `<`. Each generic param defaults to `: Type` when the colon is
 // omitted, so `<T>` means `<T: Type>`.
-priv parse_generic_params := proc(mut p: Parser) returns Vec {
-    mut gparams := Vec.new(Declaration)
+priv parse_generic_params := proc(mut p: Parser) returns Vec(Declaration) {
+    mut gparams := Vec(Declaration).new()
     if check(p, TokenType.Lt).not() { return gparams }
     advance(p) // consume '<'
     while check(p, TokenType.Gt).not().and(check(p, TokenType.Eof).not()) {
@@ -489,7 +489,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     // Shared `<...>` grammar with struct<T>/enum<T> via parse_generic_params.
     mut fd := FunctionDef()
     fd.func_type = ft
-    mut gparams := Vec.new(Declaration)
+    mut gparams := Vec(Declaration).new()
     if check(p, TokenType.Lt) {
         gparams = parse_generic_params(p)
     }
@@ -772,7 +772,7 @@ priv enumdef_of := func(def: Expr) returns ref EnumDef {
 // `struct` keyword; this wraps the parsed StructDef literal into that macro,
 // so the rest of the pipeline (init expansion, inline instantiation, dedup)
 // treats it identically to a hand-written type-gen macro.
-priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec, line: U32, col: U32) returns Expr {
+priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec(Declaration), line: U32, col: U32) returns Expr {
     mut fd := FunctionDef()
     fd.func_type = FuncType.Macro
     fd.return_type = "StructDef"
@@ -796,7 +796,7 @@ priv wrap_struct_def_in_macro := func(own sdef: Expr, gparams: Vec, line: U32, c
 // hand-written function-generator macro: `Name(I64)` produces a
 // monomorphized FuncDef, and inline `Name(I64)(7)` works the same way as
 // `TemplVec(I64).new()`.
-priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec, line: U32, col: U32) returns Expr {
+priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec(Declaration), line: U32, col: U32) returns Expr {
     mut fd := FunctionDef()
     fd.func_type = FuncType.Macro
     fd.return_type = "FuncDef"
@@ -832,7 +832,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     // after `struct`. When present, the whole def is wrapped into a
     // type-gen macro (see wrap_struct_def_in_macro) at the end. Uses the
     // shared parse_generic_params helper (also used by func<T>).
-    mut gparams := Vec.new(Declaration)
+    mut gparams := Vec(Declaration).new()
     mut is_generic := false
     if is_ext.not().and(check(p, TokenType.Lt)) {
         is_generic = true
@@ -1268,7 +1268,7 @@ priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, 
 priv take_expr := func(mut e: Expr) returns Expr {
     taken := e
     e.node_type = NodeType.Body
-    e.children = Vec.new(Expr)
+    e.children = Vec(Expr).new()
     return taken
 }
 
@@ -1786,14 +1786,14 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             if is_fsf {
                 // Parse (name1, name2, ...) as param names
                 expect_token(p, TokenType.LParen)
-                mut pnames := Vec.new(Str)
+                mut pnames := Vec(Str).new()
                 while check(p, TokenType.RParen).not() {
                     pn := expect_text(p, TokenType.Ident)
                     pnames.push(own pn)
                     if check(p, TokenType.Comma) { advance(p) }
                 }
                 expect_token(p, TokenType.RParen)
-                mut captures := Vec.new(Declaration)
+                mut captures := Vec(Declaration).new()
                 if check(p, TokenType.LBracket) {
                     captures = parse_capture_list(p, true)
                 }
@@ -2260,7 +2260,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
 }
 
 // parse: entry point
-parse := proc(tokens: Vec, source: Str, path: Str, mut mode_out: Str) returns Expr {
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()))
 
     // Parse optional mode declaration

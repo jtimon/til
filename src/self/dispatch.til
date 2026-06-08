@@ -1099,7 +1099,7 @@ priv field_ffi_type := func(dd: Declaration, ctx: Context) returns ref ffi_type 
 
 priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref ffi_type {
     if ctx.ffi_type_cache_inited.not() {
-        ctx.ffi_type_cache = Vec.new(FFITypePtrBox)
+        ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
         ctx.ffi_type_cache_inited = true
     }
     switch struct_def.node_type {
@@ -1553,7 +1553,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     // per-iteration locals the garbager would delete (deep) at the end of
     // each iteration. Keep them in this Vec (push = own transfer, so the
     // garbager hands off) and free them only after ffi_call + result decode.
-    mut arg_vals := Vec.new(Value)
+    mut arg_vals := Vec(Value).new()
 
     for i in 0..nargs {
         v := eval_expr(scope, e.child(i.add(1)), ctx)
@@ -1671,8 +1671,9 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
         }
     }
     // ffi_call + result decode are done, so the arg payloads the FFI buffers
-    // pointed into are no longer needed: free the arg Values now (deep).
-    Vec.delete(own arg_vals, true)
+    // pointed into are no longer needed. Keep arg_vals visibly live until
+    // here; arg_ptrs holds raw aliases the garbager cannot see.
+    if arg_vals.len().neq(nargs) { UNREACHABLE(__LOC__) }
     free(own args)
     free(own arg_ptrs)
     free(own raw)
@@ -1878,7 +1879,7 @@ ffi_cleanup := proc(ctx: Context) {
                 free(own box.ptr)
             }
         }
-        ctx.ffi_type_cache = Vec.new(FFITypePtrBox)
+        ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
         ctx.ffi_type_cache_inited = false
     }
 }

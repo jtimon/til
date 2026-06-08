@@ -95,8 +95,8 @@ count_subject_end := func(s: Str) returns USize {
     return nl.to_usize()
 }
 
-vec_from_str_lines := func(s: Str) returns Vec {
-    mut out := Vec.new(Str)
+vec_from_str_lines := func(s: Str) returns Vec(Str) {
+    mut out := Vec(Str).new()
     mut start : USize = 0
     while start.lt(s.len()) {
         rest := s.substr(start, s.len().sub(start))
@@ -157,38 +157,22 @@ trim_quotes := func(s: Str) returns Str {
 
 // Parse the org table from doc/bots/asan.org.
 // Lines like: | interpret | 247188   | 23238    | post scope lookups   |
-parse_asan_org := func(content: Str, mut ib: I64, mut ia: I64, mut tb: I64, mut ta: I64) {
-    lines := vec_from_str_lines(content)
+asan_org_value := func(content: Str, channel: Str, cell_idx: USize, fallback: I64) returns I64 {
+    lines := content.split("\n")
     for line : Str in lines {
-        if line.starts_with("| interpret | ") {
+        if line.starts_with(format("| ", channel, " | ")) {
             cells := split_by_pipe(line)
-            if cells.len().gte(4) {
-                // Bind Vec.get's Dynamic result into a typed ref before
-                // feeding it to trim_spaces -- a bare cells[N] inside
-                // another call hits the bang-hoist's Dynamic-temp limit.
-                ref c2 : Str = cells[2]
-                ref c3 : Str = cells[3]
-                ib = trim_spaces(c2).to_i64()
-                ia = trim_spaces(c3).to_i64()
+            if cells.len().gt(cell_idx) {
+                ref cell : Str = cells[cell_idx]
+                return trim_spaces(cell).to_i64()
             }
-            Vec.delete(own cells, false)
-        }
-        if line.starts_with("| translate | ") {
-            cells := split_by_pipe(line)
-            if cells.len().gte(4) {
-                ref c2 : Str = cells[2]
-                ref c3 : Str = cells[3]
-                tb = trim_spaces(c2).to_i64()
-                ta = trim_spaces(c3).to_i64()
-            }
-            Vec.delete(own cells, false)
         }
     }
-    Vec.delete(own lines, false)
+    return fallback
 }
 
-split_by_pipe := func(s: Str) returns Vec {
-    mut out := Vec.new(Str)
+split_by_pipe := func(s: Str) returns Vec(Str) {
+    mut out := Vec(Str).new()
     mut start : USize = 0
     while start.lt(s.len()) {
         rest := s.substr(start, s.len().sub(start))
@@ -291,7 +275,10 @@ main := proc(args: ..Str) {
     mut old_trans_allocs : I64 = trans_allocs
 
     asan_org := File.readfile("doc/bots/asan.org")
-    parse_asan_org(asan_org, old_int_bytes, old_int_allocs, old_trans_bytes, old_trans_allocs)
+    old_int_bytes = asan_org_value(asan_org, "interpret", 2.to_usize(), old_int_bytes)
+    old_int_allocs = asan_org_value(asan_org, "interpret", 3.to_usize(), old_int_allocs)
+    old_trans_bytes = asan_org_value(asan_org, "translate", 2.to_usize(), old_trans_bytes)
+    old_trans_allocs = asan_org_value(asan_org, "translate", 3.to_usize(), old_trans_allocs)
 
     print("=== ASAN delta ===\n")
     print("  interpret: ", old_int_bytes.to_str(), " -> ", int_bytes.to_str(),

@@ -6,6 +6,11 @@
 ext_func free(own elem: Dynamic)
 #+end_src
 
+* til_closure_delete
+#+begin_src til
+ext_func til_closure_delete(closure: Fn)
+#+end_src
+
 * malloc
 #+begin_src til
 ext_func malloc(shallow count: U64) returns Dynamic

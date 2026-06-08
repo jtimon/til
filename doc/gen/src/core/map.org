@@ -6,8 +6,8 @@ Ordered map from typed keys to typed values.
 
 #+begin_src til
 struct Map {
-    mut keys : Vec
-    mut values : Vec
+    mut keys : DynVec
+    mut values : DynVec
     mut key_cmp : CmpFn
 namespace:
     func new_type_names(key_type: Str, val_type: Str) returns Map
@@ -32,8 +32,8 @@ namespace:
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
     func get(self: Map, key: Dynamic, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Dynamic
-    /// Insert or overwrite the value for `key`. Both key and val are owned.
-    func set(mut self: Map, own key: Dynamic, own val: Dynamic)
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map, key: Dynamic, own val: Dynamic)
     func delete(own self: Map, shallow call_free: Bool)
     func clone(self: Map) returns Map
     func hash(self: Map, hasher: HashFn) returns shallow U64

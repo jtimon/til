@@ -92,8 +92,8 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         }
 
         if has_clone.not() {
-            field_names := Vec.new(Str)
-            field_refs := Vec.new(I32)
+            field_names := Vec(Str).new()
+            field_refs := Vec(I32).new()
             for d_j : Declaration in sdd.fields {
                 ref fd : Declaration = d_j
                 field_names.push(own fd.name.clone())
@@ -180,8 +180,8 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
             // compile-time codegen and runtime call frames per POD
             // struct destruction.
             pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
-            del_field_names := Vec.new(Str)
-            del_field_owns := Vec.new(Bool)
+            del_field_names := Vec(Str).new()
+            del_field_owns := Vec(Bool).new()
             if pod_no_field_deletes.not() {
                 for d_j : Declaration in sdd.fields {
                     ref fd : Declaration = d_j
@@ -346,7 +346,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
     }
 }
 
-collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
+collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut variant_types: Vec(Str), mut has_payloads: Bool) {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         has_payloads = edd.payload_types.len().gt(0)
@@ -366,7 +366,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec, mut varian
     }
 }
 
-priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     switch enum_def.node_type {
     case NodeType.EnumDef(evc_edd):
         if has_payloads.not() {
@@ -442,7 +442,7 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
     }
 }
 
-priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
@@ -524,7 +524,7 @@ priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col:
     }
 }
 
-priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
         for j in 0..variant_names.len() {
@@ -598,7 +598,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
     }
 }
 
-priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
@@ -702,7 +702,7 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
 
 priv init_ns_has_func := func(def: Expr, method: Str) returns Bool {
     if def.is_null() { return false }
-    ref ns : Vec = def_ns_decls(def)
+    ref ns : Vec(Declaration) = def_ns_decls(def)
     for d_j : Declaration in ns {
         if d_j.name.eq(method).and(d_j.default_value.is_null().not()) {
             if d_j.default_value.node_type.is(NodeType.FuncDef) { return true }
@@ -740,7 +740,7 @@ priv init_type_supports_generated_method := func(type_name: Str, method: Str, sc
     return false
 }
 
-priv enum_payloads_support_generated_method := func(variant_types: Vec, method: Str, scope: TypeScope) returns Bool {
+priv enum_payloads_support_generated_method := func(variant_types: Vec(Str), method: Str, scope: TypeScope) returns Bool {
     for vt_j : Str in variant_types {
         if vt_j.len().eq(0) { continue }
         if init_type_supports_generated_method(vt_j, method, scope).not() { return false }
@@ -748,7 +748,7 @@ priv enum_payloads_support_generated_method := func(variant_types: Vec, method: 
     return true
 }
 
-priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec, variant_types: Vec, has_payloads: Bool, scope: TypeScope) {
+priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     // Tag-only enums (no variant carries a payload) need an if-guard
     // for every variant so the auto-gen body always reads ~self~ at
@@ -895,8 +895,8 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     line := stmt.line
     col := stmt.col
 
-    variant_names := Vec.new(Str)
-    variant_types := Vec.new(Str)
+    variant_names := Vec(Str).new()
+    variant_types := Vec(Str).new()
     mut has_payloads := false
     collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
     generate_enum_variant_constructors(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
@@ -931,8 +931,6 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
         generate_enum_to_str_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
     }
 
-    Vec.delete(own variant_names, true)
-    Vec.delete(own variant_types, true)
 }
 
 priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
@@ -963,13 +961,11 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
         UNREACHABLE(__LOC__)
     }
     if has_clone.not() {
-        variant_names := Vec.new(Str)
-        variant_types := Vec.new(Str)
+        variant_names := Vec(Str).new()
+        variant_types := Vec(Str).new()
         mut has_payloads := false
         collect_enum_variants(stmt.child(0), variant_names, variant_types, has_payloads)
         generate_enum_clone_method(stmt.child(0), ename, line, col, variant_names, variant_types, has_payloads, scope)
-        Vec.delete(own variant_names, true)
-        Vec.delete(own variant_types, true)
     }
 }
 
@@ -1233,7 +1229,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
     }
     if sname.eq("Dynamic") { return }
     mut has_size := false
-    ref size_ns : Vec = def_ns_decls(def)
+    ref size_ns : Vec(Declaration) = def_ns_decls(def)
     for d_j : Declaration in size_ns {
         ref fd : Declaration = d_j
         if fd.name.eq("size") {
@@ -1287,7 +1283,7 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
     mut has_unity := false
     mut has_inc := false
     mut has_dec := false
-    ref unity_ns : Vec = def_ns_decls(def)
+    ref unity_ns : Vec(Declaration) = def_ns_decls(def)
     for d_j : Declaration in unity_ns {
         ref fd : Declaration = d_j
         if fd.name.eq("add") { has_add = true }
@@ -1368,7 +1364,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
     mut has_gt := false
     mut has_lte := false
     mut has_gte := false
-    ref cmp_ns : Vec = def_ns_decls(def)
+    ref cmp_ns : Vec(Declaration) = def_ns_decls(def)
     for d_j : Declaration in cmp_ns {
         ref fd : Declaration = d_j
         if fd.name.eq("cmp") { has_cmp = true }
@@ -2059,12 +2055,12 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
     }
 }
 
-priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec) {
+priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
     if body.is_null() { return }
     if body.node_type.is(NodeType.Body).not() { return }
 
     mut renamings := Map.new(Str, Str)
-    mut lifted_indices := Vec.new(USize)
+    mut lifted_indices := Vec(USize).new()
 
     for i in 0..body.children.len() {
         ref child : Expr = body.child(i)
@@ -2113,7 +2109,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
     init_recurse_into_subbodies(body, parent_prefix, top_level)
 }
 
-priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_level: Vec) {
+priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
     if def.is_null() { return }
     switch def.node_type {
     case NodeType.StructDef(ld_sdd):
@@ -2136,14 +2132,14 @@ priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_le
     }
 }
 
-priv init_recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec) {
+priv init_recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
     for i in 0..body.children.len() {
         ref mut c : Expr = body.child(i)
         init_recurse_into_expr(c, parent_prefix, top_level)
     }
 }
 
-priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_level: Vec) {
+priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.Body) {
         init_lift_in_body(e, parent_prefix, top_level)
@@ -2342,6 +2338,13 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map) {
     new_ret := init_subst_ident_name(subs, fdd.return_type)
     if new_ret.len().gt(0) {
         fdd.return_type = new_ret.clone()
+    }
+    for i in 0..fdd.throw_types.len() {
+        ref tt : Str = fdd.throw_types[i]
+        new_throw := init_subst_ident_name(subs, tt)
+        if new_throw.len().gt(0) {
+            fdd.throw_types.set(i, own new_throw.clone())
+        }
     }
 }
 
@@ -2603,7 +2606,7 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
 // ctx.type_gen_synths across all initialized units; accumulate any new
 // `genname := MACRO(args)` decls in `synthesized` for this unit only.
 // Replacing through `children.replace` frees the old call subtree.
-priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Context, mut synthesized: Vec) {
+priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Context, mut synthesized: Vec(Expr)) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.StructDef(sdd):
@@ -2655,7 +2658,7 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Co
 // main loop below. Dedup keys on the generated name, so N inline uses of
 // `TemplVec(Bool)` compile to ONE generated type.
 priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
-    mut synthesized := Vec.new(Expr)
+    mut synthesized := Vec(Expr).new()
     np := program.children.len()
     for i in 0..np {
         ref mut stmt : Expr = program.child(i)
@@ -2676,7 +2679,7 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: Typ
 // real name is `Alias`. Normalize it to an ordinary alias of the deterministic
 // monomorphization, plus one canonical decl if this unit owns that instantiation.
 priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
-    mut synthesized := Vec.new(Expr)
+    mut synthesized := Vec(Expr).new()
     for i in 0..program.children.len() {
         ref mut stmt : Expr = program.child(i)
         if init_is_direct_macro_inst_decl(stmt, macros, scope).not() { continue }
@@ -2731,7 +2734,7 @@ priv init_synth_vec_inst_decl := func(elem_type: Str, line: U32, col: U32) retur
     return decl
 }
 
-priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec, mut seen: Map, synth_array: Bool, synth_vec: Bool) {
+priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map, synth_array: Bool, synth_vec: Bool) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.FCall:
@@ -2788,7 +2791,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec, mut see
 }
 
 priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
-    mut synthesized := Vec.new(Expr)
+    mut synthesized := Vec(Expr).new()
     mut seen := Map.new(Str, Str)
     synth_array := ctx.scope.get_struct("Array").is_null()
     synth_vec := ctx.scope.get_struct("Vec").is_null()
@@ -2827,7 +2830,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map, sc
         }
     }
 
-    mut kept_stmts := Vec.new(Expr)
+    mut kept_stmts := Vec(Expr).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         mut keep := true
@@ -2910,7 +2913,7 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
 // (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
 // in place to the concrete `gname__T1_T2(valargs)`.
-priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr, generics: Map, mut seen: Map, mut synthesized: Vec) {
+priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr, generics: Map, mut seen: Map, mut synthesized: Vec(Expr)) {
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
         // Build the type-param substitution map and the mono name from
@@ -2945,7 +2948,7 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
             mut cloned := gfd_expr.clone()
             switch cloned.node_type {
             case NodeType.FuncDef(cfd):
-                mut kept := Vec.new(Declaration)
+                mut kept := Vec(Declaration).new()
                 for kp : Declaration in cfd.params {
                     if kp.explicit_type.eq("Type") { continue }
                     kept.push(own kp.clone())
@@ -2996,7 +2999,7 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
 
 // Walk `e`'s subtree rewriting every generic-func call to its
 // monomorphization. `generics` maps name -> generic funcdef Expr.
-priv init_generic_walk := func(mut e: Expr, generics: Map, mut seen: Map, mut synthesized: Vec) {
+priv init_generic_walk := func(mut e: Expr, generics: Map, mut seen: Map, mut synthesized: Vec(Expr)) {
     if e.is_null() { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.child(i)
@@ -3046,7 +3049,7 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
     // Rewrite all calls (skipping the generic decls themselves, whose
     // bodies reference the still-unbound type-param).
     mut seen := Map.new(Str, Str)
-    mut synthesized := Vec.new(Expr)
+    mut synthesized := Vec(Expr).new()
     for i in 0..program.children.len() {
         ref mut stmt : Expr = program.child(i)
         is_generic_decl := stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(init_func_is_generic(stmt.child(0)))
@@ -3056,7 +3059,7 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
 
     // Rebuild program.children: drop the generic decls, keep everything
     // else, then append the synthesized monomorphizations.
-    mut kept_stmts := Vec.new(Expr)
+    mut kept_stmts := Vec(Expr).new()
     for stmt2 : Expr in program.children {
         drop := stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)).and(init_func_is_generic(stmt2.child(0)))
         if drop { continue }
@@ -3169,7 +3172,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             // instantiations after substitution (`Name(I64)(...)`).
             mut cloned := ret_val.clone()
             init_substitute_type_params(cloned, subs)
-            mut nested_synthesized := Vec.new(Expr)
+            mut nested_synthesized := Vec(Expr).new()
             init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized)
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
@@ -3242,10 +3245,10 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // funcsig) and bucket each remaining Decl's index for post-walk work.
     // Enum non-clone methods need scope to be populated before they can
     // generate eq/delete/to_str, so we delay them until after the walk.
-    enum_idxs := Vec.new(U32)
-    alias_idxs := Vec.new(U32)
-    func_idxs := Vec.new(U32)
-    value_idxs := Vec.new(U32)
+    enum_idxs := Vec(U32).new()
+    alias_idxs := Vec(U32).new()
+    func_idxs := Vec(U32).new()
+    value_idxs := Vec(U32).new()
     // Issue #93: nested struct/enum/func definitions inside a FuncDef
     // body are lifted to the program top level (with names mangled
     // `<parent>_<orig>`) inline during this walk. The lifted decls are
@@ -3265,7 +3268,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // them along with the original top-level decls. Splitting the
     // lift from the walk avoids mutating program.children while we
     // hold refs into it (which previously corrupted memory).
-    mut nested_lifted := Vec.new(Expr)
+    mut nested_lifted := Vec(Expr).new()
     for li in 0..program.children.len() {
         ref lstmt : Expr = program.child(li)
         if lstmt.node_type.is(NodeType.Decl).not() { continue }
@@ -3368,10 +3371,6 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         register_top_level_value_for_stmt(ctx, program.child(vi), scope)
     }
 
-    Vec.delete(own enum_idxs, true)
-    Vec.delete(own alias_idxs, true)
-    Vec.delete(own func_idxs, true)
-    Vec.delete(own value_idxs, true)
     return errors
 }
 
@@ -3418,7 +3417,7 @@ priv gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
     if is_iface.not() { return }
 
-    ref iface_ns : Vec = def_ns_decls(iface_def)
+    ref iface_ns : Vec(Declaration) = def_ns_decls(iface_def)
     for am : Declaration in iface_ns {
         if am.default_value.is_null() { continue }
         // A concrete default is a func/proc WITH a body, not abstract and not
@@ -3469,10 +3468,10 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // Single AST walk: bucket struct and enum decls for post-walk work,
     // and bucket func/value decls in case global generation steps added
     // new ones (size/derived methods) that need to be registered.
-    struct_idxs := Vec.new(U32)
-    enum_idxs := Vec.new(U32)
-    func_idxs := Vec.new(U32)
-    value_idxs := Vec.new(U32)
+    struct_idxs := Vec(U32).new()
+    enum_idxs := Vec(U32).new()
+    func_idxs := Vec(U32).new()
+    value_idxs := Vec(U32).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -3513,10 +3512,6 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
         register_top_level_value_for_stmt(ctx, program.child(vi), scope)
     }
 
-    Vec.delete(own struct_idxs, true)
-    Vec.delete(own enum_idxs, true)
-    Vec.delete(own func_idxs, true)
-    Vec.delete(own value_idxs, true)
     return errors
 }
 

@@ -9,11 +9,11 @@ struct TilClosure {
 };
 
 typedef struct Mode Mode;
-typedef struct Vec Vec;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
 typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
+typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
 typedef struct DynVec DynVec;
 typedef struct Map Map;
@@ -116,7 +116,12 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
+typedef struct Vec__Bool Vec__Bool;
+typedef struct Vec__FieldLayout Vec__FieldLayout;
+typedef struct Vec__Declaration Vec__Declaration;
+typedef struct Vec__Expr Vec__Expr;
 typedef struct Tuple Tuple;
+typedef struct Vec__USize Vec__USize;
 typedef struct KwargsMap KwargsMap;
 typedef struct File File;
 typedef struct Range Range;
@@ -205,6 +210,7 @@ typedef enum {
 } TokenType_tag;
 typedef struct TokenType TokenType;
 typedef struct Token Token;
+typedef struct Vec__Token Vec__Token;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
@@ -215,6 +221,10 @@ typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
 typedef struct Context Context;
+typedef struct Vec__Dynamic Vec__Dynamic;
+typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef struct Vec__I32 Vec__I32;
+typedef struct Vec__U32 Vec__U32;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -241,14 +251,20 @@ typedef enum {
 } priv___src_self_typer_til__CtorArg_tag;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
+typedef struct Vec__CoverageNode Vec__CoverageNode;
+typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
+typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
+typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
 typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct Array__Bool Array__Bool;
+typedef struct Vec__DynCallInfo Vec__DynCallInfo;
+typedef struct Vec__CollectionInfo Vec__CollectionInfo;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
 typedef enum {
@@ -274,12 +290,15 @@ typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
+typedef struct Vec__DynPtrBox Vec__DynPtrBox;
 typedef struct _ffi_type ffi_type;
 typedef struct priv___src_self_dispatch_til__ExtStr priv___src_self_dispatch_til__ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
+typedef struct Vec__Value Vec__Value;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
+typedef struct Vec__I64 Vec__I64;
 typedef struct Vector3 Vector3;
 typedef struct Vector4 Vector4;
 typedef struct Texture Texture;
@@ -297,17 +316,6 @@ typedef TilClosure *priv___src_self_dispatch_til__DispatchFn;
 
 
 
-
-
-typedef struct Vec {
-    U8 *data;
-    U32 count;
-    U32 cap;
-    U32 elem_size;
-    U32 elem_kind;
-    TilClosure * elem_clone;
-    TilClosure * elem_delete;
-} Vec;
 
 
 typedef struct Str {
@@ -331,6 +339,13 @@ typedef struct Array__Str {
     U8 *data;
     U32 cap;
 } Array__Str;
+
+
+typedef struct Vec__Str {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Str;
 
 
 typedef struct Dynamic {
@@ -397,21 +412,6 @@ typedef struct Declaration {
 } Declaration;
 
 
-typedef struct FunctionDef {
-    FuncType func_type;
-    Vec params;
-    Str return_type;
-    Vec throw_types;
-    I32 variadic_index;
-    I32 kwargs_index;
-    OwnType return_own_type;
-    Bool auto_generated;
-    Bool is_enum_variant_ctor;
-    Vec captures;
-    Str closure_name;
-} FunctionDef;
-
-
 typedef struct FCallData {
     Bool is_splat;
     Bool does_throw;
@@ -440,37 +440,11 @@ typedef struct FieldAccessData {
 } FieldAccessData;
 
 
-typedef struct StructDef {
-    Vec fields;
-    Vec ns_decls;
-    Str c_tag;
-    Bool is_interface;
-    Bool interface_ns_marker;
-    Str implements_name;
-} StructDef;
-
-
-typedef struct EnumDef {
-    Vec ns_decls;
-    Vec variants;
-    Map payload_types;
-    Vec payload_consts;
-    Str implements_name;
-} EnumDef;
-
-
 typedef struct FieldLayout {
     U32 offset;
     U32 size;
     Str struct_name;
 } FieldLayout;
-
-
-typedef struct StructLayout {
-    U32 total_size;
-    U32 align;
-    Vec fields;
-} StructLayout;
 
 
 typedef struct AssignData {
@@ -509,46 +483,39 @@ typedef struct MatchData {
 } MatchData;
 
 
-typedef struct CaptureBlockData {
-    Vec captures;
-} CaptureBlockData;
-
-
-struct NodeType {
-    NodeType_tag tag;
-    union {
-        Literal Literal;
-        IdentData Ident;
-        Declaration Decl;
-        AssignData Assign;
-        FCallData FCall;
-        FunctionDef FuncDef;
-        StructDef StructDef;
-        EnumDef EnumDef;
-        FieldAccessData FieldAccess;
-        FieldAssignData FieldAssign;
-        ForInData ForIn;
-        Str NamedArg;
-        MatchData Match;
-        CaptureBlockData CaptureBlock;
-    } data;
-};
-
-typedef struct Expr {
-    NodeType node_type;
-    Vec children;
-    U32 line;
-    U32 col;
-} Expr;
-
-
-typedef struct Tuple {
+typedef struct Vec__Bool {
     U8 *data;
-    U32 total_size;
+    U32 count;
     U32 cap;
-    Vec type_names;
-    Vec type_sizes;
-} Tuple;
+} Vec__Bool;
+
+
+typedef struct Vec__FieldLayout {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__FieldLayout;
+
+
+typedef struct Vec__Declaration {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Declaration;
+
+
+typedef struct Vec__Expr {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Expr;
+
+
+typedef struct Vec__USize {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__USize;
 
 
 typedef struct KwargsMap {
@@ -594,14 +561,21 @@ typedef struct Token {
 } Token;
 
 
+typedef struct Vec__Token {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Token;
+
+
 typedef struct priv___src_self_parser_til__Parser {
-    Vec tokens;
+    Vec__Token tokens;
     U32 pos;
     Str path;
-    Vec fn_sig_decls;
-    Vec type_gen_decls;
+    Vec__Expr fn_sig_decls;
+    Vec__Expr type_gen_decls;
     Set type_gen_seen;
-    Vec anon_decls;
+    Vec__Expr anon_decls;
     Map anon_cache;
     Str pending_doc;
     Str source;
@@ -646,6 +620,34 @@ typedef struct TypeScope {
 } TypeScope;
 
 
+typedef struct Vec__Dynamic {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Dynamic;
+
+
+typedef struct Vec__FFITypePtrBox {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__FFITypePtrBox;
+
+
+typedef struct Vec__I32 {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__I32;
+
+
+typedef struct Vec__U32 {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__U32;
+
+
 struct Lang {
     Lang_tag tag;
 };
@@ -654,18 +656,18 @@ struct Target {
     Target_tag tag;
 };
 
-struct priv___src_self_typer_til__CtorArg {
-    priv___src_self_typer_til__CtorArg_tag tag;
-    union {
-        Expr Filled;
-    } data;
-};
+typedef struct Vec__CoverageNode {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__CoverageNode;
 
-typedef struct priv___src_self_typer_til__CoverageNode {
-    Bool fully_covered;
-    Vec sub_names;
-    Vec sub_nodes;
-} priv___src_self_typer_til__CoverageNode;
+
+typedef struct Vec__CtorArg {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__CtorArg;
 
 
 typedef struct priv___src_self_garbager_til__LocalInfo {
@@ -679,10 +681,24 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
 } priv___src_self_garbager_til__LocalInfo;
 
 
+typedef struct Vec__LocalInfo {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__LocalInfo;
+
+
 typedef struct priv___src_self_loader_til__DeclRef {
     Str path;
     U32 idx;
 } priv___src_self_loader_til__DeclRef;
+
+
+typedef struct Vec__ProgramUnit {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__ProgramUnit;
 
 
 typedef struct priv___src_self_builder_til__CollectionInfo {
@@ -714,6 +730,20 @@ typedef struct Array__Bool {
     U8 *data;
     U32 cap;
 } Array__Bool;
+
+
+typedef struct Vec__DynCallInfo {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__DynCallInfo;
+
+
+typedef struct Vec__CollectionInfo {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__CollectionInfo;
 
 
 typedef struct StructInstance {
@@ -767,18 +797,16 @@ typedef struct Binding {
 } Binding;
 
 
-typedef struct Scope {
-    Map bindings;
-    Scope *parent;
-    Map payload_aliases;
-    Map ref_primitive_ptrs;
-    Vec box_owned_dynamics;
-} Scope;
-
-
 typedef struct priv___src_self_interpreter_til__DynPtrBox {
     U8 *p;
 } priv___src_self_interpreter_til__DynPtrBox;
+
+
+typedef struct Vec__DynPtrBox {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__DynPtrBox;
 
 
 typedef struct _ffi_type {
@@ -827,10 +855,24 @@ typedef struct FFITypePtrBox {
 } FFITypePtrBox;
 
 
+typedef struct Vec__Value {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Value;
+
+
 typedef struct priv___src_self_binder_til__BinderState {
     Str alias_to_primitive;
     Str alias_to_dynamic;
 } priv___src_self_binder_til__BinderState;
+
+
+typedef struct Vec__I64 {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__I64;
 
 
 typedef struct Vector3 {
@@ -885,7 +927,7 @@ typedef struct CliArgs {
     Bool early_return;
     Bool asan;
     Bool prof;
-    Vec *extra_modes;
+    Vec__Str *extra_modes;
 } CliArgs;
 
 
@@ -900,11 +942,94 @@ typedef struct Mode {
 } Mode;
 
 
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec__Declaration params;
+    Str return_type;
+    Vec__Str throw_types;
+    I32 variadic_index;
+    I32 kwargs_index;
+    OwnType return_own_type;
+    Bool auto_generated;
+    Bool is_enum_variant_ctor;
+    Vec__Declaration captures;
+    Str closure_name;
+} FunctionDef;
+
+
+typedef struct StructDef {
+    Vec__Declaration fields;
+    Vec__Declaration ns_decls;
+    Str c_tag;
+    Bool is_interface;
+    Bool interface_ns_marker;
+    Str implements_name;
+} StructDef;
+
+
+typedef struct EnumDef {
+    Vec__Declaration ns_decls;
+    Vec__Str variants;
+    Map payload_types;
+    Vec__Bool payload_consts;
+    Str implements_name;
+} EnumDef;
+
+
+typedef struct StructLayout {
+    U32 total_size;
+    U32 align;
+    Vec__FieldLayout fields;
+} StructLayout;
+
+
+typedef struct CaptureBlockData {
+    Vec__Declaration captures;
+} CaptureBlockData;
+
+
+struct NodeType {
+    NodeType_tag tag;
+    union {
+        Literal Literal;
+        IdentData Ident;
+        Declaration Decl;
+        AssignData Assign;
+        FCallData FCall;
+        FunctionDef FuncDef;
+        StructDef StructDef;
+        EnumDef EnumDef;
+        FieldAccessData FieldAccess;
+        FieldAssignData FieldAssign;
+        ForInData ForIn;
+        Str NamedArg;
+        MatchData Match;
+        CaptureBlockData CaptureBlock;
+    } data;
+};
+
+typedef struct Expr {
+    NodeType node_type;
+    Vec__Expr children;
+    U32 line;
+    U32 col;
+} Expr;
+
+
+typedef struct Tuple {
+    U8 *data;
+    U32 total_size;
+    U32 cap;
+    Vec__Str type_names;
+    Vec__USize type_sizes;
+} Tuple;
+
+
 typedef struct ImportUnit {
     Str mode_str;
     Mode mode;
     Expr *ast;
-    Vec imports;
+    Vec__Str imports;
 } ImportUnit;
 
 
@@ -934,7 +1059,7 @@ typedef struct Context {
     Bool has_continue;
     Value return_value;
     Map ns_fields;
-    Vec ns_keys;
+    Vec__Dynamic ns_keys;
     Bool ns_inited;
     Bool typing_namespace_member;
     Map local_fn_sigs;
@@ -946,7 +1071,7 @@ typedef struct Context {
     Set closure_value_names;
     Set script_globals;
     Set ref_globals;
-    Vec throw_type_registry;
+    Vec__Str throw_type_registry;
     Map throws_global;
     I64 bang_counter;
     Map lowering_param_types;
@@ -988,22 +1113,36 @@ typedef struct Context {
     Bool ffi_map_inited;
     Bool ffi_loaded;
     Map ffi_struct_defs;
-    Vec ffi_type_cache;
+    Vec__FFITypePtrBox ffi_type_cache;
     Bool ffi_type_cache_inited;
 } Context;
+
+
+struct priv___src_self_typer_til__CtorArg {
+    priv___src_self_typer_til__CtorArg_tag tag;
+    union {
+        Expr Filled;
+    } data;
+};
+
+typedef struct priv___src_self_typer_til__CoverageNode {
+    Bool fully_covered;
+    Vec__Str sub_names;
+    Vec__CoverageNode sub_nodes;
+} priv___src_self_typer_til__CoverageNode;
 
 
 typedef struct ProgramUnit {
     Str path;
     Mode mode;
-    Vec imports;
+    Vec__Str imports;
 } ProgramUnit;
 
 
 typedef struct LoadedProgram {
-    Vec *core_units;
-    Vec *units;
-    Vec mode_files;
+    Vec__ProgramUnit *core_units;
+    Vec__ProgramUnit *units;
+    Vec__Str mode_files;
     Target target;
     Mode cur_mode;
     Context ctx;
@@ -1016,6 +1155,15 @@ typedef struct LoadedProgram {
     Str link_c_paths;
     Bool run_tests;
 } LoadedProgram;
+
+
+typedef struct Scope {
+    Map bindings;
+    Scope *parent;
+    Map payload_aliases;
+    Map ref_primitive_ptrs;
+    Vec__DynPtrBox box_owned_dynamics;
+} Scope;
 
 
 Mode * Mode_clone(Mode * self);
@@ -1069,20 +1217,6 @@ Str * U8_to_str(U8 val);
 void U8_delete(U8 * self, Bool call_free);
 U32 U8_size(void);
 U64 U8_hash(U8 self, HashFn hasher);
-Vec * Vec_new_type_name(Str * elem_type);
-Vec * Vec_new(Type * T);
-U32 Vec_len(Vec * self);
-void Vec_clear(Vec * self);
-void Vec_push(Vec * self, void * val);
-void Vec_append(Vec * self, Vec * other);
-void Vec_move_from(Vec * self, Vec * other);
-void * Vec_get(Vec * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void * Vec_pop(Vec * self);
-void Vec_set(Vec * self, U32 i, void * val);
-void Vec_push_take(Vec * self, Vec * src, U32 i);
-void Vec_delete(Vec * self, Bool call_free);
-Vec * Vec_clone(Vec * self);
-U32 Vec_size(void);
 Str * format(Array__Str * parts);
 U32 Str_len(Str * self);
 I8 * Str_get(Str * self, U32 * i);
@@ -1116,7 +1250,7 @@ U32 Str_to_u32(Str * self);
 U64 Str_to_u64(Str * self);
 U32 Str_to_usize(Str * self);
 F32 Str_to_f32(Str * self);
-Vec * Str_split(Str * self, Str * delim);
+Vec__Str * Str_split(Str * self, Str * delim);
 U32 Str_size(void);
 Bool Str_eq(Str * a, Str * b);
 I64 digit_value(I8 ch);
@@ -1136,6 +1270,15 @@ void Array__Str_set(Array__Str * self, U32 i, Str * val);
 void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
 U32 Array__Str_size(void);
+Vec__Str * Vec__Str_new(void);
+U32 Vec__Str_len(Vec__Str * self);
+void Vec__Str_clear(Vec__Str * self);
+void Vec__Str_push(Vec__Str * self, Str * val);
+Str * Vec__Str_get(Vec__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__Str_set(Vec__Str * self, U32 i, Str * val);
+void Vec__Str_delete(Vec__Str * self, Bool call_free);
+Vec__Str * Vec__Str_clone(Vec__Str * self);
+U32 Vec__Str_size(void);
 U32 Dynamic_size(void);
 void * Dynamic_clone(void * self);
 void Dynamic_delete(void * self, Bool call_free);
@@ -1322,9 +1465,55 @@ Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
 U32 fcall_kwargs_count(Expr * fcall);
 U32 fcall_variadic_count(Expr * fcall, U32 nparam, Bool callee_has_kwargs);
+Vec__Bool * Vec__Bool_new(void);
+U32 Vec__Bool_len(Vec__Bool * self);
+void Vec__Bool_clear(Vec__Bool * self);
+void Vec__Bool_push(Vec__Bool * self, Bool * val);
+Bool * Vec__Bool_get(Vec__Bool * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
+Vec__Bool * Vec__Bool_clone(Vec__Bool * self);
+U32 Vec__Bool_size(void);
+Vec__FieldLayout * Vec__FieldLayout_new(void);
+U32 Vec__FieldLayout_len(Vec__FieldLayout * self);
+void Vec__FieldLayout_clear(Vec__FieldLayout * self);
+void Vec__FieldLayout_push(Vec__FieldLayout * self, FieldLayout * val);
+FieldLayout * Vec__FieldLayout_get(Vec__FieldLayout * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__FieldLayout_delete(Vec__FieldLayout * self, Bool call_free);
+Vec__FieldLayout * Vec__FieldLayout_clone(Vec__FieldLayout * self);
+U32 Vec__FieldLayout_size(void);
+Vec__Declaration * Vec__Declaration_new(void);
+U32 Vec__Declaration_len(Vec__Declaration * self);
+void Vec__Declaration_clear(Vec__Declaration * self);
+void Vec__Declaration_push(Vec__Declaration * self, Declaration * val);
+void Vec__Declaration_move_from(Vec__Declaration * self, Vec__Declaration * other);
+Declaration * Vec__Declaration_get(Vec__Declaration * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free);
+Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self);
+U32 Vec__Declaration_size(void);
+Vec__Expr * Vec__Expr_new(void);
+U32 Vec__Expr_len(Vec__Expr * self);
+void Vec__Expr_clear(Vec__Expr * self);
+void Vec__Expr_push(Vec__Expr * self, Expr * val);
+void Vec__Expr_append(Vec__Expr * self, Vec__Expr * other);
+void Vec__Expr_move_from(Vec__Expr * self, Vec__Expr * other);
+Expr * Vec__Expr_get(Vec__Expr * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+Expr * Vec__Expr_pop(Vec__Expr * self);
+void Vec__Expr_set(Vec__Expr * self, U32 i, Expr * val);
+void Vec__Expr_push_take(Vec__Expr * self, Vec__Expr * src, U32 i);
+void Vec__Expr_delete(Vec__Expr * self, Bool call_free);
+Vec__Expr * Vec__Expr_clone(Vec__Expr * self);
+U32 Vec__Expr_size(void);
 void Tuple_delete(Tuple * self, Bool call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 Tuple_size(void);
+Vec__USize * Vec__USize_new(void);
+U32 Vec__USize_len(Vec__USize * self);
+void Vec__USize_clear(Vec__USize * self);
+void Vec__USize_push(Vec__USize * self, U32 * val);
+U32 * Vec__USize_get(Vec__USize * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__USize_delete(Vec__USize * self, Bool call_free);
+Vec__USize * Vec__USize_clone(Vec__USize * self);
+U32 Vec__USize_size(void);
 KwargsMap * KwargsMap_clone(KwargsMap * self);
 void KwargsMap_delete(KwargsMap * self, Bool call_free);
 U64 KwargsMap_hash(KwargsMap * self, HashFn hasher);
@@ -1380,8 +1569,16 @@ TokenType priv___src_self_lexer_til__lookup_single_char(I8 c);
 TokenType priv___src_self_lexer_til__lookup_two_char(I8 c, I8 c2);
 TokenType * priv___src_self_lexer_til__lookup_keyword(Str * word, Map * kw);
 U32 priv___src_self_lexer_til__scan_to_eol(Str * src, U32 from, U32 src_len);
-void priv___src_self_lexer_til__push_tok(Vec * tokens, TokenType * type, U32 start, U32 len, U32 line, U32 col);
-Vec * tokenize(Str * src, Str * path);
+void priv___src_self_lexer_til__push_tok(Vec__Token * tokens, TokenType * type, U32 start, U32 len, U32 line, U32 col);
+Vec__Token * tokenize(Str * src, Str * path);
+Vec__Token * Vec__Token_new(void);
+U32 Vec__Token_len(Vec__Token * self);
+void Vec__Token_clear(Vec__Token * self);
+void Vec__Token_push(Vec__Token * self, Token * val);
+Token * Vec__Token_get(Vec__Token * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__Token_delete(Vec__Token * self, Bool call_free);
+Vec__Token * Vec__Token_clone(Vec__Token * self);
+U32 Vec__Token_size(void);
 priv___src_self_parser_til__Parser * priv___src_self_parser_til__Parser_clone(priv___src_self_parser_til__Parser * self);
 void priv___src_self_parser_til__Parser_delete(priv___src_self_parser_til__Parser * self, Bool call_free);
 U64 priv___src_self_parser_til__Parser_hash(priv___src_self_parser_til__Parser * self, HashFn hasher);
@@ -1401,18 +1598,18 @@ void priv___src_self_parser_til__set_decl_type(Declaration * d, Str * name);
 Str * priv___src_self_parser_til__anon_decl_key(Declaration * d);
 Str * priv___src_self_parser_til__anon_def_key(Expr * def);
 Str * priv___src_self_parser_til__anon_lift(priv___src_self_parser_til__Parser * p, Expr * def, U32 line, U32 col);
-void priv___src_self_parser_til__type_gen_lift(priv___src_self_parser_til__Parser * p, Str * name, Vec * args, Str * mangled, U32 line, U32 col);
+void priv___src_self_parser_til__type_gen_lift(priv___src_self_parser_til__Parser * p, Str * name, Vec__Str * args, Str * mangled, U32 line, U32 col);
 Str * priv___src_self_parser_til__parse_type_ref(priv___src_self_parser_til__Parser * p);
 Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til__Parser * p, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parser * p);
-Vec * priv___src_self_parser_til__parse_capture_list(priv___src_self_parser_til__Parser * p, Bool allow_modes);
-Vec * priv___src_self_parser_til__parse_generic_params(priv___src_self_parser_til__Parser * p);
+Vec__Declaration * priv___src_self_parser_til__parse_capture_list(priv___src_self_parser_til__Parser * p, Bool allow_modes);
+Vec__Declaration * priv___src_self_parser_til__parse_generic_params(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_func_def(priv___src_self_parser_til__Parser * p);
 Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_til__Parser * p, Bool member_priv);
 StructDef * priv___src_self_parser_til__structdef_of(Expr * def);
 EnumDef * priv___src_self_parser_til__enumdef_of(Expr * def);
-Expr * priv___src_self_parser_til__wrap_struct_def_in_macro(Expr * sdef, Vec * gparams, U32 line, U32 col);
-Expr * priv___src_self_parser_til__wrap_func_def_in_macro(Expr * fdef, Vec * gparams, U32 line, U32 col);
+Expr * priv___src_self_parser_til__wrap_struct_def_in_macro(Expr * sdef, Vec__Declaration * gparams, U32 line, U32 col);
+Expr * priv___src_self_parser_til__wrap_func_def_in_macro(Expr * fdef, Vec__Declaration * gparams, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_struct_def(priv___src_self_parser_til__Parser * p, Str * c_tag);
 Expr * priv___src_self_parser_til__parse_interface_def(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_enum_def(priv___src_self_parser_til__Parser * p);
@@ -1436,7 +1633,7 @@ Expr * priv___src_self_parser_til__parse_statement(priv___src_self_parser_til__P
 Expr * priv___src_self_parser_til__parse_case_head(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_switch(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_statement_body(priv___src_self_parser_til__Parser * p);
-Expr * parse(Vec * tokens, Str * source, Str * path, Str * mode_out);
+Expr * parse(Vec__Token * tokens, Str * source, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U64 TypeBinding_hash(TypeBinding * self, HashFn hasher);
@@ -1488,24 +1685,40 @@ Bool priv___src_self_context_til__is_decl_with_child(Expr * stmt);
 Bool is_struct_or_enum(Expr * stmt);
 Bool is_func_decl(Expr * stmt);
 Bool is_def(Expr * stmt);
-Vec * def_ns_decls(Expr * sdef);
+Vec__Declaration * def_ns_decls(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
 I32 enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Bool enum_variant_payload_const(Expr * enum_def, I32 tag);
+Vec__Dynamic * Vec__Dynamic_new(void);
+U32 Vec__Dynamic_len(Vec__Dynamic * self);
+void Vec__Dynamic_clear(Vec__Dynamic * self);
+void Vec__Dynamic_push(Vec__Dynamic * self, void * val);
+void * Vec__Dynamic_get(Vec__Dynamic * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
+Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
+U32 Vec__Dynamic_size(void);
+Vec__FFITypePtrBox * Vec__FFITypePtrBox_new(void);
+U32 Vec__FFITypePtrBox_len(Vec__FFITypePtrBox * self);
+void Vec__FFITypePtrBox_clear(Vec__FFITypePtrBox * self);
+void Vec__FFITypePtrBox_push(Vec__FFITypePtrBox * self, FFITypePtrBox * val);
+FFITypePtrBox * Vec__FFITypePtrBox_get(Vec__FFITypePtrBox * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free);
+Vec__FFITypePtrBox * Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self);
+U32 Vec__FFITypePtrBox_size(void);
 I32 priv___src_self_initer_til__register_struct_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__register_enum_definition(Context * ctx, Expr * stmt, TypeScope * scope);
-void collect_enum_variants(Expr * enum_def, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
-void priv___src_self_initer_til__generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
+void collect_enum_variants(Expr * enum_def, Vec__Str * variant_names, Vec__Str * variant_types, Bool * has_payloads);
+void priv___src_self_initer_til__generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_is_method(Expr * enum_def, Str * ename, U32 line, U32 col);
-void priv___src_self_initer_til__generate_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, TypeScope * scope);
-void priv___src_self_initer_til__generate_enum_delete_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
-void priv___src_self_initer_til__generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
+void priv___src_self_initer_til__generate_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, TypeScope * scope);
+void priv___src_self_initer_til__generate_enum_delete_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
+void priv___src_self_initer_til__generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 Bool priv___src_self_initer_til__init_ns_has_func(Expr * def, Str * method);
 Bool priv___src_self_initer_til__init_type_supports_generated_method(Str * type_name, Str * method, TypeScope * scope);
-Bool priv___src_self_initer_til__enum_payloads_support_generated_method(Vec * variant_types, Str * method, TypeScope * scope);
-void priv___src_self_initer_til__generate_enum_clone_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
+Bool priv___src_self_initer_til__enum_payloads_support_generated_method(Vec__Str * variant_types, Str * method, TypeScope * scope);
+void priv___src_self_initer_til__generate_enum_clone_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 I32 priv___src_self_initer_til__register_enum_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_enum_nonclone_methods_for_stmt(Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_missing_enum_clone_for_stmt(Expr * stmt, TypeScope * scope);
@@ -1528,10 +1741,10 @@ Str * priv___src_self_initer_til__init_lookup_name(Map * renamings, Str * name);
 void priv___src_self_initer_til__init_rename_ident_in_place(Expr * e, Map * renamings);
 void priv___src_self_initer_til__init_rename_decl_in_place(Declaration * dd, Map * renamings);
 void priv___src_self_initer_til__init_rewrite_refs(Expr * e, Map * renamings);
-void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_prefix, Vec * top_level);
-void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec * top_level);
-void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec * top_level);
-void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec * top_level);
+void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
+void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec__Expr * top_level);
+void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
+void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec__Expr * top_level);
 Str * priv___src_self_initer_til__init_subst_ident_name(Map * subs, Str * name);
 void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map * subs);
 void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map * subs);
@@ -1549,17 +1762,17 @@ Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
 Str * priv___src_self_initer_til__init_macro_inst_text_name(Str * prefix, Str * text);
 Str * priv___src_self_initer_til__init_macro_inst_arg_name(Expr * arg);
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
-void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeScope * scope, Context * ctx, Vec * synthesized);
+void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized);
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_initer_til__init_synth_array_inst_decl(Str * elem_type, U32 line, U32 col);
 Expr * priv___src_self_initer_til__init_synth_vec_inst_decl(Str * elem_type, U32 line, U32 col);
-void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec * synthesized, Map * seen, Bool synth_array, Bool synth_vec);
+void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map * seen, Bool synth_array, Bool synth_vec);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
-void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map * generics, Map * seen, Vec * synthesized);
-void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map * seen, Vec * synthesized);
+void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map * generics, Map * seen, Vec__Expr * synthesized);
+void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map * seen, Vec__Expr * synthesized);
 void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
@@ -1572,6 +1785,21 @@ I32 init_file(Str * path, Context * ctx);
 Bool priv___src_self_initer_til__enum_variant_is_payload_less(Expr * enum_def, Str * variant_name);
 Str * clone_call_type_name(Expr * e);
 Bool is_pod_enum_clone_of(Expr * e, Expr * edef);
+Vec__I32 * Vec__I32_new(void);
+void Vec__I32_clear(Vec__I32 * self);
+void Vec__I32_push(Vec__I32 * self, I32 * val);
+I32 * Vec__I32_get(Vec__I32 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__I32_delete(Vec__I32 * self, Bool call_free);
+Vec__I32 * Vec__I32_clone(Vec__I32 * self);
+U32 Vec__I32_size(void);
+Vec__U32 * Vec__U32_new(void);
+U32 Vec__U32_len(Vec__U32 * self);
+void Vec__U32_clear(Vec__U32 * self);
+void Vec__U32_push(Vec__U32 * self, U32 * val);
+U32 * Vec__U32_get(Vec__U32 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__U32_delete(Vec__U32 * self, Bool call_free);
+Vec__U32 * Vec__U32_clone(Vec__U32 * self);
+U32 Vec__U32_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
@@ -1623,7 +1851,7 @@ void priv___src_self_typer_til__init_coverage_for_enum(priv___src_self_typer_til
 I32 priv___src_self_typer_til__coverage_sub_index(priv___src_self_typer_til__CoverageNode * coverage, Str * variant_name);
 Bool priv___src_self_typer_til__is_pattern_covered(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
 void priv___src_self_typer_til__mark_pattern_coverage(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
-void priv___src_self_typer_til__collect_missing_paths(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec * out, Context * ctx);
+void priv___src_self_typer_til__collect_missing_paths(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec__Str * out, Context * ctx);
 void type_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_typer_til__type_error_at(Str * path, U32 line, U32 col, Str * msg, Context * ctx);
 Expr * find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
@@ -1666,9 +1894,9 @@ void priv___src_self_typer_til__infer_match_expr(TypeScope * scope, Expr * expr,
 Type * priv___src_self_typer_til__match_arm_value_type(TypeScope * scope, Expr * case_node, Expr * subj, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__stmt_contains_match(Expr * e);
 U32 priv___src_self_typer_til__lower_matches_in_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
-void priv___src_self_typer_til__replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec * pre);
-Str * priv___src_self_typer_til__lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec * pre);
-void priv___src_self_typer_til__splice_stmts_before(Expr * body, U32 idx, Vec * pre);
+void priv___src_self_typer_til__replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
+Str * priv___src_self_typer_til__lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
+void priv___src_self_typer_til__splice_stmts_before(Expr * body, U32 idx, Vec__Expr * pre);
 void priv___src_self_typer_til__infer_ident_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__infer_named_arg_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_map_lit_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
@@ -1708,7 +1936,7 @@ void priv___src_self_typer_til__infer_decl_untyped_value(Expr * stmt, Context * 
 void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body, Context * ctx);
 void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_type_body, Context * ctx);
 Bool priv___src_self_typer_til__is_simple_lvalue_expr(Expr * e);
-Expr * priv___src_self_typer_til__fold_and_chain(Vec * conds, U32 line, U32 col);
+Expr * priv___src_self_typer_til__fold_and_chain(Vec__Expr * conds, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
 void priv___src_self_typer_til__replace_switch_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 void priv___src_self_typer_til__append_switch_else_if(Expr * root_if, Expr * if_node);
@@ -1720,11 +1948,12 @@ Expr * priv___src_self_typer_til__make_for_in_range_while_body(Str * var_name, S
 Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Str * priv___src_self_typer_til__guess_local_type(Expr * e, Str * var_name);
-Str * priv___src_self_typer_til__guess_prior_local_type_in_vec(Vec * stmts, U32 upto, Str * var_name);
+Str * priv___src_self_typer_til__guess_prior_local_type_in_vec(Vec__Expr * stmts, U32 upto, Str * var_name);
+void priv___src_self_typer_til__seed_prior_local_types(Context * ctx, Vec__Expr * stmts, U32 upto);
 void priv___src_self_typer_til__collect_throw_ident_names(Expr * e, Set * names);
 void priv___src_self_typer_til__annotate_throw_ident_expr_types(Expr * e, Expr * root_body);
 Bool priv___src_self_typer_til__subtree_has_throw_type(Expr * e, Expr * root_body, Str * type_name);
-Bool priv___src_self_typer_til__has_prior_throw_type_in_vec(Vec * stmts, Expr * root_body, U32 upto, Str * type_name);
+Bool priv___src_self_typer_til__has_prior_throw_type_in_vec(Vec__Expr * stmts, Expr * root_body, U32 upto, Str * type_name);
 Str * priv___src_self_typer_til__throw_type_name_for_with_body(Expr * e, Expr * body);
 Bool priv___src_self_typer_til__subtree_has_throw_catch(Expr * e);
 Bool priv___src_self_typer_til__subtree_has_pending_throw(Expr * e);
@@ -1735,12 +1964,12 @@ Expr * priv___src_self_typer_til__make_int_lit(I64 n, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_typed_mut_decl(Str * name, Str * type_name, Expr * init, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_assign_stmt(Str * name, Expr * rhs, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_default_value_expr(Str * type_name, U32 line, U32 col);
-I64 priv___src_self_typer_til__tag_for_type(Context * ctx, Str * type_name, Vec * _type_to_tag_names);
+I64 priv___src_self_typer_til__tag_for_type(Context * ctx, Str * type_name, Vec__Str * _type_to_tag_names);
 void priv___src_self_typer_til__register_throw_type(Context * ctx, Str * name);
 Expr * priv___src_self_typer_til__make_if_kind_eq_zero_wrap(Expr * stmt, U32 line, U32 col);
 void priv___src_self_typer_til__rewrite_ident(Expr * e, Str * old_name, Str * new_name);
-Expr * priv___src_self_typer_til__lower_catch_node(Context * ctx, Expr * catch_node, Vec * type_to_tag_names);
-void priv___src_self_typer_til__register_func_throws(Context * ctx, Str * name, Vec * throws_list);
+Expr * priv___src_self_typer_til__lower_catch_node(Context * ctx, Expr * catch_node, Vec__Str * type_to_tag_names);
+void priv___src_self_typer_til__register_func_throws(Context * ctx, Str * name, Vec__Str * throws_list);
 void priv___src_self_typer_til__extend_throwing_func_sigs(Context * ctx, Expr * e);
 void priv___src_self_typer_til__clear_bang_flag(Expr * e);
 Str * priv___src_self_typer_til__find_bang_callee_name(Expr * e);
@@ -1750,26 +1979,27 @@ Str * priv___src_self_typer_til__struct_field_type(Context * ctx, Str * type_nam
 Str * priv___src_self_typer_til__resolve_value_type(Context * ctx, Expr * e, Expr * body);
 Str * priv___src_self_typer_til__callee_owning_type(Context * ctx, Expr * fcall, Expr * body);
 Str * priv___src_self_typer_til__registry_exact_key(Context * ctx, Str * key);
+Str * priv___src_self_typer_til__register_method_throws_from_scope(Context * ctx, Str * owner, Str * method);
 Str * priv___src_self_typer_til__registry_suffix_key(Context * ctx, Str * method);
 Str * priv___src_self_typer_til__find_callee_throws_key(Context * ctx, Expr * fcall, Expr * body);
-Bool priv___src_self_typer_til__pending_remove_all_matching(Vec * pending, Str * type_name);
-Bool priv___src_self_typer_til__vec_str_contains(Vec * v, Str * name);
-void priv___src_self_typer_til__vec_str_push_uniq(Vec * v, Str * name);
-void priv___src_self_typer_til__validate_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path);
+Bool priv___src_self_typer_til__pending_remove_all_matching(Vec__Str * pending, Str * type_name);
+Bool priv___src_self_typer_til__vec_str_contains(Vec__Str * v, Str * name);
+void priv___src_self_typer_til__vec_str_push_uniq(Vec__Str * v, Str * name);
+void priv___src_self_typer_til__validate_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path);
 void priv___src_self_typer_til__inject_err_args_on_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body);
-void priv___src_self_typer_til__validate_and_inject_expr_consolidated(Context * ctx, Expr * e, Expr * body, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path);
+void priv___src_self_typer_til__validate_and_inject_expr_consolidated(Context * ctx, Expr * e, Expr * body, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path);
 Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_type, U32 line, U32 col);
-void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 child_idx, Expr * body, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
-void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec * pre_stmts, Vec * types_to_declare, Vec * seen);
-void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec * fdef_throws, Vec * pending, Vec * seen, Vec * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
-void priv___src_self_typer_til__process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec * fdef_throws, Str * return_type, OwnType * return_own_type);
+void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 child_idx, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
+void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
+void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
+void priv___src_self_typer_til__process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec__Str * fdef_throws, Str * return_type, OwnType * return_own_type);
 Bool is_compile_directive(Expr * e);
-Bool priv___src_self_typer_til__capture_listed(Vec * captures, Str * name);
-Bool priv___src_self_typer_til__capture_is_mut(Vec * captures, Str * name);
+Bool priv___src_self_typer_til__capture_listed(Vec__Declaration * captures, Str * name);
+Bool priv___src_self_typer_til__capture_is_mut(Vec__Declaration * captures, Str * name);
 TypeScope * priv___src_self_typer_til__scope_root_ref(TypeScope * s);
-void priv___src_self_typer_til__capture_block_check_name(Expr * e, Str * name, I32 is_write, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec * captures, Context * ctx);
-void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec * captures, Context * ctx);
-void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec * captures, Expr * errnode, Context * ctx);
+void priv___src_self_typer_til__capture_block_check_name(Expr * e, Str * name, I32 is_write, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec__Declaration * captures, Context * ctx);
+void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec__Declaration * captures, Context * ctx);
+void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec__Declaration * captures, Expr * errnode, Context * ctx);
 void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void priv___src_self_typer_til__reregister_scope_defs(Expr * body, TypeScope * scope);
@@ -1777,8 +2007,8 @@ void priv___src_self_typer_til__infer_body(TypeScope * scope, Expr * body, I32 i
 void priv___src_self_typer_til__infer_body_unit(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void normalize_scope_bindings(TypeScope * scope);
 Bool priv___src_self_typer_til__typer_is_lambda_target(Expr * e);
-I64 priv___src_self_typer_til__typer_lift_one_default_value(Declaration * dd, Vec * top_level, I64 * counter);
-I64 priv___src_self_typer_til__typer_lift_lambdas_in_expr(Expr * e, Vec * top_level, I64 * counter);
+I64 priv___src_self_typer_til__typer_lift_one_default_value(Declaration * dd, Vec__Expr * top_level, I64 * counter);
+I64 priv___src_self_typer_til__typer_lift_lambdas_in_expr(Expr * e, Vec__Expr * top_level, I64 * counter);
 void priv___src_self_typer_til__typer_register_lifted_lambda(TypeScope * scope, Expr * lifted, Context * ctx);
 void priv___src_self_typer_til__typer_lift_lambdas(TypeScope * scope, Expr * prog, Context * ctx);
 I32 priv___src_self_typer_til__type_check_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
@@ -1825,27 +2055,27 @@ Expr * priv___src_self_typer_til__build_kwargs_map_decl(Expr * fcall, Str * kw_n
 Expr * priv___src_self_typer_til__build_kwargs_map_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
 Expr * priv___src_self_typer_til__build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, U32 vc, Context * ctx);
 Expr * priv___src_self_typer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, I32 vi, U32 j, Context * ctx);
-Expr * priv___src_self_typer_til__build_builtin_vec_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, Context * ctx);
-Expr * priv___src_self_typer_til__build_builtin_vec_push(Expr * fcall, TypeScope * scope, Str * vec_name, U32 j);
+Expr * priv___src_self_typer_til__build_builtin_vec_decl(Expr * fcall, Str * elem_type, Str * vec_name);
+Expr * priv___src_self_typer_til__build_builtin_vec_push(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, U32 j, Context * ctx);
 void priv___src_self_typer_til__rewrite_collection_fcall_to_ident(Expr * fcall, Str * coll_name, Type * coll_type);
-Bool priv___src_self_typer_til__desugar_array_vec_fcall(Context * ctx, Expr * fcall, Vec * new_ch, TypeScope * scope);
-Bool priv___src_self_typer_til__desugar_array_vec_decl(Expr * stmt, Vec * new_ch, TypeScope * scope, Context * ctx);
-Bool priv___src_self_typer_til__desugar_set_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope, Context * ctx);
-Bool priv___src_self_typer_til__desugar_map_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope, Context * ctx);
-void priv___src_self_typer_til__process_call_desugars(Context * ctx, Expr * e, Vec * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs);
+Bool priv___src_self_typer_til__desugar_array_vec_fcall(Context * ctx, Expr * fcall, Vec__Expr * new_ch, TypeScope * scope);
+Bool priv___src_self_typer_til__desugar_array_vec_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
+Bool priv___src_self_typer_til__desugar_set_literal_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
+Bool priv___src_self_typer_til__desugar_map_literal_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
+void priv___src_self_typer_til__process_call_desugars(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs);
 Bool priv___src_self_typer_til__body_pre_passes(Context * ctx, Expr * body, TypeScope * scope, I32 owns_scope);
-void priv___src_self_typer_til__apply_hoist_to_stmt(Context * ctx, Expr * stmt, Vec * new_ch, TypeScope * scope);
-void priv___src_self_typer_til__apply_call_hoist_delete(Context * ctx, Expr * stmt, Vec * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs, Bool do_hoist, Bool needs_delete);
-void priv___src_self_typer_til__hoist_param_swap_assign(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__apply_hoist_to_stmt(Context * ctx, Expr * stmt, Vec__Expr * new_ch, TypeScope * scope);
+void priv___src_self_typer_til__apply_call_hoist_delete(Context * ctx, Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs, Bool do_hoist, Bool needs_delete);
+void priv___src_self_typer_til__hoist_param_swap_assign(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
 Bool priv___src_self_typer_til__fcall_variant_ctor_arg_is_own(Expr * expr, U32 i, TypeScope * scope);
 Bool priv___src_self_typer_til__is_enum_variant_ctor_with_payload(Expr * expr, TypeScope * scope);
-void priv___src_self_typer_til__hoist_expr(Context * ctx, Expr * expr, Vec * hoisted, TypeScope * scope);
-void priv___src_self_typer_til__hoist_decl_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void priv___src_self_typer_til__hoist_if_cond(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void priv___src_self_typer_til__hoist_return_expr(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void priv___src_self_typer_til__hoist_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void priv___src_self_typer_til__hoist_field_assign_rhs(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
-void priv___src_self_typer_til__hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_expr(Context * ctx, Expr * expr, Vec__Expr * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_decl_rhs(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_if_cond(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_return_expr(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_assign_rhs(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_field_assign_rhs(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
+void priv___src_self_typer_til__hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
 void priv___src_self_typer_til__rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, Str * array_type, I32 vi, U32 vc);
 U32 priv___src_self_typer_til__fcall_variadic_count_via_scope(Expr * fcall, TypeScope * scope);
 Bool priv___src_self_typer_til__fcall_callee_has_variadic_via_scope(Expr * fcall, TypeScope * scope);
@@ -1866,30 +2096,53 @@ void priv___src_self_typer_til__infer_literal_expr(Expr * expr);
 void priv___src_self_typer_til__narrow_dynamic(Expr * expr, Type * target);
 I32 priv___src_self_typer_til__fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
-Expr * priv___src_self_typer_til__hoist_to_temp(Context * ctx, Expr * val, Vec * hoisted, TypeScope * scope, Bool is_own);
+Expr * priv___src_self_typer_til__hoist_to_temp(Context * ctx, Expr * val, Vec__Expr * hoisted, TypeScope * scope, Bool is_own);
+Vec__CoverageNode * Vec__CoverageNode_new(void);
+void Vec__CoverageNode_clear(Vec__CoverageNode * self);
+void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_typer_til__CoverageNode * val);
+priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_get(Vec__CoverageNode * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
+Vec__CoverageNode * Vec__CoverageNode_clone(Vec__CoverageNode * self);
+U32 Vec__CoverageNode_size(void);
+Vec__CtorArg * Vec__CtorArg_new(void);
+void Vec__CtorArg_clear(Vec__CtorArg * self);
+void Vec__CtorArg_push(Vec__CtorArg * self, priv___src_self_typer_til__CtorArg * val);
+priv___src_self_typer_til__CtorArg * Vec__CtorArg_get(Vec__CtorArg * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__CtorArg_set(Vec__CtorArg * self, U32 i, priv___src_self_typer_til__CtorArg * val);
+void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
+Vec__CtorArg * Vec__CtorArg_clone(Vec__CtorArg * self);
+U32 Vec__CtorArg_size(void);
 priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 U32 priv___src_self_garbager_til__LocalInfo_size(void);
-Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec * stmts, Str * name, Expr * expr);
-Vec * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec * preceding);
-Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec * preceding);
-Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec * preceding);
+Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec__Expr * stmts, Str * name, Expr * expr);
+Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__Expr * preceding);
+Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec__Expr * preceding);
+Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__Expr * preceding);
 Bool priv___src_self_garbager_til__is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
-void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
-void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec * locals, TypeScope * scope);
-void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec * locals);
-void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec * locals, Context * ctx);
-void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec * live, Bool return_only);
-void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec * locals, U32 stmt_idx);
-void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec * body_stmts, Vec * locals, U32 stmt_idx, Vec * new_ch);
-void priv___src_self_garbager_til__insert_post_stmt_deletes(Expr * stmt, Vec * locals, U32 stmt_idx, Vec * new_ch, TypeScope * scope, Vec * preceding);
-void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec * locals, Vec * new_ch);
-void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx, Expr * body, Vec * locals);
+void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
+void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
+void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec__LocalInfo * locals);
+void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec__LocalInfo * locals, Context * ctx);
+void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only);
+void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, U32 stmt_idx);
+void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__Expr * body_stmts, Vec__LocalInfo * locals, U32 stmt_idx, Vec__Expr * new_ch);
+void priv___src_self_garbager_til__insert_post_stmt_deletes(Expr * stmt, Vec__LocalInfo * locals, U32 stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
+void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch);
+void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx, Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);
-void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec * locals, TypeScope * scope, Context * ctx);
+void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void garbager_destroy(Context * ctx);
+Vec__LocalInfo * Vec__LocalInfo_new(void);
+U32 Vec__LocalInfo_len(Vec__LocalInfo * self);
+void Vec__LocalInfo_clear(Vec__LocalInfo * self);
+void Vec__LocalInfo_push(Vec__LocalInfo * self, priv___src_self_garbager_til__LocalInfo * val);
+priv___src_self_garbager_til__LocalInfo * Vec__LocalInfo_get(Vec__LocalInfo * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__LocalInfo_delete(Vec__LocalInfo * self, Bool call_free);
+Vec__LocalInfo * Vec__LocalInfo_clone(Vec__LocalInfo * self);
+U32 Vec__LocalInfo_size(void);
 void precomp_clear_known(Context * ctx);
 void precomp_reset_state(Context * ctx);
 void priv___src_self_precomp_til__collect_assign_targets(Expr * e, Set * names);
@@ -1922,11 +2175,12 @@ void precomp_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
 void precomp_register_core_constants(Scope * global);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
-void vec_push_str(Vec * v, Str * s);
-void priv___src_self_scavenger_til__children_filter(Vec * v, void * marks, U32 n);
-void push_qn(Vec * v, Str * type_name, Str * method);
-void priv___src_self_scavenger_til__push_builtin_methods(Vec * v, Str * builtin_name, Str * m1, Str * m2, Str * m3);
-void collect_refs(Expr * e, Vec * refs);
+void vec_push_str(Vec__Str * v, Str * s);
+void priv___src_self_scavenger_til__children_filter_expr(Vec__Expr * v, void * marks, U32 n);
+void priv___src_self_scavenger_til__children_filter_decl(Vec__Declaration * v, void * marks, U32 n);
+void push_qn(Vec__Str * v, Str * type_name, Str * method);
+void priv___src_self_scavenger_til__push_builtin_methods(Vec__Str * v, Str * builtin_name, Str * m1, Str * m2, Str * m3);
+void collect_refs(Expr * e, Vec__Str * refs);
 void scavenge_filter(Expr * program, Set * visited);
 U32 priv___src_self_scavenger_til__dyn_call_real_arg_count(Expr * e);
 void priv___src_self_scavenger_til__collect_body_refs(Expr * e, Set * refs, Set * candidates);
@@ -1949,10 +2203,10 @@ ProgramUnit * ProgramUnit_clone(ProgramUnit * self);
 void ProgramUnit_delete(ProgramUnit * self, Bool call_free);
 U64 ProgramUnit_hash(ProgramUnit * self, HashFn hasher);
 U32 ProgramUnit_size(void);
-Vec * priv___src_self_loader_til__resolve_import_disps(Vec * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
-void priv___src_self_loader_til__extract_one_import(Expr * imp_stmt, Str * path, Vec * paths);
-Vec * priv___src_self_loader_til__extract_imports(Expr * body, Str * path);
-I32 priv___src_self_loader_til__resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
+Vec__Str * priv___src_self_loader_til__resolve_import_disps(Vec__Str * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
+void priv___src_self_loader_til__extract_one_import(Expr * imp_stmt, Str * path, Vec__Str * paths);
+Vec__Str * priv___src_self_loader_til__extract_imports(Expr * body, Str * path);
+I32 priv___src_self_loader_til__resolve_imports(Vec__Str * import_paths, Str * base_dir, Set * resolved_set, Vec__Expr * stack, Vec__ProgramUnit * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool call_free);
 U32 LoadedProgram_size(void);
@@ -1969,7 +2223,7 @@ void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__extract_link_info(LoadedProgram * lp);
 void priv___src_self_loader_til__load_mode_file(LoadedProgram * lp, Str * path, Str * cwd);
-LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec * extra_modes);
+LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec__Str * extra_modes);
 Str * priv___src_self_loader_til__escape_doc_for_literal_str(Str * raw);
 Str * priv___src_self_loader_til__func_kind(FuncType * ft);
 Str * priv___src_self_loader_til__til_type_user(Type * t);
@@ -1989,7 +2243,7 @@ void priv___src_self_loader_til__collect_struct_members_packed(Str * type_name, 
 void priv___src_self_loader_til__collect_enum_members_packed(Str * type_name, EnumDef * edef, Str * info, Str * docs);
 void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs);
 Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
-Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
+Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec__Expr * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map * subs);
 Bool priv___src_self_loader_til__inline_lazy_call(Expr * call, Expr * fdef);
@@ -1998,6 +2252,14 @@ void priv___src_self_loader_til__expand_lazy_calls_in_program(LoadedProgram * lp
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
+Vec__ProgramUnit * Vec__ProgramUnit_new(void);
+U32 Vec__ProgramUnit_len(Vec__ProgramUnit * self);
+void Vec__ProgramUnit_clear(Vec__ProgramUnit * self);
+void Vec__ProgramUnit_push(Vec__ProgramUnit * self, ProgramUnit * val);
+ProgramUnit * Vec__ProgramUnit_get(Vec__ProgramUnit * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__ProgramUnit_delete(Vec__ProgramUnit * self, Bool call_free);
+Vec__ProgramUnit * Vec__ProgramUnit_clone(Vec__ProgramUnit * self);
+U32 Vec__ProgramUnit_size(void);
 priv___src_self_builder_til__CollectionInfo * priv___src_self_builder_til__CollectionInfo_clone(priv___src_self_builder_til__CollectionInfo * self);
 void priv___src_self_builder_til__CollectionInfo_delete(priv___src_self_builder_til__CollectionInfo * self, Bool call_free);
 U32 priv___src_self_builder_til__CollectionInfo_size(void);
@@ -2063,8 +2325,8 @@ void priv___src_self_builder_til__collect_ident_refs(Expr * e, Set * refs);
 void priv___src_self_builder_til__emit_til_default(File * f, Type t);
 Str * priv___src_self_builder_til__param_ctype(FunctionDef * fd, U32 i, Context * ctx);
 void priv___src_self_builder_til__emit_param_list(File * f, Expr * fdef, Bool with_names, Bool for_ext_decl, Context * ctx);
-void priv___src_self_builder_til__collect_dyn_methods(Expr * e, Vec * methods);
-void priv___src_self_builder_til__collect_collection_builtins(Expr * e, Vec * infos);
+void priv___src_self_builder_til__collect_dyn_methods(Expr * e, Vec__DynCallInfo * methods);
+void priv___src_self_builder_til__collect_collection_builtins(Expr * e, Vec__CollectionInfo * infos);
 void priv___src_self_builder_til__emit_field(File * f, Str * var, Str * field, Context * ctx);
 Str * priv___src_self_builder_til__get_stack_local_ctype(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__resolve_callee_name(Expr * fcall);
@@ -2075,7 +2337,7 @@ void priv___src_self_builder_til__emit_user_fcall_args(File * f, Expr * e, Str *
 void priv___src_self_builder_til__emit_user_fcall_with_inline_closure_cleanup(File * f, Expr * e, Str * source_name, Str * cname, I32 depth, Context * ctx);
 void priv___src_self_builder_til__check_fcall_mut_args(Context * ctx, Expr * e);
 void priv___src_self_builder_til__collect_unsafe_to_hoist(Context * ctx, Expr * body);
-void priv___src_self_builder_til__collect_dyn_has_methods(Expr * e, Vec * methods);
+void priv___src_self_builder_til__collect_dyn_has_methods(Expr * e, Vec__Str * methods);
 Bool priv___src_self_builder_til__fcall_is_struct_ctor(Expr * e);
 Bool priv___src_self_builder_til__pod_ctor_args_are_safe(Expr * ctor, Context * ctx);
 void priv___src_self_builder_til__emit_pod_compound_literal(File * f, Expr * ctor, I32 depth, Context * ctx);
@@ -2160,7 +2422,7 @@ void priv___src_self_builder_til__emit_funcsig_branch_for_stmt(File * f, Expr * 
 void priv___src_self_builder_til__emit_funcsig_branches(File * f, I32 kind, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_funcsig_introspection_bodies(File * f, LoadedProgram * lp);
 Str * priv___src_self_builder_til__dyn_type_str_display(Str * vn);
-Bool priv___src_self_builder_til__find_loaded_enum_variants(Str * ename, Vec * variant_names, Vec * variant_types, LoadedProgram * lp);
+Bool priv___src_self_builder_til__find_loaded_enum_variants(Str * ename, Vec__Str * variant_names, Vec__Str * variant_types, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_type_to_str_body(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_call_bodies(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_has_bodies(File * f, LoadedProgram * lp);
@@ -2193,7 +2455,7 @@ I32 priv___src_self_builder_til__install_compiler_support(LoadedProgram * lp, St
 void priv___src_self_builder_til__print_install_success(Str * path);
 I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, Str * cc_override, Bool asan, Bool prof);
 Str * priv___src_self_builder_til__asan_child_prefix(Bool asan);
-I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec * user_argv, Target * target, Str * cc_override, Bool asan, Bool prof);
+I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec__Str * user_argv, Target * target, Str * cc_override, Bool asan, Bool prof);
 I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override, Bool asan, Bool prof);
 Str * priv___src_self_builder_til__format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
 Str * priv___src_self_builder_til__til_doc_out_path(Str * unit_path);
@@ -2206,6 +2468,22 @@ void Array__Bool_set(Array__Bool * self, U32 i, Bool * val);
 void Array__Bool_delete(Array__Bool * self, Bool call_free);
 Array__Bool * Array__Bool_clone(Array__Bool * self);
 U32 Array__Bool_size(void);
+Vec__DynCallInfo * Vec__DynCallInfo_new(void);
+U32 Vec__DynCallInfo_len(Vec__DynCallInfo * self);
+void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);
+void Vec__DynCallInfo_push(Vec__DynCallInfo * self, priv___src_self_builder_til__DynCallInfo * val);
+priv___src_self_builder_til__DynCallInfo * Vec__DynCallInfo_get(Vec__DynCallInfo * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__DynCallInfo_delete(Vec__DynCallInfo * self, Bool call_free);
+Vec__DynCallInfo * Vec__DynCallInfo_clone(Vec__DynCallInfo * self);
+U32 Vec__DynCallInfo_size(void);
+Vec__CollectionInfo * Vec__CollectionInfo_new(void);
+U32 Vec__CollectionInfo_len(Vec__CollectionInfo * self);
+void Vec__CollectionInfo_clear(Vec__CollectionInfo * self);
+void Vec__CollectionInfo_push(Vec__CollectionInfo * self, priv___src_self_builder_til__CollectionInfo * val);
+priv___src_self_builder_til__CollectionInfo * Vec__CollectionInfo_get(Vec__CollectionInfo * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__CollectionInfo_delete(Vec__CollectionInfo * self, Bool call_free);
+Vec__CollectionInfo * Vec__CollectionInfo_clone(Vec__CollectionInfo * self);
+U32 Vec__CollectionInfo_size(void);
 Str * priv___src_self_interpreter_til__interp_error_path(Context * ctx);
 void interp_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Context * ctx);
@@ -2296,7 +2574,7 @@ Bool priv___src_self_interpreter_til__interp_fa_is_ns_inner(Scope * scope, Expr 
 Cell * priv___src_self_interpreter_til__field_assign_dyn_move_src(Scope * scope, Expr * val_expr);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns(Scope * scope, Expr * e);
 void priv___src_self_interpreter_til__value_to_buf(void * dest, Value * val, Str * type_name);
-Value priv___src_self_interpreter_til__build_argv_array(Vec * argv, U32 offset, U32 count, Str * elem_type, Context * ctx);
+Value priv___src_self_interpreter_til__build_argv_array(Vec__Str * argv, U32 offset, U32 count, Str * elem_type, Context * ctx);
 void populate_cached_aggregate_defs(Context * ctx, Expr * program);
 void interpreter_init_ns(Context * ctx, Scope * global, Expr * program);
 Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
@@ -2312,8 +2590,16 @@ void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration 
 void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog);
 void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog);
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
-I32 priv___src_self_interpreter_til__interpret_units(LoadedProgram * lp, Vec * user_argv, Str * fwd_path);
-I32 cmd_interpret(LoadedProgram * lp, Vec * user_argv);
+I32 priv___src_self_interpreter_til__interpret_units(LoadedProgram * lp, Vec__Str * user_argv, Str * fwd_path);
+I32 cmd_interpret(LoadedProgram * lp, Vec__Str * user_argv);
+Vec__DynPtrBox * Vec__DynPtrBox_new(void);
+U32 Vec__DynPtrBox_len(Vec__DynPtrBox * self);
+void Vec__DynPtrBox_clear(Vec__DynPtrBox * self);
+void Vec__DynPtrBox_push(Vec__DynPtrBox * self, priv___src_self_interpreter_til__DynPtrBox * val);
+priv___src_self_interpreter_til__DynPtrBox * Vec__DynPtrBox_get(Vec__DynPtrBox * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__DynPtrBox_delete(Vec__DynPtrBox * self, Bool call_free);
+Vec__DynPtrBox * Vec__DynPtrBox_clone(Vec__DynPtrBox * self);
+U32 Vec__DynPtrBox_size(void);
 ffi_type * ffi_type_clone(ffi_type * self);
 void ffi_type_delete(ffi_type * self, Bool call_free);
 U32 ffi_type_size(void);
@@ -2428,6 +2714,13 @@ void priv___src_self_dispatch_til__ffi_register(Str * name, void * fn, Expr * fd
 void ffi_init_scan_program(Expr * program, Context * ctx);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
 void ffi_cleanup(Context * ctx);
+Vec__Value * Vec__Value_new(void);
+U32 Vec__Value_len(Vec__Value * self);
+void Vec__Value_clear(Vec__Value * self);
+void Vec__Value_push(Vec__Value * self, Value * val);
+void Vec__Value_delete(Vec__Value * self, Bool call_free);
+Vec__Value * Vec__Value_clone(Vec__Value * self);
+U32 Vec__Value_size(void);
 Bool priv___src_self_binder_til__bind_is_ws(I8 c);
 U32 priv___src_self_binder_til__skip_ws(Str * s, U32 from);
 U32 priv___src_self_binder_til__skip_word(Str * s, U32 from);
@@ -2446,20 +2739,27 @@ Bool priv___src_self_binder_til__is_alias_to_dynamic(priv___src_self_binder_til_
 void priv___src_self_binder_til__push_til_default(priv___src_self_binder_til__BinderState * bs, Str * out, Str * c);
 Bool priv___src_self_binder_til__bind_emit_field(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line, Str * comment);
 void priv___src_self_binder_til__emit_comment_line(Str * out, Str * line);
-Bool priv___src_self_binder_til__emit_struct_body(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 open, U32 close);
-U32 priv___src_self_binder_til__emit_typedef_struct(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 start, U32 open, U32 close);
-U32 priv___src_self_binder_til__emit_typedef_enum(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 start, U32 open, U32 close);
+Bool priv___src_self_binder_til__emit_struct_body(priv___src_self_binder_til__BinderState * bs, Str * out, Vec__Str * lines, U32 open, U32 close);
+U32 priv___src_self_binder_til__emit_typedef_struct(priv___src_self_binder_til__BinderState * bs, Str * out, Vec__Str * lines, U32 start, U32 open, U32 close);
+U32 priv___src_self_binder_til__emit_typedef_enum(priv___src_self_binder_til__BinderState * bs, Str * out, Vec__Str * lines, U32 start, U32 open, U32 close);
 Bool priv___src_self_binder_til__emit_typedef_alias(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line);
 Bool priv___src_self_binder_til__emit_typedef_fnptr(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line);
 Bool priv___src_self_binder_til__emit_define(Str * out, Str * line);
-Bool priv___src_self_binder_til__emit_function(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines, U32 start, U32 end);
-void priv___src_self_binder_til__walk_header(priv___src_self_binder_til__BinderState * bs, Str * out, Vec * lines);
+Bool priv___src_self_binder_til__emit_function(priv___src_self_binder_til__BinderState * bs, Str * out, Vec__Str * lines, U32 start, U32 end);
+void priv___src_self_binder_til__walk_header(priv___src_self_binder_til__BinderState * bs, Str * out, Vec__Str * lines);
 Str * priv___src_self_binder_til__header_dir_of(Str * path);
 Bool priv___src_self_binder_til__path_in_dir(Str * marker_path, Str * incdir);
 Bool priv___src_self_binder_til__looks_like_macro_fragment(Str * line);
-Vec * priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
+Vec__Str * priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
 Str * priv___src_self_binder_til__collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
+Vec__I64 * Vec__I64_new(void);
+void Vec__I64_clear(Vec__I64 * self);
+void Vec__I64_push(Vec__I64 * self, I64 * val);
+I64 * Vec__I64_get(Vec__I64 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
+U32 Vec__I64_size(void);
 Vector3 * Vector3_clone(Vector3 * self);
 void Vector3_delete(Vector3 * self, Bool call_free);
 U64 Vector3_hash(Vector3 * self, HashFn hasher);
@@ -2483,14 +2783,14 @@ U32 Camera3D_size(void);
 Str * repl_read_line(Str * mode_name);
 I32 repl_typecheck(LoadedProgram * lp);
 Bool repl_should_wrap(Expr * peek_ast, Expr * typed_ast);
-void run_repl_session(Str * mode_name_in, Str * next_mode_out, Vec * extra_modes);
-void run_repl(Str * initial_mode, Vec * extra_modes);
+void run_repl_session(Str * mode_name_in, Str * next_mode_out, Vec__Str * extra_modes);
+void run_repl(Str * initial_mode, Vec__Str * extra_modes);
 void usage(void);
 CliArgs * CliArgs_clone(CliArgs * self);
 void CliArgs_delete(CliArgs * self, Bool call_free);
 U32 CliArgs_size(void);
 CliArgs * parse_args(Array__Str * args);
-Vec * collect_user_argv(LoadedProgram * lp, Array__Str * args, U32 start_idx);
+Vec__Str * collect_user_argv(LoadedProgram * lp, Array__Str * args, U32 start_idx);
 void main(Array__Str * args);
 Bool TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();

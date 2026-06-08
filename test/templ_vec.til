@@ -141,7 +141,7 @@ test_templvec_i64_grow := test() {
 // TemplVec yields identical length and per-element values.
 test_templvec_i64_equiv_vec := test() {
     mut tv := TemplVec(I64).new()
-    mut cv := Vec.new(I64)
+    mut cv := Vec(I64).new()
     for i in 0..10 {
         tv.push(own i.mul(3))
         cv.push(own i.mul(3))

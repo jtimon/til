@@ -6,9 +6,74 @@
 ext_func system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
+* closure_call_name
+#+begin_src til
+func closure_call_name(name: Str) returns Str
+#+end_src
+
+* closure_value_name
+#+begin_src til
+func closure_value_name(name: Str) returns Str
+#+end_src
+
+* emit_fcall_closure_call
+#+begin_src til
+proc emit_fcall_closure_call(f: File, e: Expr, callee: Expr, sig: Expr, shallow depth: I32, ctx: Context)
+#+end_src
+
+* emit_capturing_closure_value
+#+begin_src til
+proc emit_capturing_closure_value(f: File, e: Expr, _depth: I32, _ctx: Context) returns ref File
+#+end_src
+
+* emit_capturing_closure_func
+#+begin_src til
+proc emit_capturing_closure_func(f: File, closure_expr: Expr, mut emitted: Set, lp: LoadedProgram)
+#+end_src
+
+* emit_capturing_closures_in_expr
+#+begin_src til
+proc emit_capturing_closures_in_expr(f: File, e: Expr, mut emitted: Set, lp: LoadedProgram)
+#+end_src
+
+* emit_capturing_closures_lp
+#+begin_src til
+proc emit_capturing_closures_lp(f: File, lp: LoadedProgram)
+#+end_src
+
+* emit_closure_runtime_types
+#+begin_src til
+proc emit_closure_runtime_types(f: File)
+#+end_src
+
+* emit_funcsig_typedefs_prog
+#+begin_src til
+proc emit_funcsig_typedefs_prog(f: File, prog: Expr, ctx: Context)
+#+end_src
+
+* emit_funcsig_typedefs
+#+begin_src til
+proc emit_funcsig_typedefs(f: File, core_program: Expr, program: Expr, ctx: Context)
+#+end_src
+
 * build_forward_header_lp
 #+begin_src til
 proc build_forward_header_lp(fwd_path: Str, lp: LoadedProgram) returns shallow I32
+#+end_src
+
+* collect_closure_value_names
+#+begin_src til
+proc collect_closure_value_names(e: Expr, mut names: Set, ctx: Context)
+#+end_src
+
+* build_register_closure_values_lp
+#+begin_src til
+proc build_register_closure_values_lp(lp: LoadedProgram)
+#+end_src
+
+* emit_dyn_fn_closure_value
+#+begin_src til
+proc emit_dyn_fn_closure_value(f: File, type_name: Str, method_name: Str, suffix: Str)
 #+end_src
 
 * cmd_translate
@@ -28,7 +93,7 @@ proc cmd_install(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_o
 
 * cmd_run
 #+begin_src til
-proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
+proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec__Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
 #+end_src
 
 * cmd_test_build_run
@@ -39,5 +104,131 @@ proc cmd_test_build_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, targe
 * cmd_doc
 #+begin_src til
 proc cmd_doc(lp: LoadedProgram) returns shallow I32
+#+end_src
+
+* Array__Bool
+#+begin_src til
+struct Array__Bool {
+    own mut data : U8
+    cap : U32
+namespace:
+    /// Create a zero-initialized Array with the given capacity.
+    func new(shallow cap: U32) returns Array__Bool
+    func len(self: Array__Bool) returns shallow U32
+    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
+    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    func get(self: Array__Bool, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Bool
+    /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
+    func set(self: Array__Bool, shallow i: U32, own val: Bool)
+    func delete(own self: Array__Bool, shallow call_free: Bool)
+    func clone(self: Array__Bool) returns Array__Bool
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__DynCallInfo
+#+begin_src til
+struct Vec__DynCallInfo {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__DynCallInfo
+    func len(self: Vec__DynCallInfo) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__DynCallInfo)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__DynCallInfo, own val: priv___src_self_builder_til__DynCallInfo)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__DynCallInfo, mut other: Vec__DynCallInfo)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__DynCallInfo, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref priv___src_self_builder_til__DynCallInfo
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__DynCallInfo, shallow n: U32) returns Vec__DynCallInfo
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__DynCallInfo, shallow i: U32, own val: priv___src_self_builder_til__DynCallInfo)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__DynCallInfo, mut src: Vec__DynCallInfo, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__DynCallInfo, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__DynCallInfo) returns Vec__DynCallInfo
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__CollectionInfo
+#+begin_src til
+struct Vec__CollectionInfo {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__CollectionInfo
+    func len(self: Vec__CollectionInfo) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__CollectionInfo)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__CollectionInfo, own val: priv___src_self_builder_til__CollectionInfo)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__CollectionInfo, mut other: Vec__CollectionInfo)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__CollectionInfo, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref priv___src_self_builder_til__CollectionInfo
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__CollectionInfo, shallow n: U32) returns Vec__CollectionInfo
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__CollectionInfo, shallow i: U32, own val: priv___src_self_builder_til__CollectionInfo)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__CollectionInfo, mut src: Vec__CollectionInfo, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__CollectionInfo, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__CollectionInfo) returns Vec__CollectionInfo
+    func size() returns shallow U32
+}
 #+end_src
 

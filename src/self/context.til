@@ -259,7 +259,7 @@ ImportUnit := struct {
     mode_str := ""
     mode := Mode()
     own ast := Expr.new(NodeType.Body, 0, 0)
-    imports := Vec.new(Str)
+    imports := Vec(Str).new()
 }
 
 Context := struct {
@@ -331,7 +331,7 @@ Context := struct {
     has_continue := false
     return_value := Value.None
     ns_fields := Map.new(Str, Value)
-    ns_keys := Vec.new(Dynamic)
+    ns_keys := Vec(Dynamic).new()
     ns_inited := false
 
     // True while the typer is inferring a struct/enum namespace member
@@ -367,8 +367,8 @@ Context := struct {
     // table used by tag_for_type; throws_global is the Decl-name ->
     // throws-types map used by inject_throw_args_in_body. (Method
     // throws are keyed "Type.method", free functions stay bare.)
-    throw_type_registry := Vec.new(Str)
-    throws_global := Map.new(Str, Vec)
+    throw_type_registry := Vec(Str).new()
+    throws_global := Map.new(Str, Vec(Str))
 
     // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
     // temps emitted when hoisting nested `f()!` calls. Lives on
@@ -516,7 +516,7 @@ Context := struct {
     ffi_map_inited := false
     ffi_loaded := false
     ffi_struct_defs := Map.new(Str, Dynamic)
-    ffi_type_cache := Vec.new(FFITypePtrBox)
+    ffi_type_cache := Vec(FFITypePtrBox).new()
     ffi_type_cache_inited := false
 }
 
@@ -823,7 +823,7 @@ is_def := func(stmt: Expr) returns Bool {
     .or(def.node_type.is(NodeType.EnumDef))
 }
 
-def_ns_decls := func(sdef: Expr) returns ref Vec {
+def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
     switch sdef.node_type {
     case NodeType.StructDef(sd):
         return sd.ns_decls

@@ -6,6 +6,8 @@
 struct Dynamic {
 namespace:
     func size() returns shallow U32
+    func clone(self: Dynamic) returns Dynamic
+    func delete(own self: Dynamic, shallow call_free: Bool)
 }
 #+end_src
 

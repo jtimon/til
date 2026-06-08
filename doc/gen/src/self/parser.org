@@ -28,6 +28,6 @@ anon_struct_counter is a I64
 
 * parse
 #+begin_src til
-proc parse(tokens: Vec, source: Str, path: Str, mut mode_out: Str) returns Expr
+proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str) returns Expr
 #+end_src
 

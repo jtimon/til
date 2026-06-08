@@ -168,13 +168,13 @@ namespace:
 /// Function signature metadata: params, return type, variadic info.
 FunctionDef := struct {
     func_type := FuncType.Func
-    params := Vec.new(Declaration)
+    params := Vec(Declaration).new()
     return_type := ""
     // Issue #198: list of error type names declared in the
     // ~throws T1, T2, ...~ clause of the signature. Empty Vec when
     // the function does not throw. Names match Type.Custom payloads
     // (e.g. ~"DivideByZero"~, ~"Str"~).
-    throw_types := Vec.new(Str)
+    throw_types := Vec(Str).new()
     variadic_index : I32 = -1
     kwargs_index : I32 = -1
     return_own_type := OwnType.Own
@@ -189,7 +189,7 @@ FunctionDef := struct {
     // `func(a: I64) returns I64 [scale] { ... }`. Each entry is a
     // Declaration carrying the captured name plus its modifier
     // (is_mut / own_type). Empty for ordinary (non-capturing) functions.
-    captures := Vec.new(Declaration)
+    captures := Vec(Declaration).new()
     // C backend name for the generated env-backed closure call function.
     // Empty until the typer assigns one to a capturing FuncDef.
     closure_name := ""
@@ -321,8 +321,8 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_struct_layout at typer time.
 StructDef : StructDef = struct {
-    fields := Vec.new(Declaration)
-    ns_decls := Vec.new(Declaration)
+    fields := Vec(Declaration).new()
+    ns_decls := Vec(Declaration).new()
     c_tag := ""
     // Issue #251: set by parse_interface_def. The body desugars to this
     // StructDef (empty fields, ns_decls = methods); the typer uses the
@@ -352,13 +352,13 @@ namespace:
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_enum_layout at typer time.
 EnumDef : StructDef = struct {
-    ns_decls := Vec.new(Declaration)
-    variants := Vec.new(Str)
+    ns_decls := Vec(Declaration).new()
+    variants := Vec(Str).new()
     payload_types : Map = Map.new(I64, Str)
     // #211: per-variant flag (indexed by variant tag) marking variants
     // whose payload was declared `const Type`. Appended at the end of
     // the field list to minimise layout disturbance for til_boot.
-    payload_consts := Vec.new(Bool)
+    payload_consts := Vec(Bool).new()
     // Issue #251: the interface name from `enum implements Iface { ... }`,
     // empty when the enum implements nothing. Like StructDef.implements_name,
     // the typer verifies the enum provides every abstract (ext_func/ext_proc)
@@ -397,7 +397,7 @@ namespace:
 StructLayout := struct {
     total_size : USize = 0
     align : USize = 1
-    fields := Vec.new(FieldLayout)
+    fields := Vec(FieldLayout).new()
 namespace:
     eq := func(a: StructLayout, b: StructLayout) returns Bool {
         return a.total_size.eq(b.total_size).and(a.align.eq(b.align))
@@ -525,7 +525,7 @@ namespace:
 /// the block stays inline at runtime, so the only effect is the typer's
 /// scope-restriction check. Child 0 is the Body.
 CaptureBlockData := struct {
-    captures := Vec.new(Declaration)
+    captures := Vec(Declaration).new()
 namespace:
     eq := func(a: CaptureBlockData, b: CaptureBlockData) returns Bool {
         return a.captures.len().eq(b.captures.len())
@@ -621,7 +621,7 @@ namespace:
 /// AST expression node with line/col, type, children, and node-specific payload.
 Expr := struct {
     node_type := NodeType.Body
-    children := Vec.new(Expr)
+    children := Vec(Expr).new()
     line : U32 = 0
     col : U32 = 0
 
@@ -634,7 +634,8 @@ namespace:
     delete := func(own self: Expr, call_free: Bool = true) {
         if self.is_null() { return }
         NodeType.delete(own self.node_type, false)
-        Vec.delete(own self.children, false)
+        self.children.clear()
+        free(own self.children.data)
         if call_free { free(own self) }
     }
     /// Print a diagnostic error with file path and source location.
@@ -669,11 +670,11 @@ namespace:
             while needed.gt(new_cap) {
                 new_cap = new_cap.mul(2)
             }
-            self.children.data = realloc(own self.children.data, new_cap.mul(self.children.elem_size))
+            self.children.data = realloc(own self.children.data, new_cap.mul(Expr.size()).cast(U64))
             self.children.cap = new_cap
         }
-        memcpy(ptr_add(self.children.data, self.children.count.mul(self.children.elem_size)),
-            other.children.data, other.children.count.mul(other.children.elem_size))
+        memcpy(ptr_add(self.children.data, self.children.count.mul(Expr.size()).cast(U64)),
+            other.children.data, other.children.count.mul(Expr.size()).cast(U64))
         self.children.count = needed
         other.children.count = 0
         // Free other's source buffer before nulling: the bytes were
@@ -975,7 +976,7 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
     switch fcall.node_type {
     case NodeType.FCall:
         mut count : USize = 0
-        ref ch : Vec = fcall.children
+        ref ch : Vec(Expr) = fcall.children
         mut i : USize = ch.len()
         while i.gt(0) {
             i = i.sub(1)

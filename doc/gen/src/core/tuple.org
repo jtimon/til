@@ -9,8 +9,8 @@ struct Tuple {
     own mut data : U8
     mut total_size : U32
     mut cap : U32
-    mut type_names : Vec
-    mut type_sizes : Vec
+    mut type_names : Vec__Str
+    mut type_sizes : Vec__USize
 namespace:
     /// Create an empty Tuple.
     func new() returns Tuple
@@ -29,6 +29,59 @@ namespace:
     func size_at(self: Tuple, i: U32) returns ref U32
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__USize
+#+begin_src til
+struct Vec__USize {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__USize
+    func len(self: Vec__USize) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__USize)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__USize, own val: U32)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__USize, own other: Vec__USize)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__USize, mut other: Vec__USize)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__USize, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref U32
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__USize) returns shallow U32
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__USize, shallow n: U32) returns Vec__USize
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__USize, shallow i: U32, own val: U32)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__USize, mut src: Vec__USize, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__USize, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__USize) returns Vec__USize
     func size() returns shallow U32
 }
 #+end_src

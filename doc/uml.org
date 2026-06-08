@@ -86,15 +86,16 @@
 *** orig_name := ""
 ** FunctionDef: StructDef
 *** func_type := FuncType.Func
-*** params := Vec.new(Declaration)
+*** params := Vec(Declaration).new()
 *** return_type := ""
-*** throw_types := Vec.new(Str)
+*** throw_types := Vec(Str).new()
 *** variadic_index : I32 = -1
 *** kwargs_index : I32 = -1
 *** return_own_type := OwnType.Own
 *** auto_generated := false
 *** is_enum_variant_ctor := false
-*** captures := Vec.new(Declaration)
+*** captures := Vec(Declaration).new()
+*** closure_name := ""
 ** FCallData: StructDef
 *** is_splat := false
 *** does_throw := false
@@ -112,17 +113,17 @@
 *** name := ""
 *** til_type := Type.Unknown
 ** StructDef: StructDef
-*** fields := Vec.new(Declaration)
-*** ns_decls := Vec.new(Declaration)
+*** fields := Vec(Declaration).new()
+*** ns_decls := Vec(Declaration).new()
 *** c_tag := ""
 *** is_interface := false
 *** interface_ns_marker := false
 *** implements_name := ""
 ** EnumDef: StructDef
-*** ns_decls := Vec.new(Declaration)
-*** variants := Vec.new(Str)
+*** ns_decls := Vec(Declaration).new()
+*** variants := Vec(Str).new()
 *** payload_types : Map = Map.new(I64, Str)
-*** payload_consts := Vec.new(Bool)
+*** payload_consts := Vec(Bool).new()
 *** implements_name := ""
 ** FieldLayout: StructDef
 *** offset : USize = 0
@@ -130,7 +131,8 @@
 *** struct_name := ""
 ** StructLayout: StructDef
 *** total_size : USize = 0
-*** fields := Vec.new(FieldLayout)
+*** align : USize = 1
+*** fields := Vec(FieldLayout).new()
 ** AssignData: StructDef
 *** name := ""
 *** save_old_delete := false
@@ -154,7 +156,7 @@
 *** til_type := Type.Unknown
 *** result_temp := ""
 ** CaptureBlockData: StructDef
-*** captures := Vec.new(Declaration)
+*** captures := Vec(Declaration).new()
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -184,16 +186,18 @@
 *** CaptureBlock:CaptureBlockData
 ** Expr: StructDef
 *** node_type := NodeType.Body
-*** children := Vec.new(Expr)
+*** children := Vec(Expr).new()
 *** line : U32 = 0
 *** col : U32 = 0
 * parser
 ** Parser: StructDef
-*** tokens := Vec.new(Token)
+*** tokens := Vec(Token).new()
 *** pos : USize = 0
 *** path := ""
-*** fn_sig_decls := Vec.new(Expr)
-*** anon_decls := Vec.new(Expr)
+*** fn_sig_decls := Vec(Expr).new()
+*** type_gen_decls := Vec(Expr).new()
+*** type_gen_seen := Set.new(Str)
+*** anon_decls := Vec(Expr).new()
 *** anon_cache := Map.new(Str, Str)
 *** pending_doc := ""
 *** source := ""
@@ -230,13 +234,15 @@
 *** mode_str := ""
 *** mode := Mode()
 *** own ast := Expr.new(NodeType.Body, 0, 0)
-*** imports := Vec.new(Str)
+*** imports := Vec(Str).new()
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
 *** path_modes := Map.new(Str, Mode)
 *** compile_mode := false
 *** imported := Map.new(Str, ImportUnit)
+*** imports_init_seed_done := Set.new(Str)
+*** imports_init_active := Set.new(Str)
 *** imports_init_done := Set.new(Str)
 *** imports_typer_decls_done := Set.new(Str)
 *** imports_typer_bodies_done := Set.new(Str)
@@ -255,11 +261,9 @@
 *** has_continue := false
 *** return_value := Value.None
 *** ns_fields := Map.new(Str, Value)
-*** ns_keys := Vec.new(Dynamic)
+*** ns_keys := Vec(Dynamic).new()
 *** ns_inited := false
-*** typing_namespace_member := false
-*** local_fn_sigs := Map.new(Str, Dynamic)
-*** ... (49 more)
+*** ... (54 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -281,11 +285,11 @@
 ** ProgramUnit: StructDef
 *** path := ""
 *** mode := Mode()
-*** imports := Vec.new(Str)
+*** imports := Vec(Str).new()
 ** LoadedProgram: StructDef
-*** own core_units := Vec.new(ProgramUnit)
-*** own units := Vec.new(ProgramUnit)
-*** mode_files := Vec.new(Str)
+*** own core_units := Vec(ProgramUnit).new()
+*** own units := Vec(ProgramUnit).new()
+*** mode_files := Vec(Str).new()
 *** target := Target.LinuxX64
 *** cur_mode := Mode()
 *** ctx := Context()
@@ -306,8 +310,8 @@
 *** Filled:Expr
 ** CoverageNode: StructDef
 *** fully_covered := false
-*** sub_names := Vec.new(Str)
-*** sub_nodes := Vec.new(CoverageNode)
+*** sub_names := Vec(Str).new()
+*** sub_nodes := Vec(CoverageNode).new()
 * garbager
 ** LocalInfo: StructDef
 *** ref name : Str = NULL
@@ -392,7 +396,7 @@
 *** ref parent : Scope = NULL
 *** payload_aliases := Map.new(Str, Str)
 *** ref_primitive_ptrs := Map.new(Str, Dynamic)
-*** box_owned_dynamics := Vec.new_type_name("Fn")
+*** box_owned_dynamics := Vec(DynPtrBox).new()
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 * binder

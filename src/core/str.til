@@ -423,8 +423,8 @@ namespace:
     }
 
     /// Split the string on `delim`, returning a Vec of Str clones.
-    split := func(self: Str, delim: Str) returns Vec {
-        parts := Vec.new(Str)
+    split := func(self: Str, delim: Str) returns Vec(Str) {
+        parts := Vec(Str).new()
         if delim.len().eq(0) {
             parts.push(own self.clone())
             return parts
@@ -445,7 +445,7 @@ namespace:
     }
 }
 
-join := func(parts: Vec, sep: Str) returns Str {
+join := func(parts: Vec(Str), sep: Str) returns Str {
     if parts.len().eq(0) { return "" }
     mut total : USize = 0
     for p : Str in parts {

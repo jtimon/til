@@ -451,7 +451,7 @@ priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: C
     if bfn_def.is_null() { return false }
     mut has_ns := false
     mut has_inst := false
-    ref bfn_ns : Vec = def_ns_decls(bfn_def)
+    ref bfn_ns : Vec(Declaration) = def_ns_decls(bfn_def)
     for bfn_d : Declaration in bfn_ns {
         if bfn_d.name.eq(fname) { has_ns = true }
     }
@@ -949,7 +949,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
     }
 }
 
-priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
+priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
@@ -988,7 +988,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
         }
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cdm_ns : Vec = def_ns_decls(e)
+        ref cdm_ns : Vec(Declaration) = def_ns_decls(e)
         for cdm_d : Declaration in cdm_ns {
             if cdm_d.default_value.is_null().not() {
                 collect_dyn_methods(cdm_d.default_value, methods)
@@ -1000,7 +1000,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
     }
 }
 
-priv collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
+priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(2) {
@@ -1032,7 +1032,7 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
         }
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref ccb_ns : Vec = def_ns_decls(e)
+        ref ccb_ns : Vec(Declaration) = def_ns_decls(e)
         for ccb_d : Declaration in ccb_ns {
             if ccb_d.default_value.is_null().not() {
                 collect_collection_builtins(ccb_d.default_value, infos)
@@ -1279,7 +1279,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
     }
 }
 
-priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
+priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
@@ -1305,7 +1305,7 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
         }
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cdh_ns : Vec = def_ns_decls(e)
+        ref cdh_ns : Vec(Declaration) = def_ns_decls(e)
         for cdh_d : Declaration in cdh_ns {
             if cdh_d.default_value.is_null().not() {
                 collect_dyn_has_methods(cdh_d.default_value, methods)
@@ -2948,7 +2948,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                     case NodeType.Decl(sdecl):
                         ref edef : Expr = stmt.child(0)
                         if edef.node_type.is(NodeType.EnumDef) { continue }
-                        ref ni_ns : Vec = def_ns_decls(edef)
+                        ref ni_ns : Vec(Declaration) = def_ns_decls(edef)
                         for dd : Declaration in ni_ns {
                             if dd.default_value.is_null() { continue }
                             if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
@@ -2977,7 +2977,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                 case NodeType.Decl(sdecl):
                     ref edef : Expr = stmt.child(0)
                     if edef.node_type.is(NodeType.EnumDef) { continue }
-                    ref ni_ns : Vec = def_ns_decls(edef)
+                    ref ni_ns : Vec(Declaration) = def_ns_decls(edef)
                     for dd : Declaration in ni_ns {
                         if dd.default_value.is_null() { continue }
                         if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
@@ -3512,7 +3512,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
         UNREACHABLE(__LOC__)
     }
     // Namespace non-function fields as globals
-    ref ng_ns : Vec = def_ns_decls(struct_def)
+    ref ng_ns : Vec(Declaration) = def_ns_decls(struct_def)
     for dd : Declaration in ng_ns {
         if dd.default_value.is_null() { continue }
         if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
@@ -3548,7 +3548,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: Lo
 
 priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, lp: LoadedProgram) {
     // User-defined from ns_decls
-    ref ns : Vec = def_ns_decls(struct_def)
+    ref ns : Vec(Declaration) = def_ns_decls(struct_def)
     for dd : Declaration in ns {
         if dd.default_value.is_null() { continue }
         if dd.default_value.node_type.is(NodeType.NoDefaultArg) { continue }
@@ -3603,7 +3603,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
         UNREACHABLE(__LOC__)
     }
     // Namespace methods from ns_decls
-    ref ens : Vec = def_ns_decls(enum_def)
+    ref ens : Vec(Declaration) = def_ns_decls(enum_def)
     for dd : Declaration in ens {
         if dd.default_value.is_null() { continue }
         if dd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
@@ -3638,7 +3638,7 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
 priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgram) {
     // Vec<Dynamic> stores raw pointers (8-byte values). Each push takes an
     // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
-    mut items := Vec.new(Dynamic)
+    mut items := Vec(Dynamic).new()
     // Collect pointers to all struct/enum decl statements in stable order.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -4021,7 +4021,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
 
 priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
     if def.is_null() { return false }
-    ref ns : Vec = def_ns_decls(def)
+    ref ns : Vec(Declaration) = def_ns_decls(def)
     for nsd : Declaration in ns {
         if nsd.name.eq(method).and(nsd.default_value.is_null().not()) {
             if nsd.default_value.node_type.is(NodeType.FuncDef) { return true }
@@ -4032,7 +4032,7 @@ priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
 
 priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Bool {
     if def.is_null() { return false }
-    ref ns : Vec = def_ns_decls(def)
+    ref ns : Vec(Declaration) = def_ns_decls(def)
     for nsd : Declaration in ns {
         if nsd.name.eq(method).and(nsd.default_value.is_null().not()) {
             switch nsd.default_value.node_type {
@@ -4069,7 +4069,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                 case NodeType.Decl(dd):
                     ref rhs : Expr = stmt.child(0)
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                        ref fwd_ns : Vec = def_ns_decls(rhs)
+                        ref fwd_ns : Vec(Declaration) = def_ns_decls(rhs)
                         for fdd : Declaration in fwd_ns {
                             if fdd.default_value.is_null() { continue }
                             switch fdd.default_value.node_type {
@@ -4107,7 +4107,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
             case NodeType.Decl(dd):
                 ref rhs : Expr = stmt.child(0)
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                    ref fwd_ns : Vec = def_ns_decls(rhs)
+                    ref fwd_ns : Vec(Declaration) = def_ns_decls(rhs)
                     for fdd : Declaration in fwd_ns {
                         if fdd.default_value.is_null() { continue }
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
@@ -4255,7 +4255,7 @@ priv emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut
 
 priv emit_binding_ns_methods := proc(f: File, def: Expr) {
     mut has_ns := false
-    ref ebn_ns : Vec = def_ns_decls(def)
+    ref ebn_ns : Vec(Declaration) = def_ns_decls(def)
     for nsd : Declaration in ebn_ns {
         if nsd.default_value.is_null() { continue }
         switch nsd.default_value.node_type {
@@ -4521,7 +4521,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 // Emit namespace method bindings from ns_decls
-                ref pyb_ns : Vec = def_ns_decls(rhs)
+                ref pyb_ns : Vec(Declaration) = def_ns_decls(rhs)
                 for nsd : Declaration in pyb_ns {
                     if nsd.default_value.is_null() { continue }
                     switch nsd.default_value.node_type {
@@ -4817,7 +4817,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         fwd_path := c_base.format("_forward.h")
 
         // Split space-separated link_c files and compile each individually
-        files : Vec = uc.split(" ")
+        files : Vec(Str) = uc.split(" ")
         mut all_objs := ""
         for fi in 0..files.len() {
             ref file : Str = files[fi]
@@ -4963,7 +4963,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                 write_ptr(sdv, rhs)
                 ctx.struct_def_exprs.set(dd.name, own sdv)
                 // Register ns_decls methods into func_defs
-                ref rl_ns : Vec = def_ns_decls(rhs)
+                ref rl_ns : Vec(Declaration) = def_ns_decls(rhs)
                 for d_j : Declaration in rl_ns {
                     ref nsd : Declaration = d_j
                     if nsd.default_value.is_null() { continue }
@@ -5092,7 +5092,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 case NodeType.Decl(dd):
                     ref rhs : Expr = stmt.child(0)
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                        ref fwd_ns2 : Vec = def_ns_decls(rhs)
+                        ref fwd_ns2 : Vec(Declaration) = def_ns_decls(rhs)
                         for fdd : Declaration in fwd_ns2 {
                             if fdd.default_value.is_null() { continue }
                             switch fdd.default_value.node_type {
@@ -5138,7 +5138,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
             case NodeType.Decl(dd):
                 ref rhs : Expr = stmt.child(0)
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                    ref fwd_ns2 : Vec = def_ns_decls(rhs)
+                    ref fwd_ns2 : Vec(Declaration) = def_ns_decls(rhs)
                     for fdd : Declaration in fwd_ns2 {
                         if fdd.default_value.is_null() { continue }
                         switch fdd.default_value.node_type {
@@ -5219,7 +5219,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 case NodeType.Decl(dd):
                     ref rhs : Expr = stmt.child(0)
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                        ref afd_ns : Vec = def_ns_decls(rhs)
+                        ref afd_ns : Vec(Declaration) = def_ns_decls(rhs)
                         for fdd : Declaration in afd_ns {
                             if fdd.default_value.is_null() { continue }
                             switch fdd.default_value.node_type {
@@ -5262,7 +5262,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             case NodeType.Decl(dd):
                 ref rhs : Expr = stmt.child(0)
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                    ref afd_ns : Vec = def_ns_decls(rhs)
+                    ref afd_ns : Vec(Declaration) = def_ns_decls(rhs)
                     for fdd : Declaration in afd_ns {
                         if fdd.default_value.is_null() { continue }
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
@@ -5362,7 +5362,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     f.write("\n")
 
     // Forward declarations for dyn_call dispatch functions
-    mut dyn_methods := Vec.new(DynCallInfo)
+    mut dyn_methods := Vec(DynCallInfo).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5493,7 +5493,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     }
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
-    mut has_methods := Vec.new(Str)
+    mut has_methods := Vec(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5511,7 +5511,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     own has_methods.delete()
 
     // Forward declarations for array/vec builtin helpers
-    mut coll_infos := Vec.new(CollectionInfo)
+    mut coll_infos := Vec(CollectionInfo).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5615,7 +5615,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                 ref def : Expr = stmt.child(0)
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref dfw_ns : Vec = def_ns_decls(def)
+                    ref dfw_ns : Vec(Declaration) = def_ns_decls(def)
                     for d_j : Declaration in dfw_ns {
                         ref nsd : Declaration = d_j
                         if nsd.default_value.is_null() { continue }
@@ -5639,7 +5639,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
             ref def : Expr = stmt.child(0)
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref dfw_ns : Vec = def_ns_decls(def)
+                ref dfw_ns : Vec(Declaration) = def_ns_decls(def)
                 for d_j : Declaration in dfw_ns {
                     ref nsd : Declaration = d_j
                     if nsd.default_value.is_null() { continue }
@@ -5665,7 +5665,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                 ref def : Expr = stmt.child(0)
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref dfn_ns : Vec = def_ns_decls(def)
+                    ref dfn_ns : Vec(Declaration) = def_ns_decls(def)
                     for d_j : Declaration in dfn_ns {
                         ref nsd : Declaration = d_j
                         if nsd.default_value.is_null() { continue }
@@ -5690,7 +5690,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
             ref def : Expr = stmt.child(0)
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref dfn_ns : Vec = def_ns_decls(def)
+                ref dfn_ns : Vec(Declaration) = def_ns_decls(def)
                 for d_j : Declaration in dfn_ns {
                     ref nsd : Declaration = d_j
                     if nsd.default_value.is_null() { continue }
@@ -6015,7 +6015,7 @@ priv dyn_type_str_display := func(vn: Str) returns Str {
 // Locate the variants of an enum definition by name in the loaded
 // program. Returns true iff found. The first hit wins; out-vecs are
 // only written on a hit.
-priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec, mut variant_types: Vec, lp: LoadedProgram) returns Bool {
+priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), mut variant_types: Vec(Str), lp: LoadedProgram) returns Bool {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6060,15 +6060,15 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec, mut v
 // this function in lockstep.
 priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     f.write("Str *dyn_type_to_str(Type *type) {\n")
-    mut variant_names := Vec.new(Str)
-    mut variant_types := Vec.new(Str)
+    mut variant_names := Vec(Str).new()
+    mut variant_types := Vec(Str).new()
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() {
         panic(__LOC__, "emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
     }
     // First pass: collect all unique display strings so we can emit
     // static-local Str variables for the literal cases (one
     // malloc-free static wrapper per unique name).
-    mut static_displays := Vec.new(Str)
+    mut static_displays := Vec(Str).new()
     mut static_index_by_display := Map.new(Str, USize)
     mut seq : USize = 0
     for j in 0..variant_names.len() {
@@ -6085,8 +6085,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         } else if vt.eq("Str") {
         } else {
             // Nested enum: collect inner variant names
-            mut inner_names := Vec.new(Str)
-            mut inner_types := Vec.new(Str)
+            mut inner_names := Vec(Str).new()
+            mut inner_types := Vec(Str).new()
             if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
                 panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
             }
@@ -6099,8 +6099,6 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
                     seq = seq.add(1)
                 }
             }
-            Vec.delete(own inner_names, true)
-            Vec.delete(own inner_types, true)
         }
     }
     // Fallback "?" literal
@@ -6141,8 +6139,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write(");\n")
         } else {
             // Nested enum
-            mut inner_names := Vec.new(Str)
-            mut inner_types := Vec.new(Str)
+            mut inner_names := Vec(Str).new()
+            mut inner_types := Vec(Str).new()
             if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
                 panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
             }
@@ -6165,8 +6163,6 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             }
             f.write("        }\n")
             f.write("        break;\n")
-            Vec.delete(own inner_names, true)
-            Vec.delete(own inner_types, true)
         }
     }
     f.write("    default: break;\n")
@@ -6176,12 +6172,10 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     emit_usize(f, fallback_idx)
     f.write(";\n")
     f.write("}\n\n")
-    Vec.delete(own variant_names, true)
-    Vec.delete(own variant_types, true)
 }
 
 priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
-    mut dyn_methods := Vec.new(DynCallInfo)
+    mut dyn_methods := Vec(DynCallInfo).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6393,7 +6387,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
     }
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
-    mut has_methods := Vec.new(Str)
+    mut has_methods := Vec(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6416,7 +6410,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                     switch stmt.node_type {
                     case NodeType.Decl(dd):
                         mut found := false
-                        ref dhb_ns : Vec = def_ns_decls(rhs)
+                        ref dhb_ns : Vec(Declaration) = def_ns_decls(rhs)
                         for nsd : Declaration in dhb_ns {
                             if nsd.name.eq(method) { found = true; break }
                         }
@@ -6441,7 +6435,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     mut found := false
-                    ref dhb_ns : Vec = def_ns_decls(rhs)
+                    ref dhb_ns : Vec(Declaration) = def_ns_decls(rhs)
                     for nsd : Declaration in dhb_ns {
                         if nsd.name.eq(method) { found = true; break }
                     }
@@ -6464,7 +6458,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
 }
 
 priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
-    mut coll_infos := Vec.new(CollectionInfo)
+    mut coll_infos := Vec(CollectionInfo).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6615,7 +6609,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                     continue
                 }
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                    ref ns : Vec = def_ns_decls(rhs)
+                    ref ns : Vec(Declaration) = def_ns_decls(rhs)
                     for nsd : Declaration in ns {
                         ref nsfdef : Expr = nsd.default_value
                         if nsfdef.is_null() { continue }
@@ -7160,7 +7154,7 @@ priv asan_child_prefix := func(asan: Bool) returns Str {
     return ""
 }
 
-cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if lp.cur_mode.is_library {
         panic(__LOC__, "cannot run a library -- use translate or build")
     }
@@ -7207,7 +7201,7 @@ priv format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) re
     // First pass: render each Decl's chunk separately. format_decl_info
     // already sizes its returned Str to fit, so we don't need to pre-size
     // the page buffer here -- chunks are accumulated and concatenated once.
-    chunks := Vec.new(Str)
+    chunks := Vec(Str).new()
     mut total : USize = title.len().add(64)
     for stmt : Expr in ast.children {
         if stmt.node_type.is(NodeType.Decl) {

@@ -27,7 +27,7 @@ priv fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
         UNREACHABLE(__LOC__)
         return false
     }
-    ref ns : Vec = def_ns_decls(sdef)
+    ref ns : Vec(Declaration) = def_ns_decls(sdef)
     for dd : Declaration in ns {
         if dd.name.eq(fname) { return true }
     }
@@ -228,7 +228,8 @@ BoolName := "Bool"
 priv free_expr_slot_in_place := func(mut e: Expr) {
     Type.delete(own e.expr_til_type(), true)
     NodeType.delete(own e.node_type, false)
-    Vec.delete(own e.children, false)
+    e.children.clear()
+    free(own e.children.data)
 }
 
 priv CtorArg := enum {
@@ -245,8 +246,8 @@ priv CtorArg := enum {
 // and is only fully_covered iff its own ~fully_covered~ bit is set.
 priv CoverageNode := struct {
     fully_covered := false
-    sub_names := Vec.new(Str)
-    sub_nodes := Vec.new(CoverageNode)
+    sub_names := Vec(Str).new()
+    sub_nodes := Vec(CoverageNode).new()
 }
 
 // Seed a node with empty per-variant sub-coverage for an enum_def.
@@ -448,7 +449,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
 // Collect "Outer.Inner.Leaf"-style paths for any uncovered variants of
 // `enum_def` under `coverage`. A variant is OK iff fully_covered or
 // (its payload is itself an enum AND its sub-coverage is exhaustive).
-priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec, ctx: Context) {
+priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec(Str), ctx: Context) {
     if enum_def.is_null() { return }
     switch enum_def.node_type {
     case NodeType.EnumDef(cm_edd):
@@ -501,7 +502,7 @@ priv type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, ctx: Contex
 
 find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr {
     if sdef.is_null() { return NULL }
-    ref ns : Vec = def_ns_decls(sdef)
+    ref ns : Vec(Declaration) = def_ns_decls(sdef)
     for fd : Declaration in ns {
         if fd.name.eq(method) {
             ref e : Expr = fd.default_value
@@ -612,7 +613,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
 // the default_value FuncDef Expr).
 find_ns_decl := func(sdef: Expr, method: Str) returns ref Declaration {
     if sdef.is_null() { return NULL }
-    ref ns : Vec = def_ns_decls(sdef)
+    ref ns : Vec(Declaration) = def_ns_decls(sdef)
     for fd : Declaration in ns {
         if fd.name.eq(method) { return fd }
     }
@@ -675,7 +676,7 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
     }
     if ufcs_match.eq(0) { return false }
     mut fn_ident := Expr.new(ident_node(lookup_name), fa.line, fa.col)
-    mut new_children := Vec.new(Expr)
+    mut new_children := Vec(Expr).new()
     new_children.push(own fn_ident)
     // Move the receiver out of the old callee `fa` (slot 0) instead of
     // cloning it: push_take zeroes fa's slot so the trailing
@@ -1090,7 +1091,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
     // #99: if struct has new(), disallow literal outside its namespace
     if ctx.current_type_name.eq(name).not() {
         mut has_new := false
-        ref new_ns : Vec = def_ns_decls(sdef)
+        ref new_ns : Vec(Declaration) = def_ns_decls(sdef)
         for nd : Declaration in new_ns {
             if nd.name.eq("new") {
                 has_new = true
@@ -1107,7 +1108,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
     switch sdef.node_type {
     case NodeType.StructDef(ctor_sdd):
         nfields := ctor_sdd.fields.len()
-        mut field_vals := Vec.new(CtorArg)
+        mut field_vals := Vec(CtorArg).new()
         for _ in 0..nfields {
             field_vals.push(own CtorArg.Unfilled())
         }
@@ -1167,7 +1168,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
             e.set_expr_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
             return true
         }
-        mut new_ch := Vec.new(Expr)
+        mut new_ch := Vec(Expr).new()
         new_ch.push_take(e.children, 0)
         for i in 0..nfields {
             ref slot_arg : CtorArg = field_vals[i]
@@ -1213,9 +1214,9 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
         if vi.gte(0) {
             fixed_count = vi.cast(U32)
         }
-        mut va_args := Vec.new(Expr)
-        mut kw_args := Vec.new(Expr)
-        mut new_args := Vec.new(Expr)
+        mut va_args := Vec(Expr).new()
+        mut kw_args := Vec(Expr).new()
+        mut new_args := Vec(Expr).new()
         for _ in 0..nparam {
             new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
         }
@@ -1288,7 +1289,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
                 e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
             }
         }
-        mut new_ch := Vec.new(Expr)
+        mut new_ch := Vec(Expr).new()
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         for i in 0..nparam {
@@ -1315,12 +1316,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
                 }
             }
         }
-        mut old := e.children
-        e.children = new_ch
-        Vec.delete(own old, true)
-        Vec.delete(own va_args, true)
-        Vec.delete(own kw_args, true)
-        Vec.delete(own new_args, true)
+        e.children.move_from(new_ch)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -1882,7 +1878,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         // position 1 (pushed into new_children further down), so we reuse the
         // original subtree instead of cloning it and orphaning the original
         // -- the clone+orphan was a per-UFCS-call leak of the whole receiver.
-        mut recv_holder := Vec.new(Expr)
+        mut recv_holder := Vec(Expr).new()
         recv_holder.push_take(fa.children, 0)
         fa.children.set(0, own type_ident)
         // Shift own_args bitmask: bits at position >=1 move to position+1
@@ -1907,14 +1903,13 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         case:
             UNREACHABLE(__LOC__)
         }
-        mut new_children := Vec.new(Expr)
+        mut new_children := Vec(Expr).new()
         new_children.push_take(e.children, 0)
         new_children.push_take(recv_holder, 0)
         for i in 1..e.children.len() {
             new_children.push_take(e.children, i)
         }
         e.children = new_children
-        Vec.delete(own recv_holder, true)
         ref fa2 : Expr = e.child(0)
         switch fa2.node_type {
         case NodeType.FieldAccess(m2):
@@ -1983,7 +1978,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     switch ns_func2.node_type {
     case NodeType.FuncDef(ns_fdef):
         np := ns_fdef.params.len()
-        mut new_args := Vec.new(CtorArg)
+        mut new_args := Vec(CtorArg).new()
         for _ in 0..np {
             new_args.push(own CtorArg.Unfilled())
         }
@@ -2036,7 +2031,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         if pos_idx.gt(np) {
             e.type_error(format("too many arguments: expected ", np.to_str(), ", got ", pos_idx.to_str()), ctx)
         }
-        mut new_ch := Vec.new(Expr)
+        mut new_ch := Vec(Expr).new()
         ref callee : Expr = e.child(0)
         new_ch.push(own callee.clone())
         mut missing_filled := false
@@ -2064,7 +2059,6 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         // drops the old contents in place, resizes if needed, and
         // bit-copies the new payload over.
         e.children.move_from(new_ch)
-        Vec.delete(own new_ch, true)
         // After UFCS rewriting, e.child(1) is the original receiver
         // Expr that was already inferred at the top of this proc. Skip
         // it (and any already-typed positional arg) to avoid firing
@@ -2391,7 +2385,7 @@ priv cast_pair_ok := func(src: Type, target: Type) returns Bool {
     // Issue #58: Dynamic -> FuncPtr (named FuncSig) is the user's
     // assertion that the slot holds a function pointer of the target
     // signature -- used to pull a fn ptr out of a Dynamic-element Vec
-    // (`Vec.new(BinaryOp)`) and call it. FuncPtr -> FuncPtr (same shape)
+    // (`Vec(BinaryOp).new()`) and call it. FuncPtr -> FuncPtr (same shape)
     // is accepted as an identity / nominal cast for completeness.
     if target.is_funcptr() {
         if src.is(Type.Dynamic).or(src.is_funcptr()) { return true }
@@ -2402,7 +2396,7 @@ priv cast_pair_ok := func(src: Type, target: Type) returns Bool {
 // Issue #212: type-check a `cast(e, T)` call. Validates that e and T are
 // integer primitives of the same byte size, rewrites the T argument into
 // a Type value (so downstream passes see a well-formed Type, as with
-// Vec.new(I32)), and sets the call's result type to T -- the typer's
+// Vec(I32).new()), and sets the call's result type to T -- the typer's
 // stand-in for the not-yet-expressible `returns T`.
 priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
     if e.children.len().neq(3) {
@@ -2733,12 +2727,11 @@ priv stmt_contains_match := func(e: Expr) returns Bool {
 // statements inserted, so the caller can advance past them to type-check the
 // now-match-free statement.
 priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns U32 {
-    mut pre := Vec.new(Expr)
+    mut pre := Vec(Expr).new()
     ref mut stmt : Expr = body.child(stmt_idx)
     replace_matches_rec(scope, stmt, in_func, in_loop, returns_ref, ctx, pre)
     inserted := pre.len()
     splice_stmts_before(body, stmt_idx, pre)
-    Vec.delete(own pre, true)
     return inserted
 }
 
@@ -2746,7 +2739,7 @@ priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U
 // lowered result temp and collecting the temp's setup statements into `pre`.
 // Does not descend into a Match (its arms are lowered by lower_one_match's own
 // infer_body pass) nor into nested blocks/definitions (handled separately).
-priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec) {
+priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) {
     switch node.node_type {
     case NodeType.Body:      return
     case NodeType.FuncDef:   return
@@ -2775,7 +2768,7 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
 // the arms into `_m = <value>` assignments and emits the dispatch, including
 // any nested matches in arm values), then its statements are appended to
 // `pre`. Returns the temp's name.
-priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec) returns Str {
+priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) returns Str {
     line := match_node.line
     col := match_node.col
     result_t := match_node.expr_til_type()
@@ -2807,17 +2800,15 @@ priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, i
 
 // Insert `pre`'s statements into body.children just before index `idx`,
 // preserving order. Mirrors the rebuild used by body_pre_passes.
-priv splice_stmts_before := func(mut body: Expr, idx: U32, mut pre: Vec) {
+priv splice_stmts_before := func(mut body: Expr, idx: U32, mut pre: Vec(Expr)) {
     if pre.len().eq(0) { return }
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(body.children)
-    mut nw := Vec.new(Expr)
+    mut nw := Vec(Expr).new()
     for j in 0..idx { nw.push_take(old, j) }
     for k in 0..pre.len() { nw.push_take(pre, k) }
     for j in idx..old.len() { nw.push_take(old, j) }
     body.children.move_from(nw)
-    Vec.delete(own nw, true)
-    Vec.delete(own old, true)
 }
 
 priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
@@ -2923,7 +2914,7 @@ priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
 priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ctx: Context) {
     switch sdef.node_type {
     case NodeType.StructDef(cdsdd):
-        ref cdns : Vec = def_ns_decls(sdef)
+        ref cdns : Vec(Declaration) = def_ns_decls(sdef)
         for cdnd : Declaration in cdns {
             if cdnd.name.eq("delete").not() { continue }
             if cdnd.default_value.is_null() { continue }
@@ -3134,7 +3125,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
         if is_iface.not() {
             expr.type_error("'".concat(impl_self_name).concat("' implements '").concat(impl_iface_name).concat("', which is not an interface"), ctx)
         } else {
-            ref iface_members : Vec = def_ns_decls(iface_def)
+            ref iface_members : Vec(Declaration) = def_ns_decls(iface_def)
             for am : Declaration in iface_members {
                 if am.default_value.is_null() { continue }
                 switch am.default_value.node_type {
@@ -3159,7 +3150,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     // test() decls at the namespace level (issue #51).
     saved_in_ns := ctx.typing_namespace_member
     ctx.typing_namespace_member = true
-    ref tc_ns : Vec = def_ns_decls(expr)
+    ref tc_ns : Vec(Declaration) = def_ns_decls(expr)
     for tc_nd : Declaration in tc_ns {
         if tc_nd.default_value.is_null() { continue }
         if tc_nd.default_value.node_type.is(NodeType.NoDefaultArg) { continue }
@@ -3892,7 +3883,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
         }
         // Namespace walk (both StructDef and EnumDef). Same
         // default_value-location strategy as fields.
-        ref ns : Vec = def_ns_decls(tdef)
+        ref ns : Vec(Declaration) = def_ns_decls(tdef)
         for nsd : Declaration in ns {
             if nsd.is_priv.not() { continue }
             if nsd.used { continue }
@@ -4032,7 +4023,7 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             }
             // Search namespace declarations from payload ns_decls
             if found.not() {
-                ref fa_ns : Vec = def_ns_decls(sdef)
+                ref fa_ns : Vec(Declaration) = def_ns_decls(sdef)
                 for nsd : Declaration in fa_ns {
                     if nsd.name.eq(fname) {
                         expr.set_expr_til_type(nsd.til_type.clone())
@@ -4148,7 +4139,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
             }
             // Search namespace declarations from payload ns_decls
             if found.not() {
-                ref fa_ns : Vec = def_ns_decls(sdef)
+                ref fa_ns : Vec(Declaration) = def_ns_decls(sdef)
                 for nsd : Declaration in fa_ns {
                     if nsd.name.eq(fname) {
                         found = true
@@ -4244,18 +4235,16 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
         stmt.children.set(0, own true_lit)
 
-        mut old := Vec.new(Expr)
+        mut old := Vec(Expr).new()
         old.move_from(body.children)
 
-        mut new_ch := Vec.new(Expr)
+        mut new_ch := Vec(Expr).new()
         new_ch.push(own decl)
         new_ch.push(own if_node)
         for j in 0..old.len() {
             new_ch.push_take(old, j)
         }
         body.children.move_from(new_ch)
-        Vec.delete(own new_ch, true)
-        Vec.delete(own old, true)
     }
     while_scope := TypeScope(parent = scope)
     infer_body(while_scope, stmt.child(1), in_func, 1, 1, returns_ref, 0, ctx)
@@ -4791,7 +4780,7 @@ priv is_simple_lvalue_expr := func(e: Expr) returns Bool {
 // Fold a Vec of conditions into a left-associative `.and()` chain.
 // Empty -> LiteralBool(true). Otherwise read by clone (the Vec is left
 // untouched for the caller to drop normally).
-priv fold_and_chain := func(conds: Vec, line: U32, col: U32) returns Expr {
+priv fold_and_chain := func(conds: Vec(Expr), line: U32, col: U32) returns Expr {
     if conds.len().eq(0) {
         return Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
     }
@@ -4921,17 +4910,15 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                                         }
                                         mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col, bind_is_mut)
 
-                                        mut old := Vec.new(Expr)
+                                        mut old := Vec(Expr).new()
                                         old.move_from(case_body.children)
 
-                                        mut new_ch := Vec.new(Expr)
+                                        mut new_ch := Vec(Expr).new()
                                         new_ch.push(own bind_decl)
                                         for bi in 0..old.len() {
                                             new_ch.push_take(old, bi)
                                         }
                                     case_body.children.move_from(new_ch)
-                                        Vec.delete(own new_ch, true)
-                                        Vec.delete(own old, true)
                                         has_condition = true
                                     }
                                 }
@@ -5098,8 +5085,8 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                         }
                     }
                     if is_struct {
-                        mut sp_conds := Vec.new(Expr)
-                        mut sp_bindings := Vec.new(Expr)
+                        mut sp_conds := Vec(Expr).new()
+                        mut sp_bindings := Vec(Expr).new()
                         for sp_ci2 in 1..match_expr.children.len() {
                             ref na : Expr = match_expr.child(sp_ci2)
                             if na.node_type.is(NodeType.RestPattern) { continue }
@@ -5137,9 +5124,9 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                         // recursive value-match calls may have prepended for
                         // their own nested patterns.
                         if sp_bindings.len().gt(0) {
-                            mut old_body := Vec.new(Expr)
+                            mut old_body := Vec(Expr).new()
                             old_body.move_from(case_body.children)
-                            mut new_body := Vec.new(Expr)
+                            mut new_body := Vec(Expr).new()
                             for spi in 0..sp_bindings.len() {
                                 new_body.push_take(sp_bindings, spi)
                             }
@@ -5404,9 +5391,9 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
             //   [bindings..., user_stmts..., _sw_matched = true]
             total_count := case_body.children.len()
             n_bindings := total_count.sub(user_stmt_count)
-            mut all_children := Vec.new(Expr)
+            mut all_children := Vec(Expr).new()
             all_children.move_from(case_body.children)
-            mut new_body := Vec.new(Expr)
+            mut new_body := Vec(Expr).new()
             for bi in 0..n_bindings {
                 new_body.push_take(all_children, bi)
             }
@@ -5476,7 +5463,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
 
     if has_switch_enum_def {
         ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
-        mut missing_paths := Vec.new(Str)
+        mut missing_paths := Vec(Str).new()
         collect_missing_paths(scope, coverage, switch_enum_def, "", missing_paths, ctx)
         if has_default_case {
             if missing_paths.len().eq(0) {
@@ -5696,7 +5683,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     mut elem_type := til_type_name(stmt.expr_til_type())
     mut get_returns_ref := false
     mut get_throws := false
-    mut get_throw_types := Vec.new(Str)
+    mut get_throw_types := Vec(Str).new()
     switch get_func.node_type {
     case NodeType.FuncDef(get_def):
         // A throwing get gets its signature extended in place with
@@ -5941,6 +5928,14 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                                     case:
                                     }
                                 }
+                                if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
+                                    ref elem_arg2 : Expr = rhs.child(1)
+                                    switch elem_arg2.node_type {
+                                    case NodeType.Literal(Literal.Str(elem_type2)):
+                                        return "Vec__".concat(elem_type2)
+                                    case:
+                                    }
+                                }
                                 return rhsn.name.clone()
                             case NodeType.FieldAccess(_rhsfa):
                                 if rhs.child(0).children.len().gt(0) {
@@ -5968,7 +5963,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
     return ""
 }
 
-priv guess_prior_local_type_in_vec := func(stmts: Vec, upto: USize, var_name: Str) returns Str {
+priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_name: Str) returns Str {
     if stmts.len().eq(0) { return "" }
     mut limit := upto
     if limit.gte(stmts.len()) {
@@ -5982,6 +5977,79 @@ priv guess_prior_local_type_in_vec := func(stmts: Vec, upto: USize, var_name: St
         i = i.add(1)
     }
     return ""
+}
+
+priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: USize) {
+    if stmts.len().eq(0) { return }
+    mut limit := upto
+    if limit.gte(stmts.len()) {
+        limit = stmts.len().sub(1)
+    }
+    mut i : USize = 0
+    while i.lte(limit) {
+        ref stmt : Expr = stmts[i]
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            mut tn := dd.explicit_type.clone()
+            if tn.len().eq(0).and(stmt.children.len().gt(0)) {
+                ref rhs : Expr = stmt.child(0)
+                switch rhs.node_type {
+                case NodeType.FCall:
+                    if rhs.children.len().gt(0) {
+                        switch rhs.child(0).node_type {
+                        case NodeType.Ident(rhsn):
+                            if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
+                                ref elem_arg : Expr = rhs.child(1)
+                                switch elem_arg.node_type {
+                                case NodeType.Literal(Literal.Str(elem_type)):
+                                    tn = "Array__".concat(elem_type)
+                                case:
+                                }
+                            } else if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
+                                ref elem_arg2 : Expr = rhs.child(1)
+                                switch elem_arg2.node_type {
+                                case NodeType.Literal(Literal.Str(elem_type2)):
+                                    tn = "Vec__".concat(elem_type2)
+                                case:
+                                }
+                            } else {
+                                ref fdef_expr : Expr = ctx.scope.lookup_func(rhsn.name)
+                                if fdef_expr.is_null().not() {
+                                    switch fdef_expr.node_type {
+                                    case NodeType.FuncDef(fd): tn = fd.return_type.clone()
+                                    case:
+                                    }
+                                }
+                            }
+                        case NodeType.FieldAccess(fa):
+                            if rhs.child(0).children.len().gt(0) {
+                                owner := resolve_value_type(ctx, rhs.child(0).child(0), stmt)
+                                if owner.len().gt(0) {
+                                    ref sdef : Expr = ctx.scope.get_struct(owner)
+                                    if sdef.is_null().not() {
+                                        ref mdef : Expr = find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
+                                        if mdef.is_null().not() {
+                                            switch mdef.node_type {
+                                            case NodeType.FuncDef(fd): tn = fd.return_type.clone()
+                                            case:
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        case:
+                        }
+                    }
+                case NodeType.Literal(Literal.Str): tn = "Str"
+                case NodeType.Literal(Literal.Num): tn = "I64"
+                case:
+                }
+            }
+            if tn.len().gt(0) { ctx.lowering_param_types.set(dd.name, own tn) }
+        case:
+        }
+        i = i.add(1)
+    }
 }
 
 priv collect_throw_ident_names := proc(e: Expr, mut names: Set) {
@@ -6069,7 +6137,7 @@ priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) re
     return false
 }
 
-priv has_prior_throw_type_in_vec := proc(stmts: Vec, root_body: Expr, upto: USize, type_name: Str) returns Bool {
+priv has_prior_throw_type_in_vec := proc(stmts: Vec(Expr), root_body: Expr, upto: USize, type_name: Str) returns Bool {
     if stmts.len().eq(0).or(upto.eq(0)) { return false }
     mut limit := upto
     if limit.gt(stmts.len()) { limit = stmts.len() }
@@ -6242,7 +6310,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
     }
 }
 
-priv collect_throw_types_in := proc(e: Expr, mut out: Vec) {
+priv collect_throw_types_in := proc(e: Expr, mut out: Vec(Str)) {
     if e.node_type.is(NodeType.Throw) {
         tn := til_type_name(e.expr_til_type())
         if tn.len().gt(0) {
@@ -6316,7 +6384,7 @@ priv make_default_value_expr := func(type_name: Str, line: U32, col: U32) return
     return call
 }
 
-priv tag_for_type := func(ctx: Context, type_name: Str, _type_to_tag_names: Vec) returns I64 {
+priv tag_for_type := func(ctx: Context, type_name: Str, _type_to_tag_names: Vec(Str)) returns I64 {
     // Issue #198: read from ctx.throw_type_registry so the tag for a
     // given type is the same in every function (caller and callee
     // agree). The local Vec param is kept for backward shape but no
@@ -6364,7 +6432,7 @@ priv rewrite_ident := proc(mut e: Expr, old_name: Str, new_name: Str) {
     }
 }
 
-priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names: Vec) returns Expr {
+priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names: Vec(Str)) returns Expr {
     line := catch_node.line
     col := catch_node.col
     mut var_name := ""
@@ -6410,11 +6478,11 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
 // matching slots as the extra args. Idempotent: skips functions
 // whose params already contain _err_kind. Recurses into nested
 // FuncDef bodies so inner lambdas with throws also get extended.
-priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec) {
+priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec(Str)) {
     if name.len().eq(0) { return }
     if throws_list.len().eq(0) { return }
     if ctx.throws_global.has(name) { return }
-    mut tt := Vec.new(Str)
+    mut tt := Vec(Str).new()
     for t : Str in throws_list {
         tt.push(own t.clone())
     }
@@ -6713,7 +6781,7 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
                 // runs before infer_body, so init expressions like
                 // `payload_types := Map.new(I64, Str)` haven't been
                 // typed). Guess from the default-value Expr: a bare
-                // ctor FCall like `Map.new(...)` or `Vec.new(T)` lets
+                // ctor FCall like `Map.new(...)` or `Vec(T).new()` lets
                 // us read the type off the callee.
                 ref dv : Expr = fd.default_value
                 if dv.node_type.is(NodeType.FCall).and(dv.children.len().gt(0)) {
@@ -6819,6 +6887,34 @@ priv registry_exact_key := func(ctx: Context, key: Str) returns Str {
     return ""
 }
 
+priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, method: Str) returns Str {
+    key := owner.concat(".").concat(method)
+    if ctx.throws_global.has(key) { return key }
+    ref sdef : Expr = ctx.scope.get_struct(owner)
+    if sdef.is_null() { return "" }
+    ref mdef : Expr = find_namespace_func(sdef, method, ctx.scope)
+    if mdef.is_null() { return "" }
+    switch mdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.throw_types.len().gt(0) {
+            register_func_throws(ctx, key, fd.throw_types)
+            return key
+        }
+        mut derived := Vec(Str).new()
+        for p : Declaration in fd.params {
+            if p.name.starts_with("_err_").and(p.name.eq("_err_kind").not()) {
+                if p.explicit_type.len().gt(0) { derived.push(own p.explicit_type.clone()) }
+            }
+        }
+        if derived.len().gt(0) {
+            register_func_throws(ctx, key, derived)
+            return key
+        }
+    case:
+    }
+    return ""
+}
+
 // Fallback for an unresolvable receiver: match a registry entry whose
 // key is bare `method` or any `Type.method`. Conservative (treats the
 // call as throwing), preserving the pre-qualification behavior for
@@ -6847,7 +6943,19 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
         method := fname.field_access_name()
         owner := callee_owning_type(ctx, fcall, body)
         if owner.len().gt(0) {
-            return registry_exact_key(ctx, owner.concat(".").concat(method))
+            exact_key := registry_exact_key(ctx, owner.concat(".").concat(method))
+            if exact_key.len().gt(0) { return exact_key }
+            scoped_key := register_method_throws_from_scope(ctx, owner, method)
+            if scoped_key.len().gt(0) { return scoped_key }
+            marker := owner.find("__")
+            if marker.gt(0) {
+                base_owner := owner.substr(0, marker.to_usize())
+                base_key := registry_exact_key(ctx, base_owner.concat(".").concat(method))
+                if base_key.len().gt(0) { return base_key }
+                base_scoped_key := register_method_throws_from_scope(ctx, base_owner, method)
+                if base_scoped_key.len().gt(0) { return base_scoped_key }
+            }
+            return ""
         }
         // Unresolvable receiver: only treat as throwing if SOME type's
         // method by this name throws AND the user marked the call with
@@ -6868,7 +6976,7 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
 
 // Matches rstil: a single catch consumes EVERY pending entry of
 // that type, not just one. Returns true if at least one was found.
-priv pending_remove_all_matching := func(mut pending: Vec, type_name: Str) returns Bool {
+priv pending_remove_all_matching := func(mut pending: Vec(Str), type_name: Str) returns Bool {
     mut found := false
     // Rebuild pending in place, dropping matches.
     mut write : USize = 0
@@ -6887,7 +6995,7 @@ priv pending_remove_all_matching := func(mut pending: Vec, type_name: Str) retur
     return found
 }
 
-priv vec_str_contains := func(v: Vec, name: Str) returns Bool {
+priv vec_str_contains := func(v: Vec(Str), name: Str) returns Bool {
     for i in 0..v.len() {
         ref n : Str = v[i]
         if n.eq(name) { return true }
@@ -6895,7 +7003,7 @@ priv vec_str_contains := func(v: Vec, name: Str) returns Bool {
     return false
 }
 
-priv vec_str_push_uniq := func(mut v: Vec, name: Str) {
+priv vec_str_push_uniq := func(mut v: Vec(Str), name: Str) {
     if vec_str_contains(v, name) { return }
     v.push(own name.clone())
 }
@@ -6919,9 +7027,9 @@ priv validate_one_fcall_consolidated := proc(
     ctx: Context,
     mut e: Expr,
     body: Expr,
-    mut pending: Vec,
-    mut seen: Vec,
-    mut types_to_declare: Vec,
+    mut pending: Vec(Str),
+    mut seen: Vec(Str),
+    mut types_to_declare: Vec(Str),
     path: Str
 ) {
     if e.node_type.is(NodeType.FCall).not() { return }
@@ -6952,7 +7060,7 @@ priv validate_one_fcall_consolidated := proc(
             case:
             }
         } else {
-            ref tts : Vec = ctx.throws_global[key]
+            ref tts : Vec(Str) = ctx.throws_global[key]
             for tn : Str in tts {
                 pending.push(own tn.clone())
                 vec_str_push_uniq(seen, tn)
@@ -6961,7 +7069,7 @@ priv validate_one_fcall_consolidated := proc(
         }
     } else {
         if callee_is_throwing {
-            ref tts2 : Vec = ctx.throws_global[key]
+            ref tts2 : Vec(Str) = ctx.throws_global[key]
             mut tlist := ""
             for jj in 0..tts2.len() {
                 ref tn2 : Str = tts2[jj]
@@ -6997,7 +7105,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr
     if e.children.len().eq(0) { return }
     key := find_callee_throws_key(ctx, e, body)
     if key.len().eq(0) { return }
-    ref tts : Vec = ctx.throws_global[key]
+    ref tts : Vec(Str) = ctx.throws_global[key]
     mut kind_id := Expr.new(ident_node("_err_kind"), e.line, e.col)
     kind_id.set_expr_til_type(Type.Primitive(Primitive.I64))
     e.add_child(own kind_id)
@@ -7020,9 +7128,9 @@ priv validate_and_inject_expr_consolidated := proc(
     ctx: Context,
     mut e: Expr,
     body: Expr,
-    mut pending: Vec,
-    mut seen: Vec,
-    mut types_to_declare: Vec,
+    mut pending: Vec(Str),
+    mut seen: Vec(Str),
+    mut types_to_declare: Vec(Str),
     path: Str
 ) {
     if e.node_type.is(NodeType.FuncDef)
@@ -7042,7 +7150,7 @@ priv validate_and_inject_expr_consolidated := proc(
 // lowering pass to convert. Emits:
 //   if I64.eq(_err_kind, <tag>) { _err_kind = 0; panic("<loc>", "<T>") }
 priv build_bang_lowered := func(ctx: Context, error_type: Str, line: U32, col: U32) returns Expr {
-    tag := tag_for_type(ctx, error_type, Vec.new(Str))
+    tag := tag_for_type(ctx, error_type, Vec(Str).new())
     loc_str := format(ctx.path, ":", line.to_str(), ":", col.to_str())
     mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
@@ -7073,9 +7181,9 @@ priv hoist_walk_consolidated := proc(
     mut parent: Expr,
     child_idx: USize,
     body: Expr,
-    mut pre_stmts: Vec,
-    mut types_to_declare: Vec,
-    mut seen: Vec
+    mut pre_stmts: Vec(Expr),
+    mut types_to_declare: Vec(Str),
+    mut seen: Vec(Str)
 ) {
     ref mut child : Expr = parent.child(child_idx)
     if child.node_type.is(NodeType.FuncDef)
@@ -7108,7 +7216,7 @@ priv hoist_walk_consolidated := proc(
     mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
-    ref tts : Vec = ctx.throws_global[found_key]
+    ref tts : Vec(Str) = ctx.throws_global[found_key]
     for tn : Str in tts {
         vec_str_push_uniq(types_to_declare, tn)
         vec_str_push_uniq(seen, tn)
@@ -7125,9 +7233,9 @@ priv hoist_nested_bangs_consolidated := proc(
     mut ctx: Context,
     mut stmt: Expr,
     body: Expr,
-    mut pre_stmts: Vec,
-    mut types_to_declare: Vec,
-    mut seen: Vec
+    mut pre_stmts: Vec(Expr),
+    mut types_to_declare: Vec(Str),
+    mut seen: Vec(Str)
 ) {
     cname := find_bang_callee_name(stmt)
     if cname.len().eq(0) {
@@ -7170,10 +7278,10 @@ priv process_throw_catch_in_body := proc(
     mut ctx: Context,
     mut body: Expr,
     root_body: Expr,
-    fdef_throws: Vec,
-    mut pending: Vec,
-    mut seen: Vec,
-    mut types_to_declare: Vec,
+    fdef_throws: Vec(Str),
+    mut pending: Vec(Str),
+    mut seen: Vec(Str),
+    mut types_to_declare: Vec(Str),
     path: Str,
     return_type: Str,
     return_own_type: OwnType
@@ -7181,16 +7289,17 @@ priv process_throw_catch_in_body := proc(
     if body.node_type.is(NodeType.Body).not() { return }
     if body.children.len().eq(0) { return }
 
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(body.children)
-    mut old_snapshot : Vec = old.clone()
-    mut new_ch := Vec.new(Expr)
+    mut old_snapshot : Vec(Expr) = old.clone()
+    mut new_ch := Vec(Expr).new()
     mut seen_throwing := false
 
     for j in 0..old.len() {
         ref mut stmt : Expr = old[j]
         stmt_line := stmt.line
         stmt_col := stmt.col
+        seed_prior_local_types(ctx, old_snapshot, j)
 
         // Skip nested Decls whose RHS is a FuncDef/StructDef/EnumDef.
         // Those bodies get processed when the typer visits them.
@@ -7216,7 +7325,7 @@ priv process_throw_catch_in_body := proc(
         had_throw_subtree := subtree_has_pending_throw(stmt)
 
         // 1. Hoist nested bangs in stmt's expression tree.
-        mut pre_stmts := Vec.new(Expr)
+        mut pre_stmts := Vec(Expr).new()
         hoist_nested_bangs_consolidated(ctx, stmt, root_body, pre_stmts, types_to_declare, seen)
         npre := pre_stmts.len()
         for pi in 0..npre {
@@ -7267,11 +7376,11 @@ priv process_throw_catch_in_body := proc(
         // place for step 4 to surface "function does not throw" via
         // validate_one_fcall_consolidated.
         ref bang_fc : Expr = find_bang_fcall(stmt)
-        mut root_bang_throws := Vec.new(Str)
+        mut root_bang_throws := Vec(Str).new()
         if bang_fc.is_null().not() {
             found_key_root := find_callee_throws_key(ctx, bang_fc, root_body)
             if found_key_root.len().gt(0) {
-                ref tts_root : Vec = ctx.throws_global[found_key_root]
+                ref tts_root : Vec(Str) = ctx.throws_global[found_key_root]
                 for tn : Str in tts_root {
                     root_bang_throws.push(own tn.clone())
                     vec_str_push_uniq(types_to_declare, tn)
@@ -7405,7 +7514,7 @@ priv process_throw_catch_in_body := proc(
                     }
                     if tn.len().gt(0) {
                         register_throw_type(ctx, tn)
-                        tag_direct := tag_for_type(ctx, tn, Vec.new(Str))
+                        tag_direct := tag_for_type(ctx, tn, Vec(Str).new())
                         if tag_direct.gt(0) {
                             new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0), stmt_line, stmt_col))
                             new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag_direct, stmt_line, stmt_col), stmt_line, stmt_col))
@@ -7475,7 +7584,7 @@ priv process_throw_catch_in_body := proc(
                     }
                 }
                 if tn.len().gt(0) { register_throw_type(ctx, tn) }
-                tag := tag_for_type(ctx, tn, Vec.new(Str))
+                tag := tag_for_type(ctx, tn, Vec(Str).new())
                 if tn.len().gt(0).and(tag.gt(0)) {
                     new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.child(0), stmt_line, stmt_col))
                     new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag, stmt_line, stmt_col), stmt_line, stmt_col))
@@ -7510,7 +7619,7 @@ priv process_throw_catch_in_body := proc(
                     }
                     vec_str_push_uniq(types_to_declare, ctype)
                 }
-                new_ch.push(own lower_catch_node(ctx, stmt, Vec.new(Str)))
+                new_ch.push(own lower_catch_node(ctx, stmt, Vec(Str).new()))
                 seen_throwing = false
                 continue
             } else {
@@ -7584,9 +7693,6 @@ priv process_throw_catch_in_body := proc(
     }
 
     body.children.move_from(new_ch)
-    Vec.delete(own new_ch, true)
-    Vec.delete(own old, true)
-    Vec.delete(own old_snapshot, true)
 }
 
 // Function-body wrapper for the single-walk consolidated processing.
@@ -7596,7 +7702,7 @@ priv process_throw_catch_in_body := proc(
 priv process_throw_catch_in_func_body := proc(
     mut ctx: Context,
     mut body: Expr,
-    fdef_throws: Vec,
+    fdef_throws: Vec(Str),
     return_type: Str,
     return_own_type: OwnType
 ) {
@@ -7614,9 +7720,9 @@ priv process_throw_catch_in_func_body := proc(
         annotate_throw_ident_expr_types(body, body)
     }
 
-    mut pending := Vec.new(Str)
-    mut seen := Vec.new(Str)
-    mut types_to_declare := Vec.new(Str)
+    mut pending := Vec(Str).new()
+    mut seen := Vec(Str).new()
+    mut types_to_declare := Vec(Str).new()
     ctx.throw_used_local_names = Set.new(Str)
     collect_throw_ident_names(body, ctx.throw_used_local_names)
     // Seed with declared throws so the slots exist as params even
@@ -7650,9 +7756,9 @@ priv process_throw_catch_in_func_body := proc(
     // Prepend slot decls and append fallback return.
     line := body.line
     col := body.col
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(body.children)
-    mut new_ch := Vec.new(Expr)
+    mut new_ch := Vec(Expr).new()
 
     if has_fdef_throws.not() {
         new_ch.push(own make_typed_mut_decl("_err_kind", "I64",
@@ -7687,8 +7793,6 @@ priv process_throw_catch_in_func_body := proc(
         new_ch.push(own ret)
     }
     body.children.move_from(new_ch)
-    Vec.delete(own new_ch, true)
-    Vec.delete(own old, true)
 }
 
 is_compile_directive := func(e: Expr) returns Bool {
@@ -7706,7 +7810,7 @@ is_compile_directive := func(e: Expr) returns Bool {
 // Issue #54 capture-block helpers. -------------------------------------
 
 // Is `name` listed in the block's capture list?
-priv capture_listed := func(captures: Vec, name: Str) returns Bool {
+priv capture_listed := func(captures: Vec(Declaration), name: Str) returns Bool {
     for cap : Declaration in captures {
         if cap.name.eq(name) { return true }
     }
@@ -7714,7 +7818,7 @@ priv capture_listed := func(captures: Vec, name: Str) returns Bool {
 }
 
 // Was `name` captured with the `mut` modifier?
-priv capture_is_mut := func(captures: Vec, name: Str) returns Bool {
+priv capture_is_mut := func(captures: Vec(Declaration), name: Str) returns Bool {
     for cap : Declaration in captures {
         if cap.name.eq(name) { return cap.is_mut }
     }
@@ -7734,7 +7838,7 @@ priv scope_root_ref := func(s: TypeScope) returns ref TypeScope {
 // assignment target, which additionally requires a `mut` capture.
 priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
-        captures: Vec, ctx: Context) {
+        captures: Vec(Declaration), ctx: Context) {
     if block_scope.bindings.has(name) { return }   // block-local (or shadow)
     if capture_listed(captures, name) {
         if is_write.eq(1).and(capture_is_mut(captures, name).not()) {
@@ -7756,7 +7860,7 @@ priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
 // stop at them.
 priv capture_block_check_refs := proc(e: Expr,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
-        captures: Vec, ctx: Context) {
+        captures: Vec(Declaration), ctx: Context) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.CaptureBlock: return
@@ -7776,7 +7880,7 @@ priv capture_block_check_refs := proc(e: Expr,
 // captured name must exist; mark it used (so listing it counts as a use)
 // and check the `mut` modifier against the source binding's mutability.
 // Shared by capture blocks and capturing functions.
-priv validate_captures := proc(scope: TypeScope, mut captures: Vec, errnode: Expr, ctx: Context) {
+priv validate_captures := proc(scope: TypeScope, mut captures: Vec(Declaration), errnode: Expr, ctx: Context) {
     for ci in 0..captures.len() {
         ref mut cap : Declaration = captures[ci]
         ref mut b : TypeBinding = scope.get_binding(cap.name)
@@ -7803,7 +7907,7 @@ priv validate_captures := proc(scope: TypeScope, mut captures: Vec, errnode: Exp
 // restriction pass enforces that only captured outer locals are touched.
 priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
         in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
-    mut captures := Vec.new(Declaration)
+    mut captures := Vec(Declaration).new()
     switch stmt.node_type {
     case NodeType.CaptureBlock(cbd):
         captures = cbd.captures.clone()
@@ -8086,7 +8190,7 @@ priv typer_is_lambda_target := func(e: Expr) returns Bool {
     return true
 }
 
-priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Vec, mut counter: I64) returns I64 {
+priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
     if dd.default_value.is_null() { return counter }
     if typer_is_lambda_target(dd.default_value) {
         counter = typer_lift_lambdas_in_expr(dd.default_value, top_level, counter)
@@ -8104,7 +8208,7 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
     return counter
 }
 
-priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec, mut counter: I64) returns I64 {
+priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
     if e.is_null() { return counter }
     // Issue #57: don't descend into template macro bodies -- a func literal
     // inside `macro(T: Type) returns FuncDef { return func(x: T) ... }` is
@@ -8210,7 +8314,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
 priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
     if prog.is_null() { return }
     if prog.node_type.is(NodeType.Body).not() { return }
-    mut top_level := Vec.new(Expr)
+    mut top_level := Vec(Expr).new()
     mut ctr : I64 = 0
     ctr = typer_lift_lambdas_in_expr(prog, top_level, ctr)
     for l : Expr in top_level {
@@ -8828,7 +8932,7 @@ priv usize_type := func(scope: TypeScope, ctx: Context) returns Type {
 priv type_has_cmp := func(scope: TypeScope, type_name: Str) returns Bool {
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
-    ref cmp_ns : Vec = def_ns_decls(sdef)
+    ref cmp_ns : Vec(Declaration) = def_ns_decls(sdef)
     for decl : Declaration in cmp_ns {
         if decl.name.eq("cmp") { return true }
     }
@@ -8838,7 +8942,7 @@ priv type_has_cmp := func(scope: TypeScope, type_name: Str) returns Bool {
 priv type_has_to_str := func(scope: TypeScope, type_name: Str) returns Bool {
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
-    ref ts_ns : Vec = def_ns_decls(sdef)
+    ref ts_ns : Vec(Declaration) = def_ns_decls(sdef)
     for decl : Declaration in ts_ns {
         if decl.name.eq("to_str") { return true }
     }
@@ -9381,11 +9485,9 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     return set_call
 }
 
-priv build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, ctx: Context) returns Expr {
-    mut new_call := make_ns_call("Vec", "new", Type.Struct("Vec"), fcall)
-
-    mut et := fcall.make_til_type_expr(type_from_name(elem_type, scope, ctx))
-    new_call.add_child(own et)
+priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) returns Expr {
+    vec_type := "Vec__".concat(elem_type)
+    mut new_call := make_ns_call(vec_type, "new", Type.Struct(vec_type.clone()), fcall)
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
     switch vec_decl.node_type {
@@ -9396,16 +9498,17 @@ priv build_builtin_vec_decl := func(fcall: Expr, scope: TypeScope, elem_type: St
     case:
         UNREACHABLE(__LOC__)
     }
-    vec_decl.set_expr_til_type(Type.Struct("Vec"))
+    vec_decl.set_expr_til_type(Type.Struct(vec_type))
     vec_decl.add_child(own new_call)
     return vec_decl
 }
 
-priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str, j: U32) returns Expr {
-    mut push_call := make_ns_call("Vec", "push", Type.None, fcall)
+priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: U32, ctx: Context) returns Expr {
+    vec_type := "Vec__".concat(elem_type)
+    mut push_call := make_ns_call(vec_type, "push", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(vec_name), fcall.line, fcall.col)
-    self_id.set_expr_til_type(Type.Struct("Vec"))
+    self_id.set_expr_til_type(Type.Struct(vec_type))
     push_call.add_child(own self_id)
 
     ref val_in : Expr = fcall.child(j.add(2))
@@ -9417,6 +9520,14 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str
             val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
         }
     }
+    elem_t := type_from_name(elem_type, scope, ctx)
+    switch val.node_type {
+    case NodeType.Literal(Literal.Num(lit_str)):
+        if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
+            val.set_expr_til_type(elem_t)
+        }
+    case:
+    }
     push_call.add_child(own val)
 
     sync_own_args_from_callee(push_call, scope)
@@ -9424,15 +9535,14 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, vec_name: Str
 }
 
 priv rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_type: Type) {
-    mut old_args := Vec.new(Expr)
+    mut old_args := Vec(Expr).new()
     old_args.move_from(fcall.children)
-    fcall.children = Vec.new(Expr)
-    Vec.delete(own old_args, true)
+    fcall.children = Vec(Expr).new()
     fcall.node_type = ident_node(coll_name)
     fcall.set_expr_til_type(coll_type)
 }
 
-priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec, mut scope: TypeScope) returns Bool {
+priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall:
         if fcall.children.len().lt(2) { return false }
@@ -9448,14 +9558,15 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
                 if cn_str.eq("vec") {
                     vec_name := "_vec_".concat(ctx.coll_counter.to_str())
                     ctx.coll_counter++
-                    mut vec_decl := fcall.build_builtin_vec_decl(scope, elem_type, vec_name, ctx)
-                    scope.set(vec_name, Type.Struct("Vec"), true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
+                    mut vec_decl := fcall.build_builtin_vec_decl(elem_type, vec_name)
+                    vec_type := "Vec__".concat(elem_type)
+                    scope.set(vec_name, Type.Struct(vec_type.clone()), true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                     new_ch.push(own vec_decl)
                     for j in 0..count {
-                        mut push_call := fcall.build_builtin_vec_push(scope, vec_name, j)
+                        mut push_call := fcall.build_builtin_vec_push(scope, elem_type, vec_name, j, ctx)
                         new_ch.push(own push_call)
                     }
-                    rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct("Vec"))
+                    rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct(vec_type))
                     return true
                 }
                 arr_name := "_array_".concat(ctx.coll_counter.to_str())
@@ -9482,7 +9593,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
     }
 }
 
-priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns Bool {
+priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { return false }
     ref rhs : Expr = stmt.child(0)
     if rhs.node_type.is(NodeType.FCall).not() { return false }
@@ -9505,17 +9616,18 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: Type
             switch child1.node_type {
             case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = rhs.children.len().sub(2)
-                mut vec_decl := rhs.build_builtin_vec_decl(scope, elem_type, var_name, ctx)
-                vec_decl.set_expr_til_type(Type.Struct("Vec"))
+                mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
+                vec_type := "Vec__".concat(elem_type)
+                vec_decl.set_expr_til_type(Type.Struct(vec_type.clone()))
                 switch vec_decl.node_type {
                 case NodeType.Decl(dd):
                     dd.is_mut = true
                 case:
                 }
-                scope.set(var_name, Type.Struct("Vec"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+                scope.set(var_name, Type.Struct(vec_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own vec_decl)
                 for j in 0..count {
-                    mut push_call := rhs.build_builtin_vec_push(scope, var_name, j)
+                    mut push_call := rhs.build_builtin_vec_push(scope, elem_type, var_name, j, ctx)
                     new_ch.push(own push_call)
                 }
                 return true
@@ -9550,7 +9662,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: Type
 
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
-priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns Bool {
+priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
     ref set_lit : Expr = stmt.child(0)
     mut var_name := ""
     switch stmt.node_type {
@@ -9619,7 +9731,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: Ty
 
 // Returns true if the call constructed replacement stmts and pushed them
 // to new_ch; false if the original stmt should be kept (caller pushes it).
-priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, ctx: Context) returns Bool {
+priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
     ref map_lit : Expr = stmt.child(0)
     mut var_name := ""
     switch stmt.node_type {
@@ -9734,7 +9846,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: Ty
 // EnumDef / Body) so a body-level walk doesn't dive into a nested
 // function definition or nested block, which the outer body_pre_passes
 // pass will reach separately.
-priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec, mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool) {
+priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
@@ -9869,10 +9981,10 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
         return false
     }
 
-    mut old := Vec.new(Expr)
+    mut old := Vec(Expr).new()
     old.move_from(body.children)
 
-    mut new_ch := Vec.new(Expr)
+    mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
 
@@ -9880,7 +9992,7 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
         // emitted stmt can itself contain variadic/kwargs fcalls or
         // need hoisting, so we route every emitted stmt through the
         // per-stmt pipeline below.
-        mut temp_ch := Vec.new(Expr)
+        mut temp_ch := Vec(Expr).new()
         mut stmt_handled := false
         if has_desugar {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
@@ -9911,7 +10023,6 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
             apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete)
             new_ch.push_take(old, i)
         }
-        Vec.delete(own temp_ch, true)
     }
     body.children.move_from(new_ch)
     // Free the two scratch buffers (like temp_ch above). move_from zeroed
@@ -9919,15 +10030,13 @@ priv body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeSc
     // push_take, so the only elements Vec.delete drops are old's
     // desugar-replaced husks -- dead AST whose contents already moved into
     // the emitted stmts. call_free is false: the Vec values are locals.
-    Vec.delete(own new_ch, true)
-    Vec.delete(own old, true)
     return true
 }
 
 // Apply per-stmt hoist (the body_pre_passes equivalent of the old
 // hoist_fcall_args dispatch). Prepends any new temp Decls to new_ch.
-priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) {
-    mut hoisted := Vec.new(Expr)
+priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) {
+    mut hoisted := Vec(Expr).new()
     switch stmt.node_type {
     case NodeType.Decl:
         hoist_decl_rhs(ctx, stmt, hoisted, scope)
@@ -9958,17 +10067,16 @@ priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: V
 // must be hoisted into a temp Decl so the builder takes its address).
 // To match the original two-pass flow, every desugar-emitted stmt is
 // routed through hoist before being pushed.
-priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec, mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool) {
+priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool) {
     if is_compile_directive(stmt) { return }
     if has_array_vec.or(has_variadic).or(has_kwargs) {
-        mut emitted := Vec.new(Expr)
+        mut emitted := Vec(Expr).new()
         process_call_desugars(ctx, stmt, emitted, scope, has_array_vec, has_variadic, has_kwargs)
         for j in 0..emitted.len() {
             ref es : Expr = emitted[j]
             if do_hoist { apply_hoist_to_stmt(ctx, es, new_ch, scope) }
             new_ch.push_take(emitted, j)
         }
-        Vec.delete(own emitted, true)
     }
     if do_hoist {
         apply_hoist_to_stmt(ctx, stmt, new_ch, scope)
@@ -9987,7 +10095,7 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
     }
 }
 
-priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     mut stmt_name := ""
     switch stmt.node_type {
     case NodeType.Assign(adata):
@@ -10056,7 +10164,7 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope)
     ref sdef : Expr = scope.get_struct(tn)
     if sdef.is_null() { return false }
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-    ref vc_ns : Vec = def_ns_decls(sdef)
+    ref vc_ns : Vec(Declaration) = def_ns_decls(sdef)
     for fd : Declaration in vc_ns {
         if fd.name.eq(method).not() { continue }
         if fd.default_value.is_null() { return false }
@@ -10100,7 +10208,7 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     ref sdef : Expr = scope.get_struct(tn)
     if sdef.is_null() { return false }
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-    ref vc_ns : Vec = def_ns_decls(sdef)
+    ref vc_ns : Vec(Declaration) = def_ns_decls(sdef)
     for fd : Declaration in vc_ns {
         if fd.name.eq(variant).not() { continue }
         if fd.default_value.is_null() { return false }
@@ -10113,7 +10221,7 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     return false
 }
 
-priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     if expr.node_type.is(NodeType.FuncDef) { return }
     if expr.node_type.is(NodeType.StructDef) { return }
     if expr.node_type.is(NodeType.EnumDef) { return }
@@ -10237,11 +10345,11 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec, mut 
     }
 }
 
-priv hoist_decl_rhs := proc(mut ctx: Context, stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_decl_rhs := proc(mut ctx: Context, stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
 }
 
-priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     ref cond : Expr = stmt.child(0)
     if cond.node_type.is(NodeType.FCall) {
@@ -10249,7 +10357,7 @@ priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, m
     }
 }
 
-priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     if stmt.children.len().eq(0) { return }
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     ref rhs : Expr = stmt.child(0)
@@ -10260,7 +10368,7 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     }
 }
 
-priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     hoist_expr(ctx, stmt.child(0), hoisted, scope)
     mut do_hoist := true
     mut a_name := ""
@@ -10289,7 +10397,7 @@ priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
     }
 }
 
-priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     hoist_expr(ctx, stmt.child(1), hoisted, scope)
     mut fa_hoist := true
     if stmt.fa_own_type(scope).is(OwnType.Shallow) {
@@ -10332,7 +10440,7 @@ priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoiste
     }
 }
 
-priv hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+priv hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope) {
     hoist_expr(ctx, stmt, hoisted, scope)
     // Stmt-level FCalls whose result is None or non-Own don't need the
     // hoist-into-temp dance: nothing on the heap to clean up, so the
@@ -10351,9 +10459,9 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         old_own := fcall_data.own_args
         line := fcall.line
         col := fcall.col
-        mut old_args := Vec.new(Expr)
+        mut old_args := Vec(Expr).new()
         old_args.move_from(fcall.children)
-        mut fcall_new_ch := Vec.new(Expr)
+        mut fcall_new_ch := Vec(Expr).new()
         mut va_inserted := false
         mut new_own : U64 = 0
         for j in 0..old_args.len() {
@@ -10441,7 +10549,7 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec = def_ns_decls(sdef)
+                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
                     for nd : Declaration in ns {
                         if nd.name.eq(method_name.field_access_name()).not() { continue }
                         if nd.default_value.is_null() { break }
@@ -10491,7 +10599,7 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec = def_ns_decls(sdef)
+                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
                     for nd : Declaration in ns {
                         if nd.name.eq(method_name.field_access_name()).not() { continue }
                         if nd.default_value.is_null() { break }
@@ -10545,7 +10653,7 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec = def_ns_decls(sdef)
+                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
                     for nd : Declaration in ns {
                         if nd.name.eq(method_name.field_access_name()).not() { continue }
                         if nd.default_value.is_null() { break }
@@ -10603,7 +10711,7 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec = def_ns_decls(sdef)
+                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
                     for nd : Declaration in ns {
                         if nd.name.eq(method_name.field_access_name()).not() { continue }
                         if nd.default_value.is_null() { break }
@@ -10664,7 +10772,7 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec = def_ns_decls(sdef)
+                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
                     for nd : Declaration in ns {
                         if nd.name.eq(method_name.field_access_name()).not() { continue }
                         if nd.default_value.is_null() { break }
@@ -10696,7 +10804,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
         if vc.eq(1).not() { return false }
         if fcd.is_splat.not() { return false }
 
-        mut old_args := Vec.new(Expr)
+        mut old_args := Vec(Expr).new()
         old_args.move_from(fcall.children)
 
         ref splat_in : Expr = old_args[vi.to_usize()]
@@ -10705,7 +10813,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
         if splat_in.node_type.is(NodeType.Ident) {
             splat = make_clone_call(array_type, Type.Struct(array_type.clone()), splat_in, splat_in)
         }
-        mut fcall_new_ch := Vec.new(Expr)
+        mut fcall_new_ch := Vec(Expr).new()
         for j in 0..old_args.len() {
             ji := j.cast(I32)
             if ji.eq(vi) {
@@ -10728,9 +10836,9 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
     case NodeType.FCall(fcd):
         kc := fcall_kwargs_count(fcall)
         old_own := fcd.own_args
-        mut old_args := Vec.new(Expr)
+        mut old_args := Vec(Expr).new()
         old_args.move_from(fcall.children)
-        mut fcall_new_ch := Vec.new(Expr)
+        mut fcall_new_ch := Vec(Expr).new()
         mut kw_inserted := false
         mut new_own : U64 = 0
 
@@ -10859,7 +10967,7 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
             case NodeType.Ident(tn):
                 ref sdef : Expr = scope.get_struct(tn.ident_name())
                 if sdef.is_null() { return false }
-                ref oa_ns : Vec = def_ns_decls(sdef)
+                ref oa_ns : Vec(Declaration) = def_ns_decls(sdef)
                 for fd : Declaration in oa_ns {
                     if fd.name.eq(method.field_access_name()) {
                         if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
@@ -11021,7 +11129,7 @@ priv fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
             case NodeType.Ident(cti):
                 ref sdef : Expr = scope.get_struct(cti.ident_name())
                 if sdef.is_null() { return 0 }
-                ref cfa_ns : Vec = def_ns_decls(sdef)
+                ref cfa_ns : Vec(Declaration) = def_ns_decls(sdef)
                 for fd : Declaration in cfa_ns {
                     if fd.name.eq(cfa.field_access_name()) {
                         if fd.default_value.is_null().not() {
@@ -11070,7 +11178,7 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns I32 {
             case NodeType.Ident(cti):
                 ref sdef : Expr = scope.get_struct(cti.ident_name())
                 if sdef.is_null() { return 0 }
-                ref cfa_ns : Vec = def_ns_decls(sdef)
+                ref cfa_ns : Vec(Declaration) = def_ns_decls(sdef)
                 for fd : Declaration in cfa_ns {
                     if fd.name.eq(cfa.field_access_name()) {
                         if fd.default_value.is_null().not() {
@@ -11090,7 +11198,7 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns I32 {
     return 0
 }
 
-priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec, mut scope: TypeScope, is_own: Bool) returns Expr {
+priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
     tp := type_prefix(val.expr_til_type())
     // Non-underscore prefix so the builder's `_x`-deliberately-unused
     // exemption doesn't free-pass these compiler temps. If a hoisted
