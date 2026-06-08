@@ -1506,9 +1506,11 @@ Expr * priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map * 
 Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map * macros, TypeScope * scope);
 Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map * macros, TypeScope * scope);
 Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef);
+Bool priv___src_self_initer_til__init_macro_inst_all_args_are_type_args(Expr * rhs, Expr * macro_fdef);
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
 void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeScope * scope, Context * ctx, Vec * synthesized);
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
 void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map * generics, Map * seen, Vec * synthesized);

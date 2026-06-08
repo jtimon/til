@@ -516,18 +516,18 @@ test_macro_enum_gen := test() {
     assert_eq_str(__LOC__, o.to_str(), "Some(99)")
 }
 
-// Issue #243 follow-up: enum-generator macros get the same Self / T
+// Issue #243 follow-up: enum-generator macros get the same template type
 // substitution into namespace methods as struct-generators. Without
 // the FuncDef dispatch in init_subst_enum_params, the method's `val: T`
-// and `self: Self` stayed as-is and the typer rejected them.
+// and `self: make_pair_enum(T)` stayed as-is and the typer rejected them.
 make_pair_enum := macro(T: Type) returns EnumDef {
     return enum {
         Empty
         One: T
     namespace:
-        unwrap_or := func(self: Self, default_v: T) returns T {
+        unwrap_or := func(self: make_pair_enum(T), default_v: T) returns T {
             switch self {
-            case Self.One(v): return v
+            case make_pair_enum(T).One(v): return v
             case: return default_v
             }
         }
@@ -549,7 +549,7 @@ make_box56 := macro(T: Type) returns StructDef {
     return struct {
         v: T = 0
     namespace:
-        twice := func(self: Self) returns T { return self.v.add(self.v) }
+        twice := func(self: make_box56(T)) returns T { return self.v.add(self.v) }
     }
 }
 BoxI64 := make_box56(I64)

@@ -12,10 +12,10 @@ mode test
 // instantiation via `T.size()`, `T.clone(...)`, `T.delete(...)`. The api
 // is fully typed: `push(own val: T)`, `get(...) returns ref T`.
 //
-// This exercises the initer macro-expansion substituting the type param
-// `T` and the self-type placeholder `Self` into namespace-method
-// signatures AND bodies -- including body-local `ref x : T` decls,
-// `Self(...)` ctor calls, and `T.method(...)` static calls.
+// This exercises the initer macro-expansion substituting the type param `T`
+// into namespace-method signatures AND bodies -- including body-local
+// `ref x : T` decls, `TemplVec(T)(...)` ctor calls, and `T.method(...)`
+// static calls.
 
 TemplVec := struct<T: Type> {
     own data : U8 = 0
@@ -23,13 +23,13 @@ TemplVec := struct<T: Type> {
     cap : USize = 0
 
 namespace:
-    new := func() returns Self {
-        return Self(data = malloc(T.size().cast(U64)), cap = 1)
+    new := func() returns TemplVec(T) {
+        return TemplVec(T)(data = malloc(T.size().cast(U64)), cap = 1)
     }
 
-    len := func(self: Self) returns USize { return self.count }
+    len := func(self: TemplVec(T)) returns USize { return self.count }
 
-    push := func(mut self: Self, own val: T) {
+    push := func(mut self: TemplVec(T), own val: T) {
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
@@ -42,7 +42,7 @@ namespace:
         self.count = self.count.add(1)
     }
 
-    get := func(self: Self, i: USize) returns ref T throws OutOfBounds {
+    get := func(self: TemplVec(T), i: USize) returns ref T throws OutOfBounds {
         if i.gte(self.count) {
             throw OutOfBounds(msg = format(__LOC__, ":TemplVec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
@@ -52,7 +52,7 @@ namespace:
 
     // Drop the existing element via T.delete, then overwrite. For POD
     // T (I64/Bool/U8) T.delete is a no-op; for Str it frees the c_str.
-    set := func(mut self: Self, i: USize, own val: T) {
+    set := func(mut self: TemplVec(T), i: USize, own val: T) {
         if i.gte(self.count) {
             panic(__LOC__, "TemplVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
@@ -61,20 +61,20 @@ namespace:
         memset(val, 0, T.size().cast(U64))
     }
 
-    clear := func(mut self: Self) {
+    clear := func(mut self: TemplVec(T)) {
         for i in 0..self.count {
             T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
         }
         self.count = 0
     }
 
-    delete := func(own self: Self, call_free: Bool = true) {
-        Self.clear(self)
+    delete := func(own self: TemplVec(T), call_free: Bool = true) {
+        self.clear()
         free(own self.data)
         if call_free { free(own self) }
     }
 
-    clone := func(self: Self) returns Self {
+    clone := func(self: TemplVec(T)) returns TemplVec(T) {
         new_data : Dynamic = malloc(self.cap.mul(T.size()).cast(U64))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
@@ -83,7 +83,7 @@ namespace:
             // ownership of cloned's heap (if any) moves into the buffer
             memset(cloned, 0, T.size().cast(U64))
         }
-        return Self(data = new_data, count = self.count, cap = self.cap)
+        return TemplVec(T)(data = new_data, count = self.count, cap = self.cap)
     }
 }
 

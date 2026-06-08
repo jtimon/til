@@ -2528,6 +2528,25 @@ priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr) re
     return false
 }
 
+priv init_macro_inst_all_args_are_type_args := func(rhs: Expr, macro_fdef: Expr) returns Bool {
+    if rhs.node_type.is(NodeType.FCall).not() { return false }
+    if macro_fdef.node_type.is(NodeType.FuncDef).not() { return false }
+    switch macro_fdef.node_type {
+    case NodeType.FuncDef(mfd):
+        if mfd.params.len().eq(0) { return false }
+        if rhs.children.len().neq(mfd.params.len().add(1)) { return false }
+        for i in 0..mfd.params.len() {
+            ref p : Declaration = mfd.params[i]
+            if p.explicit_type.eq("Type").not() { return false }
+            ref arg : Expr = rhs.child(i.add(1))
+            if arg.node_type.is(NodeType.Ident).not() { return false }
+        }
+        return true
+    case:
+    }
+    return false
+}
+
 // Deterministic, dedup-friendly name for a monomorphization: `MACRO__Arg1_Arg2`
 // (the same macro + same type-args always yields the same name, so inline uses
 // share one generated type).
@@ -2556,6 +2575,32 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
 // Replacing through `children.replace` frees the old call subtree.
 priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Context, mut synthesized: Vec) {
     if e.is_null() { return }
+    switch e.node_type {
+    case NodeType.StructDef(sdd):
+        for mut fd : Declaration in sdd.fields {
+            if fd.default_value.is_null().not() {
+                init_hoist_walk(fd.default_value, macros, scope, ctx, synthesized)
+            }
+        }
+        for mut nd : Declaration in sdd.ns_decls {
+            if nd.default_value.is_null().not() {
+                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized)
+            }
+        }
+    case NodeType.EnumDef(edd):
+        for mut nd : Declaration in edd.ns_decls {
+            if nd.default_value.is_null().not() {
+                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized)
+            }
+        }
+    case NodeType.FuncDef(fdd):
+        for mut pd : Declaration in fdd.params {
+            if pd.default_value.is_null().not() {
+                init_hoist_walk(pd.default_value, macros, scope, ctx, synthesized)
+            }
+        }
+    case:
+    }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.child(i)
         if init_is_macro_inst_call(c, macros, scope) {
@@ -2564,7 +2609,6 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Co
                 mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), c.line, c.col)
                 decl.add_child(own c.clone())
                 synthesized.push(own decl)
-                ctx.type_gen_synths.add(own genname.clone())
             }
             mut idn := Expr.new(ident_node(genname), c.line, c.col)
             e.children.set(i, own idn)
@@ -2585,8 +2629,50 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: Typ
     np := program.children.len()
     for i in 0..np {
         ref mut stmt : Expr = program.child(i)
+        if stmt.node_type.is(NodeType.Decl) {
+            if stmt.children.len().gt(0) {
+                if init_is_type_gen_macro_def(stmt.child(0)) { continue }
+            }
+        }
         if init_is_direct_macro_inst_decl(stmt, macros, scope) { continue }
         init_hoist_walk(stmt, macros, scope, ctx, synthesized)
+    }
+    for d : Expr in synthesized {
+        program.children.push(own d.clone())
+    }
+}
+
+// A direct `Alias := Template(I64)` should not expand a second type whose
+// real name is `Alias`. Normalize it to an ordinary alias of the deterministic
+// monomorphization: `Alias := Template__I64`, plus one `Template__I64 :=
+// Template(I64)` decl if this unit owns that instantiation.
+priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
+    mut synthesized := Vec.new(Expr)
+    for i in 0..program.children.len() {
+        ref mut stmt : Expr = program.child(i)
+        if init_is_direct_macro_inst_decl(stmt, macros, scope).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        genname := init_macro_inst_name(rhs)
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.name.eq(genname) { continue }
+            ref callee : Expr = rhs.child(0)
+            switch callee.node_type {
+            case NodeType.Ident(cn):
+                ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope)
+                if mf.is_null() { continue }
+                if init_macro_inst_all_args_are_type_args(rhs, mf).not() { continue }
+                if ctx.type_gen_synths.has(genname).not() {
+                    mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), stmt.line, stmt.col)
+                    decl.add_child(own rhs.clone())
+                    synthesized.push(own decl)
+                }
+                mut alias_target := Expr.new(ident_node(genname), stmt.line, stmt.col)
+                stmt.children.set(0.to_usize(), own alias_target)
+            case:
+            }
+        case:
+        }
     }
     for d : Expr in synthesized {
         program.children.push(own d.clone())
@@ -2598,8 +2684,24 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: Typ
 // across all initialized units, but leave user aliases (`Alias := Name(Arg)`)
 // alone because their LHS is intentionally not the deterministic name.
 priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
+    mut last_direct := Map.new(Str, I64)
+    for i in 0..program.children.len() {
+        ref stmt0 : Expr = program.child(i)
+        if init_is_direct_macro_inst_decl(stmt0, macros, scope).not() { continue }
+        ref rhs0 : Expr = stmt0.child(0)
+        genname0 := init_macro_inst_name(rhs0)
+        switch stmt0.node_type {
+        case NodeType.Decl(dd0):
+            if dd0.name.eq(genname0) {
+                last_direct.set(genname0, own i.to_i64())
+            }
+        case:
+        }
+    }
+
     mut kept_stmts := Vec.new(Expr)
-    for stmt : Expr in program.children {
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
         mut keep := true
         if init_is_direct_macro_inst_decl(stmt, macros, scope) {
             ref rhs : Expr = stmt.child(0)
@@ -2617,7 +2719,14 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map, sc
                         }
                     case:
                     }
-                    if drop_placeholder {
+                    mut is_last_local := true
+                    if last_direct.has(genname) {
+                        ref last_idx : I64 = last_direct[genname]
+                        if last_idx.neq(i.to_i64()) { is_last_local = false }
+                    }
+                    if is_last_local.not() {
+                        keep = false
+                    } else if drop_placeholder {
                         keep = false
                     } else if ctx.type_gen_synths.has(genname) {
                         keep = false
@@ -2852,10 +2961,9 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
         }
     }
 
-    // Issue #267: parser-synthesized type-position instantiations are already
-    // direct deterministic decls. Dedup them before value-position hoisting so
-    // both sources share ctx.type_gen_synths across units.
-    init_dedup_direct_type_gen_decls(program, macros, scope, ctx)
+    // Normalize explicit aliases (`Alias := Template(I64)`) before dedup so
+    // every instantiated template has one deterministic real type name.
+    init_normalize_direct_type_gen_aliases(program, macros, scope, ctx)
 
     // Issue #267 (caveat 2): first hoist inline instantiations (e.g.
     // `TemplVec(Bool).new()`) into synthesized top-level decls, deduped, so
@@ -2863,78 +2971,80 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
     // `Name := MACRO(args)` decls.
     init_hoist_inline_macros(program, macros, scope, ctx)
 
-    // Walk top-level decls, expand each `X := macroname(args)`.
-    for i in 0..program.children.len() {
-        ref mut stmt : Expr = program.child(i)
-        if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
-        ref rhs : Expr = stmt.child(0)
-        if rhs.node_type.is(NodeType.FCall).not() { continue }
-        if rhs.children.len().lt(1) { continue }
-        ref callee : Expr = rhs.child(0)
-        if callee.node_type.is(NodeType.Ident).not() { continue }
-        mut callee_name := ""
-        switch callee.node_type {
-        case NodeType.Ident(cn): callee_name = cn.ident_name()
-        case:
-        }
-        ref macro_fdef : Expr = init_lookup_type_gen_macro(callee_name, macros, scope)
-        if macro_fdef.is_null() { continue }
-        if macro_fdef.children.len().eq(0) { continue }
-        ref body : Expr = macro_fdef.child(0)
-        if body.node_type.is(NodeType.Body).not() { continue }
+    // Issue #267: parser-synthesized type-position instantiations are already
+    // direct deterministic decls. Dedup them after value-position hoisting:
+    // if a value use already synthesized `Name__Arg`, drop the parser's
+    // duplicate; if the type occurrence is truly type-only, keep it.
+    init_dedup_direct_type_gen_decls(program, macros, scope, ctx)
 
-        // Build param-name -> arg-expression substitution. Type-param args
-        // are Idents (e.g. `I64`) and value-param args are arbitrary
-        // expressions (literals, idents, fcalls); store the whole Expr so
-        // init_substitute_idents can replace `Ident(N)` with the cloned
-        // arg expression for value params, while
-        // init_subst_ident_name still extracts the receiving type name for
-        // explicit-type strings when the substitution is Ident-shaped.
-        mut subs := Map.new(Str, Expr)
-        switch macro_fdef.node_type {
-        case NodeType.FuncDef(mfd):
-            for j in 0..mfd.params.len() {
-                if j.add(1).gte(rhs.children.len()) { break }
-                ref param : Declaration = mfd.params[j]
-                ref arg : Expr = rhs.child(j.add(1))
-                subs.set(param.name, own arg.clone())
+    // Walk top-level decls, expanding each `X := macroname(args)`. Expansion
+    // can synthesize more deterministic decls from `Name(T)` self-references
+    // after substitution, so iterate until no direct instantiations remain.
+    mut expanded_any := true
+    while expanded_any {
+        expanded_any = false
+        for i in 0..program.children.len() {
+            ref mut stmt : Expr = program.child(i)
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len().eq(0) { continue }
+            ref rhs : Expr = stmt.child(0)
+            if rhs.node_type.is(NodeType.FCall).not() { continue }
+            if rhs.children.len().lt(1) { continue }
+            ref callee : Expr = rhs.child(0)
+            if callee.node_type.is(NodeType.Ident).not() { continue }
+            mut callee_name := ""
+            switch callee.node_type {
+            case NodeType.Ident(cn): callee_name = cn.ident_name()
+            case:
             }
-        case:
-        }
+            ref macro_fdef : Expr = init_lookup_type_gen_macro(callee_name, macros, scope)
+            if macro_fdef.is_null() { continue }
+            if macro_fdef.children.len().eq(0) { continue }
+            ref body : Expr = macro_fdef.child(0)
+            if body.node_type.is(NodeType.Body).not() { continue }
 
-        // Pick the return literal -- a direct `return <literal>` or an
-        // if-chain whose recognised condition evaluates to a definite
-        // arm under `subs` (issue #58).
-        ref ret_val : Expr = init_macro_pick_return(body, subs)
-        if ret_val.is_null() { continue }
-        ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
-            .or(ret_val.node_type.is(NodeType.EnumDef))
-            .or(ret_val.node_type.is(NodeType.FuncDef))
-        if ret_val_ok.not() { continue }
+            // Build param-name -> arg-expression substitution. Type-param args
+            // are Idents (e.g. `I64`) and value-param args are arbitrary
+            // expressions (literals, idents, fcalls); store the whole Expr so
+            // init_substitute_idents can replace `Ident(N)` with the cloned
+            // arg expression for value params, while
+            // init_subst_ident_name still extracts the receiving type name for
+            // explicit-type strings when the substitution is Ident-shaped.
+            mut subs := Map.new(Str, Expr)
+            switch macro_fdef.node_type {
+            case NodeType.FuncDef(mfd):
+                for j in 0..mfd.params.len() {
+                    if j.add(1).gte(rhs.children.len()) { break }
+                    ref param : Declaration = mfd.params[j]
+                    ref arg : Expr = rhs.child(j.add(1))
+                    subs.set(param.name, own arg.clone())
+                }
+            case:
+            }
 
-        // Issue #243: let namespace methods on a generated type name the
-        // type itself via `Self`. This remains necessary for explicit user
-        // aliases (`Alias := make_type(T)`), where the generated type is the
-        // decl LHS rather than the deterministic macro-instantiation name.
-        switch stmt.node_type {
-        case NodeType.Decl(dd_self):
-            mut self_ident := Expr.new(ident_node(dd_self.name), stmt.line, stmt.col)
-            subs.set("Self", own self_ident)
-        case:
-        }
+            // Pick the return literal -- a direct `return <literal>` or an
+            // if-chain whose recognised condition evaluates to a definite
+            // arm under `subs` (issue #58).
+            ref ret_val : Expr = init_macro_pick_return(body, subs)
+            if ret_val.is_null() { continue }
+            ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
+                .or(ret_val.node_type.is(NodeType.EnumDef))
+                .or(ret_val.node_type.is(NodeType.FuncDef))
+            if ret_val_ok.not() { continue }
 
-        // Clone the return literal, substitute, then hoist any explicit
-        // `Name(T)` self-references that became concrete value-position
-        // instantiations after substitution (`Name(I64)(...)`).
-        mut cloned := ret_val.clone()
-        init_substitute_type_params(cloned, subs)
-        mut nested_synthesized := Vec.new(Expr)
-        init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized)
-        for nd : Expr in nested_synthesized {
-            program.children.push(own nd.clone())
+            // Clone the return literal, substitute, then hoist any explicit
+            // `Name(T)` self-references that became concrete value-position
+            // instantiations after substitution (`Name(I64)(...)`).
+            mut cloned := ret_val.clone()
+            init_substitute_type_params(cloned, subs)
+            mut nested_synthesized := Vec.new(Expr)
+            init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized)
+            for nd : Expr in nested_synthesized {
+                program.children.push(own nd.clone())
+            }
+            stmt.children.set(0.to_usize(), own cloned)
+            expanded_any = true
         }
-        stmt.children.set(0.to_usize(), own cloned)
     }
 }
 
