@@ -1,0 +1,7 @@
+mode lib
+
+import("circular_template_a")
+
+make_str_box := func(s: Str) returns CycleBox(Str) {
+    return CycleBox(Str).new(own s.clone())
+}

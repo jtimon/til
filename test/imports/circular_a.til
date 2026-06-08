@@ -1,0 +1,18 @@
+mode lib
+
+import("circular_b")
+
+ABox := struct {
+    n : I64
+
+    namespace:
+    from_b := func(self: ABox) returns I64 {
+        return b_value(self.n)
+    }
+}
+
+make_a := func(n: I64) returns ABox { return ABox(n = n) }
+
+a_value := func(n: I64) returns I64 { return n.add(1) }
+a_uses_b := func(n: I64) returns I64 { return b_value(n).add(10) }
+a_take_b := func(b: BBox) returns I64 { return b.n.add(3) }

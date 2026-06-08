@@ -890,6 +890,8 @@ typedef struct Context {
     Map path_modes;
     Bool compile_mode;
     Map imported;
+    Set imports_init_seed_done;
+    Set imports_init_active;
     Set imports_init_done;
     Set imports_typer_decls_done;
     Set imports_typer_bodies_done;
@@ -1519,6 +1521,7 @@ void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gna
 void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map * seen, Vec * synthesized);
 void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
+I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__gen_implements_defaults_for_stmt(Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_substitute_self_type(Expr * fexpr, Str * from_name, Str * to_name);

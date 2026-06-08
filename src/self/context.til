@@ -275,6 +275,12 @@ Context := struct {
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map.new(Str, ImportUnit)
+    // Issue #271: init has two states now. Seeded means file-level
+    // declarations are visible to break import cycles; done means the
+    // full init pass completed. Active prevents recursive cycles from
+    // re-entering a file while its imports are still being walked.
+    imports_init_seed_done := Set.new(Str)
+    imports_init_active := Set.new(Str)
     imports_init_done := Set.new(Str)
     // Two-sweep typer (issue #174 / #147 step 3-4 prep). The typer
     // recursion is split into a decls-first sweep (struct/enum decls,

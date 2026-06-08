@@ -15,12 +15,14 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         switch existing_find {
         case ScopeFind.Found(existing):
             if scope.struct_def_of(existing.name).is_null().not() {
-                println(
-                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                    ": error: struct '", sname, "' already declared at ",
-                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-                )
-                return 1
+                if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
+                    println(
+                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                        ": error: struct '", sname, "' already declared at ",
+                        existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                    )
+                    return 1
+                }
             }
         case:
         }
@@ -315,12 +317,14 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
         switch existing_find {
         case ScopeFind.Found(existing):
             if scope.struct_def_of(existing.name).is_null().not() {
-                println(
-                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                    ": error: enum '", ename, "' already declared at ",
-                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-                )
-                return 1
+                if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
+                    println(
+                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                        ": error: enum '", ename, "' already declared at ",
+                        existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                    )
+                    return 1
+                }
             }
         case:
         }
@@ -3069,6 +3073,45 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
 
 // rstil-style unit initializer: index declarations for one file, but do not
 // run global layout/method generation that must see the whole program.
+priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
+    if ctx.imports_init_seed_done.has(path) { return 0 }
+    ctx.imports_init_seed_done.add(own path.clone())
+
+    context_enter_file(ctx, path)
+    mut errors : I32 = 0
+
+    // Issue #271: make public file-level declarations visible before
+    // recursive imports run. This generalizes same-file forward
+    // declarations to import cycles without pretending the file is fully
+    // initialized yet. Private names are skipped here because their full
+    // init pass rewrites them to file-keyed C names before registration.
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.child(i)
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        mut is_priv := false
+        switch stmt.node_type {
+        case NodeType.Decl(dd): is_priv = dd.is_priv
+        case:
+        }
+        if is_priv { continue }
+
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.StructDef) {
+            errors = errors.add(register_struct_def_for_stmt(ctx, stmt, scope))
+        } else if rhs.node_type.is(NodeType.EnumDef) {
+            errors = errors.add(register_enum_def_for_stmt(ctx, stmt, scope))
+        } else if rhs.node_type.is(NodeType.FuncDef) {
+            if rhs.children.len().eq(0) {
+                register_funcsig_alias_for_stmt(ctx, stmt, scope)
+            } else {
+                register_function_def_for_stmt(ctx, stmt, scope)
+            }
+        }
+    }
+    return errors
+}
+
 priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
@@ -3407,9 +3450,15 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
     if ctx.imports_init_done.has(path) {
         return 0
     }
-    ctx.imports_init_done.add(own path.clone())
+    if ctx.imports_init_active.has(path) {
+        return 0
+    }
+    ctx.imports_init_active.add(own path.clone())
 
     ref iu : ImportUnit = ctx.imported[path]
+
+    ctx.mode = iu.mode.clone()
+    init_seed_declarations_unit(path, iu.ast, ctx.scope, ctx)
 
     // Walk the AST in source order and recurse on each ~import("...")~ FCall.
     // iu.imports is kept as a side table that maps the i-th import FCall to
@@ -3458,6 +3507,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
 
     ctx.mode = iu.mode.clone()
     init_declarations_unit(path, iu.ast, ctx.scope, ctx)
+    ctx.imports_init_done.add(own path.clone())
     return 0
 }
 

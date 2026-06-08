@@ -1,0 +1,20 @@
+mode lib
+
+import("circular_template_b")
+
+CycleBox := struct<T: Type> {
+    val : T
+
+    namespace:
+    new := func(own val: T) returns CycleBox(T) {
+        return CycleBox(T)(val = val)
+    }
+
+    get := func(self: CycleBox(T)) returns ref T {
+        return self.val
+    }
+}
+
+make_i64_box := func(n: I64) returns CycleBox(I64) {
+    return CycleBox(I64).new(own n)
+}

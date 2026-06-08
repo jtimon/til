@@ -1,0 +1,26 @@
+mode test
+
+import("imports/circular_a")
+import("imports/circular_template_a")
+
+test_circular_import_funcs_and_types := test() {
+    a := make_a(5)
+    b := make_b(7)
+
+    assert_eq(__LOC__, a_uses_b(3), 16)
+    assert_eq(__LOC__, b_uses_a(3), 5)
+    assert_eq(__LOC__, b_take_a(a), 9)
+    assert_eq(__LOC__, a_take_b(b), 10)
+    assert_eq(__LOC__, a.from_b(), 10)
+    assert_eq(__LOC__, b.from_a(), 8)
+}
+
+test_circular_import_template_instantiation := test() {
+    ib := make_i64_box(42)
+    ref iv : I64 = ib.get()
+    assert_eq(__LOC__, iv, 42)
+
+    sb := make_str_box("cycle")
+    ref sv : Str = sb.get()
+    assert_eq_str(__LOC__, sv, "cycle")
+}

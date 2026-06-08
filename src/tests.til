@@ -435,6 +435,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "test/closures.til", flags)
     add_mode(tests, "test/regression.til", flags)
     add_mode(tests, "test/files.til", flags)
+    add_mode(tests, "test/circular_imports.til", flags)
     add_mode(tests, "test/import_diamond.til", flags)
     // macros.til contains a macro that prints during precomp; the line
     // appears in interpret output but not in compiled-run output, so

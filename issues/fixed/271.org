@@ -1,0 +1,66 @@
+# priority: medium
+# category: features
+** FIXED #271 Support circular dependencies across files
+
+   *** Post-mortem
+
+   Root cause: import initialization treated a file as either not initialized or
+   fully initialized. In an import cycle, a file that was still in progress was
+   skipped by the other side before its file-level declarations, function
+   signatures, and type-gen macros were reliably visible. That made cross-file
+   cycles depend on import order, unlike same-file forward references. The first
+   implementation of the early seed pass also left stale struct/enum definition
+   pointers in the scope until full init refreshed them.
+
+   Fix: init now has a separate declaration seed state. When `init_file` enters
+   a file it first registers public top-level struct, enum, function, FuncSig,
+   and type-gen macro declarations, then walks imports, then completes the full
+   init pass. Recursive re-entry into an active file returns only after that
+   seed pass has made declarations visible. Full init refreshes same-source
+   struct/enum registrations so seeded definitions do not leave stale AST
+   pointers behind.
+
+   Regression test: `test/circular_imports.til` covers mutual cross-file
+   function/type dependencies and a cyclic template instantiation where one file
+   instantiates a template declared by the other side of the cycle.
+
+   The compiler should support circular dependencies between files the same way
+   it supports forward references within a file: all declarations are
+   discoverable before later passes require their bodies, layouts, methods, or
+   generated template instantiations.
+
+   The motivating failure is the core `Array(Str)` cycle exposed by migrating
+   core `Array` to `Array(T)`: `Str.format(parts: ..Str)` needs the variadic
+   backing array type `Array(Str)`, while `src/core/array.til` currently imports
+   `str.til` for the legacy builtin declaration `array(type_name: Str, ...)`.
+   The intended fix is not an `Array(Str)` special case. It should make
+   inter-file cycles work generally.
+
+   Today the failure presents as missing methods on the variadic backing array
+   rather than as a real cycle diagnostic, e.g. `parts.len()` / `parts.get()` in
+   `str.til` are typed as unresolved/bare `Array` instead of the synthesized
+   `Array__Str`.
+
+   *** Required model
+
+   - Load and parse the whole reachable import graph while tolerating cycles.
+   - Run declaration discovery across the graph before depending on import
+     order, including type-gen templates/macros and function signatures.
+   - Make generated template instantiations visible across cyclic files before
+     method lookup or body typing needs them.
+   - Preserve real semantic ordering constraints for layout, generated methods,
+     and body type-checking without treating an in-progress file as complete.
+   - Report genuinely impossible cycles explicitly, such as direct by-value
+     recursive layouts, instead of producing missing method or unresolved type
+     errors.
+
+   *** Notes
+
+   - Do not work around this by weakening the public `array(...)` declaration
+      to `Dynamic`; fix the dependency/init model or the builtin declaration
+      handling instead.
+   - This blocks the clean `Array(T)` migration in #267 because `..Str` is used
+      by core printing/formatting paths.
+   - Regressions should include a multi-file circular import where each side
+     relies on declarations from the other, a cyclic template use across files,
+     and the core-shaped `Array(Str)` / `..Str` case.
