@@ -3539,7 +3539,8 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
                 is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
                 if is_ext_va.not() { param.own_type = OwnType.Own }
-                func_scope.set(param.name, Type.Struct("Array"), false, ctx.path, expr.line, expr.col, true, param.own_type)
+                va_type := variadic_array_type_name(scope, param.explicit_type)
+                func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else if i.cast(I32).eq(fdef.kwargs_index) {
                 // Same rationale as variadic above.
                 is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
@@ -3614,7 +3615,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             for lpi in 0..fdef.params.len() {
                 ref lpp : Declaration = fdef.params[lpi]
                 mut lptn := lpp.explicit_type.clone()
-                if lpi.cast(I32).eq(fdef.variadic_index) { lptn = "Array" }
+                if lpi.cast(I32).eq(fdef.variadic_index) { lptn = variadic_array_type_name(scope, lpp.explicit_type) }
                 if lpi.cast(I32).eq(fdef.kwargs_index) { lptn = "KwargsMap" }
                 if lptn.len().gt(0) { ctx.lowering_param_types.set(lpp.name, own lptn) }
             }
@@ -9182,6 +9183,11 @@ priv make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: 
     return call
 }
 
+priv variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
+    if scope.lookup_func("Array").is_null() { return "Array" }
+    return "Array__".concat(elem_type)
+}
+
 // Set `call.own_args` to match the callee's params.own_type, for a
 // namespace call built by make_ns_call (FCall whose head is
 // FieldAccess(method) over Ident(type_name)). Walks the resolved
@@ -9287,10 +9293,13 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
 }
 
 priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: U32, ctx: Context) returns Expr {
-    mut new_call := make_ns_call("Array", "new", Type.Struct("Array"), fcall)
+    array_type := variadic_array_type_name(scope, elem_type)
+    mut new_call := make_ns_call(array_type, "new", Type.Struct(array_type.clone()), fcall)
 
-    mut et := fcall.make_til_type_expr(type_from_name(elem_type, scope, ctx))
-    new_call.add_child(own et)
+    if array_type.eq("Array") {
+        mut et := fcall.make_til_type_expr(type_from_name(elem_type, scope, ctx))
+        new_call.add_child(own et)
+    }
 
     cap_str := vc.to_str()
     mut cap := Expr.new(literal_num_node(cap_str), fcall.line, fcall.col)
@@ -9305,16 +9314,17 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
     case:
         UNREACHABLE(__LOC__)
     }
-    va_decl.set_expr_til_type(Type.Struct("Array"))
+    va_decl.set_expr_til_type(Type.Struct(array_type.clone()))
     va_decl.add_child(own new_call)
     return va_decl
 }
 
-priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, vi: I32, j: U32, ctx: Context) returns Expr {
-    mut set_call := make_ns_call("Array", "set", Type.None, fcall)
+priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: U32, ctx: Context) returns Expr {
+    array_type := variadic_array_type_name(scope, elem_type)
+    mut set_call := make_ns_call(array_type, "set", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(va_name), fcall.line, fcall.col)
-    self_id.set_expr_til_type(Type.Struct("Array"))
+    self_id.set_expr_til_type(Type.Struct(array_type.clone()))
     set_call.add_child(own self_id)
 
     idx_str := j.to_str()
@@ -9416,14 +9426,15 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
                 }
                 arr_name := "_array_".concat(ctx.coll_counter.to_str())
                 ctx.coll_counter++
+                array_type := variadic_array_type_name(scope, elem_type)
                 mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
-                scope.set(arr_name, Type.Struct("Array"), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
+                scope.set(arr_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
-                    mut setter := build_variadic_array_set(fcall, scope, arr_name, 2, j, ctx)
+                    mut setter := build_variadic_array_set(fcall, scope, elem_type, arr_name, 2, j, ctx)
                     new_ch.push(own setter)
                 }
-                rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct("Array"))
+                rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct(array_type))
                 return true
             case:
                 UNREACHABLE(__LOC__)
@@ -9484,12 +9495,13 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec, mut scope: Type
             switch child1.node_type {
             case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = rhs.children.len().sub(2)
+                array_type := variadic_array_type_name(scope, elem_type)
                 mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
-                arr_decl.set_expr_til_type(Type.Struct("Array"))
-                scope.set(var_name, Type.Struct("Array"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+                arr_decl.set_expr_til_type(Type.Struct(array_type.clone()))
+                scope.set(var_name, Type.Struct(array_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own arr_decl)
                 for j in 0..count {
-                    mut setter := build_variadic_array_set(rhs, scope, var_name, 2, j, ctx)
+                    mut setter := build_variadic_array_set(rhs, scope, elem_type, var_name, 2, j, ctx)
                     new_ch.push(own setter)
                 }
                 return true
@@ -9719,24 +9731,25 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
                 // array-wrapping rewrite so neither needs to re-resolve.
                 vi := fcall_variadic_index_via_scope(e, scope)
                 vc := fcall_variadic_count_via_scope(e, scope)
-                if desugar_pure_splat_variadic_call(e, vi, vc).not() {
-                    line := e.line
-                    col := e.col
-                    ref elem_type : Str = resolve_variadic_elem_type(e, scope)
-                    // elem_type-null here means the typer already
-                    // reported an error upstream; just leave the
-                    // fcall raw rather than emit a half-formed wrap.
-                    if elem_type.is_null().not() {
+                ref elem_type : Str = resolve_variadic_elem_type(e, scope)
+                // elem_type-null here means the typer already reported an
+                // error upstream; just leave the fcall raw rather than emit a
+                // half-formed wrap.
+                if elem_type.is_null().not() {
+                    array_type := variadic_array_type_name(scope, elem_type)
+                    if desugar_pure_splat_variadic_call(e, array_type, vi, vc).not() {
+                        line := e.line
+                        col := e.col
                         va_name := "_va_Array_".concat(ctx.va_counter.to_str())
                         ctx.va_counter++
                         mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
-                        scope.set(va_name, Type.Struct("Array"), false, ctx.path, line, col, false, OwnType.Own)
+                        scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, line, col, false, OwnType.Own)
                         new_ch.push(own va_decl)
                         for j in 0..vc {
-                            mut setter := build_variadic_array_set(e, scope, va_name, vi, j, ctx)
+                            mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi, j, ctx)
                             new_ch.push(own setter)
                         }
-                        rewrite_variadic_fcall_args(e, va_name, vi, vc)
+                        rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc)
                     }
                 }
             }
@@ -10298,7 +10311,7 @@ priv hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
     stmt = popped
 }
 
-priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32, vc: USize) {
+priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_type: Str, vi: I32, vc: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcall_data):
         old_own := fcall_data.own_args
@@ -10313,7 +10326,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32,
             if j.cast(I32).gte(vi).and(j.cast(I32).lt(vi.add(vc.cast(I32)))) {
                 if va_inserted.not() {
                     mut va_id := Expr.new(ident_node(va_name), line, col)
-                    va_id.set_expr_til_type(Type.Struct("Array"))
+                    va_id.set_expr_til_type(Type.Struct(array_type.clone()))
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
                     new_own = new_own.bor(bit)
@@ -10324,7 +10337,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32,
             }
             if j.cast(I32).eq(vi).and(va_inserted.not()) {
                 mut va_id := Expr.new(ident_node(va_name), line, col)
-                va_id.set_expr_til_type(Type.Struct("Array"))
+                va_id.set_expr_til_type(Type.Struct(array_type.clone()))
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
                 new_own = new_own.bor(bit)
@@ -10343,7 +10356,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, vi: I32,
         }
         if va_inserted.not() {
             mut va_id := Expr.new(ident_node(va_name), line, col)
-            va_id.set_expr_til_type(Type.Struct("Array"))
+            va_id.set_expr_til_type(Type.Struct(array_type.clone()))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
             new_own = new_own.bor(bit)
@@ -10643,7 +10656,7 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
 
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
-priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, vi: I32, vc: USize) returns Bool {
+priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, vi: I32, vc: USize) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         if vc.eq(1).not() { return false }
@@ -10656,7 +10669,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, vi: I32, vc: USiz
         mut splat := splat_in.clone()
         fcd.is_splat = false
         if splat_in.node_type.is(NodeType.Ident) {
-            splat = make_clone_call("Array", Type.Struct("Array"), splat_in, splat_in)
+            splat = make_clone_call(array_type, Type.Struct(array_type.clone()), splat_in, splat_in)
         }
         mut fcall_new_ch := Vec.new(Expr)
         for j in 0..old_args.len() {

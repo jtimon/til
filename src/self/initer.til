@@ -2702,6 +2702,64 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
     }
 }
 
+priv init_synth_array_inst_decl := func(elem_type: Str, line: U32, col: U32) returns Expr {
+    genname := "Array__".concat(elem_type)
+    mut array_id := Expr.new(ident_node("Array"), line, col)
+    mut elem_id := Expr.new(ident_node(elem_type), line, col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own array_id)
+    call.add_child(own elem_id)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = genname)), line, col)
+    decl.add_child(own call)
+    return decl
+}
+
+priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec, mut seen: Map) {
+    if e.is_null() { return }
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.variadic_index.gte(0) {
+            ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
+            genname := "Array__".concat(p.explicit_type)
+            if seen.has(genname).not() {
+                synthesized.push(own init_synth_array_inst_decl(p.explicit_type, e.line, e.col))
+                seen.set(genname, own "")
+            }
+        }
+    case NodeType.StructDef(sdd):
+        for nd : Declaration in sdd.ns_decls {
+            init_collect_variadic_arrays(nd.default_value, synthesized, seen)
+        }
+    case NodeType.EnumDef(edd):
+        for nd : Declaration in edd.ns_decls {
+            init_collect_variadic_arrays(nd.default_value, synthesized, seen)
+        }
+    case:
+    }
+    for i in 0..e.children.len() {
+        init_collect_variadic_arrays(e.child(i), synthesized, seen)
+    }
+}
+
+priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
+    mut synthesized := Vec.new(Expr)
+    mut seen := Map.new(Str, Str)
+    macros := Map.new(Str, Expr)
+    if init_lookup_type_gen_macro("Array", macros, ctx.scope).is_null() { return }
+    for i in 0..program.children.len() {
+        init_collect_variadic_arrays(program.child(i), synthesized, seen)
+    }
+    for d : Expr in synthesized {
+        switch d.node_type {
+        case NodeType.Decl(dd):
+            if ctx.type_gen_synths.has(dd.name).not() {
+                program.children.push(own d.clone())
+            }
+        case:
+        }
+    }
+}
+
 // Parser-synthesized type-position instantiations are emitted as direct
 // deterministic decls (`Name__Arg := Name(Arg)`). Keep only the first one
 // across all initialized units, but leave user aliases (`Alias := Name(Arg)`)
@@ -2987,6 +3045,10 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
     // Normalize explicit aliases (`Alias := Template(I64)`) before dedup so
     // every instantiated template has one deterministic real type name.
     init_normalize_direct_type_gen_aliases(program, macros, scope, ctx)
+
+    // Variadic params are stored as an element type plus variadic_index, not as
+    // an explicit `Array(T)` annotation, so synthesize their concrete Array type.
+    init_synthesize_variadic_arrays(program, ctx)
 
     // Issue #267 (caveat 2): first hoist inline instantiations (e.g.
     // `TemplVec(Bool).new()`) into synthesized top-level decls, deduped, so
