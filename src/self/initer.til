@@ -2744,8 +2744,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec, mut see
 priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     mut synthesized := Vec.new(Expr)
     mut seen := Map.new(Str, Str)
-    macros := Map.new(Str, Expr)
-    if init_lookup_type_gen_macro("Array", macros, ctx.scope).is_null() { return }
+    if ctx.scope.get_struct("Array").is_null().not() { return }
     for i in 0..program.children.len() {
         init_collect_variadic_arrays(program.child(i), synthesized, seen)
     }

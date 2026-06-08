@@ -9184,7 +9184,7 @@ priv make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: 
 }
 
 priv variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
-    if scope.lookup_func("Array").is_null() { return "Array" }
+    if scope.get_struct("Array").is_null().not() { return "Array" }
     return "Array__".concat(elem_type)
 }
 
