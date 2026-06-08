@@ -769,6 +769,31 @@ priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
     return name
 }
 
+priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
+    if fdef.is_null() { return false }
+    if fdef.node_type.is(NodeType.FuncDef).not() { return false }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.func_type.is(FuncType.Macro).not() { return false }
+        return fd.return_type.eq("StructDef")
+            .or(fd.return_type.eq("EnumDef"))
+            .or(fd.return_type.eq("FuncDef"))
+    case:
+    }
+    return false
+}
+
+priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) returns Str {
+    ref array_func : Expr = ctx.scope.lookup_func("Array")
+    if builder_is_type_gen_macro_def(array_func) { return "Array__".concat(elem_type) }
+    if ctx.scope.get_struct("Array").is_null().not() { return "Array" }
+    return "Array__".concat(elem_type)
+}
+
+priv builder_variadic_array_ctype := func(ctx: Context, elem_type: Str) returns Str {
+    return type_name_to_c(builder_variadic_array_type_name(ctx, elem_type), ctx)
+}
+
 // Returns ref File so `f.emit_usize(v).write(...)` chains via UFCS.
 priv emit_usize := proc(f: File, shallow v: USize) returns ref File {
     f.write(v.to_str())
@@ -863,8 +888,8 @@ priv emit_til_default := proc(f: File, shallow t: Type) {
 // Str leaked once per parameter on each call.
 priv param_ctype := func(fd: FunctionDef, i: USize, ctx: Context) returns Str {
     ii := i.cast(I32)
-    if ii.eq(fd.variadic_index) { return "Array *" }
     ref p : Declaration = fd.params[i]
+    if ii.eq(fd.variadic_index) { return builder_variadic_array_ctype(ctx, p.explicit_type) }
     if ii.eq(fd.kwargs_index) { return type_name_to_c(p.explicit_type, ctx) }
     if p.own_type.is(OwnType.Shallow) { return type_name_to_c_value(p.explicit_type, ctx) }
     return type_name_to_c(p.explicit_type, ctx)
@@ -3248,14 +3273,21 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 ii := i.cast(I32)
                 if ii.eq(vi) {
                     // Variadic array
+                    arr_type := builder_variadic_array_type_name(lp.ctx, p.explicit_type)
+                    arr_ctype := type_name_to_c(arr_type, lp.ctx)
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
-                    f.write("    Array *").write(p.name).write(" = Array_new_type_name(&(Str){.c_str = (void *)\"").write(p.explicit_type).write("\", .count = "); emit_usize(f, p.explicit_type.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
+                    f.write("    ").write(arr_ctype).write(" ").write(p.name).write(" = ")
+                    if arr_type.eq("Array") {
+                        f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(p.explicit_type).write("\", .count = "); emit_usize(f, p.explicit_type.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
+                    } else {
+                        f.write(arr_type).write("_new(_va_cap);\n")
+                    }
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
                     emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg)
-                    f.write("        Array_set(").write(p.name).write(", _idx, _val);\n")
+                    f.write("        ").write(arr_type).write("_set(").write(p.name).write(", _idx, _val);\n")
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")
@@ -4028,6 +4060,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     } else {
                         switch rhs.node_type {
                         case NodeType.FuncDef(fd):
+                            if builder_is_type_gen_macro_def(rhs) { continue }
                             if rhs.children.len().eq(0) { continue }
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                             fc := func_to_c(dd.name)
@@ -4059,6 +4092,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                     }
                 } else if rhs.node_type.is(NodeType.FuncDef) {
+                    if builder_is_type_gen_macro_def(rhs) { continue }
                     if rhs.children.len().eq(0) { continue }
                     fc := func_to_c(dd.name)
                     emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -6433,9 +6467,16 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             f.write("    return _v;\n")
             f.write("}\n\n")
         } else {
-            f.write("Array *array_of_").write(et).write("(int count, ...) {\n")
+            arr_type := builder_variadic_array_type_name(lp.ctx, et)
+            arr_ctype := type_name_to_c(arr_type, lp.ctx)
+            f.write(arr_ctype).write(" array_of_").write(et).write("(int count, ...) {\n")
             f.write("    USize _cap = count;\n")
-            f.write("    Array *_a = Array_new_type_name(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
+            f.write("    ").write(arr_ctype).write(" _a = ")
+            if arr_type.eq("Array") {
+                f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
+            } else {
+                f.write(arr_type).write("_new(_cap);\n")
+            }
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             f.write("        USize _idx = _i;\n")
@@ -6446,7 +6487,7 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             } else {
                 f.write("        ").write(et).write(" *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             }
-            f.write("        Array_set(_a, _idx, _val);\n")
+            f.write("        ").write(arr_type).write("_set(_a, _idx, _val);\n")
             f.write("    }\n")
             f.write("    va_end(ap);\n")
             f.write("    return _a;\n")
@@ -6617,6 +6658,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         emit_enum_def(f, dd.name, rhs, lp)
                         f.write("\n")
                     case NodeType.FuncDef(fd):
+                        if builder_is_type_gen_macro_def(rhs) { continue }
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                         if rhs.children.len().eq(0) { continue }
                         emit_func_def(f, dd.name, rhs, mode, false, lp)
@@ -6644,6 +6686,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     emit_enum_def(f, dd.name, rhs, lp)
                     f.write("\n")
                 case NodeType.FuncDef(fd):
+                    if builder_is_type_gen_macro_def(rhs) { continue }
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                     if rhs.children.len().eq(0) { continue }
                     emit_func_def(f, dd.name, rhs, mode, false, lp)

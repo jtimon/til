@@ -1106,6 +1106,8 @@ void KeyNotFound_delete(KeyNotFound * self, Bool call_free);
 U64 KeyNotFound_hash(KeyNotFound * self, HashFn hasher);
 U32 KeyNotFound_size(void);
 U32 Dynamic_size(void);
+void * Dynamic_clone(void * self);
+void Dynamic_delete(void * self, Bool call_free);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool _cf);
 I64 default_cmp(void * _a, void * _b);
@@ -2011,6 +2013,9 @@ Str * priv___src_self_builder_til__c_type_name(Type t, Str * struct_name, Contex
 Str * priv___src_self_builder_til__func_to_c(Str * name);
 Str * priv___src_self_builder_til__type_name_to_c(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__type_name_to_c_value(Str * name, Context * ctx);
+Bool priv___src_self_builder_til__builder_is_type_gen_macro_def(Expr * fdef);
+Str * priv___src_self_builder_til__builder_variadic_array_type_name(Context * ctx, Str * elem_type);
+Str * priv___src_self_builder_til__builder_variadic_array_ctype(Context * ctx, Str * elem_type);
 File * priv___src_self_builder_til__emit_usize(File * f, U32 v);
 File * priv___src_self_builder_til__emit_i32(File * f, I32 v);
 File * priv___src_self_builder_til__emit_indent(File * f, I32 depth);

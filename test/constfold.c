@@ -188,6 +188,8 @@ void OutOfBounds_delete(OutOfBounds * self, Bool call_free);
 U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher);
 U32 OutOfBounds_size(void);
 U32 Dynamic_size(void);
+void * Dynamic_clone(void * self);
+void Dynamic_delete(void * self, Bool call_free);
 void * default_clone(void * v);
 static void * default_clone__til_closure_call(void *til_env, void * v);
 static __attribute__((unused)) TilClosure default_clone__til_closure;
@@ -319,6 +321,8 @@ void OutOfBounds_delete(OutOfBounds * self, Bool call_free);
 U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher);
 U32 OutOfBounds_size(void);
 U32 Dynamic_size(void);
+void * Dynamic_clone(void * self);
+void Dynamic_delete(void * self, Bool call_free);
 void * default_clone(void * v);
 void default_delete(void * _v, Bool _cf);
 Str * I64_to_str(I64 val);
@@ -1044,6 +1048,16 @@ U32 Dynamic_size(void) {
     U32 hoisted__U32_1374 = 8;
     (void)hoisted__U32_1374;
     return hoisted__U32_1374;
+}
+
+void * Dynamic_clone(void * self) {
+    return self;
+}
+
+void Dynamic_delete(void * self, Bool call_free) {
+    if (call_free) {
+        free(self);
+    }
 }
 
 void * default_clone(void * v) {
@@ -3127,6 +3141,16 @@ U32 Dynamic_size_dyn(void *til_env) {
     return Dynamic_size();
 }
 static __attribute__((unused)) TilClosure Dynamic_size_dyn__til_closure = { (void *)Dynamic_size_dyn, NULL, NULL };
+void *Dynamic_clone_dyn(void *til_env, void *_a0) {
+    (void)til_env;
+    return (void *)Dynamic_clone(_a0);
+}
+static __attribute__((unused)) TilClosure Dynamic_clone_dyn__til_closure = { (void *)Dynamic_clone_dyn, NULL, NULL };
+void Dynamic_delete_dyn(void *til_env, void *_a0, Bool _a1) {
+    (void)til_env;
+    Dynamic_delete(_a0, _a1);
+}
+static __attribute__((unused)) TilClosure Dynamic_delete_dyn__til_closure = { (void *)Dynamic_delete_dyn, NULL, NULL };
 void *I64_to_str_dyn(void *til_env, void *_a0) {
     (void)til_env;
     return (void *)I64_to_str(*(I64 *)_a0);
@@ -3546,6 +3570,8 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "OutOfBounds", 11ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&OutOfBounds_hash_dyn__til_closure;
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "OutOfBounds", 11ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&OutOfBounds_size_dyn__til_closure;
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Dynamic_size_dyn__til_closure;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Dynamic_clone_dyn__til_closure;
+    if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Dynamic_delete_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)&I64_to_str_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "to_u8", 5ULL) == 0) return (void*)&I64_to_u8_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)&I64_add_dyn__til_closure;
