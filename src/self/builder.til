@@ -792,8 +792,21 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
     return concrete
 }
 
+priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
+    concrete := "Vec__".concat(elem_type)
+    if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
+    ref vec_func : Expr = ctx.scope.lookup_func("Vec")
+    if builder_is_type_gen_macro_def(vec_func) { return concrete }
+    if ctx.scope.get_struct("Vec").is_null().not() { return "Vec" }
+    return concrete
+}
+
 priv builder_variadic_array_ctype := func(ctx: Context, elem_type: Str) returns Str {
     return type_name_to_c(builder_variadic_array_type_name(ctx, elem_type), ctx)
+}
+
+priv builder_variadic_vec_ctype := func(ctx: Context, elem_type: Str) returns Str {
+    return type_name_to_c(builder_variadic_vec_type_name(ctx, elem_type), ctx)
 }
 
 // Returns ref File so `f.emit_usize(v).write(...)` chains via UFCS.
@@ -5512,7 +5525,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     for ci : CollectionInfo in coll_infos {
         mut prefix := "array"
         mut ret := "Array"
-        if ci.is_vec.neq(0) { prefix = "vec"; ret = "Vec" }
+        if ci.is_vec.neq(0) {
+            prefix = "vec"
+            ret = builder_variadic_vec_ctype(lp.ctx, ci.type_name)
+        }
         f.write(ret).write(" *").write(prefix).write("_of_").write(ci.type_name).write("(int count, ...);\n")
     }
     if coll_infos.len().gt(0) { f.write("\n") }
@@ -6463,9 +6479,15 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
         et := ci.type_name
         et_len := et.len()
         if ci.is_vec.neq(0) {
-            f.write("Vec *vec_of_").write(et).write("(int count, ...) {\n")
-            f.write("    USize _esz = sizeof(").write(et).write(");\n")
-            f.write("    Vec *_v = Vec_new(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+            vec_type := builder_variadic_vec_type_name(lp.ctx, et)
+            vec_ctype := type_name_to_c(vec_type, lp.ctx)
+            f.write(vec_ctype).write(" *vec_of_").write(et).write("(int count, ...) {\n")
+            if vec_type.eq("Vec") {
+                f.write("    USize _esz = sizeof(").write(et).write(");\n")
+                f.write("    Vec *_v = Vec_new(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n")
+            } else {
+                f.write("    ").write(vec_ctype).write(" *_v = ").write(vec_type).write("_new();\n")
+            }
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
             cn := et.format("_clone")
@@ -6475,7 +6497,7 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             } else {
                 f.write("        ").write(et).write(" *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             }
-            f.write("        Vec_push(_v, _val);\n")
+            f.write("        ").write(vec_type).write("_push(_v, _val);\n")
             f.write("    }\n")
             f.write("    va_end(ap);\n")
             f.write("    return _v;\n")

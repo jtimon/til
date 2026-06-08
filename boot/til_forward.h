@@ -1553,7 +1553,8 @@ void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeSco
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_initer_til__init_synth_array_inst_decl(Str * elem_type, U32 line, U32 col);
-void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec * synthesized, Map * seen);
+Expr * priv___src_self_initer_til__init_synth_vec_inst_decl(Str * elem_type, U32 line, U32 col);
+void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec * synthesized, Map * seen, Bool synth_array, Bool synth_vec);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
@@ -1818,6 +1819,7 @@ Expr * priv___src_self_typer_til__make_clone_call(Str * type_name, Type type, Ex
 Expr * priv___src_self_typer_til__make_to_str_call(Str * type_name, Expr * arg);
 Expr * priv___src_self_typer_til__make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 Str * priv___src_self_typer_til__variadic_array_type_name(TypeScope * scope, Str * elem_type);
+Str * priv___src_self_typer_til__variadic_vec_type_name(TypeScope * scope, Str * elem_type);
 void priv___src_self_typer_til__sync_own_args_from_callee(Expr * call, TypeScope * scope);
 Expr * priv___src_self_typer_til__build_kwargs_map_decl(Expr * fcall, Str * kw_name);
 Expr * priv___src_self_typer_til__build_kwargs_map_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
@@ -2050,7 +2052,9 @@ Str * priv___src_self_builder_til__type_name_to_c(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__type_name_to_c_value(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__builder_is_type_gen_macro_def(Expr * fdef);
 Str * priv___src_self_builder_til__builder_variadic_array_type_name(Context * ctx, Str * elem_type);
+Str * priv___src_self_builder_til__builder_variadic_vec_type_name(Context * ctx, Str * elem_type);
 Str * priv___src_self_builder_til__builder_variadic_array_ctype(Context * ctx, Str * elem_type);
+Str * priv___src_self_builder_til__builder_variadic_vec_ctype(Context * ctx, Str * elem_type);
 File * priv___src_self_builder_til__emit_usize(File * f, U32 v);
 File * priv___src_self_builder_til__emit_i32(File * f, I32 v);
 File * priv___src_self_builder_til__emit_indent(File * f, I32 depth);

@@ -1616,7 +1616,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                     if name.eq("array") {
                         e.set_expr_til_type(Type.Struct(variadic_array_type_name(scope, elem_type)))
                     } else {
-                        e.set_expr_til_type(Type.Struct("Vec"))
+                        e.set_expr_til_type(Type.Struct(variadic_vec_type_name(scope, elem_type)))
                     }
                     return
                 case:
@@ -9207,6 +9207,11 @@ priv make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: 
 priv variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Array").is_null().not() { return "Array" }
     return "Array__".concat(elem_type)
+}
+
+priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
+    if scope.get_struct("Vec").is_null().not() { return "Vec" }
+    return "Vec__".concat(elem_type)
 }
 
 // Set `call.own_args` to match the callee's params.own_type, for a
