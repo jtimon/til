@@ -42,7 +42,7 @@ MODE_LABELS := array("Str", "1P", "2P")
 SIZE_LABELS := array("Str", "9x9", "13x13", "19x19")
 
 // Copy board
-copy_board := func(mut dst: Array, mut src: Array, total: I64) {
+copy_board := func(mut dst: Array(I64), mut src: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         ref v : I64 = src[i.to_u32()]
@@ -52,7 +52,7 @@ copy_board := func(mut dst: Array, mut src: Array, total: I64) {
 }
 
 // Compare two boards
-boards_equal := func(mut a: Array, mut b: Array, total: I64) returns Bool {
+boards_equal := func(mut a: Array(I64), mut b: Array(I64), total: I64) returns Bool {
     mut i := 0
     while i.lt(total) {
         ref va : I64 = a[i.to_u32()]
@@ -64,7 +64,7 @@ boards_equal := func(mut a: Array, mut b: Array, total: I64) returns Bool {
 }
 
 // Clear array to 0
-clear_arr := func(mut arr: Array, total: I64) {
+clear_arr := func(mut arr: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         arr.set(i.to_u32(), own 0)
@@ -75,7 +75,7 @@ clear_arr := func(mut arr: Array, total: I64) {
 // Count liberties of group containing stone at idx
 // Uses visited and lib_seen arrays (caller must clear them first)
 // Returns number of unique liberties
-count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Array,
+count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_seen: Array(I64),
                          mut stk: Vec, idx: I64, size: I64, color: I64) returns I64 {
     mut libs := 0
     stk.push(own idx.clone())
@@ -176,7 +176,7 @@ count_liberties := func(mut board: Array, mut visited: Array, mut lib_seen: Arra
 
 // Remove group containing stone at idx, returns stones removed
 // Caller must clear visited before calling
-remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
+remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec,
                       idx: I64, size: I64, color: I64) returns I64 {
     mut removed := 0
     stk.push(own idx.clone())
@@ -249,9 +249,9 @@ remove_group := func(mut board: Array, mut visited: Array, mut stk: Vec,
 // Try placing a stone on tmp_board (copy of board). Returns captures, or -1 if illegal.
 // Does NOT modify board — caller must copy tmp to board if legal.
 // ko_board is the board state from before the last move (for ko detection).
-try_place := func(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
+try_place := func(mut tmp: Array(I64), mut visited: Array(I64), mut lib_seen: Array(I64),
                    mut stk: Vec, idx: I64, size: I64, color: I64,
-                   mut ko_board: Array, has_ko: Bool) returns I64 {
+                   mut ko_board: Array(I64), has_ko: Bool) returns I64 {
     total := size.mul(size)
 
     // Must be empty
@@ -351,7 +351,7 @@ GO_IDX_SIZE := MAX_CELLS.add(1)
 GO_IDX_HAS_KO := MAX_CELLS.add(2)
 GO_IDX_KO := MAX_CELLS.add(3)
 
-// Board I64 accessors (Board.data is U8 Array, we access as I64 via ptr_add)
+// Board I64 accessors (Board.data is U8 Array(I64), we access as I64 via ptr_add)
 board_get_i64 := func(b: Board, i: I64) returns ref I64 {
     ref v : I64 = ptr_add(b.data.data, i.mul(8).cast(U64))
     return v
@@ -361,8 +361,8 @@ board_set_i64 := func(mut b: Board, i: I64, val: I64) {
     memcpy(ptr_add(b.data.data, i.mul(8).cast(U64)), val, 8)
 }
 
-go_pack := func(mut b: Board, mut cells: Array, side: I64, size: I64,
-                 mut ko_board: Array, has_ko: Bool) {
+go_pack := func(mut b: Board, mut cells: Array(I64), side: I64, size: I64,
+                 mut ko_board: Array(I64), has_ko: Bool) {
     total := size.mul(size)
     mut i := 0
     while i.lt(total) {
@@ -418,8 +418,8 @@ go_next_boards : NextBoardsFn = (b) {
     total := size.mul(size)
     side := go_unpack_side(gb)
     has_ko := go_unpack_has_ko(gb)
-    mut cells := Array.new(I64, total.to_u32())
-    mut ko_cells := Array.new(I64, total.to_u32())
+    mut cells := Array(I64).new(total.to_u32())
+    mut ko_cells := Array(I64).new(total.to_u32())
     mut ci := 0
     while ci.lt(total) {
         cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
@@ -431,10 +431,10 @@ go_next_boards : NextBoardsFn = (b) {
     while i.lt(total) {
         ref p : I64 = cells[i.to_u32()]
         if p.eq(0) {
-            mut child := Array.new(I64, MAX_CELLS.cast(U32))
+            mut child := Array(I64).new(MAX_CELLS.cast(U32))
             copy_board(child, cells, total)
-            mut child_vis := Array.new(I64, MAX_CELLS.cast(U32))
-            mut child_lib := Array.new(I64, MAX_CELLS.cast(U32))
+            mut child_vis := Array(I64).new(MAX_CELLS.cast(U32))
+            mut child_lib := Array(I64).new(MAX_CELLS.cast(U32))
             mut child_stk := Vec.new(I64)
             cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_cells, has_ko)
             if cap.gte(0) {
@@ -451,7 +451,7 @@ go_next_boards : NextBoardsFn = (b) {
 
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
-score_game := func(mut board: Array, mut visited: Array, mut stk: Vec,
+score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec,
                     size: I64) returns I64 {
     total := size.mul(size)
     clear_arr(visited, total)
@@ -578,11 +578,11 @@ main := proc() {
     mut ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards, depth = 1)
 
     // Shared work arrays
-    mut board := Array.new(I64, MAX_CELLS.cast(U32))
-    mut tmp_board := Array.new(I64, MAX_CELLS.cast(U32))
-    mut ko_board := Array.new(I64, MAX_CELLS.cast(U32))
-    mut visited := Array.new(I64, MAX_CELLS.cast(U32))
-    mut lib_seen := Array.new(I64, MAX_CELLS.cast(U32))
+    mut board := Array(I64).new(MAX_CELLS.cast(U32))
+    mut tmp_board := Array(I64).new(MAX_CELLS.cast(U32))
+    mut ko_board := Array(I64).new(MAX_CELLS.cast(U32))
+    mut visited := Array(I64).new(MAX_CELLS.cast(U32))
+    mut lib_seen := Array(I64).new(MAX_CELLS.cast(U32))
     mut stk := Vec.new(I64)
 
     // Radio button state (only applied on restart / initial start)

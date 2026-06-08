@@ -2376,22 +2376,19 @@ priv build_argv_array := func(argv: Vec, offset: U32, count: U32, elem_type: Str
         v := parse_cli_arg(s, elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz.cast(U64))), v, elem_type)
     }
-    sz := ctx_total_size(ctx.cached_array_name, ctx)
+    array_name := "Array__".concat(elem_type)
+    ref array_binding : TypeBinding = ctx.scope.get_binding(array_name)
+    if array_binding.is_null() { panic(__LOC__, "missing Array type '", array_name, "'") }
+    ref array_canon_name : Str = array_binding.name
+    ref array_def : Expr = lookup_interp_type_def(array_canon_name, ctx)
+    sz := ctx_total_size(array_canon_name, ctx)
     inst_data : Dynamic = calloc(1, sz.cast(U64))
-    ref ba_data_d : Declaration = find_field_decl(ctx.cached_array_def, "data")
-    ba_data_fl := ctx_field_layout(ctx.cached_array_name, "data", ctx)
-    write_field(inst_data, ba_data_d, ba_data_fl.offset, ba_data_fl.size, Value.Ref(data), ctx)
-    ref ba_cap_d : Declaration = find_field_decl(ctx.cached_array_def, "cap")
-    ba_cap_fl := ctx_field_layout(ctx.cached_array_name, "cap", ctx)
+    ba_data_fl := ctx_field_layout(array_canon_name, "data", ctx)
+    write_ptr(ptr_add(inst_data, ba_data_fl.offset.cast(U64)), data)
+    ref ba_cap_d : Declaration = find_field_decl(array_def, "cap")
+    ba_cap_fl := ctx_field_layout(array_canon_name, "cap", ctx)
     write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, Value.Uint32(count), ctx)
-    ref ba_esz_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_size")
-    ba_esz_fl := ctx_field_layout(ctx.cached_array_name, "elem_size", ctx)
-    write_field(inst_data, ba_esz_d, ba_esz_fl.offset, ba_esz_fl.size, Value.Uint32(esz), ctx)
-    ref clone_fn : Value = ns_get(elem_type, "clone", ctx)
-    if clone_fn.is_null().not() { ref ba_ec_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_clone"); ba_ec_fl := ctx_field_layout(ctx.cached_array_name, "elem_clone", ctx); write_field(inst_data, ba_ec_d, ba_ec_fl.offset, ba_ec_fl.size, shallow_copy_value(clone_fn), ctx) }
-    ref delete_fn : Value = ns_get(elem_type, "delete", ctx)
-    if delete_fn.is_null().not() { ref ba_ed_d : Declaration = find_field_decl(ctx.cached_array_def, "elem_delete"); ba_ed_fl := ctx_field_layout(ctx.cached_array_name, "elem_delete", ctx); write_field(inst_data, ba_ed_d, ba_ed_fl.offset, ba_ed_fl.size, shallow_copy_value(delete_fn), ctx) }
-    return make_struct_value(ctx.cached_array_name, ctx.cached_array_def, to_ptr(inst_data), false, ctx)
+    return make_struct_value(array_canon_name, array_def, to_ptr(inst_data), false, ctx)
 }
 
 // Cache-only pass: populate ctx.cached_str/array/vec_def/name without

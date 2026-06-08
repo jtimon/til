@@ -1687,15 +1687,18 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 else if type_from_name_init(ftype, scope).is_funcptr() { fsz = 8; falign = 8 }
                 else {
                     ref nested_def : Expr = scope.get_struct(ftype)
-                    if nested_def.is_null().not().and(nested_def.node_type.is(NodeType.EnumDef)) {
-                        fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
-                        if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
-                        field_struct_name = ftype.clone()
-                    } else if nested_def.is_null().not() {
-                        compute_struct_layout(ftype, nested_def, scope, ctx)
-                        fsz = ctx_total_size(ftype, ctx)
-                        falign = 8
-                        field_struct_name = ftype.clone()
+                    if nested_def.is_null().not() {
+                        if nested_def.node_type.is(NodeType.EnumDef) {
+                            fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
+                            if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
+                            field_struct_name = ftype.clone()
+                        } else {
+                            compute_struct_layout(ftype, nested_def, scope, ctx)
+                            ref nested_layout : StructLayout = ctx.struct_layouts[ftype]
+                            fsz = nested_layout.total_size
+                            falign = nested_layout.align
+                            field_struct_name = ftype.clone()
+                        }
                     } else {
                         fsz = 8
                         falign = 8
@@ -1710,6 +1713,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
         }
 
         sl.total_size = align_up(offset, max_align)
+        sl.align = max_align
         if sl.total_size.eq(0) { sl.total_size = 1 }
         ctx.struct_layouts.set(name, own sl)
     case:
@@ -1737,8 +1741,9 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
     switch nested.node_type {
     case NodeType.StructDef:
         compute_struct_layout(ftype, nested, scope, ctx)
-        sz = ctx_total_size(ftype, ctx)
-        al = 8
+        ref sl : StructLayout = ctx.struct_layouts[ftype]
+        sz = sl.total_size
+        al = sl.align
     case NodeType.EnumDef:
         sz = compute_enum_layout(ftype, nested, scope, ctx)
         al = 8
@@ -1751,7 +1756,7 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
 compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns USize {
     if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
     // Set sentinel before recursing to break self-referential cycles.
-    ctx.struct_layouts.set(name, own StructLayout(total_size = 4))
+    ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4))
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         mut max_payload_size : USize = 0
@@ -1771,7 +1776,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
             total = total.add(max_payload_size)
         }
         total = align_up(total, max_payload_align)
-        ctx.struct_layouts.set(name, own StructLayout(total_size = total))
+        ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align))
         return total
     case:
         UNREACHABLE(__LOC__)
@@ -2717,6 +2722,26 @@ priv init_synth_array_inst_decl := func(elem_type: Str, line: U32, col: U32) ret
 priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec, mut seen: Map) {
     if e.is_null() { return }
     switch e.node_type {
+    case NodeType.FCall:
+        if e.children.len().gte(2) {
+            ref callee : Expr = e.child(0)
+            switch callee.node_type {
+            case NodeType.Ident(cn):
+                if cn.ident_name().eq("array") {
+                    ref type_arg : Expr = e.child(1)
+                    switch type_arg.node_type {
+                    case NodeType.Literal(Literal.Str(elem_type)):
+                        genname := "Array__".concat(elem_type)
+                        if seen.has(genname).not() {
+                            synthesized.push(own init_synth_array_inst_decl(elem_type, e.line, e.col))
+                            seen.set(genname, own "")
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
     case NodeType.FuncDef(fd):
         if fd.variadic_index.gte(0) {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]

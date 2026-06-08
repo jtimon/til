@@ -77,7 +77,7 @@ piece_type := func(piece: I64) returns I64 {
 }
 
 // Copy board from src to dst
-copy_board := func(mut dst: Array, mut src: Array) {
+copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = src[i.to_u32()]
@@ -87,7 +87,7 @@ copy_board := func(mut dst: Array, mut src: Array) {
 }
 
 // Check if square (r,c) is attacked by side `by_side` (0=white, 1=black)
-is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool {
+is_attacked := func(mut board: Array(I64), r: I64, c: I64, by_side: I64) returns Bool {
     // Check knight attacks
     mut ki := 0
     KN_DR := array("I64", -2, -2, -1, -1, 1, 1, 2, 2)
@@ -199,7 +199,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
 }
 
 // Find king position for side (0=white, 1=black)
-find_king := func(mut board: Array, side: I64) returns I64 {
+find_king := func(mut board: Array(I64), side: I64) returns I64 {
     king_piece := side.mul(6).add(6)
     mut i := 0
     while i.lt(64) {
@@ -211,7 +211,7 @@ find_king := func(mut board: Array, side: I64) returns I64 {
 }
 
 // Check if side is in check
-in_check := func(mut board: Array, side: I64) returns Bool {
+in_check := func(mut board: Array(I64), side: I64) returns Bool {
     ki := find_king(board, side)
     if ki.lt(0) { return true }
     kr := ki.div(8)
@@ -222,7 +222,7 @@ in_check := func(mut board: Array, side: I64) returns Bool {
 
 // Try a move on a temp board and check if own king is in check
 // Returns true if the move leaves the player in check (illegal)
-move_leaves_in_check := func(mut board: Array, mut tmp: Array, from: I64, to: I64, side: I64) returns Bool {
+move_leaves_in_check := func(mut board: Array(I64), mut tmp: Array(I64), from: I64, to: I64, side: I64) returns Bool {
     copy_board(tmp, board)
     ref p : I64 = tmp[from.to_u32()]
     pv := p.clone()
@@ -247,9 +247,9 @@ move_leaves_in_check := func(mut board: Array, mut tmp: Array, from: I64, to: I6
 
 // Generate valid moves for a piece at position idx
 // Stores destination squares in moves array, returns count
-gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
-                   mut moves: Array, ep_col: I64,
-                   mut castle_flags: Array) returns I64 {
+gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I64,
+                   mut moves: Array(I64), ep_col: I64,
+                   mut castle_flags: Array(I64)) returns I64 {
     ref piece : I64 = board[idx.to_u32()]
     pt := piece_type(piece)
     r := idx.div(8)
@@ -506,9 +506,9 @@ gen_moves := func(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 }
 
 // Check if side has any legal moves
-has_legal_moves := func(mut board: Array, mut tmp: Array, side: I64,
-                         mut moves: Array, ep_col: I64,
-                         mut castle_flags: Array) returns Bool {
+has_legal_moves := func(mut board: Array(I64), mut tmp: Array(I64), side: I64,
+                         mut moves: Array(I64), ep_col: I64,
+                         mut castle_flags: Array(I64)) returns Bool {
     mut i := 0
     while i.lt(64) {
         ref p : I64 = board[i.to_u32()]
@@ -522,8 +522,8 @@ has_legal_moves := func(mut board: Array, mut tmp: Array, side: I64,
 }
 
 // Execute a move on the board, update castle flags, return new ep_col
-execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
-                      mut castle_flags: Array) returns I64 {
+execute_move := func(mut board: Array(I64), from: I64, to: I64, side: I64,
+                      mut castle_flags: Array(I64)) returns I64 {
     ref mp : I64 = board[from.to_u32()]
     mpv := mp.clone()
     mpt := piece_type(mpv)
@@ -588,7 +588,7 @@ execute_move := func(mut board: Array, from: I64, to: I64, side: I64,
 }
 
 // Copy castle flags
-copy_cf := func(mut dst: Array, mut src: Array) {
+copy_cf := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(6) {
         ref v : I64 = src[i.to_u32()]
@@ -613,7 +613,7 @@ CHESS_IDX_SIDE := 64
 CHESS_IDX_EP := 65
 CHESS_IDX_CF := 66
 
-chess_pack := func(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut cf: Array) {
+chess_pack := func(mut b: Board, mut cells: Array(I64), side: I64, ep_col: I64, mut cf: Array(I64)) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = cells[i.to_u32()]
@@ -638,8 +638,8 @@ chess_unpack_ep := func(b: Board) returns I64 {
     return board_get_i64(b, CHESS_IDX_EP).clone()
 }
 
-chess_unpack_cf := func(b: Board) returns Array {
-    mut cf := Array.new(I64, 6)
+chess_unpack_cf := func(b: Board) returns Array(I64) {
+    mut cf := Array(I64).new(6)
     mut i := 0
     while i.lt(6) {
         cf.set(i.to_u32(), own board_get_i64(b, CHESS_IDX_CF.add(i)).clone())
@@ -674,7 +674,7 @@ chess_heuristic : Heuristic = (b) {
 // Next boards: generate all legal moves
 chess_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    mut cells := Array.new(I64, 64)
+    mut cells := Array(I64).new(64)
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
@@ -684,8 +684,8 @@ chess_next_boards : NextBoardsFn = (b) {
     ep_col := chess_unpack_ep(cb)
     mut cf := chess_unpack_cf(cb)
     result := Vec.new(Board)
-    mut tmp := Array.new(I64, 64)
-    mut moves := Array.new(I64, 64)
+    mut tmp := Array(I64).new(64)
+    mut moves := Array(I64).new(64)
     mut i := 0
     while i.lt(64) {
         ref p : I64 = cells[i.to_u32()]
@@ -694,9 +694,9 @@ chess_next_boards : NextBoardsFn = (b) {
             mut j := 0
             while j.lt(mc) {
                 ref dest : I64 = moves[j.to_u32()]
-                mut child_cells := Array.new(I64, 64)
+                mut child_cells := Array(I64).new(64)
                 copy_board(child_cells, cells)
-                mut child_cf := Array.new(I64, 6)
+                mut child_cf := Array(I64).new(6)
                 copy_cf(child_cf, cf)
                 child_ep := execute_move(child_cells, i, dest, side, child_cf)
                 opp := 1.sub(side)
@@ -720,15 +720,15 @@ main := proc() {
     mut ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards, depth = 1)
 
     // Board state
-    mut board := Array.new(I64, 64)
-    mut tmp_board := Array.new(I64, 64)
+    mut board := Array(I64).new(64)
+    mut tmp_board := Array(I64).new(64)
 
     // Valid moves buffer (max 28 moves per piece is enough)
-    mut valid_moves := Array.new(I64, 64)
+    mut valid_moves := Array(I64).new(64)
     mut valid_count := 0
 
     // Castle flags: [wk, wra, wrh, bk, bra, brh] (0=not moved, 1=moved)
-    mut castle_flags := Array.new(I64, 6)
+    mut castle_flags := Array(I64).new(6)
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 1  // 0=white, 1=black (default black so AI starts as white)
@@ -814,10 +814,10 @@ main := proc() {
             ai_timer = ai_timer.add(1)
             if ai_timer.gt(30) {
                 ai_timer = 0
-                mut ai_pieces := Array.new(I64, 64)
-                mut ai_dests := Array.new(I64, 64)
+                mut ai_pieces := Array(I64).new(64)
+                mut ai_dests := Array(I64).new(64)
                 mut ai_total := 0
-                mut ai_moves := Array.new(I64, 64)
+                mut ai_moves := Array(I64).new(64)
 
                 mut sq := 0
                 while sq.lt(64) {
@@ -847,9 +847,9 @@ main := proc() {
                         from_val := from_sq.clone()
                         to_val := to_sq.clone()
 
-                        mut child := Array.new(I64, 64)
+                        mut child := Array(I64).new(64)
                         copy_board(child, board)
-                        mut child_cf := Array.new(I64, 6)
+                        mut child_cf := Array(I64).new(6)
                         copy_cf(child_cf, castle_flags)
 
                         child_ep := execute_move(child, from_val, to_val, ai_side, child_cf)

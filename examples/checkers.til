@@ -75,7 +75,7 @@ is_opp := func(piece: I64, side: I64) returns Bool {
 }
 
 // Copy board
-copy_board := func(mut dst: Array, mut src: Array) {
+copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = src[i.to_u32()]
@@ -88,8 +88,8 @@ copy_board := func(mut dst: Array, mut src: Array) {
 // Returns count of capture destinations stored in moves array
 // Each capture is stored as: dest_idx
 // jumped_arr stores the index of the jumped piece for each move
-gen_captures := func(mut board: Array, idx: I64, side: I64,
-                      mut moves: Array, mut jumped: Array) returns I64 {
+gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
+                      mut moves: Array(I64), mut jumped: Array(I64)) returns I64 {
     ref piece : I64 = board[idx.to_u32()]
     r := idx.div(8)
     c := idx.mod(8)
@@ -138,8 +138,8 @@ gen_captures := func(mut board: Array, idx: I64, side: I64,
 }
 
 // Generate non-capture moves for piece at idx
-gen_simple_moves := func(mut board: Array, idx: I64, side: I64,
-                          mut moves: Array) returns I64 {
+gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
+                          mut moves: Array(I64)) returns I64 {
     ref piece : I64 = board[idx.to_u32()]
     r := idx.div(8)
     c := idx.mod(8)
@@ -181,8 +181,8 @@ gen_simple_moves := func(mut board: Array, idx: I64, side: I64,
 }
 
 // Check if side has any capture moves available anywhere
-has_any_captures := func(mut board: Array, side: I64,
-                          mut moves: Array, mut jumped: Array) returns Bool {
+has_any_captures := func(mut board: Array(I64), side: I64,
+                          mut moves: Array(I64), mut jumped: Array(I64)) returns Bool {
     mut i := 0
     while i.lt(64) {
         ref p : I64 = board[i.to_u32()]
@@ -196,8 +196,8 @@ has_any_captures := func(mut board: Array, side: I64,
 }
 
 // Check if side has any legal moves at all
-has_legal_moves := func(mut board: Array, side: I64,
-                          mut moves: Array, mut jumped: Array) returns Bool {
+has_legal_moves := func(mut board: Array(I64), side: I64,
+                          mut moves: Array(I64), mut jumped: Array(I64)) returns Bool {
     if has_any_captures(board, side, moves, jumped) { return true }
     mut i := 0
     while i.lt(64) {
@@ -214,7 +214,7 @@ has_legal_moves := func(mut board: Array, side: I64,
 // Execute a move: move piece from -> to, remove jumped piece if any
 // Promotes to king if reaching the back row
 // Returns the piece value after move (for king promotion tracking)
-execute_move := func(mut board: Array, from: I64, to: I64, jumped_idx: I64) returns I64 {
+execute_move := func(mut board: Array(I64), from: I64, to: I64, jumped_idx: I64) returns I64 {
     ref p : I64 = board[from.to_u32()]
     mut pv := p.clone()
     board.set(from.to_u32(), own 0)
@@ -247,7 +247,7 @@ board_set_i64 := func(mut b: Board, i: I64, val: I64) {
 }
 
 // Pack checkers state into Board (I64-indexed): cells[0..64) + side(64)
-checkers_pack := func(mut b: Board, mut cells: Array, side: I64) {
+checkers_pack := func(mut b: Board, mut cells: Array(I64), side: I64) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = cells[i.to_u32()]
@@ -280,8 +280,8 @@ checkers_heuristic : Heuristic = (b) {
 }
 
 // Recursively expand capture chains. Adds complete-turn boards to result.
-expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
-                      mut result: Vec, mut tmp_m: Array, mut tmp_j: Array) {
+expand_jumps := func(mut cells: Array(I64), piece_pos: I64, side: I64,
+                      mut result: Vec, mut tmp_m: Array(I64), mut tmp_j: Array(I64)) {
     mc := gen_captures(cells, piece_pos, side, tmp_m, tmp_j)
     if mc.eq(0) {
         opp := 3.sub(side)
@@ -294,7 +294,7 @@ expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
     while j.lt(mc) {
         ref dest : I64 = tmp_m[j.to_u32()]
         ref jmp : I64 = tmp_j[j.to_u32()]
-        mut child := Array.new(I64, 64)
+        mut child := Array(I64).new(64)
         copy_board(child, cells)
         new_piece := execute_move(child, piece_pos, dest, jmp)
         ref orig : I64 = cells[piece_pos.to_u32()]
@@ -316,7 +316,7 @@ expand_jumps := func(mut cells: Array, piece_pos: I64, side: I64,
 // Next boards: generate all complete turns (multi-jumps expanded)
 checkers_next_boards : NextBoardsFn = (b) {
     ref cb : Board = b
-    mut cells := Array.new(I64, 64)
+    mut cells := Array(I64).new(64)
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
@@ -324,8 +324,8 @@ checkers_next_boards : NextBoardsFn = (b) {
     }
     side := checkers_unpack_side(cb)
     result := Vec.new(Board)
-    mut tmp_m := Array.new(I64, 64)
-    mut tmp_j := Array.new(I64, 64)
+    mut tmp_m := Array(I64).new(64)
+    mut tmp_j := Array(I64).new(64)
     must_cap := has_any_captures(cells, side, tmp_m, tmp_j)
     mut i := 0
     while i.lt(64) {
@@ -338,7 +338,7 @@ checkers_next_boards : NextBoardsFn = (b) {
                 mut j := 0
                 while j.lt(mc) {
                     ref dest : I64 = tmp_m[j.to_u32()]
-                    mut child := Array.new(I64, 64)
+                    mut child := Array(I64).new(64)
                     copy_board(child, cells)
                     execute_move(child, i, dest, -1)
                     opp := 3.sub(side)
@@ -361,9 +361,9 @@ main := proc() {
     // AI (depth applied on Restart from sel_difficulty)
     mut ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 1)
 
-    mut board := Array.new(I64, 64)
-    mut tmp_moves := Array.new(I64, 64)
-    mut tmp_jumped := Array.new(I64, 64)
+    mut board := Array(I64).new(64)
+    mut tmp_moves := Array(I64).new(64)
+    mut tmp_jumped := Array(I64).new(64)
 
     // Radio button state (only applied on restart / initial start)
     mut sel_color := 1  // 0=red, 1=black (default black so AI starts as red)
@@ -378,8 +378,8 @@ main := proc() {
     // Game state
     mut turn := 1           // 1=red, 2=black (red moves first)
     mut selected := -1
-    mut valid_moves := Array.new(I64, 64)
-    mut valid_jumped := Array.new(I64, 64)
+    mut valid_moves := Array(I64).new(64)
+    mut valid_jumped := Array(I64).new(64)
     mut valid_count := 0
     mut game_over := 0      // 0=playing, 1=red wins, 2=black wins, 3=draw
     mut ai_timer := 0
@@ -466,7 +466,7 @@ main := proc() {
                         while mj.lt(mc) {
                             ref dest : I64 = tmp_moves[mj.to_u32()]
                             ref jmp : I64 = tmp_jumped[mj.to_u32()]
-                            mut child := Array.new(I64, 64)
+                            mut child := Array(I64).new(64)
                             copy_board(child, board)
                             execute_move(child, multi_jump_idx, dest, jmp)
                             mut child_b := Board()
@@ -497,8 +497,8 @@ main := proc() {
                         if orig_val.eq(1).and(new_piece.eq(2)) { was_promoted = true }
                         if orig_val.eq(3).and(new_piece.eq(4)) { was_promoted = true }
 
-                        mut more_moves := Array.new(I64, 64)
-                        mut more_jumped := Array.new(I64, 64)
+                        mut more_moves := Array(I64).new(64)
+                        mut more_jumped := Array(I64).new(64)
                         more := gen_captures(board, bd_val, ai_side, more_moves, more_jumped)
                         if more.gt(0).and(!was_promoted) {
                             multi_jump_idx = bd_val
@@ -519,9 +519,9 @@ main := proc() {
                     }
                 } else {
                     // Collect all legal moves for AI side
-                    mut ai_pieces := Array.new(I64, 128)
-                    mut ai_dests := Array.new(I64, 128)
-                    mut ai_jumps := Array.new(I64, 128)
+                    mut ai_pieces := Array(I64).new(128)
+                    mut ai_dests := Array(I64).new(128)
+                    mut ai_jumps := Array(I64).new(128)
                     mut ai_total := 0
 
                     ai_must_cap := has_any_captures(board, ai_side, tmp_moves, tmp_jumped)
@@ -571,7 +571,7 @@ main := proc() {
                             to_val := to_sq.clone()
                             jmp_val := jmp_sq.clone()
 
-                            mut child := Array.new(I64, 64)
+                            mut child := Array(I64).new(64)
                             copy_board(child, board)
                             execute_move(child, from_val, to_val, jmp_val)
 
@@ -610,8 +610,8 @@ main := proc() {
                             if orig_val.eq(1).and(new_piece.eq(2)) { was_promoted = true }
                             if orig_val.eq(3).and(new_piece.eq(4)) { was_promoted = true }
 
-                            mut more_moves := Array.new(I64, 64)
-                            mut more_jumped := Array.new(I64, 64)
+                            mut more_moves := Array(I64).new(64)
+                            mut more_jumped := Array(I64).new(64)
                             more := gen_captures(board, to_val, ai_side, more_moves, more_jumped)
                             if more.gt(0).and(!was_promoted) {
                                 multi_jump_idx = to_val

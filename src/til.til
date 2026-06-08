@@ -361,7 +361,7 @@ CliArgs := struct {
     own extra_modes := Vec.new(Str)
 }
 
-parse_args := proc(args: Array) returns CliArgs {
+parse_args := proc(args: Array(Str)) returns CliArgs {
     mut cli := CliArgs()
     if args.len().eq(0) {
         run_repl("script", cli.extra_modes)
@@ -507,7 +507,7 @@ parse_args := proc(args: Array) returns CliArgs {
 
 // Split trailing args (after the source path) into -l flags (appended to
 // lp.link_flags) and user argv (returned).
-collect_user_argv := func(mut lp: LoadedProgram, args: Array, start_idx: USize) returns Vec {
+collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: USize) returns Vec {
     mut user_argv := Vec.new(Str)
     mut ai := start_idx
     while ai.lt(args.len()) {

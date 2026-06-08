@@ -13,6 +13,7 @@ typedef struct Vec Vec;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
 typedef struct KeyNotFound KeyNotFound;
+typedef struct Array__Str Array__Str;
 typedef struct Dynamic Dynamic;
 typedef struct Map Map;
 typedef enum {
@@ -114,10 +115,10 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-typedef struct Array Array;
 typedef struct Tuple Tuple;
 typedef struct KwargsMap KwargsMap;
 typedef struct File File;
+typedef struct Range Range;
 typedef struct Set Set;
 typedef enum {
     TokenType_TAG_Eof,
@@ -246,6 +247,7 @@ typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__D
 typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
 typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
+typedef struct Array__Bool Array__Bool;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
 typedef enum {
@@ -322,6 +324,12 @@ typedef struct OutOfBounds {
 typedef struct KeyNotFound {
     Str msg;
 } KeyNotFound;
+
+
+typedef struct Array__Str {
+    U8 *data;
+    U32 cap;
+} Array__Str;
 
 
 typedef struct Dynamic {
@@ -448,6 +456,7 @@ typedef struct FieldLayout {
 
 typedef struct StructLayout {
     U32 total_size;
+    U32 align;
     Vec fields;
 } StructLayout;
 
@@ -521,15 +530,6 @@ typedef struct Expr {
 } Expr;
 
 
-typedef struct Array {
-    U8 *data;
-    U32 cap;
-    U32 elem_size;
-    TilClosure * elem_clone;
-    TilClosure * elem_delete;
-} Array;
-
-
 typedef struct Tuple {
     U8 *data;
     U32 total_size;
@@ -549,6 +549,12 @@ typedef struct File {
     Bool is_write;
     Bool is_update;
 } File;
+
+
+typedef struct Range {
+    U64 start;
+    U64 end;
+} Range;
 
 
 typedef struct Set {
@@ -690,6 +696,12 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str py_path;
     Bool do_lib;
 } priv___src_self_builder_til__BuildPaths;
+
+
+typedef struct Array__Bool {
+    U8 *data;
+    U32 cap;
+} Array__Bool;
 
 
 typedef struct StructInstance {
@@ -1059,7 +1071,7 @@ void Vec_push_take(Vec * self, Vec * src, U32 i);
 void Vec_delete(Vec * self, Bool call_free);
 Vec * Vec_clone(Vec * self);
 U32 Vec_size(void);
-Str * format(Array * parts);
+Str * format(Array__Str * parts);
 U32 Str_len(Str * self);
 I8 * Str_get(Str * self, U32 * i);
 I8 * Str_byte_at(Str * self, U32 * i);
@@ -1105,6 +1117,13 @@ KeyNotFound * KeyNotFound_clone(KeyNotFound * self);
 void KeyNotFound_delete(KeyNotFound * self, Bool call_free);
 U64 KeyNotFound_hash(KeyNotFound * self, HashFn hasher);
 U32 KeyNotFound_size(void);
+Array__Str * Array__Str_new(U32 cap);
+U32 Array__Str_len(Array__Str * self);
+Str * Array__Str_get(Array__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Array__Str_set(Array__Str * self, U32 i, Str * val);
+void Array__Str_delete(Array__Str * self, Bool call_free);
+Array__Str * Array__Str_clone(Array__Str * self);
+U32 Array__Str_size(void);
 U32 Dynamic_size(void);
 void * Dynamic_clone(void * self);
 void Dynamic_delete(void * self, Bool call_free);
@@ -1283,14 +1302,6 @@ Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
 U32 fcall_kwargs_count(Expr * fcall);
 U32 fcall_variadic_count(Expr * fcall, U32 nparam, Bool callee_has_kwargs);
-Array * Array_new_type_name(Str * elem_type, U32 cap);
-Array * Array_new(Type * T, U32 cap);
-U32 Array_len(Array * self);
-void * Array_get(Array * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void Array_set(Array * self, U32 i, void * val);
-void Array_delete(Array * self, Bool call_free);
-Array * Array_clone(Array * self);
-U32 Array_size(void);
 void Tuple_delete(Tuple * self, Bool call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 Tuple_size(void);
@@ -1298,9 +1309,9 @@ KwargsMap * KwargsMap_clone(KwargsMap * self);
 void KwargsMap_delete(KwargsMap * self, Bool call_free);
 U64 KwargsMap_hash(KwargsMap * self, HashFn hasher);
 U32 KwargsMap_size(void);
-void panic(Str * loc_str, Array * parts);
+void panic(Str * loc_str, Array__Str * parts);
 void UNREACHABLE(Str * loc_str);
-void println(Array * parts);
+void println(Array__Str * parts);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);
 void File_close(File * self);
@@ -1310,6 +1321,10 @@ U32 File_size(void);
 Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);
+Range * Range_clone(Range * val);
+void Range_delete(Range * self, Bool call_free);
+U64 Range_hash(Range * self, HashFn hasher);
+U32 Range_size(void);
 Set * Set_new(Type * T);
 U32 Set_len(Set * self);
 void Set_clear(Set * self);
@@ -1323,7 +1338,7 @@ void U16_delete(U16 * self, Bool call_free);
 U32 U16_size(void);
 U64 U16_hash(U16 self, HashFn hasher);
 I64 wait_cmd(I64 pid);
-I64 run_cmd(Str * output, Array * args);
+I64 run_cmd(Str * output, Array__Str * args);
 Bool TokenType_is(TokenType * self, TokenType * other);
 Bool TokenType_eq(TokenType * self, TokenType * other);
 void TokenType_delete(TokenType * self, Bool call_free);
@@ -2161,6 +2176,12 @@ Str * priv___src_self_builder_til__til_doc_out_path(Str * unit_path);
 void priv___src_self_builder_til__ensure_parent_dir(Str * path);
 void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, Context * ctx);
 I32 cmd_doc(LoadedProgram * lp);
+Array__Bool * Array__Bool_new(U32 cap);
+Bool * Array__Bool_get(Array__Bool * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Array__Bool_set(Array__Bool * self, U32 i, Bool * val);
+void Array__Bool_delete(Array__Bool * self, Bool call_free);
+Array__Bool * Array__Bool_clone(Array__Bool * self);
+U32 Array__Bool_size(void);
 Str * priv___src_self_interpreter_til__interp_error_path(Context * ctx);
 void interp_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Context * ctx);
@@ -2444,9 +2465,9 @@ void usage(void);
 CliArgs * CliArgs_clone(CliArgs * self);
 void CliArgs_delete(CliArgs * self, Bool call_free);
 U32 CliArgs_size(void);
-CliArgs * parse_args(Array * args);
-Vec * collect_user_argv(LoadedProgram * lp, Array * args, U32 start_idx);
-void main(Array * args);
+CliArgs * parse_args(Array__Str * args);
+Vec * collect_user_argv(LoadedProgram * lp, Array__Str * args, U32 start_idx);
+void main(Array__Str * args);
 Bool TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();
 TokenType *TokenType_LParen();

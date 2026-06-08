@@ -14,7 +14,7 @@ default_heuristic : Heuristic = (_board) { return 0 }
 default_next_boards : NextBoardsFn = (_board) { return Vec.new(Board) }
 
 Board := struct {
-    data := Array.new(U8, MAX_BOARD.to_usize())
+    data := Array(U8).new(MAX_BOARD.to_usize())
 }
 
 AlphaBeta := struct {

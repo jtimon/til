@@ -1610,6 +1610,18 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
             ref type_arg : Expr = e.child(1)
             if type_arg.node_type.is_literal_str().not() {
                 type_arg.type_error("array/vec type_name argument must be a string literal", ctx)
+            } else {
+                switch type_arg.node_type {
+                case NodeType.Literal(Literal.Str(elem_type)):
+                    if name.eq("array") {
+                        e.set_expr_til_type(Type.Struct(variadic_array_type_name(scope, elem_type)))
+                    } else {
+                        e.set_expr_til_type(Type.Struct("Vec"))
+                    }
+                    return
+                case:
+                    UNREACHABLE(__LOC__)
+                }
             }
         }
     }
@@ -5920,7 +5932,16 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                     case NodeType.FCall:
                         if rhs.children.len().gt(0) {
                             switch rhs.child(0).node_type {
-                            case NodeType.Ident(rhsn): return rhsn.name.clone()
+                            case NodeType.Ident(rhsn):
+                                if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
+                                    ref elem_arg : Expr = rhs.child(1)
+                                    switch elem_arg.node_type {
+                                    case NodeType.Literal(Literal.Str(elem_type)):
+                                        return "Array__".concat(elem_type)
+                                    case:
+                                    }
+                                }
+                                return rhsn.name.clone()
                             case NodeType.FieldAccess(_rhsfa):
                                 if rhs.child(0).children.len().gt(0) {
                                     switch rhs.child(0).child(0).node_type {
@@ -9340,6 +9361,14 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
         if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()) {
             val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
         }
+    }
+    elem_t := type_from_name(elem_type, scope, ctx)
+    switch val.node_type {
+    case NodeType.Literal(Literal.Num(lit_str)):
+        if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
+            val.set_expr_til_type(elem_t)
+        }
+    case:
     }
     set_call.add_child(own val)
 

@@ -34,11 +34,11 @@ Point *add_points(Point *a, Point *b) {
 }
 
 // Variadic ext_func: sum all I64 args
-I64 *sum_all(Array *args) {
+I64 *sum_all(Array__I64 *args) {
     I64 *r = malloc(sizeof(I64));
     *r = 0;
     for (U64 i = 0; i < args->cap; i++) {
-        I64 *elem = (I64 *)(args->data + i * args->elem_size);
+        I64 *elem = (I64 *)(args->data + i * sizeof(I64));
         *r += *elem;
     }
     return r;

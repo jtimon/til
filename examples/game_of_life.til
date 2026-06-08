@@ -24,8 +24,8 @@ main := proc() {
     GRAY := Color(r = 80, g = 80, b = 80, a = 255)
     GRID_GRAY := Color(r = 30, g = 30, b = 30, a = 255)
 
-    mut grid : Array = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
-    mut next : Array = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
+    mut grid : Array(I64) = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
+    mut next : Array(I64) = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
 
     // Conway rules: B3/S23
     born := array("I64", 3)

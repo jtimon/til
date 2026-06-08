@@ -80,11 +80,11 @@ BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
 LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio", "Solfejo", "Americano")
 LANG_ES := array("Str", "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio", "Solfeo", "Americano")
 LANG_EN := array("Str", "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian", "Solfege", "American")
-LANGS := array("Array", LANG_PT, LANG_ES, LANG_EN)
+LANGS := array("Array__Str", LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
 
-triad_type := func(mut sc_chrom: Array, ti: USize) returns U32 {
+triad_type := func(mut sc_chrom: Array(I32), ti: USize) returns U32 {
     ref root_c : I32 = sc_chrom[ti]
     ref third_c : I32 = sc_chrom[(ti + 2) % 7]
     ref fifth_c : I32 = sc_chrom[(ti + 4) % 7]
@@ -106,7 +106,7 @@ note_name := func(diat_idx: USize, sel_notation: USize) returns ref Str {
 }
 
 lang_str := func(lang_idx: USize, label_idx: USize) returns ref Str {
-    ref lang : Array = LANGS[lang_idx]
+    ref lang : Array(Str) = LANGS[lang_idx]
     ref s : Str = lang[label_idx]
     return s
 }
@@ -129,8 +129,8 @@ start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64)
     play_timer = 300
 }
 
-draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: Array,
-                   mut sc_triad: Array, playing: Bool, play_idx: USize,
+draw_note := proc(dni: USize, mut sc_diat: Array(I32), mut sc_oct: Array(I32), mut sc_acc: Array(I32),
+                   mut sc_triad: Array(U32), playing: Bool, play_idx: USize,
                    clicked_note: I32, sel_notation: USize, fnt: Font) {
     dnx := NOTE_X0 + dni.cast(I32) * NOTE_DX
     ref nd : I32 = sc_diat[dni]
@@ -195,8 +195,8 @@ draw_note := proc(dni: USize, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc:
 }
 
 recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
-                        mut sc_chrom: Array, mut sc_diat: Array, mut sc_oct: Array,
-                        mut sc_acc: Array, mut sc_freq: Array, mut sc_triad: Array) {
+                        mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_oct: Array(I32),
+                        mut sc_acc: Array(I32), mut sc_freq: Array(I64), mut sc_triad: Array(U32)) {
     ref nat_c : I32 = NATURALS[sel_diatonic]
     root_chromatic := (nat_c + sel_accidental + 12) % 12
     mut chrom_total := root_chromatic
@@ -291,13 +291,13 @@ main := proc() {
     fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, NULL, 0)
 
     // Scale result arrays (8 notes: 7 degrees + octave)
-    mut sc_chrom := Array.new(I32, 8)
-    mut sc_diat := Array.new(I32, 8)
-    mut sc_oct := Array.new(I32, 8)
-    mut sc_acc := Array.new(I32, 8)
-    mut sc_freq := Array.new(I64, 8)
+    mut sc_chrom := Array(I32).new(8)
+    mut sc_diat := Array(I32).new(8)
+    mut sc_oct := Array(I32).new(8)
+    mut sc_acc := Array(I32).new(8)
+    mut sc_freq := Array(I64).new(8)
     // Triad types for 7 degrees: 0=M, 1=m, 2=dim, 3=aug
-    mut sc_triad := Array.new(U32, 7)
+    mut sc_triad := Array(U32).new(7)
 
     // State
     mut sel_diatonic : USize = 0

@@ -3283,13 +3283,21 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     if arr_type.eq("Array") {
                         f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(p.explicit_type).write("\", .count = "); emit_usize(f, p.explicit_type.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
                     } else {
-                        f.write(arr_type).write("_new(_va_cap);\n")
+                        f.write("malloc(sizeof(").write(arr_type).write("));\n")
+                        f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(p.explicit_type).write("));\n")
+                        f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     }
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
                     emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg)
-                    f.write("        ").write(arr_type).write("_set(").write(p.name).write(", _idx, _val);\n")
+                    if arr_type.eq("Array") {
+                        f.write("        ").write(arr_type).write("_set(").write(p.name).write(", _idx, _val);\n")
+                    } else {
+                        f.write("        memcpy(ptr_add(").write(p.name).write("->data, ((U64)_idx) * sizeof(").write(p.explicit_type).write(")), _val, sizeof(").write(p.explicit_type).write("));\n")
+                        f.write("        memset(_val, 0, sizeof(").write(p.explicit_type).write("));\n")
+                        f.write("        ").write(p.explicit_type).write("_delete(_val, 1);\n")
+                    }
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")
@@ -3649,7 +3657,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: Loaded
     }
 
     mut remaining := items.len()
-    mut done := Array.new(Bool, items.len())
+    mut done := Array(Bool).new(items.len())
     for di in 0..items.len() {
         mut f_val := false
         done.set(di, own f_val)
@@ -6481,7 +6489,9 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             if arr_type.eq("Array") {
                 f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(et).write("\", .count = "); emit_usize(f, et_len); f.write("ULL, .cap = TIL_CAP_LIT}, _cap);\n")
             } else {
-                f.write(arr_type).write("_new(_cap);\n")
+                f.write("malloc(sizeof(").write(arr_type).write("));\n")
+                f.write("    _a->data = calloc(_cap, sizeof(").write(et).write("));\n")
+                f.write("    _a->cap = _cap;\n")
             }
             f.write("    va_list ap; va_start(ap, count);\n")
             f.write("    for (int _i = 0; _i < count; _i++) {\n")
@@ -6493,7 +6503,13 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             } else {
                 f.write("        ").write(et).write(" *_val = ").write(et).write("_clone(va_arg(ap, ").write(et).write(" *));\n")
             }
-            f.write("        ").write(arr_type).write("_set(_a, _idx, _val);\n")
+            if arr_type.eq("Array") {
+                f.write("        ").write(arr_type).write("_set(_a, _idx, _val);\n")
+            } else {
+                f.write("        memcpy(ptr_add(_a->data, ((U64)_idx) * sizeof(").write(et).write(")), _val, sizeof(").write(et).write("));\n")
+                f.write("        memset(_val, 0, sizeof(").write(et).write("));\n")
+                f.write("        ").write(et).write("_delete(_val, 1);\n")
+            }
             f.write("    }\n")
             f.write("    va_end(ap);\n")
             f.write("    return _a;\n")
