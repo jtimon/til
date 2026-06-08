@@ -1,0 +1,22 @@
+# priority: medium
+# category: features
+** OPEN #270 Deterministic names for non-Type macro instantiations
+
+   Revisit type-gen macro instantiation naming for macros that take non-`Type`
+   parameters. Today alias normalization only handles pure type-argument
+   instantiations, because the deterministic-name path treats non-ident args as
+   `anon`, which can conflate distinct constants.
+
+   It should be possible to support deterministic names for compile-time
+   constants too, e.g. `make_buffer(I64, 32)` and `make_buffer(I64, 64)` should
+   get distinct canonical names instead of both collapsing to an anonymous arg
+   slot. Once that exists, explicit aliases for those macro instantiations can
+   normalize to the canonical generated type name the same way pure type args
+   do.
+
+   *** Notes
+
+   - Preserve support for macros with value parameters; this is about naming
+     and alias normalization, not restricting macro signatures.
+   - Include collision-safe encoding for literals and other compile-time-known
+     values that are allowed in type-gen macro arguments.
