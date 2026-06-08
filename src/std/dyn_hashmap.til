@@ -1,14 +1,15 @@
 mode lib
 
 import("hashmap")
+import("dyn_vec")
 
 // DynHashMap preserves the current type-erased HashMap implementation while
 // HashMap is migrated toward a templated, monomorphized API.
 DynHashMap := struct {
-    keys : Vec = Vec.new(Dynamic)
-    values : Vec = Vec.new(Dynamic)
-    buckets : Vec = Vec.new(I64)  // bucket head entry index, -1 if empty
-    nexts : Vec = Vec.new(I64)    // per-entry next-in-chain index, -1 if end
+    keys : DynVec = DynVec.new(Dynamic)
+    values : DynVec = DynVec.new(Dynamic)
+    buckets : DynVec = DynVec.new(I64)  // bucket head entry index, -1 if empty
+    nexts : DynVec = DynVec.new(I64)    // per-entry next-in-chain index, -1 if end
     key_hash : TypeHashFn = default_type_hash
     key_cmp  : CmpFn      = default_cmp
 
@@ -29,10 +30,10 @@ namespace:
             panic(__LOC__, "DynHashMap.new: type ", key_type, " must implement cmp")
         }
         mut m := DynHashMap()
-        m.keys = Vec.new_type_name(key_type)
-        m.values = Vec.new_type_name(val_type)
-        m.buckets = Vec.new(I64)
-        m.nexts = Vec.new(I64)
+        m.keys = DynVec.new_type_name(key_type)
+        m.values = DynVec.new_type_name(val_type)
+        m.buckets = DynVec.new(I64)
+        m.nexts = DynVec.new(I64)
         m.key_hash = dyn_fn(key_type, "hash")
         m.key_cmp  = dyn_fn(key_type, "cmp")
         for _ in 0..HASHMAP_INIT_BUCKETS {
@@ -144,10 +145,10 @@ namespace:
     }
 
     delete := func(own self: DynHashMap, call_free: Bool = true) {
-        Vec.delete(own self.keys, false)
-        Vec.delete(own self.values, false)
-        Vec.delete(own self.buckets, false)
-        Vec.delete(own self.nexts, false)
+        DynVec.delete(own self.keys, false)
+        DynVec.delete(own self.values, false)
+        DynVec.delete(own self.buckets, false)
+        DynVec.delete(own self.nexts, false)
         if call_free { free(own self) }
     }
 

@@ -15,6 +15,7 @@ typedef struct OutOfBounds OutOfBounds;
 typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
 typedef struct Dynamic Dynamic;
+typedef struct DynVec DynVec;
 typedef struct Map Map;
 typedef enum {
     Primitive_TAG_I16,
@@ -340,9 +341,20 @@ typedef struct Dynamic {
 
 
 
+typedef struct DynVec {
+    U8 *data;
+    U32 count;
+    U32 cap;
+    U32 elem_size;
+    U32 elem_kind;
+    TilClosure * elem_clone;
+    TilClosure * elem_delete;
+} DynVec;
+
+
 typedef struct Map {
-    Vec keys;
-    Vec values;
+    DynVec keys;
+    DynVec values;
     TilClosure * key_cmp;
 } Map;
 
@@ -1149,6 +1161,14 @@ I64 Bool_cmp(Bool a, Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 U32 Bool_size(void);
 U64 Bool_hash(Bool self, HashFn hasher);
+DynVec * DynVec_new_type_name(Str * elem_type);
+DynVec * DynVec_new(Type * T);
+U32 DynVec_len(DynVec * self);
+void DynVec_clear(DynVec * self);
+void * DynVec_get(DynVec * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void DynVec_delete(DynVec * self, Bool call_free);
+DynVec * DynVec_clone(DynVec * self);
+U32 DynVec_size(void);
 Map * Map_new_type_names(Str * key_type, Str * val_type);
 Map * Map_new(Type * K, Type * V);
 U32 Map_len(Map * self);
@@ -1321,9 +1341,9 @@ U32 File_size(void);
 Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);
-Range * Range_clone(Range * val);
+Range Range_clone(Range val);
 void Range_delete(Range * self, Bool call_free);
-U64 Range_hash(Range * self, HashFn hasher);
+U64 Range_hash(Range self, HashFn hasher);
 U32 Range_size(void);
 Set * Set_new(Type * T);
 U32 Set_len(Set * self);
