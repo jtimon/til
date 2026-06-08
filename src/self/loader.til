@@ -159,7 +159,7 @@ priv extract_imports := func(body: Expr, path: Str) returns Vec(Str) {
 
 // Recursively resolve imports.
 priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
-    mut resolved_set: Set, mut stack: Vec(Expr),
+    mut resolved_set: Set(Str), mut stack: Vec(Expr),
     mut units: Vec(ProgramUnit), lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
         for import_path : Str in import_paths {
@@ -177,10 +177,10 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
 
             // Dedup (also handles circular imports -- files are added to
             // resolved_set when they start processing)
-            if Set.has(resolved_set, abs) {
+            if resolved_set.has(abs) {
                 continue
             }
-            Set.add(resolved_set, own abs.clone())
+            resolved_set.add(own abs.clone())
 
             // Load, lex, parse the imported file. Use display_path for the
             // path strings that get embedded in the AST / generated C, so the
@@ -401,7 +401,7 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) retur
     return NULL
 }
 
-priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
+priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
     if lp.cur_mode.is_null().not() {
         if lp.cur_mode.needs_main {
@@ -535,7 +535,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set {
     }
 
     // 3) BFS
-    mut visited := Set.new(Str)
+    mut visited := Set(Str).new()
     mut cursor : U32 = 0
     while cursor.lt(worklist.len()) {
         ref worklist_slot : Str = worklist[cursor]
@@ -863,7 +863,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
-    resolved := Set.new(Str)
+    resolved := Set(Str).new()
     resolve_stack := Vec(Expr).new()
 
     // Resolve mode files' imports
@@ -880,8 +880,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
             }
             abs_auto := realpath_str(auto_path)
             if abs_auto.len().gt(0) {
-                if Set.has(resolved, abs_auto).not() {
-                    Set.add(resolved, own abs_auto.clone())
+                if resolved.has(abs_auto).not() {
+                    resolved.add(own abs_auto.clone())
                     disp_auto := display_path(abs_auto, cwd)
                     source_auto := File.readfile(abs_auto)
                     tokens_auto := tokenize(source_auto, disp_auto)
@@ -923,7 +923,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut user_dir := "."
     if abs_path.len().gt(0) {
         user_dir = dir_of(abs_path)
-        Set.add(resolved, own abs_path.clone())
+        resolved.add(own abs_path.clone())
     }
 
     // Load core.til
@@ -938,10 +938,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut skip_core := false
     core_abs := realpath_str(core_path)
     if core_abs.len().gt(0) {
-        if Set.has(resolved, core_abs) {
+        if resolved.has(core_abs) {
             skip_core = true
         }
-        Set.add(resolved, own core_abs.clone())
+        resolved.add(own core_abs.clone())
     }
 
     // Resolve core imports

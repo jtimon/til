@@ -4535,6 +4535,11 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
             inferred = Type.FuncPtr
             rhs.set_expr_til_type(inferred.clone())
         }
+    case NodeType.Literal(Literal.SetLit):
+        if rhs.children.len().gt(0) {
+            elem_type := type_to_name(rhs.child(0).expr_til_type())
+            if elem_type.len().gt(0) { inferred = Type.Struct("Set__".concat(elem_type)) }
+        }
     case:
     }
     stmt.set_expr_til_type(inferred)
@@ -6052,7 +6057,7 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
     }
 }
 
-priv collect_throw_ident_names := proc(e: Expr, mut names: Set) {
+priv collect_throw_ident_names := proc(e: Expr, mut names: Set(Str)) {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
         switch e.child(0).node_type {
         case NodeType.Ident(idn):
@@ -7723,7 +7728,7 @@ priv process_throw_catch_in_func_body := proc(
     mut pending := Vec(Str).new()
     mut seen := Vec(Str).new()
     mut types_to_declare := Vec(Str).new()
-    ctx.throw_used_local_names = Set.new(Str)
+    ctx.throw_used_local_names = Set(Str).new()
     collect_throw_ident_names(body, ctx.throw_used_local_names)
     // Seed with declared throws so the slots exist as params even
     // when the body never references the type directly (rare, but
@@ -9318,6 +9323,11 @@ priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns St
     return "Vec__".concat(elem_type)
 }
 
+priv set_literal_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
+    if scope.get_struct("Set").is_null().not() { return "Set" }
+    return "Set__".concat(elem_type)
+}
+
 // Set `call.own_args` to match the callee's params.own_type, for a
 // namespace call built by make_ns_call (FCall whose head is
 // FieldAccess(method) over Ident(type_name)). Walks the resolved
@@ -9697,9 +9707,12 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         }
     }
 
-    mut new_call := make_ns_call("Set", "new", Type.Struct("Set"), set_lit)
-    mut et := set_lit.make_til_type_expr(first.expr_til_type())
-    new_call.add_child(own et)
+    set_type := set_literal_type_name(scope, elem_type)
+    mut new_call := make_ns_call(set_type, "new", Type.Struct(set_type.clone()), set_lit)
+    if set_type.eq("Set") {
+        mut et := set_lit.make_til_type_expr(first.expr_til_type())
+        new_call.add_child(own et)
+    }
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
     switch decl.node_type {
@@ -9709,17 +9722,17 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case:
         UNREACHABLE(__LOC__)
     }
-    decl.set_expr_til_type(Type.Struct("Set"))
+    decl.set_expr_til_type(Type.Struct(set_type.clone()))
     decl.add_child(own new_call)
 
-    scope.set(var_name, Type.Struct("Set"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(var_name, Type.Struct(set_type.clone()), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
 
     new_ch.push(own decl)
 
     for e_j : Expr in set_lit.children {
-        mut add_call := make_ns_call("Set", "add", Type.None, set_lit)
+        mut add_call := make_ns_call(set_type, "add", Type.None, set_lit)
         mut self_id := Expr.new(ident_node(var_name), set_lit.line, set_lit.col)
-        self_id.set_expr_til_type(Type.Struct("Set"))
+        self_id.set_expr_til_type(Type.Struct(set_type.clone()))
         add_call.add_child(own self_id)
         mut val := e_j.clone()
         add_call.add_child(own val)

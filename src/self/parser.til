@@ -15,7 +15,7 @@ priv Parser := struct {
     // this side table emits the matching `Name__Arg := Name(Arg)` decl so a
     // type-only occurrence still produces the monomorphization.
     type_gen_decls := Vec(Expr).new()
-    type_gen_seen := Set.new(Str)
+    type_gen_seen := Set(Str).new()
     // Issue #56/#57: top-level decls synthesised for anonymous struct/enum
     // literals (`struct { ... }(args)`, `enum { ... }.V`, and inline defs in
     // type positions). anon_cache maps a literal's structural key (anon_def_key)

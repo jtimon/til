@@ -678,7 +678,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
 // every primitive so they are not re-declared; centralizing the list here
 // keeps adding a primitive a one-place edit instead of an N-place one
 // (#115).
-priv seed_primitive_names := func(mut emitted: Set) {
+priv seed_primitive_names := func(mut emitted: Set(Str)) {
     emitted.add(own "U8"); emitted.add(own "I8"); emitted.add(own "I16"); emitted.add(own "U16"); emitted.add(own "I32")
     emitted.add(own "U32"); emitted.add(own "U64"); emitted.add(own "I64")
     emitted.add(own "F32"); emitted.add(own "Bool")
@@ -866,7 +866,7 @@ priv c_lit_byte_count := func(s: Str) returns USize {
 // Collect every Ident reference under `e` into `refs`. Used by the
 // function-body entry pass to decide which params actually need the
 // `(void)<name>;` unused-arg suppressor.
-priv collect_ident_refs := proc(e: Expr, mut refs: Set) {
+priv collect_ident_refs := proc(e: Expr, mut refs: Set(Str)) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(name): refs.add(own name.ident_name())
@@ -1208,7 +1208,7 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
                                 ref arg : Expr = e.child(a)
                                 switch arg.node_type {
                                 case NodeType.Ident(arg_name):
-                                    ctx.unsafe_to_hoist.add(own arg_name.clone())
+                                    ctx.unsafe_to_hoist.add(own arg_name.ident_name())
                                 case:
                                 }
                             }
@@ -1234,7 +1234,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                     ref rhs : Expr = stmt.child(0)
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
-                        ctx.unsafe_to_hoist.add(own rhs_name.clone())
+                        ctx.unsafe_to_hoist.add(own rhs_name.ident_name())
                     case NodeType.FCall:
                         callee := resolve_callee_name(rhs)
                         if callee.len().gt(0) {
@@ -1247,7 +1247,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                                             ref arg : Expr = rhs.child(a)
                                             switch arg.node_type {
                                             case NodeType.Ident(arg_name):
-                                                ctx.unsafe_to_hoist.add(own arg_name.clone())
+                                                ctx.unsafe_to_hoist.add(own arg_name.ident_name())
                                             case:
                                             }
                                         }
@@ -3039,7 +3039,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
             // is_shallow_param check below matches by name and can false-
             // positive across funcs). Check ref-local before that shortcut,
             // but after the ref-Dynamic case (#185), which needs a typed cast.
-            if ctx.ref_dyn_locals.has(ident.clone()) {
+            if ctx.ref_dyn_locals.has(ident.ident_name()) {
                 // #185: ident is a ref-Dynamic local but the typer's
                 // narrow_dynamic has retyped this use to a concrete
                 // primitive. Emit a typed cast so DEREF doesn't try to
@@ -3319,12 +3319,12 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 }
             }
         }
-        lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.stack_locals = Set(Str).new()
         lp.ctx.stack_local_types = Map.new(Str, Str)
-        lp.ctx.unsafe_to_hoist = Set.new(Str)
-        lp.ctx.ref_locals = Set.new(Str)
-        lp.ctx.ref_dyn_locals = Set.new(Str)
-        lp.ctx.ptr_locals = Set.new(Str)
+        lp.ctx.unsafe_to_hoist = Set(Str).new()
+        lp.ctx.ref_locals = Set(Str).new()
+        lp.ctx.ref_dyn_locals = Set(Str).new()
+        lp.ctx.ptr_locals = Set(Str).new()
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, body)
         lp.ctx.in_main_func = true
@@ -3344,22 +3344,22 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // in the body. At this point any non-_ param is body-referenced
         // (otherwise check_unused_params would have errored), so this
         // narrows to `_x`-prefixed deliberately-unused params.
-        body_refs := Set.new(Str)
+        body_refs := Set(Str).new()
         collect_ident_refs(body, body_refs)
         for p : Declaration in fd.params {
             if body_refs.has(p.name).not() {
                 f.write("    (void)").write(p.name).write(";\n")
             }
         }
-        Set.delete(own body_refs, true)
+        own body_refs.delete(true)
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
-        lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.stack_locals = Set(Str).new()
         lp.ctx.stack_local_types = Map.new(Str, Str)
-        lp.ctx.unsafe_to_hoist = Set.new(Str)
-        lp.ctx.ref_locals = Set.new(Str)
-        lp.ctx.ref_dyn_locals = Set.new(Str)
-        lp.ctx.ptr_locals = Set.new(Str)
+        lp.ctx.unsafe_to_hoist = Set(Str).new()
+        lp.ctx.ref_locals = Set(Str).new()
+        lp.ctx.ref_dyn_locals = Set(Str).new()
+        lp.ctx.ptr_locals = Set(Str).new()
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
@@ -3371,7 +3371,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
     }
 }
 
-emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Set, lp: LoadedProgram) {
+emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
     switch closure_expr.node_type {
     case NodeType.FuncDef(fd):
         if fd.captures.len().eq(0).or(fd.closure_name.len().eq(0)) { return }
@@ -3413,16 +3413,16 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_ptr_locals := lp.ctx.ptr_locals.clone()
         saved_local_fn_sigs := lp.ctx.local_fn_sigs.clone()
         lp.ctx.closure_emit_env = "til_env"
-        lp.ctx.closure_emit_captures = Set.new(Str)
+        lp.ctx.closure_emit_captures = Set(Str).new()
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own cap2.name.clone()) }
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = closure_expr
-        lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.stack_locals = Set(Str).new()
         lp.ctx.stack_local_types = Map.new(Str, Str)
-        lp.ctx.unsafe_to_hoist = Set.new(Str)
-        lp.ctx.ref_locals = Set.new(Str)
-        lp.ctx.ref_dyn_locals = Set.new(Str)
-        lp.ctx.ptr_locals = Set.new(Str)
+        lp.ctx.unsafe_to_hoist = Set(Str).new()
+        lp.ctx.ref_locals = Set(Str).new()
+        lp.ctx.ref_dyn_locals = Set(Str).new()
+        lp.ctx.ptr_locals = Set(Str).new()
         lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.child(0))
         emit_body(f, closure_expr.child(0), 1, lp.ctx)
@@ -3442,7 +3442,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
     }
 }
 
-emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set, lp: LoadedProgram) {
+emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
     if e.is_null() { return }
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
@@ -3459,7 +3459,7 @@ emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set, lp: 
 }
 
 emit_capturing_closures_lp := proc(f: File, lp: LoadedProgram) {
-    mut emitted := Set.new(Str)
+    mut emitted := Set(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -3635,7 +3635,7 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
 }
 
 // Topologically emit struct/enum typedefs across all per-file units in ctx.
-priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set, lp: LoadedProgram) {
+priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: LoadedProgram) {
     // Vec<Dynamic> stores raw pointers (8-byte values). Each push takes an
     // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
     mut items := Vec(Dynamic).new()
@@ -4052,7 +4052,7 @@ priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
 }
 
 priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
-    mut emitted_h := Set.new(Str)
+    mut emitted_h := Set(Str).new()
     seed_primitive_names(emitted_h)
     topo_emit_struct_enum_defs_lp(f, emitted_h, lp)
     own emitted_h.delete()
@@ -4895,7 +4895,7 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
                 if stmt.expr_til_type().is(Type.None) {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
-                        if ctx.funcsig_names.has(rhs_name) {
+                        if ctx.funcsig_names.has(rhs_name.ident_name()) {
                             ctx.funcsig_names.add(own dd.name.clone())
                         }
                     case:
@@ -4939,7 +4939,7 @@ priv emit_global_inits := proc(f: File, lp: LoadedProgram) {
 }
 
 priv build_register_funcsig_names_lp := func(lp: LoadedProgram) {
-    lp.ctx.funcsig_names = Set.new(Str)
+        lp.ctx.funcsig_names = Set(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5001,7 +5001,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
     }
 }
 
-collect_closure_value_names := proc(e: Expr, mut names: Set, ctx: Context) {
+collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(ident):
@@ -5032,7 +5032,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set, ctx: Context) {
 }
 
 build_register_closure_values_lp := proc(lp: LoadedProgram) {
-    lp.ctx.closure_value_names = Set.new(Str)
+    lp.ctx.closure_value_names = Set(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -5048,12 +5048,12 @@ build_register_closure_values_lp := proc(lp: LoadedProgram) {
 priv build_register_lookups_lp := func(lp: LoadedProgram) {
     lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
     lp.ctx.func_defs = Map.new(Str, Dynamic)
-    lp.ctx.stack_locals = Set.new(Str)
+    lp.ctx.stack_locals = Set(Str).new()
     lp.ctx.stack_local_types = Map.new(Str, Str)
-    lp.ctx.unsafe_to_hoist = Set.new(Str)
-    lp.ctx.ref_locals = Set.new(Str)
-    lp.ctx.ref_dyn_locals = Set.new(Str)
-    lp.ctx.ptr_locals = Set.new(Str)
+    lp.ctx.unsafe_to_hoist = Set(Str).new()
+    lp.ctx.ref_locals = Set(Str).new()
+    lp.ctx.ref_dyn_locals = Set(Str).new()
+    lp.ctx.ptr_locals = Set(Str).new()
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -5075,7 +5075,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     emit_funcsig_typedefs_lp(f, lp)
 
     // Topo-sort struct/enum defs across all units
-    mut emitted_mh := Set.new(Str)
+    mut emitted_mh := Set(Str).new()
     seed_primitive_names(emitted_mh)
     topo_emit_struct_enum_defs_lp(f, emitted_mh, lp)
     own emitted_mh.delete()
@@ -6536,8 +6536,8 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
 }
 
 priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
-    lp.ctx.script_globals = Set.new(Str)
-    lp.ctx.ref_globals = Set.new(Str)
+    lp.ctx.script_globals = Set(Str).new()
+    lp.ctx.ref_globals = Set(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6642,7 +6642,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
 priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1, lp)
-    lp.ctx.unsafe_to_hoist = Set.new(Str)
+        lp.ctx.unsafe_to_hoist = Set(Str).new()
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -6676,7 +6676,7 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     }
     f.write("    return 0;\n")
     f.write("}\n")
-    lp.ctx.script_globals = Set.new(Str)
+    lp.ctx.script_globals = Set(Str).new()
 }
 
 priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
@@ -6911,9 +6911,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
         }
     }
     lp.ctx.func_defs = Map.new(Str, Dynamic)
-    lp.ctx.stack_locals = Set.new(Str)
+        lp.ctx.stack_locals = Set(Str).new()
     lp.ctx.stack_local_types = Map.new(Str, Str)
-    lp.ctx.unsafe_to_hoist = Set.new(Str)
+        lp.ctx.unsafe_to_hoist = Set(Str).new()
     return 0
 }
 

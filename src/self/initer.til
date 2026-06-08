@@ -2734,7 +2734,34 @@ priv init_synth_vec_inst_decl := func(elem_type: Str, line: U32, col: U32) retur
     return decl
 }
 
-priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map, synth_array: Bool, synth_vec: Bool) {
+priv init_synth_set_inst_decl := func(elem_type: Str, line: U32, col: U32) returns Expr {
+    genname := "Set__".concat(elem_type)
+    mut set_id := Expr.new(ident_node("Set"), line, col)
+    mut elem_id := Expr.new(ident_node(elem_type), line, col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own set_id)
+    call.add_child(own elem_id)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = genname)), line, col)
+    decl.add_child(own call)
+    return decl
+}
+
+priv init_set_literal_elem_type := func(e: Expr) returns Str {
+    if e.children.len().eq(0) { return "" }
+    ref first : Expr = e.child(0)
+    switch first.node_type {
+    case NodeType.Literal(Literal.Str): return "Str"
+    case NodeType.Literal(Literal.Bool): return "Bool"
+    case NodeType.Literal(Literal.Num(nd)):
+        tn := type_to_name(nd.til_type)
+        if tn.len().gt(0) { return tn }
+        return "I64"
+    case:
+    }
+    return ""
+}
+
+priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map, synth_array: Bool, synth_vec: Bool, synth_set: Bool) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.FCall:
@@ -2766,6 +2793,17 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
             case:
             }
         }
+    case NodeType.Literal(Literal.SetLit):
+        if synth_set {
+            elem_type := init_set_literal_elem_type(e)
+            if elem_type.len().gt(0) {
+                genname := "Set__".concat(elem_type)
+                if seen.has(genname).not() {
+                    synthesized.push(own init_synth_set_inst_decl(elem_type, e.line, e.col))
+                    seen.set(genname, own "")
+                }
+            }
+        }
     case NodeType.FuncDef(fd):
         if fd.variadic_index.gte(0) {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
@@ -2777,16 +2815,16 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
         }
     case NodeType.StructDef(sdd):
         for nd : Declaration in sdd.ns_decls {
-            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec)
+            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set)
         }
     case NodeType.EnumDef(edd):
         for nd : Declaration in edd.ns_decls {
-            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec)
+            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set)
         }
     case:
     }
     for i in 0..e.children.len() {
-        init_collect_variadic_arrays(e.child(i), synthesized, seen, synth_array, synth_vec)
+        init_collect_variadic_arrays(e.child(i), synthesized, seen, synth_array, synth_vec, synth_set)
     }
 }
 
@@ -2795,9 +2833,10 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     mut seen := Map.new(Str, Str)
     synth_array := ctx.scope.get_struct("Array").is_null()
     synth_vec := ctx.scope.get_struct("Vec").is_null()
-    if synth_array.not().and(synth_vec.not()) { return }
+    synth_set := ctx.scope.get_struct("Set").is_null()
+    if synth_array.not().and(synth_vec.not()).and(synth_set.not()) { return }
     for i in 0..program.children.len() {
-        init_collect_variadic_arrays(program.child(i), synthesized, seen, synth_array, synth_vec)
+        init_collect_variadic_arrays(program.child(i), synthesized, seen, synth_array, synth_vec, synth_set)
     }
     for d : Expr in synthesized {
         switch d.node_type {

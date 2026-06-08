@@ -10,9 +10,9 @@ precomp_clear_known := func(mut ctx: Context) {
 
 precomp_reset_state := func(mut ctx: Context) {
     precomp_clear_known(ctx)
-    Set.clear(ctx.precomp_macros)
-    Set.clear(ctx.precomp_funcs)
-    Set.clear(ctx.precomp_assigned)
+    ctx.precomp_macros.clear()
+    ctx.precomp_funcs.clear()
+    ctx.precomp_assigned.clear()
 }
 
 // Collect every variable name that is the target of an assignment in the
@@ -22,7 +22,7 @@ precomp_reset_state := func(mut ctx: Context) {
 // initial value). Descends into nested FuncDef bodies too -- the set is a
 // conservative program-wide blocklist, which only ever suppresses an
 // optimisation (the scope-read fold), never macro folding via precomp_known.
-priv collect_assign_targets := proc(e: Expr, mut names: Set) {
+priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Assign(ad):
@@ -498,7 +498,7 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set, ctx: Context) returns Bool {
+priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
@@ -764,9 +764,9 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             if fdef.children.len().gt(0) {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
-                    mut fuug_visiting := Set.new(Str)
+                    mut fuug_visiting := Set(Str).new()
                     uses_unknown := func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, fuug_visiting, ctx)
-                    Set.delete(own fuug_visiting, true)
+                    own fuug_visiting.delete(true)
                     if uses_unknown {
                         return NULL
                     }

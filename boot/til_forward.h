@@ -125,7 +125,6 @@ typedef struct Vec__USize Vec__USize;
 typedef struct KwargsMap KwargsMap;
 typedef struct File File;
 typedef struct Range Range;
-typedef struct Set Set;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -212,6 +211,7 @@ typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Vec__Token Vec__Token;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
+typedef struct Set__Str Set__Str;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
     ScopeFind_TAG_NotFound,
@@ -536,17 +536,6 @@ typedef struct Range {
 } Range;
 
 
-typedef struct Set {
-    U8 *data;
-    U32 count;
-    U32 cap;
-    U32 elem_size;
-    TilClosure * elem_clone;
-    TilClosure * elem_delete;
-    TilClosure * elem_cmp;
-} Set;
-
-
 
 struct TokenType {
     TokenType_tag tag;
@@ -568,18 +557,11 @@ typedef struct Vec__Token {
 } Vec__Token;
 
 
-typedef struct priv___src_self_parser_til__Parser {
-    Vec__Token tokens;
-    U32 pos;
-    Str path;
-    Vec__Expr fn_sig_decls;
-    Vec__Expr type_gen_decls;
-    Set type_gen_seen;
-    Vec__Expr anon_decls;
-    Map anon_cache;
-    Str pending_doc;
-    Str source;
-} priv___src_self_parser_til__Parser;
+typedef struct Set__Str {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Set__Str;
 
 
 typedef struct TypeBinding {
@@ -1025,6 +1007,20 @@ typedef struct Tuple {
 } Tuple;
 
 
+typedef struct priv___src_self_parser_til__Parser {
+    Vec__Token tokens;
+    U32 pos;
+    Str path;
+    Vec__Expr fn_sig_decls;
+    Vec__Expr type_gen_decls;
+    Set__Str type_gen_seen;
+    Vec__Expr anon_decls;
+    Map anon_cache;
+    Str pending_doc;
+    Str source;
+} priv___src_self_parser_til__Parser;
+
+
 typedef struct ImportUnit {
     Str mode_str;
     Mode mode;
@@ -1039,21 +1035,21 @@ typedef struct Context {
     Map path_modes;
     Bool compile_mode;
     Map imported;
-    Set imports_init_seed_done;
-    Set imports_init_active;
-    Set imports_init_done;
-    Set imports_typer_decls_done;
-    Set imports_typer_bodies_done;
-    Set imports_precomp_done;
-    Set imports_eval_done;
-    Set type_gen_synths;
+    Set__Str imports_init_seed_done;
+    Set__Str imports_init_active;
+    Set__Str imports_init_done;
+    Set__Str imports_typer_decls_done;
+    Set__Str imports_typer_bodies_done;
+    Set__Str imports_precomp_done;
+    Set__Str imports_eval_done;
+    Set__Str type_gen_synths;
     TypeScope scope;
     Bool is_repl;
     Map struct_layouts;
-    Set precomp_macros;
-    Set precomp_funcs;
+    Set__Str precomp_macros;
+    Set__Str precomp_funcs;
     Map precomp_known;
-    Set precomp_assigned;
+    Set__Str precomp_assigned;
     Bool has_return;
     Bool has_break;
     Bool has_continue;
@@ -1064,13 +1060,13 @@ typedef struct Context {
     Bool typing_namespace_member;
     Map local_fn_sigs;
     Str closure_emit_env;
-    Set closure_emit_captures;
+    Set__Str closure_emit_captures;
     Map func_defs;
     Map struct_def_exprs;
-    Set funcsig_names;
-    Set closure_value_names;
-    Set script_globals;
-    Set ref_globals;
+    Set__Str funcsig_names;
+    Set__Str closure_value_names;
+    Set__Str script_globals;
+    Set__Str ref_globals;
     Vec__Str throw_type_registry;
     Map throws_global;
     I64 bang_counter;
@@ -1091,14 +1087,14 @@ typedef struct Context {
     Str current_type_name;
     Str current_top_func_name;
     I32 auto_gen_depth;
-    Set throw_used_local_names;
-    Set stack_locals;
+    Set__Str throw_used_local_names;
+    Set__Str stack_locals;
     Map stack_local_types;
-    Set unsafe_to_hoist;
-    Set ref_locals;
-    Set ptr_locals;
-    Set ref_dyn_locals;
-    Set swap_freed;
+    Set__Str unsafe_to_hoist;
+    Set__Str ref_locals;
+    Set__Str ptr_locals;
+    Set__Str ref_dyn_locals;
+    Set__Str swap_freed;
     Expr *current_fdef;
     Expr *cached_str_def;
     Str *cached_str_name;
@@ -1534,14 +1530,6 @@ Range Range_clone(Range val);
 void Range_delete(Range * self, Bool call_free);
 U64 Range_hash(Range self, HashFn hasher);
 U32 Range_size(void);
-Set * Set_new(Type * T);
-U32 Set_len(Set * self);
-void Set_clear(Set * self);
-Bool Set_has(Set * self, void * val);
-void Set_add(Set * self, void * val);
-void Set_delete(Set * self, Bool call_free);
-Set * Set_clone(Set * self);
-U32 Set_size(void);
 Str * U16_to_str(U16 val);
 void U16_delete(U16 * self, Bool call_free);
 U32 U16_size(void);
@@ -1634,6 +1622,14 @@ Expr * priv___src_self_parser_til__parse_case_head(priv___src_self_parser_til__P
 Expr * priv___src_self_parser_til__parse_switch(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_statement_body(priv___src_self_parser_til__Parser * p);
 Expr * parse(Vec__Token * tokens, Str * source, Str * path, Str * mode_out);
+Set__Str * Set__Str_new(void);
+U32 Set__Str_len(Set__Str * self);
+void Set__Str_clear(Set__Str * self);
+Bool Set__Str_has(Set__Str * self, Str * val);
+void Set__Str_add(Set__Str * self, Str * val);
+void Set__Str_delete(Set__Str * self, Bool call_free);
+Set__Str * Set__Str_clone(Set__Str * self);
+U32 Set__Str_size(void);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U64 TypeBinding_hash(TypeBinding * self, HashFn hasher);
@@ -1767,7 +1763,9 @@ void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * 
 void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_initer_til__init_synth_array_inst_decl(Str * elem_type, U32 line, U32 col);
 Expr * priv___src_self_initer_til__init_synth_vec_inst_decl(Str * elem_type, U32 line, U32 col);
-void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map * seen, Bool synth_array, Bool synth_vec);
+Expr * priv___src_self_initer_til__init_synth_set_inst_decl(Str * elem_type, U32 line, U32 col);
+Str * priv___src_self_initer_til__init_set_literal_elem_type(Expr * e);
+void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map * seen, Bool synth_array, Bool synth_vec, Bool synth_set);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
@@ -1950,7 +1948,7 @@ Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope
 Str * priv___src_self_typer_til__guess_local_type(Expr * e, Str * var_name);
 Str * priv___src_self_typer_til__guess_prior_local_type_in_vec(Vec__Expr * stmts, U32 upto, Str * var_name);
 void priv___src_self_typer_til__seed_prior_local_types(Context * ctx, Vec__Expr * stmts, U32 upto);
-void priv___src_self_typer_til__collect_throw_ident_names(Expr * e, Set * names);
+void priv___src_self_typer_til__collect_throw_ident_names(Expr * e, Set__Str * names);
 void priv___src_self_typer_til__annotate_throw_ident_expr_types(Expr * e, Expr * root_body);
 Bool priv___src_self_typer_til__subtree_has_throw_type(Expr * e, Expr * root_body, Str * type_name);
 Bool priv___src_self_typer_til__has_prior_throw_type_in_vec(Vec__Expr * stmts, Expr * root_body, U32 upto, Str * type_name);
@@ -2050,6 +2048,7 @@ Expr * priv___src_self_typer_til__make_to_str_call(Str * type_name, Expr * arg);
 Expr * priv___src_self_typer_til__make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 Str * priv___src_self_typer_til__variadic_array_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_typer_til__variadic_vec_type_name(TypeScope * scope, Str * elem_type);
+Str * priv___src_self_typer_til__set_literal_type_name(TypeScope * scope, Str * elem_type);
 void priv___src_self_typer_til__sync_own_args_from_callee(Expr * call, TypeScope * scope);
 Expr * priv___src_self_typer_til__build_kwargs_map_decl(Expr * fcall, Str * kw_name);
 Expr * priv___src_self_typer_til__build_kwargs_map_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
@@ -2145,7 +2144,7 @@ Vec__LocalInfo * Vec__LocalInfo_clone(Vec__LocalInfo * self);
 U32 Vec__LocalInfo_size(void);
 void precomp_clear_known(Context * ctx);
 void precomp_reset_state(Context * ctx);
-void priv___src_self_precomp_til__collect_assign_targets(Expr * e, Set * names);
+void priv___src_self_precomp_til__collect_assign_targets(Expr * e, Set__Str * names);
 Bool priv___src_self_precomp_til__precomp_has_macro(Context * ctx, Str * name);
 Bool priv___src_self_precomp_til__precomp_has_func(Context * ctx, Str * name);
 Bool priv___src_self_precomp_til__is_side_effecting_name(Str * name);
@@ -2158,7 +2157,7 @@ Value priv___src_self_precomp_til__expr_to_value(Expr * e, Context * ctx);
 Bool priv___src_self_precomp_til__is_known(Context * ctx, Expr * e, Value * out);
 Bool priv___src_self_precomp_til__is_known_check(Context * ctx, Expr * e);
 Bool priv___src_self_precomp_til__body_has_local(Expr * body, Str * name);
-Bool priv___src_self_precomp_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * precomp_scope, Expr * body_root, Bool lenient, Set * visiting, Context * ctx);
+Bool priv___src_self_precomp_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * precomp_scope, Expr * body_root, Bool lenient, Set__Str * visiting, Context * ctx);
 Expr * priv___src_self_precomp_til__extract_trivial_literal_return(Expr * fdef);
 void * priv___src_self_precomp_til__ns_lookup_flat(Str * name, Context * ctx);
 Str * priv___src_self_precomp_til__fa_recv_type_name(Expr * callee, Context * ctx);
@@ -2181,12 +2180,12 @@ void priv___src_self_scavenger_til__children_filter_decl(Vec__Declaration * v, v
 void push_qn(Vec__Str * v, Str * type_name, Str * method);
 void priv___src_self_scavenger_til__push_builtin_methods(Vec__Str * v, Str * builtin_name, Str * m1, Str * m2, Str * m3);
 void collect_refs(Expr * e, Vec__Str * refs);
-void scavenge_filter(Expr * program, Set * visited);
+void scavenge_filter(Expr * program, Set__Str * visited);
 U32 priv___src_self_scavenger_til__dyn_call_real_arg_count(Expr * e);
-void priv___src_self_scavenger_til__collect_body_refs(Expr * e, Set * refs, Set * candidates);
+void priv___src_self_scavenger_til__collect_body_refs(Expr * e, Set__Str * refs, Set__Str * candidates);
 Str * priv___src_self_scavenger_til__match_trivial_delete(Expr * stmt);
 Bool priv___src_self_scavenger_til__rhs_is_pure_byvalue(Expr * e);
-void priv___src_self_scavenger_til__prune_trivial_deletes(Expr * e, Set * dropped);
+void priv___src_self_scavenger_til__prune_trivial_deletes(Expr * e, Set__Str * dropped);
 Bool priv___src_self_scavenger_til__dce_one_body(Expr * body, Bool at_top_level);
 Bool priv___src_self_scavenger_til__match_named_delete(Expr * stmt, Str * name);
 void priv___src_self_scavenger_til__fix_stale_litstr_in_body(Expr * body);
@@ -2206,7 +2205,7 @@ U32 ProgramUnit_size(void);
 Vec__Str * priv___src_self_loader_til__resolve_import_disps(Vec__Str * import_paths, Str * base_dir, Str * lib_dir, Str * cwd);
 void priv___src_self_loader_til__extract_one_import(Expr * imp_stmt, Str * path, Vec__Str * paths);
 Vec__Str * priv___src_self_loader_til__extract_imports(Expr * body, Str * path);
-I32 priv___src_self_loader_til__resolve_imports(Vec__Str * import_paths, Str * base_dir, Set * resolved_set, Vec__Expr * stack, Vec__ProgramUnit * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
+I32 priv___src_self_loader_til__resolve_imports(Vec__Str * import_paths, Str * base_dir, Set__Str * resolved_set, Vec__Expr * stack, Vec__ProgramUnit * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool call_free);
 U32 LoadedProgram_size(void);
@@ -2218,7 +2217,7 @@ void priv___src_self_loader_til__DeclRef_delete(priv___src_self_loader_til__Decl
 U64 priv___src_self_loader_til__DeclRef_hash(priv___src_self_loader_til__DeclRef * self, HashFn hasher);
 U32 priv___src_self_loader_til__DeclRef_size(void);
 Expr * priv___src_self_loader_til__find_ns_decl_fdef_imported(Context * ctx, Map * top, Str * name);
-Set * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
+Set__Str * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__extract_link_info(LoadedProgram * lp);
@@ -2305,7 +2304,7 @@ Bool priv___src_self_builder_til__callee_param_is_own(Str * callee_name, U32 arg
 Bool priv___src_self_builder_til__fcall_is_shallow_return(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__fcall_returns_dynamic(Expr * fcall, Context * ctx);
 Str * priv___src_self_builder_til__til_type_to_c(Type t);
-void priv___src_self_builder_til__seed_primitive_names(Set * emitted);
+void priv___src_self_builder_til__seed_primitive_names(Set__Str * emitted);
 Str * priv___src_self_builder_til__extern_decl_ctype(Type t, Type rhs_t, Context * ctx);
 Str * priv___src_self_builder_til__resolve_decl_ctype(Type t, Type rhs_t, Str * explicit, Context * ctx);
 Str * priv___src_self_builder_til__c_type_name(Type t, Str * struct_name, Context * ctx);
@@ -2321,7 +2320,7 @@ File * priv___src_self_builder_til__emit_usize(File * f, U32 v);
 File * priv___src_self_builder_til__emit_i32(File * f, I32 v);
 File * priv___src_self_builder_til__emit_indent(File * f, I32 depth);
 U32 priv___src_self_builder_til__c_lit_byte_count(Str * s);
-void priv___src_self_builder_til__collect_ident_refs(Expr * e, Set * refs);
+void priv___src_self_builder_til__collect_ident_refs(Expr * e, Set__Str * refs);
 void priv___src_self_builder_til__emit_til_default(File * f, Type t);
 Str * priv___src_self_builder_til__param_ctype(FunctionDef * fd, U32 i, Context * ctx);
 void priv___src_self_builder_til__emit_param_list(File * f, Expr * fdef, Bool with_names, Bool for_ext_decl, Context * ctx);
@@ -2365,15 +2364,15 @@ Str * priv___src_self_builder_til__cli_view_box(Str * ctype, Str * conv, Str * a
 Str * priv___src_self_builder_til__cli_box_expr(Str * ttype, Str * arg);
 void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg);
 void priv___src_self_builder_til__emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static, LoadedProgram * lp);
-void emit_capturing_closure_func(File * f, Expr * closure_expr, Set * emitted, LoadedProgram * lp);
-void emit_capturing_closures_in_expr(File * f, Expr * e, Set * emitted, LoadedProgram * lp);
+void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitted, LoadedProgram * lp);
+void emit_capturing_closures_in_expr(File * f, Expr * e, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_lp(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr * struct_def);
 void priv___src_self_builder_til__emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr * struct_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, Expr * enum_def, Context * ctx);
-void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set * emitted, LoadedProgram * lp);
+void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);
 void priv___src_self_builder_til__emit_func_forward_decl(File * f, Str * name, Expr * fdef, Bool top_level, Context * ctx);
 void priv___src_self_builder_til__emit_closure_forward_decl(File * f, Str * name, Expr * fdef, Context * ctx);
@@ -2403,7 +2402,7 @@ void priv___src_self_builder_til__emit_global_inits_prog(File * f, Expr * prog, 
 void priv___src_self_builder_til__emit_global_inits(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__build_register_funcsig_names_lp(LoadedProgram * lp);
 void priv___src_self_builder_til__register_lookups_prog(Expr * prog, Context * ctx);
-void collect_closure_value_names(Expr * e, Set * names, Context * ctx);
+void collect_closure_value_names(Expr * e, Set__Str * names, Context * ctx);
 void build_register_closure_values_lp(LoadedProgram * lp);
 void priv___src_self_builder_til__build_register_lookups_lp(LoadedProgram * lp);
 void priv___src_self_builder_til__emit_monolithic_header_lp(File * f, Mode * mode, LoadedProgram * lp);

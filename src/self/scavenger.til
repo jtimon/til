@@ -247,7 +247,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 
 // Filter top-level declarations and namespace methods in-place using a
 // precomputed visited set.
-scavenge_filter := func(mut program: Expr, visited: Set) {
+scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
     pn := program.children.len()
     pm : Dynamic = malloc(pn.cast(U64))
     memset(pm, 0, pn.cast(U64))
@@ -341,7 +341,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
 // skip trivial `<Type>.delete(<candidate>, false)` cleanup calls (at
 // any nesting depth) so a candidate's auto-generated cleanup doesn't
 // pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
-priv collect_body_refs := proc(e: Expr, mut refs: Set, candidates: Set) {
+priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(name):
@@ -440,7 +440,7 @@ priv MARK_REPLACE_RHS : U8 = 2
 // been dropped/replaced in the outer body, since their cleanup calls
 // also live in nested early-return bodies (if-then deletes before a
 // return) that the outer body's phase 3 didn't reach.
-priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set) {
+priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
@@ -483,8 +483,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     //   - `_t_*` with FCall RHS: the binding is unused, but the FCall
     //     may have side effects, so we replace the Decl stmt with the
     //     bare FCall rather than dropping it.
-    candidates := Set.new(Str)
-    candidates_replace := Set.new(Str)
+    candidates := Set(Str).new()
+    candidates_replace := Set(Str).new()
     for i in 0..n {
         ref stmt : Expr = body.child(i)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -526,7 +526,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // Phase 2: collect "real" refs -- everything except trivial deletes
     // that target a candidate temp. Those are weak refs we'll drop along
     // with the candidate.
-    refs := Set.new(Str)
+    refs := Set(Str).new()
     for i in 0..n {
         ref stmt : Expr = body.child(i)
         target := match_trivial_delete(stmt)
@@ -538,7 +538,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // matching trivial-delete stmts.
     marks : Dynamic = malloc(n.cast(U64))
     memset(marks, 0, n.cast(U64))
-    dropped := Set.new(Str)
+    dropped := Set(Str).new()
     mut any := false
     for i in 0..n {
         ref stmt : Expr = body.child(i)
@@ -589,10 +589,10 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         }
     }
     free(own marks)
-    Set.delete(own refs, true)
-    Set.delete(own candidates, true)
-    Set.delete(own candidates_replace, true)
-    Set.delete(own dropped, true)
+    own refs.delete(true)
+    own candidates.delete(true)
+    own candidates_replace.delete(true)
+    own dropped.delete(true)
     return any
 }
 

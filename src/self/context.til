@@ -279,9 +279,9 @@ Context := struct {
     // declarations are visible to break import cycles; done means the
     // full init pass completed. Active prevents recursive cycles from
     // re-entering a file while its imports are still being walked.
-    imports_init_seed_done := Set.new(Str)
-    imports_init_active := Set.new(Str)
-    imports_init_done := Set.new(Str)
+    imports_init_seed_done := Set(Str).new()
+    imports_init_active := Set(Str).new()
+    imports_init_done := Set(Str).new()
     // Two-sweep typer (issue #174 / #147 step 3-4 prep). The typer
     // recursion is split into a decls-first sweep (struct/enum decls,
     // methodgen, layout) and a bodies sweep (function body
@@ -290,16 +290,16 @@ Context := struct {
     // cycle that #174 catalogues is broken: bodies in either
     // direction always see the other's methods. Each sweep has its
     // own per-file memo Set.
-    imports_typer_decls_done := Set.new(Str)
-    imports_typer_bodies_done := Set.new(Str)
-    imports_precomp_done := Set.new(Str)
-    imports_eval_done := Set.new(Str)
+    imports_typer_decls_done := Set(Str).new()
+    imports_typer_bodies_done := Set(Str).new()
+    imports_precomp_done := Set(Str).new()
+    imports_eval_done := Set(Str).new()
 
     // Issue #267: deterministic type-gen macro instantiations such as
     // `TemplVec__Bool` are shared across all initialized units. The first
     // unit that sees an inline `TemplVec(Bool)` owns the synthesized decl;
     // later units rewrite to the same name without emitting another type.
-    type_gen_synths := Set.new(Str)
+    type_gen_synths := Set(Str).new()
 
     scope := TypeScope()
     is_repl := false
@@ -313,13 +313,13 @@ Context := struct {
     // Precomp state moved off module globals. The same Context crosses
     // imported files and later phases, so these three tables live here
     // directly rather than as a separate module-global side store.
-    precomp_macros := Set.new(Str)
-    precomp_funcs := Set.new(Str)
+    precomp_macros := Set(Str).new()
+    precomp_funcs := Set(Str).new()
     precomp_known := Map.new(Str, Value)
     // Names that are the target of an assignment somewhere (so their value
     // is not a compile-time constant -- a mut local reassigned in a loop is
     // NOT foldable). Guards the scope-read fold in try_eval_call.
-    precomp_assigned := Set.new(Str)
+    precomp_assigned := Set(Str).new()
 
     // Interpreter runtime state, moved off module globals (same
     // direct-on-Context approach as the precomp tables above). The
@@ -350,16 +350,16 @@ Context := struct {
     // without a per-emit reset; this commit only moves the storage.
     local_fn_sigs := Map.new(Str, Dynamic)
     closure_emit_env := ""
-    closure_emit_captures := Set.new(Str)
+    closure_emit_captures := Set(Str).new()
 
     // #178 builder lookup tables migrated from module-globals. Populated
     // at build registration time, read throughout codegen.
     func_defs := Map.new(Str, Dynamic)
     struct_def_exprs := Map.new(Str, Dynamic)
-    funcsig_names := Set.new(Str)
-    closure_value_names := Set.new(Str)
-    script_globals := Set.new(Str)
-    ref_globals := Set.new(Str)
+    funcsig_names := Set(Str).new()
+    closure_value_names := Set(Str).new()
+    script_globals := Set(Str).new()
+    ref_globals := Set(Str).new()
 
     // Issue #198: typer-owned error-type registries, moved off
     // module-level globals so they live on the same Context that
@@ -452,16 +452,16 @@ Context := struct {
     current_type_name := ""
     current_top_func_name := ""
     auto_gen_depth : I32 = 0
-    throw_used_local_names := Set.new(Str)
+    throw_used_local_names := Set(Str).new()
 
     // #178 builder per-function transients. The builder resets these on
     // entering each function body and reads them throughout that body's
     // emission. emit_func_def is not actually recursive (the typer lifts
     // nested funcs to top level), so a per-emit reset is sufficient.
-    stack_locals := Set.new(Str)
+    stack_locals := Set(Str).new()
     stack_local_types := Map.new(Str, Str)
-    unsafe_to_hoist := Set.new(Str)
-    ref_locals := Set.new(Str)
+    unsafe_to_hoist := Set(Str).new()
+    ref_locals := Set(Str).new()
     // #220: names of decls made inside the current function body. Inside a
     // function every `:=` decl is a local (is_global/is_rg are gated on
     // in_func_def.not()), but stack_locals/ref_locals only capture a subset
@@ -472,15 +472,15 @@ Context := struct {
     // pointer. Recorded for every in-function decl; consulted only by
     // is_value_global/is_ref_global so the effect is limited to the
     // global-vs-local decision.
-    ptr_locals := Set.new(Str)
+    ptr_locals := Set(Str).new()
     // #185: ref-locals declared as `ref X : Dynamic = ...`. Tracked
     // separately so emit_deref can typed-cast a Dynamic-declared
     // local when the typer's narrow_dynamic has retyped a use of it
     // to a concrete primitive (`not(x)`, `y.add(x)`, etc.). Without
     // the cast the codegen would emit `DEREF(x)` on a `void *`,
     // which is invalid C.
-    ref_dyn_locals := Set.new(Str)
-    swap_freed := Set.new(Str)
+    ref_dyn_locals := Set(Str).new()
+    swap_freed := Set(Str).new()
     ref current_fdef : Expr = NULL
 
     // #177 interpreter caches for well-known core types, populated during
