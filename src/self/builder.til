@@ -784,10 +784,12 @@ priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
 }
 
 priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) returns Str {
+    concrete := "Array__".concat(elem_type)
+    if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref array_func : Expr = ctx.scope.lookup_func("Array")
-    if builder_is_type_gen_macro_def(array_func) { return "Array__".concat(elem_type) }
+    if builder_is_type_gen_macro_def(array_func) { return concrete }
     if ctx.scope.get_struct("Array").is_null().not() { return "Array" }
-    return "Array__".concat(elem_type)
+    return concrete
 }
 
 priv builder_variadic_array_ctype := func(ctx: Context, elem_type: Str) returns Str {
@@ -5083,6 +5085,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     } else {
                         switch rhs.node_type {
                         case NodeType.FuncDef(fd):
+                            if builder_is_type_gen_macro_def(rhs) { continue }
                             if rhs.children.len().eq(0) { continue }
                             if mode.is_null().not() {
                                 if mode.needs_main {
@@ -5128,6 +5131,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 } else {
                     switch rhs.node_type {
                     case NodeType.FuncDef(fd):
+                        if builder_is_type_gen_macro_def(rhs) { continue }
                         if rhs.children.len().eq(0) { continue }
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                         if mode.is_null().not() {
@@ -5208,6 +5212,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     } else {
                         switch rhs.node_type {
                         case NodeType.FuncDef(fd):
+                            if builder_is_type_gen_macro_def(rhs) { continue }
                             if rhs.children.len().eq(0) { continue }
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                             if mode.is_null().not() {
@@ -5246,6 +5251,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 } else {
                     switch rhs.node_type {
                     case NodeType.FuncDef(fd):
+                        if builder_is_type_gen_macro_def(rhs) { continue }
                         if rhs.children.len().eq(0) { continue }
                         if mode.is_null().not() {
                             if mode.needs_main {
