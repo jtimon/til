@@ -2155,8 +2155,12 @@ Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map
 Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef);
 Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
 Str * priv___src_self_initer_til__init_macro_inst_text_name(Str * prefix, Str * text);
+Str * priv___src_self_initer_til__init_type_arg_name(TypeScope * scope, Str * name);
+Str * priv___src_self_initer_til__init_macro_inst_type_arg_name(Expr * arg, TypeScope * scope);
 Str * priv___src_self_initer_til__init_macro_inst_arg_name(Expr * arg);
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
+Str * priv___src_self_initer_til__init_macro_inst_name_for_macro(Expr * e, Expr * macro_fdef, TypeScope * scope);
+Str * priv___src_self_initer_til__init_macro_inst_name_in_scope(Expr * e, Map__Str_Expr * macros, TypeScope * scope);
 void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized, Bool mark_ctx);
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);

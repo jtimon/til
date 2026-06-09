@@ -2559,6 +2559,26 @@ priv init_macro_inst_text_name := func(prefix: Str, text: Str) returns Str {
     return out
 }
 
+priv init_type_arg_name := func(scope: TypeScope, name: Str) returns Str {
+    if scope.is_null().not() {
+        ref b : TypeBinding = scope.get_binding(name)
+        if b.is_null().not() {
+            if b.is_type_alias.and(b.alias_target.is_empty().not()) {
+                return b.alias_target.clone()
+            }
+        }
+    }
+    return name.clone()
+}
+
+priv init_macro_inst_type_arg_name := func(arg: Expr, scope: TypeScope) returns Str {
+    switch arg.node_type {
+    case NodeType.Ident(an): return init_type_arg_name(scope, an.ident_name())
+    case:
+    }
+    return init_macro_inst_arg_name(arg)
+}
+
 priv init_macro_inst_arg_name := func(arg: Expr) returns Str {
     switch arg.node_type {
     case NodeType.Ident(an): return an.ident_name()
@@ -2603,6 +2623,49 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
     return out
 }
 
+priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: TypeScope) returns Str {
+    ref callee : Expr = e.child(0)
+    mut out := ""
+    switch callee.node_type {
+    case NodeType.Ident(cn): out = cn.ident_name().concat("__")
+    case:
+    }
+    for k in 1..e.children.len() {
+        if k.gt(1) { out = out.concat("_") }
+        ref arg : Expr = e.child(k)
+        mut is_type_arg := false
+        switch macro_fdef.node_type {
+        case NodeType.FuncDef(mfd):
+            pidx := k.sub(1)
+            if pidx.lt(mfd.params.len()) {
+                ref param : Declaration = mfd.params[pidx]
+                is_type_arg = param.explicit_type.eq("Type")
+            }
+        case:
+        }
+        if is_type_arg {
+            out = out.concat(init_macro_inst_type_arg_name(arg, scope))
+        } else {
+            out = out.concat(init_macro_inst_arg_name(arg))
+        }
+    }
+    return out
+}
+
+priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope) returns Str {
+    if e.children.len().eq(0) { return init_macro_inst_name(e) }
+    ref callee : Expr = e.child(0)
+    switch callee.node_type {
+    case NodeType.Ident(cn):
+        ref macro_fdef : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope)
+        if macro_fdef.is_null().not() {
+            return init_macro_inst_name_for_macro(e, macro_fdef, scope)
+        }
+    case:
+    }
+    return init_macro_inst_name(e)
+}
+
 // Recursively rewrite every inline macro-instantiation call in `e`'s subtree
 // to an Ident referencing a synthesized monomorphization decl. Dedup via
 // ctx.type_gen_synths across all initialized units; accumulate any new
@@ -2639,7 +2702,7 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeSco
     for i in 0..e.children.len() {
         ref mut c : Expr = e.child(i)
         if init_is_macro_inst_call(c, macros, scope) {
-            genname := init_macro_inst_name(c)
+            genname := init_macro_inst_name_in_scope(c, macros, scope)
             if ctx.type_gen_synths.has(genname).not() {
                 mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), c.line, c.col)
                 decl.add_child(own c.clone())
@@ -2687,7 +2750,7 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
         ref mut stmt : Expr = program.child(i)
         if init_is_direct_macro_inst_decl(stmt, macros, scope).not() { continue }
         ref rhs : Expr = stmt.child(0)
-        genname := init_macro_inst_name(rhs)
+        genname := init_macro_inst_name_in_scope(rhs, macros, scope)
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if dd.name.eq(genname) { continue }
@@ -2909,7 +2972,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
         ref stmt0 : Expr = program.child(i)
         if init_is_direct_macro_inst_decl(stmt0, macros, scope).not() { continue }
         ref rhs0 : Expr = stmt0.child(0)
-        genname0 := init_macro_inst_name(rhs0)
+        genname0 := init_macro_inst_name_in_scope(rhs0, macros, scope)
         switch stmt0.node_type {
         case NodeType.Decl(dd0):
             if dd0.name.eq(genname0) {
@@ -2925,7 +2988,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
         mut keep := true
         if init_is_direct_macro_inst_decl(stmt, macros, scope) {
             ref rhs : Expr = stmt.child(0)
-            genname := init_macro_inst_name(rhs)
+            genname := init_macro_inst_name_in_scope(rhs, macros, scope)
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 if dd.name.eq(genname) {
@@ -3261,7 +3324,17 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
                     if j.add(1).gte(rhs.children.len()) { break }
                     ref param : Declaration = mfd.params[j]
                     ref arg : Expr = rhs.child(j.add(1))
-                    subs.set(param.name, own arg.clone())
+                    if param.explicit_type.eq("Type").and(arg.node_type.is(NodeType.Ident)) {
+                        switch arg.node_type {
+                        case NodeType.Ident(an):
+                            type_arg_name := init_type_arg_name(scope, an.ident_name())
+                            mut type_arg := Expr.new(ident_node(type_arg_name), arg.line, arg.col)
+                            subs.set(param.name, own type_arg)
+                        case:
+                        }
+                    } else {
+                        subs.set(param.name, own arg.clone())
+                    }
                 }
             case:
             }
