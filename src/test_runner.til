@@ -5,7 +5,7 @@ import("std/sys")
 // test_runner.til — runs tests and reports structured results for tests.til.
 //
 // Usage:
-//   test_runner mode <file> [-no-interp] [-no-run] [-no-match]
+//   test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>]
 //   test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>
 //   test_runner count <label> <needle> <expected_count> -- <cmd...>
 
@@ -68,16 +68,16 @@ run_phase := proc(cmd: Str) returns PhaseResult {
 
 main := proc(args: ..Str) {
     if args.len().lt(1) {
-        println("Usage: test_runner <mode|single|count> ...")
+        println("Usage: test_runner <both|single|count> ...")
         exit(1)
     }
 
     ref subcmd : Str = args[0]
 
-    // mode subcommand
-    if subcmd.eq("mode") {
+    // both subcommand: compare interpret output with compiled-run output.
+    if subcmd.eq("both") {
         if args.len().lt(2) {
-            println("Usage: test_runner mode <file> [-no-interp] [-no-run] [-no-match] [--asan]")
+            println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan]")
             exit(1)
         }
 
@@ -86,12 +86,17 @@ main := proc(args: ..Str) {
         mut en_run := 1
         mut en_match := 1
         mut asan_flag := ""
+        mut til_bin := TIL
         for i in 2..args.len() {
             ref arg : Str = args[i]
             if arg.eq("-no-interp") { en_interp = 0 }
             if arg.eq("-no-run") { en_run = 0 }
             if arg.eq("-no-match") { en_match = 0 }
             if arg.eq("--asan") { asan_flag = " --asan" }
+            if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
+                ref val : Str = args[i.add(1)]
+                til_bin = val.clone()
+            }
         }
 
         basename := test_basename(file)
@@ -112,7 +117,7 @@ main := proc(args: ..Str) {
         mut fail := 0
 
         if en_interp.eq(1) {
-            cmd := TIL.format(" interpret '", file, "' > ", interp_outfile, " 2>/dev/null")
+            cmd := til_bin.format(" interpret '", file, "' > ", interp_outfile, " 2>/dev/null")
             phase := run_phase(cmd)
             interp_ms = phase.ms
             interp_mem = phase.mem
@@ -126,7 +131,7 @@ main := proc(args: ..Str) {
 
         if en_run.eq(1) {
             // Compile
-            build_cmd := TIL.format(" build", asan_flag, " -o ", bin_path, " '", file, "' 2>/dev/null")
+            build_cmd := til_bin.format(" build", asan_flag, " -o ", bin_path, " '", file, "' 2>/dev/null")
             phase := run_phase(build_cmd)
             compile_ms = phase.ms
             compile_mem = phase.mem
@@ -149,7 +154,7 @@ main := proc(args: ..Str) {
             }
         }
 
-        // Compare all passing mode outputs
+        // Compare all passing both outputs
         mut out_match := 1
         mut ref_out := ""
         mut has_ref := 0
@@ -172,12 +177,12 @@ main := proc(args: ..Str) {
             }
         }
 
-        mut mode_ok := 1
-        if fail.neq(0) { mode_ok = 0 }
-        if out_match.eq(0) { mode_ok = 0 }
+        mut both_ok := 1
+        if fail.neq(0) { both_ok = 0 }
+        if out_match.eq(0) { both_ok = 0 }
         total_ms := interp_ms.add(compile_ms).add(run_ms)
 
-        println("RESULT ok=", mode_ok.to_str(), " ms=", total_ms.to_str(),
+        println("RESULT ok=", both_ok.to_str(), " ms=", total_ms.to_str(),
                 " interp_ms=", interp_ms.to_str(), " interp_ok=", interp_ok.to_str(),
                 " interp_mem=", interp_mem.to_str(),
                 " compile_ms=", compile_ms.to_str(), " compile_ok=", compile_ok.to_str(),

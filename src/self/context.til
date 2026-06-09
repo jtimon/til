@@ -709,11 +709,8 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
                 // typer.til:type_from_name.
                 if scope.lookup_func(b.name).is_null() { return b.type.clone() }
             }
-            ref b_fd : Expr = scope.lookup_func(b.name)
-            if b_fd.is_null().not() {
-                if b_fd.children.len().eq(0) {
-                    return Type.FuncPtr
-                }
+            if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
+                return Type.FuncPtr
             }
         }
         ref sdef : Expr = scope.get_struct(name)

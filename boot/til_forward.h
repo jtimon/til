@@ -1771,6 +1771,7 @@ Str * priv___src_self_initer_til__init_set_literal_elem_type(Expr * e);
 void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map * seen, Bool synth_array, Bool synth_vec, Bool synth_set);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
 void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map * generics, Map * seen, Vec__Expr * synthesized);
 void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map * seen, Vec__Expr * synthesized);

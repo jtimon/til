@@ -2915,6 +2915,25 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map, sc
     }
 }
 
+priv init_refresh_seeded_scope_defs := func(program: Expr, mut scope: TypeScope) {
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len().eq(0) { continue }
+        mut name := ""
+        switch stmt.node_type {
+        case NodeType.Decl(dd): name = dd.name
+        case:
+        }
+        if scope.bindings.has(name).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
+            scope.set_struct_def(name, rhs)
+        } else if rhs.node_type.is(NodeType.FuncDef) {
+            scope.set_func_def(name, rhs)
+        }
+    }
+}
+
 // Issue #58 "Phase now": a top-level `name := func(T: Type, ...)` is a
 // GENERIC function -- a func/proc whose param list has at least one
 // `Type`-typed param. Unlike a macro it is CALLED DIRECTLY with the
@@ -3150,6 +3169,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
     // if a value use already synthesized `Name__Arg`, drop the parser's
     // duplicate; if the type occurrence is truly type-only, keep it.
     init_dedup_direct_type_gen_decls(program, macros, scope, ctx)
+    init_refresh_seeded_scope_defs(program, scope)
 
     // Walk top-level decls, expanding each `X := macroname(args)`. Expansion
     // can synthesize more deterministic decls from `Name(T)` self-references
@@ -3279,6 +3299,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // be picked up. Rewrites each call to its concrete copy and removes
     // the generic decl.
     init_expand_generic_funcs(program)
+    init_refresh_seeded_scope_defs(program, scope)
 
     // Single AST walk: register every type name in scope (struct, enum,
     // funcsig) and bucket each remaining Decl's index for post-walk work.

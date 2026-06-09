@@ -88,7 +88,7 @@ mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
 
 // --- Data structures ---
 
-ModeData := struct {
+BothData := struct {
     interp_ms := 0
     interp_ok := 0
     interp_mem := 0
@@ -99,8 +99,8 @@ ModeData := struct {
     run_ok := 0
     run_mem := 0
     output_match := 1
-    namespace:
-    eq := func(a: ModeData, b: ModeData) returns Bool {
+namespace:
+    eq := func(a: BothData, b: BothData) returns Bool {
         return a.interp_ms.eq(b.interp_ms).and(a.interp_ok.eq(b.interp_ok))
             .and(a.interp_mem.eq(b.interp_mem))
             .and(a.compile_ms.eq(b.compile_ms)).and(a.compile_ok.eq(b.compile_ok))
@@ -109,10 +109,10 @@ ModeData := struct {
             .and(a.run_mem.eq(b.run_mem))
             .and(a.output_match.eq(b.output_match))
     }
-    to_str := func(_self: ModeData) returns Str { return "ModeData" }
+    to_str := func(_self: BothData) returns Str { return "BothData" }
 }
 
-TestKind := enum { Mode: ModeData, Single, Count }
+TestKind := enum { Both: BothData, Single, Count }
 
 Test := struct {
     label := ""
@@ -127,7 +127,7 @@ Test := struct {
     ok := 0
     ms := 0
     mem := 0
-    // mode config flags
+    // both config flags
     has_interp := 0
     has_run := 0
 }
@@ -142,7 +142,7 @@ Slot := struct {
 
 print_test_result := proc(t: Test) {
     switch t.kind {
-    case TestKind.Mode(md):
+    case TestKind.Both(md):
         mut line := pad_right(t.label, 42)
         if t.has_interp.eq(1) { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
         if t.has_run.eq(1) { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
@@ -157,58 +157,58 @@ print_test_result := proc(t: Test) {
 
 // --- Registration helpers ---
 
-add_mode := func(tests: Vec(Test), file: Str, flags: Str) {
+add_both := func(tests: Vec(Test), file: Str, flags: Str) {
     bn := test_basename(file)
     tests.push(own Test(
         label = file.clone(),
-        cmd = format(RUNNER, " mode '", file, "'", flags),
+        cmd = format(RUNNER, " both '", file, "'", flags),
         outfile = format("gen/out/results/", bn, ".txt"),
-        category = "mode",
-        kind = TestKind.Mode(ModeData()),
+        category = "both",
+        kind = TestKind.Both(BothData()),
         has_interp = 1, has_run = 1
     ))
 }
 
 add_single := func(tests: Vec(Test), label: Str, category: Str,
-                   expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
-    mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
-    if expected_out.len().gt(0) {
-        runner_cmd = format(runner_cmd, " ", expected_out)
+    expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
+        mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
+        if expected_out.len().gt(0) {
+            runner_cmd = format(runner_cmd, " ", expected_out)
+        }
+        runner_cmd = format(runner_cmd, " -- ", cmd_suffix)
+        tests.push(own Test(
+            label = label.clone(),
+            cmd = runner_cmd,
+            outfile = format("gen/out/results/", label, ".txt"),
+            category = category.clone(),
+            kind = TestKind.Single
+        ))
     }
-    runner_cmd = format(runner_cmd, " -- ", cmd_suffix)
-    tests.push(own Test(
-        label = label.clone(),
-        cmd = runner_cmd,
-        outfile = format("gen/out/results/", label, ".txt"),
-        category = category.clone(),
-        kind = TestKind.Single
-    ))
-}
 
 add_count := func(tests: Vec(Test), label: Str, category: Str,
-                  needle: Str, expected_count: I64, cmd_suffix: Str) {
-    runner_cmd := format(RUNNER, " count ", label, " '", needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
-    tests.push(own Test(
-        label = label.clone(),
-        cmd = runner_cmd,
-        outfile = format("gen/out/results/", label, ".txt"),
-        category = category.clone(),
-        kind = TestKind.Count
-    ))
-}
+    needle: Str, expected_count: I64, cmd_suffix: Str) {
+        runner_cmd := format(RUNNER, " count ", label, " '", needle, "' ", expected_count.to_str(), " -- ", cmd_suffix)
+        tests.push(own Test(
+            label = label.clone(),
+            cmd = runner_cmd,
+            outfile = format("gen/out/results/", label, ".txt"),
+            category = category.clone(),
+            kind = TestKind.Count
+        ))
+    }
 
 add_cli_pair := func(tests: Vec(Test), name: Str, file: Str,
-                     cli_args: Str, expected_exit: I64, expected_out: Str,
-                     til: Str, asan_flag: Str) {
-    mut cmd_i := format(til, " interpret ", file)
-    if cli_args.len().gt(0) { cmd_i = format(cmd_i, " ", cli_args) }
-    add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, cmd_i)
-    mut cmd_r := format(til, " run", asan_flag, " -o bin/c/", name,
-        " -c gen/c/", name, ".c ",
-        file)
-    if cli_args.len().gt(0) { cmd_r = format(cmd_r, " ", cli_args) }
-    add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
-}
+    cli_args: Str, expected_exit: I64, expected_out: Str,
+    til: Str, asan_flag: Str) {
+        mut cmd_i := format(til, " interpret ", file)
+        if cli_args.len().gt(0) { cmd_i = format(cmd_i, " ", cli_args) }
+        add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, cmd_i)
+        mut cmd_r := format(til, " run", asan_flag, " -o bin/c/", name,
+            " -c gen/c/", name, ".c ",
+            file)
+        if cli_args.len().gt(0) { cmd_r = format(cmd_r, " ", cli_args) }
+        add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
+    }
 
 // --- Blind parallel runner ---
 
@@ -260,9 +260,9 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                     t.ok = parse_kv(result_line, "ok")
                     t.ms = parse_kv(result_line, "ms")
                     t.mem = parse_kv(result_line, "mem")
-                    // Parse mode-specific fields into payload
+                    // Parse both-specific fields into payload
                     switch t.kind {
-                    case TestKind.Mode(md):
+                    case TestKind.Both(md):
                         md.interp_ms = parse_kv(result_line, "interp_ms")
                         md.interp_ok = parse_kv(result_line, "interp_ok")
                         md.interp_mem = parse_kv(result_line, "interp_mem")
@@ -273,7 +273,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                         md.run_ok = parse_kv(result_line, "run_ok")
                         md.run_mem = parse_kv(result_line, "run_mem")
                         md.output_match = parse_kv(result_line, "match")
-                        t.kind = TestKind.Mode(md.clone())
+                        t.kind = TestKind.Both(md.clone())
                     case:
                     }
 
@@ -358,11 +358,12 @@ main := proc(args: ..Str) {
     run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected tmp")
 
     tests := Vec(Test).new()
-    flags := mode_flags(en_interp, en_run, asan_flag)
+    mut flags := mode_flags(en_interp, en_run, asan_flag)
+    if til_bin.neq(TIL) { flags = format(" --til-bin ", til_bin, flags) }
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
-    // long-running jobs (GUI builds, then the slow mode tests) keeps the
+    // long-running jobs (GUI builds, then the slow both tests) keeps the
     // parallel tail short. The ordering below is based on per-test times from
     // a full `make test` run.
 
@@ -390,121 +391,121 @@ main := proc(args: ..Str) {
             mut run_args := ""
             if bn.eq("popcorn") { run_args = " --mute" }
             add_single(tests, format("build_", bn), "build", 124, "",
-                       format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
+                format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
         }
     }
 
-    // === mode tests (sorted slowest-first) ===
-    add_mode(tests, "test/hashmaps.til", flags)
-    add_mode(tests, "test/dyn_hashmaps.til", flags)
-    add_mode(tests, "test/kwargs.til", flags)
-    add_mode(tests, "test/constfold.til", flags)
-    add_mode(tests, "test/strings.til", flags)
-    add_mode(tests, "test/enums.til", flags)
-    add_mode(tests, "test/match.til", flags)
-    add_mode(tests, "test/lazy.til", flags)
-    add_mode(tests, "test/dynamic.til", flags)
-    add_mode(tests, "test/maps.til", flags)
-    add_mode(tests, "test/dyn_maps.til", flags)
-    add_mode(tests, "test/hashes.til", flags)
-    add_mode(tests, "test/operators.til", flags)
-    add_mode(tests, "test/flow.til", flags)
-    add_mode(tests, "test/asting.til", flags)
-    add_mode(tests, "test/structs.til", flags)
-    add_mode(tests, "test/interfaces.til", flags)
-    add_mode(tests, "test/types.til", flags)
-    add_mode(tests, "test/cast.til", flags)
-    add_mode(tests, "test/directives.til", flags)
-    add_mode(tests, "test/variadic.til", flags)
-    add_mode(tests, "test/loops.til", flags)
-    add_mode(tests, "test/aliases.til", flags)
-    add_mode(tests, "test/fn_ptr.til", flags)
-    add_mode(tests, "test/comparisons.til", flags)
-    add_mode(tests, "test/vecs.til", flags)
-    add_mode(tests, "test/dyn_vecs.til", flags)
-    add_mode(tests, "test/templ_vec.til", flags)
-    add_mode(tests, "test/templ_cross_unit.til", flags)
-    add_mode(tests, "test/templ_type_only.til", flags)
-    add_mode(tests, "test/priv.til", flags)
-    add_mode(tests, "test/trailing.til", flags)
-    add_mode(tests, "test/globals.til", flags)
-    add_mode(tests, "test/errors.til", flags)
-    add_mode(tests, "test/tuples.til", flags)
-    add_mode(tests, "test/auto.til", flags)
-    add_mode(tests, "test/first_class.til", flags)
-    add_mode(tests, "test/closures.til", flags)
-    add_mode(tests, "test/regression.til", flags)
-    add_mode(tests, "test/files.til", flags)
-    add_mode(tests, "test/circular_imports.til", flags)
-    add_mode(tests, "test/import_diamond.til", flags)
+    // === both tests (sorted slowest-first) ===
+    add_both(tests, "test/hashmaps.til", flags)
+    add_both(tests, "test/dyn_hashmaps.til", flags)
+    add_both(tests, "test/kwargs.til", flags)
+    add_both(tests, "test/constfold.til", flags)
+    add_both(tests, "test/strings.til", flags)
+    add_both(tests, "test/enums.til", flags)
+    add_both(tests, "test/match.til", flags)
+    add_both(tests, "test/lazy.til", flags)
+    add_both(tests, "test/dynamic.til", flags)
+    add_both(tests, "test/maps.til", flags)
+    add_both(tests, "test/dyn_maps.til", flags)
+    add_both(tests, "test/hashes.til", flags)
+    add_both(tests, "test/operators.til", flags)
+    add_both(tests, "test/flow.til", flags)
+    add_both(tests, "test/asting.til", flags)
+    add_both(tests, "test/structs.til", flags)
+    add_both(tests, "test/interfaces.til", flags)
+    add_both(tests, "test/types.til", flags)
+    add_both(tests, "test/cast.til", flags)
+    add_both(tests, "test/directives.til", flags)
+    add_both(tests, "test/variadic.til", flags)
+    add_both(tests, "test/loops.til", flags)
+    add_both(tests, "test/aliases.til", flags)
+    add_both(tests, "test/fn_ptr.til", flags)
+    add_both(tests, "test/comparisons.til", flags)
+    add_both(tests, "test/vecs.til", flags)
+    add_both(tests, "test/dyn_vecs.til", flags)
+    add_both(tests, "test/templ_vec.til", flags)
+    add_both(tests, "test/templ_cross_unit.til", flags)
+    add_both(tests, "test/templ_type_only.til", flags)
+    add_both(tests, "test/priv.til", flags)
+    add_both(tests, "test/trailing.til", flags)
+    add_both(tests, "test/globals.til", flags)
+    add_both(tests, "test/errors.til", flags)
+    add_both(tests, "test/tuples.til", flags)
+    add_both(tests, "test/auto.til", flags)
+    add_both(tests, "test/first_class.til", flags)
+    add_both(tests, "test/closures.til", flags)
+    add_both(tests, "test/regression.til", flags)
+    add_both(tests, "test/files.til", flags)
+    add_both(tests, "test/circular_imports.til", flags)
+    add_both(tests, "test/import_diamond.til", flags)
     // macros.til contains a macro that prints during precomp; the line
     // appears in interpret output but not in compiled-run output, so
     // skip the run-vs-interp comparison.
-    add_mode(tests, "test/macros.til", format(flags, " -no-match"))
-    add_mode(tests, "test/sets.til", flags)
-    add_mode(tests, "test/dyn_sets.til", flags)
-    add_mode(tests, "test/local_defs.til", flags)
-    add_mode(tests, "test/shallow.til", flags)
-    add_mode(tests, "test/globals_cli.til", flags)
-    add_mode(tests, "test/own_fields.til", flags)
-    add_mode(tests, "test/bug256.til", flags)
-    add_mode(tests, "examples/priv_demo.til", flags)
-    add_mode(tests, "test/imports.til", flags)
-    add_mode(tests, "test/arrays.til", flags)
-    add_mode(tests, "test/dyn_arrays.til", flags)
-    add_mode(tests, "test/test_in_namespace.til", flags)
-    add_mode(tests, "test/forward_refs.til", flags)
-    add_mode(tests, "test/functions.til", flags)
+    add_both(tests, "test/macros.til", format(flags, " -no-match"))
+    add_both(tests, "test/sets.til", flags)
+    add_both(tests, "test/dyn_sets.til", flags)
+    add_both(tests, "test/local_defs.til", flags)
+    add_both(tests, "test/shallow.til", flags)
+    add_both(tests, "test/globals_cli.til", flags)
+    add_both(tests, "test/own_fields.til", flags)
+    add_both(tests, "test/bug256.til", flags)
+    add_both(tests, "examples/priv_demo.til", flags)
+    add_both(tests, "test/imports.til", flags)
+    add_both(tests, "test/arrays.til", flags)
+    add_both(tests, "test/dyn_arrays.til", flags)
+    add_both(tests, "test/test_in_namespace.til", flags)
+    add_both(tests, "test/forward_refs.til", flags)
+    add_both(tests, "test/functions.til", flags)
     // TODO: namespaces.til fails the typer: MyNamespace.set is a proc with no
     // proc/ext_proc calls and the typer now demands it be a func. Update the
     // test (or the rule) then re-enable.
-    // add_mode(tests, "test/namespaces.til", flags)
+    // add_both(tests, "test/namespaces.til", flags)
     // TODO: topo_sort.til segfaults in interp mode (inline nested struct
     // fields A->B->C). Fix the crash then re-enable.
-    // add_mode(tests, "test/topo_sort.til", flags)
-    add_mode(tests, "test/ref.til", flags)
+    // add_both(tests, "test/topo_sort.til", flags)
+    add_both(tests, "test/ref.til", flags)
     // enums_lifecycle runs compile-only (interp disabled), so it is the
-    // fastest mode test; keep it last.
-    add_mode(tests, "test/enums_lifecycle.til", mode_flags(0, en_run, asan_flag))
+    // fastest both test; keep it last.
+    add_both(tests, "test/enums_lifecycle.til", mode_flags(0, en_run, asan_flag))
     // TODO: lexing.til and parsing.til fail interp mode after Token line/col I64→U32
     // (interpreter doesn't handle U32 struct fields correctly)
-    // add_mode(tests, "test/lexing.til", flags)
-    // add_mode(tests, "test/parsing.til", flags)
+    // add_both(tests, "test/lexing.til", flags)
+    // add_both(tests, "test/parsing.til", flags)
     // TODO(#114): help()/doc comments are REPL-only for now; doc_comments.til
     // assumes docs are populated for til test / til interpret.
-    // add_mode(tests, "test/doc_comments.til", flags)
+    // add_both(tests, "test/doc_comments.til", flags)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"
     File.writefile(ffi_exp, format("hello world", NL, "hello universe", NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               format(til_bin, " interpret examples/ffi/ext_module.til"))
+        format(til_bin, " interpret examples/ffi/ext_module.til"))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"))
+        format(til_bin, " run", asan_flag, " examples/ffi/ext_module.til"))
     ffi_scavenge_exp := "gen/out/expected/ffi_scavenge.out"
     File.writefile(ffi_scavenge_exp, "ok")
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
-               format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"))
+        format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"))
     // Issue #176: binding libc functions like setenv/getenv directly via
     // ext_func must compile under -Werror and produce the expected behaviour.
     ext_libc_exp := "gen/out/expected/ext_libc.out"
     File.writefile(ext_libc_exp, format("ok", NL))
     add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
-               format(til_bin, " run", asan_flag, " test/ext_libc.til"))
+        format(til_bin, " run", asan_flag, " test/ext_libc.til"))
 
     // === library mode checks (pure/pura build are the heaviest here) ===
     add_single(tests, "pure_build", "library", 0, "",
-               format(til_bin, " build", asan_flag, " test/pure.til"))
+        format(til_bin, " build", asan_flag, " test/pure.til"))
     add_single(tests, "pura_build", "library", 0, "",
-               format(til_bin, " build", asan_flag, " test/pura.til"))
+        format(til_bin, " build", asan_flag, " test/pura.til"))
     add_single(tests, "pure_interp_forbidden", "library", 1, "",
-               format(til_bin, " interpret test/pure.til"))
+        format(til_bin, " interpret test/pure.til"))
     add_single(tests, "pure_run_forbidden", "library", 1, "",
-               format(til_bin, " run", asan_flag, " test/pure.til"))
+        format(til_bin, " run", asan_flag, " test/pure.til"))
     add_single(tests, "pura_interp_forbidden", "library", 1, "",
-               format(til_bin, " interpret test/pura.til"))
+        format(til_bin, " interpret test/pura.til"))
     add_single(tests, "pura_run_forbidden", "library", 1, "",
-               format(til_bin, " run", asan_flag, " test/pura.til"))
+        format(til_bin, " run", asan_flag, " test/pura.til"))
 
     // === build tests: svg2ttf + issues summary ===
     // svg2ttf: transparent 2-colour logo produces img/til_logo.ttf (exit=0);
@@ -514,126 +515,126 @@ main := proc(args: ..Str) {
     // into build_ms rather than cli_ms in totals.
     run("mkdir -p img")
     add_single(tests, "svg2ttf_ok", "build", 0, "",
-               format(til_bin,
-                      " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
-                      "examples/svg2ttf.til ",
-                      "img/logo-transparent.svg img/til_logo.ttf"))
+        format(til_bin,
+            " run", asan_flag, " -o bin/c/svg2ttf_ok -c gen/c/svg2ttf_ok.c ",
+            "examples/svg2ttf.til ",
+            "img/logo-transparent.svg img/til_logo.ttf"))
     add_single(tests, "svg2ttf_too_many_colors", "build", 1, "",
-               format(til_bin,
-                      " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
-                      "examples/svg2ttf.til ",
-                      "img/logo.svg tmp/svg2ttf_fail.ttf"))
+        format(til_bin,
+            " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
+            "examples/svg2ttf.til ",
+            "img/logo.svg tmp/svg2ttf_fail.ttf"))
     // issues.til is fast enough to keep in the regular suite; it refreshes
     // issues/summary.org from the current issue files.
     add_single(tests, "issues_summary", "build", 0, "",
-               format(til_bin,
-                      " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
-                      "examples/issues.til"))
+        format(til_bin,
+            " run", asan_flag, " -o bin/c/issues_summary -c gen/c/issues_summary.c ",
+            "examples/issues.til"))
 
     // === custom modes build tests ===
     add_single(tests, "build_sender", "build", 0, "",
-               format(til_bin, " build", asan_flag, " -o bin/sender --extra-modes=examples/custom_modes.til examples/sender.til"))
+        format(til_bin, " build", asan_flag, " -o bin/sender --extra-modes=examples/custom_modes.til examples/sender.til"))
     add_single(tests, "build_receiver", "build", 0, "",
-               format(til_bin, " build", asan_flag, " -o bin/receiver --extra-modes=examples/custom_modes.til examples/receiver.til"))
+        format(til_bin, " build", asan_flag, " -o bin/receiver --extra-modes=examples/custom_modes.til examples/receiver.til"))
     add_single(tests, "build_publisher", "build", 0, "",
-               format(til_bin, " build", asan_flag, " -o bin/publisher --extra-modes=examples/custom_modes.til examples/publisher.til"))
+        format(til_bin, " build", asan_flag, " -o bin/publisher --extra-modes=examples/custom_modes.til examples/publisher.til"))
     add_single(tests, "build_subscriber", "build", 0, "",
-               format(til_bin, " build", asan_flag, " -o bin/subscriber --extra-modes=examples/custom_modes.til examples/subscriber.til"))
+        format(til_bin, " build", asan_flag, " -o bin/subscriber --extra-modes=examples/custom_modes.til examples/subscriber.til"))
 
     // === til test command (issue #51): runs interpret + compile-and-run
     // and counts "tests passed" lines so both backends are exercised.
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,
-              format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
+        format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 148,
-               format(til_bin, " interpret test/typer_errors.til"))
+        format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "capture_block_error", "typer",
-              "is not captured", 2,
-              format(til_bin, " interpret test/capture_block_error.til"))
+        "is not captured", 2,
+        format(til_bin, " interpret test/capture_block_error.til"))
     add_count(tests, "capture_func_error", "typer",
-              "cannot capture immutable", 1,
-              format(til_bin, " interpret test/capture_func_error.til"))
+        "cannot capture immutable", 1,
+        format(til_bin, " interpret test/capture_func_error.til"))
     // Issue #54: function closures run under both backends.
     add_single(tests, "closures_interp", "closures", 0, "",
-               format(til_bin, " interpret test/closures_interp.til"))
+        format(til_bin, " interpret test/closures_interp.til"))
     add_single(tests, "closures_compile", "closures", 0, "",
-               format(til_bin, " run", asan_flag, " test/closures_interp.til"))
+        format(til_bin, " run", asan_flag, " test/closures_interp.til"))
     add_single(tests, "closures_compile_escape", "closures", 0, "",
-               format(til_bin, " run", asan_flag, " test/closures_compile_escape.til"))
+        format(til_bin, " run", asan_flag, " test/closures_compile_escape.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
-              "locals cannot use", 1,
-               format(til_bin, " interpret test/qualifier_shallow_local_error.til"))
+        "locals cannot use", 1,
+        format(til_bin, " interpret test/qualifier_shallow_local_error.til"))
     add_count(tests, "qualifier_ref_param_error", "parser",
-              "parameters are borrowed by default", 1,
-              format(til_bin, " interpret test/qualifier_ref_param_error.til"))
+        "parameters are borrowed by default", 1,
+        format(til_bin, " interpret test/qualifier_ref_param_error.til"))
     add_count(tests, "qualifier_returns_own_error", "parser",
-              "returns are owned by default", 1,
-              format(til_bin, " interpret test/qualifier_returns_own_error.til"))
+        "returns are owned by default", 1,
+        format(til_bin, " interpret test/qualifier_returns_own_error.til"))
     add_count(tests, "qualifier_const_local_error", "parser",
-              "on local: locals are immutable by default", 1,
-              format(til_bin, " interpret test/qualifier_const_local_error.til"))
+        "on local: locals are immutable by default", 1,
+        format(til_bin, " interpret test/qualifier_const_local_error.til"))
     add_count(tests, "qualifier_const_param_error", "parser",
-              "on parameter: parameters are immutable by default", 1,
-              format(til_bin, " interpret test/qualifier_const_param_error.til"))
+        "on parameter: parameters are immutable by default", 1,
+        format(til_bin, " interpret test/qualifier_const_param_error.til"))
     add_count(tests, "qualifier_mut_payload_error", "parser",
-              "on variant payload: payloads are mutable by default", 1,
-              format(til_bin, " interpret test/qualifier_mut_payload_error.til"))
+        "on variant payload: payloads are mutable by default", 1,
+        format(til_bin, " interpret test/qualifier_mut_payload_error.til"))
     add_count(tests, "qualifier_mut_field_error", "typer",
-              "on struct field", 1,
-              format(til_bin, " interpret test/qualifier_mut_field_error.til"))
+        "on struct field", 1,
+        format(til_bin, " interpret test/qualifier_mut_field_error.til"))
     add_count(tests, "qualifier_const_namespace_error", "parser",
-              "on namespace declaration: namespace decls are immutable by default", 1,
-              format(til_bin, " interpret test/qualifier_const_namespace_error.til"))
+        "on namespace declaration: namespace decls are immutable by default", 1,
+        format(til_bin, " interpret test/qualifier_const_namespace_error.til"))
     add_count(tests, "const_payload_error", "typer",
-              "cannot assign to immutable variable", 1,
-              format(til_bin, " interpret test/const_payload_error.til"))
+        "cannot assign to immutable variable", 1,
+        format(til_bin, " interpret test/const_payload_error.til"))
     add_count(tests, "priv_error_interp", "typer",
-              "is private to", 4,
-              format(til_bin, " interpret test/priv_error.til"))
+        "is private to", 4,
+        format(til_bin, " interpret test/priv_error.til"))
     add_count(tests, "priv_error_build", "typer",
-              "is private to", 4,
-              format(til_bin, " build", asan_flag, " test/priv_error.til"))
+        "is private to", 4,
+        format(til_bin, " build", asan_flag, " test/priv_error.til"))
     add_count(tests, "priv_unused_error_interp", "typer",
-              "unused priv", 7,
-              format(til_bin, " interpret test/priv_unused_error.til"))
+        "unused priv", 7,
+        format(til_bin, " interpret test/priv_unused_error.til"))
     add_count(tests, "priv_unused_error_build", "typer",
-              "unused priv", 7,
-              format(til_bin, " build", asan_flag, " test/priv_unused_error.til"))
+        "unused priv", 7,
+        format(til_bin, " build", asan_flag, " test/priv_unused_error.til"))
     add_count(tests, "enum_switch_missing_case_interp", "typer",
-              "non-exhaustive switch on enum", 4,
-              format(til_bin, " interpret test/enum_switch_missing_case.til"))
+        "non-exhaustive switch on enum", 4,
+        format(til_bin, " interpret test/enum_switch_missing_case.til"))
     add_count(tests, "enum_switch_missing_case_build", "typer",
-              "non-exhaustive switch on enum", 4,
-              format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"))
+        "non-exhaustive switch on enum", 4,
+        format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"))
     // A main() param whose type can't be parsed from a CLI argument is
     // rejected up front (validate_cli_main) on both backends.
     add_count(tests, "cli_unsupported_main_interp", "typer",
-              "cannot be parsed from a CLI argument", 1,
-              format(til_bin, " interpret test/cli_unsupported_main.til"))
+        "cannot be parsed from a CLI argument", 1,
+        format(til_bin, " interpret test/cli_unsupported_main.til"))
     add_count(tests, "cli_unsupported_main_build", "typer",
-              "cannot be parsed from a CLI argument", 1,
-              format(til_bin, " build", asan_flag, " test/cli_unsupported_main.til"))
+        "cannot be parsed from a CLI argument", 1,
+        format(til_bin, " build", asan_flag, " test/cli_unsupported_main.til"))
     // #242: missing-required-field cases live in test/typer_errors.til.
     // A no-default field with no explicit type stays illegal (parser).
     add_count(tests, "required_field_no_type_error", "parser",
-              "expected", 1,
-              format(til_bin, " interpret test/required_field_no_type_error.til"))
+        "expected", 1,
+        format(til_bin, " interpret test/required_field_no_type_error.til"))
 
     // === CLI tests ===
     exp := "gen/out/expected/"
 
     File.writefile(format(exp, "cli_args_hello.out"), format("hello", NL, "world", NL))
     add_cli_pair(tests, "cli_args_hello", "examples/cli_args.til",
-                 "hello world", 0, format(exp, "cli_args_hello.out"), til_bin, asan_flag)
+        "hello world", 0, format(exp, "cli_args_hello.out"), til_bin, asan_flag)
     add_single(tests, "cli_args_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
-               format(til_bin, " examples/cli_args.til hello world"))
+        format(til_bin, " examples/cli_args.til hello world"))
     add_single(tests, "cli_args_dd_default_args", "cli", 0, format(exp, "cli_args_hello.out"),
-               format(til_bin, " -- examples/cli_args.til hello world"))
+        format(til_bin, " -- examples/cli_args.til hello world"))
 
     File.writefile(format(exp, "cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "examples/cli_args.til",
-                 "", 0, format(exp, "cli_args_empty.out"), til_bin, asan_flag)
+        "", 0, format(exp, "cli_args_empty.out"), til_bin, asan_flag)
 
     mut fb_out := ""
     mut fbi := 1
@@ -657,57 +658,57 @@ main := proc(args: ..Str) {
     }
     File.writefile(format(exp, "fizzbuzz.out"), fb_out)
     add_cli_pair(tests, "fizzbuzz", "examples/fizzbuzz.til",
-                 "", 0, format(exp, "fizzbuzz.out"), til_bin, asan_flag)
+        "", 0, format(exp, "fizzbuzz.out"), til_bin, asan_flag)
 
     // Issue #220: script-mode map/set literals must compile under -Werror.
     File.writefile(format(exp, "script_map_lit.out"),
         format("1", NL, "true", NL, "a", NL, "b", NL, "c", NL, "true", NL,
-               "1", NL, "len=3 set=3", NL, "1", NL, "1", NL, "3", NL, "1", NL))
+            "1", NL, "len=3 set=3", NL, "1", NL, "1", NL, "3", NL, "1", NL))
     add_cli_pair(tests, "script_map_lit", "test/script_map_lit.til",
-                 "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
+        "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
 
     File.writefile(format(exp, "cli_typed_alice42.out"), format("alice 42", NL))
     add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
-                 "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin, asan_flag)
+        "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin, asan_flag)
 
     File.writefile(format(exp, "hello_cli.out"), format("Hello World!", NL))
     add_cli_pair(tests, "hello_cli", "examples/hello_cli.til",
-                 "", 0, format(exp, "hello_cli.out"), til_bin, asan_flag)
+        "", 0, format(exp, "hello_cli.out"), til_bin, asan_flag)
     add_single(tests, "hello_cli_dd_default", "cli", 0, format(exp, "hello_cli.out"),
-               format(til_bin, " -- examples/hello_cli.til"))
+        format(til_bin, " -- examples/hello_cli.til"))
     add_single(tests, "hello_cli_dd_i", "cli", 0, format(exp, "hello_cli.out"),
-               format(til_bin, " interpret -- examples/hello_cli.til"))
+        format(til_bin, " interpret -- examples/hello_cli.til"))
     add_single(tests, "hello_cli_dd_r", "cli", 0, format(exp, "hello_cli.out"),
-               format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"))
+        format(til_bin, " run", asan_flag, " -o bin/c/hello_cli_dd -c gen/c/hello_cli_dd.c -- examples/hello_cli.til"))
 
     File.writefile(format(exp, "variadic_add.out"), format("60", NL))
     add_cli_pair(tests, "variadic_add", "examples/cli_variadic_i64.til",
-                 "add 10 20 30", 0, format(exp, "variadic_add.out"), til_bin, asan_flag)
+        "add 10 20 30", 0, format(exp, "variadic_add.out"), til_bin, asan_flag)
 
     File.writefile(format(exp, "variadic_mul.out"), format("24", NL))
     add_cli_pair(tests, "variadic_mul", "examples/cli_variadic_i64.til",
-                 "mul 2 3 4", 0, format(exp, "variadic_mul.out"), til_bin, asan_flag)
+        "mul 2 3 4", 0, format(exp, "variadic_mul.out"), til_bin, asan_flag)
 
     File.writefile(format(exp, "variadic_add0.out"), format("0", NL))
     add_cli_pair(tests, "variadic_add0", "examples/cli_variadic_i64.til",
-                 "add", 0, format(exp, "variadic_add0.out"), til_bin, asan_flag)
+        "add", 0, format(exp, "variadic_add0.out"), til_bin, asan_flag)
 
     File.writefile(format(exp, "variadic_bool_f.out"), format("false", NL))
     add_cli_pair(tests, "variadic_bool_f", "examples/cli_variadic_bool.til",
-                 "true true false", 0, format(exp, "variadic_bool_f.out"), til_bin, asan_flag)
+        "true true false", 0, format(exp, "variadic_bool_f.out"), til_bin, asan_flag)
 
     File.writefile(format(exp, "variadic_bool_t.out"), format("true", NL))
     add_cli_pair(tests, "variadic_bool_t", "examples/cli_variadic_bool.til",
-                 "true true", 0, format(exp, "variadic_bool_t.out"), til_bin, asan_flag)
+        "true true", 0, format(exp, "variadic_bool_t.out"), til_bin, asan_flag)
 
     // Every scalar CLI arg type (I8/U8/I16/U16/I32/U32/U64/USize/UPtr/F32),
     // both backends. Locks in the builder's cli_box_expr and the interpreter's
     // parse_cli_arg staying in lockstep.
     File.writefile(format(exp, "cli_scalars.out"),
-                   format("-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", NL))
+        format("-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", NL))
     add_cli_pair(tests, "cli_scalars", "examples/cli_scalars.til",
-                 "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", 0,
-                 format(exp, "cli_scalars.out"), til_bin, asan_flag)
+        "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", 0,
+        format(exp, "cli_scalars.out"), til_bin, asan_flag)
 
     // Error cases (exit=1, no output check)
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin, asan_flag)
@@ -728,14 +729,14 @@ main := proc(args: ..Str) {
     mut total_mem_inte := 0
     mut total_mem_comp := 0
     mut total_mem_run := 0
-    mut mode_passed : USize = 0
-    mut mode_total : USize = 0
+    mut both_passed : USize = 0
+    mut both_total : USize = 0
     mut pi : USize = 0
     while pi.lt(tests.len()) {
         ref t : Test = tests[pi]
         switch t.kind {
-        case TestKind.Mode(md):
-            mode_total = mode_total.add(1)
+        case TestKind.Both(md):
+            both_total = both_total.add(1)
             if t.has_interp.eq(1) {
                 total_interp_ms = total_interp_ms.add(md.interp_ms)
                 total_mem_inte = total_mem_inte.add(md.interp_mem)
@@ -746,13 +747,13 @@ main := proc(args: ..Str) {
                 total_mem_comp = total_mem_comp.add(md.compile_mem)
                 total_mem_run = total_mem_run.add(md.run_mem)
             }
-            if t.ok.eq(1) { mode_passed = mode_passed.add(1) }
+            if t.ok.eq(1) { both_passed = both_passed.add(1) }
         case:
         }
         pi = pi.add(1)
     }
 
-    // --- Section totals from non-mode tests ---
+    // --- Section totals from non-both tests ---
 
     mut ffi_ms := 0
     mut typer_ms := 0
@@ -764,7 +765,7 @@ main := proc(args: ..Str) {
     pi = 0
     while pi.lt(tests.len()) {
         ref t : Test = tests[pi]
-        if t.kind.is(TestKind.Mode).not() {
+        if t.kind.is(TestKind.Both).not() {
             other_total = other_total.add(1)
             if t.ok.eq(1) { other_passed = other_passed.add(1) }
             if t.category.eq("ffi") { ffi_ms = ffi_ms.add(t.ms) }
@@ -782,8 +783,8 @@ main := proc(args: ..Str) {
 
     plot_start := clock_ms()
     test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total", NL,
-                       "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000", NL,
-                       "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000", NL)
+        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000", NL,
+        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
@@ -817,8 +818,8 @@ main := proc(args: ..Str) {
 
     // --- Summary ---
 
-    total_passed := mode_passed.add(other_passed).add(plot_ok.to_usize())
-    total_tests := mode_total.add(other_total).add(1)
+    total_passed := both_passed.add(other_passed).add(plot_ok.to_usize())
+    total_tests := both_total.add(other_total).add(1)
 
     wall_ms := clock_ms().sub(wall_start)
     println("")
@@ -846,7 +847,7 @@ main := proc(args: ..Str) {
     run("git rev-parse --short HEAD > tmp/_commit_hash")
     commit := File.readfile("tmp/_commit_hash").replace(NL, "")
 
-    // gen/benchmark.csv — mode tests only (not tracked)
+    // gen/benchmark.csv — both tests only (not tracked)
     run("mkdir -p gen")
     mut bench := Str.with_capacity(32768)
     bench.push_str("commit,file,interp_ms,compile_ms,run_ms,interp_ok,compile_ok,run_ok")
@@ -855,12 +856,12 @@ main := proc(args: ..Str) {
     while bi.lt(tests.len()) {
         ref bt : Test = tests[bi]
         switch bt.kind {
-        case TestKind.Mode(bmd):
+        case TestKind.Both(bmd):
             bench.push_str(format(commit, ",", bt.label, ",",
-                                  bmd.interp_ms.to_str(), ",", bmd.compile_ms.to_str(), ",",
-                                  bmd.run_ms.to_str(), ",",
-                                  bmd.interp_ok.to_str(), ",", bmd.compile_ok.to_str(), ",",
-                                  bmd.run_ok.to_str(), NL))
+                bmd.interp_ms.to_str(), ",", bmd.compile_ms.to_str(), ",",
+                bmd.run_ms.to_str(), ",",
+                bmd.interp_ok.to_str(), ",", bmd.compile_ok.to_str(), ",",
+                bmd.run_ok.to_str(), NL))
         case:
         }
         bi = bi.add(1)
@@ -871,15 +872,15 @@ main := proc(args: ..Str) {
     if fail.eq(0) {
         total_mem_total := total_mem_inte.add(total_mem_comp).add(total_mem_run).add(build_mem)
         totals_line := format(commit, ",",
-                              total_interp_ms.to_str(), ",",
-                              total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
-                              ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
-                              cli_ms.to_str(), ",", wall_ms.to_str(), ",",
-                              total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str(), ",",
-                              total_mem_inte.to_str(), ",",
-                              total_mem_comp.to_str(), ",",
-                              total_mem_run.to_str(), ",",
-                              total_mem_total.to_str())
+            total_interp_ms.to_str(), ",",
+            total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
+            ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
+            cli_ms.to_str(), ",", wall_ms.to_str(), ",",
+            total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str(), ",",
+            total_mem_inte.to_str(), ",",
+            total_mem_comp.to_str(), ",",
+            total_mem_run.to_str(), ",",
+            total_mem_total.to_str())
 
         totals_path := "doc/totals.csv"
         existing := File.readfile(totals_path)
