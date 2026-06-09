@@ -121,7 +121,7 @@ typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Tuple Tuple;
-typedef struct Vec__USize Vec__USize;
+typedef struct Vec__U32 Vec__U32;
 typedef struct KwargsMap KwargsMap;
 typedef struct Map__Str_Tuple Map__Str_Tuple;
 typedef struct Vec__Tuple Vec__Tuple;
@@ -250,7 +250,6 @@ typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__I32 Vec__I32;
 typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_Expr Map__Str_Expr;
-typedef struct Vec__U32 Vec__U32;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -527,11 +526,11 @@ typedef struct Vec__I64 {
 } Vec__I64;
 
 
-typedef struct Vec__USize {
+typedef struct Vec__U32 {
     U8 *data;
     U32 count;
     U32 cap;
-} Vec__USize;
+} Vec__U32;
 
 
 typedef struct Vec__Tuple {
@@ -725,13 +724,6 @@ typedef struct Map__Str_Expr {
     Vec__Str keys;
     Vec__Expr values;
 } Map__Str_Expr;
-
-
-typedef struct Vec__U32 {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} Vec__U32;
 
 
 struct Lang {
@@ -1088,7 +1080,7 @@ typedef struct Tuple {
     U32 total_size;
     U32 cap;
     Vec__Str type_names;
-    Vec__USize type_sizes;
+    Vec__U32 type_sizes;
 } Tuple;
 
 
@@ -1712,14 +1704,14 @@ U32 Vec__I64_size(void);
 void Tuple_delete(Tuple * self, Bool call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 Tuple_size(void);
-Vec__USize * Vec__USize_new(void);
-U32 Vec__USize_len(Vec__USize * self);
-void Vec__USize_clear(Vec__USize * self);
-void Vec__USize_push(Vec__USize * self, U32 * val);
-U32 * Vec__USize_get(Vec__USize * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void Vec__USize_delete(Vec__USize * self, Bool call_free);
-Vec__USize * Vec__USize_clone(Vec__USize * self);
-U32 Vec__USize_size(void);
+Vec__U32 * Vec__U32_new(void);
+U32 Vec__U32_len(Vec__U32 * self);
+void Vec__U32_clear(Vec__U32 * self);
+void Vec__U32_push(Vec__U32 * self, U32 * val);
+U32 * Vec__U32_get(Vec__U32 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__U32_delete(Vec__U32 * self, Bool call_free);
+Vec__U32 * Vec__U32_clone(Vec__U32 * self);
+U32 Vec__U32_size(void);
 KwargsMap * KwargsMap_clone(KwargsMap * self);
 void KwargsMap_delete(KwargsMap * self, Bool call_free);
 U64 KwargsMap_hash(KwargsMap * self, HashFn hasher);
@@ -2217,14 +2209,6 @@ void Map__Str_Expr_delete(Map__Str_Expr * self, Bool call_free);
 Map__Str_Expr * Map__Str_Expr_clone(Map__Str_Expr * self);
 U64 Map__Str_Expr_hash(Map__Str_Expr * self, HashFn hasher);
 U32 Map__Str_Expr_size(void);
-Vec__U32 * Vec__U32_new(void);
-U32 Vec__U32_len(Vec__U32 * self);
-void Vec__U32_clear(Vec__U32 * self);
-void Vec__U32_push(Vec__U32 * self, U32 * val);
-U32 * Vec__U32_get(Vec__U32 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void Vec__U32_delete(Vec__U32 * self, Bool call_free);
-Vec__U32 * Vec__U32_clone(Vec__U32 * self);
-U32 Vec__U32_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);

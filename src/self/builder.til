@@ -6069,15 +6069,15 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     // static-local Str variables for the literal cases (one
     // malloc-free static wrapper per unique name).
     mut static_displays := Vec(Str).new()
-    mut static_index_by_display := Map(Str, U32).new()
-    mut seq : U32 = 0
+    mut static_index_by_display := Map(Str, USize).new()
+    mut seq : USize = 0
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
         ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
             if static_index_by_display.has(display).not() {
-                val : U32 = seq
+                val : USize = seq
                 static_index_by_display.set(display, own val)
                 static_displays.push(own display)
                 seq = seq.add(1)
@@ -6093,7 +6093,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             for k in 0..inner_names.len() {
                 ref ivn : Str = inner_names[k]
                 if static_index_by_display.has(ivn).not() {
-                    val2 : U32 = seq
+                    val2 : USize = seq
                     static_index_by_display.set(ivn, own val2)
                     static_displays.push(own ivn.clone())
                     seq = seq.add(1)
@@ -6103,7 +6103,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     }
     // Fallback "?" literal
     if static_index_by_display.has("?").not() {
-        fallback_val : U32 = seq
+        fallback_val : USize = seq
         static_index_by_display.set("?", own fallback_val)
         static_displays.push(own "?")
         seq = seq.add(1)
@@ -6125,11 +6125,11 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
-            ref idx : U32 = static_index_by_display[display]
+            ref idx : USize = static_index_by_display[display]
             f.write("    case Type_TAG_")
             f.write(vn)
             f.write(": return &_dts_")
-            emit_usize(f, idx.cast(USize))
+            emit_usize(f, idx)
             f.write(";\n")
         } else if vt.eq("Str") {
             f.write("    case Type_TAG_")
@@ -6152,13 +6152,13 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write(".tag) {\n")
             for k in 0..inner_names.len() {
                 ref ivn : Str = inner_names[k]
-                ref idx : U32 = static_index_by_display[ivn]
+                ref idx : USize = static_index_by_display[ivn]
                 f.write("        case ")
                 f.write(vt)
                 f.write("_TAG_")
                 f.write(ivn)
                 f.write(": return &_dts_")
-                emit_usize(f, idx.cast(USize))
+                emit_usize(f, idx)
                 f.write(";\n")
             }
             f.write("        }\n")
@@ -6167,9 +6167,9 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     }
     f.write("    default: break;\n")
     f.write("    }\n")
-    ref fallback_idx : U32 = static_index_by_display["?"]
+    ref fallback_idx : USize = static_index_by_display["?"]
     f.write("    return &_dts_")
-    emit_usize(f, fallback_idx.cast(USize))
+    emit_usize(f, fallback_idx)
     f.write(";\n")
     f.write("}\n\n")
 }
