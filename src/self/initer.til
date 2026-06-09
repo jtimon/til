@@ -2179,17 +2179,19 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 // params like `N: I64` the arg can be any expression (literal, ident,
 // fcall). `init_substitute_idents` replaces the whole Expr when an Ident
 // matches a substituted name, so an `Ident(N)` becomes a clone of the
-// arg expression (e.g. `LiteralNum 5`). The explicit-type helpers only
-// fire when the substitution is Ident-shaped (i.e. a type-param) -- a
-// value-param substitution leaves explicit_type strings unchanged.
+// arg expression (e.g. `LiteralNum 5`). Type-position substitutions use
+// the ident name when possible, or the deterministic macro-inst arg name
+// for nested template args like `Vec(Str)`.
 priv init_subst_ident_name := func(subs: Map, name: Str) returns Str {
     if subs.has(name) {
         ref repl : Expr = subs[name]
         switch repl.node_type {
         case NodeType.Ident(idn):
             return idn.ident_name().clone()
+        case NodeType.FCall:
+            return init_macro_inst_name(repl)
         case:
-            return ""
+            return init_macro_inst_arg_name(repl)
         }
     }
 
@@ -2606,30 +2608,30 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
 // ctx.type_gen_synths across all initialized units; accumulate any new
 // `genname := MACRO(args)` decls in `synthesized` for this unit only.
 // Replacing through `children.replace` frees the old call subtree.
-priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Context, mut synthesized: Vec(Expr)) {
+priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Context, mut synthesized: Vec(Expr), mark_ctx: Bool) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
             if fd.default_value.is_null().not() {
-                init_hoist_walk(fd.default_value, macros, scope, ctx, synthesized)
+                init_hoist_walk(fd.default_value, macros, scope, ctx, synthesized, mark_ctx)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
             if nd.default_value.is_null().not() {
-                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized)
+                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized, mark_ctx)
             }
         }
     case NodeType.EnumDef(edd):
         for mut nd : Declaration in edd.ns_decls {
             if nd.default_value.is_null().not() {
-                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized)
+                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized, mark_ctx)
             }
         }
     case NodeType.FuncDef(fdd):
         for mut pd : Declaration in fdd.params {
             if pd.default_value.is_null().not() {
-                init_hoist_walk(pd.default_value, macros, scope, ctx, synthesized)
+                init_hoist_walk(pd.default_value, macros, scope, ctx, synthesized, mark_ctx)
             }
         }
     case:
@@ -2642,11 +2644,12 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Co
                 mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), c.line, c.col)
                 decl.add_child(own c.clone())
                 synthesized.push(own decl)
+                if mark_ctx { ctx.type_gen_synths.add(own genname.clone()) }
             }
             mut idn := Expr.new(ident_node(genname), c.line, c.col)
             e.children.set(i, own idn)
         } else {
-            init_hoist_walk(c, macros, scope, ctx, synthesized)
+            init_hoist_walk(c, macros, scope, ctx, synthesized, mark_ctx)
         }
     }
 }
@@ -2668,7 +2671,7 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: Typ
             }
         }
         if init_is_direct_macro_inst_decl(stmt, macros, scope) { continue }
-        init_hoist_walk(stmt, macros, scope, ctx, synthesized)
+        init_hoist_walk(stmt, macros, scope, ctx, synthesized, false)
     }
     for d : Expr in synthesized {
         program.children.push(own d.clone())
@@ -3232,11 +3235,11 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             mut cloned := ret_val.clone()
             init_substitute_type_params(cloned, subs)
             mut nested_synthesized := Vec(Expr).new()
-            init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized)
+            init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, true)
+            stmt.children.set(0.to_usize(), own cloned)
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }
-            stmt.children.set(0.to_usize(), own cloned)
             expanded_any = true
         }
     }

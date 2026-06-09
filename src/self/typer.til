@@ -4012,7 +4012,14 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             case NodeType.StructDef(fa_sdd):
                 for fld : Declaration in fa_sdd.fields {
                     if fld.name.eq(fname) {
-                        expr.set_expr_til_type(fld.til_type.clone())
+                        mut field_type := fld.til_type.clone()
+                        if fld.explicit_type.len().gt(0) {
+                            resolved_field_type := type_from_name(fld.explicit_type, scope, ctx)
+                            if resolved_field_type.is(Type.Unknown).not() {
+                                field_type = resolved_field_type
+                            }
+                        }
+                        expr.set_expr_til_type(field_type)
                         check_member_priv(expr, obj_sname, fname, fld.is_priv, ctx)
                         if ctx.auto_gen_depth.eq(0) { fld.used = true }
                         found = true

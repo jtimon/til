@@ -1762,7 +1762,7 @@ Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
 Str * priv___src_self_initer_til__init_macro_inst_text_name(Str * prefix, Str * text);
 Str * priv___src_self_initer_til__init_macro_inst_arg_name(Expr * arg);
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
-void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized);
+void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized, Bool mark_ctx);
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_initer_til__init_synth_array_inst_decl(Str * elem_type, U32 line, U32 col);
