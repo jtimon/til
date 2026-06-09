@@ -5,7 +5,7 @@ import("context")
 precomp_clear_known := func(mut ctx: Context) {
     // Map.clear runs Value.delete on every value, which is now deep, so the
     // payloads are reclaimed without a manual sweep.
-    Map.clear(ctx.precomp_known)
+    ctx.precomp_known.clear()
 }
 
 precomp_reset_state := func(mut ctx: Context) {
@@ -46,29 +46,33 @@ priv precomp_has_func := func(ctx: Context, name: Str) returns Bool {
 // Side-effecting names that mustn't be invoked at compile time.
 // Mirrors rstil's hardcoded exit/malloc list, plus the I/O / FFI /
 // environment-dependent ext_funcs that til core ships.
-mut side_effecting_names := {
-    "exit": true, "panic": true, "TODO": true, "UNREACHABLE": true,
-    "malloc": true, "calloc": true, "realloc": true, "free": true,
-    "memcpy": true, "memmove": true, "memset": true,
-    "read_ptr": true, "write_ptr": true, "ptr_add": true, "ptr_eq": true,
-    "to_ptr": true, "deref": true,
-    "readfile": true, "writefile": true,
-    "print_single": true, "eprint_single": true, "print_flush": true,
-    "println": true, "print": true, "in_read_line": true,
-    "cfile_open": true, "cfile_open_update": true, "cfile_close": true,
-    "cfile_read_all": true, "cfile_write_str": true, "cfile_tell": true,
-    "cfile_seek": true, "cfile_seek_cur": true, "cfile_seek_end": true,
-    "cfile_read_n": true, "file_mtime": true, "unlink_path": true,
-    "spawn_cmd": true, "wait_cmd": true, "run_cmd": true, "system_cmd": true,
-    "check_cmd_status": true, "sleep_ms": true, "noop_proc": true,
-    "clock_ms": true, "get_thread_count": true, "peak_rss_bytes": true,
-    "current_rss_bytes": true, "process_id": true, "get_bin_dir": true,
-    "get_cwd_str": true,
-    "ffi_global_symbol": true, "ffi_user_symbol": true,
-    "ffi_load_global_lib": true, "ffi_open_user_so": true,
-    "ffi_close_user_so": true, "ffi_alloc_cif": true, "ffi_prep_cif": true,
-    "ffi_call": true, "dlopen": true, "dlsym": true, "dlclose": true,
+priv make_side_effecting_names := func() returns Map(Str, Bool) {
+    mut names := Map(Str, Bool).new()
+    names.set("exit", own true); names.set("panic", own true); names.set("TODO", own true); names.set("UNREACHABLE", own true)
+    names.set("malloc", own true); names.set("calloc", own true); names.set("realloc", own true); names.set("free", own true)
+    names.set("memcpy", own true); names.set("memmove", own true); names.set("memset", own true)
+    names.set("read_ptr", own true); names.set("write_ptr", own true); names.set("ptr_add", own true); names.set("ptr_eq", own true)
+    names.set("to_ptr", own true); names.set("deref", own true)
+    names.set("readfile", own true); names.set("writefile", own true)
+    names.set("print_single", own true); names.set("eprint_single", own true); names.set("print_flush", own true)
+    names.set("println", own true); names.set("print", own true); names.set("in_read_line", own true)
+    names.set("cfile_open", own true); names.set("cfile_open_update", own true); names.set("cfile_close", own true)
+    names.set("cfile_read_all", own true); names.set("cfile_write_str", own true); names.set("cfile_tell", own true)
+    names.set("cfile_seek", own true); names.set("cfile_seek_cur", own true); names.set("cfile_seek_end", own true)
+    names.set("cfile_read_n", own true); names.set("file_mtime", own true); names.set("unlink_path", own true)
+    names.set("spawn_cmd", own true); names.set("wait_cmd", own true); names.set("run_cmd", own true); names.set("system_cmd", own true)
+    names.set("check_cmd_status", own true); names.set("sleep_ms", own true); names.set("noop_proc", own true)
+    names.set("clock_ms", own true); names.set("get_thread_count", own true); names.set("peak_rss_bytes", own true)
+    names.set("current_rss_bytes", own true); names.set("process_id", own true); names.set("get_bin_dir", own true)
+    names.set("get_cwd_str", own true)
+    names.set("ffi_global_symbol", own true); names.set("ffi_user_symbol", own true)
+    names.set("ffi_load_global_lib", own true); names.set("ffi_open_user_so", own true)
+    names.set("ffi_close_user_so", own true); names.set("ffi_alloc_cif", own true); names.set("ffi_prep_cif", own true)
+    names.set("ffi_call", own true); names.set("dlopen", own true); names.set("dlsym", own true); names.set("dlclose", own true)
+    return names
 }
+
+mut side_effecting_names := make_side_effecting_names()
 
 priv is_side_effecting_name := func(name: Str) returns Bool {
     return side_effecting_names.has(name)
@@ -1025,7 +1029,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // without a manual sweep. Safe because body-local
             // track_literal_known_only does not share Value payloads with
             // `scope`.
-            Map.clear(ctx.precomp_known)
+            ctx.precomp_known.clear()
             // Map.clear drops the entries but keeps the key/value backing
             // buffers allocated. The memcpy below overwrites the whole Map
             // struct (including the data pointers) with snapshot_fd's, so
@@ -1038,8 +1042,8 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // `known = snapshot_fd`, which would leak a second deep
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
-            memcpy(ctx.precomp_known, snapshot_fd, Map.size().cast(U64))
-            memset(snapshot_fd, 0, Map.size().cast(U64))
+            memcpy(ctx.precomp_known, snapshot_fd, Map(Str, Value).size().cast(U64))
+            memset(snapshot_fd, 0, Map(Str, Value).size().cast(U64))
             continue
         }
         fold_subtree(scope, child, ctx)

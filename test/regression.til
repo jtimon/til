@@ -74,13 +74,13 @@ bug125 := test() {
 
 Bug150E := enum { A, B, C }
 
-Bug150M : Map = {
+Bug150M := {
     "a": Bug150E.A,
     "b": Bug150E.B
 }
 
 bug150 := test() {
-    ref m : Map = Bug150M
+    ref m : Map(Str, Bug150E) = Bug150M
     ref va : Bug150E = m["a"]
     assert(__LOC__, va.eq(Bug150E.A))
     ref vb : Bug150E = m["b"]

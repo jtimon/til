@@ -11,7 +11,7 @@ import("../lib/hash")
 // overhead and would mask the algorithmic difference.
 
 bench_map_i64 := func(n: I64) returns Vec(I64) {
-    m := Map.new(I64, I64)
+    m := Map(I64, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         m.set(i, own i.mul(2))
@@ -79,7 +79,7 @@ bench_map_str := func(n: I64) returns Vec(I64) {
         keys.push(own format("k", i.to_str()))
     }
 
-    m := Map.new(Str, I64)
+    m := Map(Str, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!

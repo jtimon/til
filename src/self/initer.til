@@ -1951,14 +1951,14 @@ priv init_is_lift_target := func(stmt: Expr) returns Bool {
     return false
 }
 
-priv init_lookup_name := func(renamings: Map, name: Str) returns Str {
+priv init_lookup_name := func(renamings: Map(Str, Str), name: Str) returns Str {
     if name.len().eq(0) { return "" }
     if renamings.has(name).not() { return "" }
     ref s : Str = renamings[name]
     return s.clone()
 }
 
-priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map) {
+priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map(Str, Str)) {
     switch e.node_type {
     case NodeType.Ident(name):
         new_name := init_lookup_name(renamings, name.ident_name())
@@ -1977,7 +1977,7 @@ priv init_rename_ident_in_place := func(mut e: Expr, renamings: Map) {
     }
 }
 
-priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map) {
+priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map(Str, Str)) {
     if dd.explicit_type.len().eq(0) { return }
     new_t := init_lookup_name(renamings, dd.explicit_type)
     if new_t.len().gt(0) {
@@ -1985,7 +1985,7 @@ priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map) {
     }
 }
 
-priv init_rewrite_refs := proc(mut e: Expr, renamings: Map) {
+priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
     if e.is_null() { return }
     init_rename_ident_in_place(e, renamings)
     // `for x : LocalInfo in xs { ... }` stores the loop's explicit type
@@ -2059,7 +2059,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
     if body.is_null() { return }
     if body.node_type.is(NodeType.Body).not() { return }
 
-    mut renamings := Map.new(Str, Str)
+    mut renamings := Map(Str, Str).new()
     mut lifted_indices := Vec(USize).new()
 
     for i in 0..body.children.len() {
@@ -2182,7 +2182,7 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 // arg expression (e.g. `LiteralNum 5`). Type-position substitutions use
 // the ident name when possible, or the deterministic macro-inst arg name
 // for nested template args like `Vec(Str)`.
-priv init_subst_ident_name := func(subs: Map, name: Str) returns Str {
+priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str {
     if subs.has(name) {
         ref repl : Expr = subs[name]
         switch repl.node_type {
@@ -2228,7 +2228,7 @@ priv init_subst_ident_name := func(subs: Map, name: Str) returns Str {
     return ""
 }
 
-priv init_substitute_idents := func(mut e: Expr, subs: Map) {
+priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(idn):
@@ -2263,7 +2263,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
 // switch-case destructure binding) so the typer carries the Map<I64,Str>
 // type info into the payload-types subscript without the
 // throws-inference mixing OutOfBounds (Vec) into KeyNotFound (Map).
-priv init_subst_struct_params := func(sdef: StructDef, subs: Map) {
+priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
     for mut fd : Declaration in sdef.fields {
         new_type := init_subst_ident_name(subs, fd.explicit_type)
         if new_type.len().gt(0) {
@@ -2294,7 +2294,7 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map) {
     }
 }
 
-priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
+priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr)) {
     for k in 0..edef.variants.len() {
         if edef.payload_types.has(k.to_i64()) {
             ref pt : Str = edef.payload_types[k.to_i64()]
@@ -2326,7 +2326,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map) {
     }
 }
 
-priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map) {
+priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr)) {
     for mut pd : Declaration in fdd.params {
         new_type := init_subst_ident_name(subs, pd.explicit_type)
         if new_type.len().gt(0) {
@@ -2350,7 +2350,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map) {
     }
 }
 
-priv init_substitute_type_params := func(mut def: Expr, subs: Map) {
+priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr)) {
     switch def.node_type {
     case NodeType.StructDef(sdd):
         init_subst_struct_params(sdd, subs)
@@ -2447,7 +2447,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return; the caller falls back to leaving the macro un-expanded.
-priv init_macro_pick_return := func(body: Expr, subs: Map) returns ref Expr {
+priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns ref Expr {
     if body.is_null() { return NULL }
     if body.node_type.is(NodeType.Body).not() { return NULL }
     if body.children.len().neq(1) { return NULL }
@@ -2485,7 +2485,7 @@ priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
     return false
 }
 
-priv init_lookup_type_gen_macro := func(name: Str, macros: Map, scope: TypeScope) returns ref Expr {
+priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope: TypeScope) returns ref Expr {
     if macros.has(name) {
         ref local_macro : Expr = macros[name]
         return local_macro
@@ -2499,7 +2499,7 @@ priv init_lookup_type_gen_macro := func(name: Str, macros: Map, scope: TypeScope
 // Issue #267 (caveat 2): inline instantiation of a type-gen macro. `e` is a
 // macro-instantiation call `MACRO(arg1, ...)` when its callee is an Ident
 // naming a local or imported StructDef/EnumDef/FuncDef-returning macro.
-priv init_is_macro_inst_call := func(e: Expr, macros: Map, scope: TypeScope) returns Bool {
+priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(1) { return false }
     ref callee : Expr = e.child(0)
@@ -2515,7 +2515,7 @@ priv init_is_macro_inst_call := func(e: Expr, macros: Map, scope: TypeScope) ret
 // A top-level `Name := MACRO(args)` decl whose RHS is directly a macro
 // instantiation -- handled by the main expansion loop, so the inline-hoist
 // pass leaves it alone (its only nested calls are the type-arg idents).
-priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map, scope: TypeScope) returns Bool {
+priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map(Str, Expr), scope: TypeScope) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len().eq(0) { return false }
     return init_is_macro_inst_call(stmt.child(0), macros, scope)
@@ -2608,7 +2608,7 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
 // ctx.type_gen_synths across all initialized units; accumulate any new
 // `genname := MACRO(args)` decls in `synthesized` for this unit only.
 // Replacing through `children.replace` frees the old call subtree.
-priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Context, mut synthesized: Vec(Expr), mark_ctx: Bool) {
+priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context, mut synthesized: Vec(Expr), mark_ctx: Bool) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.StructDef(sdd):
@@ -2660,7 +2660,7 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map, scope: TypeScope, ctx: Co
 // name. Synthesized decls are appended to `program` and then expanded by the
 // main loop below. Dedup keys on the generated name, so N inline uses of
 // `TemplVec(Bool)` compile to ONE generated type.
-priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
+priv init_hoist_inline_macros := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
     mut synthesized := Vec(Expr).new()
     np := program.children.len()
     for i in 0..np {
@@ -2681,7 +2681,7 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map, scope: Typ
 // A direct `Alias := Template(I64, 4)` should not expand a second type whose
 // real name is `Alias`. Normalize it to an ordinary alias of the deterministic
 // monomorphization, plus one canonical decl if this unit owns that instantiation.
-priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
+priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
     mut synthesized := Vec(Expr).new()
     for i in 0..program.children.len() {
         ref mut stmt : Expr = program.child(i)
@@ -2749,6 +2749,20 @@ priv init_synth_set_inst_decl := func(elem_type: Str, line: U32, col: U32) retur
     return decl
 }
 
+priv init_synth_map_inst_decl := func(key_type: Str, val_type: Str, line: U32, col: U32) returns Expr {
+    genname := "Map__".concat(key_type).concat("_").concat(val_type)
+    mut map_id := Expr.new(ident_node("Map"), line, col)
+    mut key_id := Expr.new(ident_node(key_type), line, col)
+    mut val_id := Expr.new(ident_node(val_type), line, col)
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.add_child(own map_id)
+    call.add_child(own key_id)
+    call.add_child(own val_id)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = genname)), line, col)
+    decl.add_child(own call)
+    return decl
+}
+
 priv init_set_literal_elem_type := func(e: Expr) returns Str {
     if e.children.len().eq(0) { return "" }
     ref first : Expr = e.child(0)
@@ -2764,7 +2778,27 @@ priv init_set_literal_elem_type := func(e: Expr) returns Str {
     return ""
 }
 
-priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map, synth_array: Bool, synth_vec: Bool, synth_set: Bool) {
+priv init_literal_child_type := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.Literal(Literal.Str): return "Str"
+    case NodeType.Literal(Literal.Bool): return "Bool"
+    case NodeType.Literal(Literal.Num(nd)):
+        tn := type_to_name(nd.til_type)
+        if tn.len().gt(0) { return tn }
+        return "I64"
+    case NodeType.FieldAccess:
+        if e.children.len().gt(0) {
+            switch e.child(0).node_type {
+            case NodeType.Ident(type_name): return type_name.ident_name().clone()
+            case:
+            }
+        }
+    case:
+    }
+    return ""
+}
+
+priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.FCall:
@@ -2807,6 +2841,18 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
                 }
             }
         }
+    case NodeType.Literal(Literal.MapLit):
+        if synth_map.and(e.children.len().gte(2)) {
+            key_type := init_literal_child_type(e.child(0))
+            val_type := init_literal_child_type(e.child(1))
+            if key_type.len().gt(0).and(val_type.len().gt(0)) {
+                genname := "Map__".concat(key_type).concat("_").concat(val_type)
+                if seen.has(genname).not() {
+                    synthesized.push(own init_synth_map_inst_decl(key_type, val_type, e.line, e.col))
+                    seen.set(genname, own "")
+                }
+            }
+        }
     case NodeType.FuncDef(fd):
         if fd.variadic_index.gte(0) {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
@@ -2818,28 +2864,29 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
         }
     case NodeType.StructDef(sdd):
         for nd : Declaration in sdd.ns_decls {
-            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set)
+            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
         }
     case NodeType.EnumDef(edd):
         for nd : Declaration in edd.ns_decls {
-            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set)
+            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
         }
     case:
     }
     for i in 0..e.children.len() {
-        init_collect_variadic_arrays(e.child(i), synthesized, seen, synth_array, synth_vec, synth_set)
+        init_collect_variadic_arrays(e.child(i), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
 }
 
 priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     mut synthesized := Vec(Expr).new()
-    mut seen := Map.new(Str, Str)
+    mut seen := Map(Str, Str).new()
     synth_array := ctx.scope.get_struct("Array").is_null()
     synth_vec := ctx.scope.get_struct("Vec").is_null()
     synth_set := ctx.scope.get_struct("Set").is_null()
-    if synth_array.not().and(synth_vec.not()).and(synth_set.not()) { return }
+    synth_map := ctx.scope.get_struct("Map").is_null()
+    if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
     for i in 0..program.children.len() {
-        init_collect_variadic_arrays(program.child(i), synthesized, seen, synth_array, synth_vec, synth_set)
+        init_collect_variadic_arrays(program.child(i), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
     for d : Expr in synthesized {
         switch d.node_type {
@@ -2856,8 +2903,8 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
 // deterministic decls (`Name__Arg := Name(Arg)`). Keep only the first one
 // across all initialized units, but leave user aliases (`Alias := Name(Arg)`)
 // alone because their LHS is intentionally not the deterministic name.
-priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map, scope: TypeScope, ctx: Context) {
-    mut last_direct := Map.new(Str, I64)
+priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
+    mut last_direct := Map(Str, I64).new()
     for i in 0..program.children.len() {
         ref stmt0 : Expr = program.child(i)
         if init_is_direct_macro_inst_decl(stmt0, macros, scope).not() { continue }
@@ -2974,12 +3021,12 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
 // (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
 // in place to the concrete `gname__T1_T2(valargs)`.
-priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr, generics: Map, mut seen: Map, mut synthesized: Vec(Expr)) {
+priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
         // Build the type-param substitution map and the mono name from
         // the type-args at the Type-param positions.
-        mut subs := Map.new(Str, Expr)
+        mut subs := Map(Str, Expr).new()
         mut mono := gname.concat("__")
         mut first := true
         mut ok := true
@@ -3060,7 +3107,7 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
 
 // Walk `e`'s subtree rewriting every generic-func call to its
 // monomorphization. `generics` maps name -> generic funcdef Expr.
-priv init_generic_walk := func(mut e: Expr, generics: Map, mut seen: Map, mut synthesized: Vec(Expr)) {
+priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
     if e.is_null() { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.child(i)
@@ -3093,7 +3140,7 @@ priv init_generic_walk := func(mut e: Expr, generics: Map, mut seen: Map, mut sy
 
 priv init_expand_generic_funcs := func(mut program: Expr) {
     // Collect top-level generic func/proc decls.
-    mut generics := Map.new(Str, Expr)
+    mut generics := Map(Str, Expr).new()
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
@@ -3109,7 +3156,7 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
 
     // Rewrite all calls (skipping the generic decls themselves, whose
     // bodies reference the still-unbound type-param).
-    mut seen := Map.new(Str, Str)
+    mut seen := Map(Str, Str).new()
     mut synthesized := Vec(Expr).new()
     for i in 0..program.children.len() {
         ref mut stmt : Expr = program.child(i)
@@ -3139,7 +3186,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
     // Build map of top-level macro defs returning a type-def metatype
     // (StructDef / EnumDef) or a FuncDef / FunctionDef (function
     // generator: rstil's macro-returns-FuncDef equivalent).
-    mut macros := Map.new(Str, Expr)
+    mut macros := Map(Str, Expr).new()
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
@@ -3207,7 +3254,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             // arg expression for value params, while
             // init_subst_ident_name still extracts the receiving type name for
             // explicit-type strings when the substitution is Ident-shaped.
-            mut subs := Map.new(Str, Expr)
+            mut subs := Map(Str, Expr).new()
             switch macro_fdef.node_type {
             case NodeType.FuncDef(mfd):
                 for j in 0..mfd.params.len() {
@@ -3365,7 +3412,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // distinct C functions for two files that happen to share a priv
     // identifier. The original user-facing name lives on dd.orig_name
     // for diagnostics.
-    mut priv_renamings := Map.new(Str, Str)
+    mut priv_renamings := Map(Str, Str).new()
     for pi in 0..program.children.len() {
         ref pstmt : Expr = program.child(pi)
         if pstmt.node_type.is(NodeType.Decl).not() { continue }
@@ -3689,7 +3736,7 @@ priv enum_variant_is_payload_less := func(enum_def: Expr, variant_name: Str) ret
             ref vn : Str = edd.variants[j]
             if vn.eq(variant_name) {
                 idx := j.to_i64()
-                ref pts : Map = edd.payload_types
+                ref pts : Map(I64, Str) = edd.payload_types
                 if pts.has(idx).not() { return true }
                 ref pt : Str = pts[idx]
                 return pt.len().eq(0)

@@ -4,7 +4,7 @@ import("../src/std/hashmap")
 
 // Issue #220: in `mode script` the top-level vars below become value
 // globals. Library functions pulled into the build that declare a local
-// of the same name (Map.new_type_names's heap-pointer `m`, format's
+// of the same name (format's
 // for-in loop var `s`, mem.swap's Dynamic local `tmp`, ...) must not
 // inherit the global's value classification, or codegen emits invalid C
 // (`.` on a pointer, `&s`, value-return / own-boxing of a pointer) that
@@ -15,18 +15,18 @@ import("../src/std/hashmap")
 // Top-level globals deliberately named after common library-internal
 // locals (`m`, `s`, `tmp`, `out`, `result`, `node`) so a regression in
 // any pulled-in function surfaces here.
-m : Map = {"a": 1, "b": 2, "c": 3}
+m := {"a": 1, "b": 2, "c": 3}
 s := {10, 20, 30}
-tmp : Map = {"p": 1}
-out : Map = {"x": 100}
+tmp := {"p": 1}
+out := {"x": 100}
 result := {1, 2, 3}
-node : Map = {"k": "v"}
+node := {"k": "v"}
 
 // Map get (ref) + has + key iteration. The .get call is wrapped in
 // a function so the throw/catch pass runs on the bang (top-level
 // statements in script mode aren't processed by it today).
 get_a_from_m := func() returns I64 {
-    ref mm : Map = m
+    ref mm : Map(Str, I64) = m
     ref v : I64 = mm["a"]
     return v.clone()
 }
@@ -40,7 +40,7 @@ for k : Str in m.keys {
 println(s.has(20).to_str())
 
 // HashMap is a separate library (src/std/hashmap.til), also with a
-// local `m` in HashMap.new_type_names.
+// local `m` in HashMap.new.
 h := HashMap(Str, I64).new()
 h.set("one", own 1)
 ref hv : I64 = h.get("one")

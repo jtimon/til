@@ -107,49 +107,48 @@ priv is_oct_digit := func(c: I8) returns Bool {
 // spelling -> TokenType lookup is a binary search rather than a linear
 // scan of a Vec.
 
-priv keyword_map := func() returns Map {
-    kw : Map = {
-        "mut":        TokenType.KwMut,
-        "const":      TokenType.KwConst,
-        "own":        TokenType.KwOwn,
-        "ref":        TokenType.KwRef,
-        "shallow":    TokenType.KwShallow,
-        "struct":     TokenType.KwStruct,
-        "enum":       TokenType.KwEnum,
-        "namespace":  TokenType.KwNamespace,
-        "interface":  TokenType.KwInterface,
-        "implements": TokenType.KwImplements,
-        "func":       TokenType.KwFunc,
-        "proc":       TokenType.KwProc,
-        "test":       TokenType.KwTest,
-        "macro":      TokenType.KwMacro,
-        "ext_func":   TokenType.KwExtFunc,
-        "ext_proc":   TokenType.KwExtProc,
-        "ext_struct": TokenType.KwExtStruct,
-        "lazy_func":  TokenType.KwLazyFunc,
-        "lazy_proc":  TokenType.KwLazyProc,
-        "returns":    TokenType.KwReturns,
-        "throws":     TokenType.KwThrows,
-        "if":         TokenType.KwIf,
-        "else":       TokenType.KwElse,
-        "while":      TokenType.KwWhile,
-        "for":        TokenType.KwFor,
-        "in":         TokenType.KwIn,
-        "switch":     TokenType.KwSwitch,
-        "match":      TokenType.KwMatch,
-        "case":       TokenType.KwCase,
-        "default":    TokenType.KwDefault,
-        "return":     TokenType.KwReturn,
-        "throw":      TokenType.KwThrow,
-        "catch":      TokenType.KwCatch,
-        "break":      TokenType.KwBreak,
-        "continue":   TokenType.KwContinue,
-        "defer":      TokenType.KwDefer,
-        "true":       TokenType.KwTrue,
-        "false":      TokenType.KwFalse,
-        "NULL":       TokenType.KwNull,
-        "priv":       TokenType.KwPriv,
-    }
+priv keyword_map := func() returns Map(Str, TokenType) {
+    kw := Map(Str, TokenType).new()
+    kw.set("mut", own TokenType.KwMut)
+    kw.set("const", own TokenType.KwConst)
+    kw.set("own", own TokenType.KwOwn)
+    kw.set("ref", own TokenType.KwRef)
+    kw.set("shallow", own TokenType.KwShallow)
+    kw.set("struct", own TokenType.KwStruct)
+    kw.set("enum", own TokenType.KwEnum)
+    kw.set("namespace", own TokenType.KwNamespace)
+    kw.set("interface", own TokenType.KwInterface)
+    kw.set("implements", own TokenType.KwImplements)
+    kw.set("func", own TokenType.KwFunc)
+    kw.set("proc", own TokenType.KwProc)
+    kw.set("test", own TokenType.KwTest)
+    kw.set("macro", own TokenType.KwMacro)
+    kw.set("ext_func", own TokenType.KwExtFunc)
+    kw.set("ext_proc", own TokenType.KwExtProc)
+    kw.set("ext_struct", own TokenType.KwExtStruct)
+    kw.set("lazy_func", own TokenType.KwLazyFunc)
+    kw.set("lazy_proc", own TokenType.KwLazyProc)
+    kw.set("returns", own TokenType.KwReturns)
+    kw.set("throws", own TokenType.KwThrows)
+    kw.set("if", own TokenType.KwIf)
+    kw.set("else", own TokenType.KwElse)
+    kw.set("while", own TokenType.KwWhile)
+    kw.set("for", own TokenType.KwFor)
+    kw.set("in", own TokenType.KwIn)
+    kw.set("switch", own TokenType.KwSwitch)
+    kw.set("match", own TokenType.KwMatch)
+    kw.set("case", own TokenType.KwCase)
+    kw.set("default", own TokenType.KwDefault)
+    kw.set("return", own TokenType.KwReturn)
+    kw.set("throw", own TokenType.KwThrow)
+    kw.set("catch", own TokenType.KwCatch)
+    kw.set("break", own TokenType.KwBreak)
+    kw.set("continue", own TokenType.KwContinue)
+    kw.set("defer", own TokenType.KwDefer)
+    kw.set("true", own TokenType.KwTrue)
+    kw.set("false", own TokenType.KwFalse)
+    kw.set("NULL", own TokenType.KwNull)
+    kw.set("priv", own TokenType.KwPriv)
     return kw
 }
 
@@ -267,7 +266,7 @@ priv lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
 // a binary search on its ordered keys. The caller builds the map once and
 // passes it in so it is not rebuilt per identifier.
 
-priv lookup_keyword := func(word: Str, kw: Map) returns TokenType {
+priv lookup_keyword := func(word: Str, kw: Map(Str, TokenType)) returns TokenType {
     if kw.has(word) {
         ref tt : TokenType = kw[word]
         return tt.clone()

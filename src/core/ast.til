@@ -354,7 +354,7 @@ namespace:
 EnumDef : StructDef = struct {
     ns_decls := Vec(Declaration).new()
     variants := Vec(Str).new()
-    payload_types : Map = Map.new(I64, Str)
+    payload_types : Map(I64, Str) = Map(I64, Str).new()
     // #211: per-variant flag (indexed by variant tag) marking variants
     // whose payload was declared `const Type`. Appended at the end of
     // the field list to minimise layout disturbance for til_boot.

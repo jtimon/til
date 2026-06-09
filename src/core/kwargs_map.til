@@ -8,7 +8,7 @@ import("tuple")
 
 /// String-keyed map of dynamically-typed kwargs values.
 KwargsMap := struct {
-    items := Map.new(Str, Tuple)
+    items := Map(Str, Tuple).new()
 
 namespace:
     /// Create an empty KwargsMap.

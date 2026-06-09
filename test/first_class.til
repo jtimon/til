@@ -799,7 +799,7 @@ test_enum_def_of := test() {
     assert_eq_str(__LOC__, "Square", v1)
     ref v2 : Str = def.variants[2.to_usize()]
     assert_eq_str(__LOC__, "Label", v2)
-    ref def_pts : Map = def.payload_types
+    ref def_pts : Map(I64, Str) = def.payload_types
     expect(__LOC__, def_pts.has(0), "Circle has payload")
     expect(__LOC__, def_pts.has(1).not(), "Square no payload")
     ref p0 : Str = def_pts[0]

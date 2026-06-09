@@ -15,8 +15,6 @@ typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
-typedef struct DynVec DynVec;
-typedef struct Map Map;
 typedef enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
@@ -116,13 +114,17 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
+typedef struct Map__I64_Str Map__I64_Str;
 typedef struct Vec__Bool Vec__Bool;
 typedef struct Vec__FieldLayout Vec__FieldLayout;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
+typedef struct Vec__I64 Vec__I64;
 typedef struct Tuple Tuple;
 typedef struct Vec__USize Vec__USize;
 typedef struct KwargsMap KwargsMap;
+typedef struct Map__Str_Tuple Map__Str_Tuple;
+typedef struct Vec__Tuple Vec__Tuple;
 typedef struct File File;
 typedef struct Range Range;
 typedef enum {
@@ -209,9 +211,14 @@ typedef enum {
 } TokenType_tag;
 typedef struct TokenType TokenType;
 typedef struct Token Token;
+typedef struct Map__Str_TokenType Map__Str_TokenType;
 typedef struct Vec__Token Vec__Token;
+typedef struct Vec__TokenType Vec__TokenType;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
 typedef struct Set__Str Set__Str;
+typedef struct Map__Str_Str Map__Str_Str;
+typedef struct Map__Str_Type Map__Str_Type;
+typedef struct Vec__Type Vec__Type;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
     ScopeFind_TAG_NotFound,
@@ -221,9 +228,28 @@ typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
 typedef struct Context Context;
+typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
+typedef struct Map__Str_Mode Map__Str_Mode;
+typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
+typedef struct Map__Str_StructLayout Map__Str_StructLayout;
+typedef struct Map__Str_Value Map__Str_Value;
 typedef struct Vec__Dynamic Vec__Dynamic;
+typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
+typedef struct Map__Str_Dynamic Map__Str_Dynamic;
+typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
+typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef struct Vec__TypeBinding Vec__TypeBinding;
+typedef struct Vec__Mode Vec__Mode;
+typedef struct Vec__ImportUnit Vec__ImportUnit;
+typedef struct Vec__StructLayout Vec__StructLayout;
+typedef struct Vec__Value Vec__Value;
+typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
+typedef struct Vec__FFIEntry Vec__FFIEntry;
+typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__I32 Vec__I32;
+typedef struct Map__Str_I64 Map__Str_I64;
+typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Vec__U32 Vec__U32;
 typedef enum {
     Lang_TAG_C,
@@ -255,14 +281,18 @@ typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
+typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
+typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
+typedef struct Vec__DeclRef Vec__DeclRef;
 typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
 typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct Array__Bool Array__Bool;
+typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct Vec__CollectionInfo Vec__CollectionInfo;
 typedef struct StructInstance StructInstance;
@@ -290,15 +320,15 @@ typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
+typedef struct Map__Str_Binding Map__Str_Binding;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
+typedef struct Vec__Binding Vec__Binding;
 typedef struct _ffi_type ffi_type;
 typedef struct priv___src_self_dispatch_til__ExtStr priv___src_self_dispatch_til__ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
-typedef struct Vec__Value Vec__Value;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
-typedef struct Vec__I64 Vec__I64;
 typedef struct Vector3 Vector3;
 typedef struct Vector4 Vector4;
 typedef struct Texture Texture;
@@ -306,9 +336,6 @@ typedef struct RenderTexture RenderTexture;
 typedef struct Camera3D Camera3D;
 typedef struct CliArgs CliArgs;
 
-typedef TilClosure *CloneFn;
-typedef TilClosure *DeleteFn;
-typedef TilClosure *CmpFn;
 typedef TilClosure *HashFn;
 typedef TilClosure *priv___src_self_dispatch_til__DispatchFn;
 
@@ -354,24 +381,6 @@ typedef struct Dynamic {
 
 
 
-
-
-typedef struct DynVec {
-    U8 *data;
-    U32 count;
-    U32 cap;
-    U32 elem_size;
-    U32 elem_kind;
-    TilClosure * elem_clone;
-    TilClosure * elem_delete;
-} DynVec;
-
-
-typedef struct Map {
-    DynVec keys;
-    DynVec values;
-    TilClosure * key_cmp;
-} Map;
 
 
 struct Primitive {
@@ -511,6 +520,13 @@ typedef struct Vec__Expr {
 } Vec__Expr;
 
 
+typedef struct Vec__I64 {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__I64;
+
+
 typedef struct Vec__USize {
     U8 *data;
     U32 count;
@@ -518,9 +534,11 @@ typedef struct Vec__USize {
 } Vec__USize;
 
 
-typedef struct KwargsMap {
-    Map items;
-} KwargsMap;
+typedef struct Vec__Tuple {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Tuple;
 
 
 typedef struct File {
@@ -557,11 +575,31 @@ typedef struct Vec__Token {
 } Vec__Token;
 
 
+typedef struct Vec__TokenType {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__TokenType;
+
+
 typedef struct Set__Str {
     U8 *data;
     U32 count;
     U32 cap;
 } Set__Str;
+
+
+typedef struct Map__Str_Str {
+    Vec__Str keys;
+    Vec__Str values;
+} Map__Str_Str;
+
+
+typedef struct Vec__Type {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Type;
 
 
 typedef struct TypeBinding {
@@ -594,19 +632,17 @@ struct ScopeFind {
     } data;
 };
 
-typedef struct TypeScope {
-    Map bindings;
-    Map func_defs;
-    Map struct_defs;
-    TypeScope *parent;
-} TypeScope;
-
-
 typedef struct Vec__Dynamic {
     U8 *data;
     U32 count;
     U32 cap;
 } Vec__Dynamic;
+
+
+typedef struct Map__Str_Dynamic {
+    Vec__Str keys;
+    Vec__Dynamic values;
+} Map__Str_Dynamic;
 
 
 typedef struct Vec__FFITypePtrBox {
@@ -616,11 +652,79 @@ typedef struct Vec__FFITypePtrBox {
 } Vec__FFITypePtrBox;
 
 
+typedef struct Vec__TypeBinding {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__TypeBinding;
+
+
+typedef struct Vec__Mode {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Mode;
+
+
+typedef struct Vec__ImportUnit {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__ImportUnit;
+
+
+typedef struct Vec__StructLayout {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__StructLayout;
+
+
+typedef struct Vec__Value {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Value;
+
+
+typedef struct Vec__call_Vec_Str {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__call_Vec_Str;
+
+
+typedef struct Vec__FFIEntry {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__FFIEntry;
+
+
+typedef struct Vec__ExprPtrBox {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__ExprPtrBox;
+
+
 typedef struct Vec__I32 {
     U8 *data;
     U32 count;
     U32 cap;
 } Vec__I32;
+
+
+typedef struct Map__Str_I64 {
+    Vec__Str keys;
+    Vec__I64 values;
+} Map__Str_I64;
+
+
+typedef struct Map__Str_Expr {
+    Vec__Str keys;
+    Vec__Expr values;
+} Map__Str_Expr;
 
 
 typedef struct Vec__U32 {
@@ -670,6 +774,12 @@ typedef struct Vec__LocalInfo {
 } Vec__LocalInfo;
 
 
+typedef struct Map__Str_Bool {
+    Vec__Str keys;
+    Vec__Bool values;
+} Map__Str_Bool;
+
+
 typedef struct priv___src_self_loader_til__DeclRef {
     Str path;
     U32 idx;
@@ -681,6 +791,13 @@ typedef struct Vec__ProgramUnit {
     U32 count;
     U32 cap;
 } Vec__ProgramUnit;
+
+
+typedef struct Vec__DeclRef {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__DeclRef;
 
 
 typedef struct priv___src_self_builder_til__CollectionInfo {
@@ -712,6 +829,12 @@ typedef struct Array__Bool {
     U8 *data;
     U32 cap;
 } Array__Bool;
+
+
+typedef struct Map__Str_U32 {
+    Vec__Str keys;
+    Vec__U32 values;
+} Map__Str_U32;
 
 
 typedef struct Vec__DynCallInfo {
@@ -791,6 +914,13 @@ typedef struct Vec__DynPtrBox {
 } Vec__DynPtrBox;
 
 
+typedef struct Vec__Binding {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Binding;
+
+
 typedef struct _ffi_type {
     U32 size;
     I16 alignment;
@@ -837,24 +967,10 @@ typedef struct FFITypePtrBox {
 } FFITypePtrBox;
 
 
-typedef struct Vec__Value {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} Vec__Value;
-
-
 typedef struct priv___src_self_binder_til__BinderState {
     Str alias_to_primitive;
     Str alias_to_dynamic;
 } priv___src_self_binder_til__BinderState;
-
-
-typedef struct Vec__I64 {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} Vec__I64;
 
 
 typedef struct Vector3 {
@@ -949,15 +1065,6 @@ typedef struct StructDef {
 } StructDef;
 
 
-typedef struct EnumDef {
-    Vec__Declaration ns_decls;
-    Vec__Str variants;
-    Map payload_types;
-    Vec__Bool payload_consts;
-    Str implements_name;
-} EnumDef;
-
-
 typedef struct StructLayout {
     U32 total_size;
     U32 align;
@@ -968,6 +1075,145 @@ typedef struct StructLayout {
 typedef struct CaptureBlockData {
     Vec__Declaration captures;
 } CaptureBlockData;
+
+
+typedef struct Map__I64_Str {
+    Vec__I64 keys;
+    Vec__Str values;
+} Map__I64_Str;
+
+
+typedef struct Tuple {
+    U8 *data;
+    U32 total_size;
+    U32 cap;
+    Vec__Str type_names;
+    Vec__USize type_sizes;
+} Tuple;
+
+
+typedef struct Map__Str_Tuple {
+    Vec__Str keys;
+    Vec__Tuple values;
+} Map__Str_Tuple;
+
+
+typedef struct Map__Str_TokenType {
+    Vec__Str keys;
+    Vec__TokenType values;
+} Map__Str_TokenType;
+
+
+typedef struct priv___src_self_parser_til__Parser {
+    Vec__Token tokens;
+    U32 pos;
+    Str path;
+    Vec__Expr fn_sig_decls;
+    Vec__Expr type_gen_decls;
+    Set__Str type_gen_seen;
+    Vec__Str active_type_params;
+    Vec__Expr anon_decls;
+    Map__Str_Str anon_cache;
+    Str pending_doc;
+    Str source;
+} priv___src_self_parser_til__Parser;
+
+
+typedef struct Map__Str_Type {
+    Vec__Str keys;
+    Vec__Type values;
+} Map__Str_Type;
+
+
+typedef struct ImportUnit {
+    Str mode_str;
+    Mode mode;
+    Expr *ast;
+    Vec__Str imports;
+} ImportUnit;
+
+
+typedef struct Map__Str_TypeBinding {
+    Vec__Str keys;
+    Vec__TypeBinding values;
+} Map__Str_TypeBinding;
+
+
+typedef struct Map__Str_Mode {
+    Vec__Str keys;
+    Vec__Mode values;
+} Map__Str_Mode;
+
+
+typedef struct Map__Str_ImportUnit {
+    Vec__Str keys;
+    Vec__ImportUnit values;
+} Map__Str_ImportUnit;
+
+
+typedef struct Map__Str_StructLayout {
+    Vec__Str keys;
+    Vec__StructLayout values;
+} Map__Str_StructLayout;
+
+
+typedef struct Map__Str_Value {
+    Vec__Str keys;
+    Vec__Value values;
+} Map__Str_Value;
+
+
+typedef struct Map__Str_call_Vec_Str {
+    Vec__Str keys;
+    Vec__call_Vec_Str values;
+} Map__Str_call_Vec_Str;
+
+
+typedef struct Map__Str_FFIEntry {
+    Vec__Str keys;
+    Vec__FFIEntry values;
+} Map__Str_FFIEntry;
+
+
+typedef struct Map__Str_ExprPtrBox {
+    Vec__Str keys;
+    Vec__ExprPtrBox values;
+} Map__Str_ExprPtrBox;
+
+
+typedef struct priv___src_self_typer_til__CoverageNode {
+    Bool fully_covered;
+    Vec__Str sub_names;
+    Vec__CoverageNode sub_nodes;
+} priv___src_self_typer_til__CoverageNode;
+
+
+typedef struct ProgramUnit {
+    Str path;
+    Mode mode;
+    Vec__Str imports;
+} ProgramUnit;
+
+
+typedef struct Map__Str_DeclRef {
+    Vec__Str keys;
+    Vec__DeclRef values;
+} Map__Str_DeclRef;
+
+
+typedef struct Map__Str_Binding {
+    Vec__Str keys;
+    Vec__Binding values;
+} Map__Str_Binding;
+
+
+typedef struct EnumDef {
+    Vec__Declaration ns_decls;
+    Vec__Str variants;
+    Map__I64_Str payload_types;
+    Vec__Bool payload_consts;
+    Str implements_name;
+} EnumDef;
 
 
 struct NodeType {
@@ -998,44 +1244,25 @@ typedef struct Expr {
 } Expr;
 
 
-typedef struct Tuple {
-    U8 *data;
-    U32 total_size;
-    U32 cap;
-    Vec__Str type_names;
-    Vec__USize type_sizes;
-} Tuple;
+typedef struct KwargsMap {
+    Map__Str_Tuple items;
+} KwargsMap;
 
 
-typedef struct priv___src_self_parser_til__Parser {
-    Vec__Token tokens;
-    U32 pos;
-    Str path;
-    Vec__Expr fn_sig_decls;
-    Vec__Expr type_gen_decls;
-    Set__Str type_gen_seen;
-    Vec__Str active_type_params;
-    Vec__Expr anon_decls;
-    Map anon_cache;
-    Str pending_doc;
-    Str source;
-} priv___src_self_parser_til__Parser;
-
-
-typedef struct ImportUnit {
-    Str mode_str;
-    Mode mode;
-    Expr *ast;
-    Vec__Str imports;
-} ImportUnit;
+typedef struct TypeScope {
+    Map__Str_TypeBinding bindings;
+    Map__Str_Dynamic func_defs;
+    Map__Str_Dynamic struct_defs;
+    TypeScope *parent;
+} TypeScope;
 
 
 typedef struct Context {
     Mode mode;
     Str path;
-    Map path_modes;
+    Map__Str_Mode path_modes;
     Bool compile_mode;
-    Map imported;
+    Map__Str_ImportUnit imported;
     Set__Str imports_init_seed_done;
     Set__Str imports_init_active;
     Set__Str imports_init_done;
@@ -1046,32 +1273,32 @@ typedef struct Context {
     Set__Str type_gen_synths;
     TypeScope scope;
     Bool is_repl;
-    Map struct_layouts;
+    Map__Str_StructLayout struct_layouts;
     Set__Str precomp_macros;
     Set__Str precomp_funcs;
-    Map precomp_known;
+    Map__Str_Value precomp_known;
     Set__Str precomp_assigned;
     Bool has_return;
     Bool has_break;
     Bool has_continue;
     Value return_value;
-    Map ns_fields;
+    Map__Str_Value ns_fields;
     Vec__Dynamic ns_keys;
     Bool ns_inited;
     Bool typing_namespace_member;
-    Map local_fn_sigs;
+    Map__Str_Dynamic local_fn_sigs;
     Str closure_emit_env;
     Set__Str closure_emit_captures;
-    Map func_defs;
-    Map struct_def_exprs;
+    Map__Str_Dynamic func_defs;
+    Map__Str_Dynamic struct_def_exprs;
     Set__Str funcsig_names;
     Set__Str closure_value_names;
     Set__Str script_globals;
     Set__Str ref_globals;
     Vec__Str throw_type_registry;
-    Map throws_global;
+    Map__Str_call_Vec_Str throws_global;
     I64 bang_counter;
-    Map lowering_param_types;
+    Map__Str_Str lowering_param_types;
     Bool typer_in_shallow_return;
     Bool typer_in_main_func;
     Str typer_return_type_name;
@@ -1090,7 +1317,7 @@ typedef struct Context {
     I32 auto_gen_depth;
     Set__Str throw_used_local_names;
     Set__Str stack_locals;
-    Map stack_local_types;
+    Map__Str_Str stack_local_types;
     Set__Str unsafe_to_hoist;
     Set__Str ref_locals;
     Set__Str ptr_locals;
@@ -1103,13 +1330,13 @@ typedef struct Context {
     Str *cached_array_name;
     Expr *cached_vec_def;
     Str *cached_vec_name;
-    Map interp_type_defs;
-    Map dispatch_map;
+    Map__Str_Dynamic interp_type_defs;
+    Map__Str_Dynamic dispatch_map;
     Bool dispatch_inited;
-    Map ffi_map;
+    Map__Str_FFIEntry ffi_map;
     Bool ffi_map_inited;
     Bool ffi_loaded;
-    Map ffi_struct_defs;
+    Map__Str_ExprPtrBox ffi_struct_defs;
     Vec__FFITypePtrBox ffi_type_cache;
     Bool ffi_type_cache_inited;
 } Context;
@@ -1121,20 +1348,6 @@ struct priv___src_self_typer_til__CtorArg {
         Expr Filled;
     } data;
 };
-
-typedef struct priv___src_self_typer_til__CoverageNode {
-    Bool fully_covered;
-    Vec__Str sub_names;
-    Vec__CoverageNode sub_nodes;
-} priv___src_self_typer_til__CoverageNode;
-
-
-typedef struct ProgramUnit {
-    Str path;
-    Mode mode;
-    Vec__Str imports;
-} ProgramUnit;
-
 
 typedef struct LoadedProgram {
     Vec__ProgramUnit *core_units;
@@ -1155,10 +1368,10 @@ typedef struct LoadedProgram {
 
 
 typedef struct Scope {
-    Map bindings;
+    Map__Str_Binding bindings;
     Scope *parent;
-    Map payload_aliases;
-    Map ref_primitive_ptrs;
+    Map__Str_Str payload_aliases;
+    Map__Str_Dynamic ref_primitive_ptrs;
     Vec__DynPtrBox box_owned_dynamics;
 } Scope;
 
@@ -1280,9 +1493,6 @@ U32 Vec__Str_size(void);
 U32 Dynamic_size(void);
 void * Dynamic_clone(void * self);
 void Dynamic_delete(void * self, Bool call_free);
-void * default_clone(void * v);
-void default_delete(void * _v, Bool _cf);
-I64 default_cmp(void * _a, void * _b);
 Str * I16_to_str(I16 val);
 void I16_delete(I16 * self, Bool call_free);
 U32 I16_size(void);
@@ -1302,27 +1512,6 @@ I64 Bool_cmp(Bool a, Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 U32 Bool_size(void);
 U64 Bool_hash(Bool self, HashFn hasher);
-DynVec * DynVec_new_type_name(Str * elem_type);
-DynVec * DynVec_new(Type * T);
-U32 DynVec_len(DynVec * self);
-void DynVec_clear(DynVec * self);
-void * DynVec_get(DynVec * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void DynVec_delete(DynVec * self, Bool call_free);
-DynVec * DynVec_clone(DynVec * self);
-U32 DynVec_size(void);
-Map * Map_new_type_names(Str * key_type, Str * val_type);
-Map * Map_new(Type * K, Type * V);
-U32 Map_len(Map * self);
-void Map_clear(Map * self);
-void * Map_key_ptr(Map * self, U32 * i);
-void * Map_val_ptr(Map * self, U32 * i);
-Bool Map_has(Map * self, void * key);
-void * Map_get(Map * self, void * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
-void Map_set(Map * self, void * key, void * val);
-void Map_delete(Map * self, Bool call_free);
-Map * Map_clone(Map * self);
-U64 Map_hash(Map * self, HashFn hasher);
-U32 Map_size(void);
 Bool Primitive_is(Primitive * self, Primitive * other);
 Bool Primitive_eq(Primitive * self, Primitive * other);
 void Primitive_delete(Primitive * self, Bool call_free);
@@ -1464,6 +1653,17 @@ Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
 U32 fcall_kwargs_count(Expr * fcall);
 U32 fcall_variadic_count(Expr * fcall, U32 nparam, Bool callee_has_kwargs);
+Map__I64_Str * Map__I64_Str_new(void);
+U32 Map__I64_Str_len(Map__I64_Str * self);
+I64 * Map__I64_Str_key_ptr(Map__I64_Str * self, U32 * i);
+Str * Map__I64_Str_val_ptr(Map__I64_Str * self, U32 * i);
+Bool Map__I64_Str_has(Map__I64_Str * self, I64 key);
+Str * Map__I64_Str_get(Map__I64_Str * self, I64 * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__I64_Str_set(Map__I64_Str * self, I64 key, Str * val);
+void Map__I64_Str_delete(Map__I64_Str * self, Bool call_free);
+Map__I64_Str * Map__I64_Str_clone(Map__I64_Str * self);
+U64 Map__I64_Str_hash(Map__I64_Str * self, HashFn hasher);
+U32 Map__I64_Str_size(void);
 Vec__Bool * Vec__Bool_new(void);
 U32 Vec__Bool_len(Vec__Bool * self);
 void Vec__Bool_clear(Vec__Bool * self);
@@ -1502,6 +1702,13 @@ void Vec__Expr_push_take(Vec__Expr * self, Vec__Expr * src, U32 i);
 void Vec__Expr_delete(Vec__Expr * self, Bool call_free);
 Vec__Expr * Vec__Expr_clone(Vec__Expr * self);
 U32 Vec__Expr_size(void);
+Vec__I64 * Vec__I64_new(void);
+void Vec__I64_clear(Vec__I64 * self);
+void Vec__I64_push(Vec__I64 * self, I64 * val);
+I64 * Vec__I64_get(Vec__I64 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
+U32 Vec__I64_size(void);
 void Tuple_delete(Tuple * self, Bool call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 Tuple_size(void);
@@ -1517,6 +1724,16 @@ KwargsMap * KwargsMap_clone(KwargsMap * self);
 void KwargsMap_delete(KwargsMap * self, Bool call_free);
 U64 KwargsMap_hash(KwargsMap * self, HashFn hasher);
 U32 KwargsMap_size(void);
+Map__Str_Tuple * Map__Str_Tuple_new(void);
+void Map__Str_Tuple_delete(Map__Str_Tuple * self, Bool call_free);
+Map__Str_Tuple * Map__Str_Tuple_clone(Map__Str_Tuple * self);
+U64 Map__Str_Tuple_hash(Map__Str_Tuple * self, HashFn hasher);
+U32 Map__Str_Tuple_size(void);
+Vec__Tuple * Vec__Tuple_new(void);
+void Vec__Tuple_clear(Vec__Tuple * self);
+void Vec__Tuple_delete(Vec__Tuple * self, Bool call_free);
+Vec__Tuple * Vec__Tuple_clone(Vec__Tuple * self);
+U32 Vec__Tuple_size(void);
 void panic(Str * loc_str, Array__Str * parts);
 void UNREACHABLE(Str * loc_str);
 void println(Array__Str * parts);
@@ -1554,14 +1771,24 @@ Bool is_alnum(I8 c);
 Bool priv___src_self_lexer_til__is_hex_digit(I8 c);
 Bool priv___src_self_lexer_til__is_bin_digit(I8 c);
 Bool priv___src_self_lexer_til__is_oct_digit(I8 c);
-Map * priv___src_self_lexer_til__keyword_map(void);
+Map__Str_TokenType * priv___src_self_lexer_til__keyword_map(void);
 Str * tok_name(TokenType * type);
 TokenType priv___src_self_lexer_til__lookup_single_char(I8 c);
 TokenType priv___src_self_lexer_til__lookup_two_char(I8 c, I8 c2);
-TokenType * priv___src_self_lexer_til__lookup_keyword(Str * word, Map * kw);
+TokenType * priv___src_self_lexer_til__lookup_keyword(Str * word, Map__Str_TokenType * kw);
 U32 priv___src_self_lexer_til__scan_to_eol(Str * src, U32 from, U32 src_len);
 void priv___src_self_lexer_til__push_tok(Vec__Token * tokens, TokenType * type, U32 start, U32 len, U32 line, U32 col);
 Vec__Token * tokenize(Str * src, Str * path);
+Map__Str_TokenType * Map__Str_TokenType_new(void);
+Str * Map__Str_TokenType_key_ptr(Map__Str_TokenType * self, U32 * i);
+TokenType * Map__Str_TokenType_val_ptr(Map__Str_TokenType * self, U32 * i);
+Bool Map__Str_TokenType_has(Map__Str_TokenType * self, Str * key);
+TokenType * Map__Str_TokenType_get(Map__Str_TokenType * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_TokenType_set(Map__Str_TokenType * self, Str * key, TokenType * val);
+void Map__Str_TokenType_delete(Map__Str_TokenType * self, Bool call_free);
+Map__Str_TokenType * Map__Str_TokenType_clone(Map__Str_TokenType * self);
+U64 Map__Str_TokenType_hash(Map__Str_TokenType * self, HashFn hasher);
+U32 Map__Str_TokenType_size(void);
 Vec__Token * Vec__Token_new(void);
 U32 Vec__Token_len(Vec__Token * self);
 void Vec__Token_clear(Vec__Token * self);
@@ -1570,6 +1797,11 @@ Token * Vec__Token_get(Vec__Token * self, U32 * i, I64 * _err_kind, OutOfBounds 
 void Vec__Token_delete(Vec__Token * self, Bool call_free);
 Vec__Token * Vec__Token_clone(Vec__Token * self);
 U32 Vec__Token_size(void);
+Vec__TokenType * Vec__TokenType_new(void);
+void Vec__TokenType_clear(Vec__TokenType * self);
+void Vec__TokenType_delete(Vec__TokenType * self, Bool call_free);
+Vec__TokenType * Vec__TokenType_clone(Vec__TokenType * self);
+U32 Vec__TokenType_size(void);
 priv___src_self_parser_til__Parser * priv___src_self_parser_til__Parser_clone(priv___src_self_parser_til__Parser * self);
 void priv___src_self_parser_til__Parser_delete(priv___src_self_parser_til__Parser * self, Bool call_free);
 U64 priv___src_self_parser_til__Parser_hash(priv___src_self_parser_til__Parser * self, HashFn hasher);
@@ -1582,6 +1814,7 @@ Token * priv___src_self_parser_til__expect_token(priv___src_self_parser_til__Par
 Str * priv___src_self_parser_til__expect_text(priv___src_self_parser_til__Parser * p, TokenType * type);
 U32 priv___src_self_parser_til__peek_line(priv___src_self_parser_til__Parser * p);
 U32 priv___src_self_parser_til__peek_col(priv___src_self_parser_til__Parser * p);
+Map__Str_Type * priv___src_self_parser_til__make_builtin_type_table(void);
 Bool builtin_type_from_name(Str * name, Type * out);
 Type * til_type_from_explicit_type(Str * name);
 Declaration * decl_typed(Str * explicit_type, Str * name, Str * doc, Bool is_mut, Bool redundant_mut, Bool is_priv, Bool used, OwnType * own_type);
@@ -1634,6 +1867,31 @@ void Set__Str_add(Set__Str * self, Str * val);
 void Set__Str_delete(Set__Str * self, Bool call_free);
 Set__Str * Set__Str_clone(Set__Str * self);
 U32 Set__Str_size(void);
+Map__Str_Str * Map__Str_Str_new(void);
+U32 Map__Str_Str_len(Map__Str_Str * self);
+Str * Map__Str_Str_key_ptr(Map__Str_Str * self, U32 * i);
+Str * Map__Str_Str_val_ptr(Map__Str_Str * self, U32 * i);
+Bool Map__Str_Str_has(Map__Str_Str * self, Str * key);
+Str * Map__Str_Str_get(Map__Str_Str * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Str_set(Map__Str_Str * self, Str * key, Str * val);
+void Map__Str_Str_delete(Map__Str_Str * self, Bool call_free);
+Map__Str_Str * Map__Str_Str_clone(Map__Str_Str * self);
+U64 Map__Str_Str_hash(Map__Str_Str * self, HashFn hasher);
+U32 Map__Str_Str_size(void);
+Map__Str_Type * Map__Str_Type_new(void);
+Str * Map__Str_Type_key_ptr(Map__Str_Type * self, U32 * i);
+Type * Map__Str_Type_val_ptr(Map__Str_Type * self, U32 * i);
+Type * Map__Str_Type_get(Map__Str_Type * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Type_set(Map__Str_Type * self, Str * key, Type * val);
+void Map__Str_Type_delete(Map__Str_Type * self, Bool call_free);
+Map__Str_Type * Map__Str_Type_clone(Map__Str_Type * self);
+U64 Map__Str_Type_hash(Map__Str_Type * self, HashFn hasher);
+U32 Map__Str_Type_size(void);
+Vec__Type * Vec__Type_new(void);
+void Vec__Type_clear(Vec__Type * self);
+void Vec__Type_delete(Vec__Type * self, Bool call_free);
+Vec__Type * Vec__Type_clone(Vec__Type * self);
+U32 Vec__Type_size(void);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U64 TypeBinding_hash(TypeBinding * self, HashFn hasher);
@@ -1644,7 +1902,7 @@ Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);
 void ScopeFind_delete(ScopeFind * self, Bool call_free);
 ScopeFind * ScopeFind_clone(ScopeFind * self);
 U32 ScopeFind_size(void);
-Expr * priv___src_self_context_til__func_defs_lookup_one(Map * m, Str * name);
+Expr * priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
@@ -1690,6 +1948,60 @@ Bool enum_has_payloads(Expr * enum_def);
 I32 enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Bool enum_variant_payload_const(Expr * enum_def, I32 tag);
+Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
+U32 Map__Str_TypeBinding_len(Map__Str_TypeBinding * self);
+Str * Map__Str_TypeBinding_key_ptr(Map__Str_TypeBinding * self, U32 * i);
+TypeBinding * Map__Str_TypeBinding_val_ptr(Map__Str_TypeBinding * self, U32 * i);
+Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
+TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_TypeBinding_set(Map__Str_TypeBinding * self, Str * key, TypeBinding * val);
+void Map__Str_TypeBinding_delete(Map__Str_TypeBinding * self, Bool call_free);
+Map__Str_TypeBinding * Map__Str_TypeBinding_clone(Map__Str_TypeBinding * self);
+U64 Map__Str_TypeBinding_hash(Map__Str_TypeBinding * self, HashFn hasher);
+U32 Map__Str_TypeBinding_size(void);
+Map__Str_Mode * Map__Str_Mode_new(void);
+Str * Map__Str_Mode_key_ptr(Map__Str_Mode * self, U32 * i);
+Mode * Map__Str_Mode_val_ptr(Map__Str_Mode * self, U32 * i);
+Bool Map__Str_Mode_has(Map__Str_Mode * self, Str * key);
+Mode * Map__Str_Mode_get(Map__Str_Mode * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Mode_set(Map__Str_Mode * self, Str * key, Mode * val);
+void Map__Str_Mode_delete(Map__Str_Mode * self, Bool call_free);
+Map__Str_Mode * Map__Str_Mode_clone(Map__Str_Mode * self);
+U64 Map__Str_Mode_hash(Map__Str_Mode * self, HashFn hasher);
+U32 Map__Str_Mode_size(void);
+Map__Str_ImportUnit * Map__Str_ImportUnit_new(void);
+U32 Map__Str_ImportUnit_len(Map__Str_ImportUnit * self);
+Str * Map__Str_ImportUnit_key_ptr(Map__Str_ImportUnit * self, U32 * i);
+ImportUnit * Map__Str_ImportUnit_val_ptr(Map__Str_ImportUnit * self, U32 * i);
+Bool Map__Str_ImportUnit_has(Map__Str_ImportUnit * self, Str * key);
+ImportUnit * Map__Str_ImportUnit_get(Map__Str_ImportUnit * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_ImportUnit_set(Map__Str_ImportUnit * self, Str * key, ImportUnit * val);
+void Map__Str_ImportUnit_delete(Map__Str_ImportUnit * self, Bool call_free);
+Map__Str_ImportUnit * Map__Str_ImportUnit_clone(Map__Str_ImportUnit * self);
+U64 Map__Str_ImportUnit_hash(Map__Str_ImportUnit * self, HashFn hasher);
+U32 Map__Str_ImportUnit_size(void);
+Map__Str_StructLayout * Map__Str_StructLayout_new(void);
+Str * Map__Str_StructLayout_key_ptr(Map__Str_StructLayout * self, U32 * i);
+StructLayout * Map__Str_StructLayout_val_ptr(Map__Str_StructLayout * self, U32 * i);
+Bool Map__Str_StructLayout_has(Map__Str_StructLayout * self, Str * key);
+StructLayout * Map__Str_StructLayout_get(Map__Str_StructLayout * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_StructLayout_set(Map__Str_StructLayout * self, Str * key, StructLayout * val);
+void Map__Str_StructLayout_delete(Map__Str_StructLayout * self, Bool call_free);
+Map__Str_StructLayout * Map__Str_StructLayout_clone(Map__Str_StructLayout * self);
+U64 Map__Str_StructLayout_hash(Map__Str_StructLayout * self, HashFn hasher);
+U32 Map__Str_StructLayout_size(void);
+Map__Str_Value * Map__Str_Value_new(void);
+U32 Map__Str_Value_len(Map__Str_Value * self);
+void Map__Str_Value_clear(Map__Str_Value * self);
+Str * Map__Str_Value_key_ptr(Map__Str_Value * self, U32 * i);
+Value * Map__Str_Value_val_ptr(Map__Str_Value * self, U32 * i);
+Bool Map__Str_Value_has(Map__Str_Value * self, Str * key);
+Value * Map__Str_Value_get(Map__Str_Value * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Value_set(Map__Str_Value * self, Str * key, Value * val);
+void Map__Str_Value_delete(Map__Str_Value * self, Bool call_free);
+Map__Str_Value * Map__Str_Value_clone(Map__Str_Value * self);
+U64 Map__Str_Value_hash(Map__Str_Value * self, HashFn hasher);
+U32 Map__Str_Value_size(void);
 Vec__Dynamic * Vec__Dynamic_new(void);
 U32 Vec__Dynamic_len(Vec__Dynamic * self);
 void Vec__Dynamic_clear(Vec__Dynamic * self);
@@ -1698,6 +2010,47 @@ void * Vec__Dynamic_get(Vec__Dynamic * self, U32 * i, I64 * _err_kind, OutOfBoun
 void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
 Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
 U32 Vec__Dynamic_size(void);
+Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_new(void);
+Str * Map__Str_call_Vec_Str_key_ptr(Map__Str_call_Vec_Str * self, U32 * i);
+Vec__Str * Map__Str_call_Vec_Str_val_ptr(Map__Str_call_Vec_Str * self, U32 * i);
+Bool Map__Str_call_Vec_Str_has(Map__Str_call_Vec_Str * self, Str * key);
+Vec__Str * Map__Str_call_Vec_Str_get(Map__Str_call_Vec_Str * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_call_Vec_Str_set(Map__Str_call_Vec_Str * self, Str * key, Vec__Str * val);
+void Map__Str_call_Vec_Str_delete(Map__Str_call_Vec_Str * self, Bool call_free);
+Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_clone(Map__Str_call_Vec_Str * self);
+U64 Map__Str_call_Vec_Str_hash(Map__Str_call_Vec_Str * self, HashFn hasher);
+U32 Map__Str_call_Vec_Str_size(void);
+Map__Str_Dynamic * Map__Str_Dynamic_new(void);
+Str * Map__Str_Dynamic_key_ptr(Map__Str_Dynamic * self, U32 * i);
+void * Map__Str_Dynamic_val_ptr(Map__Str_Dynamic * self, U32 * i);
+Bool Map__Str_Dynamic_has(Map__Str_Dynamic * self, Str * key);
+void * Map__Str_Dynamic_get(Map__Str_Dynamic * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Dynamic_set(Map__Str_Dynamic * self, Str * key, void * val);
+void Map__Str_Dynamic_delete(Map__Str_Dynamic * self, Bool call_free);
+Map__Str_Dynamic * Map__Str_Dynamic_clone(Map__Str_Dynamic * self);
+U64 Map__Str_Dynamic_hash(Map__Str_Dynamic * self, HashFn hasher);
+U32 Map__Str_Dynamic_size(void);
+Map__Str_FFIEntry * Map__Str_FFIEntry_new(void);
+U32 Map__Str_FFIEntry_len(Map__Str_FFIEntry * self);
+Str * Map__Str_FFIEntry_key_ptr(Map__Str_FFIEntry * self, U32 * i);
+FFIEntry * Map__Str_FFIEntry_val_ptr(Map__Str_FFIEntry * self, U32 * i);
+Bool Map__Str_FFIEntry_has(Map__Str_FFIEntry * self, Str * key);
+FFIEntry * Map__Str_FFIEntry_get(Map__Str_FFIEntry * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_FFIEntry_set(Map__Str_FFIEntry * self, Str * key, FFIEntry * val);
+void Map__Str_FFIEntry_delete(Map__Str_FFIEntry * self, Bool call_free);
+Map__Str_FFIEntry * Map__Str_FFIEntry_clone(Map__Str_FFIEntry * self);
+U64 Map__Str_FFIEntry_hash(Map__Str_FFIEntry * self, HashFn hasher);
+U32 Map__Str_FFIEntry_size(void);
+Map__Str_ExprPtrBox * Map__Str_ExprPtrBox_new(void);
+Str * Map__Str_ExprPtrBox_key_ptr(Map__Str_ExprPtrBox * self, U32 * i);
+ExprPtrBox * Map__Str_ExprPtrBox_val_ptr(Map__Str_ExprPtrBox * self, U32 * i);
+Bool Map__Str_ExprPtrBox_has(Map__Str_ExprPtrBox * self, Str * key);
+ExprPtrBox * Map__Str_ExprPtrBox_get(Map__Str_ExprPtrBox * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_ExprPtrBox_set(Map__Str_ExprPtrBox * self, Str * key, ExprPtrBox * val);
+void Map__Str_ExprPtrBox_delete(Map__Str_ExprPtrBox * self, Bool call_free);
+Map__Str_ExprPtrBox * Map__Str_ExprPtrBox_clone(Map__Str_ExprPtrBox * self);
+U64 Map__Str_ExprPtrBox_hash(Map__Str_ExprPtrBox * self, HashFn hasher);
+U32 Map__Str_ExprPtrBox_size(void);
 Vec__FFITypePtrBox * Vec__FFITypePtrBox_new(void);
 U32 Vec__FFITypePtrBox_len(Vec__FFITypePtrBox * self);
 void Vec__FFITypePtrBox_clear(Vec__FFITypePtrBox * self);
@@ -1706,6 +2059,48 @@ FFITypePtrBox * Vec__FFITypePtrBox_get(Vec__FFITypePtrBox * self, U32 * i, I64 *
 void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free);
 Vec__FFITypePtrBox * Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self);
 U32 Vec__FFITypePtrBox_size(void);
+Vec__TypeBinding * Vec__TypeBinding_new(void);
+void Vec__TypeBinding_clear(Vec__TypeBinding * self);
+void Vec__TypeBinding_delete(Vec__TypeBinding * self, Bool call_free);
+Vec__TypeBinding * Vec__TypeBinding_clone(Vec__TypeBinding * self);
+U32 Vec__TypeBinding_size(void);
+Vec__Mode * Vec__Mode_new(void);
+void Vec__Mode_clear(Vec__Mode * self);
+void Vec__Mode_delete(Vec__Mode * self, Bool call_free);
+Vec__Mode * Vec__Mode_clone(Vec__Mode * self);
+U32 Vec__Mode_size(void);
+Vec__ImportUnit * Vec__ImportUnit_new(void);
+void Vec__ImportUnit_clear(Vec__ImportUnit * self);
+void Vec__ImportUnit_delete(Vec__ImportUnit * self, Bool call_free);
+Vec__ImportUnit * Vec__ImportUnit_clone(Vec__ImportUnit * self);
+U32 Vec__ImportUnit_size(void);
+Vec__StructLayout * Vec__StructLayout_new(void);
+void Vec__StructLayout_clear(Vec__StructLayout * self);
+void Vec__StructLayout_delete(Vec__StructLayout * self, Bool call_free);
+Vec__StructLayout * Vec__StructLayout_clone(Vec__StructLayout * self);
+U32 Vec__StructLayout_size(void);
+Vec__Value * Vec__Value_new(void);
+U32 Vec__Value_len(Vec__Value * self);
+void Vec__Value_clear(Vec__Value * self);
+void Vec__Value_push(Vec__Value * self, Value * val);
+void Vec__Value_delete(Vec__Value * self, Bool call_free);
+Vec__Value * Vec__Value_clone(Vec__Value * self);
+U32 Vec__Value_size(void);
+Vec__call_Vec_Str * Vec__call_Vec_Str_new(void);
+void Vec__call_Vec_Str_clear(Vec__call_Vec_Str * self);
+void Vec__call_Vec_Str_delete(Vec__call_Vec_Str * self, Bool call_free);
+Vec__call_Vec_Str * Vec__call_Vec_Str_clone(Vec__call_Vec_Str * self);
+U32 Vec__call_Vec_Str_size(void);
+Vec__FFIEntry * Vec__FFIEntry_new(void);
+void Vec__FFIEntry_clear(Vec__FFIEntry * self);
+void Vec__FFIEntry_delete(Vec__FFIEntry * self, Bool call_free);
+Vec__FFIEntry * Vec__FFIEntry_clone(Vec__FFIEntry * self);
+U32 Vec__FFIEntry_size(void);
+Vec__ExprPtrBox * Vec__ExprPtrBox_new(void);
+void Vec__ExprPtrBox_clear(Vec__ExprPtrBox * self);
+void Vec__ExprPtrBox_delete(Vec__ExprPtrBox * self, Bool call_free);
+Vec__ExprPtrBox * Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self);
+U32 Vec__ExprPtrBox_size(void);
 I32 priv___src_self_initer_til__register_struct_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__register_enum_definition(Context * ctx, Expr * stmt, TypeScope * scope);
@@ -1737,45 +2132,47 @@ U32 ctx_total_size(Str * name, Context * ctx);
 FieldLayout * ctx_field_layout(Str * sname, Str * field_name, Context * ctx);
 Bool priv___src_self_initer_til__infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
 Bool priv___src_self_initer_til__init_is_lift_target(Expr * stmt);
-Str * priv___src_self_initer_til__init_lookup_name(Map * renamings, Str * name);
-void priv___src_self_initer_til__init_rename_ident_in_place(Expr * e, Map * renamings);
-void priv___src_self_initer_til__init_rename_decl_in_place(Declaration * dd, Map * renamings);
-void priv___src_self_initer_til__init_rewrite_refs(Expr * e, Map * renamings);
+Str * priv___src_self_initer_til__init_lookup_name(Map__Str_Str * renamings, Str * name);
+void priv___src_self_initer_til__init_rename_ident_in_place(Expr * e, Map__Str_Str * renamings);
+void priv___src_self_initer_til__init_rename_decl_in_place(Declaration * dd, Map__Str_Str * renamings);
+void priv___src_self_initer_til__init_rewrite_refs(Expr * e, Map__Str_Str * renamings);
 void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec__Expr * top_level);
-Str * priv___src_self_initer_til__init_subst_ident_name(Map * subs, Str * name);
-void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map * subs);
-void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map * subs);
-void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map * subs);
-void priv___src_self_initer_til__init_subst_func_params(FunctionDef * fdd, Map * subs);
-void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map * subs);
+Str * priv___src_self_initer_til__init_subst_ident_name(Map__Str_Expr * subs, Str * name);
+void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map__Str_Expr * subs);
+void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map__Str_Expr * subs);
+void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map__Str_Expr * subs);
+void priv___src_self_initer_til__init_subst_func_params(FunctionDef * fdd, Map__Str_Expr * subs);
+void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map__Str_Expr * subs);
 I32 priv___src_self_initer_til__init_macro_cond_eval(Expr * cond);
-Expr * priv___src_self_initer_til__init_macro_pick_return(Expr * body, Map * subs);
+Expr * priv___src_self_initer_til__init_macro_pick_return(Expr * body, Map__Str_Expr * subs);
 Bool priv___src_self_initer_til__init_is_type_gen_macro_def(Expr * fdef);
-Expr * priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map * macros, TypeScope * scope);
-Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map * macros, TypeScope * scope);
-Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map * macros, TypeScope * scope);
+Expr * priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map__Str_Expr * macros, TypeScope * scope);
+Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map__Str_Expr * macros, TypeScope * scope);
+Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map__Str_Expr * macros, TypeScope * scope);
 Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef);
 Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
 Str * priv___src_self_initer_til__init_macro_inst_text_name(Str * prefix, Str * text);
 Str * priv___src_self_initer_til__init_macro_inst_arg_name(Expr * arg);
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
-void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized, Bool mark_ctx);
-void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
-void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized, Bool mark_ctx);
+void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_initer_til__init_synth_array_inst_decl(Str * elem_type, U32 line, U32 col);
 Expr * priv___src_self_initer_til__init_synth_vec_inst_decl(Str * elem_type, U32 line, U32 col);
 Expr * priv___src_self_initer_til__init_synth_set_inst_decl(Str * elem_type, U32 line, U32 col);
+Expr * priv___src_self_initer_til__init_synth_map_inst_decl(Str * key_type, Str * val_type, U32 line, U32 col);
 Str * priv___src_self_initer_til__init_set_literal_elem_type(Expr * e);
-void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map * seen, Bool synth_array, Bool synth_vec, Bool synth_set);
+Str * priv___src_self_initer_til__init_literal_child_type(Expr * e);
+void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map__Str_Str * seen, Bool synth_array, Bool synth_vec, Bool synth_set, Bool synth_map);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
-void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map * macros, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
-void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map * generics, Map * seen, Vec__Expr * synthesized);
-void priv___src_self_initer_til__init_generic_walk(Expr * e, Map * generics, Map * seen, Vec__Expr * synthesized);
+void priv___src_self_initer_til__init_generic_expand_call(Expr * call, Str * gname, Expr * gfd_expr, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized);
+void priv___src_self_initer_til__init_generic_walk(Expr * e, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized);
 void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
@@ -1795,6 +2192,27 @@ I32 * Vec__I32_get(Vec__I32 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err
 void Vec__I32_delete(Vec__I32 * self, Bool call_free);
 Vec__I32 * Vec__I32_clone(Vec__I32 * self);
 U32 Vec__I32_size(void);
+Map__Str_I64 * Map__Str_I64_new(void);
+Str * Map__Str_I64_key_ptr(Map__Str_I64 * self, U32 * i);
+I64 * Map__Str_I64_val_ptr(Map__Str_I64 * self, U32 * i);
+Bool Map__Str_I64_has(Map__Str_I64 * self, Str * key);
+I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_I64_set(Map__Str_I64 * self, Str * key, I64 * val);
+void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
+Map__Str_I64 * Map__Str_I64_clone(Map__Str_I64 * self);
+U64 Map__Str_I64_hash(Map__Str_I64 * self, HashFn hasher);
+U32 Map__Str_I64_size(void);
+Map__Str_Expr * Map__Str_Expr_new(void);
+U32 Map__Str_Expr_len(Map__Str_Expr * self);
+Str * Map__Str_Expr_key_ptr(Map__Str_Expr * self, U32 * i);
+Expr * Map__Str_Expr_val_ptr(Map__Str_Expr * self, U32 * i);
+Bool Map__Str_Expr_has(Map__Str_Expr * self, Str * key);
+Expr * Map__Str_Expr_get(Map__Str_Expr * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Expr_set(Map__Str_Expr * self, Str * key, Expr * val);
+void Map__Str_Expr_delete(Map__Str_Expr * self, Bool call_free);
+Map__Str_Expr * Map__Str_Expr_clone(Map__Str_Expr * self);
+U64 Map__Str_Expr_hash(Map__Str_Expr * self, HashFn hasher);
+U32 Map__Str_Expr_size(void);
 Vec__U32 * Vec__U32_new(void);
 U32 Vec__U32_len(Vec__U32 * self);
 void Vec__U32_clear(Vec__U32 * self);
@@ -1806,6 +2224,7 @@ U32 Vec__U32_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
+Map__Str_Mode * priv___src_self_modes_til__make_mode_registry(void);
 Mode * mode_resolve(Str * name);
 Bool Lang_is(Lang * self, Lang * other);
 Bool Lang_eq(Lang * self, Lang * other);
@@ -1950,6 +2369,7 @@ void priv___src_self_typer_til__replace_body_stmt_with_block(Expr * body, U32 st
 Expr * priv___src_self_typer_til__make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
 Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
+Str * priv___src_self_typer_til__guess_expr_type_name(Expr * e);
 Str * priv___src_self_typer_til__guess_local_type(Expr * e, Str * var_name);
 Str * priv___src_self_typer_til__guess_prior_local_type_in_vec(Vec__Expr * stmts, U32 upto, Str * var_name);
 void priv___src_self_typer_til__seed_prior_local_types(Context * ctx, Vec__Expr * stmts, U32 upto);
@@ -2054,6 +2474,7 @@ Expr * priv___src_self_typer_til__make_ns_call(Str * sname, Str * method, Type r
 Str * priv___src_self_typer_til__variadic_array_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_typer_til__variadic_vec_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_typer_til__set_literal_type_name(TypeScope * scope, Str * elem_type);
+Str * priv___src_self_typer_til__map_literal_type_name(Str * key_type, Str * val_type);
 void priv___src_self_typer_til__sync_own_args_from_callee(Expr * call, TypeScope * scope);
 Expr * priv___src_self_typer_til__build_kwargs_map_decl(Expr * fcall, Str * kw_name);
 Expr * priv___src_self_typer_til__build_kwargs_map_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
@@ -2152,6 +2573,7 @@ void precomp_reset_state(Context * ctx);
 void priv___src_self_precomp_til__collect_assign_targets(Expr * e, Set__Str * names);
 Bool priv___src_self_precomp_til__precomp_has_macro(Context * ctx, Str * name);
 Bool priv___src_self_precomp_til__precomp_has_func(Context * ctx, Str * name);
+Map__Str_Bool * priv___src_self_precomp_til__make_side_effecting_names(void);
 Bool priv___src_self_precomp_til__is_side_effecting_name(Str * name);
 U8 priv___src_self_precomp_til__hex_digit_value(I8 b);
 Str * priv___src_self_precomp_til__from_source_form(Str * s);
@@ -2177,6 +2599,15 @@ void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_precomp_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void precomp_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
 void precomp_register_core_constants(Scope * global);
+Map__Str_Bool * Map__Str_Bool_new(void);
+Str * Map__Str_Bool_key_ptr(Map__Str_Bool * self, U32 * i);
+Bool * Map__Str_Bool_val_ptr(Map__Str_Bool * self, U32 * i);
+Bool Map__Str_Bool_has(Map__Str_Bool * self, Str * key);
+void Map__Str_Bool_set(Map__Str_Bool * self, Str * key, Bool * val);
+void Map__Str_Bool_delete(Map__Str_Bool * self, Bool call_free);
+Map__Str_Bool * Map__Str_Bool_clone(Map__Str_Bool * self);
+U64 Map__Str_Bool_hash(Map__Str_Bool * self, HashFn hasher);
+U32 Map__Str_Bool_size(void);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
 void vec_push_str(Vec__Str * v, Str * s);
@@ -2221,7 +2652,7 @@ priv___src_self_loader_til__DeclRef * priv___src_self_loader_til__DeclRef_clone(
 void priv___src_self_loader_til__DeclRef_delete(priv___src_self_loader_til__DeclRef * self, Bool call_free);
 U64 priv___src_self_loader_til__DeclRef_hash(priv___src_self_loader_til__DeclRef * self, HashFn hasher);
 U32 priv___src_self_loader_til__DeclRef_size(void);
-Expr * priv___src_self_loader_til__find_ns_decl_fdef_imported(Context * ctx, Map * top, Str * name);
+Expr * priv___src_self_loader_til__find_ns_decl_fdef_imported(Context * ctx, Map__Str_DeclRef * top, Str * name);
 Set__Str * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
@@ -2249,13 +2680,23 @@ void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs)
 Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec__Expr * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
-void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map * subs);
+void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
 Bool priv___src_self_loader_til__inline_lazy_call(Expr * call, Expr * fdef);
 void priv___src_self_loader_til__expand_lazy_in_expr(Expr * e, TypeScope * scope, I32 depth);
 void priv___src_self_loader_til__expand_lazy_calls_in_program(LoadedProgram * lp);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
 void prepare_program(LoadedProgram * lp, Bool run_tests);
 void cmd_ast(LoadedProgram * lp);
+Map__Str_DeclRef * Map__Str_DeclRef_new(void);
+Str * Map__Str_DeclRef_key_ptr(Map__Str_DeclRef * self, U32 * i);
+priv___src_self_loader_til__DeclRef * Map__Str_DeclRef_val_ptr(Map__Str_DeclRef * self, U32 * i);
+Bool Map__Str_DeclRef_has(Map__Str_DeclRef * self, Str * key);
+priv___src_self_loader_til__DeclRef * Map__Str_DeclRef_get(Map__Str_DeclRef * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_DeclRef_set(Map__Str_DeclRef * self, Str * key, priv___src_self_loader_til__DeclRef * val);
+void Map__Str_DeclRef_delete(Map__Str_DeclRef * self, Bool call_free);
+Map__Str_DeclRef * Map__Str_DeclRef_clone(Map__Str_DeclRef * self);
+U64 Map__Str_DeclRef_hash(Map__Str_DeclRef * self, HashFn hasher);
+U32 Map__Str_DeclRef_size(void);
 Vec__ProgramUnit * Vec__ProgramUnit_new(void);
 U32 Vec__ProgramUnit_len(Vec__ProgramUnit * self);
 void Vec__ProgramUnit_clear(Vec__ProgramUnit * self);
@@ -2264,6 +2705,11 @@ ProgramUnit * Vec__ProgramUnit_get(Vec__ProgramUnit * self, U32 * i, I64 * _err_
 void Vec__ProgramUnit_delete(Vec__ProgramUnit * self, Bool call_free);
 Vec__ProgramUnit * Vec__ProgramUnit_clone(Vec__ProgramUnit * self);
 U32 Vec__ProgramUnit_size(void);
+Vec__DeclRef * Vec__DeclRef_new(void);
+void Vec__DeclRef_clear(Vec__DeclRef * self);
+void Vec__DeclRef_delete(Vec__DeclRef * self, Bool call_free);
+Vec__DeclRef * Vec__DeclRef_clone(Vec__DeclRef * self);
+U32 Vec__DeclRef_size(void);
 priv___src_self_builder_til__CollectionInfo * priv___src_self_builder_til__CollectionInfo_clone(priv___src_self_builder_til__CollectionInfo * self);
 void priv___src_self_builder_til__CollectionInfo_delete(priv___src_self_builder_til__CollectionInfo * self, Bool call_free);
 U32 priv___src_self_builder_til__CollectionInfo_size(void);
@@ -2472,6 +2918,16 @@ void Array__Bool_set(Array__Bool * self, U32 i, Bool * val);
 void Array__Bool_delete(Array__Bool * self, Bool call_free);
 Array__Bool * Array__Bool_clone(Array__Bool * self);
 U32 Array__Bool_size(void);
+Map__Str_U32 * Map__Str_U32_new(void);
+Str * Map__Str_U32_key_ptr(Map__Str_U32 * self, U32 * i);
+U32 * Map__Str_U32_val_ptr(Map__Str_U32 * self, U32 * i);
+Bool Map__Str_U32_has(Map__Str_U32 * self, Str * key);
+U32 * Map__Str_U32_get(Map__Str_U32 * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_U32_set(Map__Str_U32 * self, Str * key, U32 * val);
+void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
+Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self);
+U64 Map__Str_U32_hash(Map__Str_U32 * self, HashFn hasher);
+U32 Map__Str_U32_size(void);
 Vec__DynCallInfo * Vec__DynCallInfo_new(void);
 U32 Vec__DynCallInfo_len(Vec__DynCallInfo * self);
 void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);
@@ -2596,6 +3052,17 @@ void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global,
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
 I32 priv___src_self_interpreter_til__interpret_units(LoadedProgram * lp, Vec__Str * user_argv, Str * fwd_path);
 I32 cmd_interpret(LoadedProgram * lp, Vec__Str * user_argv);
+Map__Str_Binding * Map__Str_Binding_new(void);
+U32 Map__Str_Binding_len(Map__Str_Binding * self);
+Str * Map__Str_Binding_key_ptr(Map__Str_Binding * self, U32 * i);
+Binding * Map__Str_Binding_val_ptr(Map__Str_Binding * self, U32 * i);
+Bool Map__Str_Binding_has(Map__Str_Binding * self, Str * key);
+Binding * Map__Str_Binding_get(Map__Str_Binding * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Binding_set(Map__Str_Binding * self, Str * key, Binding * val);
+void Map__Str_Binding_delete(Map__Str_Binding * self, Bool call_free);
+Map__Str_Binding * Map__Str_Binding_clone(Map__Str_Binding * self);
+U64 Map__Str_Binding_hash(Map__Str_Binding * self, HashFn hasher);
+U32 Map__Str_Binding_size(void);
 Vec__DynPtrBox * Vec__DynPtrBox_new(void);
 U32 Vec__DynPtrBox_len(Vec__DynPtrBox * self);
 void Vec__DynPtrBox_clear(Vec__DynPtrBox * self);
@@ -2604,6 +3071,11 @@ priv___src_self_interpreter_til__DynPtrBox * Vec__DynPtrBox_get(Vec__DynPtrBox *
 void Vec__DynPtrBox_delete(Vec__DynPtrBox * self, Bool call_free);
 Vec__DynPtrBox * Vec__DynPtrBox_clone(Vec__DynPtrBox * self);
 U32 Vec__DynPtrBox_size(void);
+Vec__Binding * Vec__Binding_new(void);
+void Vec__Binding_clear(Vec__Binding * self);
+void Vec__Binding_delete(Vec__Binding * self, Bool call_free);
+Vec__Binding * Vec__Binding_clone(Vec__Binding * self);
+U32 Vec__Binding_size(void);
 ffi_type * ffi_type_clone(ffi_type * self);
 void ffi_type_delete(ffi_type * self, Bool call_free);
 U32 ffi_type_size(void);
@@ -2718,13 +3190,6 @@ void priv___src_self_dispatch_til__ffi_register(Str * name, void * fn, Expr * fd
 void ffi_init_scan_program(Expr * program, Context * ctx);
 I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
 void ffi_cleanup(Context * ctx);
-Vec__Value * Vec__Value_new(void);
-U32 Vec__Value_len(Vec__Value * self);
-void Vec__Value_clear(Vec__Value * self);
-void Vec__Value_push(Vec__Value * self, Value * val);
-void Vec__Value_delete(Vec__Value * self, Bool call_free);
-Vec__Value * Vec__Value_clone(Vec__Value * self);
-U32 Vec__Value_size(void);
 Bool priv___src_self_binder_til__bind_is_ws(I8 c);
 U32 priv___src_self_binder_til__skip_ws(Str * s, U32 from);
 U32 priv___src_self_binder_til__skip_word(Str * s, U32 from);
@@ -2757,13 +3222,6 @@ Bool priv___src_self_binder_til__looks_like_macro_fragment(Str * line);
 Vec__Str * priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
 Str * priv___src_self_binder_til__collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
-Vec__I64 * Vec__I64_new(void);
-void Vec__I64_clear(Vec__I64 * self);
-void Vec__I64_push(Vec__I64 * self, I64 * val);
-I64 * Vec__I64_get(Vec__I64 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void Vec__I64_delete(Vec__I64 * self, Bool call_free);
-Vec__I64 * Vec__I64_clone(Vec__I64 * self);
-U32 Vec__I64_size(void);
 Vector3 * Vector3_clone(Vector3 * self);
 void Vector3_delete(Vector3 * self, Bool call_free);
 U64 Vector3_hash(Vector3 * self, HashFn hasher);
@@ -2922,9 +3380,9 @@ extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
-extern Map builtin_type_table;
+extern Map__Str_Type builtin_type_table;
 extern I64 anon_struct_counter;
-extern Map mode_registry;
+extern Map__Str_Mode mode_registry;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;
@@ -2936,7 +3394,7 @@ extern Str U64Name;
 extern Str F32Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
-extern Map side_effecting_names;
+extern Map__Str_Bool side_effecting_names;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
 extern U32 ENUM_PAYLOAD_OFFSET;

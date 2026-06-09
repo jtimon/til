@@ -3614,7 +3614,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // did, integrated per stmt.
             // Seed the receiver-type map so the walk's type-qualified
             // throws lookup can resolve `param.method(...)` receivers.
-            ctx.lowering_param_types = Map.new(Str, Str)
+            ctx.lowering_param_types = Map(Str, Str).new()
             for lpi in 0..fdef.params.len() {
                 ref lpp : Declaration = fdef.params[lpi]
                 mut lptn := lpp.explicit_type.clone()
@@ -3726,7 +3726,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
 
 priv check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
     for bi in 0..scope.bindings.len() {
-        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        ref b : TypeBinding = scope.bindings.val_ptr(bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
@@ -3757,7 +3757,7 @@ priv check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
 // mut"; tracked separately on #164).
 priv check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
     for bi in 0..scope.bindings.len() {
-        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        ref b : TypeBinding = scope.bindings.val_ptr(bi)
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
@@ -3786,7 +3786,7 @@ priv check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) 
 check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 {
     mut found : I32 = 0
     for bi in 0..scope.bindings.len() {
-        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        ref b : TypeBinding = scope.bindings.val_ptr(bi)
         if b.is_priv.not() { continue }
         if b.is_builtin { continue }
         if b.used { continue }
@@ -4546,6 +4546,14 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
         if rhs.children.len().gt(0) {
             elem_type := type_to_name(rhs.child(0).expr_til_type())
             if elem_type.len().gt(0) { inferred = Type.Struct("Set__".concat(elem_type)) }
+        }
+    case NodeType.Literal(Literal.MapLit):
+        if rhs.children.len().gte(2) {
+            key_type := type_to_name(rhs.child(0).expr_til_type())
+            val_type := type_to_name(rhs.child(1).expr_til_type())
+            if key_type.len().gt(0).and(val_type.len().gt(0)) {
+                inferred = Type.Struct("Map__".concat(key_type).concat("_").concat(val_type))
+            }
         }
     case:
     }
@@ -5914,6 +5922,23 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
 // follow-up will extend this pass.
 // ---------------------------------------------------------------
 
+priv guess_expr_type_name := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.Literal(Literal.Str): return "Str"
+    case NodeType.Literal(Literal.Num): return "I64"
+    case NodeType.Literal(Literal.Bool): return "Bool"
+    case NodeType.FieldAccess:
+        if e.children.len().gt(0) {
+            switch e.child(0).node_type {
+            case NodeType.Ident(type_name): return type_name.ident_name().clone()
+            case:
+            }
+        }
+    case:
+    }
+    return ""
+}
+
 // Recursively walk e looking for a Decl(name=var_name) whose RHS
 // looks like a constructor or typed literal we can infer from
 // syntactically. Returns "" if not found. Best-effort pre-typer
@@ -5961,6 +5986,14 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                         }
                     case NodeType.Literal(Literal.Str): return "Str"
                     case NodeType.Literal(Literal.Num): return "I64"
+                    case NodeType.Literal(Literal.MapLit):
+                        if rhs.children.len().gte(2) {
+                            key_type := guess_expr_type_name(rhs.child(0))
+                            val_type := guess_expr_type_name(rhs.child(1))
+                            if key_type.len().gt(0).and(val_type.len().gt(0)) {
+                                return "Map__".concat(key_type).concat("_").concat(val_type)
+                            }
+                        }
                     case:
                     }
                 }
@@ -6054,6 +6087,14 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                     }
                 case NodeType.Literal(Literal.Str): tn = "Str"
                 case NodeType.Literal(Literal.Num): tn = "I64"
+                case NodeType.Literal(Literal.MapLit):
+                    if rhs.children.len().gte(2) {
+                        key_type := guess_expr_type_name(rhs.child(0))
+                        val_type := guess_expr_type_name(rhs.child(1))
+                        if key_type.len().gt(0).and(val_type.len().gt(0)) {
+                            tn = "Map__".concat(key_type).concat("_").concat(val_type)
+                        }
+                    }
                 case:
                 }
             }
@@ -6791,9 +6832,9 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
                 // Field declared without an explicit type AND its
                 // til_type hasn't been inferred yet (extend_throwing_func_sigs
                 // runs before infer_body, so init expressions like
-                // `payload_types := Map.new(I64, Str)` haven't been
+                // `payload_types := Map(I64, Str).new()` haven't been
                 // typed). Guess from the default-value Expr: a bare
-                // ctor FCall like `Map.new(...)` or `Vec(T).new()` lets
+                // ctor FCall like `Map(K, V).new()` or `Vec(T).new()` lets
                 // us read the type off the callee.
                 ref dv : Expr = fd.default_value
                 if dv.node_type.is(NodeType.FCall).and(dv.children.len().gt(0)) {
@@ -8061,7 +8102,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                     rstmt.child(0).node_type.is(NodeType.StructDef).or(rstmt.child(0).node_type.is(NodeType.EnumDef))) {
                         scope.set_struct_def(rb.name, rstmt.child(0))
                         for bi in 0..scope.bindings.len() {
-                            ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+                            ref b : TypeBinding = scope.bindings.val_ptr(bi)
                             if b.ptr_eq(rb).not().and(scope.struct_def_of(b.name).ptr_eq(rb_old_sd)) {
                                 scope.set_struct_def(b.name, rstmt.child(0))
                             }
@@ -8071,7 +8112,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                 if rb_old_fd.is_null().not().and(rstmt.child(0).node_type.is(NodeType.FuncDef)) {
                     scope.set_func_def(rb.name, rstmt.child(0))
                     for bi in 0..scope.bindings.len() {
-                        ref b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+                        ref b : TypeBinding = scope.bindings.val_ptr(bi)
                         if b.ptr_eq(rb).not().and(scope.lookup_func(b.name).ptr_eq(rb_old_fd)) {
                             scope.set_func_def(b.name, rstmt.child(0))
                         }
@@ -8150,7 +8191,7 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
 // errors during type_check (same as today).
 normalize_scope_bindings := func(scope: TypeScope) {
     for bi in 0..scope.bindings.len() {
-        ref mut b : TypeBinding = Map.val_ptr(scope.bindings, bi)
+        ref mut b : TypeBinding = scope.bindings.val_ptr(bi)
         switch b.type {
         case Type.Custom(name):
             ref alias_b : TypeBinding = scope.get_binding(name)
@@ -9335,6 +9376,10 @@ priv set_literal_type_name := func(scope: TypeScope, elem_type: Str) returns Str
     return "Set__".concat(elem_type)
 }
 
+priv map_literal_type_name := func(key_type: Str, val_type: Str) returns Str {
+    return "Map__".concat(key_type).concat("_").concat(val_type)
+}
+
 // Set `call.own_args` to match the callee's params.own_type, for a
 // namespace call built by make_ns_call (FCall whose head is
 // FieldAccess(method) over Ident(type_name)). Walks the resolved
@@ -9806,11 +9851,14 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         }
     }
 
-    mut new_call := make_ns_call("Map", "new", Type.Struct("Map"), map_lit)
-    mut kt := map_lit.make_til_type_expr(first_key.expr_til_type())
-    new_call.add_child(own kt)
-    mut vt := map_lit.make_til_type_expr(first_val.expr_til_type())
-    new_call.add_child(own vt)
+    map_type := map_literal_type_name(key_type, val_type)
+    mut new_call := make_ns_call(map_type, "new", Type.Struct(map_type.clone()), map_lit)
+    if map_type.eq("Map") {
+        mut kt := map_lit.make_til_type_expr(first_key.expr_til_type())
+        new_call.add_child(own kt)
+        mut vt := map_lit.make_til_type_expr(first_val.expr_til_type())
+        new_call.add_child(own vt)
+    }
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
     switch decl.node_type {
@@ -9820,17 +9868,17 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case:
         UNREACHABLE(__LOC__)
     }
-    decl.set_expr_til_type(Type.Struct("Map"))
+    decl.set_expr_til_type(Type.Struct(map_type.clone()))
     decl.add_child(own new_call)
 
-    scope.set(var_name, Type.Struct("Map"), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set(var_name, Type.Struct(map_type.clone()), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
 
     new_ch.push(own decl)
 
     for j in 0..n_pairs {
-        mut set_call := make_ns_call("Map", "set", Type.None, map_lit)
+        mut set_call := make_ns_call(map_type, "set", Type.None, map_lit)
         mut self_id := Expr.new(ident_node(var_name), map_lit.line, map_lit.col)
-        self_id.set_expr_til_type(Type.Struct("Map"))
+        self_id.set_expr_til_type(Type.Struct(map_type.clone()))
         set_call.add_child(own self_id)
         mut key := map_lit.child(j.mul(2)).clone()
         set_call.add_child(own key)

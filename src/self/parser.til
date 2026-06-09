@@ -25,7 +25,7 @@ priv Parser := struct {
     // literal and the value-position literal it is assigned from. Flushed into
     // the program root by `parse`, like fn_sig_decls.
     anon_decls := Vec(Expr).new()
-    anon_cache := Map.new(Str, Str)
+    anon_cache := Map(Str, Str).new()
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     pending_doc := ""
@@ -96,28 +96,32 @@ priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
 // lookup instead of the linear if-chain that used to be duplicated in
 // three places. Target-dependent names (USize/UPtr) and scope-resolved
 // user types are handled by each caller, not here.
-mut builtin_type_table := {
-    "I64":       Type.Primitive(Primitive.I64),
-    "U8":        Type.Primitive(Primitive.U8),
-    "I8":        Type.Primitive(Primitive.I8),
-    "I16":       Type.Primitive(Primitive.I16),
-    "U16":       Type.Primitive(Primitive.U16),
-    "I32":       Type.Primitive(Primitive.I32),
-    "U32":       Type.Primitive(Primitive.U32),
-    "U64":       Type.Primitive(Primitive.U64),
-    "F32":       Type.Primitive(Primitive.F32),
-    "Bool":      Type.Primitive(Primitive.Bool),
-    "Str":       Type.Struct("Str"),
-    "StructDef": Type.Struct("StructDef"),
-    "EnumDef":   Type.Struct("EnumDef"),
-    "Fn":        Type.FuncPtr,
-    "Dynamic":   Type.Dynamic,
+priv make_builtin_type_table := func() returns Map(Str, Type) {
+    mut table := Map(Str, Type).new()
+    table.set("I64", own Type.Primitive(Primitive.I64))
+    table.set("U8", own Type.Primitive(Primitive.U8))
+    table.set("I8", own Type.Primitive(Primitive.I8))
+    table.set("I16", own Type.Primitive(Primitive.I16))
+    table.set("U16", own Type.Primitive(Primitive.U16))
+    table.set("I32", own Type.Primitive(Primitive.I32))
+    table.set("U32", own Type.Primitive(Primitive.U32))
+    table.set("U64", own Type.Primitive(Primitive.U64))
+    table.set("F32", own Type.Primitive(Primitive.F32))
+    table.set("Bool", own Type.Primitive(Primitive.Bool))
+    table.set("Str", own Type.Struct("Str"))
+    table.set("StructDef", own Type.Struct("StructDef"))
+    table.set("EnumDef", own Type.Struct("EnumDef"))
+    table.set("Fn", own Type.FuncPtr)
+    table.set("Dynamic", own Type.Dynamic)
+    return table
 }
+
+mut builtin_type_table := make_builtin_type_table()
 
 // Look up a builtin type name. Returns true and writes `out` when `name`
 // is a builtin; false (leaving `out` untouched) otherwise.
 builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
-    ref tbl : Map = builtin_type_table
+    ref tbl : Map(Str, Type) = builtin_type_table
     ref t : Type = tbl.get(name)?
     catch (e: KeyNotFound) { return false }
     out = t.clone()

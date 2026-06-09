@@ -378,7 +378,7 @@ priv DeclRef := struct {
     idx : U32 = 0
 }
 
-priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map, name: Str) returns ref Expr {
+priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns ref Expr {
     dot := name.find(".")
     if dot.lt(0) { return NULL }
     type_part := name.substr(0, dot.to_u32())
@@ -412,7 +412,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     }
 
     // 1) Build top-level decl maps: name -> (path, idx)
-    mut core_top := Map.new(Str, DeclRef)
+    mut core_top := Map(Str, DeclRef).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -426,7 +426,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             }
         }
     }
-    mut top := Map.new(Str, DeclRef)
+    mut top := Map(Str, DeclRef).new()
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
@@ -1711,7 +1711,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 // callables are deferred (issue #262). A call that does not match this
 // shape is simply left un-inlined and types as an ordinary (eager) call.
 
-priv lazy_substitute_idents := func(mut e: Expr, subs: Map) {
+priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.Ident(idn):
@@ -1742,7 +1742,7 @@ priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
     if ret_stmt.node_type.is(NodeType.Return).not() { return false }
     if ret_stmt.children.len().lt(1) { return false }
 
-    mut subs := Map.new(Str, Expr)
+    mut subs := Map(Str, Expr).new()
     mut ok := false
     switch fdef.node_type {
     case NodeType.FuncDef(fd):

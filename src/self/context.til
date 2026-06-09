@@ -66,20 +66,20 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 // Kept as a standalone leaf so the catch/?-unwrap is the function's
 // whole body -- inlining it into lookup_func's parent-walk produced a
 // multi-branch CFG that GCC rejected with -Werror=return-type.
-priv func_defs_lookup_one := func(m: Map, name: Str) returns ref Expr {
+priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref Expr {
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
 
 TypeScope := struct {
-    bindings := Map.new(Str, TypeBinding)
+    bindings := Map(Str, TypeBinding).new()
     // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
     // by scope.set_func_def at every binding write site that used to
     // assign b.func_def; readers use scope.lookup_func(name).
-    func_defs := Map.new(Str, Dynamic)
-    struct_defs := Map.new(Str, Dynamic)
+    func_defs := Map(Str, Dynamic).new()
+    struct_defs := Map(Str, Dynamic).new()
     ref parent : TypeScope = NULL
 namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
@@ -265,7 +265,7 @@ ImportUnit := struct {
 Context := struct {
     mode := Mode()
     path := ""
-    path_modes := Map.new(Str, Mode)
+    path_modes := Map(Str, Mode).new()
     // Issue #54: true when the program is headed for the C backend
     // (build/run/translate/install/test) rather than the interpreter.
     // Capturing closures currently run only under the interpreter, so the
@@ -274,7 +274,7 @@ Context := struct {
     compile_mode := false
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
-    imported := Map.new(Str, ImportUnit)
+    imported := Map(Str, ImportUnit).new()
     // Issue #271: init has two states now. Seeded means file-level
     // declarations are visible to break import cycles; done means the
     // full init pass completed. Active prevents recursive cycles from
@@ -308,14 +308,14 @@ Context := struct {
     // by record_struct_layout / record_enum_layout after compute_*_layout
     // fills the AST fields. Readers still use the AST fields for now; they
     // migrate to this map in step 4.
-    struct_layouts := Map.new(Str, StructLayout)
+    struct_layouts := Map(Str, StructLayout).new()
 
     // Precomp state moved off module globals. The same Context crosses
     // imported files and later phases, so these three tables live here
     // directly rather than as a separate module-global side store.
     precomp_macros := Set(Str).new()
     precomp_funcs := Set(Str).new()
-    precomp_known := Map.new(Str, Value)
+    precomp_known := Map(Str, Value).new()
     // Names that are the target of an assignment somewhere (so their value
     // is not a compile-time constant -- a mut local reassigned in a loop is
     // NOT foldable). Guards the scope-read fold in try_eval_call.
@@ -330,7 +330,7 @@ Context := struct {
     has_break := false
     has_continue := false
     return_value := Value.None
-    ns_fields := Map.new(Str, Value)
+    ns_fields := Map(Str, Value).new()
     ns_keys := Vec(Dynamic).new()
     ns_inited := false
 
@@ -348,14 +348,14 @@ Context := struct {
     // per emission. The eventual rstil-style direction is to populate
     // this from the typer (keyed by function name) so the builder reads
     // without a per-emit reset; this commit only moves the storage.
-    local_fn_sigs := Map.new(Str, Dynamic)
+    local_fn_sigs := Map(Str, Dynamic).new()
     closure_emit_env := ""
     closure_emit_captures := Set(Str).new()
 
     // #178 builder lookup tables migrated from module-globals. Populated
     // at build registration time, read throughout codegen.
-    func_defs := Map.new(Str, Dynamic)
-    struct_def_exprs := Map.new(Str, Dynamic)
+    func_defs := Map(Str, Dynamic).new()
+    struct_def_exprs := Map(Str, Dynamic).new()
     funcsig_names := Set(Str).new()
     closure_value_names := Set(Str).new()
     script_globals := Set(Str).new()
@@ -368,7 +368,7 @@ Context := struct {
     // throws-types map used by inject_throw_args_in_body. (Method
     // throws are keyed "Type.method", free functions stay bare.)
     throw_type_registry := Vec(Str).new()
-    throws_global := Map.new(Str, Vec(Str))
+    throws_global := Map(Str, Vec(Str)).new()
 
     // Issue #202: monotonically-increasing counter for `_bang_ret_<N>`
     // temps emitted when hoisting nested `f()!` calls. Lives on
@@ -384,7 +384,7 @@ Context := struct {
     // bindings. Local receivers are resolved by scanning the body's
     // Decls (guess_local_type); the global scope handles the static
     // `Type.method(...)` form.
-    lowering_param_types := Map.new(Str, Str)
+    lowering_param_types := Map(Str, Str).new()
 
     // Two typer-scope flags shared with garbager: typer_in_main_func is
     // set while infer_func_def_expr is checking main(), so the garbager
@@ -459,7 +459,7 @@ Context := struct {
     // emission. emit_func_def is not actually recursive (the typer lifts
     // nested funcs to top level), so a per-emit reset is sufficient.
     stack_locals := Set(Str).new()
-    stack_local_types := Map.new(Str, Str)
+    stack_local_types := Map(Str, Str).new()
     unsafe_to_hoist := Set(Str).new()
     ref_locals := Set(Str).new()
     // #220: names of decls made inside the current function body. Inside a
@@ -502,7 +502,7 @@ Context := struct {
     // Map(Str, Dynamic) of malloc'd cells holding the Expr pointer
     // (same encoding as struct_def_exprs / func_defs) so the field type
     // stays in scope at the Context definition in this file.
-    interp_type_defs := Map.new(Str, Dynamic)
+    interp_type_defs := Map(Str, Dynamic).new()
 
     // Dispatch / FFI runtime state (previously module-level globals in
     // dispatch.til). FFIEntry / FFITypePtrBox are defined in dispatch.til
@@ -510,12 +510,12 @@ Context := struct {
     // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
     // these maps to fresh, so Context's auto-delete only ever frees empty
     // containers -- no double free of the libffi allocations.
-    dispatch_map := Map.new(Str, Dynamic)
+    dispatch_map := Map(Str, Dynamic).new()
     dispatch_inited := false
-    ffi_map := Map.new(Str, FFIEntry)
+    ffi_map := Map(Str, FFIEntry).new()
     ffi_map_inited := false
     ffi_loaded := false
-    ffi_struct_defs := Map.new(Str, Dynamic)
+    ffi_struct_defs := Map(Str, ExprPtrBox).new()
     ffi_type_cache := Vec(FFITypePtrBox).new()
     ffi_type_cache_inited := false
 }

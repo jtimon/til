@@ -34,7 +34,7 @@ closure_value_name := func(name: Str) returns Str {
 // --- Leaf functions ---
 
 priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns ref Expr {
-    ref m : Map = ctx.local_fn_sigs
+    ref m : Map(Str, Dynamic) = ctx.local_fn_sigs
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
@@ -392,14 +392,14 @@ priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
 }
 
 priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
-    ref m : Map = ctx.struct_def_exprs
+    ref m : Map(Str, Dynamic) = ctx.struct_def_exprs
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
 
 priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
-    ref m : Map = ctx.func_defs
+    ref m : Map(Str, Dynamic) = ctx.func_defs
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
@@ -1057,7 +1057,7 @@ priv emit_field := proc(f: File, var: Str, field: Str, ctx: Context) {
 }
 
 priv get_stack_local_ctype := func(name: Str, ctx: Context) returns ref Str {
-    ref m : Map = ctx.stack_local_types
+    ref m : Map(Str, Str) = ctx.stack_local_types
     if m.has(name) {
         ref p : Str = m[name]
         return p
@@ -1416,7 +1416,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if decl_sig.is_null().not() {
             sig_buf : Dynamic = malloc(I64.size().cast(U64))
             write_ptr(sig_buf, decl_sig)
-            ref mut m : Map = ctx.local_fn_sigs
+            ref mut m : Map(Str, Dynamic) = ctx.local_fn_sigs
             m.set(dd.name, own sig_buf)
         }
     }
@@ -3320,12 +3320,12 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             }
         }
         lp.ctx.stack_locals = Set(Str).new()
-        lp.ctx.stack_local_types = Map.new(Str, Str)
+        lp.ctx.stack_local_types = Map(Str, Str).new()
         lp.ctx.unsafe_to_hoist = Set(Str).new()
         lp.ctx.ref_locals = Set(Str).new()
         lp.ctx.ref_dyn_locals = Set(Str).new()
         lp.ctx.ptr_locals = Set(Str).new()
-        lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
+        lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
         collect_unsafe_to_hoist(lp.ctx, body)
         lp.ctx.in_main_func = true
         emit_body(f, body, 1, lp.ctx)
@@ -3355,12 +3355,12 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
         lp.ctx.stack_locals = Set(Str).new()
-        lp.ctx.stack_local_types = Map.new(Str, Str)
+        lp.ctx.stack_local_types = Map(Str, Str).new()
         lp.ctx.unsafe_to_hoist = Set(Str).new()
         lp.ctx.ref_locals = Set(Str).new()
         lp.ctx.ref_dyn_locals = Set(Str).new()
         lp.ctx.ptr_locals = Set(Str).new()
-        lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
+        lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.in_func_def = false
@@ -3418,12 +3418,12 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = closure_expr
         lp.ctx.stack_locals = Set(Str).new()
-        lp.ctx.stack_local_types = Map.new(Str, Str)
+        lp.ctx.stack_local_types = Map(Str, Str).new()
         lp.ctx.unsafe_to_hoist = Set(Str).new()
         lp.ctx.ref_locals = Set(Str).new()
         lp.ctx.ref_dyn_locals = Set(Str).new()
         lp.ctx.ptr_locals = Set(Str).new()
-        lp.ctx.local_fn_sigs = Map.new(Str, Dynamic)
+        lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
         collect_unsafe_to_hoist(lp.ctx, closure_expr.child(0))
         emit_body(f, closure_expr.child(0), 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env
@@ -5046,10 +5046,10 @@ build_register_closure_values_lp := proc(lp: LoadedProgram) {
 }
 
 priv build_register_lookups_lp := func(lp: LoadedProgram) {
-    lp.ctx.struct_def_exprs = Map.new(Str, Dynamic)
-    lp.ctx.func_defs = Map.new(Str, Dynamic)
+    lp.ctx.struct_def_exprs = Map(Str, Dynamic).new()
+    lp.ctx.func_defs = Map(Str, Dynamic).new()
     lp.ctx.stack_locals = Set(Str).new()
-    lp.ctx.stack_local_types = Map.new(Str, Str)
+    lp.ctx.stack_local_types = Map(Str, Str).new()
     lp.ctx.unsafe_to_hoist = Set(Str).new()
     lp.ctx.ref_locals = Set(Str).new()
     lp.ctx.ref_dyn_locals = Set(Str).new()
@@ -6069,15 +6069,15 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     // static-local Str variables for the literal cases (one
     // malloc-free static wrapper per unique name).
     mut static_displays := Vec(Str).new()
-    mut static_index_by_display := Map.new(Str, USize)
-    mut seq : USize = 0
+    mut static_index_by_display := Map(Str, U32).new()
+    mut seq : U32 = 0
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
         ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
             if static_index_by_display.has(display).not() {
-                val : USize = seq
+                val : U32 = seq
                 static_index_by_display.set(display, own val)
                 static_displays.push(own display)
                 seq = seq.add(1)
@@ -6093,7 +6093,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             for k in 0..inner_names.len() {
                 ref ivn : Str = inner_names[k]
                 if static_index_by_display.has(ivn).not() {
-                    val2 : USize = seq
+                    val2 : U32 = seq
                     static_index_by_display.set(ivn, own val2)
                     static_displays.push(own ivn.clone())
                     seq = seq.add(1)
@@ -6103,7 +6103,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     }
     // Fallback "?" literal
     if static_index_by_display.has("?").not() {
-        fallback_val : USize = seq
+        fallback_val : U32 = seq
         static_index_by_display.set("?", own fallback_val)
         static_displays.push(own "?")
         seq = seq.add(1)
@@ -6125,11 +6125,11 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
-            ref idx : USize = static_index_by_display[display]
+            ref idx : U32 = static_index_by_display[display]
             f.write("    case Type_TAG_")
             f.write(vn)
             f.write(": return &_dts_")
-            emit_usize(f, idx)
+            emit_usize(f, idx.cast(USize))
             f.write(";\n")
         } else if vt.eq("Str") {
             f.write("    case Type_TAG_")
@@ -6152,13 +6152,13 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write(".tag) {\n")
             for k in 0..inner_names.len() {
                 ref ivn : Str = inner_names[k]
-                ref idx : USize = static_index_by_display[ivn]
+                ref idx : U32 = static_index_by_display[ivn]
                 f.write("        case ")
                 f.write(vt)
                 f.write("_TAG_")
                 f.write(ivn)
                 f.write(": return &_dts_")
-                emit_usize(f, idx)
+                emit_usize(f, idx.cast(USize))
                 f.write(";\n")
             }
             f.write("        }\n")
@@ -6167,9 +6167,9 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     }
     f.write("    default: break;\n")
     f.write("    }\n")
-    ref fallback_idx : USize = static_index_by_display["?"]
+    ref fallback_idx : U32 = static_index_by_display["?"]
     f.write("    return &_dts_")
-    emit_usize(f, fallback_idx)
+    emit_usize(f, fallback_idx.cast(USize))
     f.write(";\n")
     f.write("}\n\n")
 }
@@ -6910,9 +6910,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
             }
         }
     }
-    lp.ctx.func_defs = Map.new(Str, Dynamic)
+    lp.ctx.func_defs = Map(Str, Dynamic).new()
         lp.ctx.stack_locals = Set(Str).new()
-    lp.ctx.stack_local_types = Map.new(Str, Str)
+    lp.ctx.stack_local_types = Map(Str, Str).new()
         lp.ctx.unsafe_to_hoist = Set(Str).new()
     return 0
 }

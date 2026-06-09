@@ -376,7 +376,7 @@ Binding := struct {
 }
 
 Scope := struct {
-    bindings := Map.new(Str, Binding)
+    bindings := Map(Str, Binding).new()
     ref parent : Scope = NULL
     // #211 follow-up: payload bindings that alias an enum's payload memory.
     // Key: binding name (the case-binding identifier). Value: encoded as
@@ -384,7 +384,7 @@ Scope := struct {
     // and mirror the assignment into ei.data + ENUM_PAYLOAD_OFFSET. An
     // empty map (the default) means "no aliases" and assignment behaves
     // exactly like before.
-    payload_aliases := Map.new(Str, Str)
+    payload_aliases := Map(Str, Str).new()
     // #227: ref-bindings to primitive scalars at a raw pointer
     // (`ref mut x : U32 = ptr_add(...)`) need to write back through the
     // original pointer on assignment. reinterpret_ptr_value collapses
@@ -392,7 +392,7 @@ Scope := struct {
     // This side table keeps the source pointer so the Assign handler
     // can dispatch through the matching write_* primitive. Key: binding
     // name. Value: raw Dynamic pointer to the original storage cell.
-    ref_primitive_ptrs := Map.new(Str, Dynamic)
+    ref_primitive_ptrs := Map(Str, Dynamic).new()
     // Issue #217 follow-up: heap allocations created by
     // box_scalar_to_dynamic at this scope's call binding sites. Each
     // entry is a raw `Dynamic` pointer that scope_free must reclaim
@@ -419,7 +419,7 @@ Scope := struct {
 // reaches it through codegen_lp(), which interpret_units installs
 // before any eval runs.
 lookup_interp_type_def := func(name: Str, ctx: Context) returns ref Expr {
-    ref m : Map = ctx.interp_type_defs
+    ref m : Map(Str, Dynamic) = ctx.interp_type_defs
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
@@ -1359,8 +1359,8 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             }
             if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
                 for ki in 0..c.ns_fields.len() {
-                    ref qn : Str = Map.key_ptr(c.ns_fields, ki)
-                    ref nsv : Value = Map.val_ptr(c.ns_fields, ki)
+                    ref qn : Str = c.ns_fields.key_ptr(ki)
+                    ref nsv : Value = c.ns_fields.val_ptr(ki)
                     switch nsv {
                     case Value.Func(nsv_fptr):
                         ref nsv_fdef : Expr = deref(nsv_fptr)
@@ -2164,7 +2164,7 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
 }
 scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
-        ref b : Binding = Map.val_ptr(s.bindings, i)
+        ref b : Binding = s.bindings.val_ptr(i)
         if b.cell_is_local {
             switch b.cell.val {
             case Value.Enum(ei):
@@ -2177,16 +2177,16 @@ scope_free := func(own s: Scope) {
     // Delete Map contents but not the Map struct (it's inline in Scope)
     own s.bindings.delete(false)
     // Zero out bindings so Scope destructor doesn't double-free
-    memset(s.bindings, 0, Map.size().cast(U64))
+    memset(s.bindings, 0, Map(Str, Binding).size().cast(U64))
     // #211 follow-up: same treatment for payload_aliases. Was leaking
-    // one Map.new(Str, Str) per scope per program (every scope_new()
+    // one Map(Str, Str).new() per scope per program (every scope_new()
     // defaulted the field), pushing translate ASAN from 146K to 707K
     // bytes leaked.
     own s.payload_aliases.delete(false)
-    memset(s.payload_aliases, 0, Map.size().cast(U64))
+    memset(s.payload_aliases, 0, Map(Str, Str).size().cast(U64))
     // #227 follow-up: same treatment for ref_primitive_ptrs (added by
     // 1e0be62). Like payload_aliases above, every scope_new() defaulted
-    // this field to an empty Map.new(Str, Dynamic) -- two malloc'd Vec
+    // this field to an empty Map(Str, Dynamic).new() -- two malloc'd Vec
     // backing buffers that scope_free never reclaimed, leaking ~2 allocs
     // per scope. That was the interpret/translate ASAN regression.
     // delete(false) frees the Str keys and both backing Vecs; the stored
@@ -2194,7 +2194,7 @@ scope_free := func(own s: Scope) {
     // the transient holder at insert time), so default_delete leaving
     // them untouched is exactly right -- do NOT free them here.
     own s.ref_primitive_ptrs.delete(false)
-    memset(s.ref_primitive_ptrs, 0, Map.size().cast(U64))
+    memset(s.ref_primitive_ptrs, 0, Map(Str, Dynamic).size().cast(U64))
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // stores owning pointer boxes so the raw heap pointer can be passed to
@@ -2410,7 +2410,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
 
 interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
     if ctx.ns_inited.not() {
-        ctx.ns_fields = Map.new(Str, Value)
+        ctx.ns_fields = Map(Str, Value).new()
         ctx.ns_keys = Vec(Dynamic).new()
         ctx.ns_inited = true
     }
