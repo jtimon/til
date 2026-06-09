@@ -1446,6 +1446,7 @@ void Expr_error(Expr * self, Str * path, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
 void Expr_take_children(Expr * self, Expr * other);
+void Expr_replace_with(Expr * self, Expr * other);
 Expr * Expr_child(Expr * parent, U32 * i);
 Expr * Expr_new(NodeType * data, U32 line, U32 col);
 Str * Expr_to_str(Expr * self);

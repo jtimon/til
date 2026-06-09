@@ -2234,7 +2234,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map) {
         if subs.has(nm) {
             ref repl_expr : Expr = subs[nm]
             cloned := repl_expr.clone()
-            move(e, cloned, Expr.size().cast(U64))
+            e.replace_with(own cloned)
             // The replacement now occupies `e`; children of the original
             // Ident were none, so no further recursion at this node.
             return
@@ -3050,7 +3050,7 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
                 new_arg_pos = new_arg_pos.add(1)
             }
         }
-        move(call, newcall, Expr.size().cast(U64))
+        call.replace_with(own newcall)
     case:
     }
 }

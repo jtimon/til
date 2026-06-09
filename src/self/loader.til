@@ -1719,7 +1719,7 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map) {
         if subs.has(nm) {
             ref repl : Expr = subs[nm]
             cloned := repl.clone()
-            move(e, cloned, Expr.size().cast(U64))
+            e.replace_with(own cloned)
             return
         }
     case:
@@ -1762,7 +1762,7 @@ priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
 
     mut cloned := ret_stmt.child(0).clone()
     lazy_substitute_idents(cloned, subs)
-    move(call, cloned, Expr.size().cast(U64))
+    call.replace_with(own cloned)
     return true
 }
 

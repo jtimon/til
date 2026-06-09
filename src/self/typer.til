@@ -130,7 +130,7 @@ priv rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, 
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
         if type_binding_is_type_token(scope, b).not() { return }
         replacement := arg.make_til_type_expr(b.type)
-        move(arg, replacement, Expr.size().cast(U64))
+        arg.replace_with(own replacement)
         infer_expr(scope, arg, in_func, ctx)
     case:
     }
@@ -2452,7 +2452,7 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         return
     }
     replacement := e.child(2).make_til_type_expr(target_type)
-    move(e.child(2), replacement, Expr.size().cast(U64))
+    e.child(2).replace_with(own replacement)
     infer_expr(scope, e.child(2), in_func, ctx)
     e.set_expr_til_type(target_type)
 }
