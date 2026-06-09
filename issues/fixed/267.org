@@ -1,6 +1,21 @@
 # priority: medium
 # category: features
-** WIP #267 Replace dynamic core containers with templated (monomorphized) ones
+** FIXED #267 Replace dynamic core containers with templated (monomorphized) ones
+
+   *** Post-mortem
+
+   Root cause: the core container implementations were type-erased, carrying
+   runtime element metadata and `Dynamic` element APIs even when every caller
+   knew the concrete element type statically.
+
+   Fix: added the template/monomorphization support needed for core containers,
+   preserved the erased implementations as `DynArray`, `DynVec`, `DynSet`,
+   `DynMap`, and `DynHashMap`, then migrated `Array`, `Vec`, `Set`, `Map`, and
+   `HashMap` to typed templates.
+
+   Regression tests: `test/arrays.til`, `test/vecs.til`, `test/sets.til`,
+   `test/maps.til`, `test/hashmaps.til`, and the matching `test/dyn_*.til`
+   coverage.
 
    Move the core containers (Array, Vec, Set, Map, ...) from their current
    TYPE-ERASED ("dynamic") implementation -- one struct that stores
@@ -42,7 +57,7 @@
      `Name__Args := Name(args)` decl during parse, and the initer dedups
      deterministic synthesized decls across units with the same Context-level
      set used by value-position hoisting. Covered by test/templ_type_only.til.
-    - Caveat 3 (Dyn* in std): STARTED. The current type-erased `HashMap`
+    - Caveat 3 (Dyn* in std): DONE. The current type-erased `HashMap`
       implementation has been preserved as `DynHashMap` in
       src/std/dyn_hashmap.til, with duplicated regression coverage in
       test/dyn_hashmaps.til. The current type-erased `Array` implementation has
@@ -59,8 +74,8 @@
       the deterministic monomorphization name. Explicit aliases such as
       `Alias := make_type(I64)` normalize to aliases of `make_type__I64`, so
       namespace methods use the canonical generated type name.
-    - STILL OPEN: 4 (migrate Array/Vec/Set/Map; leave `HashMap<K,V>` until
-      typed Vec/buffer support is ready).
+    - Caveat 4: DONE. `Array`, `Vec`, `Set`, `Map`, and `HashMap` have been
+      migrated to typed templates.
 
    *** Foundation already in place (issue #243)
 
@@ -168,6 +183,6 @@
     1. Type-only instantiation synthesis. DONE.
     2. Caveat 2b: remove special type-gen `Self`. DONE.
     3. Caveat 3: copy dynamic implementations to Dyn* names with duplicated
-       tests. STARTED with DynHashMap, DynArray, DynVec, DynSet, and DynMap.
-   4. Caveat 4 core migration: Array, then Vec, then Set, then Map.
-   5. Revisit `HashMap<K, V>` once typed Vec/buffer support is available.
+       tests. DONE.
+    4. Caveat 4 core migration: Array, then Vec, then Set, then Map. DONE.
+    5. Revisit `HashMap<K, V>` once typed Vec/buffer support is available. DONE.
