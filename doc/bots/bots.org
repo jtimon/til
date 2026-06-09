@@ -93,6 +93,8 @@ ALWAYS read a file before writing or editing it. No exceptions. If you haven't r
 ## Testing
 
 Always run `make clean && make test` and verify all tests pass before committing.
+If you are about to run `make clean && make test`, do NOT run `make` first;
+`make clean` deletes that work and only wastes time.
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
 Remote sessions: just use `make clean && make test` directly (systemd-run is not available).

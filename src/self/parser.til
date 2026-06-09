@@ -16,6 +16,7 @@ priv Parser := struct {
     // type-only occurrence still produces the monomorphization.
     type_gen_decls := Vec(Expr).new()
     type_gen_seen := Set(Str).new()
+    active_type_params := Vec(Str).new()
     // Issue #56/#57: top-level decls synthesised for anonymous struct/enum
     // literals (`struct { ... }(args)`, `enum { ... }.V`, and inline defs in
     // type positions). anon_cache maps a literal's structural key (anon_def_key)
@@ -255,6 +256,14 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), mangled: St
     p.type_gen_seen.add(own mangled.clone())
 }
 
+priv parser_has_active_type_param := func(p: Parser, name: Str) returns Bool {
+    for i in 0..p.active_type_params.len() {
+        ref param : Str = p.active_type_params[i]
+        if param.eq(name) { return true }
+    }
+    return false
+}
+
 // parse_type_ref: parse a type annotation. Normally a bare identifier, but
 // an inline `struct { ... }` / `enum { ... }` is lifted to a generated
 // AnonStructN/AnonEnumN type (issue #56/#57) and its name returned.
@@ -293,7 +302,15 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
-    type_gen_lift(p, name, args, mangled, tr_line, tr_col)
+    mut has_active_type_param := false
+    for arg : Str in args {
+        if parser_has_active_type_param(p, arg) {
+            has_active_type_param = true
+        }
+    }
+    if has_active_type_param.not() {
+        type_gen_lift(p, name, args, mangled, tr_line, tr_col)
+    }
     return mangled
 }
 
@@ -834,9 +851,13 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     // shared parse_generic_params helper (also used by func<T>).
     mut gparams := Vec(Declaration).new()
     mut is_generic := false
+    active_type_params_start := p.active_type_params.len()
     if is_ext.not().and(check(p, TokenType.Lt)) {
         is_generic = true
         gparams = parse_generic_params(p)
+        for gp : Declaration in gparams {
+            p.active_type_params.push(own gp.name.clone())
+        }
     }
 
     // Issue #251: `struct implements Iface { ... }` records the interface
@@ -924,6 +945,10 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     }
     expect_token(p, TokenType.RBrace)
     p.pending_doc = saved_doc.clone()
+    while p.active_type_params.len().gt(active_type_params_start) {
+        mut dropped : Str = p.active_type_params.pop()
+        own dropped.delete(false)
+    }
     if is_generic {
         return wrap_struct_def_in_macro(own def.clone(), gparams, kw_line, kw_col)
     }

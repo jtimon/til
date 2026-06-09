@@ -10,7 +10,7 @@ import("../lib/hash")
 // only honest measurement; interp mode is dominated by dispatch
 // overhead and would mask the algorithmic difference.
 
-bench_map_i64 := func(n: I64) returns Vec {
+bench_map_i64 := func(n: I64) returns Vec(I64) {
     m := Map.new(I64, I64)
     t0 := clock_ms()
     for i in 0..n {
@@ -41,8 +41,8 @@ bench_map_i64 := func(n: I64) returns Vec {
     return results
 }
 
-bench_hashmap_i64 := func(n: I64) returns Vec {
-    m := HashMap.new(I64, I64)
+bench_hashmap_i64 := func(n: I64) returns Vec(I64) {
+    m := HashMap(I64, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         m.set(i, own i.mul(2))
@@ -72,7 +72,7 @@ bench_hashmap_i64 := func(n: I64) returns Vec {
     return results
 }
 
-bench_map_str := func(n: I64) returns Vec {
+bench_map_str := func(n: I64) returns Vec(I64) {
     // Pre-build the key set so the timed sections only measure map ops.
     keys := Vec(Str).new()
     for i in 0..n {
@@ -112,13 +112,13 @@ bench_map_str := func(n: I64) returns Vec {
     return results
 }
 
-bench_hashmap_str := func(n: I64) returns Vec {
+bench_hashmap_str := func(n: I64) returns Vec(I64) {
     keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))
     }
 
-    m := HashMap.new(Str, I64)
+    m := HashMap(Str, I64).new()
     t0 := clock_ms()
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!
@@ -151,7 +151,7 @@ bench_hashmap_str := func(n: I64) returns Vec {
     return results
 }
 
-print_row := proc(label: Str, r: Vec) {
+print_row := proc(label: Str, r: Vec(I64)) {
     ref t_ins : I64 = r.get(0.to_usize())!
     ref t_has : I64 = r.get(1.to_usize())!
     ref t_get : I64 = r.get(2.to_usize())!
@@ -162,15 +162,15 @@ print_row := proc(label: Str, r: Vec) {
 run_size := proc(n: I64) {
     println("--- N=", n.to_str(), " I64 keys ---")
     print_row("Map           ", bench_map_i64(n))
-    HashMap.hasher = fnv1a
+    HashMap(I64, I64).hasher = fnv1a
     print_row("HashMap fnv1a ", bench_hashmap_i64(n))
-    HashMap.hasher = knuth_bytes
+    HashMap(I64, I64).hasher = knuth_bytes
     print_row("HashMap knuth ", bench_hashmap_i64(n))
     println("--- N=", n.to_str(), " Str keys ---")
     print_row("Map           ", bench_map_str(n))
-    HashMap.hasher = fnv1a
+    HashMap(Str, I64).hasher = fnv1a
     print_row("HashMap fnv1a ", bench_hashmap_str(n))
-    HashMap.hasher = knuth_bytes
+    HashMap(Str, I64).hasher = knuth_bytes
     print_row("HashMap knuth ", bench_hashmap_str(n))
 }
 

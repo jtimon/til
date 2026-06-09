@@ -41,7 +41,7 @@ println(s.has(20).to_str())
 
 // HashMap is a separate library (src/std/hashmap.til), also with a
 // local `m` in HashMap.new_type_names.
-h := HashMap.new(Str, I64)
+h := HashMap(Str, I64).new()
 h.set("one", own 1)
 ref hv : I64 = h.get("one")
 println(hv.to_str())
