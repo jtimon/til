@@ -594,9 +594,9 @@ void assert_eq_str(Str * loc_str, Str * a, Str * b);
 void println(Array__Str * parts);
 Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
-Range Range_clone(Range val);
+Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool call_free);
-U64 Range_hash(Range self, HashFn hasher);
+U64 Range_hash(Range * self, HashFn hasher);
 U32 Range_size(void);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
@@ -824,9 +824,9 @@ void assert_eq_str(Str * loc_str, Str * a, Str * b);
 void println(Array__Str * parts);
 Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
-Range Range_clone(Range val);
+Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool call_free);
-U64 Range_hash(Range self, HashFn hasher);
+U64 Range_hash(Range * self, HashFn hasher);
 U32 Range_size(void);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
@@ -3315,7 +3315,7 @@ U64 FCallData_hash(FCallData * self, HashFn hasher) {
 }
 
 U32 FCallData_size(void) {
-    U32 hoisted__U32_2406 = 32;
+    U32 hoisted__U32_2406 = 48;
     (void)hoisted__U32_2406;
     return hoisted__U32_2406;
 }
@@ -5635,10 +5635,11 @@ void swap(void * a, void * b, U64 size) {
     free(tmp);
 }
 
-Range Range_clone(Range val) {
-    Range hoisted__Range_6684 = (Range){.start = val.start, .end = val.end};
+Range * Range_clone(Range * val) {
+    Range hoisted__Range_6684 = (Range){.start = val->start, .end = val->end};
     (void)hoisted__Range_6684;
-    return hoisted__Range_6684;
+    { Range *_r = malloc(sizeof(Range)); *_r = hoisted__Range_6684;
+    return _r; }
 }
 
 void Range_delete(Range * self, Bool call_free) {
@@ -5647,16 +5648,16 @@ void Range_delete(Range * self, Bool call_free) {
     }
 }
 
-U64 Range_hash(Range self, HashFn hasher) {
+U64 Range_hash(Range * self, HashFn hasher) {
     U32 hoisted__U32_6685 = 0;
     (void)hoisted__U32_6685;
-    U64 hoisted__U64_6686 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Range *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_6685); });
+    U64 hoisted__U64_6686 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Range *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_6685); });
     (void)hoisted__U64_6686;
     return hoisted__U64_6686;
 }
 
 U32 Range_size(void) {
-    U32 hoisted__U32_6687 = 2;
+    U32 hoisted__U32_6687 = 16;
     (void)hoisted__U32_6687;
     return hoisted__U32_6687;
 }
@@ -7406,7 +7407,7 @@ U32 Vec__I64_size_dyn(void *til_env) {
 static __attribute__((unused)) TilClosure Vec__I64_size_dyn__til_closure = { (void *)Vec__I64_size_dyn, NULL, NULL };
 void *Range_clone_dyn(void *til_env, void *_a0) {
     (void)til_env;
-    Range *_r = malloc(sizeof(Range)); *_r = Range_clone(*(Range *)_a0); return _r;
+    return (void *)Range_clone(_a0);
 }
 static __attribute__((unused)) TilClosure Range_clone_dyn__til_closure = { (void *)Range_clone_dyn, NULL, NULL };
 void Range_delete_dyn(void *til_env, void *_a0, Bool _a1) {
@@ -7416,7 +7417,7 @@ void Range_delete_dyn(void *til_env, void *_a0, Bool _a1) {
 static __attribute__((unused)) TilClosure Range_delete_dyn__til_closure = { (void *)Range_delete_dyn, NULL, NULL };
 U64 Range_hash_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
-    return Range_hash(*(Range *)_a0, _a1);
+    return Range_hash(_a0, _a1);
 }
 static __attribute__((unused)) TilClosure Range_hash_dyn__til_closure = { (void *)Range_hash_dyn, NULL, NULL };
 U32 Range_size_dyn(void *til_env) {

@@ -396,18 +396,19 @@ way through.
 - Always include ALL modified files in commits.
 - When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
   This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
-- Local agents: include doc/totals.csv and img/totals.svg in commits
-  (this includes OpenCode/Codex CLI and Antigravity sessions working on a local checkout).
-- Remote agents (specifically Claude in the cloud, GitHub Actions, etc.): do NOT include doc/totals.csv
+- Local agents working in a dedicated worktree and remote agents (specifically
+  Claude in the cloud, GitHub Actions, etc.): do NOT include doc/totals.csv
   or img/totals.svg. After `make test` regenerates them, DISCARD the changes
   before committing -- either form is fine:
       git checkout HEAD -- doc/totals.csv img/totals.svg
       git restore        doc/totals.csv img/totals.svg
   This is an explicit exception to the "no destructive git commands" rule
   below: totals files are auto-generated and safe to discard in remote
-  sessions. Both files must be discarded together (never just one).
+  sessions and local worktree sessions. Both files must be discarded together (never just one).
   Leaving them dirty is not acceptable -- the working tree must be clean
   after the commit, otherwise the stop hook will block the session.
+- Local agents editing the main checkout directly on master: include
+  doc/totals.csv and img/totals.svg in commits.
 - Use `make test` before every commit (skip when only documentation changed)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Always squash a feature branch into a single commit before pushing.

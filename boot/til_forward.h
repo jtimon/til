@@ -2093,6 +2093,8 @@ void Vec__ExprPtrBox_clear(Vec__ExprPtrBox * self);
 void Vec__ExprPtrBox_delete(Vec__ExprPtrBox * self, Bool call_free);
 Vec__ExprPtrBox * Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self);
 U32 Vec__ExprPtrBox_size(void);
+Bool priv___src_self_initer_til__is_dynamic_type(Str * name);
+Bool priv___src_self_initer_til__primitive_type_info(Str * name, Primitive * prim, U32 * sz, U32 * al, Bool * is_builtin);
 I32 priv___src_self_initer_til__register_struct_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__register_enum_definition(Context * ctx, Expr * stmt, TypeScope * scope);

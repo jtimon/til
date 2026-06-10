@@ -3,6 +3,26 @@ mode lib
 import("parser")
 import("context")
 
+priv is_dynamic_type := func(name: Str) returns Bool {
+    return name.eq("Dynamic")
+}
+
+priv primitive_type_info := func(name: Str, mut prim: Primitive, mut sz: USize, mut al: USize, mut is_builtin: Bool) returns Bool {
+    if name.eq("I64") { prim = Primitive.I64; sz = 8; al = 8; is_builtin = true; return true }
+    if name.eq("U8") { prim = Primitive.U8; sz = 1; al = 1; is_builtin = true; return true }
+    if name.eq("I8") { prim = Primitive.I8; sz = 1; al = 1; is_builtin = true; return true }
+    if name.eq("I16") { prim = Primitive.I16; sz = 2; al = 2; is_builtin = true; return true }
+    if name.eq("U16") { prim = Primitive.U16; sz = 2; al = 2; is_builtin = true; return true }
+    if name.eq("I32") { prim = Primitive.I32; sz = 4; al = 4; is_builtin = true; return true }
+    if name.eq("U32") { prim = Primitive.U32; sz = 4; al = 4; is_builtin = true; return true }
+    if name.eq("U64") { prim = Primitive.U64; sz = 8; al = 8; is_builtin = true; return true }
+    if name.eq("USize") { prim = Primitive.U32; sz = 4; al = 4; is_builtin = true; return true }
+    if name.eq("Bool") { prim = Primitive.Bool; sz = 1; al = 1; is_builtin = true; return true }
+    if name.eq("F32") { prim = Primitive.F32; sz = 4; al = 4; is_builtin = true; return true }
+    if name.eq("Dynamic") { sz = 8; al = 8; is_builtin = true; return true }
+    return false
+}
+
 priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
     if stmt.node_type.is(NodeType.Decl).not() { return 0 }
     if stmt.child(0).node_type.is(NodeType.StructDef).not() { return 0 }
@@ -29,20 +49,20 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
 
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
-        if sname.eq("I64") { builtin_type = Type.Primitive(Primitive.I64); is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.Primitive(Primitive.U8); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.Primitive(Primitive.I8); is_builtin = true }
-        else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
-        else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.Primitive(Primitive.I32); is_builtin = true }
-        else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
-        else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
-        else if sname.eq("USize") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
-        else if sname.eq("Str") { is_builtin = false }
-        else if sname.eq("Bool") { builtin_type = Type.Primitive(Primitive.Bool); is_builtin = true }
-        else if sname.eq("StructDef") { is_builtin = false }
-        else if sname.eq("FunctionDef") { is_builtin = false }
-        else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
+        mut prim : Primitive = Primitive.I64
+        mut sz : USize = 0
+        mut al : USize = 0
+        mut prim_builtin : Bool = false
+        if primitive_type_info(sname, prim, sz, al, prim_builtin) {
+            builtin_type = Type.Primitive(prim)
+            is_builtin = prim_builtin
+        } else if sname.eq("Str") {
+            is_builtin = false
+        } else if sname.eq("StructDef") {
+            is_builtin = false
+        } else if sname.eq("FunctionDef") {
+            is_builtin = false
+        }
 
         scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         scope.set_struct_def(sname, stmt.child(0))
@@ -76,7 +96,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         UNREACHABLE(__LOC__)
         return
     }
-    if sname.eq("Dynamic") { return }
+    if is_dynamic_type(sname) { return }
 
     ref sdef : Expr = stmt.child(0)
     switch sdef.node_type {
@@ -1178,7 +1198,7 @@ gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {    if stmt.n
         UNREACHABLE(__LOC__)
         return
     }
-    if sname.eq("Dynamic") { return }
+    if is_dynamic_type(sname) { return }
     switch def.node_type {
     case NodeType.StructDef(sz_sdd):
         mut has_size := false
@@ -1227,7 +1247,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
         UNREACHABLE(__LOC__)
         return
     }
-    if sname.eq("Dynamic") { return }
+    if is_dynamic_type(sname) { return }
     mut has_size := false
     ref size_ns : Vec(Declaration) = def_ns_decls(def)
     for d_j : Declaration in size_ns {
@@ -1276,7 +1296,7 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
         UNREACHABLE(__LOC__)
         return
     }
-    if sname.eq("Dynamic") { return }
+    if is_dynamic_type(sname) { return }
 
     mut has_add := false
     mut has_sub := false
@@ -1355,7 +1375,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         UNREACHABLE(__LOC__)
         return
     }
-    if sname.eq("Dynamic") { return }
+    if is_dynamic_type(sname) { return }
 
     mut has_cmp := false
     mut has_eq := false
@@ -1671,33 +1691,36 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 }
 
                 if ftype.len().eq(0) { fsz = 8; falign = 8 }
-                else if ftype.eq("I64") { fsz = 8; falign = 8 }
-                else if ftype.eq("U8") { fsz = 1; falign = 1 }
-                else if ftype.eq("I8") { fsz = 1; falign = 1 }
-                else if ftype.eq("I16") { fsz = 2; falign = 2 }
-                else if ftype.eq("U16") { fsz = 2; falign = 2 }
-                else if ftype.eq("I32") { fsz = 4; falign = 4 }
-                else if ftype.eq("U32") { fsz = 4; falign = 4 }
-                else if ftype.eq("F32") { fsz = 4; falign = 4 }
-                else if ftype.eq("Bool") { fsz = 1; falign = 1 }
-                else if type_from_name_init(ftype, scope).is_funcptr() { fsz = 8; falign = 8 }
                 else {
-                    ref nested_def : Expr = scope.get_struct(ftype)
-                    if nested_def.is_null().not() {
-                        if nested_def.node_type.is(NodeType.EnumDef) {
-                            fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
-                            if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
-                            field_struct_name = ftype.clone()
-                        } else {
-                            compute_struct_layout(ftype, nested_def, scope, ctx)
-                            ref nested_layout : StructLayout = ctx.struct_layouts[ftype]
-                            fsz = nested_layout.total_size
-                            falign = nested_layout.align
-                            field_struct_name = ftype.clone()
-                        }
-                    } else {
+                    mut prim : Primitive = Primitive.I64
+                    mut psz : USize = 0
+                    mut pal : USize = 0
+                    mut pbuiltin : Bool = false
+                    is_prim : Bool = primitive_type_info(ftype, prim, psz, pal, pbuiltin)
+                    if is_prim {
+                        fsz = psz
+                        falign = pal
+                    } else if type_from_name_init(ftype, scope).is_funcptr() {
                         fsz = 8
                         falign = 8
+                    } else {
+                        ref nested_def : Expr = scope.get_struct(ftype)
+                        if nested_def.is_null().not() {
+                            if nested_def.node_type.is(NodeType.EnumDef) {
+                                fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
+                                if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
+                                field_struct_name = ftype.clone()
+                            } else {
+                                compute_struct_layout(ftype, nested_def, scope, ctx)
+                                ref nested_layout : StructLayout = ctx.struct_layouts[ftype]
+                                fsz = nested_layout.total_size
+                                falign = nested_layout.align
+                                field_struct_name = ftype.clone()
+                            }
+                        } else {
+                            fsz = 8
+                            falign = 8
+                        }
                     }
                 }
             }
@@ -1720,17 +1743,15 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 // Compute size and alignment for a TIL type name.
 // For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
 priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
-    if ftype.eq("I64") { sz = 8; al = 8; return }
-    if ftype.eq("U64") { sz = 8; al = 8; return }
-    if ftype.eq("F32") { sz = 4; al = 4; return }
-    if ftype.eq("U8") { sz = 1; al = 1; return }
-    if ftype.eq("I8") { sz = 1; al = 1; return }
-    if ftype.eq("I16") { sz = 2; al = 2; return }
-    if ftype.eq("U16") { sz = 2; al = 2; return }
-    if ftype.eq("I32") { sz = 4; al = 4; return }
-    if ftype.eq("U32") { sz = 4; al = 4; return }
-    if ftype.eq("Bool") { sz = 1; al = 1; return }
-    if ftype.eq("Dynamic") { sz = 8; al = 8; return }
+    mut prim : Primitive = Primitive.I64
+    mut psz : USize = 0
+    mut pal : USize = 0
+    mut pbuiltin : Bool = false
+    if primitive_type_info(ftype, prim, psz, pal, pbuiltin) {
+        sz = psz
+        al = pal
+        return
+    }
     if type_from_name_init(ftype, scope).is_funcptr() { sz = 8; al = 8; return }
     ref nested : Expr = scope.get_struct(ftype)
     if nested.is_null() { sz = 8; al = 8; return }
