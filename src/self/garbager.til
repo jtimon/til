@@ -17,8 +17,8 @@ import("context")
 // asap walk needs (type_to_name, make_delete_call, make_free_call,
 // fa_own_type, transfer_is_shallow_field_value_copy, is_compile_directive,
 // expr_uses_var, expr_transfers_own, expr_used_in_nested_func,
-// expr_contains_decl, fcall_returns_shallow, rhs_is_clone_fcall,
-// free_expr_slot_in_place) and two typer state flags (typer_in_main_func,
+// expr_contains_decl, fcall_returns_shallow, rhs_is_clone_fcall)
+// and two typer state flags (typer_in_main_func,
 // typer_in_shallow_return). The loader imports garbager.til right after
 // typer.til so those names are in scope.
 

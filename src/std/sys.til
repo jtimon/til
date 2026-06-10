@@ -52,9 +52,10 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     pid := spawn_cmd(cmd.format(" > ", tmpf, " 2>&1"))
     ec := wait_cmd(pid)
     content := File.readfile(tmpf)
-    // Move content into output: copies the bytes and zeroes content, so the
-    // asap pass's scope-end Str.delete(content) frees only the (now empty)
-    // box -- no explicit free needed, and output keeps the c_str.
-    move(output, content, Str.size().cast(U64))
+    // Plain assignment: the builder deletes output's old value before the
+    // write (save_old_delete), and the asap pass moves `content` in at its
+    // last use instead of cloning. The old raw move() spelling leaked
+    // output's previous c_str whenever the caller passed a non-empty Str.
+    output = content
     return ec
 }

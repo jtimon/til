@@ -1435,14 +1435,20 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 }
                 total_size : USize = ctx_total_size(enum_name, ctx)
                 tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
-                move(result, tmp, Value.size().cast(U64))
+                // The h_* out-param `result` arrives empty (Value.None, no
+                // heap), so a raw byte move into it loses nothing. Spelled
+                // memcpy+memset because move() onto a managed destination
+                // is a type error (it leaks the old contents in general).
+                memcpy(result, tmp, Value.size().cast(U64))
+                memset(tmp, 0, Value.size().cast(U64))
                 if must_free_pdata {
                     free(own pdata)
                 }
             } else {
                 total_size : USize = ctx_total_size(enum_name, ctx)
                 tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
-                move(result, tmp, Value.size().cast(U64))
+                memcpy(result, tmp, Value.size().cast(U64))
+                memset(tmp, 0, Value.size().cast(U64))
             }
             return true
         }
@@ -1736,15 +1742,13 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         }
         ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
 
-        // Store in ctx.ffi_map. Own a clone of the name so callers can pass
-        // either AST-owned strings or locally-allocated ones (e.g. format
-        // results) without bespoke ownership dances.
-        key_str := name.clone()
-        key : Dynamic = malloc(Str.size().cast(U64))
-        move(key, key_str, Str.size().cast(U64))
+        // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
+        // internally (ELEM_BOXED), so `name` can be passed directly; the
+        // old clone+box dance here leaked both the box and the cloned Str.
+        // The value box is a transient that Map.set consumes.
         val : Dynamic = malloc(FFIEntry.size().cast(U64))
         move(val, entry, FFIEntry.size().cast(U64))
-        ctx.ffi_map.set(key, own val)
+        ctx.ffi_map.set(name, own val)
     case:
         UNREACHABLE(__LOC__)
     }

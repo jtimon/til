@@ -221,17 +221,6 @@ U64Name := "U64"
 F32Name := "F32"
 BoolName := "Bool"
 
-// Free the heap allocations inside an Expr that lives inline in a Vec
-// buffer. Used before children.set(...) replaces a slot so the prior Expr
-// payload does not leak. Non-priv so the garbager module
-// (src/self/garbager.til) can reuse it from insert_post_stmt_deletes.
-priv free_expr_slot_in_place := func(mut e: Expr) {
-    Type.delete(own e.expr_til_type(), true)
-    NodeType.delete(own e.node_type, false)
-    e.children.clear()
-    free(own e.children.data)
-}
-
 priv CtorArg := enum {
     Unfilled,
     Filled: Expr,
@@ -2338,6 +2327,30 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
     }
 }
 
+// Forbid `move(dest, src, size)` when dest is statically a managed
+// aggregate (a type with a `delete` method). move() is a raw
+// memcpy+memset: it bitwise-overwrites dest, so dest's old node
+// payloads / buffers are never deleted -- a guaranteed leak whenever
+// dest holds a live value (the Expr.replace_with class of bugs).
+// Raw destinations stay allowed: a fresh malloc'd box or buffer is
+// typed Dynamic/U8 and has no delete method, so it never trips this.
+priv check_move_managed_dest := proc(scope: TypeScope, e: Expr, ctx: Context) {
+    if e.children.len().lt(2) { return }
+    ref dest : Expr = e.child(1)
+    tn := til_type_name(dest.expr_til_type())
+    if tn.len().eq(0) { return }
+    ref sdef : Expr = scope.get_struct(tn)
+    if sdef.is_null() { return }
+    ref del : Expr = find_namespace_func(sdef, "delete", scope)
+    if del.is_null() { return }
+    e.type_error(format(
+        "move() onto a live '", tn, "' bitwise-overwrites it and leaks its ",
+        "old contents (", tn, ".delete never runs on them) -- use ",
+        "Expr.replace_with for AST rewrites, or move onto raw malloc'd ",
+        "memory typed Dynamic",
+    ), ctx)
+}
+
 // Issue #212: byte size of an integer primitive Type, or 0 for any
 // non-integer-reinterpret-able type. F32 (4 bytes) and Bool are
 // deliberately excluded -- `cast` is a bit reinterpret, not a value
@@ -2592,6 +2605,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)
     if name.eq("free") { check_free_managed_local(scope, e, ctx) }
+    if name.eq("move") { check_move_managed_dest(scope, e, ctx) }
     // Issue #191: macro calls require all arguments to be comptime-known.
     if callee_bind.is_null().not() {
         if binding_func_type(callee_bind).is(FuncType.Macro) {
@@ -5172,10 +5186,9 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
     return condition
 }
 
-priv replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
+priv replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
     ref slot_sw : Expr = body.children[stmt_idx]
-    slot_sw.free_expr_slot_in_place()
-    move(slot_sw, block, Expr.size().cast(U64))
+    slot_sw.replace_with(own block)
 }
 
 priv append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
@@ -5515,13 +5528,12 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
     }
 
     if has_first_if { block.add_child(own first_if.clone()) }
-    replace_switch_stmt_with_block(body, stmt_idx, block)
+    replace_switch_stmt_with_block(body, stmt_idx, own block)
 }
 
-priv replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, mut block: Expr) {
+priv replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
     ref slot_bd : Expr = body.children[stmt_idx]
-    slot_bd.free_expr_slot_in_place()
-    move(slot_bd, block, Expr.size().cast(U64))
+    slot_bd.replace_with(own block)
 }
 
 priv make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {
@@ -5648,7 +5660,7 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     if_node.add_child(own else_body)
     block.add_child(own if_node)
 
-    replace_body_stmt_with_block(body, stmt_idx, block)
+    replace_body_stmt_with_block(body, stmt_idx, own block)
     return true
 }
 
@@ -5899,7 +5911,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
 
     while_node.add_child(own wbody)
     block.add_child(own while_node)
-    replace_body_stmt_with_block(body, stmt_idx, block)
+    replace_body_stmt_with_block(body, stmt_idx, own block)
     return true
 }
 

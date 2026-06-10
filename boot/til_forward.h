@@ -2246,7 +2246,6 @@ Bool priv___src_self_typer_til__type_binding_is_type_token(TypeScope * scope, Ty
 Expr * priv___src_self_typer_til__make_til_type_expr(Expr * src, Type * t);
 void priv___src_self_typer_til__rewrite_til_type_arg(TypeScope * scope, Expr * arg, Type * ptype, I32 in_func, Context * ctx);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
-void priv___src_self_typer_til__free_expr_slot_in_place(Expr * e);
 priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Unfilled(void);
 priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Filled(Expr * val);
 Bool priv___src_self_typer_til__CtorArg_is(priv___src_self_typer_til__CtorArg * self, priv___src_self_typer_til__CtorArg * other);
@@ -2293,6 +2292,7 @@ void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBind
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);
 void priv___src_self_typer_til__check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool member_is_priv, Context * ctx);
 void priv___src_self_typer_til__check_free_managed_local(TypeScope * scope, Expr * e, Context * ctx);
+void priv___src_self_typer_til__check_move_managed_dest(TypeScope * scope, Expr * e, Context * ctx);
 U32 priv___src_self_typer_til__cast_int_size(Type * t);
 Bool priv___src_self_typer_til__cast_is_signed(Type * t);
 Bool priv___src_self_typer_til__cast_pair_ok(Type * src, Type * target);
