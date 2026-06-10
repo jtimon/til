@@ -2327,13 +2327,17 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
     }
 }
 
-// Forbid `move(dest, src, size)` when dest is statically a managed
-// aggregate (a type with a `delete` method). move() is a raw
-// memcpy+memset: it bitwise-overwrites dest, so dest's old node
-// payloads / buffers are never deleted -- a guaranteed leak whenever
-// dest holds a live value (the Expr.replace_with class of bugs).
-// Raw destinations stay allowed: a fresh malloc'd box or buffer is
-// typed Dynamic/U8 and has no delete method, so it never trips this.
+// Forbid `move(dest, src, size)` when dest is statically a struct or
+// enum value. Every aggregate has a `delete` (auto-generated when not
+// hand-written, see doc/auto.org), so the criterion is simply "is the
+// destination an aggregate at all". move() is a raw memcpy+memset: it
+// bitwise-overwrites dest, so dest's old node payloads / buffers are
+// never deleted -- a guaranteed leak whenever dest holds a live value
+// (the Expr.replace_with class of bugs). Raw destinations stay
+// allowed: a fresh malloc'd box or buffer is typed Dynamic/U8, not an
+// aggregate, so it never trips this. The find_namespace_func lookup
+// below is a belt-and-braces guard for scopes where the type's
+// methods are not registered, not a meaningful filter.
 priv check_move_managed_dest := proc(scope: TypeScope, e: Expr, ctx: Context) {
     if e.children.len().lt(2) { return }
     ref dest : Expr = e.child(1)
@@ -10309,6 +10313,25 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
 
     for e_i : Expr in expr.children {
         hoist_expr(ctx, e_i, hoisted, scope)
+    }
+    // An FCall in FieldAccess BASE position (`f().field`, and the
+    // receiver of a chained method call `f().method(...)`) was never
+    // hoisted, so the builder emitted `((T *)f(...))->field` and the
+    // owned result box leaked -- nothing ever deleted it (the
+    // ctx_field_layout/StructInstance.clone leak class). Hoist the base
+    // into a temp Decl so the garbager schedules its delete like any
+    // other owned local. Gated on fcall_returns_own (false for
+    // `returns ref` callees: borrows stay inline, they own nothing) and
+    // on an aggregate result type (primitives/Dynamic have no box).
+    // Shallow struct returns are fine to hoist: collect_scope_locals
+    // keys is_heap=false off fcall_returns_shallow for the temp.
+    if expr.node_type.is(NodeType.FieldAccess).and(expr.children.len().gt(0)) {
+        ref fa_base : Expr = expr.child(0)
+        if fa_base.node_type.is(NodeType.FCall).and(is_macro_call(fa_base, ctx).not()) {
+            if is_aggregate(fa_base.expr_til_type()).and(fcall_returns_own(fa_base, scope)) {
+                expr.children.set(0, own hoist_to_temp(ctx, fa_base, hoisted, scope, false))
+            }
+        }
     }
     if expr.node_type.is(NodeType.FCall).not() { return }
     // Issue #57: don't hoist args of macro calls. Macro args are

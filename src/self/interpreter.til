@@ -979,6 +979,15 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
             }
             new_val := eval_expr(scope, rhs, ctx)
+            // Free the cell's previous payload before the overwrite -- the
+            // interp-mode mirror of the compiled backend's save_old_delete.
+            // The FieldAssign emits the deep delete of the old Value (the
+            // insert_field_deletes pre-pass); borrowed payloads are skipped
+            // by the deep delete itself. The raw memcpy alone leaked every
+            // reassigned value (the dominant interpret-mode leak). Aliasing
+            // is safe: the typed AST's value semantics make any rhs that
+            // reads the old value a clone by the time it gets here.
+            cell.val = val_none()
             memcpy(cell.val, new_val, Value.size().cast(U64))
             // #227: for ref-mut bindings to a primitive scalar at a raw
             // pointer (`ref mut x : U32 = ptr_add(...)`), also write the
@@ -2114,6 +2123,14 @@ scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = s.bindings.val_ptr(i)
         if b.cell_is_local {
+            // NOTE: only Enum payload data is freed here. Extending this
+            // to a full deep Value delete (Struct payloads too) segfaults
+            // the compile pipeline: returning a local hands out an
+            // unflagged alias of the cell's Struct payload, so the deep
+            // delete frees bytes the return value still uses. Struct
+            // payloads in cells therefore leak at scope teardown (the
+            // make_str_value ASAN class) until the value model gives
+            // returns a move/borrow contract -- see doc/ownership.org.
             switch b.cell.val {
             case Value.Enum(ei):
                 if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }

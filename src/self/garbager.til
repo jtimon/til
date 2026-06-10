@@ -509,7 +509,21 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
     mut live_vec := Vec(LocalInfo).new()
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
-        if local.own_transfer.gte(0) { continue }
+        // A transfer only consumes the local on paths that REACH it. An
+        // exit edge inside a stmt strictly BEFORE the transfer stmt leaves
+        // with the local still owned, so it must be freed there like any
+        // non-transferred local (e.g. the parser's last_field: consumed by
+        // a ctor in the final stmt, but earlier `return mcall` paths leaked
+        // it). Only stand down when the transfer is at or before this stmt.
+        // Restricted to body-declared locals (decl_index >= 0): own params
+        // carry conditional self-transfer shapes (a delete method's
+        // `if call_free { free(own self) }`) where an extra delete
+        // double-frees -- the same exclusion sink_conditional_transfer_deletes
+        // uses.
+        if local.own_transfer.gte(0) {
+            if local.decl_index.lt(0) { continue }
+            if local.own_transfer.lte(stmt_idx.cast(I32)) { continue }
+        }
         if local.decl_index.lt(stmt_idx.cast(I32)) {
             if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
                 live_vec.push(own local.clone())
@@ -554,7 +568,13 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
             }
         }
         if local.skip_scope_delete { continue }
-        if local.own_transfer.gte(0) { continue }
+        // Same pre-transfer rule as insert_nested_exit_deletes: an exit at
+        // a stmt strictly before the transfer stmt still owns the local.
+        // Body-declared locals only; own params keep the full stand-down.
+        if local.own_transfer.gte(0) {
+            if local.decl_index.lt(0) { continue }
+            if local.own_transfer.lte(stmt_idx.cast(I32)) { continue }
+        }
         if local.decl_index.lt(stmt_idx.cast(I32)) {
             if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
                 if type_to_name(local.type).len().gt(0) {

@@ -1554,6 +1554,11 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
     args : Dynamic = malloc(alloc_n.mul(8).cast(U64))
     arg_ptrs : Dynamic = malloc(alloc_n.mul(8).cast(U64))
+    // Per-arg flag: true when args[i] holds a scalar box WE malloc'd on
+    // the deep path below. No ext callee takes `own` scalars (the C side
+    // only borrows these boxes), so they must be freed after ffi_call --
+    // skipping that leaked one box per non-shallow scalar arg per call.
+    boxed_flags : Dynamic = calloc(alloc_n.cast(U64), 1)
     // args / arg_ptrs hold RAW pointers into each arg Value's payload
     // (si.data / ei.data). Those Values must outlive ffi_call, but they are
     // per-iteration locals the garbager would delete (deep) at the end of
@@ -1624,6 +1629,8 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
             }
             if dp.is_null().not() {
                 write_ptr(ptr_add(args, i.mul(8).cast(U64)), dp)
+                ref mut bf : Bool = ptr_add(boxed_flags, i.cast(U64))
+                bf = true
             }
             write_ptr(ptr_add(arg_ptrs, i.mul(8).cast(U64)), ptr_add(args, i.mul(8).cast(U64)))
         }
@@ -1680,6 +1687,15 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     // pointed into are no longer needed. Keep arg_vals visibly live until
     // here; arg_ptrs holds raw aliases the garbager cannot see.
     if arg_vals.len().neq(nargs) { UNREACHABLE(__LOC__) }
+    for i in 0..nargs {
+        ref bf : Bool = ptr_add(boxed_flags, i.cast(U64))
+        if bf {
+            mut box_ptr : Dynamic = 0
+            box_ptr = deref(ptr_add(args, i.mul(8).cast(U64)))
+            free(own box_ptr)
+        }
+    }
+    free(own boxed_flags)
     free(own args)
     free(own arg_ptrs)
     free(own raw)
