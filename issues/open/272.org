@@ -86,3 +86,60 @@ code) violate the intended layering. The principles, as stated by Jorge:
      deletes, early-exit-before-transfer, extend_*_lifetimes into it.
   5. Builder/interpreter compensation removal, guarded by ASAN baseline
      (doc/bots/asan.org) at every step.
+
+*** Progress (step 3, in flight)
+
+  - Step 2 landed: Expr.replace_with removed; all rewrites go through
+    the owning slot (children.set / assignment / field assignment).
+  - Step 3 reproduced with a clean ASAN debug compiler
+    (bin/til_boot build --asan -o tmp/til_dbg src/til.til, then
+    ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 tmp/til_dbg interpret
+    test/strings.til). With deep scope_free (b.cell.val = val_none()):
+    heap-use-after-free, shape:
+      - alloc: result = c.return_value.clone() at the FieldAccess-callee
+        eval_call return boundary (interpreter.til ~1497) -- an
+        INDEPENDENT clone that becomes some local v's cell payload.
+      - free: scope_free(call_scope2) of a LATER direct-ident user call
+        (interpreter.til ~1714): that call's scope held an UNFLAGGED
+        alias of v's payload in one of its cells (param or local),
+        so the deep delete freed v's bytes.
+      - read: read_field on v.field after the call -> UAF
+        (Value_Uint32 / read_field / eval_expr FieldAccess).
+    Next: find which arg/local binding path in eval_call (direct-ident
+    branch, call_scope2) stores an alias of a caller local's payload
+    without borrowed=true or without nulling the source. Suspects: the
+    non-Ident arg eval branch (gen 211955), own-arg consumption for
+    user calls (ext calls null the source cell, user calls may not),
+    reinterpret_ptr_value / widen_numeric struct paths.
+
+*** Step 3 findings, round 2 (lab state in working tree, NOT committed)
+
+  - Minimal repro: tmp/mp.til (mut-param concat: greet(mut out: Str)
+    { out = out.concat(" world") }; caller prints s after). UAF under
+    deep scope_free. test/strings.til's test_mut_param_concat is the
+    same shape; test/ref.til crashes too (ref-primitive write-through,
+    fixed in the lab tree by restricting the interp bare-Ident assign
+    move to unflagged Struct/Enum payloads + Dynamic).
+  - Probe evidence (eprint_single to stderr -- println/print_flush are
+    LOST on ASAN abort, print_flush is putchar not fflush): greet's
+    scope_free deep-deletes binding "out" with cell_is_local=TRUE,
+    borrowed=false, data non-null. concat's params "a"/"b" are also
+    owned+local. But ALL THREE eval_call branches bind Ident args via
+    scope_set_borrowed (cell_is_local=false). So some path creates an
+    OWNED "out" binding: next probe = binding creation (scope_set_owned
+    is called for "out" somewhere -- note scope_set_owned/scope_free
+    cannot call eprint_single while funcs; the lab tree made scope_free
+    a proc, scope_set_owned cascades into precomp funcs, so probe the
+    CALLERS instead, or check whether precomp's compile-time folding
+    scopes (precomp.til scope_set_owned sites) are the ones tearing
+    down).
+  - Suspect to check next: precomp try_eval_call folds greet at compile
+    time? (probe output may mix precomp-phase scope_frees with runtime
+    ones; correlate with the ASAN free trace, which is RUNTIME
+    eval_call -> scope_free.)
+  - Lab tree changes (uncommitted): deep scope_free via
+    b.cell.val = val_none(); bare-Ident assign MOVE for unflagged
+    heap payloads (fixes the garbager-move/interp mismatch; keeps #227
+    ref write-through working -- ref.til passes); stderr probes in
+    scope_free; scope_free is temporarily a proc. tmp/til_dbg =
+    bin/til_boot build --asan of the lab tree; rebuild ~1min.
