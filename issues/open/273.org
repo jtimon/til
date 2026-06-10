@@ -1,0 +1,37 @@
+# priority: high
+# category: bugs
+** OPEN #273 Statement parser rejects UFCS on subscript receivers
+
+The statement parser rejects method-call syntax when the receiver is a
+subscript expression, e.g.::
+
+    e.children[2].type_error("bad", ctx)
+
+The expression parser already accepts postfix chains that mix field access,
+subscript, and method calls, but the statement-level special case for
+`name.field...` assumes a dotted chain must end in either `(`, `++`, `--`, or
+`=`. When the chain continues through `[...]`, parsing falls into the field
+assignment path and reports errors like::
+
+    expected '=', found '['
+
+This blocks removing `Expr.child()` cleanly because replacing
+`e.child(i).method(...)` with `e.children[i].method(...)` is the natural
+direct-child spelling.
+
+*** Repro
+
+After replacing an `Expr.child()` call with direct child indexing, code like
+this fails while building the compiler::
+
+    e.children[0].set_expr_til_type(t)
+
+The parser reports the error at the `[` token instead of treating the whole
+postfix chain as a normal expression statement.
+
+*** Fix idea
+
+Unify statement-position parsing with expression postfix parsing for calls and
+method calls. A statement beginning with an identifier should be parsed as a
+full expression statement unless it is one of the real statement-only forms
+such as declaration, assignment, or field assignment.
