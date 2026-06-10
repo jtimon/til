@@ -26,6 +26,7 @@
 *** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
+*** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Medium
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
 *** [[./open/254.org][#254]] codegen: emit a real C switch (jump table) for dense int/char/enum switches

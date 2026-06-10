@@ -1,0 +1,88 @@
+# priority: high
+# category: cleanups
+** OPEN #272 Garbager system: single ownership authority, no manual memory outside core
+
+Architectural cleanup driven by the 2026-06 leak-hunting sessions. The
+leaks were fixed point-by-point, but several fixes (and pre-existing
+code) violate the intended layering. The principles, as stated by Jorge:
+
+  - ~Dynamic~ is just ~void*~ in C. A Dynamic value does NOT imply a
+    malloc'd box; it is only a pointer. Error messages / checks that say
+    "raw malloc'd memory typed Dynamic" conflate the two.
+  - ~ref~ must never be malloc'd. (There may already be a typer error
+    for this; verify and extend coverage.)
+  - ~malloc~ / ~free~ / raw pointer surgery belong ONLY in the core
+    collections (Str, Array, Vec, Set, Map) and the C bridge. Nothing in
+    parser/initer/typer/loader/builder/interpreter/dispatch should call
+    them directly.
+  - ~delete~ is called manually only from other ~delete~ implementations
+    (the destructor tree). Every other delete is the garbager's job.
+  - The builder and the interpreter must not invent clone/malloc/delete
+    calls; when they do, they paper over garbager gaps and create
+    double-free/leak coupling. The garbager is the single authority for
+    where a value dies (Mojo-style ASAP, see doc/ownership.org's
+    "Relation to Mojo").
+
+*** Known violations / smells to remove (inventory, not exhaustive)
+
+  - ~Expr.replace_with~ (core/ast.til): added to fix the in-place
+    rewrite leaks (move() overwrites). It works, but it is a manual-
+    memory primitive in disguise. The cleaner shape is rewriting via the
+    parent: ~parent.children.set(i, own new_expr)~ (Vec.set already
+    deep-deletes the old element). Audit the 6 call sites; most have the
+    parent at hand. Sites that rewrite a node they only have a ~ref~ to
+    (init_substitute_idents' walk) need the walk to carry the parent.
+    Then delete replace_with and the move()-onto-managed typer error can
+    point at children.set instead.
+  - ~ext_dispatch_ffi~ scalar boxes + boxed_flags array (dispatch.til):
+    hand-rolled malloc/flag/free. Works, but the marshaling layer should
+    own a typed buffer abstraction instead.
+  - Interpreter Value model: make_str_value / shallow_copy_value /
+    borrow_value memcpy aliasing; scope_free cannot deep-delete Struct
+    payloads because returning a local hands out an UNFLAGGED alias of
+    the cell payload (see NOTE in scope_free; deep-delete attempt
+    segfaults the compile pipeline). This is the dominant remaining leak
+    (make_str_value ~8.8K, eval_call ~5K, widen_numeric ~3.4K on
+    strings.til interpret). Fix = give returns a move/borrow contract
+    (null the cell on return-of-local, or flag the alias borrowed), then
+    scope_free can deep-delete and the manual Enum-only special case
+    dies.
+  - builder.til / interpreter.til: audit for emitted clone/malloc/delete
+    that compensate for garbager behavior (e.g. emit_as_ptr's
+    malloc-copy wrap for own+stack_local; the POD-enum clone shortcut
+    interactions documented in garbager.til). Each is either a garbager
+    gap or dead compensation.
+  - free(own p) on a Dynamic local at PROGRAM scope emits invalid C
+    (`*_oa = malloc(sizeof(void))` own-box). Builder bug, reproduced
+    2026-06-10; works inside proc bodies.
+
+*** Garbager structural weaknesses (the bug class behind the leaks)
+
+  - Liveness/transfer tracking is STATEMENT-INDEX based (decl_index /
+    last_use / own_transfer as I32 indexes into one body's children),
+    not path-based. Every fixed bug was this model leaking at a path the
+    indexes cannot express: conditional transfer (sinking), transfer
+    after early exits (this week's fix), hoisted-view aliasing (#238 /
+    #250 taint), FieldAccess-base FCalls (never had an index at all
+    until hoisted). A per-path (CFG) liveness pass would subsume the
+    accumulated special cases. Mojo does ASAP destruction on a real CFG
+    with use-def chains; doc/ownership.org has the references.
+  - The garbager only sees one body at a time and trusts hoisting to
+    surface every owned temp as a named local. Any expression shape the
+    hoister misses is invisible (the f().field class). Inverting the
+    contract -- garbager walks expressions, not just statements -- would
+    remove the hoist coupling.
+
+*** Suggested staging
+
+  1. Inventory pass: grep malloc/free/delete call sites outside core
+     collections + C bridge; classify each (legit island / compensation /
+     garbager gap) per doc/ownership.org's audit procedure. Record here.
+  2. Replace replace_with call sites with parent children.set; drop
+     replace_with; retarget the move() typer error message.
+  3. Interpreter return move/borrow contract; then deep scope_free; then
+     remove free_value/cleanup special cases.
+  4. CFG-based liveness in garbager; fold sink_conditional_transfer_
+     deletes, early-exit-before-transfer, extend_*_lifetimes into it.
+  5. Builder/interpreter compensation removal, guarded by ASAN baseline
+     (doc/bots/asan.org) at every step.
