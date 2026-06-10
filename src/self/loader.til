@@ -1713,26 +1713,30 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     if e.is_null() { return }
-    switch e.node_type {
-    case NodeType.Ident(idn):
-        nm := idn.ident_name()
-        if subs.has(nm) {
-            ref repl : Expr = subs[nm]
-            cloned := repl.clone()
-            e.replace_with(own cloned)
-            return
+    for i in 0..e.children.len() {
+        ref c : Expr = e.child(i)
+        mut replaced := false
+        switch c.node_type {
+        case NodeType.Ident(idn):
+            nm := idn.ident_name()
+            if subs.has(nm) {
+                // Substitute through the parent slot: Vec.set deep-deletes
+                // the old Ident (issue #272; replaces Expr.replace_with).
+                ref repl : Expr = subs[nm]
+                e.children.set(i, own repl.clone())
+                replaced = true
+            }
+        case:
         }
-    case:
-    }
-    for mut c : Expr in e.children {
-        lazy_substitute_idents(c, subs)
+        if replaced.not() { lazy_substitute_idents(c, subs) }
     }
 }
 
 // Returns true if the call was inlined. Leaves `call` untouched (and
 // returns false) for any shape v1 does not handle, so the residual call
 // types as an ordinary eager call.
-priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
+priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) returns Bool {
+    ref call : Expr = parent.child(call_idx)
     if fdef.children.len().eq(0) { return false }
     ref body : Expr = fdef.child(0)
     if body.node_type.is(NodeType.Body).not() { return false }
@@ -1761,38 +1765,53 @@ priv inline_lazy_call := func(mut call: Expr, fdef: Expr) returns Bool {
     if ok.not() { return false }
 
     mut cloned := ret_stmt.child(0).clone()
-    lazy_substitute_idents(cloned, subs)
-    call.replace_with(own cloned)
+    // A bare-Ident body (`return x`) is the whole expression: the walk
+    // below only substitutes CHILDREN, so swap the root here. Plain
+    // assignment reclaims the first clone (save_old_delete).
+    mut root_name := ""
+    switch cloned.node_type {
+    case NodeType.Ident(root_idn): root_name = root_idn.ident_name()
+    case:
+    }
+    if root_name.len().gt(0).and(subs.has(root_name)) {
+        ref root_repl : Expr = subs[root_name]
+        cloned = root_repl.clone()
+    } else {
+        lazy_substitute_idents(cloned, subs)
+    }
+    parent.children.set(call_idx, own cloned)
     return true
 }
 
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     if e.is_null() { return }
     if depth.gt(256) { return }
-    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(0)) {
-        ref callee : Expr = e.child(0)
-        mut lname := ""
-        switch callee.node_type {
-        case NodeType.Ident(idn): lname = idn.ident_name()
-        case:
-        }
-        if lname.len().gt(0) {
-            ref fdef : Expr = scope.lookup_func(lname)
-            if fdef.is_null().not() {
-                ft := func_def_type(fdef)
-                if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
-                    if inline_lazy_call(e, fdef) {
-                        // The spliced body may contain further lazy calls
-                        // (in the body itself or in the substituted args).
-                        expand_lazy_in_expr(e, scope, depth.add(1))
-                        return
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.child(i)
+        mut inlined := false
+        if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
+            ref callee : Expr = c.child(0)
+            mut lname := ""
+            switch callee.node_type {
+            case NodeType.Ident(idn): lname = idn.ident_name()
+            case:
+            }
+            if lname.len().gt(0) {
+                ref fdef : Expr = scope.lookup_func(lname)
+                if fdef.is_null().not() {
+                    ft := func_def_type(fdef)
+                    if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
+                        if inline_lazy_call(e, i, fdef) {
+                            // The spliced body may contain further lazy
+                            // calls (in the body or substituted args).
+                            expand_lazy_in_expr(e.child(i), scope, depth.add(1))
+                            inlined = true
+                        }
                     }
                 }
             }
         }
-    }
-    for mut c : Expr in e.children {
-        expand_lazy_in_expr(c, scope, depth.add(1))
+        if inlined.not() { expand_lazy_in_expr(c, scope, depth.add(1)) }
     }
 }
 

@@ -123,15 +123,16 @@ priv make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     return call
 }
 
-priv rewrite_til_type_arg := proc(scope: TypeScope, mut arg: Expr, ptype: Type, in_func: I32, ctx: Context) {
+priv rewrite_til_type_arg := proc(scope: TypeScope, mut parent: Expr, arg_idx: USize, ptype: Type, in_func: I32, ctx: Context) {
     if is_type_metatype(ptype).not() { return }
+    ref arg : Expr = parent.child(arg_idx)
     switch arg.node_type {
     case NodeType.Ident(arg_name):
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
         if type_binding_is_type_token(scope, b).not() { return }
         replacement := arg.make_til_type_expr(b.type)
-        arg.replace_with(own replacement)
-        infer_expr(scope, arg, in_func, ctx)
+        parent.children.set(arg_idx, own replacement)
+        infer_expr(scope, parent.child(arg_idx), in_func, ctx)
     case:
     }
 }
@@ -1467,7 +1468,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                     ref vparam : Declaration = fdef_data.params[pi]
                     vptype := type_from_name(vparam.explicit_type, scope, ctx)
                     for vk in 0..fvc {
-                        rewrite_til_type_arg(scope, e.child(ci.add(vk)), vptype, in_func, ctx)
+                        rewrite_til_type_arg(scope, e, ci.add(vk), vptype, in_func, ctx)
                         narrow_dynamic(e.child(ci.add(vk)), vptype)
                     }
                     ci = ci.add(fvc)
@@ -1485,7 +1486,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
             ref param1 : Declaration = fdef_data.params[pi]
             ref ptype : Str = param1.explicit_type
             ptype_t := type_from_name(ptype, scope, ctx)
-            rewrite_til_type_arg(scope, e.child(ci), ptype_t, in_func, ctx)
+            rewrite_til_type_arg(scope, e, ci, ptype_t, in_func, ctx)
             narrow_dynamic(e.child(ci), ptype_t)
             // #164: arg passed to a `mut` param may be written through.
             // A `Dynamic` param is an untyped raw pointer the callee can
@@ -1541,7 +1542,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                                         }
                                     }
                                 }
-                                rewrite_til_type_arg(scope, e.child(ci.add(vk)), vptype, in_func, ctx)
+                                rewrite_til_type_arg(scope, e, ci.add(vk), vptype, in_func, ctx)
                                 validate_fcall_arg(e.child(ci.add(vk)), vptype, vptype_name, vparam.name, ctx)
                             }
                         }
@@ -1571,7 +1572,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                 pi = pi.add(1)
                 continue
             }
-            rewrite_til_type_arg(scope, e.child(ci), ptype, in_func, ctx)
+            rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.child(ci), ptype, ptype_name, param2.name, ctx)
             ci = ci.add(1)
             pi = pi.add(1)
@@ -2063,7 +2064,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             ref param2 : Declaration = ns_fdef.params[i.sub(1)]
             ref ptype : Str = param2.explicit_type
             ptype_t := type_from_name(ptype, scope, ctx)
-            rewrite_til_type_arg(scope, e.child(i), ptype_t, in_func, ctx)
+            rewrite_til_type_arg(scope, e, i, ptype_t, in_func, ctx)
             narrow_dynamic(e.child(i), ptype_t)
         }
         for i in 1..e.children.len() {
@@ -2331,13 +2332,14 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // enum value. Every aggregate has a `delete` (auto-generated when not
 // hand-written, see doc/auto.org), so the criterion is simply "is the
 // destination an aggregate at all". move() is a raw memcpy+memset: it
-// bitwise-overwrites dest, so dest's old node payloads / buffers are
-// never deleted -- a guaranteed leak whenever dest holds a live value
-// (the Expr.replace_with class of bugs). Raw destinations stay
-// allowed: a fresh malloc'd box or buffer is typed Dynamic/U8, not an
-// aggregate, so it never trips this. The find_namespace_func lookup
-// below is a belt-and-braces guard for scopes where the type's
-// methods are not registered, not a meaningful filter.
+// bitwise-overwrites dest, so dest's old contents are never deleted --
+// a guaranteed leak whenever dest holds a live value. Rewrites go
+// through the owning container instead (Vec.set / children.set
+// deep-delete the old element; plain assignment save-old-deletes).
+// Raw destinations (Dynamic/U8 -- plain pointers, not aggregates)
+// never trip this. The find_namespace_func lookup below is a
+// belt-and-braces guard for scopes where the type's methods are not
+// registered, not a meaningful filter.
 priv check_move_managed_dest := proc(scope: TypeScope, e: Expr, ctx: Context) {
     if e.children.len().lt(2) { return }
     ref dest : Expr = e.child(1)
@@ -2349,9 +2351,9 @@ priv check_move_managed_dest := proc(scope: TypeScope, e: Expr, ctx: Context) {
     if del.is_null() { return }
     e.type_error(format(
         "move() onto a live '", tn, "' bitwise-overwrites it and leaks its ",
-        "old contents (", tn, ".delete never runs on them) -- use ",
-        "Expr.replace_with for AST rewrites, or move onto raw malloc'd ",
-        "memory typed Dynamic",
+        "old contents (", tn, ".delete never runs on them) -- rewrite ",
+        "through the owning container (Vec.set / assignment) or move ",
+        "into raw memory via a Dynamic pointer",
     ), ctx)
 }
 
@@ -2469,7 +2471,7 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         return
     }
     replacement := e.child(2).make_til_type_expr(target_type)
-    e.child(2).replace_with(own replacement)
+    e.children.set(2.to_usize(), own replacement)
     infer_expr(scope, e.child(2), in_func, ctx)
     e.set_expr_til_type(target_type)
 }
@@ -5191,8 +5193,7 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
 }
 
 priv replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
-    ref slot_sw : Expr = body.children[stmt_idx]
-    slot_sw.replace_with(own block)
+    body.children.set(stmt_idx, own block)
 }
 
 priv append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
@@ -5536,8 +5537,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
 }
 
 priv replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
-    ref slot_bd : Expr = body.children[stmt_idx]
-    slot_bd.replace_with(own block)
+    body.children.set(stmt_idx, own block)
 }
 
 priv make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {

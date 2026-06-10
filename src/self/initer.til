@@ -2252,16 +2252,6 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
 priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     if e.is_null() { return }
     switch e.node_type {
-    case NodeType.Ident(idn):
-        nm := idn.ident_name()
-        if subs.has(nm) {
-            ref repl_expr : Expr = subs[nm]
-            cloned := repl_expr.clone()
-            e.replace_with(own cloned)
-            // The replacement now occupies `e`; children of the original
-            // Ident were none, so no further recursion at this node.
-            return
-        }
     case NodeType.Decl(dd):
         // Issue #243: a body-local declaration (`ref x : T = ...`,
         // `mut y : T = ...`) carries its type as a Declaration.explicit_type
@@ -2275,8 +2265,23 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
         }
     case:
     }
-    for mut c : Expr in e.children {
-        init_substitute_idents(c, subs)
+    for i in 0..e.children.len() {
+        ref c : Expr = e.child(i)
+        mut replaced := false
+        switch c.node_type {
+        case NodeType.Ident(idn):
+            nm := idn.ident_name()
+            if subs.has(nm) {
+                // Substitute through the parent slot: Vec.set deep-deletes
+                // the old Ident, so no manual in-place rewrite is needed
+                // (issue #272; replaces the old Expr.replace_with).
+                ref repl_expr : Expr = subs[nm]
+                e.children.set(i, own repl_expr.clone())
+                replaced = true
+            }
+        case:
+        }
+        if replaced.not() { init_substitute_idents(c, subs) }
     }
 }
 
@@ -2284,6 +2289,25 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
 // switch-case destructure binding) so the typer carries the Map<I64,Str>
 // type info into the payload-types subscript without the
 // throws-inference mixing OutOfBounds (Vec) into KeyNotFound (Map).
+// Substitute a Declaration's default_value when the slot's ROOT is
+// itself a substitutable Ident: init_substitute_idents rewrites only
+// CHILDREN (through the parent's children.set), so slot owners replace
+// the whole Expr via plain field assignment -- the old value is
+// reclaimed by the FieldAssign's own delete (issue #272).
+priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr)) {
+    mut nm := ""
+    switch holder.default_value.node_type {
+    case NodeType.Ident(idn): nm = idn.ident_name()
+    case:
+    }
+    if nm.len().gt(0).and(subs.has(nm)) {
+        ref repl : Expr = subs[nm]
+        holder.default_value = repl.clone()
+    } else {
+        init_substitute_idents(holder.default_value, subs)
+    }
+}
+
 priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
     for mut fd : Declaration in sdef.fields {
         new_type := init_subst_ident_name(subs, fd.explicit_type)
@@ -2292,7 +2316,7 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
             fd.til_type = til_type_from_explicit_type(fd.explicit_type)
         }
         if fd.default_value.is_null().not() {
-            init_substitute_idents(fd.default_value, subs)
+            init_subst_default_slot(fd, subs)
         }
     }
     for mut nd : Declaration in sdef.ns_decls {
@@ -2309,7 +2333,7 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
             if nd.default_value.node_type.is(NodeType.FuncDef) {
                 init_substitute_type_params(nd.default_value, subs)
             } else {
-                init_substitute_idents(nd.default_value, subs)
+                init_subst_default_slot(nd, subs)
             }
         }
     }
@@ -2341,7 +2365,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr)) {
             if nd.default_value.node_type.is(NodeType.FuncDef) {
                 init_substitute_type_params(nd.default_value, subs)
             } else {
-                init_substitute_idents(nd.default_value, subs)
+                init_subst_default_slot(nd, subs)
             }
         }
     }
@@ -2355,7 +2379,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr)) 
             pd.til_type = til_type_from_explicit_type(pd.explicit_type)
         }
         if pd.default_value.is_null().not() {
-            init_substitute_idents(pd.default_value, subs)
+            init_subst_default_slot(pd, subs)
         }
     }
     new_ret := init_subst_ident_name(subs, fdd.return_type)
@@ -2483,7 +2507,19 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns re
     // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
     // `T.is(Type.Primitive(Primitive.Bool))` into `Bool.is(Type.Primitive(Primitive.Bool))`.
     mut cond_clone := s.child(0).clone()
-    init_substitute_idents(cond_clone, subs)
+    // Bare-Ident condition: the walk substitutes only children, so swap
+    // the root via assignment (save_old_delete reclaims the clone).
+    mut cond_root := ""
+    switch cond_clone.node_type {
+    case NodeType.Ident(cr_idn): cond_root = cr_idn.ident_name()
+    case:
+    }
+    if cond_root.len().gt(0).and(subs.has(cond_root)) {
+        ref cond_repl : Expr = subs[cond_root]
+        cond_clone = cond_repl.clone()
+    } else {
+        init_substitute_idents(cond_clone, subs)
+    }
     res := init_macro_cond_eval(cond_clone)
     if res.lt(0) { return NULL }
     if res.eq(1) {
@@ -3105,7 +3141,8 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
 // (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
 // in place to the concrete `gname__T1_T2(valargs)`.
-priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
+priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
+    ref call : Expr = parent.child(call_idx)
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
         // Build the type-param substitution map and the mono name from
@@ -3184,7 +3221,9 @@ priv init_generic_expand_call := func(mut call: Expr, gname: Str, gfd_expr: Expr
                 new_arg_pos = new_arg_pos.add(1)
             }
         }
-        call.replace_with(own newcall)
+        // Rewrite through the parent slot: Vec.set deep-deletes the old
+        // call (issue #272; replaces Expr.replace_with).
+        parent.children.set(call_idx, own newcall)
     case:
     }
 }
@@ -3210,7 +3249,7 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
                     // recursively walk the synthesized body for composed
                     // generic calls (init_generic_expand_call signature
                     // now takes generics).
-                    init_generic_expand_call(c, gnm, gfd_expr, generics, seen, synthesized)
+                    init_generic_expand_call(e, i, gnm, gfd_expr, generics, seen, synthesized)
                     handled = true
                 }
             case:

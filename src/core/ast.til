@@ -682,24 +682,6 @@ namespace:
         free(own other.children.data)
         other.children.data = NULL
     }
-    /// Overwrite self's contents with other's, freeing self's old
-    /// node payload, children, and children buffer first. A bare
-    /// `move(self, other, Expr.size())` leaks all three (the old
-    /// contents are bitwise-overwritten, never deleted) -- every
-    /// rewrite-an-Expr-in-place site must go through this instead
-    /// (the typer rejects move() onto a managed destination).
-    /// Takes ownership of `other`: its bytes move into self and its
-    /// (zeroed) heap wrapper is freed here. The raw memcpy+memset
-    /// spelling below is this one blessed primitive, not a pattern
-    /// to copy.
-    replace_with := func(mut self: Expr, own other: Expr) {
-        NodeType.delete(own self.node_type, false)
-        self.children.clear()
-        free(own self.children.data)
-        memcpy(self, other, Expr.size().cast(U64))
-        memset(other, 0, Expr.size().cast(U64))
-        free(own other)
-    }
     /// Shortcut to get a ref to the i-th child of `parent`.
     child := func(parent: Expr, i: USize) returns ref Expr {
         ref c : Expr = parent.children[i]

@@ -1,6 +1,6 @@
 # priority: high
 # category: cleanups
-** OPEN #272 Garbager system: single ownership authority, no manual memory outside core
+** WIP #272 Garbager system: single ownership authority, no manual memory outside core
 
 Architectural cleanup driven by the 2026-06 leak-hunting sessions. The
 leaks were fixed point-by-point, but several fixes (and pre-existing
