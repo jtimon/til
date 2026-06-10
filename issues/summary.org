@@ -2,7 +2,6 @@
 ** High
 *** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
 *** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
-*** [[./open/239.org][#239]] Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
 *** [[./open/241.org][#241]] precomp fold scope keys alias freed AST names -> non-deterministic build UAF
 *** [[./open/245.org][#245]] Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
 ** Medium

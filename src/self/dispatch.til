@@ -1434,7 +1434,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 case:
                 }
                 total_size : USize = ctx_total_size(enum_name, ctx)
-                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size)
+                tmp := val_enum_flat(enum_name, ctor_tag, pdata, psz, total_size, ctx)
                 // The h_* out-param `result` arrives empty (Value.None, no
                 // heap), so a raw byte move into it loses nothing. Spelled
                 // memcpy+memset because move() onto a managed destination
@@ -1446,7 +1446,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
                 }
             } else {
                 total_size : USize = ctx_total_size(enum_name, ctx)
-                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size)
+                tmp := val_enum_flat(enum_name, ctor_tag, NULL, 0, total_size, ctx)
                 memcpy(result, tmp, Value.size().cast(U64))
                 memset(tmp, 0, Value.size().cast(U64))
             }

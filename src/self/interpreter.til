@@ -39,6 +39,12 @@ priv field_nested_def := func(dd: Declaration, ctx: Context) returns ref Expr {
     return lookup_interp_type_def(dd.explicit_type, ctx)
 }
 
+priv stable_type_name := func(name: Str, ctx: Context) returns ref Str {
+    ref b : TypeBinding = ctx.scope.get_binding(name)
+    if b.is_null().not() { return b.name }
+    return name
+}
+
 priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns Bool {
     for dd : Declaration in sdef_data.fields {
         if dd.own_type.is(OwnType.Own) { return false }
@@ -127,7 +133,8 @@ namespace:
                         ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.cast(U64)))
                         if src_ptr.is_null().not() {
                             if nested_def.is_null().not() {
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
+                                ref stable_ftype : Str = stable_type_name(ftype, self.ctx)
+                                mut tmp := StructInstance(struct_name = stable_ftype, struct_def = nested_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
                                 write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned.data)
@@ -194,7 +201,8 @@ namespace:
                         if nested_def.node_type.is(NodeType.EnumDef).not() {
                             switch nested_def.node_type {
                             case NodeType.StructDef:
-                                mut tmp := StructInstance(struct_name = ftype, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.cast(U64)), borrowed = true)
+                                ref stable_ftype2 : Str = stable_type_name(ftype, self.ctx)
+                                mut tmp := StructInstance(struct_name = stable_ftype2, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.cast(U64)), borrowed = true)
                                 mut cloned := tmp.clone()
                                 tmp.data = NULL
                                 memcpy(ptr_add(dst_data, foff.cast(U64)), cloned.data, ctx_total_size(ftype, self.ctx).cast(U64))
@@ -449,29 +457,28 @@ val_u32 := func(v: I64) returns shallow Value {
 
 ENUM_PAYLOAD_OFFSET : USize = 8
 
-// Issue #239: callers MUST pass a `enum_name` rooted in long-lived
-// storage (e.g. `ctx.scope.get_binding(name).name`). The returned
-// EnumInstance's `enum_name` is a `ref Str` into the caller's buffer
-// and would dangle if that buffer dies before the EnumInstance is
-// read. See c00af27 (resolve_ptr_to_struct) and d6c3554 (read_field)
-// for the template.
-val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize) returns shallow Value {
+make_enum_value := func(enum_name: Str, data: Dynamic, data_size: USize, borrowed: Bool, ctx: Context) returns shallow Value {
+    ref stable_enum_name : Str = stable_type_name(enum_name, ctx)
+    return Value.Enum(EnumInstance(enum_name = stable_enum_name, data = data, data_size = data_size, borrowed = borrowed))
+}
+
+val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, ctx: Context) returns shallow Value {
     mut alloc_size : USize = total_enum_size
     if alloc_size.lt(8) {
         alloc_size = 8
     }
-    data : U8 = calloc(1, alloc_size.cast(U64))
+    data : Dynamic = calloc(1, alloc_size.cast(U64))
     memcpy(data, etag, 4)
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64)), payload_data, payload_size.cast(U64))
         }
     }
-    return Value.Enum(EnumInstance(enum_name = enum_name, data = data, data_size = alloc_size))
+    return make_enum_value(enum_name, data, alloc_size, false, ctx)
 }
 
-priv val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize) returns shallow Value {
-    return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size)
+priv val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize, ctx: Context) returns shallow Value {
+    return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size, ctx)
 }
 
 priv elem_size_for_type := func(type_name: Str) returns USize {
@@ -543,19 +550,7 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str,
         if tdef.node_type.is(NodeType.StructDef) {
             if is_value_ptr(obj) {
                 ref pv : Dynamic = value_ptr_view(obj)
-                // Issue #239: derive the struct name from the long-lived
-                // scope binding rather than from `obj_sname`, which is
-                // borrowed from a case-arm Type payload that the caller's
-                // switch deletes on its way out. Same template as master's
-                // d6c3554 fix in read_field. See issue #245 for the
-                // underlying Value-model gap that blocks the full
-                // "own the Str" remediation.
-                ref bnd : TypeBinding = ctx.scope.get_binding(obj_sname)
-                if bnd.is_null().not() {
-                    obj = make_struct_value(bnd.name, tdef, deref(pv), true, ctx)
-                } else {
-                    obj = make_struct_value(obj_sname, tdef, deref(pv), true, ctx)
-                }
+                obj = make_struct_value(obj_sname, tdef, deref(pv), true, ctx)
             }
         }
     case:
@@ -667,15 +662,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                             tag := enum_variant_tag(edef, fname.field_access_name())
                                             if tag.gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    // Issue #239: stable_name from scope binding so
-                                                    // the new EnumInstance's ref Str enum_name does
-                                                    // not dangle when this function's local sname
-                                                    // (cloned from til_type_name / ident_name) dies
-                                                    // at return.
-                                                    ref vbnd : TypeBinding = ctx.scope.get_binding(sname)
-                                                    mut vstable : Str = sname
-                                                    if vbnd.is_null().not() { vstable = vbnd.name }
-                                                    return val_enum_flat(vstable, tag, NULL, 0, total_size)
+                                                    return val_enum_flat(sname, tag, NULL, 0, total_size, ctx)
                                                 } else {
                                                     return Value.Int32(tag)
                                                 }
@@ -798,38 +785,17 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
             if tdef.node_type.is(NodeType.EnumDef) {
                 if enum_has_payloads(tdef) {
                     total_size : USize = ctx_total_size(type_name, ctx)
-                    ref ei : EnumInstance = deref(p)
-                    // Issue #239: stable_name is the long-lived scope-
-                    // binding name (program-lifetime) rather than the
-                    // transient type_name parameter or ei.enum_name
-                    // (which is itself a ref Str that may have been
-                    // populated from a now-dead source). Same template
-                    // master's d6c3554 used in read_field and c00af27
-                    // used in resolve_ptr_to_struct.
-                    ref bnd : TypeBinding = ctx.scope.get_binding(type_name)
-                    mut stable_name : Str = type_name
-                    if bnd.is_null().not() { stable_name = bnd.name }
-                    if ei.is_null() { return val_enum_simple(stable_name, 0, total_size) }
-                    ref etag_ref : Dynamic = ei.data
-                    ref etag : I32 = etag_ref
-                    mut psz_final : USize = 0
-                    if ei.data_size.gte(ENUM_PAYLOAD_OFFSET) {
-                        psz_final = ei.data_size.sub(ENUM_PAYLOAD_OFFSET)
+                    ref inline_etag : I32 = p
+                    mut inline_psz : USize = 0
+                    if total_size.gte(ENUM_PAYLOAD_OFFSET) {
+                        inline_psz = total_size.sub(ENUM_PAYLOAD_OFFSET)
                     }
-                    return val_enum_flat(stable_name, etag, ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), psz_final, total_size)
+                    return val_enum_flat(type_name, inline_etag, ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, ctx)
                 }
                 ref etag : I32 = p
                 return Value.Int32(etag)
             }
             if tdef.node_type.is(NodeType.StructDef) {
-                // Issue #239: same stable-name pattern as the enum branch
-                // above -- use the scope-binding name for the new
-                // StructInstance's struct_name so it doesn't dangle when
-                // the caller's type_name storage dies.
-                ref bnd_s : TypeBinding = ctx.scope.get_binding(type_name)
-                if bnd_s.is_null().not() {
-                    return make_struct_value(bnd_s.name, tdef, p, true, ctx)
-                }
                 return make_struct_value(type_name, tdef, p, true, ctx)
             }
         }
@@ -1124,26 +1090,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                     }
                                 case Value.Enum(new_ei):
                                     // Nested-enum payload (Variant: SomeOtherEnum).
-                                    // The outer stores an 8-byte POINTER to a heap
-                                    // EnumInstance at dest (matching write_field's Ref
-                                    // shape). Free the old inner EnumInstance and its
-                                    // data buffer, then deep-copy the new one and store
-                                    // its pointer.
+                                    // Enum payload constructors store nested enum bytes
+                                    // inline at dest, so assignment must preserve that
+                                    // representation for later payload extraction.
                                     if new_ei.data.is_null().not() {
-                                        // TODO(#211 follow-up): free the OLD inner
-                                        // EnumInstance (and its data buffer) at dest
-                                        // before overwriting. Skipped for now to keep
-                                        // the case body simple; produces a bounded leak
-                                        // per nested-enum payload write under interp.
-                                        copy_sz := new_ei.data_size
-                                        heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
-                                        memcpy(heap_ei, new_ei, EnumInstance.size().cast(U64))
-                                        if copy_sz.gt(0) {
-                                            new_data : Dynamic = malloc(copy_sz.cast(U64))
-                                            memcpy(new_data, new_ei.data, copy_sz.cast(U64))
-                                            write_ptr(ptr_add(heap_ei, 8), new_data)
-                                        }
-                                        write_ptr(dest, heap_ei)
+                                        mut copy_sz := ctx_total_size(type_name, ctx)
+                                        if new_ei.data_size.lt(copy_sz) { copy_sz = new_ei.data_size }
+                                        if copy_sz.gt(0) { memcpy(dest, new_ei.data, copy_sz.cast(U64)) }
                                     }
                                 case:
                                 }
@@ -1953,22 +1906,17 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_fr
     return r
 }
 
-// Issue #239: callers MUST pass an `sname` rooted in long-lived
-// storage (e.g. `ctx.scope.get_binding(name).name`). The returned
-// StructInstance's `struct_name` is a `ref Str` into the caller's
-// buffer and would dangle if that buffer dies before the
-// StructInstance is read. See c00af27 (resolve_ptr_to_struct) and
-// d6c3554 (read_field) for the template.
 make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool, ctx: Context) returns shallow Value {
+    ref stable_sname : Str = stable_type_name(sname, ctx)
     mut r := Value.None
     tag : I32 = 10
     memcpy(r, tag, 4)
     switch r {
     case Value.Struct(payload):
-        payload.struct_name = sname
+        payload.struct_name = stable_sname
         // Issue #239: cache whether this is a Str value while sname is valid,
         // so the deep delete need not read the (possibly-freed) struct_name.
-        payload.is_str = sname.eq("Str")
+        payload.is_str = stable_sname.eq("Str")
         payload.struct_def = sdef
         payload.ctx = ctx
         payload.data = data
@@ -2571,10 +2519,6 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
         ref nd_own : Expr = field_nested_def(dd, ctx)
         if nd_own.is_null().not() {
             ref owned : Dynamic = deref(ptr)
-            ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
-            if bnd.is_null().not() {
-                return make_struct_value(bnd.name, nd_own, owned, true, ctx)
-            }
             return make_struct_value(ftype, nd_own, owned, true, ctx)
         }
         ref owned2 : Dynamic = deref(ptr)
@@ -2588,10 +2532,6 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
         ref nd_ref : Expr = field_nested_def(dd, ctx)
         if nd_ref.is_null().not() {
             ref rp : Dynamic = deref(ptr)
-            ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
-            if bnd.is_null().not() {
-                return make_struct_value(bnd.name, nd_ref, rp, true, ctx)
-            }
             return make_struct_value(ftype, nd_ref, rp, true, ctx)
         }
         ref rp2 : Dynamic = deref(ptr)
@@ -2623,15 +2563,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
                 total_size : USize = ctx_total_size(ftype, ctx)
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
-                    if ei.is_null() { return val_enum_simple(ftype, 0, total_size) }
-                    return Value.Enum(EnumInstance(enum_name = ei.enum_name, data = to_ptr(ei.data), data_size = total_size, borrowed = true))
+                    if ei.is_null() { return val_enum_simple(ftype, 0, total_size, ctx) }
+                    return make_enum_value(ei.enum_name, to_ptr(ei.data), total_size, true, ctx)
                 }
-                ref bnd_enum : TypeBinding = ctx.scope.get_binding(ftype)
-                if bnd_enum.is_null().not() {
-                    ref bnd_enum_name : Str = bnd_enum.name
-                    return Value.Enum(EnumInstance(enum_name = bnd_enum_name, data = to_ptr(ptr), data_size = total_size, borrowed = true))
-                }
-                return Value.Enum(EnumInstance(enum_name = ftype, data = to_ptr(ptr), data_size = total_size, borrowed = true))
+                return make_enum_value(ftype, to_ptr(ptr), total_size, true, ctx)
             }
             ref itag : I32 = ptr
             return Value.Int32(itag)
@@ -2641,10 +2576,6 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     ref sdef3 : Expr = lookup_interp_type_def(ftype, ctx)
     if sdef3.is_null().not() {
         if sdef3.node_type.is(NodeType.StructDef) {
-            ref bnd : TypeBinding = ctx.scope.get_binding(ftype)
-            if bnd.is_null().not() {
-                return make_struct_value(bnd.name, sdef3, ptr, true, ctx)
-            }
             return make_struct_value(ftype, sdef3, ptr, true, ctx)
         }
     }

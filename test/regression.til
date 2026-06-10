@@ -94,3 +94,35 @@ bug150 := test() {
 // test/variadic.til as bug186_variadic_nested_in_variadic.
 // Tests for #188 (nested kwargs-in-kwargs) live in
 // test/kwargs.til as bug188_kwargs_nested_in_kwargs.
+
+// --- #239: StructInstance/EnumInstance names use stable refs ---------
+
+Bug239Leaf := struct {
+    const n := 0
+namespace:
+    to_str := func(self: Bug239Leaf) returns Str {
+        return self.n.to_str()
+    }
+}
+
+Bug239Tag := enum { Leaf: Bug239Leaf, Num: I64, Empty }
+
+Bug239Box := struct {
+    const leaf := Bug239Leaf()
+    const tag := Bug239Tag.Empty
+}
+
+bug239 := test() {
+    box := Bug239Box(leaf = Bug239Leaf(n = 7),
+                     tag = Bug239Tag.Leaf(Bug239Leaf(n = 9)))
+
+    ref leaf_ref : Bug239Leaf = box.leaf
+    assert_eq_str(__LOC__, leaf_ref.to_str(), "7")
+
+    switch box.tag {
+    case Bug239Tag.Leaf(payload):
+        assert_eq_str(__LOC__, payload.to_str(), "9")
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}

@@ -1,6 +1,23 @@
 # priority: high
 # category: bugs
-** OPEN #239 Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
+** FIXED #239 Dangling ref Str in StructInstance.struct_name / EnumInstance.enum_name
+
+*** Post-mortem
+
+    Root cause: ~StructInstance.struct_name~ and
+    ~EnumInstance.enum_name~ are borrowed ~ref Str~ fields, but the
+    interpreter let arbitrary construction sites store whatever type-name
+    buffer the caller had in scope. Some callers passed transient names
+    derived from Type payloads or field declarations, so later reads could
+    observe freed string storage.
+
+    Fix: added a central ~stable_type_name~ lookup and moved canonicalization
+    into ~make_struct_value~ / ~make_enum_value~. The allocating enum helpers
+    now take ~ctx~ and construct through ~make_enum_value~, and borrowed enum
+    field views use the same boundary. Direct clone-time temporary
+    ~StructInstance~ values also root their names through the same helper.
+
+    Regression test: ~bug239~ in ~test/regression.til~.
 
    ~StructInstance~ ([[file:../../src/self/interpreter.til][src/self/interpreter.til]]) and
    ~EnumInstance~ store the type name as ~ref Str~ -- a borrow. til
