@@ -3472,10 +3472,23 @@ emit_capturing_closures_lp := proc(f: File, lp: LoadedProgram) {
     }
 }
 
-priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr) {
+priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitted_tags: Set(Str)) {
     if is_ext_h_type(name) { return }
     switch struct_def.node_type {
     case NodeType.StructDef(sdd):
+        if sdd.c_tag.len().gt(0).and(sdd.c_tag.eq("@anon").not()) {
+            if emitted_tags.has(sdd.c_tag) {
+                // Two ext_structs sharing one C tag (e.g. nng_sockaddr_ipc
+                // aliasing "nng_sockaddr_path"): defining `struct TAG` twice
+                // is a C error. Emit a typedef alias to the first
+                // definition instead. (#269's scavenger wildcard keeps all
+                // dyn-reachable types, so tag aliases that the scavenger
+                // used to prune now reach this emitter.)
+                f.write("typedef struct ").write(sdd.c_tag).write(" ").write(name).write(";\n")
+                return
+            }
+            emitted_tags.add(own sdd.c_tag.clone())
+        }
         if sdd.c_tag.eq("@anon") {
             f.write("typedef struct {\n")
         } else if sdd.c_tag.len().gt(0) {
@@ -3636,6 +3649,9 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
 
 // Topologically emit struct/enum typedefs across all per-file units in ctx.
 priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: LoadedProgram) {
+    // C struct tags already emitted with a full body; repeats become
+    // typedef aliases (see emit_struct_typedef).
+    mut emitted_tags := Set(Str).new()
     // Vec<Dynamic> stores raw pointers (8-byte values). Each push takes an
     // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
     mut items := Vec(Dynamic).new()
@@ -3713,7 +3729,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                 }
                 if deps_ok.not() { continue }
                 if def.node_type.is(NodeType.StructDef) {
-                    emit_struct_typedef(f, sdecl.name, def)
+                    emit_struct_typedef(f, sdecl.name, def, emitted_tags)
                     f.write("\n")
                 } else {
                     emit_enum_struct_body(f, sdecl.name, def, lp.ctx)
@@ -3738,7 +3754,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                 case NodeType.Decl(sdecl):
                     ref def : Expr = stmt.child(0)
                     if def.node_type.is(NodeType.StructDef) {
-                        emit_struct_typedef(f, sdecl.name, def)
+                        emit_struct_typedef(f, sdecl.name, def, emitted_tags)
                         f.write("\n")
                     } else {
                         emit_enum_struct_body(f, sdecl.name, def, lp.ctx)

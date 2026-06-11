@@ -9,12 +9,15 @@ struct TilClosure {
 };
 
 typedef struct Mode Mode;
+typedef struct Array__Dynamic Array__Dynamic;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
 typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
+typedef struct DivideByZero DivideByZero;
+typedef struct IntegerOverflow IntegerOverflow;
 typedef enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
@@ -328,11 +331,68 @@ typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
+typedef struct Vector2 Vector2;
 typedef struct Vector3 Vector3;
 typedef struct Vector4 Vector4;
+typedef struct Matrix Matrix;
+typedef struct Color Color;
+typedef struct Rectangle Rectangle;
+typedef struct Image Image;
 typedef struct Texture Texture;
 typedef struct RenderTexture RenderTexture;
+typedef struct NPatchInfo NPatchInfo;
+typedef struct GlyphInfo GlyphInfo;
+typedef struct Font Font;
 typedef struct Camera3D Camera3D;
+typedef struct Camera2D Camera2D;
+typedef struct Mesh Mesh;
+typedef struct Shader Shader;
+typedef struct MaterialMap MaterialMap;
+typedef struct Material Material;
+typedef struct Transform Transform;
+typedef struct BoneInfo BoneInfo;
+typedef struct ModelSkeleton ModelSkeleton;
+typedef struct Model Model;
+typedef struct ModelAnimation ModelAnimation;
+typedef struct Ray Ray;
+typedef struct RayCollision RayCollision;
+typedef struct BoundingBox BoundingBox;
+typedef struct Wave Wave;
+typedef struct rAudioBuffer rAudioBuffer;
+typedef struct rAudioProcessor rAudioProcessor;
+typedef struct AudioStream AudioStream;
+typedef struct Sound Sound;
+typedef struct Music Music;
+typedef struct VrDeviceInfo VrDeviceInfo;
+typedef struct VrStereoConfig VrStereoConfig;
+typedef struct FilePathList FilePathList;
+typedef struct AutomationEvent AutomationEvent;
+typedef struct AutomationEventList AutomationEventList;
+typedef struct nng_ctx_s nng_ctx;
+typedef struct nng_dialer_s nng_dialer;
+typedef struct nng_listener_s nng_listener;
+typedef struct nng_pipe_s nng_pipe;
+typedef struct nng_socket_s nng_socket;
+typedef struct nng_msg nng_msg;
+typedef struct nng_stat nng_stat;
+typedef struct nng_aio nng_aio;
+typedef struct nng_sockaddr_inproc nng_sockaddr_inproc;
+typedef struct nng_sockaddr_path nng_sockaddr_path;
+typedef struct nng_sockaddr_ipc nng_sockaddr_ipc;
+typedef struct nng_sockaddr_in nng_sockaddr_in;
+typedef struct nng_sockaddr_in6 nng_sockaddr_in6;
+typedef struct nng_sockaddr_zt nng_sockaddr_zt;
+typedef struct nng_sockaddr_abstract nng_sockaddr_abstract;
+typedef struct nng_sockaddr_storage nng_sockaddr_storage;
+typedef struct nng_iov nng_iov;
+typedef struct nng_url nng_url;
+typedef struct nng_stream nng_stream;
+typedef struct nng_stream_dialer nng_stream_dialer;
+typedef struct nng_stream_listener nng_stream_listener;
+typedef struct nng_udp nng_udp;
+typedef struct nng_thread nng_thread;
+typedef struct nng_mtx nng_mtx;
+typedef struct nng_cv nng_cv;
 typedef struct CliArgs CliArgs;
 
 typedef TilClosure *HashFn;
@@ -342,6 +402,12 @@ typedef TilClosure *priv___src_self_dispatch_til__DispatchFn;
 
 
 
+
+
+typedef struct Array__Dynamic {
+    U8 *data;
+    U32 cap;
+} Array__Dynamic;
 
 
 typedef struct Str {
@@ -379,6 +445,16 @@ typedef struct Dynamic {
 } Dynamic;
 
 
+
+
+typedef struct DivideByZero {
+    char _;
+} DivideByZero;
+
+
+typedef struct IntegerOverflow {
+    Str msg;
+} IntegerOverflow;
 
 
 
@@ -931,6 +1007,26 @@ typedef struct {
 } ffi_cif;
 
 
+typedef struct {
+    char _;
+} ffi_closure;
+
+
+typedef struct {
+    char _;
+} ffi_raw_closure;
+
+
+typedef struct {
+    char _;
+} ffi_java_raw_closure;
+
+
+typedef struct {
+    char _;
+} ffi_go_closure;
+
+
 typedef struct priv___src_self_dispatch_til__ExtStr {
     U8 *data;
     U32 count;
@@ -965,6 +1061,12 @@ typedef struct priv___src_self_binder_til__BinderState {
 } priv___src_self_binder_til__BinderState;
 
 
+typedef struct Vector2 {
+    F32 x;
+    F32 y;
+} Vector2;
+
+
 typedef struct Vector3 {
     F32 x;
     F32 y;
@@ -978,6 +1080,36 @@ typedef struct Vector4 {
     F32 z;
     F32 w;
 } Vector4;
+
+
+typedef struct Matrix {
+    char _;
+} Matrix;
+
+
+typedef struct Color {
+    U8 r;
+    U8 g;
+    U8 b;
+    U8 a;
+} Color;
+
+
+typedef struct Rectangle {
+    F32 x;
+    F32 y;
+    F32 width;
+    F32 height;
+} Rectangle;
+
+
+typedef struct Image {
+    void * *data;
+    I32 width;
+    I32 height;
+    I32 mipmaps;
+    I32 format;
+} Image;
 
 
 typedef struct Texture {
@@ -996,6 +1128,35 @@ typedef struct RenderTexture {
 } RenderTexture;
 
 
+typedef struct NPatchInfo {
+    Rectangle source;
+    I32 left;
+    I32 top;
+    I32 right;
+    I32 bottom;
+    I32 layout;
+} NPatchInfo;
+
+
+typedef struct GlyphInfo {
+    I32 value;
+    I32 offsetX;
+    I32 offsetY;
+    I32 advanceX;
+    Image image;
+} GlyphInfo;
+
+
+typedef struct Font {
+    I32 baseSize;
+    I32 glyphCount;
+    I32 glyphPadding;
+    Texture texture;
+    Rectangle *recs;
+    GlyphInfo *glyphs;
+} Font;
+
+
 typedef struct Camera3D {
     Vector3 position;
     Vector3 target;
@@ -1003,6 +1164,315 @@ typedef struct Camera3D {
     F32 fovy;
     I32 projection;
 } Camera3D;
+
+
+typedef struct Camera2D {
+    Vector2 offset;
+    Vector2 target;
+    F32 rotation;
+    F32 zoom;
+} Camera2D;
+
+
+typedef struct Mesh {
+    I32 vertexCount;
+    I32 triangleCount;
+    F32 *vertices;
+    F32 *texcoords;
+    F32 *texcoords2;
+    F32 *normals;
+    F32 *tangents;
+    U8 *colors;
+    I16 *indices;
+    I32 boneCount;
+    U8 *boneIndices;
+    F32 *boneWeights;
+    F32 *animVertices;
+    F32 *animNormals;
+    U32 vaoId;
+    U32 *vboId;
+} Mesh;
+
+
+typedef struct Shader {
+    U32 id;
+    I32 *locs;
+} Shader;
+
+
+typedef struct MaterialMap {
+    Texture texture;
+    Color color;
+    F32 value;
+} MaterialMap;
+
+
+typedef struct Material {
+    char _;
+} Material;
+
+
+typedef struct Transform {
+    Vector3 translation;
+    Vector4 rotation;
+    Vector3 scale;
+} Transform;
+
+
+typedef struct BoneInfo {
+    char _;
+} BoneInfo;
+
+
+typedef struct ModelSkeleton {
+    I32 boneCount;
+    BoneInfo *bones;
+    void * *bindPose;
+} ModelSkeleton;
+
+
+typedef struct Model {
+    Matrix transform;
+    I32 meshCount;
+    I32 materialCount;
+    Mesh *meshes;
+    Material *materials;
+    I32 *meshMaterial;
+    ModelSkeleton skeleton;
+    void * *currentPose;
+    Matrix *boneMatrices;
+} Model;
+
+
+typedef struct ModelAnimation {
+    char _;
+} ModelAnimation;
+
+
+typedef struct Ray {
+    Vector3 position;
+    Vector3 direction;
+} Ray;
+
+
+typedef struct RayCollision {
+    Bool hit;
+    F32 distance;
+    Vector3 point;
+    Vector3 normal;
+} RayCollision;
+
+
+typedef struct BoundingBox {
+    Vector3 min;
+    Vector3 max;
+} BoundingBox;
+
+
+typedef struct Wave {
+    U32 frameCount;
+    U32 sampleRate;
+    U32 sampleSize;
+    U32 channels;
+    void * *data;
+} Wave;
+
+
+typedef struct rAudioBuffer {
+    char _;
+} rAudioBuffer;
+
+
+typedef struct rAudioProcessor {
+    char _;
+} rAudioProcessor;
+
+
+typedef struct AudioStream {
+    rAudioBuffer *buffer;
+    rAudioProcessor *processor;
+    U32 sampleRate;
+    U32 sampleSize;
+    U32 channels;
+} AudioStream;
+
+
+typedef struct Sound {
+    AudioStream stream;
+    U32 frameCount;
+} Sound;
+
+
+typedef struct Music {
+    AudioStream stream;
+    U32 frameCount;
+    Bool looping;
+    I32 ctxType;
+    void * *ctxData;
+} Music;
+
+
+typedef struct VrDeviceInfo {
+    char _;
+} VrDeviceInfo;
+
+
+typedef struct VrStereoConfig {
+    char _;
+} VrStereoConfig;
+
+
+typedef struct FilePathList {
+    U32 count;
+    void * *paths;
+} FilePathList;
+
+
+typedef struct AutomationEvent {
+    char _;
+} AutomationEvent;
+
+
+typedef struct AutomationEventList {
+    U32 capacity;
+    U32 count;
+    AutomationEvent *events;
+} AutomationEventList;
+
+
+typedef struct nng_ctx_s {
+    U32 id;
+} nng_ctx;
+
+
+typedef struct nng_dialer_s {
+    U32 id;
+} nng_dialer;
+
+
+typedef struct nng_listener_s {
+    U32 id;
+} nng_listener;
+
+
+typedef struct nng_pipe_s {
+    U32 id;
+} nng_pipe;
+
+
+typedef struct nng_socket_s {
+    U32 id;
+} nng_socket;
+
+
+typedef struct nng_msg {
+    char _;
+} nng_msg;
+
+
+typedef struct nng_stat {
+    char _;
+} nng_stat;
+
+
+typedef struct nng_aio {
+    char _;
+} nng_aio;
+
+
+typedef struct nng_sockaddr_inproc {
+    char _;
+} nng_sockaddr_inproc;
+
+
+typedef struct nng_sockaddr_path {
+    char _;
+} nng_sockaddr_path;
+
+
+typedef struct nng_sockaddr_ipc {
+    char _;
+} nng_sockaddr_ipc;
+
+
+typedef struct nng_sockaddr_in {
+    char _;
+} nng_sockaddr_in;
+
+
+typedef struct nng_sockaddr_in6 {
+    char _;
+} nng_sockaddr_in6;
+
+
+typedef struct nng_sockaddr_zt {
+    char _;
+} nng_sockaddr_zt;
+
+
+typedef struct nng_sockaddr_abstract {
+    char _;
+} nng_sockaddr_abstract;
+
+
+typedef struct nng_sockaddr_storage {
+    char _;
+} nng_sockaddr_storage;
+
+
+typedef struct nng_iov {
+    void * *iov_buf;
+    U32 iov_len;
+} nng_iov;
+
+
+typedef struct nng_url {
+    I8 *u_rawurl;
+    I8 *u_scheme;
+    I8 *u_userinfo;
+    I8 *u_host;
+    I8 *u_hostname;
+    I8 *u_port;
+    I8 *u_path;
+    I8 *u_query;
+    I8 *u_fragment;
+    I8 *u_requri;
+} nng_url;
+
+
+typedef struct nng_stream {
+    char _;
+} nng_stream;
+
+
+typedef struct nng_stream_dialer {
+    char _;
+} nng_stream_dialer;
+
+
+typedef struct nng_stream_listener {
+    char _;
+} nng_stream_listener;
+
+
+typedef struct nng_udp {
+    char _;
+} nng_udp;
+
+
+typedef struct nng_thread {
+    char _;
+} nng_thread;
+
+
+typedef struct nng_mtx {
+    char _;
+} nng_mtx;
+
+
+typedef struct nng_cv {
+    char _;
+} nng_cv;
 
 
 typedef struct CliArgs {
@@ -1419,6 +1889,9 @@ Str * U8_to_str(U8 val);
 void U8_delete(U8 * self, Bool call_free);
 U32 U8_size(void);
 U64 U8_hash(U8 self, HashFn hasher);
+void Array__Dynamic_delete(Array__Dynamic * self, Bool call_free);
+Array__Dynamic * Array__Dynamic_clone(Array__Dynamic * self);
+U32 Array__Dynamic_size(void);
 Str * format(Array__Str * parts);
 U32 Str_len(Str * self);
 I8 * Str_get(Str * self, U32 * i);
@@ -1500,6 +1973,14 @@ Bool I64_gt(I64 a, I64 b);
 Bool I64_neq(I64 a, I64 b);
 Bool I64_lte(I64 a, I64 b);
 Bool I64_gte(I64 a, I64 b);
+DivideByZero * DivideByZero_clone(DivideByZero * _self);
+void DivideByZero_delete(DivideByZero * self, Bool call_free);
+U64 DivideByZero_hash(DivideByZero * self, HashFn hasher);
+U32 DivideByZero_size(void);
+IntegerOverflow * IntegerOverflow_clone(IntegerOverflow * self);
+void IntegerOverflow_delete(IntegerOverflow * self, Bool call_free);
+U64 IntegerOverflow_hash(IntegerOverflow * self, HashFn hasher);
+U32 IntegerOverflow_size(void);
 I64 Bool_cmp(Bool a, Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 U32 Bool_size(void);
@@ -2812,7 +3293,7 @@ void priv___src_self_builder_til__emit_func_def(File * f, Str * name, Expr * fun
 void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_in_expr(File * f, Expr * e, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_lp(File * f, LoadedProgram * lp);
-void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr * struct_def);
+void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr * struct_def, Set__Str * emitted_tags);
 void priv___src_self_builder_til__emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr * struct_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, LoadedProgram * lp);
@@ -3079,6 +3560,22 @@ U32 ffi_type_size(void);
 ffi_cif * ffi_cif_clone(ffi_cif * self);
 void ffi_cif_delete(ffi_cif * self, Bool call_free);
 U32 ffi_cif_size(void);
+ffi_closure * ffi_closure_clone(ffi_closure * _self);
+void ffi_closure_delete(ffi_closure * self, Bool call_free);
+U64 ffi_closure_hash(ffi_closure * self, HashFn hasher);
+U32 ffi_closure_size(void);
+ffi_raw_closure * ffi_raw_closure_clone(ffi_raw_closure * _self);
+void ffi_raw_closure_delete(ffi_raw_closure * self, Bool call_free);
+U64 ffi_raw_closure_hash(ffi_raw_closure * self, HashFn hasher);
+U32 ffi_raw_closure_size(void);
+ffi_java_raw_closure * ffi_java_raw_closure_clone(ffi_java_raw_closure * _self);
+void ffi_java_raw_closure_delete(ffi_java_raw_closure * self, Bool call_free);
+U64 ffi_java_raw_closure_hash(ffi_java_raw_closure * self, HashFn hasher);
+U32 ffi_java_raw_closure_size(void);
+ffi_go_closure * ffi_go_closure_clone(ffi_go_closure * _self);
+void ffi_go_closure_delete(ffi_go_closure * self, Bool call_free);
+U64 ffi_go_closure_hash(ffi_go_closure * self, HashFn hasher);
+U32 ffi_go_closure_size(void);
 priv___src_self_dispatch_til__ExtStr * priv___src_self_dispatch_til__ExtStr_clone(priv___src_self_dispatch_til__ExtStr * self);
 void priv___src_self_dispatch_til__ExtStr_delete(priv___src_self_dispatch_til__ExtStr * self, Bool call_free);
 U32 priv___src_self_dispatch_til__ExtStr_size(void);
@@ -3219,6 +3716,10 @@ Bool priv___src_self_binder_til__looks_like_macro_fragment(Str * line);
 Vec__Str * priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
 Str * priv___src_self_binder_til__collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
+Vector2 Vector2_clone(Vector2 self);
+void Vector2_delete(Vector2 * self, Bool call_free);
+U64 Vector2_hash(Vector2 self, HashFn hasher);
+U32 Vector2_size(void);
 Vector3 * Vector3_clone(Vector3 * self);
 void Vector3_delete(Vector3 * self, Bool call_free);
 U64 Vector3_hash(Vector3 * self, HashFn hasher);
@@ -3227,6 +3728,21 @@ Vector4 * Vector4_clone(Vector4 * self);
 void Vector4_delete(Vector4 * self, Bool call_free);
 U64 Vector4_hash(Vector4 * self, HashFn hasher);
 U32 Vector4_size(void);
+Matrix * Matrix_clone(Matrix * _self);
+void Matrix_delete(Matrix * self, Bool call_free);
+U64 Matrix_hash(Matrix * self, HashFn hasher);
+U32 Matrix_size(void);
+Color Color_clone(Color self);
+void Color_delete(Color * self, Bool call_free);
+U64 Color_hash(Color self, HashFn hasher);
+U32 Color_size(void);
+Rectangle * Rectangle_clone(Rectangle * self);
+void Rectangle_delete(Rectangle * self, Bool call_free);
+U64 Rectangle_hash(Rectangle * self, HashFn hasher);
+U32 Rectangle_size(void);
+Image * Image_clone(Image * self);
+void Image_delete(Image * self, Bool call_free);
+U32 Image_size(void);
 Texture * Texture_clone(Texture * self);
 void Texture_delete(Texture * self, Bool call_free);
 U64 Texture_hash(Texture * self, HashFn hasher);
@@ -3235,10 +3751,206 @@ RenderTexture * RenderTexture_clone(RenderTexture * self);
 void RenderTexture_delete(RenderTexture * self, Bool call_free);
 U64 RenderTexture_hash(RenderTexture * self, HashFn hasher);
 U32 RenderTexture_size(void);
+NPatchInfo * NPatchInfo_clone(NPatchInfo * self);
+void NPatchInfo_delete(NPatchInfo * self, Bool call_free);
+U64 NPatchInfo_hash(NPatchInfo * self, HashFn hasher);
+U32 NPatchInfo_size(void);
+GlyphInfo * GlyphInfo_clone(GlyphInfo * self);
+void GlyphInfo_delete(GlyphInfo * self, Bool call_free);
+U64 GlyphInfo_hash(GlyphInfo * self, HashFn hasher);
+U32 GlyphInfo_size(void);
+Font * Font_clone(Font * self);
+void Font_delete(Font * self, Bool call_free);
+U32 Font_size(void);
 Camera3D * Camera3D_clone(Camera3D * self);
 void Camera3D_delete(Camera3D * self, Bool call_free);
 U64 Camera3D_hash(Camera3D * self, HashFn hasher);
 U32 Camera3D_size(void);
+Camera2D * Camera2D_clone(Camera2D * self);
+void Camera2D_delete(Camera2D * self, Bool call_free);
+U64 Camera2D_hash(Camera2D * self, HashFn hasher);
+U32 Camera2D_size(void);
+Mesh * Mesh_clone(Mesh * self);
+void Mesh_delete(Mesh * self, Bool call_free);
+U32 Mesh_size(void);
+Shader * Shader_clone(Shader * self);
+void Shader_delete(Shader * self, Bool call_free);
+U32 Shader_size(void);
+MaterialMap * MaterialMap_clone(MaterialMap * self);
+void MaterialMap_delete(MaterialMap * self, Bool call_free);
+U64 MaterialMap_hash(MaterialMap * self, HashFn hasher);
+U32 MaterialMap_size(void);
+Material * Material_clone(Material * _self);
+void Material_delete(Material * self, Bool call_free);
+U64 Material_hash(Material * self, HashFn hasher);
+U32 Material_size(void);
+Transform * Transform_clone(Transform * self);
+void Transform_delete(Transform * self, Bool call_free);
+U64 Transform_hash(Transform * self, HashFn hasher);
+U32 Transform_size(void);
+BoneInfo * BoneInfo_clone(BoneInfo * _self);
+void BoneInfo_delete(BoneInfo * self, Bool call_free);
+U64 BoneInfo_hash(BoneInfo * self, HashFn hasher);
+U32 BoneInfo_size(void);
+ModelSkeleton * ModelSkeleton_clone(ModelSkeleton * self);
+void ModelSkeleton_delete(ModelSkeleton * self, Bool call_free);
+U32 ModelSkeleton_size(void);
+Model * Model_clone(Model * self);
+void Model_delete(Model * self, Bool call_free);
+U32 Model_size(void);
+ModelAnimation * ModelAnimation_clone(ModelAnimation * _self);
+void ModelAnimation_delete(ModelAnimation * self, Bool call_free);
+U64 ModelAnimation_hash(ModelAnimation * self, HashFn hasher);
+U32 ModelAnimation_size(void);
+Ray * Ray_clone(Ray * self);
+void Ray_delete(Ray * self, Bool call_free);
+U64 Ray_hash(Ray * self, HashFn hasher);
+U32 Ray_size(void);
+RayCollision * RayCollision_clone(RayCollision * self);
+void RayCollision_delete(RayCollision * self, Bool call_free);
+U64 RayCollision_hash(RayCollision * self, HashFn hasher);
+U32 RayCollision_size(void);
+BoundingBox * BoundingBox_clone(BoundingBox * self);
+void BoundingBox_delete(BoundingBox * self, Bool call_free);
+U64 BoundingBox_hash(BoundingBox * self, HashFn hasher);
+U32 BoundingBox_size(void);
+Wave * Wave_clone(Wave * self);
+void Wave_delete(Wave * self, Bool call_free);
+U32 Wave_size(void);
+rAudioBuffer * rAudioBuffer_clone(rAudioBuffer * _self);
+void rAudioBuffer_delete(rAudioBuffer * self, Bool call_free);
+U64 rAudioBuffer_hash(rAudioBuffer * self, HashFn hasher);
+U32 rAudioBuffer_size(void);
+rAudioProcessor * rAudioProcessor_clone(rAudioProcessor * _self);
+void rAudioProcessor_delete(rAudioProcessor * self, Bool call_free);
+U64 rAudioProcessor_hash(rAudioProcessor * self, HashFn hasher);
+U32 rAudioProcessor_size(void);
+AudioStream * AudioStream_clone(AudioStream * self);
+void AudioStream_delete(AudioStream * self, Bool call_free);
+U32 AudioStream_size(void);
+Sound * Sound_clone(Sound * self);
+void Sound_delete(Sound * self, Bool call_free);
+U64 Sound_hash(Sound * self, HashFn hasher);
+U32 Sound_size(void);
+Music * Music_clone(Music * self);
+void Music_delete(Music * self, Bool call_free);
+U32 Music_size(void);
+VrDeviceInfo * VrDeviceInfo_clone(VrDeviceInfo * _self);
+void VrDeviceInfo_delete(VrDeviceInfo * self, Bool call_free);
+U64 VrDeviceInfo_hash(VrDeviceInfo * self, HashFn hasher);
+U32 VrDeviceInfo_size(void);
+VrStereoConfig * VrStereoConfig_clone(VrStereoConfig * _self);
+void VrStereoConfig_delete(VrStereoConfig * self, Bool call_free);
+U64 VrStereoConfig_hash(VrStereoConfig * self, HashFn hasher);
+U32 VrStereoConfig_size(void);
+FilePathList * FilePathList_clone(FilePathList * self);
+void FilePathList_delete(FilePathList * self, Bool call_free);
+U32 FilePathList_size(void);
+AutomationEvent * AutomationEvent_clone(AutomationEvent * _self);
+void AutomationEvent_delete(AutomationEvent * self, Bool call_free);
+U64 AutomationEvent_hash(AutomationEvent * self, HashFn hasher);
+U32 AutomationEvent_size(void);
+AutomationEventList * AutomationEventList_clone(AutomationEventList * self);
+void AutomationEventList_delete(AutomationEventList * self, Bool call_free);
+U32 AutomationEventList_size(void);
+nng_ctx nng_ctx_clone(nng_ctx self);
+void nng_ctx_delete(nng_ctx * self, Bool call_free);
+U64 nng_ctx_hash(nng_ctx self, HashFn hasher);
+U32 nng_ctx_size(void);
+nng_dialer nng_dialer_clone(nng_dialer self);
+void nng_dialer_delete(nng_dialer * self, Bool call_free);
+U64 nng_dialer_hash(nng_dialer self, HashFn hasher);
+U32 nng_dialer_size(void);
+nng_listener nng_listener_clone(nng_listener self);
+void nng_listener_delete(nng_listener * self, Bool call_free);
+U64 nng_listener_hash(nng_listener self, HashFn hasher);
+U32 nng_listener_size(void);
+nng_pipe nng_pipe_clone(nng_pipe self);
+void nng_pipe_delete(nng_pipe * self, Bool call_free);
+U64 nng_pipe_hash(nng_pipe self, HashFn hasher);
+U32 nng_pipe_size(void);
+nng_socket nng_socket_clone(nng_socket self);
+void nng_socket_delete(nng_socket * self, Bool call_free);
+U64 nng_socket_hash(nng_socket self, HashFn hasher);
+U32 nng_socket_size(void);
+nng_msg * nng_msg_clone(nng_msg * _self);
+void nng_msg_delete(nng_msg * self, Bool call_free);
+U64 nng_msg_hash(nng_msg * self, HashFn hasher);
+U32 nng_msg_size(void);
+nng_stat * nng_stat_clone(nng_stat * _self);
+void nng_stat_delete(nng_stat * self, Bool call_free);
+U64 nng_stat_hash(nng_stat * self, HashFn hasher);
+U32 nng_stat_size(void);
+nng_aio * nng_aio_clone(nng_aio * _self);
+void nng_aio_delete(nng_aio * self, Bool call_free);
+U64 nng_aio_hash(nng_aio * self, HashFn hasher);
+U32 nng_aio_size(void);
+nng_sockaddr_inproc * nng_sockaddr_inproc_clone(nng_sockaddr_inproc * _self);
+void nng_sockaddr_inproc_delete(nng_sockaddr_inproc * self, Bool call_free);
+U64 nng_sockaddr_inproc_hash(nng_sockaddr_inproc * self, HashFn hasher);
+U32 nng_sockaddr_inproc_size(void);
+nng_sockaddr_path * nng_sockaddr_path_clone(nng_sockaddr_path * _self);
+void nng_sockaddr_path_delete(nng_sockaddr_path * self, Bool call_free);
+U64 nng_sockaddr_path_hash(nng_sockaddr_path * self, HashFn hasher);
+U32 nng_sockaddr_path_size(void);
+nng_sockaddr_ipc * nng_sockaddr_ipc_clone(nng_sockaddr_ipc * _self);
+void nng_sockaddr_ipc_delete(nng_sockaddr_ipc * self, Bool call_free);
+U64 nng_sockaddr_ipc_hash(nng_sockaddr_ipc * self, HashFn hasher);
+U32 nng_sockaddr_ipc_size(void);
+nng_sockaddr_in * nng_sockaddr_in_clone(nng_sockaddr_in * _self);
+void nng_sockaddr_in_delete(nng_sockaddr_in * self, Bool call_free);
+U64 nng_sockaddr_in_hash(nng_sockaddr_in * self, HashFn hasher);
+U32 nng_sockaddr_in_size(void);
+nng_sockaddr_in6 * nng_sockaddr_in6_clone(nng_sockaddr_in6 * _self);
+void nng_sockaddr_in6_delete(nng_sockaddr_in6 * self, Bool call_free);
+U64 nng_sockaddr_in6_hash(nng_sockaddr_in6 * self, HashFn hasher);
+U32 nng_sockaddr_in6_size(void);
+nng_sockaddr_zt * nng_sockaddr_zt_clone(nng_sockaddr_zt * _self);
+void nng_sockaddr_zt_delete(nng_sockaddr_zt * self, Bool call_free);
+U64 nng_sockaddr_zt_hash(nng_sockaddr_zt * self, HashFn hasher);
+U32 nng_sockaddr_zt_size(void);
+nng_sockaddr_abstract * nng_sockaddr_abstract_clone(nng_sockaddr_abstract * _self);
+void nng_sockaddr_abstract_delete(nng_sockaddr_abstract * self, Bool call_free);
+U64 nng_sockaddr_abstract_hash(nng_sockaddr_abstract * self, HashFn hasher);
+U32 nng_sockaddr_abstract_size(void);
+nng_sockaddr_storage * nng_sockaddr_storage_clone(nng_sockaddr_storage * _self);
+void nng_sockaddr_storage_delete(nng_sockaddr_storage * self, Bool call_free);
+U64 nng_sockaddr_storage_hash(nng_sockaddr_storage * self, HashFn hasher);
+U32 nng_sockaddr_storage_size(void);
+nng_iov * nng_iov_clone(nng_iov * self);
+void nng_iov_delete(nng_iov * self, Bool call_free);
+U32 nng_iov_size(void);
+nng_url * nng_url_clone(nng_url * self);
+void nng_url_delete(nng_url * self, Bool call_free);
+U32 nng_url_size(void);
+nng_stream * nng_stream_clone(nng_stream * _self);
+void nng_stream_delete(nng_stream * self, Bool call_free);
+U64 nng_stream_hash(nng_stream * self, HashFn hasher);
+U32 nng_stream_size(void);
+nng_stream_dialer * nng_stream_dialer_clone(nng_stream_dialer * _self);
+void nng_stream_dialer_delete(nng_stream_dialer * self, Bool call_free);
+U64 nng_stream_dialer_hash(nng_stream_dialer * self, HashFn hasher);
+U32 nng_stream_dialer_size(void);
+nng_stream_listener * nng_stream_listener_clone(nng_stream_listener * _self);
+void nng_stream_listener_delete(nng_stream_listener * self, Bool call_free);
+U64 nng_stream_listener_hash(nng_stream_listener * self, HashFn hasher);
+U32 nng_stream_listener_size(void);
+nng_udp * nng_udp_clone(nng_udp * _self);
+void nng_udp_delete(nng_udp * self, Bool call_free);
+U64 nng_udp_hash(nng_udp * self, HashFn hasher);
+U32 nng_udp_size(void);
+nng_thread * nng_thread_clone(nng_thread * _self);
+void nng_thread_delete(nng_thread * self, Bool call_free);
+U64 nng_thread_hash(nng_thread * self, HashFn hasher);
+U32 nng_thread_size(void);
+nng_mtx * nng_mtx_clone(nng_mtx * _self);
+void nng_mtx_delete(nng_mtx * self, Bool call_free);
+U64 nng_mtx_hash(nng_mtx * self, HashFn hasher);
+U32 nng_mtx_size(void);
+nng_cv * nng_cv_clone(nng_cv * _self);
+void nng_cv_delete(nng_cv * self, Bool call_free);
+U64 nng_cv_hash(nng_cv * self, HashFn hasher);
+U32 nng_cv_size(void);
 Str * repl_read_line(Str * mode_name);
 I32 repl_typecheck(LoadedProgram * lp);
 Bool repl_should_wrap(Expr * peek_ast, Expr * typed_ast);

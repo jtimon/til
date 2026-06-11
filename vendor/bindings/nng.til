@@ -104,7 +104,15 @@ nng_sockaddr_inproc := ext_struct("nng_sockaddr_inproc") {}
 
 nng_sockaddr_path := ext_struct("nng_sockaddr_path") {}
 
-nng_sockaddr_ipc := ext_struct("nng_sockaddr_path") {}
+// nng.h defines nng_sockaddr_ipc as a typedef alias of struct
+// nng_sockaddr_path. Two til ext_structs sharing one C tag made the
+// emitter define `struct nng_sockaddr_path` twice once the #269
+// scavenger wildcard kept both decls alive (a C error that broke
+// `make bin/til`). Both shells are opaque and used only by pointer,
+// so giving the alias its own tag is layout-neutral. The builder now
+// also emits a typedef alias for repeated tags (emit_struct_typedef),
+// but that fix only takes effect once it is in the boot compiler.
+nng_sockaddr_ipc := ext_struct("nng_sockaddr_ipc") {}
 
 nng_sockaddr_in := ext_struct("nng_sockaddr_in") {}
 
