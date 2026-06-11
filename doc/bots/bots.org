@@ -107,28 +107,39 @@ returns to you as if it finished (or with a kill code) WITHOUT handing you a
 task id -- so its process orphans and neither you nor the harness can kill
 it. The human then hand-kills zombie tasks. Do not let that happen.
 
+Why `run_in_background: true` is NOT the escape hatch: it is WORSE. It
+creates a ghost task entry that can't be dismissed from the sidebar
+(Anthropic Issues #58662, #59900), and `.claude/hooks/block-background-bash.sh`
+BLOCKS it outright. So you cannot opt into a "managed" background task with a
+killable id -- that path is closed.
+
 Remote-session command protocol (non-negotiable):
-1. Any command that could exceed ~120s (every `make` build, every test run)
-   MUST be launched with `run_in_background: true`. That FORCES the harness
-   to hand you a task id up front, instead of auto-backgrounding it into a
-   nameless orphan. Short, certain-to-be-instant commands (git status/add/
-   commit/push, single greps) run normally in the foreground.
-2. ONE background task in flight, EVER. The instant you launch a background
-   command, record its task id + output-file path, then END THE TURN. Issue
-   zero further tool calls until it finishes. Never launch a second task
-   while one is alive -- that is exactly what spawns the orphan pile.
-3. You are woken by the `<task-notification>` when it completes. Then `Read`
-   its output file for the result. Do not poll, do not "stay productive"
-   while waiting.
-4. If a background task hangs (no notification, or you need to abort), kill
-   it by id with `TaskStop` -- this is why step 1 captures the id. You can
-   clean up your own tasks; never leave the human to.
-5. The human runs the full suite locally at merge time. State explicitly in
+1. NEVER pass `run_in_background: true` (the hook blocks it; it ghost-orphans).
+   Run every command SYNCHRONOUSLY. A long one (any `make` build, any
+   compiled test run) will get auto-backgrounded by the harness anyway -- that
+   single orphan is unavoidable and is the lesser evil. The hell is not one
+   orphan; it is STACKING a second command on top while the first is alive.
+2. ONE command in flight, EVER. `.claude/hooks/block-background-bash.sh`
+   enforces this: it refuses a second Bash call while a `make`/`cc`/`bin/til`
+   process from a prior call is still alive ("BLOCKED: a long-running task ...
+   is still alive"). If you see that block, you tried to stack -- STOP.
+3. After you launch anything that might be long, assume it may have
+   auto-backgrounded. END THE TURN. Issue zero further tool calls. You are
+   woken by the `<task-notification>` when it finishes; only then continue
+   (read `tmp/build.log` or the output file). Do not poll, do not "stay
+   productive" while it runs.
+4. Prefer commands that finish UNDER ~120s so they never background at all:
+   interpret-mode checks (`bin/til interpret test/<one>.til`) are fast;
+   `make bin/til` and `bin/til run ...` (C compile) are slow and WILL
+   background -- run those one at a time, end the turn, wait.
+5. You cannot kill an auto-backgrounded orphan yourself: it is handed back to
+   you without a task id (often as a finished/killed result while the process
+   lingers), and `/tasks` -- the only place its id lives -- is the human's
+   view, not yours. So the only real defense is never to stack: one command,
+   end the turn, wait.
+6. The human runs the full suite locally at merge time. State explicitly in
    your report which files you smoked and that the full suite is pending the
    local merge run -- never claim suite-green you didn't see.
-NEVER run a long command in the FOREGROUND in a remote session: foreground
-is what gets auto-backgrounded without an id (the orphan). Background it
-yourself so you own the handle.
 Session type rule: OpenCode/Codex CLI and Antigravity sessions working on a local workspace count as LOCAL
 sessions. "Remote" sessions at the moment just mean Claude in the cloud (CI or hosted bot runs on assigned
 bot branches). Even though Antigravity is a hosted AI agent, it operates directly on the user's local
