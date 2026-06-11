@@ -97,26 +97,38 @@ If you are about to run `make clean && make test`, do NOT run `make` first;
 `make clean` deletes that work and only wastes time.
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
-Remote sessions (Claude in the cloud): do NOT run `make clean && make test`
-or any other full-suite / long-running command. The cloud harness
-auto-backgrounds any command that runs longer than its internal threshold
-EVEN THOUGH `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is set in
-.claude/settings.json (verified live in-session; known upstream bug). Once
-a command is backgrounded, any further tool call creates a second parallel
-task -- the background-task hell the human then has to hand-kill.
+Remote sessions (Claude in the cloud): the cloud harness AUTO-backgrounds
+any command that runs past its internal ~120s threshold, even though
+`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is set in .claude/settings.json and
+even when you pass a large `timeout` (both verified ignored in-session; known
+upstream bug -- the high-timeout workaround that fixes this on the local CLI
+does NOT work on the web). The trap: an AUTO-backgrounded command often
+returns to you as if it finished (or with a kill code) WITHOUT handing you a
+task id -- so its process orphans and neither you nor the harness can kill
+it. The human then hand-kills zombie tasks. Do not let that happen.
 
 Remote-session command protocol (non-negotiable):
-1. ONE command in flight, ever. Never issue a tool call while any task is
-   alive, no matter how long it takes.
-2. If a command does get auto-backgrounded anyway: END THE TURN IMMEDIATELY.
-   Zero further tool calls. Wait in silence for the task notification, then
-   continue. Do not poll, do not "stay productive".
-3. Verify with short commands only: `make bin/til` (build check), then
-   `bin/til run test/<one>.til` / `bin/til interpret test/<one>.til` per
-   file. Smoke the test files your change could plausibly affect.
-4. The human runs the full suite locally at merge time. State explicitly in
+1. Any command that could exceed ~120s (every `make` build, every test run)
+   MUST be launched with `run_in_background: true`. That FORCES the harness
+   to hand you a task id up front, instead of auto-backgrounding it into a
+   nameless orphan. Short, certain-to-be-instant commands (git status/add/
+   commit/push, single greps) run normally in the foreground.
+2. ONE background task in flight, EVER. The instant you launch a background
+   command, record its task id + output-file path, then END THE TURN. Issue
+   zero further tool calls until it finishes. Never launch a second task
+   while one is alive -- that is exactly what spawns the orphan pile.
+3. You are woken by the `<task-notification>` when it completes. Then `Read`
+   its output file for the result. Do not poll, do not "stay productive"
+   while waiting.
+4. If a background task hangs (no notification, or you need to abort), kill
+   it by id with `TaskStop` -- this is why step 1 captures the id. You can
+   clean up your own tasks; never leave the human to.
+5. The human runs the full suite locally at merge time. State explicitly in
    your report which files you smoked and that the full suite is pending the
    local merge run -- never claim suite-green you didn't see.
+NEVER run a long command in the FOREGROUND in a remote session: foreground
+is what gets auto-backgrounded without an id (the orphan). Background it
+yourself so you own the handle.
 Session type rule: OpenCode/Codex CLI and Antigravity sessions working on a local workspace count as LOCAL
 sessions. "Remote" sessions at the moment just mean Claude in the cloud (CI or hosted bot runs on assigned
 bot branches). Even though Antigravity is a hosted AI agent, it operates directly on the user's local
