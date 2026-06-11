@@ -4592,7 +4592,7 @@ priv pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type) {
     }
 }
 
-priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) {
+priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         mut declared := declared_type_for_decl(scope, stmt, ctx)
@@ -4600,6 +4600,35 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, ctx: Conte
         // (e.g. ~ref x : Foo = ...~) is a use of Foo's name from
         // declaration position. Check priv across files.
         check_priv_type_name(stmt, sdecl.explicit_type, scope, ctx)
+        // #251 follow-up: a conforming concrete bound to an interface-typed
+        // LOCAL coerces by BOXING, exactly like an interface-typed argument
+        // (infer_and_validate_fcall_args). Done here -- before `val` is bound
+        // below -- so the box (whose type is the interface, == declared) flows
+        // through the rest of the checks without a type-mismatch error. The
+        // box borrows the value via to_ptr, like the argument case: sound
+        // while the source outlives the binding (same scope, reverse-order
+        // teardown). Escaping sites (returns, fields, Vec elements) need an
+        // OWNED box and remain a follow-up.
+        if name_is_interface(sdecl.explicit_type, scope) {
+            box_cname := til_type_name(stmt.child(0).expr_til_type())
+            if box_cname.len().gt(0).and(box_cname.eq(sdecl.explicit_type).not()).and(type_implements_iface(box_cname, sdecl.explicit_type, scope)) {
+                box_line := stmt.child(0).line
+                box_col := stmt.child(0).col
+                mut iface_box := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
+                iface_box.add_child(own Expr.new(ident_node(sdecl.explicit_type), box_line, box_col))
+                mut na_tag := Expr.new(NodeType.NamedArg("iface_type_name"), box_line, box_col)
+                na_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(box_cname.clone())), box_line, box_col))
+                iface_box.add_child(own na_tag)
+                mut na_val := Expr.new(NodeType.NamedArg("iface_val"), box_line, box_col)
+                mut val_ptr := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
+                val_ptr.add_child(own Expr.new(ident_node("to_ptr"), box_line, box_col))
+                val_ptr.add_child(own stmt.child(0).clone())
+                na_val.add_child(own val_ptr)
+                iface_box.add_child(own na_val)
+                stmt.children.set(0, own iface_box)
+                infer_expr(scope, stmt.child(0), in_func, ctx)
+            }
+        }
         ref mut val : Expr = stmt.child(0)
         switch val.expr_til_type() {
         case Type.Custom(alias_name):
@@ -4923,7 +4952,7 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if sdecl.explicit_type.len().gt(0) {
-            infer_decl_typed_value(scope, stmt, ctx)
+            infer_decl_typed_value(scope, stmt, in_func, ctx)
         } else {
             infer_decl_untyped_value(stmt, ctx)
         }

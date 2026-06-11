@@ -161,3 +161,17 @@ test_default_through_iface_dispatches := test() {
     c := Circle(r = 1)
     assert_eq_str(__LOC__, describe_of(c), "circle")
 }
+
+// #251 follow-up: a conforming concrete bound to an interface-typed LOCAL
+// (`d : Drawable = c`) boxes exactly like an interface-typed argument, and an
+// abstract-method call on that local dispatches to the runtime type -- a
+// struct (Circle) and an enum (Polygon). The borrow is sound: the source
+// local is declared first, so it outlives the interface-typed binding.
+test_local_binding_dispatch := test() {
+    c := Circle(r = 1)
+    d : Drawable = c
+    assert_eq_str(__LOC__, d.draw(), "circle")
+    p := Polygon.Tri
+    pd : Drawable = p
+    assert_eq_str(__LOC__, pd.draw(), "polygon")
+}
