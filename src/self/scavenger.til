@@ -163,6 +163,31 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                             vec_push_str(refs, tname2)
                         case:
                         }
+                    } else if cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret")).or(cn.ident_name().eq("dyn_fn")).or(cn.ident_name().eq("dyn_has_method")) {
+                        // #269: a method reached only through the dyn machinery
+                        // has no static Type.method callsite, so the walk above
+                        // never records it and the scavenger would prune it --
+                        // leaving the runtime dispatch pointing at a freed
+                        // FuncDef. The method name is a string literal at
+                        // child(2). When the type name (child(1)) is a literal
+                        // too, keep exactly Type.method; when it is a runtime
+                        // expression (interface dispatch reads the box's
+                        // iface_type_name field), keep `method` on every type
+                        // via the "*.method" wildcard the reachability walk
+                        // expands (see scavenge_visited_imported).
+                        if e.children.len().gte(3) {
+                            switch e.child(2).node_type {
+                            case NodeType.Literal(Literal.Str(dyn_mname)):
+                                switch e.child(1).node_type {
+                                case NodeType.Literal(Literal.Str(dyn_tname)):
+                                    vec_push_str(refs, dyn_tname)
+                                    push_qn(refs, dyn_tname, dyn_mname)
+                                case:
+                                    vec_push_str(refs, "*.".concat(dyn_mname))
+                                }
+                            case:
+                            }
+                        }
                     }
                 case:
                     UNREACHABLE(__LOC__)

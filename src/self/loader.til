@@ -544,6 +544,24 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         if visited.has(name) { continue }
         visited.add(own name.clone())
 
+        // #269: "*.m" wildcard from collect_refs -- a dyn_call whose type
+        // name is a runtime expression (interface dispatch). The target
+        // type is only known at runtime, so keep method m alive on every
+        // top-level type by expanding to concrete Type.m names; the BFS
+        // then walks each kept method's body normally.
+        if name.starts_with("*.") {
+            wc_method := name.substr(2, name.len().sub(2))
+            for wi in 0..top.len() {
+                ref wk : Str = top.key_ptr(wi)
+                push_qn(worklist, wk, wc_method)
+            }
+            for wi2 in 0..core_top.len() {
+                ref wk2 : Str = core_top.key_ptr(wi2)
+                push_qn(worklist, wk2, wc_method)
+            }
+            continue
+        }
+
         if top.has(name) {
             ref dr : DeclRef = top[name]
             ref iu : ImportUnit = lp.ctx.imported[dr.path]

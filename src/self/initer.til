@@ -3628,6 +3628,36 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
 // to the implementing type (so `self: Drawable` becomes `self: Circle`),
 // which is why a default body that calls `self.draw()` resolves to the
 // implementer's own method. Mirrors the other gen_* synthesis helpers.
+// #269: an interface value is a BOX: the (source-fieldless) interface struct
+// gets two synthetic fields so a value of interface type can carry the
+// concrete implementer at runtime. `iface_type_name` is the implementer's
+// type name ("Circle"), stamped by the typer at each coercion site where the
+// concrete type is statically known; `iface_val` is a borrowed pointer to
+// the concrete value. A method call on an interface-typed receiver lowers to
+// dyn_call/dyn_call_ret on those two fields (see the typer's interface
+// dispatch rewrite). Runs BEFORE clone/delete generation so the generated
+// helpers cover the new fields.
+priv gen_interface_box_fields_for_stmt := func(stmt: Expr) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    ref tdef : Expr = stmt.child(0)
+    switch tdef.node_type {
+    case NodeType.StructDef(sdd):
+        if sdd.is_interface.not() { return }
+        for fd : Declaration in sdd.fields {
+            if fd.name.eq("iface_type_name") { return }
+        }
+        mut tag_decl := Declaration(name = "iface_type_name", explicit_type = "Str",
+            is_mut = true, own_type = OwnType.Shallow,
+            default_value = Expr.new(NodeType.Literal(Literal.Str("")), stmt.line, stmt.col))
+        sdd.fields.push(own tag_decl)
+        mut val_decl := Declaration(name = "iface_val", explicit_type = "Dynamic",
+            is_mut = true, own_type = OwnType.Ref,
+            default_value = Expr.new(NodeType.Literal(Literal.Null), stmt.line, stmt.col))
+        sdd.fields.push(own val_decl)
+    case:
+    }
+}
+
 priv gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     mut impl_name := ""
@@ -3738,6 +3768,7 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // and cmp/unity methodgen all moved to type_decls_file (the
     // typer's first sweep) as part of #147 step 3-4 / #174 work.
     for si : U32 in struct_idxs {
+        gen_interface_box_fields_for_stmt(program.child(si))
         gen_struct_clone_delete_for_stmt(program.child(si), scope, ctx)
         gen_implements_defaults_for_stmt(program.child(si), scope)
     }

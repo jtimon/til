@@ -5599,6 +5599,18 @@ priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: 
     f.write("\n}\n")
 }
 
+// #269: an ext_func/ext_proc namespace member is ABSTRACT (no C function
+// behind it) only inside an interface; on any other type it is a C-backed
+// external and must keep its dyn wrappers / dispatch entries.
+priv def_is_interface := func(def: Expr) returns Bool {
+    switch def.node_type {
+    case NodeType.StructDef(sdd):
+        return sdd.is_interface
+    case:
+        return false
+    }
+}
+
 emit_dyn_fn_closure_value := proc(f: File, type_name: Str, method_name: Str, suffix: Str) {
     value_name := type_name.format("_", method_name, suffix, "__til_closure")
     call_name := type_name.format("_", method_name, suffix)
@@ -5621,8 +5633,13 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         if nsd.default_value.is_null() { continue }
                         switch nsd.default_value.node_type {
                         case NodeType.FuncDef(fd):
-                            emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd, lp.ctx)
-                            emit_dyn_fn_closure_value(f, dd.name, nsd.name, "_dyn")
+                            // #269: no wrapper for abstract interface
+                            // methods -- there is no C function behind them.
+                            // ext_funcs on non-interface types are C-backed.
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                                emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd, lp.ctx)
+                                emit_dyn_fn_closure_value(f, dd.name, nsd.name, "_dyn")
+                            }
                         case:
                         }
                     }
@@ -5645,8 +5662,13 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     if nsd.default_value.is_null() { continue }
                     switch nsd.default_value.node_type {
                     case NodeType.FuncDef(fd):
-                        emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd, lp.ctx)
-                        emit_dyn_fn_closure_value(f, dd.name, nsd.name, "_dyn")
+                        // #269: no wrapper for abstract interface methods --
+                        // there is no C function behind them. ext_funcs on
+                        // non-interface types are C-backed.
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                            emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd, lp.ctx)
+                            emit_dyn_fn_closure_value(f, dd.name, nsd.name, "_dyn")
+                        }
                     case:
                     }
                 }
@@ -5670,10 +5692,15 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         ref nsd : Declaration = d_j
                         if nsd.default_value.is_null() { continue }
                         switch nsd.default_value.node_type {
-                        case NodeType.FuncDef:
-                            tlen := dd.name.len()
-                            mlen := nsd.name.len()
-                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd.name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd.name).write("_dyn__til_closure;\n")
+                        case NodeType.FuncDef(dfn_fd):
+                            // #269: abstract interface methods have no
+                            // _dyn wrapper closure to point at. ext_funcs
+                            // on non-interface types are C-backed.
+                            if dfn_fd.func_type.is(FuncType.ExtFunc).or(dfn_fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                                tlen := dd.name.len()
+                                mlen := nsd.name.len()
+                                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd.name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd.name).write("_dyn__til_closure;\n")
+                            }
                         case:
                         }
                     }
@@ -5695,10 +5722,15 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     ref nsd : Declaration = d_j
                     if nsd.default_value.is_null() { continue }
                     switch nsd.default_value.node_type {
-                    case NodeType.FuncDef:
-                        tlen := dd.name.len()
-                        mlen := nsd.name.len()
-                        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd.name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd.name).write("_dyn__til_closure;\n")
+                    case NodeType.FuncDef(dfn_fd2):
+                        // #269: abstract interface methods have no _dyn
+                        // wrapper closure to point at. ext_funcs on
+                        // non-interface types are C-backed.
+                        if dfn_fd2.func_type.is(FuncType.ExtFunc).or(dfn_fd2.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                            tlen := dd.name.len()
+                            mlen := nsd.name.len()
+                            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd.name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd.name).write("_dyn__til_closure;\n")
+                        }
                     case:
                     }
                 }
@@ -6205,6 +6237,18 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
                     if method_fdef.is_null() { continue }
                     if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
+                    // #269: skip abstract interface methods (ext_func/ext_proc
+                    // inside an interface) -- there is no C function to
+                    // dispatch to. ext_funcs on other types are C-backed.
+                    mut dyn_skip_abstract := false
+                    switch method_fdef.node_type {
+                    case NodeType.FuncDef(abs_mfd):
+                        if abs_mfd.func_type.is(FuncType.ExtFunc).or(abs_mfd.func_type.is(FuncType.ExtProc)) {
+                            dyn_skip_abstract = true
+                        }
+                    case:
+                    }
+                    if dyn_skip_abstract.and(def_is_interface(def)) { continue }
                     switch stmt.node_type {
                     case NodeType.Decl(dd):
                     switch method_fdef.node_type {
@@ -6272,6 +6316,18 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
                 if method_fdef.is_null() { continue }
                 if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
+                // #269: skip abstract interface methods (ext_func/ext_proc
+                // inside an interface) -- there is no C function to
+                // dispatch to. ext_funcs on other types are C-backed.
+                mut dyn_skip_abstract2 := false
+                switch method_fdef.node_type {
+                case NodeType.FuncDef(abs_mfd2):
+                    if abs_mfd2.func_type.is(FuncType.ExtFunc).or(abs_mfd2.func_type.is(FuncType.ExtProc)) {
+                        dyn_skip_abstract2 = true
+                    }
+                case:
+                }
+                if dyn_skip_abstract2.and(def_is_interface(def)) { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                 switch method_fdef.node_type {

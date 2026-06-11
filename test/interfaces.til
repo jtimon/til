@@ -128,3 +128,36 @@ test_default_override := test() {
     assert_eq_str(__LOC__, l.label(), "custom")
     assert_eq_str(__LOC__, l.describe(), "labeled")
 }
+
+// #269: dynamic dispatch. An interface-typed parameter accepts any
+// conforming value -- the typer boxes it with the concrete type's name --
+// and an abstract-method call on it dispatches to the RUNTIME type's
+// implementation via the dyn_call machinery, in both backends.
+render := func(d: Drawable) returns Str {
+    return d.draw()
+}
+
+test_dispatch_struct := test() {
+    c := Circle(r = 1)
+    assert_eq_str(__LOC__, render(c), "circle")
+    l := Labeled(n = 1)
+    assert_eq_str(__LOC__, render(l), "labeled")
+}
+
+test_dispatch_enum := test() {
+    p := Polygon.Tri
+    assert_eq_str(__LOC__, render(p), "polygon")
+}
+
+// #269: a concrete default called through the interface value stays a
+// static call to the interface's implementation, but an abstract call
+// INSIDE it (describe's body calls self.draw()) dispatches to the boxed
+// concrete type.
+describe_of := func(d: Drawable) returns Str {
+    return d.describe()
+}
+
+test_default_through_iface_dispatches := test() {
+    c := Circle(r = 1)
+    assert_eq_str(__LOC__, describe_of(c), "circle")
+}

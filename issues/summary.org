@@ -51,7 +51,6 @@
 ** Medium
 *** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
-*** [[./open/269.org][#269]] Interface dynamic dispatch: polymorphic interface-typed values
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies

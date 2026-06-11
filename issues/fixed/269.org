@@ -1,0 +1,80 @@
+# priority: medium
+# category: features
+** FIXED #269 Interface dynamic dispatch: polymorphic interface-typed values
+
+   FIXED. An interface value is a BOX: the initer
+   (gen_interface_box_fields_for_stmt) gives every interface struct two
+   synthetic fields -- ~iface_type_name: Str~ (the concrete implementer's
+   type name) and ~ref iface_val: Dynamic~ (a borrowed pointer to the
+   concrete value). At a coercion site (a conforming concrete arg passed
+   where an interface param is expected) the typer rewrites the arg into
+   ~Iface(iface_type_name = "Circle", iface_val = to_ptr(arg))~ -- the
+   concrete name is statically known there, so the box carries the runtime
+   tag (infer_and_validate_fcall_args). A call to an ABSTRACT method on an
+   interface-typed receiver rewrites to the existing dyn machinery:
+   ~Iface.method(recv, ...)~ -> ~dyn_call_ret(recv.iface_type_name,
+   "method", arity, recv.iface_val, ...)~ (infer_field_access_fcall), which
+   both backends already dispatch by runtime type name. Concrete defaults
+   stay statically dispatched to the interface's implementation; an
+   abstract call inside them (describe's ~self.draw()~) dispatches through
+   the box. The builder skips abstract (ext_func/ext_proc) methods in the
+   dyn dispatcher and dyn_fn wrapper emission (no C function exists behind
+   them).
+
+   Root-caused along the way: the scavenger pruned methods referenced ONLY
+   through dyn strings (no static ~Type.method~ callsite), leaving the
+   runtime dispatch pointing at freed FuncDefs. collect_refs now records
+   dyn_call/dyn_call_ret/dyn_fn/dyn_has_method targets: literal type name
+   -> keep exactly Type.method; runtime type name (interface dispatch) ->
+   a "*.method" wildcard that the reachability walk expands to every type
+   (scavenge_visited_imported).
+
+   Regression tests (test/interfaces.til, both backends): render(d:
+   Drawable) dispatching to Circle, Labeled (an override), and Polygon (an
+   enum implementer); describe_of(d: Drawable) proving a default's inner
+   abstract call dispatches through the box.
+
+   Deferred to follow-ups: boxing at non-argument coercion sites (locals,
+   returns, fields, collection elements); dispatch of abstract methods
+   with more than one argument besides self (dyn_call carries at most two
+   payload args; the typer reports a clear error); vtable/monomorphization
+   performance work.
+
+   --- Original issue below ---
+
+   Follow-up to #251 / #268. Make an interface a real polymorphic type: a
+   value of an interface type (`d: Drawable`) can hold any conforming concrete
+   type, and a method call on it (`d.draw()`) dispatches at runtime to that
+   concrete type's implementation. Today this is rejected at compile time
+   ("argument type mismatch for 'd': expected Drawable, got Circle"); the goal
+   is to make it work and dispatch correctly.
+
+   Agreed approach (at least initially): reuse the existing ~Dynamic~ / dyn
+   function-pointer machinery rather than building a separate vtable system.
+   An interface-typed value is, under the hood, a boxed ~Dynamic~ carrying the
+   concrete type tag plus the value. Passing a conforming concrete type where
+   the interface is expected is a compiler-inserted coercion (box it) --
+   allowed precisely because the #251 conformance check already proved the
+   type implements the interface. A method call on an interface-typed value
+   lowers to a dynamic dispatch (`dyn_call_ret`-style: look up the method for
+   the runtime tag and call it). #268 is the prerequisite: because every
+   implementer now has the full interface method set (provided abstracts +
+   copied concrete defaults) physically in its namespace, the dyn lookup
+   always finds a method to dispatch to, including the inherited defaults.
+
+   Scope / design points:
+   - Typer: accept a conforming concrete type where an interface type is
+     expected (param, return, field, local, collection element); insert the
+     box/coerce. Narrow the callable surface of an interface-typed value to
+     exactly the methods the interface declares.
+   - Lowering: emit the dynamic dispatch for `iface_val.method(...)` in both
+     the interpreter and the C builder.
+   - Memory/ownership: interface values go through Dynamic's existing
+     clone/delete.
+   - Performance: string-name dispatch is slower than a vtable index; fine to
+     start, optimizable to real vtables / monomorphization later.
+
+   Regression tests: a function `render(d: Drawable) returns Str` called with
+   a Circle and a Polygon dispatching to each one's draw; an interface-typed
+   value stored in a Vec and iterated; an inherited default (`d.describe()`)
+   dispatching through the interface value. Both backends.

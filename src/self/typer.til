@@ -1387,7 +1387,43 @@ priv redundant_conversion_error := proc(at: Expr, expected: Type, ctx: Context) 
         .concat(type_to_name(expected)).concat(" in this context; drop the .to_* / .cast(T) conversion"), ctx)
 }
 
+// #269: is `name` an interface type (a StructDef flagged is_interface)?
+priv name_is_interface := func(name: Str, scope: TypeScope) returns Bool {
+    ref d : Expr = scope.get_struct(name)
+    if d.is_null() { return false }
+    switch d.node_type {
+    case NodeType.StructDef(sdd):
+        return sdd.is_interface
+    case:
+        return false
+    }
+}
+
+// #269: does concrete type `cname` declare `implements iface`?
+priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope) returns Bool {
+    ref d : Expr = scope.get_struct(cname)
+    if d.is_null() { return false }
+    switch d.node_type {
+    case NodeType.StructDef(sdd):
+        return sdd.implements_name.eq(iface)
+    case NodeType.EnumDef(edd):
+        return edd.implements_name.eq(iface)
+    case:
+        return false
+    }
+}
+
 priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context) {
+    // #269: accept a conforming concrete type where an interface is expected.
+    // The #251 conformance check guarantees the methods exist; the runtime
+    // dispatches the method call to the concrete type. (Interpreter path
+    // first; compiled dispatch via a box is the follow-up.)
+    if name_is_interface(ptype_name, ctx.scope) {
+        arg_cname := til_type_name(arg.expr_til_type())
+        if arg_cname.len().gt(0).and(type_implements_iface(arg_cname, ptype_name, ctx.scope)) {
+            return
+        }
+    }
     if arg.expr_til_type().is(Type.Dynamic) { return }
     if arg.expr_til_type().is(Type.Unknown) { return }
     if arg.redundant_literal_conversion(ptype) {
@@ -1571,6 +1607,36 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                 ci = ci.add(1)
                 pi = pi.add(1)
                 continue
+            }
+            // #269: a conforming concrete value where an interface is
+            // expected coerces by BOXING: the arg is rewritten to
+            // `Iface(iface_type_name = "<Concrete>", iface_val = <arg>)`.
+            // The concrete type is statically known here, so the box carries
+            // the runtime tag that interface method dispatch (dyn_call on
+            // the box fields) needs. iface_val is a ref field: the box
+            // borrows the value, it does not consume it.
+            if name_is_interface(ptype_name, scope) {
+                box_cname := til_type_name(e.child(ci).expr_til_type())
+                if box_cname.len().gt(0).and(box_cname.eq(ptype_name).not()).and(type_implements_iface(box_cname, ptype_name, scope)) {
+                    box_line := e.child(ci).line
+                    box_col := e.child(ci).col
+                    mut iface_box := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
+                    iface_box.add_child(own Expr.new(ident_node(ptype_name), box_line, box_col))
+                    mut na_tag := Expr.new(NodeType.NamedArg("iface_type_name"), box_line, box_col)
+                    na_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(box_cname.clone())), box_line, box_col))
+                    iface_box.add_child(own na_tag)
+                    mut na_val := Expr.new(NodeType.NamedArg("iface_val"), box_line, box_col)
+                    // Wrap the value in to_ptr so the C backend passes its
+                    // ADDRESS into the box's ref-Dynamic field (a struct
+                    // local would otherwise be assigned by value).
+                    mut val_ptr := Expr.new(NodeType.FCall(FCallData()), box_line, box_col)
+                    val_ptr.add_child(own Expr.new(ident_node("to_ptr"), box_line, box_col))
+                    val_ptr.add_child(own e.child(ci).clone())
+                    na_val.add_child(own val_ptr)
+                    iface_box.add_child(own na_val)
+                    e.children.set(ci, own iface_box)
+                    infer_expr(scope, e.child(ci), in_func, ctx)
+                }
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.child(ci), ptype, ptype_name, param2.name, ctx)
@@ -1934,6 +2000,68 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     if fd.is_null().not() { ns_member_priv = fd.is_priv }
     check_member_priv(e, obj3_sname, method, ns_member_priv, ctx)
     if ctx.auto_gen_depth.eq(0).and(fd.is_null().not()) { fd.used = true }
+    // #269: a call to an ABSTRACT method through an interface-typed receiver
+    // cannot be resolved statically -- the receiver is a box carrying the
+    // concrete implementer's type name (see gen_interface_box_fields_for_stmt
+    // and the boxing rewrite in infer_and_validate_fcall_args). Lower the
+    // call onto the existing dyn_call machinery, which dispatches on the
+    // box's tag at runtime in BOTH backends:
+    //   Iface.method(recv, extra...) ->
+    //   dyn_call_ret(recv.iface_type_name, "method", arity, recv.iface_val, extra...)
+    // Concrete default methods stay statically dispatched to the interface's
+    // own implementation.
+    if name_is_interface(obj3_sname, scope).and(e.children.len().gte(2)) {
+        mut abs_method := false
+        mut abs_returns := false
+        mut abs_ret_type := ""
+        switch ns_func2.node_type {
+        case NodeType.FuncDef(abs_fd):
+            if abs_fd.func_type.is(FuncType.ExtFunc).or(abs_fd.func_type.is(FuncType.ExtProc)) {
+                abs_method = true
+                abs_returns = abs_fd.return_type.len().gt(0)
+                abs_ret_type = abs_fd.return_type.clone()
+            }
+        case:
+        }
+        recv_is_iface := til_type_name(e.child(1).expr_til_type()).eq(obj3_sname)
+        if abs_method.and(recv_is_iface) {
+            payload_args := e.children.len().sub(1)
+            if payload_args.gt(2) {
+                e.type_error(format("interface dispatch of '", obj3_sname, ".", method,
+                    "': dyn_call supports at most one argument besides self"), ctx)
+                e.set_expr_til_type(Type.Unknown)
+                return true
+            }
+            dl := e.line
+            dc := e.col
+            mut dyn_callee_name := "dyn_call"
+            if abs_returns { dyn_callee_name = "dyn_call_ret" }
+            mut dyn_children := Vec(Expr).new()
+            dyn_children.push(own Expr.new(ident_node(dyn_callee_name), dl, dc))
+            mut fa_tag := Expr.new(field_access_node("iface_type_name"), dl, dc)
+            fa_tag.add_child(own e.child(1).clone())
+            dyn_children.push(own fa_tag)
+            dyn_children.push(own Expr.new(NodeType.Literal(Literal.Str(method.clone())), dl, dc))
+            dyn_children.push(own Expr.new(NodeType.Literal(Literal.Num(LiteralNumData(text = payload_args.to_str()))), dl, dc))
+            mut fa_val := Expr.new(field_access_node("iface_val"), dl, dc)
+            fa_val.add_child(own e.child(1).clone())
+            dyn_children.push(own fa_val)
+            for xi in 2..e.children.len() {
+                dyn_children.push_take(e.children, xi)
+            }
+            e.children = dyn_children
+            switch e.node_type {
+            case NodeType.FCall(dyn_fcd):
+                dyn_fcd.own_args = 0
+            case:
+            }
+            infer_expr(scope, e, in_func, ctx)
+            if abs_ret_type.len().gt(0) {
+                e.set_expr_til_type(type_from_name(abs_ret_type, scope, ctx))
+            }
+            return true
+        }
+    }
     if ctx.proc_def_depth.gt(0).or(in_func.neq(0)) {
         switch ns_func2.node_type {
         case NodeType.FuncDef(ns_fdef0):
