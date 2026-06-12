@@ -1536,6 +1536,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             result = c.return_value.clone()
             c.has_return = false
         }
+        free_non_own_temp_args(call_scope, e, func_def)
         scope_free(own call_scope)
         return result
         case:
@@ -1759,6 +1760,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 result = c.return_value.clone()
                 c.has_return = false
             }
+            free_non_own_temp_args(call_scope2, e, func_def2)
             scope_free(own call_scope2)
             return result
         case:
@@ -1811,6 +1813,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     result3 = c.return_value.clone()
                     c.has_return = false
                 }
+                free_non_own_temp_args(call_scope3, e, fdef3)
                 scope_free(own call_scope3)
                 return result3
             case:
@@ -1865,6 +1868,44 @@ free_value_full := func(shallow v: Value) {
     case Value.Dynamic(slot):
         ref box : DynPtrBox = slot
         if box.p.is_null().not() { free(own box.p) }
+    case:
+    }
+}
+
+priv free_temp_arg_value := func(shallow v: Value) {
+    switch v {
+    case Value.Struct(si):
+        if si.borrowed.not() {
+            if si.data.is_null().not() {
+                if si.is_str {
+                    ref s_str : Str = to_ptr(si.data)
+                    if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                        if s_str.c_str.is_null().not() { free(own s_str.c_str) }
+                    }
+                }
+                free(own si.data)
+            }
+        }
+    case Value.Enum(ei):
+        if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
+    case:
+    }
+}
+
+priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def: Expr) {
+    switch func_def.node_type {
+    case NodeType.FuncDef(fdef):
+        for pi in 0..fdef.params.len() {
+            ref param : Declaration = fdef.params[pi]
+            if param.own_type.is(OwnType.Own) { continue }
+            ref arg_expr : Expr = call_expr.children[pi.add(1)]
+            if arg_expr.node_type.is(NodeType.Ident) { continue }
+            ref cell : Cell = scope_get(call_scope, param.name)
+            if cell.is_null().not() {
+                free_temp_arg_value(cell.val)
+                memcpy(cell.val, val_none(), Value.size().cast(U64))
+            }
+        }
     case:
     }
 }

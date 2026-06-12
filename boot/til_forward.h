@@ -3492,6 +3492,8 @@ priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__Dy
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
 void free_value_full(Value v);
+void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
+void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope, Expr * call_expr, Expr * func_def);
 Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);
 Value priv___src_self_interpreter_til__shallow_copy_value(Value * v);
 Value priv___src_self_interpreter_til__borrow_value(Value * v);
