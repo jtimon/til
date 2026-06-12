@@ -60,6 +60,14 @@ fi
 #   - bin/til, bin/til_boot, bin/til_asan, bin/til_debug
 #   - gdb (long batch runs)
 self_pgid=$(awk '{print $5}' /proc/$$/stat 2>/dev/null)
+# The managed runner's own subcommands (status/kill) are the HANDLE for
+# the one sanctioned long job -- blocking them deadlocks the session
+# against its own job (the hook refuses every call while the job lives,
+# including the call that would kill it). Always let them through; they
+# are instant and never start work.
+case "$first_line" in
+    .claude/hooks/managed-run.sh*) exit 0 ;;
+esac
 match_regex='(^|[/[:space:]])(make|cc|gcc|clang|gdb|bin/til|bin/til_boot|bin/til_asan|bin/til_debug)([[:space:]]|$)'
 
 for cmdline_file in /proc/[0-9]*/cmdline; do

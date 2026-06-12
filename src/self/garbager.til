@@ -869,6 +869,16 @@ priv branch_unconditionally_transfers := func(branch: Expr, name: Str, scope: Ty
 // Str local can hold a borrowed view on the non-transfer path, and deleting
 // that frees the source's buffer. Vec/Set/Map/struct/enum locals are always
 // genuinely heap when owned, so they are safe to sink.
+// VERIFIED LOAD-BEARING 2026-06-12: lifting this exclusion passes the full
+// suite (154/154, single AND two-pass) but bin/til_asan then hits a
+// heap-use-after-free inside Str_delete on strings.til in BOTH modes --
+// the cap guard does NOT cover every borrowed shape, and the corruption
+// is invisible without ASAN. Do not re-lift without an ASAN-clean run.
+// The cost: every conditionally-consumed Str clone
+// (`mut tn := x.clone(); ... if cond { consume(own tn) }`) leaks its
+// non-transfer path (the validate_one_fcall_consolidated /
+// seed_prior_local_types ASAN classes); fixing those needs per-site
+// restructuring or an owns-its-buffer analysis (issue #272).
 priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }

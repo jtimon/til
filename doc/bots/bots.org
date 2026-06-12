@@ -97,49 +97,43 @@ If you are about to run `make clean && make test`, do NOT run `make` first;
 `make clean` deletes that work and only wastes time.
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
-Remote sessions (Claude in the cloud): the cloud harness AUTO-backgrounds
-any command that runs past its internal ~120s threshold, even though
-`CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` is set in .claude/settings.json and
-even when you pass a large `timeout` (both verified ignored in-session; known
-upstream bug -- the high-timeout workaround that fixes this on the local CLI
-does NOT work on the web). The trap: an AUTO-backgrounded command often
-returns to you as if it finished (or with a kill code) WITHOUT handing you a
-task id -- so its process orphans and neither you nor the harness can kill
-it. The human then hand-kills zombie tasks. Do not let that happen.
+Remote sessions (Claude in the cloud): NEVER run a command that can
+exceed ~2 minutes. The harness converts any longer foreground command
+into a sidebar task entry that is never reaped -- even after the
+command finishes and even after its container dies, the entry shows
+"running" forever until the human hand-kills it. Verified exhaustively
+2026-06-12: this holds regardless of command shape (plain, echo/grep
+tails, self-sweeping process-group kills at exit, run_in_background,
+Monitor, detached setsid runners polled with waits of any length).
+The entry lifecycle is harness-internal and cannot be fixed from
+inside the container.
 
-Why `run_in_background: true` is NOT the escape hatch: it is WORSE. It
-creates a ghost task entry that can't be dismissed from the sidebar
-(Anthropic Issues #58662, #59900), and `.claude/hooks/block-background-bash.sh`
-BLOCKS it outright. So you cannot opt into a "managed" background task with a
-killable id -- that path is closed.
-
-Remote-session command protocol (non-negotiable):
-1. NEVER pass `run_in_background: true` (the hook blocks it; it ghost-orphans).
-   Run every command SYNCHRONOUSLY. A long one (any `make` build, any
-   compiled test run) will get auto-backgrounded by the harness anyway -- that
-   single orphan is unavoidable and is the lesser evil. The hell is not one
-   orphan; it is STACKING a second command on top while the first is alive.
-2. ONE command in flight, EVER. `.claude/hooks/block-background-bash.sh`
-   enforces this: it refuses a second Bash call while a `make`/`cc`/`bin/til`
-   process from a prior call is still alive ("BLOCKED: a long-running task ...
-   is still alive"). If you see that block, you tried to stack -- STOP.
-3. After you launch anything that might be long, assume it may have
-   auto-backgrounded. END THE TURN. Issue zero further tool calls. You are
-   woken by the `<task-notification>` when it finishes; only then continue
-   (read `tmp/build.log` or the output file). Do not poll, do not "stay
-   productive" while it runs.
-4. Prefer commands that finish UNDER ~120s so they never background at all:
-   interpret-mode checks (`bin/til interpret test/<one>.til`) are fast;
-   `make bin/til` and `bin/til run ...` (C compile) are slow and WILL
-   background -- run those one at a time, end the turn, wait.
-5. You cannot kill an auto-backgrounded orphan yourself: it is handed back to
-   you without a task id (often as a finished/killed result while the process
-   lingers), and `/tasks` -- the only place its id lives -- is the human's
-   view, not yours. So the only real defense is never to stack: one command,
-   end the turn, wait.
-6. The human runs the full suite locally at merge time. State explicitly in
-   your report which files you smoked and that the full suite is pending the
-   local merge run -- never claim suite-green you didn't see.
+The rule that follows:
+1. Long commands (anything that could exceed ~120s: make, suites, ASAN
+   builds/runs) go through `.claude/hooks/managed-run.sh start <cmd...>`
+   ONLY. The tool call returns instantly; the job runs detached in its
+   own process group with its pid in tmp/job.pid, log in tmp/job.log,
+   exit code in tmp/job.done. It is killable at any time by anyone
+   (`.claude/hooks/managed-run.sh kill` -- group-kill, verified empty)
+   and CANNOT be forgotten: its JOB_RUNNING marker keeps the stop-hook
+   poking the session until the job's own epilogue removes it.
+2. ONE managed job at a time (start REFUSES a second). While it runs,
+   the ONLY permitted call is `.claude/hooks/managed-run.sh status`
+   (instant; exempt from the one-task hook so the handle can never be
+   blocked by its own job). No other commands, no polling loops, no
+   Monitor, no run_in_background, no sleeping waits -- all verified to
+   misbehave 2026-06-12.
+3. Verified lifecycle (2026-06-12): start -> detached run -> self-
+   termination -> exit code on disk -> marker removed -> zero leftover
+   processes. The task tab may show the job's own live processes while
+   they genuinely run; they end with the job. Entries with names of
+   long-finished commands are STALE RECORDS resurfaced by the web UI
+   (known harness bug) -- killing them touches no live process; report
+   them to Anthropic, they cannot be fixed from inside the container.
+4. Short commands (git, greps, file edits, single-file smokes with a
+   prebuilt binary) run normally in the foreground.
+5. The human runs the full suite and ASAN baseline at merge time;
+   reports must state exactly what was and was not verified remotely.
 Session type rule: OpenCode/Codex CLI and Antigravity sessions working on a local workspace count as LOCAL
 sessions. "Remote" sessions at the moment just mean Claude in the cloud (CI or hosted bot runs on assigned
 bot branches). Even though Antigravity is a hosted AI agent, it operates directly on the user's local
