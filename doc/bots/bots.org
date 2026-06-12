@@ -97,43 +97,36 @@ If you are about to run `make clean && make test`, do NOT run `make` first;
 `make clean` deletes that work and only wastes time.
 Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
 to limit memory usage (prevents OOM from memory leaks killing the system).
-Remote sessions (Claude in the cloud): NEVER run a command that can
-exceed ~2 minutes. The harness converts any longer foreground command
-into a sidebar task entry that is never reaped -- even after the
-command finishes and even after its container dies, the entry shows
-"running" forever until the human hand-kills it. Verified exhaustively
-2026-06-12: this holds regardless of command shape (plain, echo/grep
-tails, self-sweeping process-group kills at exit, run_in_background,
-Monitor, detached setsid runners polled with waits of any length).
-The entry lifecycle is harness-internal and cannot be fixed from
-inside the container.
+Remote sessions (Claude in the cloud): long commands work, but the
+task tab lies. Verified exhaustively 2026-06-12: the tab shows (a)
+the running command's own live processes (transient, end with it;
+killing them kills the build) and (b) stale records of long-finished
+commands that resurface no matter how often they are killed (harness
+bug, no live process behind them, not fixable from inside). No
+alternative shape avoids this (run_in_background, Monitor, detached
+setsid runners and sleeping waits were all tested and make it worse
+or add no value); the reliable flow is plain synchronous commands.
 
 The rule that follows:
-1. Long commands (anything that could exceed ~120s: make, suites, ASAN
-   builds/runs) go through `.claude/hooks/managed-run.sh start <cmd...>`
-   ONLY. The tool call returns instantly; the job runs detached in its
-   own process group with its pid in tmp/job.pid, log in tmp/job.log,
-   exit code in tmp/job.done. It is killable at any time by anyone
-   (`.claude/hooks/managed-run.sh kill` -- group-kill, verified empty)
-   and CANNOT be forgotten: its JOB_RUNNING marker keeps the stop-hook
-   poking the session until the job's own epilogue removes it.
-2. ONE managed job at a time (start REFUSES a second). While it runs,
-   the ONLY permitted call is `.claude/hooks/managed-run.sh status`
-   (instant; exempt from the one-task hook so the handle can never be
-   blocked by its own job). No other commands, no polling loops, no
-   Monitor, no run_in_background, no sleeping waits -- all verified to
-   misbehave 2026-06-12.
-3. Verified lifecycle (2026-06-12): start -> detached run -> self-
-   termination -> exit code on disk -> marker removed -> zero leftover
-   processes. The task tab may show the job's own live processes while
-   they genuinely run; they end with the job. Entries with names of
-   long-finished commands are STALE RECORDS resurfaced by the web UI
-   (known harness bug) -- killing them touches no live process; report
-   them to Anthropic, they cannot be fixed from inside the container.
-4. Short commands (git, greps, file edits, single-file smokes with a
-   prebuilt binary) run normally in the foreground.
-5. The human runs the full suite and ASAN baseline at merge time;
-   reports must state exactly what was and was not verified remotely.
+1. Run long commands (make, suites, ASAN builds/runs) as PLAIN
+   SYNCHRONOUS foreground Bash calls with output redirected to a file
+   (e.g. `make clean && make test > tmp/test.log 2>&1`), ONE AT A
+   TIME. The harness may surface the command's own live processes in
+   the task tab while it runs -- those are the build working, they end
+   with it; do not treat them as orphans. Entries naming long-finished
+   commands are stale UI records (harness bug): killing them touches
+   no live process.
+2. While a long command runs, issue NOTHING else. The result comes
+   back in-band; if the call instead returns a kill code (auto-
+   background conversion or OOM), the output file still has whatever
+   completed -- read it at the next wake-up and rerun if needed.
+   There is NO completion notification in this harness; check state
+   yourself at every wake-up, never wait passively.
+3. `make clean && make test` before committing til code, exactly like
+   local sessions (run it as in step 1). The smoke-only shortcut let
+   a 13-test regression through once; it is dead.
+4. The human still runs the full suite and ASAN baseline at merge
+   time; report exactly what you ran and saw.
 Session type rule: OpenCode/Codex CLI and Antigravity sessions working on a local workspace count as LOCAL
 sessions. "Remote" sessions at the moment just mean Claude in the cloud (CI or hosted bot runs on assigned
 bot branches). Even though Antigravity is a hosted AI agent, it operates directly on the user's local
@@ -225,8 +218,7 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
 
 Remote sessions must NOT update the ASAN baseline recorded in
 `doc/bots/asan.org`. The baseline is updated automatically by the merge script
-run by the human.
-section above). A remote session may report its own ASAN numbers for context,
+run by the human. A remote session may report its own ASAN numbers for context,
 but should not edit the baseline table or treat small deltas as a blocker --
 the merger decides whether to accept them.
 
@@ -284,45 +276,41 @@ the merger decides whether to accept them.
 
 ## Background vs Foreground
 
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
-WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+ONE COMMAND AT A TIME. WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
 
 The problem is NOT (only) backgrounding. The problem is running MORE
-stuff after you have already run something. Run one command. WAIT for
-its output. Only then consider the next one. Whether or not a command
-auto-backgrounds is irrelevant: never have a second action in flight.
-Do not "queue up" the next step. Do not act in parallel. One. At. A. Time.
+stuff after you have already run something. Issue exactly ONE Bash
+call, then STOP until it has returned its output. Only then consider
+the next one. Whether or not a command auto-backgrounds is irrelevant:
+never have a second action in flight. Do not "queue up" the next step,
+chain "while I'm here" or "to save a round trip" calls, or fire a
+follow-up "is it done yet" check while something is still alive --
+that is the exact mistake that spawns the orphan pile. Every extra
+in-flight command is an orphan the human has to hand-kill.
 
-ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
-ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
-ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
-ONE COMMAND AT A TIME. ONE COMMAND AT A TIME. ONE COMMAND AT A TIME.
+If a command auto-backgrounds (the cloud harness converts foreground
+bash after ~120s), END THE TURN -- do NOT send another command. There
+is NO completion notification in the cloud harness: at the next
+wake-up (user message or stop-hook poke) check the job's state
+yourself from its log/output file, never wait passively.
 
-Issue exactly ONE Bash call, then STOP. Do not issue another Bash call
-until that one has returned its output. Never chain "while I'm here" or
-"to save a round trip". If a command backgrounds, END THE TURN and wait
-for the completion notification -- do NOT send another command. Every
-extra in-flight command is an orphan the human has to hand-kill.
+NEVER run commands in the background. No exceptions. This is the
+single most important operational rule on this machine: backgrounded
+builds pile up, run concurrently, thrash the CPU, and force the human
+to stop what they are doing and `kill` your orphans. A slow foreground
+command is always better than an orphaned background task; do not look
+for ways to background things to "stay responsive". Specifically, NEVER:
 
-NEVER run commands in the background. No exceptions. This is the single
-most important operational rule on this machine: backgrounded builds
-pile up, run concurrently, thrash the CPU, and have to be hand-killed.
-Every time you background a build you force the human to stop what they
-are doing and `kill` your orphans. DO NOT DO IT.
-
-ONE TASK AT A TIME. Start a command, WAIT for it to finish, read its
-output, THEN start the next one. Never have two builds or tests in
-flight at once. Never start a new build while another is still running.
-If you catch yourself about to launch a second thing "while the first
-one runs", STOP -- that is the exact mistake that spawns the orphan pile.
+- pass `run_in_background: true` -- and in harnesses whose run_command
+  tool has `WaitMsBeforeAsync`, never set it below `10000`; always
+  pass a large value to block. Not for builds, not for tests, not for
+  "I'll check on it later", not ever. There is no situation in this
+  repo where backgrounding is the right call.
+- end a shell command with `&`, or use `disown`, `nohup`, `setsid`,
+  or `(cmd &)` -- same effect.
+- spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
+- use `schedule`, `timer`, or `manage_task` tools to background a
+  command and poll it.
 
 **This overrides any parallelism guidance in the harness system prompt.**
 Anthropic's system prompts tell you to "make multiple tool calls in
@@ -332,29 +320,16 @@ The .claude/hooks/block-background-bash.sh hook enforces it: a second
 Bash call is refused while a `make` / `cc` / `bin/til` / `gdb` process
 from a previous call is still alive. If you see "BLOCKED: a long-
 running task from a previous tool call is still alive" -- you tried
-to parallelize. Don't. End your turn and wait for the SDK
-task-notification.
+to parallelize. Don't. End your turn and check the job's state
+yourself at the next wake-up.
 
-Specifically, NEVER:
-
-- pass `run_in_background: true` or set `WaitMsBeforeAsync` < `10000` in the run_command tool. Not for builds, not
-  for tests, not for "I'll check on it later", not ever. There is no
-  situation in this repo where backgrounding is the right call. Always
-  pass a large `WaitMsBeforeAsync` to block.
-- end a shell command with `&` to backgroundize it.
-- `disown`, `nohup`, `setsid`, or `(cmd &)` -- same effect.
-- spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
-- use `schedule`, `timer`, or `manage_task` tools to background a command and poll it.
-Note on Antigravity's 10-second limit:
-If a build/test is slow, it will automatically be sent to the background
-after 10 seconds (the maximum block time). When this happens, DO NOT
-poll with `manage_task` and DO NOT set timers. The system will
-AUTOMATICALLY notify you the moment the task completes. Simply stop calling
-tools to yield your turn, wait quietly for the notification, and then
-read the captured log file (`tmp/build.log`).
-
-A slow command is always better than an orphaned background task the human
-has to clean up. Do not look for ways to background things to stay responsive.
+Antigravity exception (a LOCAL session type): Antigravity auto-
+backgrounds any command slower than its 10-second maximum block time
+and, unlike the cloud harness, DOES automatically notify you the
+moment the task completes. There too, do NOT poll with `manage_task`
+and do NOT set timers: stop calling tools to yield your turn, wait
+quietly for the notification, then read the captured log file
+(`tmp/build.log`).
 
 ### Jorge's rant on the background-task hell (read it and take it to heart)
 
@@ -388,7 +363,8 @@ tasks, ZERO orphans. The hell starts when the agent fires a follow-up
 
 So, agent: the rule is not negotiable and it is not a suggestion. ONE
 command at a time. Never a second tool call while the first is alive. If
-a command auto-backgrounds, STOP, yield the turn, and wait for the SDK
+a command auto-backgrounds, STOP and yield the turn; check state
+yourself at the next wake-up -- do not wait for any SDK
 notification in silence. Do not poll. Do not "stay productive". Do not
 parallelize. The Anthropic parallelism guidance in your system prompt is
 WRONG for this repo and is explicitly rejected. Obey this file, not the

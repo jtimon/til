@@ -15,8 +15,10 @@
 #   2. Reject any trailing & / nohup / disown / setsid.
 #   3. Reject ANY new Bash call when a long-running task (make, cc,
 #      bin/til, gdb, ...) from a previous tool call is still alive.
-# The Claude turn ends after the rejection; the SDK's task-notification
-# wakes the session once the existing job actually finishes.
+# The Claude turn ends after the rejection. There is NO completion
+# notification in this harness: at every wake-up (user message or
+# stop-hook poke) check the job's state yourself
+# from its log/output files. Never wait passively.
 input=$(cat)
 
 bg=$(python3 -c "import sys,json; d=json.loads(sys.argv[1]); print(d.get('tool_input',{}).get('run_in_background'))" "$input" 2>/dev/null)
@@ -60,14 +62,6 @@ fi
 #   - bin/til, bin/til_boot, bin/til_asan, bin/til_debug
 #   - gdb (long batch runs)
 self_pgid=$(awk '{print $5}' /proc/$$/stat 2>/dev/null)
-# The managed runner's own subcommands (status/kill) are the HANDLE for
-# the one sanctioned long job -- blocking them deadlocks the session
-# against its own job (the hook refuses every call while the job lives,
-# including the call that would kill it). Always let them through; they
-# are instant and never start work.
-case "$first_line" in
-    .claude/hooks/managed-run.sh*) exit 0 ;;
-esac
 match_regex='(^|[/[:space:]])(make|cc|gcc|clang|gdb|bin/til|bin/til_boot|bin/til_asan|bin/til_debug)([[:space:]]|$)'
 
 for cmdline_file in /proc/[0-9]*/cmdline; do
@@ -85,7 +79,7 @@ for cmdline_file in /proc/[0-9]*/cmdline; do
     other_cmdline=$(tr '\0' ' ' < "$cmdline_file" 2>/dev/null)
     if echo "$other_cmdline" | grep -qE "$match_regex"; then
         offender=$(echo "$other_cmdline" | head -c 120)
-        echo "BLOCKED: a long-running task from a previous tool call is still alive (pid $pid: ${offender}...). End this turn and wait for the SDK's task-notification before issuing the next Bash call -- piling on top creates the 'wait for make / build' ghost tasks that accumulate in the sidebar." >&2
+        echo "BLOCKED: a long-running task from a previous tool call is still alive (pid $pid: ${offender}...). END THIS TURN now -- no further calls. There is NO completion notification: at your next wake-up (user message or stop-hook poke), check the job yourself via its log/output file and only then continue. Piling more calls on top creates the ghost tasks the human has to hand-kill." >&2
         exit 2
     fi
 done

@@ -30,7 +30,7 @@ fi
 # Forbid infinite loops with constant conditions. These are pure busy-waits
 # and always auto-background past the 120s sandbox threshold.
 if echo "$first_line" | grep -qP '\b(while|until)\s+(true|false|:)\b'; then
-    echo "BLOCKED: infinite loop (while true / while : / until false) -- gets auto-backgrounded and becomes a Wait ghost task. Skip the wait; the SDK posts a task-notification when the backgrounded command finishes." >&2
+    echo "BLOCKED: infinite loop (while true / while : / until false) -- gets auto-backgrounded and becomes a Wait ghost task. Skip the wait entirely; there is NO completion notification -- check state at your next wake-up instead." >&2
     exit 2
 fi
 
@@ -66,7 +66,7 @@ fi
 
 # NOTE: `make test` and friends are NOT banned. They are slow and the
 # harness auto-backgrounds them, but that is fine on its own -- the
-# session just yields and waits for the SDK task-notification. The
+# session just yields; at the next wake-up it checks state itself. The
 # actual cause of "background task hell" was firing OTHER tool calls
 # while a slow task was still running; that is prevented by the
 # in-flight guard in block-background-bash.sh (refuses a 2nd Bash call

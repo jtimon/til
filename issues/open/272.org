@@ -112,6 +112,122 @@ code) violate the intended layering. The principles, as stated by Jorge:
     user calls (ext calls null the source cell, user calls may not),
     reinterpret_ptr_value / widen_numeric struct paths.
 
+*** Step 3 findings, round 6 -- the wall is mapped end to end (2026-06-12)
+
+  - THE DOUBLE-OWNER ROOT CAUSE, probe-proven (full ownership history
+    of one box): hoisted Str temp owns it -> Ident-arg binding to a
+    Dynamic param duplicates it UNFLAGGED via box_scalar_to_dynamic's
+    `case: return shallow_copy_value(v)` pass-through (twice, nested
+    calls) -> garbager free(own val) frees one copy -> deep teardown
+    of the other re-frees. FIXES THAT WORK: (a) own params MOVE --
+    null the caller's cell right after scope_set_owned in the
+    Ident-arg Dynamic-box paths; (b) non-own params BORROW -- flag the
+    pass-through copy. With (a)+(b): kwargs dynamic tuples asting ALL
+    PASS under ASAN deep scope_free.
+  - BUT (b) breaks the #211 enum payload-binding write-through (plain
+    interp: enums/errors corrupt payload Strs -> suite 152/154), and
+    (a) alone breaks 8 files (146/154) while asting/enums/errors UAF
+    under ASAN. The payload-alias subsystem (get_payload bindings,
+    payload_aliases mirror) needs the same move/borrow contract before
+    deep scope_free can land. Neither config is suite-green, so the
+    interpreter experiments are REVERTED to master in this commit; the
+    fixes are fully described above for clean re-application.
+  - Probe recipes that cracked it (reusable): dbg_owned(tag,name,val)
+    printing si.data as U64 via an 8-byte malloc slot + write_ptr +
+    `ref a : U64 = ptr_add(slot, 0)` (direct to_ptr on payload fields
+    overflows); h_free/scope_free address probes; match the ASAN
+    report's hex address converted to decimal against the probe log.
+  - Workflow: synchronous one-command-at-a-time flow re-verified all
+    day (builds + sweeps + suites in-band); bin/til_boot must be
+    rebuilt after rebases that change the parser (children[] syntax).
+
+*** Step 3 findings, round 5*** Step 3 findings, round 5 (owner probes, 2026-06-12)
+
+  - Probes added (eprint to stderr): h_free Ident branch prints
+    ident + si.data address; scope_free deep delete prints binding
+    name + si.data. scope_free is temporarily a proc for eprint.
+  - CATCH: the h_free Ident calls in the kwargs run are
+    free(own self) / free(own val) from INTERPRETED CORE DELETE
+    METHOD BODIES (the `if call_free { free(own self) }` tail and
+    Map/Vec internals). self binds BORROWED (caller's cell);
+    free_value_full through it frees the caller's payload box and
+    nulls the CALLER's cell -- interaction with the deep scope_free
+    teardown of the callee/caller scopes double-frees. data=0 lines
+    show some frees hit already-nulled values (benign); the UAF
+    fires later at teardown.
+  - NOTE: the probe itself then crashed reading a freed cell while
+    printing (probe-induced, ignore that frame; remove probes before
+    committing).
+  - Direction: interp h_free must mirror compiled free(own x)
+    semantics EXACTLY: box-only release (compiled frees the malloc'd
+    wrapper; field destructors already ran inside the delete body).
+    free_value (box only) instead of free_value_full for the
+    Value.Struct case? -- and the cell-nulling must propagate to the
+    OWNING cell (it does: scope_get walks to it). Then deep
+    scope_free skips nulled cells naturally. Test against kwargs,
+    dynamic, tuples; asting is a separate ext_dispatch_ffi read
+    shape (tmp/wall_asting.log).
+  - Build notes: bin/til_boot must be rebuilt (make bin/til_boot)
+    after rebasing over master's Expr.child removal -- the old boot
+    parser cannot read children[0].method() statements.
+
+*** Step 3 findings, round 4*** Step 3 findings, round 4 (synchronous flow restored, 2026-06-12)
+
+  - WORKFLOW: the morning's plain synchronous flow is restored and
+    re-verified end to end: bin/til_boot build --asan (build: 0
+    in-band) + full 15-file ASAN sweep completed in one synchronous
+    command each. The managed-runner experiment is abandoned; its
+    enforcement block was removed from block-background-bash.sh.
+  - Deep scope_free + h_free FieldAccess slot-zero fix in tree.
+    Sweep: PASS maps hashmaps sets aliases first_class regression
+    own_fields structs strings ref; FAIL kwargs dynamic tuples asting
+    splat (5 left, was 13).
+  - kwargs UAF (tmp/wall_kwargs.log): alloc = top-level Str literal
+    Decl (make_str_value via program eval_body); freed via h_free's
+    IDENT branch (frees + nulls that cell correctly); re-freed by
+    scope_free deep delete => a SECOND owned cell shares the payload
+    unflagged. Find which binding path duplicated a program-scope
+    Str payload into another owned cell without borrow/move (suspect:
+    interp arg binding for core calls feeding KwargsMap/Array paths,
+    or the Decl bare-Ident move not covering some shape).
+  - splat: FALSE FAIL -- test/splat.til does not exist (stale wall
+    list). Real remaining: kwargs, dynamic, tuples (one shared shape)
+    + asting (distinct, via ext_dispatch_ffi read).
+  - The shared shape: h_free's IDENT branch is reached by GARBAGER-
+    INSERTED free calls (make_free_call FCalls in the typed AST, e.g.
+    the Shallow-field value-copy WRAPPER free from
+    insert_post_stmt_deletes). Compiled semantics: free(x) releases
+    ONLY the box; the value-copied field owns the contents. Interp
+    h_free does free_value_full + nulls the cell -- but a SECOND owner
+    of the same si.data box exists (alloc = top-level Str literal
+    Decl; re-free = a call scope's deep teardown). Find who the second
+    box owner is (shadowed binding? borrowed binding made owned?) --
+    probe: print cell identity vs payload address at free time, or
+    audit scope_set_borrowed/scope_get paths for the test's shape.
+  - Next: read tmp/wall_dynamic.log  - Next: read tmp/wall_dynamic.log, tuples, asting, splat the same
+    way; fix each alias at creation; re-sweep synchronously; when all
+    PASS: make clean && make test synchronously; then ASAN measure
+    (expect the ~17K interpret-mode cell-payload class to drop);
+    close #272 (git mv to fixed/, post-mortem) and squash EVERYTHING
+    into one commit per Jorge's instruction.
+
+*** Step 3 findings, round 3*** Step 3 findings, round 3 (deep scope_free wall sweep, 2026-06-12)
+
+  - swap_replace move semantics merged (332c559); mut-param assignment
+    no longer aliases. Deep scope_free re-applied in the lab tree;
+    sweeping the 13 wall files with tmp/til_dbg (clean ASAN build).
+  - kwargs UAF diagnosed: interpreted CORE code calls
+    `free(own holder.field)`; h_free's non-Ident branch evals the
+    FieldAccess into a borrowed copy, frees through it, nulls the COPY
+    only -- the FIELD SLOT inside the holder still stores the freed
+    pointer, so the holder's deep delete re-frees it. Fix: after
+    free_value_full in the non-Ident branch, when the freed expr is a
+    FieldAccess, resolve base+offset (same machinery as the
+    FieldAssign handler / write_field) and zero the slot.
+  - dynamic also FAILS (trace in tmp/wall_dynamic.log, not yet read).
+    Sweep results land in tmp/wall_<file>.log; PASS/FAIL list in
+    tmp/job.log.
+
 *** Step 3 findings, round 2 (lab state in working tree, NOT committed)
 
   - Minimal repro: tmp/mp.til (mut-param concat: greet(mut out: Str)
