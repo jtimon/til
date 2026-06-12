@@ -12,9 +12,14 @@
 // TOKEN_INFORMATION_CLASS, which collides with our 'TokenType' typedef from
 // boot/til_forward.h. ext.c never references the Windows token enum, so rename it
 // via the preprocessor for the duration of the Windows headers.
+// wingdi.h declares a 'Rectangle' GDI function, which collides with our
+// 'Rectangle' struct (from the raylib bindings) in boot/til_forward.h.
+// ext.c never calls the GDI function, so rename it the same way.
 #define TokenType _WinTokenType_Conflict
+#define Rectangle _WinRectangle_Conflict
 #include <windows.h>
 #undef TokenType
+#undef Rectangle
 #include <direct.h>
 #include <io.h>
 #include <psapi.h>
