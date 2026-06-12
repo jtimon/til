@@ -1,0 +1,51 @@
+mode cli
+
+import("../src/std/sys")
+
+run := proc(cmd: Str) returns I64 {
+    pid := spawn_cmd(cmd)
+    return wait_cmd(pid)
+}
+
+main := proc(args: ..Str) {
+    if args.len().gt(0) {
+        print("usage: bin/til run examples/cleanup_failed_merge.til\n")
+        exit(1)
+    }
+
+    _mk := run("mkdir -p tmp >/dev/null 2>&1")
+    if _mk.lt(0) { }
+
+    // Staged adds become untracked after restore --staged; remember them so
+    // cleanup really returns the tree to HEAD instead of leaving new files.
+    added_list := "tmp/cleanup_failed_merge_added.txt"
+    run(format("git diff --cached --name-only --diff-filter=A -z > ", added_list))
+
+    print("Restoring tracked staged and unstaged changes...\n")
+    mut ec := run("git restore --staged :/ >/dev/null 2>&1")
+    if ec.neq(0) {
+        eprint_single("git restore --staged failed\n")
+        exit(ec)
+    }
+    ec = run("git restore :/ >/dev/null 2>&1")
+    if ec.neq(0) {
+        eprint_single("git restore failed\n")
+        exit(ec)
+    }
+    run(format("xargs -0 -r rm -rf -- < ", added_list))
+
+    print("Rebuilding bin/til with make clean && make...\n")
+    ec = run("systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/cleanup_failed_merge_build.log 2>&1 && make >> tmp/cleanup_failed_merge_build.log 2>&1'")
+    if ec.neq(0) {
+        eprint_single("make clean && make failed; see tmp/cleanup_failed_merge_build.log\n")
+        exit(ec)
+    }
+
+    print("Restoring boot files changed by the rebuild...\n")
+    ec = run("git restore boot/til.c boot/til_forward.h >/dev/null 2>&1")
+    if ec.neq(0) {
+        eprint_single("post-build git restore failed\n")
+        exit(ec)
+    }
+    print("Cleanup complete.\n")
+}
