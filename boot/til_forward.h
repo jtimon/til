@@ -2661,6 +2661,11 @@ void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, Typ
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__gen_interface_box_fields_for_stmt(Expr * stmt);
+Expr * priv___src_self_initer_til__iface_self_field(Expr * stmt, Str * fname);
+Expr * priv___src_self_initer_til__iface_dyn_clone_call(Expr * stmt);
+Expr * priv___src_self_initer_til__iface_dyn_delete_call(Expr * stmt);
+Expr * priv___src_self_initer_til__iface_box_ctor(Expr * stmt, Str * sname, Expr * tn, Expr * val, Bool owned);
+void priv___src_self_initer_til__gen_interface_clone_delete_for_stmt(Expr * stmt);
 void priv___src_self_initer_til__gen_implements_defaults_for_stmt(Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_substitute_self_type(Expr * fexpr, Str * from_name, Str * to_name);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);

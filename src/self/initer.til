@@ -3807,6 +3807,171 @@ priv gen_interface_box_fields_for_stmt := func(stmt: Expr) {
             is_mut = true, own_type = OwnType.Ref,
             default_value = Expr.new(NodeType.Literal(Literal.Null), stmt.line, stmt.col))
         sdd.fields.push(own val_decl)
+        // #269 follow-up: discriminate a borrowed box (the concrete outlives
+        // it -- arguments, same-scope locals) from an OWNED box (the concrete
+        // escapes -- returns, fields, Vec elements), which holds a heap copy
+        // of the concrete. The custom clone/delete below branch on this:
+        // owned boxes deep-clone / free iface_val via dyn_call; borrowed boxes
+        // leave it alone, exactly as before.
+        mut owned_decl := Declaration(name = "iface_owned", explicit_type = "Bool",
+            is_mut = true, own_type = OwnType.Shallow,
+            default_value = Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
+        sdd.fields.push(own owned_decl)
+    case:
+    }
+}
+
+// self.<fname> field access -- helper for the interface clone/delete bodies.
+priv iface_self_field := func(stmt: Expr, fname: Str) returns Expr {
+    mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
+    mut fa := Expr.new(field_access_node(fname), stmt.line, stmt.col)
+    fa.add_child(own self_id)
+    return fa
+}
+
+// dyn_call_ret(self.iface_type_name, "clone", 1, self.iface_val): a heap deep
+// copy of the boxed concrete (dyn_call_clone mallocs and clones the result).
+priv iface_dyn_clone_call := func(stmt: Expr) returns Expr {
+    mut dc := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+    dc.add_child(own Expr.new(ident_node("dyn_call_ret"), stmt.line, stmt.col))
+    dc.add_child(own iface_self_field(stmt, "iface_type_name"))
+    dc.add_child(own Expr.new(NodeType.Literal(Literal.Str("clone")), stmt.line, stmt.col))
+    dc.add_child(own Expr.new(literal_num_node("1"), stmt.line, stmt.col))
+    dc.add_child(own iface_self_field(stmt, "iface_val"))
+    return dc
+}
+
+// dyn_call(self.iface_type_name, "delete", 2, self.iface_val, true): free the
+// heap copy an owned box holds.
+priv iface_dyn_delete_call := func(stmt: Expr) returns Expr {
+    mut dc := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+    dc.add_child(own Expr.new(ident_node("dyn_call"), stmt.line, stmt.col))
+    dc.add_child(own iface_self_field(stmt, "iface_type_name"))
+    dc.add_child(own Expr.new(NodeType.Literal(Literal.Str("delete")), stmt.line, stmt.col))
+    dc.add_child(own Expr.new(literal_num_node("2"), stmt.line, stmt.col))
+    dc.add_child(own iface_self_field(stmt, "iface_val"))
+    dc.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))
+    return dc
+}
+
+// Iface(iface_type_name = <tn>, iface_val = <val>, iface_owned = <owned>)
+priv iface_box_ctor := func(stmt: Expr, sname: Str, own tn: Expr, own val: Expr, owned: Bool) returns Expr {
+    mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+    ctor.add_child(own Expr.new(ident_node(sname), stmt.line, stmt.col))
+    mut na1 := Expr.new(NodeType.NamedArg("iface_type_name"), stmt.line, stmt.col)
+    na1.add_child(own tn)
+    ctor.add_child(own na1)
+    mut na2 := Expr.new(NodeType.NamedArg("iface_val"), stmt.line, stmt.col)
+    na2.add_child(own val)
+    ctor.add_child(own na2)
+    mut na3 := Expr.new(NodeType.NamedArg("iface_owned"), stmt.line, stmt.col)
+    na3.add_child(own Expr.new(NodeType.Literal(Literal.Bool(owned)), stmt.line, stmt.col))
+    ctor.add_child(own na3)
+    return ctor
+}
+
+// #269 follow-up: generate ownership-aware clone/delete for an interface box.
+// The generic field-wise versions are wrong for an OWNED box -- clone would
+// value-copy (alias) the iface_val pointer and delete would skip it (Ref),
+// leaking the heap copy. These branch on iface_owned: an owned box deep-clones
+// / frees the concrete via dyn_call; a borrowed box copies / leaves the
+// pointer, exactly as before. Runs before gen_struct_clone_delete_for_stmt so
+// it sees clone/delete already present and skips them.
+priv gen_interface_clone_delete_for_stmt := func(stmt: Expr) {
+    if stmt.node_type.is(NodeType.Decl).not() { return }
+    ref tdef : Expr = stmt.children[0]
+    mut sname := ""
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        sname = sdecl.name.clone()
+    case:
+        return
+    }
+    switch tdef.node_type {
+    case NodeType.StructDef(sdd):
+        if sdd.is_interface.not() { return }
+        mut has_clone := false
+        mut has_delete := false
+        for d_j : Declaration in sdd.ns_decls {
+            if d_j.name.eq("clone") { has_clone = true }
+            if d_j.name.eq("delete") { has_delete = true }
+        }
+
+        if has_clone.not() {
+            // owned: return Iface(self.iface_type_name.clone(), <deep copy>, true)
+            mut owned_tn := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name"), "clone", stmt.line, stmt.col)
+            mut owned_box := iface_box_ctor(stmt, sname, own owned_tn, own iface_dyn_clone_call(stmt), true)
+            mut owned_ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+            owned_ret.add_child(own owned_box)
+            mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            then_body.add_child(own owned_ret)
+            mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col)
+            if_node.add_child(own iface_self_field(stmt, "iface_owned"))
+            if_node.add_child(own then_body)
+
+            // borrow: return Iface(self.iface_type_name.clone(), self.iface_val, false)
+            mut bor_tn := make_method_call_fcall(own iface_self_field(stmt, "iface_type_name"), "clone", stmt.line, stmt.col)
+            mut bor_box := iface_box_ctor(stmt, sname, own bor_tn, own iface_self_field(stmt, "iface_val"), false)
+            mut bor_ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+            bor_ret.add_child(own bor_box)
+
+            mut clone_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            clone_body.add_child(own if_node)
+            clone_body.add_child(own bor_ret)
+
+            mut clone_decl := FunctionDef(auto_generated = true)
+            clone_decl.func_type = FuncType.Func
+            clone_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Ref))
+            clone_decl.return_type = sname.clone()
+            clone_decl.variadic_index = -1
+            clone_decl.kwargs_index = -1
+            mut clone_def := Expr.new(NodeType.FuncDef(clone_decl), stmt.line, stmt.col)
+            clone_def.add_child(own clone_body)
+            sdd.ns_decls.push(own Declaration(name = "clone", default_value = clone_def))
+        }
+
+        if has_delete.not() {
+            // if self.iface_owned { dyn_call(... "delete" ... true) }
+            mut del_then := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            del_then.add_child(own iface_dyn_delete_call(stmt))
+            mut del_if := Expr.new(NodeType.If, stmt.line, stmt.col)
+            del_if.add_child(own iface_self_field(stmt, "iface_owned"))
+            del_if.add_child(own del_then)
+
+            // self.iface_type_name.delete(false)
+            mut tn_del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
+            tn_del_acc.add_child(own iface_self_field(stmt, "iface_type_name"))
+            mut tn_del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            set_own_arg(tn_del_call, 0)
+            tn_del_call.add_child(own tn_del_acc)
+            tn_del_call.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
+
+            // if call_free { free(self) }
+            mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            free_call.add_child(own Expr.new(ident_node("free"), stmt.line, stmt.col))
+            set_own_arg(free_call, free_call.children.len())
+            free_call.add_child(own Expr.new(ident_node("self"), stmt.line, stmt.col))
+            mut free_then := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            free_then.add_child(own free_call)
+            mut free_if := Expr.new(NodeType.If, stmt.line, stmt.col)
+            free_if.add_child(own Expr.new(ident_node("call_free"), stmt.line, stmt.col))
+            free_if.add_child(own free_then)
+
+            mut del_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            del_body.add_child(own del_if)
+            del_body.add_child(own tn_del_call)
+            del_body.add_child(own free_if)
+
+            mut del_decl := FunctionDef(auto_generated = true)
+            del_decl.func_type = FuncType.Func
+            del_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
+            del_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+            del_decl.variadic_index = -1
+            del_decl.kwargs_index = -1
+            mut del_def := Expr.new(NodeType.FuncDef(del_decl), stmt.line, stmt.col)
+            del_def.add_child(own del_body)
+            sdd.ns_decls.push(own Declaration(name = "delete", default_value = del_def))
+        }
     case:
     }
 }
@@ -3922,6 +4087,7 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // typer's first sweep) as part of #147 step 3-4 / #174 work.
     for si : U32 in struct_idxs {
         gen_interface_box_fields_for_stmt(program.children[si])
+        gen_interface_clone_delete_for_stmt(program.children[si])
         gen_struct_clone_delete_for_stmt(program.children[si], scope, ctx)
         gen_implements_defaults_for_stmt(program.children[si], scope)
     }
