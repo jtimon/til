@@ -126,7 +126,14 @@ namespace:
                 // needed.
             } else {
                 for dd : Declaration in sdef_data.fields {
-                    foff := ctx_field_layout(self.struct_name, dd.name, self.ctx).offset
+                    // Bind the FieldLayout to a local (not a chained
+                    // `ctx_field_layout(...).offset`): codegen emits the
+                    // chained form as a deref on the returned heap struct
+                    // and discards the pointer, leaking the FieldLayout and
+                    // its struct_name Str per field per clone. A bound
+                    // local gets the garbager's scope-end delete.
+                    clone_fl := ctx_field_layout(self.struct_name, dd.name, self.ctx)
+                    foff := clone_fl.offset
                     ref ftype : Str = dd.explicit_type
                     ref nested_def : Expr = field_nested_def(dd, self.ctx)
                     if dd.own_type.is(OwnType.Own) {
@@ -1184,7 +1191,12 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                     case NodeType.FieldAccess(fa_name):
                                             ref fd : Declaration = find_field_decl(cur_sdef, fa_name.field_access_name())
                                         if fd.is_null().not() {
-                                            fa_off := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx).offset
+                                            // Bound local, not chained `.offset`
+                                            // -- the chained form leaks the
+                                            // returned FieldLayout (see
+                                            // StructInstance.clone above).
+                                            fa_fl := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx)
+                                            fa_off := fa_fl.offset
                                             if fd.own_type.is(OwnType.Shallow).not() {
                                                 base = deref(ptr_add(base, fa_off.cast(U64)))
                                             } else {
