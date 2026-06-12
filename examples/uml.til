@@ -341,7 +341,7 @@ extract_types_from_file := proc(path: Str) returns Vec(UmlType) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if stmt.children.len().gt(0) {
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
 
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                     body_lines := extract_body_lines(lines, rhs.line)

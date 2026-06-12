@@ -150,7 +150,7 @@ ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
         if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) {
             continue
         }
-        ref sdef : Expr = stmt.child(0)
+        ref sdef : Expr = stmt.children[0]
         if sdef.node_type.is(NodeType.StructDef).not() {
             continue
         }
@@ -252,27 +252,27 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
 }
 
 priv h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    av := narrow_bool_arg(s, e.child(1), ctx)
-    bv := narrow_bool_arg(s, e.child(2), ctx)
+    av := narrow_bool_arg(s, e.children[1], ctx)
+    bv := narrow_bool_arg(s, e.children[2], ctx)
     r = Value.Boolean(and(av, bv))
     return true
 }
 
 priv h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    av := narrow_bool_arg(s, e.child(1), ctx)
-    bv := narrow_bool_arg(s, e.child(2), ctx)
+    av := narrow_bool_arg(s, e.children[1], ctx)
+    bv := narrow_bool_arg(s, e.children[2], ctx)
     r = Value.Boolean(or(av, bv))
     return true
 }
 
 priv h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    bv := narrow_bool_arg(s, e.child(1), ctx)
+    bv := narrow_bool_arg(s, e.children[1], ctx)
     r = Value.Boolean(not(bv))
     return true
 }
 
 priv h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    v := eval_expr(s, e.child(1), ctx)
+    v := eval_expr(s, e.children[1], ctx)
     switch v {
     case Value.Int(i):
         r = val_u8(i)
@@ -284,7 +284,7 @@ priv h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
 }
 
 priv h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    v := eval_expr(s, e.child(1), ctx)
+    v := eval_expr(s, e.children[1], ctx)
     switch v {
     case Value.Int(i):
         r = val_i16(i)
@@ -296,7 +296,7 @@ priv h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 }
 
 priv h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    v := eval_expr(s, e.child(1), ctx)
+    v := eval_expr(s, e.children[1], ctx)
     switch v {
     case Value.Int(i):
         r = val_u16(i)
@@ -308,7 +308,7 @@ priv h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 }
 
 priv h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    v := eval_expr(s, e.child(1), ctx)
+    v := eval_expr(s, e.children[1], ctx)
     switch v {
     case Value.Int(i):
         r = val_i32(i)
@@ -320,7 +320,7 @@ priv h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 }
 
 priv h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    v := eval_expr(s, e.child(1), ctx)
+    v := eval_expr(s, e.children[1], ctx)
     switch v {
     case Value.Int(i):
         r = Value.Float(i.to_f32())
@@ -332,7 +332,7 @@ priv h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 }
 
 priv h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    v := eval_expr(s, e.child(1), ctx)
+    v := eval_expr(s, e.children[1], ctx)
     switch v {
     case Value.Int(i):
         r = val_u32(i)
@@ -349,7 +349,7 @@ priv h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
 // the raw bits; the val_* constructors mask/sign-interpret to the
 // target width.
 priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    mut v := eval_expr(s, e.child(1), ctx)
+    mut v := eval_expr(s, e.children[1], ctx)
     // For non-scalar operand variants (Value.Ref from `ref c : I8 =
     // ...`, Value.Struct carrying a primitive's bits via
     // StructInstance.data, etc.) the underlying primitive bits live
@@ -357,7 +357,7 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     // and rebuild the matching scalar Value variant; otherwise
     // value_to_u64 hits its default `case: return 0` and the widening
     // cast silently returns zero.
-    src_tn := til_type_name_c(e.child(1).expr_til_type())
+    src_tn := til_type_name_c(e.children[1].expr_til_type())
     switch v {
     case Value.Ref(p):
         if src_tn.eq("I8") { ref tmp : I8 = p; v = Value.Sbyte(tmp) }
@@ -430,7 +430,7 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 }
 
 priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    arg := eval_expr(s, e.child(1), ctx)
+    arg := eval_expr(s, e.children[1], ctx)
     print_single(str_view(arg))
     r = val_none()
     return true
@@ -443,7 +443,7 @@ priv h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) ret
 }
 
 priv h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    a := eval_expr(s, e.child(1), ctx)
+    a := eval_expr(s, e.children[1], ctx)
     switch a {
     case Value.Int(code):
         exit(code)
@@ -455,22 +455,22 @@ priv h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 }
 
 priv h_readfile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    path := eval_expr(s, e.child(1), ctx)
+    path := eval_expr(s, e.children[1], ctx)
     content := File.readfile(str_view(path))
     r = make_str_value(content.c_str, content.count, ctx)
     return true
 }
 
 priv h_writefile := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    path := eval_expr(s, e.child(1), ctx)
-    content := eval_expr(s, e.child(2), ctx)
+    path := eval_expr(s, e.children[1], ctx)
+    content := eval_expr(s, e.children[2], ctx)
     File.writefile(str_view(path), str_view(content))
     r = val_none()
     return true
 }
 
 priv h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    cmd := eval_expr(s, e.child(1), ctx)
+    cmd := eval_expr(s, e.children[1], ctx)
     r = Value.Int(spawn_cmd(str_view(cmd)))
     return true
 }
@@ -498,15 +498,15 @@ priv val_to_ptr := func(v: Value) returns ref Dynamic {
 }
 
 priv h_dyn_has_method := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
-    method := eval_str_owned(s, e.child(2), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    method := eval_str_owned(s, e.children[2], ctx)
     r = Value.Boolean(ns_get(type_name, method, ctx).is_null().not())
     return true
 }
 
 priv h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name_val := eval_expr(s, e.child(1), ctx)
-    method_val := eval_expr(s, e.child(2), ctx)
+    type_name_val := eval_expr(s, e.children[1], ctx)
+    method_val := eval_expr(s, e.children[2], ctx)
     // str_view returns a Str that BORROWS its arg Value's c_str. Inline the
     // views into their uses (rather than binding type_name/method locals)
     // so type_name_val / method_val stay live through ns_get -- their last
@@ -525,7 +525,7 @@ priv h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
 }
 
 priv h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     sz := get_elem_size(s, type_name, e, ctx)
     r = Value.Uint32(sz)
     return true
@@ -587,7 +587,7 @@ priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, c
 }
 
 priv h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
@@ -598,16 +598,16 @@ priv h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
     return true
 }
 
-// Decode e.child(2) (the index argument shared by every struct_field_*
+// Decode e.children[2] (the index argument shared by every struct_field_*
 // / enum_variant_* / func_sig_* handler) as a USize. The arg is a
 // til-side integer value (commonly an I64 literal); take the low 32
 // bits as the slot index.
 priv eval_index_arg := proc(s: Scope, e: Expr, ctx: Context) returns USize {
-    return value_to_u64(eval_expr(s, e.child(2), ctx)).to_u32()
+    return value_to_u64(eval_expr(s, e.children[2], ctx)).to_u32()
 }
 
 priv h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
@@ -625,7 +625,7 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
 }
 
 priv h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
@@ -643,7 +643,7 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 }
 
 priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
@@ -685,7 +685,7 @@ priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx
 }
 
 priv h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
@@ -697,7 +697,7 @@ priv h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
 }
 
 priv h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
@@ -715,7 +715,7 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
 }
 
 priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
@@ -737,7 +737,7 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Co
 }
 
 priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
@@ -783,7 +783,7 @@ priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, 
 }
 
 priv h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -795,7 +795,7 @@ priv h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
 }
 
 priv h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     switch node.node_type {
@@ -813,7 +813,7 @@ priv h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 }
 
 priv h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -825,7 +825,7 @@ priv h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Conte
 }
 
 priv h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
     switch node.node_type {
@@ -842,7 +842,7 @@ priv h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
 }
 
 priv h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
@@ -854,7 +854,7 @@ priv h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
 }
 
 priv h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     switch node.node_type {
@@ -872,7 +872,7 @@ priv h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
 }
 
 priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_val := eval_expr(s, e.child(1), ctx)
+    type_val := eval_expr(s, e.children[1], ctx)
     switch type_val {
     case Value.Enum(ei):
         ref til_type_def : Expr = lookup_interp_type_def("Type", ctx)
@@ -994,7 +994,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 }
 
 priv h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    pidv := eval_expr(s, e.child(1), ctx)
+    pidv := eval_expr(s, e.children[1], ctx)
     switch pidv {
     case Value.Int(pid):
         r = Value.Int(check_cmd_status(pid))
@@ -1006,7 +1006,7 @@ priv h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
 }
 
 priv h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    msv := eval_expr(s, e.child(1), ctx)
+    msv := eval_expr(s, e.children[1], ctx)
     switch msv {
     case Value.Int(ms):
         sleep_ms(ms)
@@ -1019,13 +1019,13 @@ priv h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool
 }
 
 priv h_file_mtime := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    path := eval_expr(s, e.child(1), ctx)
+    path := eval_expr(s, e.children[1], ctx)
     r = Value.Int(file_mtime(str_view(path)))
     return true
 }
 
 priv h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    arg := eval_expr(s, e.child(1), ctx)
+    arg := eval_expr(s, e.children[1], ctx)
     r = Value.Float(str_parse_f32(str_view(arg)))
     return true
 }
@@ -1041,8 +1041,8 @@ priv h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool 
 }
 
 priv h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    path := eval_str_owned(s, e.child(1), ctx)
-    is_write_v := eval_expr(s, e.child(2), ctx)
+    path := eval_str_owned(s, e.children[1], ctx)
+    is_write_v := eval_expr(s, e.children[2], ctx)
     switch is_write_v {
     case Value.Boolean(is_write):
         // FILE* handle: closed via cfile_close (fclose), never free()'d,
@@ -1128,13 +1128,13 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
 }
 
 priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    switch e.child(1).node_type {
+    switch e.children[1].node_type {
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(s, ident.ident_name())
         free_value_full(cell.val)
         memcpy(cell.val, val_none(), Value.size().cast(U64))
     case:
-        val := eval_expr(s, e.child(1), ctx)
+        val := eval_expr(s, e.children[1], ctx)
         free_value_full(val)
         // val is a garbager-tracked local whose deep Value.delete would
         // re-free the payload free_value_full just released; null it so the
@@ -1146,14 +1146,14 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 }
 
 priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    val := eval_expr(s, e.child(1), ctx)
+    val := eval_expr(s, e.children[1], ctx)
     free_value_full(val)
     r = val_none()
     return true
 }
 
 priv h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_close(deref(hp))
     r = val_none()
@@ -1161,8 +1161,8 @@ priv h_cfile_close := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
 }
 
 priv h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
-    sv := eval_str_owned(s, e.child(2), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
+    sv := eval_str_owned(s, e.children[2], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_write_str(deref(hp), sv)
     r = val_none()
@@ -1170,8 +1170,8 @@ priv h_cfile_write_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
 }
 
 priv h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    buf := eval_expr(s, e.child(1), ctx)
-    offset := eval_expr(s, e.child(2), ctx)
+    buf := eval_expr(s, e.children[1], ctx)
+    offset := eval_expr(s, e.children[2], ctx)
     ref base : Dynamic = val_to_ptr(buf)
     off := value_to_u64(offset)
     r = Value.Ref(ptr_add(deref(base), off))
@@ -1179,7 +1179,7 @@ priv h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
 }
 
 priv h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     content := cfile_read_all(deref(hp))
     r = make_str_value(content.c_str, content.count, ctx)
@@ -1187,7 +1187,7 @@ priv h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 }
 
 priv h_cfile_open_update := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    path := eval_str_owned(s, e.child(1), ctx)
+    path := eval_str_owned(s, e.children[1], ctx)
     // FILE* handle: closed via cfile_close (fclose), never free()'d, so
     // it is a borrowed view, not a free()-owned Value.Dynamic.
     r = Value.Ref(cfile_open_update(path))
@@ -1195,15 +1195,15 @@ priv h_cfile_open_update := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
 }
 
 priv h_cfile_tell := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     r = Value.Int(cfile_tell(deref(hp)))
     return true
 }
 
 priv h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
-    pos_v := eval_expr(s, e.child(2), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
+    pos_v := eval_expr(s, e.children[2], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_seek(deref(hp), value_to_u64(pos_v).cast(I64))
     r = val_none()
@@ -1211,8 +1211,8 @@ priv h_cfile_seek := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
 }
 
 priv h_cfile_seek_cur := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
-    delta_v := eval_expr(s, e.child(2), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
+    delta_v := eval_expr(s, e.children[2], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_seek_cur(deref(hp), value_to_u64(delta_v).cast(I64))
     r = val_none()
@@ -1220,8 +1220,8 @@ priv h_cfile_seek_cur := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 }
 
 priv h_cfile_seek_end := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
-    delta_v := eval_expr(s, e.child(2), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
+    delta_v := eval_expr(s, e.children[2], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     cfile_seek_end(deref(hp), value_to_u64(delta_v).cast(I64))
     r = val_none()
@@ -1229,8 +1229,8 @@ priv h_cfile_seek_end := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) ret
 }
 
 priv h_cfile_read_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    handle_v := eval_expr(s, e.child(1), ctx)
-    count_v := eval_expr(s, e.child(2), ctx)
+    handle_v := eval_expr(s, e.children[1], ctx)
+    count_v := eval_expr(s, e.children[2], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
     content := cfile_read_n(deref(hp), value_to_u64(count_v).cast(I64))
     r = make_str_value(content.c_str, content.count, ctx)
@@ -1322,8 +1322,8 @@ priv ext_dispatch_builtin := func(name: Str, scope: Scope, e: Expr, mut result: 
 }
 
 priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
-    type_name := eval_str_owned(s, e.child(1), ctx)
-    method := eval_str_owned(s, e.child(2), ctx)
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    method := eval_str_owned(s, e.children[2], ctx)
 
     // Build fake AST: Type.method(args...)
     mut type_ident := Expr.new(ident_node(type_name), e.line, e.col)
@@ -1336,7 +1336,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
     fake_call.add_child(own field_access)
 
     // child 3 is arity literal, actual args start at child 4
-    ref arity_expr : Expr = e.child(3)
+    ref arity_expr : Expr = e.children[3]
     mut nargs : U32 = 0
     switch arity_expr.node_type {
     case NodeType.Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
@@ -1344,7 +1344,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
         UNREACHABLE(__LOC__)
     }
     for ai in 0..nargs {
-        fake_call.push_child_clone(e.child(ai.add(4)))
+        fake_call.push_child_clone(e.children[ai.add(4)])
     }
 
     r = eval_call(s, fake_call, ctx)
@@ -1379,7 +1379,7 @@ enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_nam
             vtype := enum_variant_type(enum_def, ctor_tag)
             has_payload := vtype.len().gt(0)
             if has_payload {
-                mut payload := eval_expr(scope, e.child(1), ctx)
+                mut payload := eval_expr(scope, e.children[1], ctx)
                 mut pdata : Dynamic = 0
                 mut psz : USize = 0
                 mut must_free_pdata := false
@@ -1567,7 +1567,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     mut arg_vals := Vec(Value).new()
 
     for i in 0..nargs {
-        v := eval_expr(scope, e.child(i.add(1)), ctx)
+        v := eval_expr(scope, e.children[i.add(1)], ctx)
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))
         if is_shallow {
@@ -1781,8 +1781,8 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
         else if stmt.children.len().eq(0) { }
         else {
             // Top-level ext_func/ext_proc
-            if stmt.child(0).node_type.is(NodeType.FuncDef) {
-                ref fdef : Expr = stmt.child(0)
+            if stmt.children[0].node_type.is(NodeType.FuncDef) {
+                ref fdef : Expr = stmt.children[0]
                 switch fdef.node_type {
                 case NodeType.FuncDef(fd):
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
@@ -1799,10 +1799,10 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                 }
             }
             // Struct namespace ext_func/ext_proc
-            if stmt.child(0).node_type.is(NodeType.StructDef) {
+            if stmt.children[0].node_type.is(NodeType.StructDef) {
                 switch stmt.node_type {
                 case NodeType.Decl(sdd):
-                    switch stmt.child(0).node_type {
+                    switch stmt.children[0].node_type {
                     case NodeType.StructDef(sdd_data):
                         for d_j : Declaration in sdd_data.ns_decls {
                         ref fdd : Declaration = d_j
@@ -1826,10 +1826,10 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                             // A bodyless namespace signature (interface
                             // method, issue #251) has no body to scan.
                             if fdef.children.len().eq(0) { continue }
-                            ref fbody : Expr = fdef.child(0)
+                            ref fbody : Expr = fdef.children[0]
                             for inner : Expr in fbody.children {
                                 if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
-                                    ref idef : Expr = inner.child(0)
+                                    ref idef : Expr = inner.children[0]
                                     switch idef.node_type {
                                     case NodeType.FuncDef(ifd):
                                         if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {

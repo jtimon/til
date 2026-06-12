@@ -30,7 +30,7 @@ priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     case:
     }
     for i in 0..e.children.len() {
-        collect_assign_targets(e.child(i), names)
+        collect_assign_targets(e.children[i], names)
     }
 }
 
@@ -533,7 +533,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
                     switch fdef.node_type {
                     case NodeType.FuncDef:
                         if fdef.children.len().gt(0) {
-                            ref called_body : Expr = fdef.child(0)
+                            ref called_body : Expr = fdef.children[0]
                             if func_uses_unknown_globals(called_body, fdef, precomp_scope, called_body, lenient, visiting, ctx) {
                                 return true
                             }
@@ -555,7 +555,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
         if body_has_local(body_root, ad.name).not() { return true }
     case NodeType.FieldAccess(mname):
         if mname.field_access_name().eq("new").and(e.children.len().gt(0)) {
-            switch e.child(0).node_type {
+            switch e.children[0].node_type {
             case NodeType.Ident(type_name):
                 if type_name.ident_name().eq("Vec") { return true }
             case:
@@ -574,13 +574,13 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
 // typer-hoisted `_t := <lit>; return _t` form. Returns NULL otherwise.
 priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
     if fdef.children.len().eq(0) { return NULL }
-    ref body : Expr = fdef.child(0)
+    ref body : Expr = fdef.children[0]
     n := body.children.len()
     if n.eq(1) {
-        ref ret : Expr = body.child(0)
+        ref ret : Expr = body.children[0]
         if ret.node_type.is(NodeType.Return).not() { return NULL }
         if ret.children.len().eq(0) { return NULL }
-        ref rv : Expr = ret.child(0)
+        ref rv : Expr = ret.children[0]
         if rv.node_type.is_literal_num()
             .or(rv.node_type.is_literal_str())
             .or(rv.node_type.is_literal_bool()) {
@@ -589,18 +589,18 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
         return NULL
     }
     if n.eq(2) {
-        ref decl : Expr = body.child(0)
-        ref ret : Expr = body.child(1)
+        ref decl : Expr = body.children[0]
+        ref ret : Expr = body.children[1]
         if ret.node_type.is(NodeType.Return).not() { return NULL }
         if decl.children.len().eq(0) { return NULL }
         if ret.children.len().eq(0) { return NULL }
         switch decl.node_type {
         case NodeType.Decl(dd):
-            ref ret_val : Expr = ret.child(0)
+            ref ret_val : Expr = ret.children[0]
             switch ret_val.node_type {
             case NodeType.Ident(ret_name):
                 if ret_name.ident_name().eq(dd.name).not() { return NULL }
-                ref rhs : Expr = decl.child(0)
+                ref rhs : Expr = decl.children[0]
                 if rhs.node_type.is_literal_num()
                     .or(rhs.node_type.is_literal_str())
                     .or(rhs.node_type.is_literal_bool()) {
@@ -647,7 +647,7 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
 // so method calls on values (`x.add(y)` where x: I64) still resolve.
 priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
     if callee.children.len().eq(0) { return "" }
-    ref recv : Expr = callee.child(0)
+    ref recv : Expr = callee.children[0]
     switch recv.node_type {
     case NodeType.Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
@@ -663,7 +663,7 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
 // returns a literal, return a heap-allocated clone of that literal.
 priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Expr {
     if fcall.children.len().eq(1).not() { return NULL }
-    ref fc_callee : Expr = fcall.child(0)
+    ref fc_callee : Expr = fcall.children[0]
     mut fc_fp : Dynamic = 0
     switch fc_callee.node_type {
     case NodeType.Ident(ci):
@@ -709,7 +709,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     mut fast : Expr = try_fast_fold_call(scope, fcall, ctx)
     if fast.is_null().not() { return fast }
 
-    ref callee : Expr = fcall.child(0)
+    ref callee : Expr = fcall.children[0]
     // Issue #191: for macro calls (require_known=true), don't block on
     // side-effecting names or ext_funcs -- macros are allowed to call
     // run_cmd, malloc, etc. at compile time.
@@ -732,7 +732,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         // mask them. Mirror the Ident-callee check on the method name.
         if is_macro_mode.not().and(is_side_effecting_name(mname.field_access_name())) { return NULL }
         if callee.children.len().gt(0) {
-            ref recv : Expr = callee.child(0)
+            ref recv : Expr = callee.children[0]
             switch recv.node_type {
             case NodeType.Ident(ri):
                 ref probe : Value = ns_get(ri.ident_name(), "size", ctx)
@@ -769,7 +769,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
                     mut fuug_visiting := Set(Str).new()
-                    uses_unknown := func_uses_unknown_globals(fdef.child(0), fdef, scope, fdef.child(0), true, fuug_visiting, ctx)
+                    uses_unknown := func_uses_unknown_globals(fdef.children[0], fdef, scope, fdef.children[0], true, fuug_visiting, ctx)
                     own fuug_visiting.delete(true)
                     if uses_unknown {
                         return NULL
@@ -784,10 +784,10 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     nargs := fcall.children.len().sub(1)
     mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
     ec.set_expr_til_type(fcall.expr_til_type())
-    ec.add_child(own fcall.child(0).clone())
+    ec.add_child(own fcall.children[0].clone())
 
     for i in 0..nargs {
-        ref arg : Expr = fcall.child(i.add(1))
+        ref arg : Expr = fcall.children[i.add(1)]
         mut arg_val := val_none()
         mut arg_is_known := is_known(ctx, arg, arg_val)
         // Issue #191: also check interpreter scope for arg values. Skip
@@ -979,7 +979,7 @@ priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
 is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
-    ref callee : Expr = e.child(0)
+    ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cname):
         return precomp_has_macro(ctx, cname.ident_name())
@@ -996,7 +996,7 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
 priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().eq(0) { return false }
-    ref callee : Expr = e.child(0)
+    ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cname):
         return precomp_has_func(ctx, cname.ident_name())
@@ -1017,7 +1017,7 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
 // never folded.
 priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
-        ref child : Expr = e.child(i)
+        ref child : Expr = e.children[i]
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
@@ -1057,7 +1057,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
                 for ai in 1..child.children.len() {
-                    if is_known_check(ctx, child.child(ai)).not() {
+                    if is_known_check(ctx, child.children[ai]).not() {
                         all_comptime = false
                         break
                     }
@@ -1089,7 +1089,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             .and(dd.own_type.is(OwnType.Ref).not())
             .and(ctx.precomp_assigned.has(dd.name).not())
             .and(child.children.len().gt(0)) {
-                track_literal_known_only(dd.name, child.child(0), ctx)
+                track_literal_known_only(dd.name, child.children[0], ctx)
             }
         case:
         }
@@ -1110,13 +1110,13 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // is what lets a later fold's eval-time invocation of Str.delete
     // resolve CAP_VIEW (which lives in str.til as a top-level const).
     for i in 0..body.children.len() {
-        ref stmt : Expr = body.child(i)
+        ref stmt : Expr = body.children[i]
         fold_subtree(scope, stmt, ctx)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
-        ref rhs : Expr = stmt.child(0)
+        ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) { process_body(scope, stmt.child(0).child(0), ctx, false) }
+            if rhs.children.len().gt(0) { process_body(scope, stmt.children[0].children[0], ctx, false) }
             continue
         }
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -1128,7 +1128,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
                 if nsd.default_value.is_null() { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 if nsd.default_value.children.len().eq(0) { continue }
-                fold_subtree(scope, nsd.default_value.child(0), ctx)
+                fold_subtree(scope, nsd.default_value.children[0], ctx)
             }
             continue
         }
@@ -1153,19 +1153,19 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // safe (no side effects to preserve).
     mut keep := Vec(Expr).new()
     for di in 0..body.children.len() {
-        ref dstmt : Expr = body.child(di)
+        ref dstmt : Expr = body.children[di]
         mut drop := false
         switch dstmt.node_type {
         case NodeType.Decl(dd):
             if dd.name.starts_with("hoisted__") {
                 if dstmt.children.len().gt(0) {
-                    ref drhs : Expr = dstmt.child(0)
+                    ref drhs : Expr = dstmt.children[0]
                     is_lit := drhs.node_type.is(NodeType.Literal)
                     if is_lit {
                         mut used_elsewhere := false
                         for ui in 0..body.children.len() {
                             if ui.eq(di) { continue }
-                            if expr_uses_var_p(body.child(ui), dd.name, ctx) {
+                            if expr_uses_var_p(body.children[ui], dd.name, ctx) {
                                 used_elsewhere = true
                                 break
                             }
@@ -1208,7 +1208,7 @@ precomp_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context)
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
-        ref rhs : Expr = stmt.child(0)
+        ref rhs : Expr = stmt.children[0]
         is_def := rhs.node_type.is(NodeType.FuncDef)
             .or(rhs.node_type.is(NodeType.StructDef))
             .or(rhs.node_type.is(NodeType.EnumDef))

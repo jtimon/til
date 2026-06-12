@@ -554,7 +554,7 @@ align_up := func(offset: USize, align: USize) returns USize {
 
 precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
-    switch stmt.child(0).node_type {
+    switch stmt.children[0].node_type {
     case NodeType.FuncDef(fd):
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -751,7 +751,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     case NodeType.Literal(Literal.Str):  return "Str"
     case NodeType.FCall:
         if def_val.children.len().eq(0) { return "" }
-        ref callee : Expr = def_val.child(0)
+        ref callee : Expr = def_val.children[0]
         switch callee.node_type {
         case NodeType.Ident(cn): return cn.ident_name()
         case:
@@ -803,18 +803,18 @@ priv is_decl_with_child := func(stmt: Expr) returns Bool {
 
 is_struct_or_enum := func(stmt: Expr) returns Bool {
     if is_decl_with_child(stmt).not() { return false }
-    ref def : Expr = stmt.child(0)
+    ref def : Expr = stmt.children[0]
     return def.node_type.is(NodeType.StructDef).or(def.node_type.is(NodeType.EnumDef))
 }
 
 is_func_decl := func(stmt: Expr) returns Bool {
     if is_decl_with_child(stmt).not() { return false }
-    return stmt.child(0).node_type.is(NodeType.FuncDef)
+    return stmt.children[0].node_type.is(NodeType.FuncDef)
 }
 
 is_def := func(stmt: Expr) returns Bool {
     if is_decl_with_child(stmt).not() { return false }
-    ref def : Expr = stmt.child(0)
+    ref def : Expr = stmt.children[0]
     return def.node_type.is(NodeType.FuncDef)
     .or(def.node_type.is(NodeType.StructDef))
     .or(def.node_type.is(NodeType.EnumDef))

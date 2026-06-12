@@ -616,7 +616,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     case NodeType.EnumDef:
         return Value.Func(e)
     case NodeType.FieldAccess(fname):
-        mut obj := eval_expr(scope, e.child(0), ctx)
+        mut obj := eval_expr(scope, e.children[0], ctx)
         if interp_fa_is_ns(scope, e) {
             mut sname := ""
             switch obj {
@@ -628,17 +628,17 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 // name. Prefer the typer-set til_type (always reliable);
                 // fall back to the EnumInstance's own enum_name if for
                 // some reason the obj_expr is type-stripped.
-                sname = til_type_name(e.child(0).expr_til_type())
+                sname = til_type_name(e.children[0].expr_til_type())
                 if sname.len().eq(0) {
                     sname = ei.enum_name
                 }
             case:
-                switch e.child(0).node_type {
+                switch e.children[0].node_type {
                 case NodeType.Ident(ident):
                     sname = ident.ident_name()
                 case:
                     // Primitive receiver (LiteralNum I64, etc.).
-                    sname = til_type_name_c(e.child(0).expr_til_type())
+                    sname = til_type_name_c(e.children[0].expr_til_type())
                 }
             }
             ref nsv : Value = ns_get(sname, fname.field_access_name(), ctx)
@@ -683,7 +683,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             exit(1)
         }
         if is_value_ptr(obj) {
-            ref obj_expr : Expr = e.child(0)
+            ref obj_expr : Expr = e.children[0]
             obj_t := obj_expr.expr_til_type()
             switch obj_t {
             case Type.Struct(obj_sname):
@@ -818,7 +818,7 @@ priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns
         ref p0 : Declaration = fd.params[0]
         if p0.own_type.is(OwnType.Own).not() { return false }
         if e.children.len().lte(1) { return false }
-        switch e.child(1).node_type {
+        switch e.children[1].node_type {
         case NodeType.Ident(arg_ident):
             ref fc : Cell = scope_get(scope, arg_ident.ident_name())
             if fc.is_null() { return false }
@@ -880,7 +880,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             if stmt.expr_til_type().is(Type.None) {
                 if rhs.node_type.is(NodeType.Ident) { continue }
             }
@@ -939,8 +939,8 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 switch rhs.node_type {
                 case NodeType.FCall:
                     if rhs.children.len().eq(2) {
-                        ref head : Expr = rhs.child(0)
-                        ref arg  : Expr = rhs.child(1)
+                        ref head : Expr = rhs.children[0]
+                        ref arg  : Expr = rhs.children[1]
                         switch head.node_type {
                         case NodeType.Ident(head_id):
                             if head_id.ident_name().eq("get_payload") {
@@ -958,7 +958,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
             }
         case NodeType.Assign(ad):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             ref cell : Cell = scope_get(scope, ad.name)
             if cell.is_null() {
                 interp_error(stmt, "undefined variable '".concat(ad.name).concat("'"), ctx)
@@ -1122,7 +1122,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             memcpy(new_val, val_none(), Value.size().cast(U64))
         case NodeType.FieldAssign(fad):
             fname := fad.name
-            ref val_expr : Expr = stmt.child(1)
+            ref val_expr : Expr = stmt.children[1]
             mut val := val_none()
             ref move_src : Cell = field_assign_dyn_move_src(scope, val_expr)
             if move_src.is_null().not() {
@@ -1131,13 +1131,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 val = eval_expr(scope, val_expr, ctx)
             }
             if interp_fa_is_ns(scope, stmt) {
-                obj := eval_expr(scope, stmt.child(0), ctx)
+                obj := eval_expr(scope, stmt.children[0], ctx)
                 mut sname := ""
                 switch obj {
                 case Value.Struct(si):
                     sname = si.struct_name
                 case:
-                    switch stmt.child(0).node_type {
+                    switch stmt.children[0].node_type {
                     case NodeType.Ident(oi):
                         sname = oi.ident_name()
                     case:
@@ -1146,10 +1146,10 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 ns_set(sname, fname, val, ctx)
                 if move_src.is_null().not() { memcpy(move_src.val, val_none(), Value.size().cast(U64)) }
             } else {
-                ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.child(0))
-                ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.child(0))
+                ref mut base : Dynamic = resolve_field_assign_base(scope, stmt.children[0])
+                ref mut cur_sdef : Expr = resolve_field_assign_sdef(scope, stmt.children[0])
                 mut cur_sname : Str = ""
-                switch stmt.child(0).node_type {
+                switch stmt.children[0].node_type {
                 case NodeType.Ident(obj_ident):
                     ref obj_cell : Cell = scope_get(scope, obj_ident.ident_name())
                     if obj_cell.is_null().not() {
@@ -1162,12 +1162,12 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 case:
                 }
                 // Chain walking for nested field access (e.g. a.b.c = val)
-                if stmt.child(0).node_type.is(NodeType.FieldAccess) {
-                    ref mut cur : Expr = stmt.child(0)
+                if stmt.children[0].node_type.is(NodeType.FieldAccess) {
+                    ref mut cur : Expr = stmt.children[0]
                     mut depth : I32 = 0
                     while cur.node_type.is(NodeType.FieldAccess) {
                         depth = depth.add(1)
-                        cur = cur.child(0)
+                        cur = cur.children[0]
                     }
                     switch cur.node_type {
                     case NodeType.Ident(root_ident):
@@ -1180,7 +1180,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                 cur_sname = si.struct_name
                                 // For simplicity, handle depth=1 (most common: a.field = val)
                                 if depth.eq(1) {
-                                    switch stmt.child(0).node_type {
+                                    switch stmt.children[0].node_type {
                                     case NodeType.FieldAccess(fa_name):
                                             ref fd : Declaration = find_field_decl(cur_sdef, fa_name.field_access_name())
                                         if fd.is_null().not() {
@@ -1236,11 +1236,11 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 if sw_fcd.swap_replace.and(stmt.children.len().gte(3)) {
                     mut sw_target := ""
                     mut sw_src := ""
-                    switch stmt.child(1).node_type {
+                    switch stmt.children[1].node_type {
                     case NodeType.Ident(sw_t): sw_target = sw_t.ident_name()
                     case:
                     }
-                    switch stmt.child(2).node_type {
+                    switch stmt.children[2].node_type {
                     case NodeType.Ident(sw_s): sw_src = sw_s.ident_name()
                     case:
                     }
@@ -1275,13 +1275,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             // already enforced the capture restriction, so at runtime it
             // behaves exactly like a bare `{ ... }` block.
             cb_scope := scope_new(scope)
-            eval_body(cb_scope, stmt.child(0), ctx)
+            eval_body(cb_scope, stmt.children[0], ctx)
             if c.has_return {
                 c.return_value = c.return_value.clone()
             }
             scope_free(own cb_scope)
         case NodeType.If:
-            cond := eval_expr(scope, stmt.child(0), ctx)
+            cond := eval_expr(scope, stmt.children[0], ctx)
             mut cv := false
             switch cond {
             case Value.Boolean(b):
@@ -1291,19 +1291,19 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             }
             if cv {
                 then_scope := scope_new(scope)
-                eval_body(then_scope, stmt.child(1), ctx)
+                eval_body(then_scope, stmt.children[1], ctx)
                 if c.has_return { c.return_value = c.return_value.clone() }
                 scope_free(own then_scope)
             } else if stmt.children.len().gt(2) {
                 else_scope := scope_new(scope)
-                eval_body(else_scope, stmt.child(2), ctx)
+                eval_body(else_scope, stmt.children[2], ctx)
                 if c.has_return { c.return_value = c.return_value.clone() }
                 scope_free(own else_scope)
             }
         case NodeType.While:
             while true {
                 if c.has_return { break }
-                cond := eval_expr(scope, stmt.child(0), ctx)
+                cond := eval_expr(scope, stmt.children[0], ctx)
                 mut cv := false
                 switch cond {
                 case Value.Boolean(b):
@@ -1313,7 +1313,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
                 if cv.not() { break }
                 while_scope := scope_new(scope)
-                eval_body(while_scope, stmt.child(1), ctx)
+                eval_body(while_scope, stmt.children[1], ctx)
                 if c.has_return { c.return_value = c.return_value.clone() }
                 scope_free(own while_scope)
                 if c.has_break { c.has_break = false; break }
@@ -1325,7 +1325,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             c.has_continue = true
         case NodeType.Return:
             if stmt.children.len().gt(0) {
-                c.return_value = eval_expr(scope, stmt.child(0), ctx)
+                c.return_value = eval_expr(scope, stmt.children[0], ctx)
             } else {
                 c.return_value = val_none()
             }
@@ -1340,7 +1340,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
 
 eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value {
     ref mut c : Context = ctx
-    ref callee_expr : Expr = e.child(0)
+    ref callee_expr : Expr = e.children[0]
 
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
@@ -1389,7 +1389,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             UNREACHABLE(__LOC__)
         }
         if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)) {
-            parent_sname := til_type_name(callee_expr.child(0).expr_til_type())
+            parent_sname := til_type_name(callee_expr.children[0].expr_til_type())
             ref tc : Cell = scope_get(scope, parent_sname)
             if tc.is_null().not() {
                 switch tc.val {
@@ -1401,7 +1401,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                             mut eresult := val_none()
                             if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, eresult, ctx) {
                                 for oi in 1..e.children.len() {
-                                    ref oa : Expr = e.child(oi)
+                                    ref oa : Expr = e.children[oi]
                                     if oa.node_type.is(NodeType.Ident).and(get_own_arg(e, oi)) {
                                         switch oa.node_type {
                                         case NodeType.Ident(oa_ident):
@@ -1432,12 +1432,12 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 case:
                 }
             }
-            mut sn := til_type_name(callee_expr.child(0).expr_til_type())
+            mut sn := til_type_name(callee_expr.children[0].expr_til_type())
             // til_type_name returns "" for primitives. For ext_func
             // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
             // `I64_sub(0, 1)`), fall back to til_type_name_c.
             if sn.is_empty() {
-                tn := til_type_name_c(callee_expr.child(0).expr_til_type())
+                tn := til_type_name_c(callee_expr.children[0].expr_til_type())
                 if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
                     sn = tn
                 }
@@ -1469,7 +1469,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             interp_error(e, "cannot call an interface method through the interface: it has no implementation", ctx)
             exit(1)
         }
-        ref body_ns : Expr = func_def.child(0)
+        ref body_ns : Expr = func_def.children[0]
         // Issue #218: when the callee is a function-pointer field
         // (e.g. Vec.elem_delete dispatching to I64.delete), the
         // resolved function may declare its first parameter `own`
@@ -1486,7 +1486,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         case NodeType.FuncDef(fdef_params):
             for pi in 0..fdef_params.params.len() {
                 ref param : Declaration = fdef_params.params[pi]
-                ref arg_expr : Expr = e.child(pi.add(1))
+                ref arg_expr : Expr = e.children[pi.add(1)]
                 switch arg_expr.node_type {
                 case NodeType.Ident(arg_ident):
                     ref arg_cell : Cell = scope_get(scope, arg_ident.ident_name())
@@ -1553,7 +1553,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     mut ext_result := val_none()
     if ext_function_dispatch(name.ident_name(), scope, e, ext_result, ctx) {
         for oi in 1..e.children.len() {
-            ref oa : Expr = e.child(oi)
+            ref oa : Expr = e.children[oi]
             if get_own_arg(e, oi) {
                 switch oa.node_type {
                 case NodeType.Ident(oa_ident):
@@ -1628,7 +1628,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     mut arg_idx : U32 = 1
                     for fdd : Declaration in sdd.fields {
                         cur_idx := arg_idx
-                        ref arg : Expr = e.child(cur_idx)
+                        ref arg : Expr = e.children[cur_idx]
                         arg_idx = arg_idx.add(1)
                         mut val := val_none()
                         switch arg.node_type {
@@ -1684,7 +1684,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     switch fn_cell.val {
     case Value.Func(fc_fptr):
         ref func_def2 : Expr = deref(fc_fptr)
-        ref body2 : Expr = func_def2.child(0)
+        ref body2 : Expr = func_def2.children[0]
 
         // Guard: skip call if first 'own' param is val_none, borrowed struct, or Ptr
         switch func_def2.node_type {
@@ -1692,7 +1692,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
                 ref first_param : Declaration = fdef2.params[0]
                 if first_param.own_type.is(OwnType.Own) {
-                    ref first_arg : Expr = e.child(1)
+                    ref first_arg : Expr = e.children[1]
                     switch first_arg.node_type {
                     case NodeType.Ident(fa_ident):
                         ref fc : Cell = scope_get(scope, fa_ident.ident_name())
@@ -1719,7 +1719,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             call_scope2 := scope_new(scope)
             nparam2 := fdef2.params.len()
             for pi in 0..nparam2 {
-                ref arg_expr : Expr = e.child(pi.add(1))
+                ref arg_expr : Expr = e.children[pi.add(1)]
                 ref param : Declaration = fdef2.params[pi]
                 switch arg_expr.node_type {
                 case NodeType.Ident(arg_ident):
@@ -1783,11 +1783,11 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             ref fdef3 : Expr = deref(cv_fp)
             switch fdef3.node_type {
             case NodeType.FuncDef(fdef3_data):
-                ref body3 : Expr = fdef3.child(0)
+                ref body3 : Expr = fdef3.children[0]
                 call_scope3 := scope_new(scope)
                 nparam3 := fdef3_data.params.len()
                 for pi in 0..nparam3 {
-                    ref arg_expr3 : Expr = e.child(pi.add(1))
+                    ref arg_expr3 : Expr = e.children[pi.add(1)]
                     ref param3 : Declaration = fdef3_data.params[pi]
                     mut arg3 := val_none()
                     switch arg_expr3.node_type {
@@ -2287,7 +2287,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
 }
 
 priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
-    ref obj_expr : Expr = e.child(0)
+    ref obj_expr : Expr = e.children[0]
     ref tc : Cell = scope_get(scope, sname)
     if tc.is_null() { return false }
     switch tc.val {
@@ -2323,7 +2323,7 @@ priv field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns
 }
 
 priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
-    ref obj_expr : Expr = e.child(0)
+    ref obj_expr : Expr = e.children[0]
     sname := til_type_name(obj_expr.expr_til_type())
     if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
     switch obj_expr.node_type {
@@ -2409,11 +2409,11 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if stmt.children.len().eq(0) { continue }
-            ref sdef : Expr = stmt.child(0)
+            ref sdef : Expr = stmt.children[0]
             if sdef.node_type.is(NodeType.StructDef).not() { continue }
-            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
-            if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
-            if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+            if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
+            if dd.name.eq("Array") { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
+            if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
         case:
         }
     }
@@ -2429,14 +2429,14 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if stmt.children.len().eq(0) { continue }
-            ref sdef : Expr = stmt.child(0)
+            ref sdef : Expr = stmt.children[0]
             if sdef.node_type.is(NodeType.StructDef).not() {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.child(0); ctx.cached_str_name   = dd.name }
-                if dd.name.eq("Array") { ctx.cached_array_def = stmt.child(0); ctx.cached_array_name = dd.name }
-                if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.child(0); ctx.cached_vec_name   = dd.name }
+                if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
+                if dd.name.eq("Array") { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
+                if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
             }
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.
@@ -2759,14 +2759,14 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
 priv interpret_register_defs := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.FuncDef)
-            .or(stmt.child(0).node_type.is(NodeType.StructDef))
-            .or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
+            if stmt.children[0].node_type.is(NodeType.FuncDef)
+            .or(stmt.children[0].node_type.is(NodeType.StructDef))
+            .or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     val := val_none()
                     memcpy(val, 9, 4)
-                    write_ptr(ptr_add(val, 8), stmt.child(0))
+                    write_ptr(ptr_add(val, 8), stmt.children[0])
                     scope_set_owned(global, dd.name, val)
                 case:
                 }
@@ -2781,7 +2781,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
         else if stmt.expr_til_type().is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case NodeType.Ident(rhs_ident):
                 ref src : Cell = scope_get(global, rhs_ident.ident_name())
@@ -2814,7 +2814,7 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
         else if stmt.expr_til_type().is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case NodeType.Ident(rhs_ident):
                 switch stmt.node_type {
@@ -2948,7 +2948,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_func_decl(stmt) {
-                    switch stmt.child(0).node_type {
+                    switch stmt.children[0].node_type {
                     case NodeType.FuncDef(fd):
                         if fd.func_type.is(FuncType.Test) {
                             switch stmt.node_type {
@@ -2956,7 +2956,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 test_count = test_count.add(1)
                                 test_scope := scope_new(global)
                                 context_enter_file(lp.ctx, u.path)
-                                eval_body(test_scope, stmt.child(0).child(0), lp.ctx)
+                                eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
                                 if c.has_return {
                                     c.return_value = c.return_value.clone()
                                 }
@@ -2972,7 +2972,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     }
                 }
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
                         case NodeType.Decl(sdd):
@@ -2986,7 +2986,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                     test_count = test_count.add(1)
                                     test_scope := scope_new(global)
                                     context_enter_file(lp.ctx, u.path)
-                                    eval_body(test_scope, nsfdef.child(0), lp.ctx)
+                                    eval_body(test_scope, nsfdef.children[0], lp.ctx)
                                     if c.has_return {
                                         c.return_value = c.return_value.clone()
                                     }
@@ -3035,7 +3035,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             case NodeType.FuncDef(fd):
                 nparam := fd.params.len()
                 vi := fd.variadic_index
-                ref body : Expr = func_def.child(0)
+                ref body : Expr = func_def.children[0]
                 main_scope := scope_new(global)
 
                 if nparam.gt(0) {

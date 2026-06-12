@@ -682,11 +682,6 @@ namespace:
         free(own other.children.data)
         other.children.data = NULL
     }
-    /// Shortcut to get a ref to the i-th child of `parent`.
-    child := func(parent: Expr, i: USize) returns ref Expr {
-        ref c : Expr = parent.children[i]
-        return c
-    }
     /// Create a new Expr with the given node_type and source location.
     new := func(data: NodeType, line: U32, col: U32) returns Expr {
         return Expr(node_type = data.clone(), line = line, col = col)
@@ -725,12 +720,12 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Decl(dd):    return dd.til_type.clone()
     case NodeType.Assign:
         if e.children.len().eq(0) { return Type.Unknown }
-        return e.child(0).expr_til_type()
+        return e.children[0].expr_til_type()
     case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
     case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
     case NodeType.NamedArg:
         if e.children.len().eq(0) { return Type.Unknown }
-        return e.child(0).expr_til_type()
+        return e.children[0].expr_til_type()
     case NodeType.FCall(fcd):  return fcd.til_type.clone()
     case NodeType.FuncDef:     return Type.FuncPtr
     case NodeType.StructDef:   return Type.Struct("StructDef")
@@ -739,7 +734,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.FieldAssign: return Type.None
     case NodeType.Return:
         if e.children.len().eq(0) { return Type.None }
-        return e.child(0).expr_til_type()
+        return e.children[0].expr_til_type()
     case NodeType.If:          return Type.None
     case NodeType.While:       return Type.None
     case NodeType.ForIn(fd):   return fd.til_type.clone()
@@ -751,7 +746,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.NoDefaultArg:return Type.Unknown
     case NodeType.Throw:
         if e.children.len().eq(0) { return Type.None }
-        return e.child(0).expr_til_type()
+        return e.children[0].expr_til_type()
     case NodeType.Catch:       return Type.None
     case NodeType.RestPattern: return Type.Unknown
     case NodeType.CaptureBlock: return Type.None
@@ -777,7 +772,7 @@ set_expr_til_type := func(mut e: Expr, shallow t: Type) {
         md.til_type = t
     case NodeType.Throw:
         if e.children.len().gt(0) {
-            e.child(0).set_expr_til_type(t)
+            e.children[0].set_expr_til_type(t)
         }
     case:
     }

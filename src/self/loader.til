@@ -110,10 +110,10 @@ priv resolve_import_disps := func(import_paths: Vec(Str), base_dir: Str, lib_dir
 // rejected with a helpful error suggesting the bare-name form.
 priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(Str)) {
     if imp_stmt.children.len().gte(2) {
-        switch imp_stmt.child(0).node_type {
+        switch imp_stmt.children[0].node_type {
         case NodeType.Ident(c0id):
             if c0id.ident_name().eq("import") {
-                switch imp_stmt.child(1).node_type {
+                switch imp_stmt.children[1].node_type {
                 case NodeType.Literal(Literal.Str(p)):
                     if p.ends_with(".til") {
                         bare := p.strip_suffix(".til")
@@ -138,7 +138,7 @@ priv extract_imports := func(body: Expr, path: Str) returns Vec(Str) {
         if stmt.node_type.is(NodeType.FCall) {
             is_imp = true
         } else if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.FCall) {
+            if stmt.children[0].node_type.is(NodeType.FCall) {
                 is_imp = true
                 is_decl_rhs = true
             }
@@ -146,7 +146,7 @@ priv extract_imports := func(body: Expr, path: Str) returns Vec(Str) {
 
         if is_imp {
             if is_decl_rhs {
-                ref imp_stmt : Expr = stmt.child(0)
+                ref imp_stmt : Expr = stmt.children[0]
                 extract_one_import(imp_stmt, path, paths)
             } else {
                 ref imp_stmt : Expr = stmt
@@ -385,12 +385,12 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     if top.has(type_part).not() { return NULL }
     ref dr : DeclRef = top[type_part]
     ref iu : ImportUnit = ctx.imported[dr.path]
-    ref tdecl : Expr = iu.ast.child(dr.idx)
+    ref tdecl : Expr = iu.ast.children[dr.idx]
     if tdecl.node_type.is(NodeType.Decl).not() { return NULL }
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_u32()
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
-    ref ns : Vec(Declaration) = def_ns_decls(tdecl.child(0))
+    ref ns : Vec(Declaration) = def_ns_decls(tdecl.children[0])
     for nsd : Declaration in ns {
         if nsd.name.eq(method_part) {
             if nsd.default_value.is_null().not() {
@@ -417,7 +417,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 switch stmt.node_type {
                 case NodeType.Decl(decl):
                     core_top.set(decl.name, own DeclRef(path = u.path.clone(), idx = i.clone()))
@@ -430,7 +430,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             switch stmt.node_type {
             case NodeType.Decl(decl):
                 top.set(decl.name, own DeclRef(path = u.path.clone(), idx = i.clone()))
@@ -480,7 +480,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
                     if stmt.children.len().gt(0) {
-                        switch stmt.child(0).node_type {
+                        switch stmt.children[0].node_type {
                         case NodeType.FuncDef(fdef):
                             if fdef.func_type.is(FuncType.Test) {
                                 switch stmt.node_type {
@@ -495,11 +495,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     // Seed namespace test() decls so emit_test_main's
                     // Type_test_name() calls don't get scavenged out.
                     if stmt.children.len().gt(0)
-                        .and(stmt.child(0).node_type.is(NodeType.StructDef)
-                            .or(stmt.child(0).node_type.is(NodeType.EnumDef))) {
+                        .and(stmt.children[0].node_type.is(NodeType.StructDef)
+                            .or(stmt.children[0].node_type.is(NodeType.EnumDef))) {
                         switch stmt.node_type {
                         case NodeType.Decl(sdecl):
-                            ref nstv : Vec(Declaration) = def_ns_decls(stmt.child(0))
+                            ref nstv : Vec(Declaration) = def_ns_decls(stmt.children[0])
                             for nsd : Declaration in nstv {
                                 ref nsfdef : Expr = nsd.default_value
                                 if nsfdef.is_null() { continue }
@@ -565,9 +565,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         if top.has(name) {
             ref dr : DeclRef = top[name]
             ref iu : ImportUnit = lp.ctx.imported[dr.path]
-            ref decl : Expr = iu.ast.child(dr.idx)
+            ref decl : Expr = iu.ast.children[dr.idx]
             if is_struct_or_enum(decl) {
-                ref bfs_tdef : Expr = decl.child(0)
+                ref bfs_tdef : Expr = decl.children[0]
                 switch bfs_tdef.node_type {
                 case NodeType.StructDef(bfs_sdd):
                     for bfs_fd : Declaration in bfs_sdd.fields {
@@ -595,15 +595,15 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 push_qn(worklist, name, "cmp")
                 push_qn(worklist, name, "hash")
             } else {
-                collect_refs(decl.child(0), worklist)
+                collect_refs(decl.children[0], worklist)
             }
         }
         if core_top.has(name) {
             ref dr : DeclRef = core_top[name]
             ref iu : ImportUnit = lp.ctx.imported[dr.path]
-            ref decl : Expr = iu.ast.child(dr.idx)
+            ref decl : Expr = iu.ast.children[dr.idx]
             if is_struct_or_enum(decl) {
-                ref bfs_tdef2 : Expr = decl.child(0)
+                ref bfs_tdef2 : Expr = decl.children[0]
                 switch bfs_tdef2.node_type {
                 case NodeType.StructDef(bfs_sdd2):
                     for bfs_fd2 : Declaration in bfs_sdd2.fields {
@@ -631,7 +631,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 push_qn(worklist, name, "cmp")
                 push_qn(worklist, name, "hash")
             } else {
-                collect_refs(decl.child(0), worklist)
+                collect_refs(decl.children[0], worklist)
             }
         }
 
@@ -679,7 +679,7 @@ priv validate_cli_main := func(lp: LoadedProgram) {
             case:
             }
             if is_main_decl.not() { continue }
-            switch stmt.child(0).node_type {
+            switch stmt.children[0].node_type {
             case NodeType.FuncDef(fdef):
                 for p : Declaration in fdef.params {
                     if p.explicit_type.eq("Str").or(p.explicit_type.eq("I64")).or(p.explicit_type.eq("U8")).or(p.explicit_type.eq("I8"))
@@ -745,9 +745,9 @@ priv extract_link_info := func(mut lp: LoadedProgram) {
             ref stmt : Expr = old_children[idx]
             mut keep := true
             if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().eq(2)) {
-                switch stmt.child(0).node_type {
+                switch stmt.children[0].node_type {
                 case NodeType.Ident(fname):
-                    switch stmt.child(1).node_type {
+                    switch stmt.children[1].node_type {
                     case NodeType.Literal(Literal.Str(arg)):
                         if fname.ident_name().eq("link") {
                             keep = false
@@ -803,19 +803,19 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
             switch stmt.node_type {
             case NodeType.Decl(decl):
                 if stmt.children.len().gt(0) {
-                    ref val : Expr = stmt.child(0)
+                    ref val : Expr = stmt.children[0]
                     if val.node_type.is(NodeType.FCall).and(val.children.len().gt(0)) {
-                        ref callee : Expr = val.child(0)
+                        ref callee : Expr = val.children[0]
                         switch callee.node_type {
                         case NodeType.Ident(id):
                             if id.ident_name().eq("Mode") {
                                 is_valid = true
                                 mut m := Mode()
                                 for i in 1..val.children.len() {
-                                    ref arg : Expr = val.child(i)
+                                    ref arg : Expr = val.children[i]
                                     switch arg.node_type {
                                     case NodeType.NamedArg(arg_name):
-                                        ref arg_val : Expr = arg.child(0)
+                                        ref arg_val : Expr = arg.children[0]
                                         switch arg_val.node_type {
                                         case NodeType.Literal(Literal.Bool(b)):
                                             if arg_name.eq("needs_main") { m.needs_main = b }
@@ -1531,12 +1531,12 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
 priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_decl_rhs: Bool, decl_name: Str, is_mut: Bool, decl_line: U32, decl_col: U32, ctx: Context, resolved_path: Str) returns Bool {
     mut handled := false
     if imp_stmt.children.len().gte(1) {
-        switch imp_stmt.child(0).node_type {
+        switch imp_stmt.children[0].node_type {
         case NodeType.Ident(id):
             if id.ident_name().eq("import") {
                 if imp_stmt.children.len().gt(1) {
                     mut path := ""
-                    switch imp_stmt.child(1).node_type {
+                    switch imp_stmt.children[1].node_type {
                     case NodeType.Literal(Literal.Str(p)):
                         path = p.concat(".til")
                     case:
@@ -1546,7 +1546,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                         mut exp_symbols := Vec(Str).new()
                         if imp_stmt.children.len().gt(2) {
                             for arg_i in 2..imp_stmt.children.len() {
-                                switch imp_stmt.child(arg_i).node_type {
+                                switch imp_stmt.children[arg_i].node_type {
                                 case NodeType.Ident(sym_id):
                                     exp_symbols.push(own sym_id.ident_name())
                                 case:
@@ -1587,7 +1587,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                                                     case NodeType.StructDef(sdd):
                                                         mut cloned_cd := cd.clone()
                                                         if dd.children.len().gt(0) {
-                                                            cloned_cd.default_value = dd.child(0).clone()
+                                                            cloned_cd.default_value = dd.children[0].clone()
                                                         }
                                                         sdd.ns_decls.push(own cloned_cd)
                                                     case:
@@ -1639,7 +1639,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
         if stmt.node_type.is(NodeType.FCall) {
             is_imp = true
         } else if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.child(0).node_type.is(NodeType.FCall) {
+            if stmt.children[0].node_type.is(NodeType.FCall) {
                 is_imp = true
                 is_decl_rhs = true
                 switch stmt.node_type {
@@ -1657,12 +1657,12 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
         if is_imp {
             mut is_valid_import := false
             if is_decl_rhs {
-                ref imp_stmt_ref : Expr = stmt.child(0)
+                ref imp_stmt_ref : Expr = stmt.children[0]
                 if imp_stmt_ref.children.len().gte(2) {
-                    switch imp_stmt_ref.child(0).node_type {
+                    switch imp_stmt_ref.children[0].node_type {
                     case NodeType.Ident(id):
                         if id.ident_name().eq("import") {
-                            switch imp_stmt_ref.child(1).node_type {
+                            switch imp_stmt_ref.children[1].node_type {
                             case NodeType.Literal(Literal.Str(_p)):
                                 is_valid_import = true
                             case:
@@ -1674,10 +1674,10 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
             } else {
                 ref imp_stmt_ref : Expr = stmt
                 if imp_stmt_ref.children.len().gte(2) {
-                    switch imp_stmt_ref.child(0).node_type {
+                    switch imp_stmt_ref.children[0].node_type {
                     case NodeType.Ident(id):
                         if id.ident_name().eq("import") {
-                            switch imp_stmt_ref.child(1).node_type {
+                            switch imp_stmt_ref.children[1].node_type {
                             case NodeType.Literal(Literal.Str(_p)):
                                 is_valid_import = true
                             case:
@@ -1696,7 +1696,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 }
                 imp_idx++
                 if is_decl_rhs {
-                    ref imp_stmt_ref2 : Expr = stmt.child(0)
+                    ref imp_stmt_ref2 : Expr = stmt.children[0]
                     handled = desugar_one_import(imp_stmt_ref2, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
                 } else {
                     ref imp_stmt_ref2 : Expr = stmt
@@ -1732,7 +1732,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     if e.is_null() { return }
     for i in 0..e.children.len() {
-        ref c : Expr = e.child(i)
+        ref c : Expr = e.children[i]
         mut replaced := false
         switch c.node_type {
         case NodeType.Ident(idn):
@@ -1754,13 +1754,13 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
 // returns false) for any shape v1 does not handle, so the residual call
 // types as an ordinary eager call.
 priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) returns Bool {
-    ref call : Expr = parent.child(call_idx)
+    ref call : Expr = parent.children[call_idx]
     if fdef.children.len().eq(0) { return false }
-    ref body : Expr = fdef.child(0)
+    ref body : Expr = fdef.children[0]
     if body.node_type.is(NodeType.Body).not() { return false }
     // Body must be exactly `return <expr>`.
     if body.children.len().eq(1).not() { return false }
-    ref ret_stmt : Expr = body.child(0)
+    ref ret_stmt : Expr = body.children[0]
     if ret_stmt.node_type.is(NodeType.Return).not() { return false }
     if ret_stmt.children.len().lt(1) { return false }
 
@@ -1773,7 +1773,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
             if nargs.eq(fd.params.len()) {
                 for j in 0..fd.params.len() {
                     ref param : Declaration = fd.params[j]
-                    subs.set(param.name, own call.child(j.add(1)).clone())
+                    subs.set(param.name, own call.children[j.add(1)].clone())
                 }
                 ok = true
             }
@@ -1782,7 +1782,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     }
     if ok.not() { return false }
 
-    mut cloned := ret_stmt.child(0).clone()
+    mut cloned := ret_stmt.children[0].clone()
     // A bare-Ident body (`return x`) is the whole expression: the walk
     // below only substitutes CHILDREN, so swap the root here. Plain
     // assignment reclaims the first clone (save_old_delete).
@@ -1805,10 +1805,10 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     if e.is_null() { return }
     if depth.gt(256) { return }
     for i in 0..e.children.len() {
-        ref mut c : Expr = e.child(i)
+        ref mut c : Expr = e.children[i]
         mut inlined := false
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
-            ref callee : Expr = c.child(0)
+            ref callee : Expr = c.children[0]
             mut lname := ""
             switch callee.node_type {
             case NodeType.Ident(idn): lname = idn.ident_name()
@@ -1822,7 +1822,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
                         if inline_lazy_call(e, i, fdef) {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).
-                            expand_lazy_in_expr(e.child(i), scope, depth.add(1))
+                            expand_lazy_in_expr(e.children[i], scope, depth.add(1))
                             inlined = true
                         }
                     }

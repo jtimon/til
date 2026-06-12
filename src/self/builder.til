@@ -76,7 +76,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
     if fcall.is_null() { return NULL }
     if fcall.node_type.is(NodeType.FCall).not() { return NULL }
     if fcall.children.len().eq(0) { return NULL }
-    ref callee : Expr = fcall.child(0)
+    ref callee : Expr = fcall.children[0]
     // Only FuncPtr-typed callees go through the indirect-call emit path, so
     // this is the only shape that actually needs an answer. Other callees
     // (struct constructors, regular func calls) have null fn_sig today.
@@ -127,7 +127,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         // path), and child(2) is the FuncSig Ident kept verbatim so we
         // can resolve the signature here.
         if callee.children.len().neq(3) { return NULL }
-        ref cast_head : Expr = callee.child(0)
+        ref cast_head : Expr = callee.children[0]
         switch cast_head.node_type {
         case NodeType.Ident(cn):
             if cn.ident_name().eq("cast").not() { return NULL }
@@ -135,7 +135,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
             return NULL
         }
         mut sig_name := ""
-        switch callee.child(2).node_type {
+        switch callee.children[2].node_type {
         case NodeType.Ident(tn): sig_name = tn.ident_name()
         case: return NULL
         }
@@ -259,14 +259,14 @@ priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
 }
 
 // Matches user-written `<value>.clone()` where the typer's expansion
-// lands `<value>` as e.child(1) and the callee's receiver carries the
+// lands `<value>` as e.children[1] and the callee's receiver carries the
 // POD-struct type. Fires when the arg is an Ident of a stack_local /
 // param (struct value) or a FieldAccess (struct field, possibly
 // pointer-typed -- caller derefs explicitly).
 priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
-    ref callee : Expr = e.child(0)
+    ref callee : Expr = e.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return false }
     mut is_clone := false
     switch callee.node_type {
@@ -275,11 +275,11 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     }
     if is_clone.not() { return false }
     if callee.children.len().eq(0) { return false }
-    ref recv : Expr = callee.child(0)
+    ref recv : Expr = callee.children[0]
     if recv.expr_til_type().is(Type.Struct).not() { return false }
     tname := til_type_name(recv.expr_til_type())
     if is_pod_struct(tname, ctx).not() { return false }
-    ref arg : Expr = e.child(1)
+    ref arg : Expr = e.children[1]
     switch arg.node_type {
     case NodeType.Ident(an):
         aname := an.ident_name()
@@ -295,7 +295,7 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
 // pointer-typed FieldAccesses, otherwise emit as-is (Idents map to
 // stack-locals, params, or globals which emit_expr renders as values).
 priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
-    ref arg : Expr = e.child(1)
+    ref arg : Expr = e.children[1]
     if arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(arg, ctx)) {
         f.write("*"); emit_expr(f, arg, depth, ctx)
         return
@@ -306,11 +306,11 @@ priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: C
 // Emit the clone arg as `(T){.tag = T_TAG_X}` when it's a ns-Enum
 // variant FieldAccess; otherwise fall back to emit_deref.
 priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
-    ref pe_arg : Expr = e.child(1)
+    ref pe_arg : Expr = e.children[1]
     if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.expr_til_type().is(Type.Enum)) {
         switch pe_arg.node_type {
         case NodeType.FieldAccess(pe_vn):
-            ref pe_obj : Expr = pe_arg.child(0)
+            ref pe_obj : Expr = pe_arg.children[0]
             pe_sname := til_type_name(pe_obj.expr_til_type())
             f.write("(").write(pe_sname).write("){.tag = ")
             f.write(pe_sname).write("_TAG_").write(pe_vn.field_access_name()).write("}")
@@ -374,7 +374,7 @@ priv is_ext_h_type := func(name: Str) returns Bool {
 // suppressing the ext_proc-side emission avoids a duplicate decl.
 priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
-    ref rhs : Expr = stmt.child(0)
+    ref rhs : Expr = stmt.children[0]
     if rhs.node_type.is(NodeType.FuncDef) { return false }
     if rhs.node_type.is(NodeType.StructDef) { return false }
     if rhs.node_type.is(NodeType.EnumDef) { return false }
@@ -407,7 +407,7 @@ priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
 
 priv fa_struct_name := func(e: Expr) returns Str {
     if e.children.len().eq(0) { return til_type_name(e.expr_til_type()) }
-    ref obj : Expr = e.child(0)
+    ref obj : Expr = e.children[0]
     obj_sname := til_type_name(obj.expr_til_type())
     if obj_sname.len().gt(0) { return obj_sname }
     switch obj.node_type {
@@ -464,7 +464,7 @@ priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: C
     }
     if has_ns.and(has_inst.not()) { return true }
     if has_ns.not() { return false }
-    ref obj : Expr = e.child(0)
+    ref obj : Expr = e.children[0]
     switch obj.node_type {
     case NodeType.Ident(ident):
         if ident.ident_name().eq(sname) { return true }
@@ -612,12 +612,12 @@ priv callee_param_is_own := func(callee_name: Str, arg_index: U32, ctx: Context)
 
 priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
-    ref callee : Expr = fcall.child(0)
+    ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(ident):
         if callee_returns_shallow(ident.ident_name(), ctx) { return true }
     case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee.child(0).expr_til_type())
+        sname := til_type_name(callee.children[0].expr_til_type())
         if sname.len().eq(0) { return false }
         flat := sname.format("_", mname.field_access_name())
         if callee_returns_shallow(flat, ctx) { return true }
@@ -640,10 +640,10 @@ priv fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
     // cast(e, T) is declared `returns shallow Dynamic` but the typer
     // sets the call's til_type to T. Trust the override.
     if fcall.expr_til_type().is(Type.Dynamic).not() { return false }
-    ref callee_node : Expr = fcall.child(0)
+    ref callee_node : Expr = fcall.children[0]
     switch callee_node.node_type {
     case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee_node.child(0).expr_til_type())
+        sname := til_type_name(callee_node.children[0].expr_til_type())
         if sname.len().eq(0) { return false }
         flat := sname.format("_", mname.field_access_name())
         return callee_returns_dynamic(flat, ctx)
@@ -953,8 +953,8 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
-            ref c0 : Expr = e.child(0)
-            ref c2 : Expr = e.child(2)
+            ref c0 : Expr = e.children[0]
+            ref c2 : Expr = e.children[2]
             switch c0.node_type {
             case NodeType.Ident(callee_name):
                 switch c2.node_type {
@@ -965,7 +965,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
                     if cn.eq("dyn_call").or(cn.eq("dyn_call_ret")) {
                         mut nargs : I32 = 1
                         if e.children.len().gte(4) {
-                            ref c3 : Expr = e.child(3)
+                            ref c3 : Expr = e.children[3]
                             switch c3.node_type {
                             case NodeType.Literal(Literal.Num(num_str)):
                                 nargs = num_str.literal_num_text().to_i32()
@@ -1004,8 +1004,8 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)
     if e.is_null() { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(2) {
-            ref c0 : Expr = e.child(0)
-            ref c1 : Expr = e.child(1)
+            ref c0 : Expr = e.children[0]
+            ref c1 : Expr = e.children[1]
             switch c0.node_type {
             case NodeType.Ident(name):
                 switch c1.node_type {
@@ -1068,10 +1068,10 @@ priv get_stack_local_ctype := func(name: Str, ctx: Context) returns ref Str {
 priv resolve_callee_name := ext_func(fcall: Expr) returns Str {}
 
 priv resolve_callee_name := func(fcall: Expr) returns Str {
-    ref callee_node : Expr = fcall.child(0)
+    ref callee_node : Expr = fcall.children[0]
     switch callee_node.node_type {
     case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee_node.child(0).expr_til_type())
+        sname := til_type_name(callee_node.children[0].expr_til_type())
         if sname.len().eq(0) { return "" }
         return sname.format("_", mname.field_access_name())
     case NodeType.Ident(ident): return ident.ident_name()
@@ -1109,7 +1109,7 @@ priv fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
 priv fcall_has_inline_capturing_func_arg := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     for i in 1..e.children.len() {
-        ref arg : Expr = e.child(i)
+        ref arg : Expr = e.children[i]
         switch arg.node_type {
         case NodeType.FuncDef(fd):
             if fd.captures.len().gt(0) { return true }
@@ -1127,7 +1127,7 @@ priv emit_til_closure_cleanup := proc(f: File, name: Str) {
 priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, ctx: Context, wrap_inline_closures: Bool) {
     for i in 1..e.children.len() {
         if i.gt(1) { f.write(", ") }
-        ref arg : Expr = e.child(i)
+        ref arg : Expr = e.children[i]
         mut emitted_inline_closure := false
         if wrap_inline_closures {
             switch arg.node_type {
@@ -1155,7 +1155,7 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
 priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, source_name: Str, cname: Str, depth: I32, ctx: Context) {
     f.write("({ ")
     for i in 1..e.children.len() {
-        ref arg : Expr = e.child(i)
+        ref arg : Expr = e.children[i]
         switch arg.node_type {
         case NodeType.FuncDef(fd):
             if fd.captures.len().gt(0) {
@@ -1172,7 +1172,7 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
     emit_user_fcall_args(f, e, source_name, depth, ctx, true)
     f.write("); ")
     for i2 in 1..e.children.len() {
-        ref arg2 : Expr = e.child(i2)
+        ref arg2 : Expr = e.children[i2]
         switch arg2.node_type {
         case NodeType.FuncDef(fd2):
             if fd2.captures.len().gt(0) {
@@ -1205,7 +1205,7 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
                         if pi.lt(fd.params.len()) {
                             ref p : Declaration = fd.params[pi]
                             if p.is_mut {
-                                ref arg : Expr = e.child(a)
+                                ref arg : Expr = e.children[a]
                                 switch arg.node_type {
                                 case NodeType.Ident(arg_name):
                                     ctx.unsafe_to_hoist.add(own arg_name.ident_name())
@@ -1231,7 +1231,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 if dd.own_type.is(OwnType.Ref) {
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
                         ctx.unsafe_to_hoist.add(own rhs_name.ident_name())
@@ -1244,7 +1244,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                                 case NodeType.FuncDef(fd):
                                     if fd.return_own_type.is(OwnType.Ref) {
                                         for a in 1..rhs.children.len() {
-                                            ref arg : Expr = rhs.child(a)
+                                            ref arg : Expr = rhs.children[a]
                                             switch arg.node_type {
                                             case NodeType.Ident(arg_name):
                                                 ctx.unsafe_to_hoist.add(own arg_name.ident_name())
@@ -1265,12 +1265,12 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
         }
         if stmt.node_type.is(NodeType.If) {
             for c in 1..stmt.children.len() {
-                collect_unsafe_to_hoist(ctx, stmt.child(c))
+                collect_unsafe_to_hoist(ctx, stmt.children[c])
             }
         }
         if stmt.node_type.is(NodeType.While) {
             if stmt.children.len().gt(1) {
-                collect_unsafe_to_hoist(ctx, stmt.child(1))
+                collect_unsafe_to_hoist(ctx, stmt.children[1])
             }
         }
         if stmt.node_type.is(NodeType.Body) {
@@ -1283,8 +1283,8 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
     if e.is_null() { return }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
-            ref c0 : Expr = e.child(0)
-            ref c2 : Expr = e.child(2)
+            ref c0 : Expr = e.children[0]
+            ref c2 : Expr = e.children[2]
             switch c0.node_type {
             case NodeType.Ident(cname):
                 if cname.ident_name().eq("dyn_has_method") {
@@ -1328,7 +1328,7 @@ priv fcall_is_struct_ctor := func(e: Expr) returns Bool {
     if e.children.len().eq(0) { return false }
     sname := til_type_name(e.expr_til_type())
     if sname.len().eq(0) { return false }
-    switch e.child(0).node_type {
+    switch e.children[0].node_type {
     case NodeType.Ident(ci): return ci.ident_name().eq(sname)
     case:
     }
@@ -1342,7 +1342,7 @@ priv fcall_is_struct_ctor := func(e: Expr) returns Bool {
 // pointer that can't be assigned into a value field.
 priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns Bool {
     for i in 1..ctor.children.len() {
-        ref arg : Expr = ctor.child(i)
+        ref arg : Expr = ctor.children[i]
         if arg.node_type.is(NodeType.FCall).not() { continue }
         if fcall_is_struct_ctor(arg).not() { return false }
         arg_sname := til_type_name(arg.expr_til_type())
@@ -1377,7 +1377,7 @@ priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Con
                     pod_fi = pod_fi.add(1)
                 }
                 f.write(".").write(pod_fname).write(" = ")
-                ref arg : Expr = ctor.child(i)
+                ref arg : Expr = ctor.children[i]
                 if fcall_is_struct_ctor(arg) {
                     emit_pod_compound_literal(f, arg, depth, ctx)
                 } else {
@@ -1395,7 +1395,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if e.children.len().eq(0) { return }
     switch e.node_type {
     case NodeType.Decl(dd):
-    ref rhs : Expr = e.child(0)
+    ref rhs : Expr = e.children[0]
     // #220: any decl inside a function body introduces a local that
     // shadows a same-named script global. is_global / is_rg below are
     // both gated on ctx.in_func_def.not(), so inside a function every
@@ -1498,7 +1498,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 mut is_ctor := rhs.node_type.is(NodeType.FCall).and(rhs_sname.len().gt(0))
                 if is_ctor {
                     if rhs.children.len().gt(0) {
-                        ref rc0 : Expr = rhs.child(0)
+                        ref rc0 : Expr = rhs.children[0]
                         switch rc0.node_type {
                         case NodeType.Ident(ci):
                             is_ctor = ci.ident_name().eq(rhs_sname)
@@ -1676,14 +1676,14 @@ priv emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
 }
 
 priv emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
-    ref rv : Expr = e.child(0)
+    ref rv : Expr = e.children[0]
     ctype := emit_return_ctype(rv, ctx)
     f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ")
     emit_expr(f, rv, depth, ctx)
     f.write(";\n")
     for i in 1..e.children.len() {
         emit_indent(f, depth)
-        emit_stmt(f, e.child(i), depth, ctx)
+        emit_stmt(f, e.children[i], depth, ctx)
     }
     emit_indent(f, depth)
     f.write("return _r; }\n")
@@ -1694,11 +1694,11 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if ctx.in_main_func { f.write("return 0;\n") }
         else { f.write("return;\n") }
     } else {
-        ref rv : Expr = e.child(0)
+        ref rv : Expr = e.children[0]
         // Struct constructor return
         rv_sname := til_type_name(rv.expr_til_type())
         if rv.node_type.is(NodeType.FCall).and(rv_sname.len().gt(0)).and(rv.children.len().gt(0)) {
-            ref rvc0 : Expr = rv.child(0)
+            ref rvc0 : Expr = rv.children[0]
             switch rvc0.node_type {
             case NodeType.Ident(ci):
                 if ci.ident_name().eq(rv_sname) {
@@ -1707,7 +1707,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     emit_ctor_fields(f, "_r", rv, depth, ctx)
                     for i in 1..e.children.len() {
                         emit_indent(f, depth)
-                        emit_stmt(f, e.child(i), depth, ctx)
+                        emit_stmt(f, e.children[i], depth, ctx)
                     }
                     emit_indent(f, depth); f.write("return _r; }\n")
                     return
@@ -1724,7 +1724,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     if e.children.len().gt(1) {
                         ctype := builder_get_c_return_type(ctx)
                         f.write("{ ").write(ctype).write(" _ret_val = "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                         emit_indent(f, depth); f.write("return _ret_val; }\n")
                     } else {
                         f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
@@ -1736,7 +1736,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         if e.children.len().gt(1) {
                             ctype := builder_get_c_return_type(ctx)
                             f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                             emit_indent(f, depth); f.write("return _ret_val; }\n")
                         } else {
                             f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
@@ -1758,7 +1758,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                                 rv.expr_til_type().is(Type.Dynamic).not()) {
                                 ctype := emit_return_ctype(rv, ctx)
                                 f.write("{ ").write(ctype).write(" _ret = DEREF(").write(rv_name.ident_name()).write("); free(").write(rv_name.ident_name()).write(");\n")
-                                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                                 emit_indent(f, depth); f.write("return _ret; }\n")
                                 return
                             }
@@ -1768,7 +1768,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     if e.children.len().gt(1) {
                         ctype := builder_get_c_return_type(ctx)
                         f.write("{ ").write(ctype).write(" _ret_val = "); emit_deref(f, rv, depth, ctx); f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                         emit_indent(f, depth); f.write("return _ret_val; }\n")
                     } else {
                         f.write("return "); emit_deref(f, rv, depth, ctx); f.write(";\n")
@@ -1802,13 +1802,13 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     if is_shallow_ret.not() {
                         ctype := emit_return_ctype(rv, ctx)
                         f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(rv_name.ident_name()).write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                         emit_indent(f, depth); f.write("return _r; }\n")
                     } else {
                         if e.children.len().gt(1) {
                             ctype := builder_get_c_return_type(ctx)
                             f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                             emit_indent(f, depth); f.write("return _ret_val; }\n")
                         } else {
                             f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
@@ -1818,7 +1818,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     if e.children.len().gt(1) {
                         ctype := builder_get_c_return_type(ctx)
                         f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                         emit_indent(f, depth); f.write("return _ret_val; }\n")
                     } else {
                         f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
@@ -1829,11 +1829,11 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
             // Bare enum variant ref: heap-allocate
         } else if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv, ctx)).and(rv.expr_til_type().is(Type.Enum)) {
-            sn := til_type_name(rv.child(0).expr_til_type())
+            sn := til_type_name(rv.children[0].expr_til_type())
             switch rv.node_type {
             case NodeType.FieldAccess(vname):
                 f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->tag = ").write(sn).write("_TAG_").write(vname.field_access_name()).write(";\n")
-                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                 emit_indent(f, depth); f.write("return _r; }\n")
             case:
                 UNREACHABLE(__LOC__)
@@ -1842,7 +1842,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             if e.children.len().gt(1) {
                 ctype := builder_get_c_return_type(ctx)
                 f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.child(i), depth, ctx) }
+                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                 emit_indent(f, depth); f.write("return _ret_val; }\n")
             } else {
                 f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
@@ -1859,14 +1859,14 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
 priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(2) { return false }
-    ref c0 : Expr = e.child(0)
+    ref c0 : Expr = e.children[0]
     switch c0.node_type {
     case NodeType.FieldAccess(del_name):
         if del_name.field_access_name().eq("delete").not() { return false }
     case:
         return false
     }
-    ref c1 : Expr = e.child(1)
+    ref c1 : Expr = e.children[1]
     switch c1.node_type {
     case NodeType.Ident(del_arg):
         if is_stack_local(del_arg.ident_name(), ctx).not() { return false }
@@ -1894,7 +1894,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         emit_stmt_decl(f, e, depth, ctx)
     case NodeType.Assign(ad):
         aname := ad.name
-        ref rhs : Expr = e.child(0)
+        ref rhs : Expr = e.children[0]
         if ctx.closure_emit_captures.has(aname) {
             f.write("(*").write(ctx.closure_emit_env).write("->").write(aname).write(") = ")
             emit_deref(f, rhs, depth, ctx)
@@ -2063,8 +2063,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         }
     case NodeType.FieldAssign(fad):
         fname := fad.name
-        ref obj : Expr = e.child(0)
-        ref rhs_fa : Expr = e.child(1)
+        ref obj : Expr = e.children[0]
+        ref rhs_fa : Expr = e.children[1]
         did_save_old := fad.save_old_delete
         mut old_ctype := ""
         if did_save_old {
@@ -2138,8 +2138,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         switch e.node_type {
         case NodeType.FCall(fcd):
             if fcd.swap_replace.and(e.children.len().gte(3)) {
-                ref swap_target : Expr = e.child(1)
-                ref swap_temp : Expr = e.child(2)
+                ref swap_target : Expr = e.children[1]
+                ref swap_temp : Expr = e.children[2]
                 mut target_name := ""
                 mut temp_name := ""
                 switch swap_target.node_type {
@@ -2169,13 +2169,13 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         case:
         }
         if e.children.len().gt(0) {
-            ref c0 : Expr = e.child(0)
+            ref c0 : Expr = e.children[0]
             switch c0.node_type {
             case NodeType.Ident(cname0):
                 if cname0.ident_name().eq("til_closure_delete") {
                     if e.children.len().gte(2) {
                         f.write("{ TilClosure *til_closure = ")
-                        emit_expr(f, e.child(1), depth, ctx)
+                        emit_expr(f, e.children[1], depth, ctx)
                         f.write("; if (til_closure && til_closure->drop) { til_closure->drop(til_closure->env); free(til_closure); } }\n")
                         return
                     }
@@ -2185,7 +2185,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             switch c0.node_type {
             case NodeType.FieldAccess(del_name):
                 if del_name.field_access_name().eq("delete").and(e.children.len().gte(2)) {
-                    ref c1 : Expr = e.child(1)
+                    ref c1 : Expr = e.children[1]
                     switch c1.node_type {
                     case NodeType.Ident(del_arg):
                         if ctx.swap_freed.has(del_arg.ident_name()) {
@@ -2208,7 +2208,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                             ref del_ct : Str = get_stack_local_ctype(del_arg.ident_name(), ctx)
                             if del_ct.is_null().not().and(del_ct.eq("Str").or(is_pod_struct(del_ct, ctx))) {
                                 if e.children.len().gte(3) {
-                                    ref cf_arg : Expr = e.child(2)
+                                    ref cf_arg : Expr = e.children[2]
                                     switch cf_arg.node_type {
                                     case NodeType.Ident(cf_name):
                                         f.write("(void)").write(cf_name.ident_name()).write("; ")
@@ -2226,7 +2226,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         }
         e_sname := til_type_name(e.expr_til_type())
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
-            ref c0b : Expr = e.child(0)
+            ref c0b : Expr = e.children[0]
             switch c0b.node_type {
             case NodeType.Ident(cname):
                 if cname.ident_name().eq(e_sname) { f.write("/* discarded struct constructor */;\n"); return }
@@ -2268,15 +2268,15 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     case NodeType.CaptureBlock:
         // Issue #54: capture restriction is a compile-time check; emit the
         // body as a plain scoped block (child 0 is the Body).
-        f.write("{\n"); emit_body_scoped(f, e.child(0), depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
+        f.write("{\n"); emit_body_scoped(f, e.children[0], depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.If:
-        f.write("if ("); emit_deref(f, e.child(0), depth, ctx); f.write(") {\n")
-        emit_body_scoped(f, e.child(1), depth.add(1), ctx); emit_indent(f, depth)
-        if e.children.len().gt(2) { f.write("} else {\n"); emit_body_scoped(f, e.child(2), depth.add(1), ctx); emit_indent(f, depth) }
+        f.write("if ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
+        emit_body_scoped(f, e.children[1], depth.add(1), ctx); emit_indent(f, depth)
+        if e.children.len().gt(2) { f.write("} else {\n"); emit_body_scoped(f, e.children[2], depth.add(1), ctx); emit_indent(f, depth) }
         f.write("}\n")
     case NodeType.While:
-        f.write("while ("); emit_deref(f, e.child(0), depth, ctx); f.write(") {\n")
-        emit_body_scoped(f, e.child(1), depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
+        f.write("while ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
+        emit_body_scoped(f, e.children[1], depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.Break: f.write("break;\n")
     case NodeType.Continue: f.write("continue;\n")
     case: f.write("/* TODO: unknown stmt type */\n")
@@ -2305,7 +2305,7 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
         f.write("void *")
         for i in 1..e.children.len() {
             f.write(", ")
-            ref arg : Expr = e.child(i)
+            ref arg : Expr = e.children[i]
             mut arg_shallow := false
             if i.sub(1).lt(sfd.params.len()) {
                 ref p : Declaration = sfd.params[i.sub(1)]
@@ -2359,8 +2359,8 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ct
                 ref p : Declaration = sfd.params[i.sub(1)]
                 arg_shallow = p.own_type.is(OwnType.Shallow)
             }
-            if arg_shallow { emit_deref(f, e.child(i), depth, ctx) }
-            else { emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i), ctx) }
+            if arg_shallow { emit_deref(f, e.children[i], depth, ctx) }
+            else { emit_as_ptr(f, e.children[i], depth, get_own_arg(e, i), ctx) }
         }
     case:
         UNREACHABLE(__LOC__)
@@ -2473,7 +2473,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             f.write(ident.ident_name())
         }
     case NodeType.FCall:
-        ref callee : Expr = e.child(0)
+        ref callee : Expr = e.children[0]
         // Issue #58: indirect call through a cast result -- the
         // `cast(value, BinaryOp)(args)` shape. Same C emission as the
         // FuncSig-typed struct field below: emit the cast result as a
@@ -2499,7 +2499,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             }
             // Namespace method call
-            sname := til_type_name(callee.child(0).expr_til_type())
+            sname := til_type_name(callee.children[0].expr_til_type())
             switch callee.node_type {
             case NodeType.FieldAccess(mname):
                 flat := sname.format("_", mname.field_access_name())
@@ -2510,13 +2510,13 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 for i in 1..e.children.len() {
                     if i.gt(1) { f.write(", ") }
                     if callee_param_is_shallow(flat, i.sub(1), ctx) {
-                        emit_deref(f, e.child(i), depth, ctx)
+                        emit_deref(f, e.children[i], depth, ctx)
                     } else if callee_param_is_usize(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
-                        f.write("USIZE_REF(").emit_deref(e.child(i), depth, ctx).write(")")
+                        f.write("USIZE_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else if callee_param_is_uptr(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
-                        f.write("UPTR_REF(").emit_deref(e.child(i), depth, ctx).write(")")
+                        f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else {
-                        emit_as_ptr(f, e.child(i), depth, get_own_arg(e, i), ctx)
+                        emit_as_ptr(f, e.children[i], depth, get_own_arg(e, i), ctx)
                     }
                 }
                 f.write(")")
@@ -2527,8 +2527,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         switch callee.node_type {
         case NodeType.Ident(name):
             if name.ident_name().eq("dyn_call").or(name.ident_name().eq("dyn_call_ret")) {
-                ref c2 : Expr = e.child(2)
-                ref c3 : Expr = e.child(3)
+                ref c2 : Expr = e.children[2]
+                ref c3 : Expr = e.children[3]
                 switch c2.node_type {
                 case NodeType.Literal(Literal.Str(method)):
                     switch c3.node_type {
@@ -2537,10 +2537,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         f.write("dyn_call_")
                         f.write(method)
                         f.write("(")
-                        emit_as_ptr(f, e.child(1), depth, false, ctx)
+                        emit_as_ptr(f, e.children[1], depth, false, ctx)
                         for ai : I32 in 0..nargs {
                             f.write(", ")
-                            emit_as_ptr(f, e.child(ai.add(4).cast(U32)), depth, false, ctx)
+                            emit_as_ptr(f, e.children[ai.add(4).cast(U32)], depth, false, ctx)
                         }
                         f.write(")")
                     case:
@@ -2551,9 +2551,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             } else if name.ident_name().eq("dyn_fn") {
                 f.write("dyn_fn(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(", ")
-                ref method_arg : Expr = e.child(2)
+                ref method_arg : Expr = e.children[2]
                 switch method_arg.node_type {
                 case NodeType.Literal(Literal.Str(ms)):
                     f.write("&(Str){.c_str=(void*)\"")
@@ -2577,72 +2577,72 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // FuncPtr -> FuncPtr (identity) we just pass through as
                 // void *.
                 if cast_c_type.eq("Fn") {
-                    if e.child(1).expr_til_type().is(Type.Dynamic) {
+                    if e.children[1].expr_til_type().is(Type.Dynamic) {
                         f.write("(*(void **)(")
-                        emit_deref(f, e.child(1), depth, ctx)
+                        emit_deref(f, e.children[1], depth, ctx)
                         f.write("))")
                     } else {
                         f.write("(void *)(")
-                        emit_deref(f, e.child(1), depth, ctx)
+                        emit_deref(f, e.children[1], depth, ctx)
                         f.write(")")
                     }
                 } else {
                     f.write("(")
                     f.write(cast_c_type)
                     f.write(")(")
-                    emit_deref(f, e.child(1), depth, ctx)
+                    emit_deref(f, e.children[1], depth, ctx)
                     f.write(")")
                 }
             } else if name.ident_name().eq("dyn_size_of") {
                 f.write("dyn_size_of(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("dyn_type_to_str") {
                 f.write("dyn_type_to_str(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("struct_field_count") {
                 f.write("struct_field_count(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("struct_field_name").or(name.ident_name().eq("struct_field_is_mut")).or(name.ident_name().eq("struct_field_type")) {
                 f.write(name.ident_name())
                 f.write("(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(", ")
-                emit_as_ptr(f, e.child(2), depth, false, ctx)
+                emit_as_ptr(f, e.children[2], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("enum_variant_count") {
                 f.write("enum_variant_count(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("enum_variant_name").or(name.ident_name().eq("enum_variant_has_payload")).or(name.ident_name().eq("enum_variant_payload_type")) {
                 f.write(name.ident_name())
                 f.write("(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(", ")
-                emit_as_ptr(f, e.child(2), depth, false, ctx)
+                emit_as_ptr(f, e.children[2], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("func_sig_param_count").or(name.ident_name().eq("func_sig_return_count")).or(name.ident_name().eq("func_sig_throw_count")) {
                 f.write(name.ident_name())
                 f.write("(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("func_sig_param_type").or(name.ident_name().eq("func_sig_return_type")).or(name.ident_name().eq("func_sig_throw_type")) {
                 f.write(name.ident_name())
                 f.write("(")
-                emit_as_ptr(f, e.child(1), depth, false, ctx)
+                emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(", ")
-                emit_as_ptr(f, e.child(2), depth, false, ctx)
+                emit_as_ptr(f, e.children[2], depth, false, ctx)
                 f.write(")")
             } else if name.ident_name().eq("dyn_has_method") {
-                ref c2b : Expr = e.child(2)
+                ref c2b : Expr = e.children[2]
                 switch c2b.node_type {
                 case NodeType.Literal(Literal.Str(method)):
                     f.write("dyn_has_")
                     f.write(method.clone())
                     f.write("(")
-                    emit_as_ptr(f, e.child(1), depth, false, ctx)
+                    emit_as_ptr(f, e.children[1], depth, false, ctx)
                     f.write(")")
                 case:
                     UNREACHABLE(__LOC__)
@@ -2688,7 +2688,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         if fd.captures.len().gt(0) { emit_capturing_closure_value(f, e, depth, ctx) }
         else { f.write("NULL") }
     case NodeType.FieldAccess(fname):
-        ref obj : Expr = e.child(0)
+        ref obj : Expr = e.children[0]
         if builder_fa_is_ns(e, ctx) {
             obj_sname := til_type_name(obj.expr_til_type())
             if e.expr_til_type().is(Type.Enum) {
@@ -2714,7 +2714,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             mut obj_is_get_payload := false
             if obj.node_type.is(NodeType.FCall) {
                 if obj.children.len().gt(0) {
-                    if obj.child(0).node_type.is(ident_node("get_payload")) {
+                    if obj.children[0].node_type.is(ident_node("get_payload")) {
                         obj_is_get_payload = true
                     }
                 }
@@ -2797,7 +2797,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
             case:
             }
         }
-        ref arg : Expr = ctor.child(i)
+        ref arg : Expr = ctor.children[i]
         emit_indent(f, depth)
         if fld_own.is(OwnType.Ref) {
             emit_field(f, var, fname, ctx)
@@ -2808,7 +2808,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
             if arg.node_type.is(NodeType.FCall) {
                 arg_sname := til_type_name(arg.expr_til_type())
                 if arg_sname.len().gt(0) {
-                    ref ac0 : Expr = arg.child(0)
+                    ref ac0 : Expr = arg.children[0]
                     mut handled := false
                     switch ac0.node_type {
                     case NodeType.Ident(callee_ident):
@@ -2854,7 +2854,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
         } else if arg.node_type.is(NodeType.FCall) {
             arg_sname2 := til_type_name(arg.expr_til_type())
             if arg_sname2.len().gt(0) {
-                ref ac0 : Expr = arg.child(0)
+                ref ac0 : Expr = arg.children[0]
                 mut is_ctor_call := false
                 switch ac0.node_type {
                 case NodeType.Ident(callee_ident):
@@ -2942,11 +2942,11 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if is_struct_or_enum(stmt) {
                     switch stmt.node_type {
                     case NodeType.Decl(sdecl):
-                        ref edef : Expr = stmt.child(0)
+                        ref edef : Expr = stmt.children[0]
                         if edef.node_type.is(NodeType.EnumDef) { continue }
                         ref ni_ns : Vec(Declaration) = def_ns_decls(edef)
                         for dd : Declaration in ni_ns {
@@ -2971,11 +2971,11 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if is_struct_or_enum(stmt) {
                 switch stmt.node_type {
                 case NodeType.Decl(sdecl):
-                    ref edef : Expr = stmt.child(0)
+                    ref edef : Expr = stmt.children[0]
                     if edef.node_type.is(NodeType.EnumDef) { continue }
                     ref ni_ns : Vec(Declaration) = def_ns_decls(edef)
                     for dd : Declaration in ni_ns {
@@ -3103,7 +3103,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     case NodeType.FCall:
         e_sname := til_type_name(e.expr_til_type())
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
-            ref c0 : Expr = e.child(0)
+            ref c0 : Expr = e.children[0]
             switch c0.node_type {
             case NodeType.Ident(callee_ident):
                 if callee_ident.ident_name().eq(e_sname) {
@@ -3135,7 +3135,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             emit_expr(f, e, depth, ctx)
         } else if builder_fa_is_ns(e, ctx).and(e.expr_til_type().is(Type.Enum)) {
             if is_own {
-                ref obj : Expr = e.child(0)
+                ref obj : Expr = e.children[0]
                 obj_sname := til_type_name(obj.expr_til_type())
                 f.write("({ ")
                 f.write(obj_sname)
@@ -3229,7 +3229,7 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
 priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
-    ref body : Expr = func_def.child(0)
+    ref body : Expr = func_def.children[0]
     mut is_main := false
     if mode.is_null().not() {
         if mode.needs_main { is_main = name.eq("main") }
@@ -3258,9 +3258,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 for u : ProgramUnit in lp.core_units {
                     ref iu : ImportUnit = lp.ctx.imported[u.path]
                     for gi in 0..iu.ast.children.len() {
-                        ref gs : Expr = iu.ast.child(gi)
+                        ref gs : Expr = iu.ast.children[gi]
                         if gs.node_type.is(NodeType.Decl) {
-                            ref rhs : Expr = gs.child(0)
+                            ref rhs : Expr = gs.children[0]
                             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
                             if gs.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                         } else if gs.node_type.is(NodeType.FCall).not() { continue }
@@ -3271,9 +3271,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             for u : ProgramUnit in lp.units {
                 ref iu : ImportUnit = lp.ctx.imported[u.path]
                 for gi in 0..iu.ast.children.len() {
-                    ref gs : Expr = iu.ast.child(gi)
+                    ref gs : Expr = iu.ast.children[gi]
                     if gs.node_type.is(NodeType.Decl) {
-                        ref rhs : Expr = gs.child(0)
+                        ref rhs : Expr = gs.children[0]
                         if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
                         if gs.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                     } else if gs.node_type.is(NodeType.FCall).not() { continue }
@@ -3424,8 +3424,8 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.ref_dyn_locals = Set(Str).new()
         lp.ctx.ptr_locals = Set(Str).new()
         lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
-        collect_unsafe_to_hoist(lp.ctx, closure_expr.child(0))
-        emit_body(f, closure_expr.child(0), 1, lp.ctx)
+        collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
+        emit_body(f, closure_expr.children[0], 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env
         lp.ctx.closure_emit_captures = saved_caps
         lp.ctx.in_func_def = saved_in_func_def
@@ -3660,9 +3660,9 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                    if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
+                    if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
                         tmp : Dynamic = malloc(I64.size().cast(U64))
                         write_ptr(tmp, stmt)
                         items.push(own tmp)
@@ -3674,9 +3674,9 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                if stmt.child(0).node_type.is(NodeType.StructDef).or(stmt.child(0).node_type.is(NodeType.EnumDef)) {
+                if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
                     tmp2 : Dynamic = malloc(I64.size().cast(U64))
                     write_ptr(tmp2, stmt)
                     items.push(own tmp2)
@@ -3701,7 +3701,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
             ref stmt : Expr = deref(ptr)
             switch stmt.node_type {
             case NodeType.Decl(sdecl):
-                ref def : Expr = stmt.child(0)
+                ref def : Expr = stmt.children[0]
                 mut deps_ok := true
                 switch def.node_type {
                 case NodeType.StructDef(dep_sdd):
@@ -3752,7 +3752,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                 ref stmt : Expr = deref(ptr2)
                 switch stmt.node_type {
                 case NodeType.Decl(sdecl):
-                    ref def : Expr = stmt.child(0)
+                    ref def : Expr = stmt.children[0]
                     if def.node_type.is(NodeType.StructDef) {
                         emit_struct_typedef(f, sdecl.name, def, emitted_tags)
                         f.write("\n")
@@ -3873,7 +3873,7 @@ emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
         if stmt.children.len().eq(0) { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is(NodeType.FuncDef) {
                 if rhs.children.len().eq(0) {
                     emit_funcsig_typedef(f, dd.name, rhs, ctx)
@@ -3904,12 +3904,12 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.FuncDef) {
                         if rhs.children.len().eq(0) {
                             emit_funcsig_typedef(f, dd.name, rhs, lp.ctx)
@@ -3932,12 +3932,12 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.FuncDef) {
                     if rhs.children.len().eq(0) {
                         emit_funcsig_typedef(f, dd.name, rhs, lp.ctx)
@@ -3964,12 +3964,12 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     switch rhs.node_type {
                     case NodeType.StructDef(fwd_sdd):
                         if is_ext_h_type(dd.name) { continue }
@@ -4000,12 +4000,12 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case NodeType.StructDef(fwd_sdd):
                     if is_ext_h_type(dd.name) { continue }
@@ -4078,12 +4078,12 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         ref fwd_ns : Vec(Declaration) = def_ns_decls(rhs)
                         for fdd : Declaration in fwd_ns {
@@ -4116,12 +4116,12 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                     ref fwd_ns : Vec(Declaration) = def_ns_decls(rhs)
                     for fdd : Declaration in fwd_ns {
@@ -4146,18 +4146,18 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
-            if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+            if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
-                switch stmt.child(0).node_type {
+                emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+                switch stmt.children[0].node_type {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
                     for hdr_vn : Str in hdr_edd.variants {
-                        hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.cast(I32))
+                        hdr_vt := enum_variant_type(stmt.children[0], hdr_vi.cast(I32))
                         if hdr_vt.len().gt(0) {
                             tnc := type_name_to_c(hdr_vt, lp.ctx)
                             f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("(").write(tnc).write(");\n")
@@ -4182,9 +4182,9 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if is_exported_top_level_global(stmt).not() { continue }
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     ctype := extern_decl_ctype(stmt.expr_til_type(), rhs.expr_til_type(), lp.ctx)
@@ -4202,9 +4202,9 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if is_exported_top_level_global(stmt).not() { continue }
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 ctype := extern_decl_ctype(stmt.expr_til_type(), rhs.expr_til_type(), lp.ctx)
@@ -4293,7 +4293,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case NodeType.StructDef(btb_sdd):
                 f.write(dd.name).write(" := struct {\n")
@@ -4432,7 +4432,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                     f.write("\nclass ").write(dd.name).write("(ctypes.Structure):\n")
                     f.write("    pass\n")
@@ -4452,7 +4452,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
 
             switch rhs.node_type {
             case NodeType.StructDef(bpb_sdd):
@@ -4533,7 +4533,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
 
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 // Emit namespace method bindings from ns_decls
@@ -4615,7 +4615,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.EnumDef).not() { continue }
                 sname := dd.name
                 hp := enum_has_payloads(rhs)
@@ -4902,7 +4902,7 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.FuncDef) {
                     if rhs.children.len().eq(0) {
                         ctx.funcsig_names.add(own dd.name.clone())
@@ -4927,7 +4927,7 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
 priv emit_global_inits_prog := proc(f: File, prog: Expr, ctx: Context) {
     for gs : Expr in prog.children {
         if gs.node_type.is(NodeType.Decl) {
-            ref rhs : Expr = gs.child(0)
+            ref rhs : Expr = gs.children[0]
             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef))
             .or(rhs.node_type.is(NodeType.EnumDef)) { continue }
             if gs.expr_til_type().is(Type.None) {
@@ -4973,7 +4973,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                 sdv : Dynamic = malloc(I64.size().cast(U64))
                 write_ptr(sdv, rhs)
@@ -4990,10 +4990,10 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                     write_ptr(fv, nsd.default_value)
                     ctx.func_defs.set(key, own fv)
                     if nsd.default_value.children.len().gt(0) {
-                        ref fbody : Expr = nsd.default_value.child(0)
+                        ref fbody : Expr = nsd.default_value.children[0]
                         for nested : Expr in fbody.children {
                             if is_func_decl(nested).not() { continue }
-                            ref nfdef : Expr = nested.child(0)
+                            ref nfdef : Expr = nested.children[0]
                             switch nested.node_type {
                             case NodeType.Decl(nd):
                                 nv : Dynamic = malloc(I64.size().cast(U64))
@@ -5101,12 +5101,12 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         ref fwd_ns2 : Vec(Declaration) = def_ns_decls(rhs)
                         for fdd : Declaration in fwd_ns2 {
@@ -5147,12 +5147,12 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                     ref fwd_ns2 : Vec(Declaration) = def_ns_decls(rhs)
                     for fdd : Declaration in fwd_ns2 {
@@ -5192,18 +5192,18 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
-            if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+            if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
-                switch stmt.child(0).node_type {
+                emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+                switch stmt.children[0].node_type {
                 case NodeType.EnumDef(hdr_edd):
                     mut hdr_vi : USize = 0
                     for hdr_vn : Str in hdr_edd.variants {
-                        hdr_vt := enum_variant_type(stmt.child(0), hdr_vi.cast(I32))
+                        hdr_vt := enum_variant_type(stmt.children[0], hdr_vi.cast(I32))
                         if hdr_vt.len().gt(0) {
                             tnc := type_name_to_c(hdr_vt, lp.ctx)
                             f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("(").write(tnc).write(");\n")
@@ -5228,12 +5228,12 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         ref afd_ns : Vec(Declaration) = def_ns_decls(rhs)
                         for fdd : Declaration in afd_ns {
@@ -5271,12 +5271,12 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                     ref afd_ns : Vec(Declaration) = def_ns_decls(rhs)
                     for fdd : Declaration in afd_ns {
@@ -5315,18 +5315,18 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.child(i)
+                ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
-                if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+                if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
-                    switch stmt.child(0).node_type {
+                    emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+                    switch stmt.children[0].node_type {
                     case NodeType.EnumDef(shdr_edd):
                         mut shdr_vi : USize = 0
                         for shdr_vn : Str in shdr_edd.variants {
-                            shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.cast(I32))
+                            shdr_vt := enum_variant_type(stmt.children[0], shdr_vi.cast(I32))
                             if shdr_vt.len().gt(0) {
                                 tnc := type_name_to_c(shdr_vt, lp.ctx)
                                 f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("(").write(tnc).write(");\n")
@@ -5347,18 +5347,18 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(i)
+            ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
-            if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+            if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            emit_enum_eq_ext_decl(f, dd.name, stmt.child(0))
-            switch stmt.child(0).node_type {
+            emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+            switch stmt.children[0].node_type {
             case NodeType.EnumDef(shdr_edd):
                 mut shdr_vi : USize = 0
                 for shdr_vn : Str in shdr_edd.variants {
-                    shdr_vt := enum_variant_type(stmt.child(0), shdr_vi.cast(I32))
+                    shdr_vt := enum_variant_type(stmt.children[0], shdr_vi.cast(I32))
                     if shdr_vt.len().gt(0) {
                         tnc := type_name_to_c(shdr_vt, lp.ctx)
                         f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("(").write(tnc).write(");\n")
@@ -5472,7 +5472,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 switch stmt.node_type {
                 case NodeType.Decl(sdd):
                     if sdd.name.eq("dyn_has_method") {
-                        switch stmt.child(0).node_type {
+                        switch stmt.children[0].node_type {
                         case NodeType.FuncDef(fd):
                             dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                         case:
@@ -5494,7 +5494,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             switch stmt.node_type {
             case NodeType.Decl(sdd):
                 if sdd.name.eq("dyn_has_method") {
-                    switch stmt.child(0).node_type {
+                    switch stmt.children[0].node_type {
                     case NodeType.FuncDef(fd):
                         dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                     case:
@@ -5640,7 +5640,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_struct_or_enum(stmt).not() { continue }
-                ref def : Expr = stmt.child(0)
+                ref def : Expr = stmt.children[0]
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     ref dfw_ns : Vec(Declaration) = def_ns_decls(def)
@@ -5669,7 +5669,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
-            ref def : Expr = stmt.child(0)
+            ref def : Expr = stmt.children[0]
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 ref dfw_ns : Vec(Declaration) = def_ns_decls(def)
@@ -5700,7 +5700,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_struct_or_enum(stmt).not() { continue }
-                ref def : Expr = stmt.child(0)
+                ref def : Expr = stmt.children[0]
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     ref dfn_ns : Vec(Declaration) = def_ns_decls(def)
@@ -5730,7 +5730,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
-            ref def : Expr = stmt.child(0)
+            ref def : Expr = stmt.children[0]
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 ref dfn_ns : Vec(Declaration) = def_ns_decls(def)
@@ -5801,13 +5801,13 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
 priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len().eq(0) { return }
-    if stmt.child(0).node_type.is(NodeType.StructDef).not() { return }
+    if stmt.children[0].node_type.is(NodeType.StructDef).not() { return }
     mut sname := ""
     switch stmt.node_type {
     case NodeType.Decl(dd): sname = dd.name
     case: return
     }
-    switch stmt.child(0).node_type {
+    switch stmt.children[0].node_type {
     case NodeType.StructDef(sd):
         tlen := sname.len()
         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(sname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
@@ -5875,13 +5875,13 @@ priv emit_struct_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len().eq(0) { return }
-    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { return }
+    if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
     mut ename := ""
     switch stmt.node_type {
     case NodeType.Decl(dd): ename = dd.name
     case: return
     }
-    switch stmt.child(0).node_type {
+    switch stmt.children[0].node_type {
     case NodeType.EnumDef(ed):
         tlen := ename.len()
         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(ename).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
@@ -5961,14 +5961,14 @@ priv emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len().eq(0) { return }
-    if stmt.child(0).node_type.is(NodeType.FuncDef).not() { return }
-    if stmt.child(0).children.len().neq(0) { return }
+    if stmt.children[0].node_type.is(NodeType.FuncDef).not() { return }
+    if stmt.children[0].children.len().neq(0) { return }
     mut fname := ""
     switch stmt.node_type {
     case NodeType.Decl(dd): fname = dd.name
     case: return
     }
-    switch stmt.child(0).node_type {
+    switch stmt.children[0].node_type {
     case NodeType.FuncDef(fd):
         tlen := fname.len()
         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(fname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
@@ -6072,9 +6072,9 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), 
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     if dd.name.eq(ename).not() { continue }
-                    if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+                    if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                     mut hp := false
-                    collect_enum_variants(stmt.child(0), variant_names, variant_types, hp)
+                    collect_enum_variants(stmt.children[0], variant_names, variant_types, hp)
                     return true
                 case:
                 }
@@ -6088,9 +6088,9 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), 
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 if dd.name.eq(ename).not() { continue }
-                if stmt.child(0).node_type.is(NodeType.EnumDef).not() { continue }
+                if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                 mut hp := false
-                collect_enum_variants(stmt.child(0), variant_names, variant_types, hp)
+                collect_enum_variants(stmt.children[0], variant_names, variant_types, hp)
                 return true
             case:
             }
@@ -6249,7 +6249,7 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 for e_i : Expr in iu.ast.children {
                     ref stmt : Expr = e_i
                     if is_struct_or_enum(stmt).not() { continue }
-                    ref def : Expr = stmt.child(0)
+                    ref def : Expr = stmt.children[0]
                     ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
                     if method_fdef.is_null() { continue }
                     if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
@@ -6328,7 +6328,7 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
             for e_i : Expr in iu.ast.children {
                 ref stmt : Expr = e_i
                 if is_struct_or_enum(stmt).not() { continue }
-                ref def : Expr = stmt.child(0)
+                ref def : Expr = stmt.children[0]
                 ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
                 if method_fdef.is_null() { continue }
                 if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
@@ -6416,11 +6416,11 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
             if dyn_has_shallow { break }
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
+                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
                     switch stmt.node_type {
                     case NodeType.Decl(dd):
                         if dd.name.eq("dyn_has_method") {
-                            switch stmt.child(0).node_type {
+                            switch stmt.children[0].node_type {
                             case NodeType.FuncDef(fd):
                                 dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                             case:
@@ -6439,11 +6439,11 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
         if dyn_has_shallow { break }
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.child(0).node_type.is(NodeType.FuncDef)) {
+            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     if dd.name.eq("dyn_has_method") {
-                        switch stmt.child(0).node_type {
+                        switch stmt.children[0].node_type {
                         case NodeType.FuncDef(fd):
                             dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                         case:
@@ -6478,7 +6478,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                 for e_i : Expr in iu.ast.children {
                     ref stmt : Expr = e_i
                     if is_struct_or_enum(stmt).not() { continue }
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     switch stmt.node_type {
                     case NodeType.Decl(dd):
                         mut found := false
@@ -6503,7 +6503,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
             for e_i : Expr in iu.ast.children {
                 ref stmt : Expr = e_i
                 if is_struct_or_enum(stmt).not() { continue }
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     mut found := false
@@ -6615,7 +6615,7 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_exported_top_level_global(stmt).not() { continue }
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 ctype := extern_decl_ctype(stmt.expr_til_type(), rhs.expr_til_type(), lp.ctx)
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
@@ -6636,7 +6636,7 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             ctype := extern_decl_ctype(stmt.expr_til_type(), rhs.expr_til_type(), lp.ctx)
             switch stmt.node_type {
             case NodeType.Decl(dd):
@@ -6667,7 +6667,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.FuncDef) {
                     switch rhs.node_type {
                     case NodeType.FuncDef(fd):
@@ -6724,9 +6724,9 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for gi in 0..iu.ast.children.len() {
-                ref gs : Expr = iu.ast.child(gi)
+                ref gs : Expr = iu.ast.children[gi]
                 if gs.node_type.is(NodeType.Decl) {
-                    ref rhs : Expr = gs.child(0)
+                    ref rhs : Expr = gs.children[0]
                     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
                     if gs.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                 } else if gs.node_type.is(NodeType.FCall).not() { continue }
@@ -6738,9 +6738,9 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for gi in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.child(gi)
+            ref stmt : Expr = iu.ast.children[gi]
             if stmt.node_type.is(NodeType.Decl) {
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
             }
             emit_stmt(f, stmt, 1, lp.ctx)
@@ -6760,7 +6760,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref rhs : Expr = stmt.child(0)
+                    ref rhs : Expr = stmt.children[0]
                     switch rhs.node_type {
                     case NodeType.StructDef:
                         emit_struct_funcs(f, dd.name, rhs, lp)
@@ -6788,7 +6788,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case NodeType.StructDef:
                     emit_struct_funcs(f, dd.name, rhs, lp)
@@ -6814,7 +6814,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
 priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
     for stmt : Expr in program.children {
         if is_func_decl(stmt).not() { continue }
-        ref fdef : Expr = stmt.child(0)
+        ref fdef : Expr = stmt.children[0]
         switch fdef.node_type {
         case NodeType.FuncDef(fd):
             if fd.func_type.is(FuncType.ExtFunc).not().and(fd.func_type.is(FuncType.ExtProc).not()) { continue }

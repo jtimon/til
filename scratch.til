@@ -17,7 +17,7 @@ main := proc(args: ..Str) {
                     println("  val: ", val.node_type.to_str())
                     if val.node_type.is(NodeType.FCall) {
                         println("  children: ", val.children.len().to_str())
-                        ref callee : Expr = val.child(0)
+                        ref callee : Expr = val.children[0]
                         println("  callee: ", callee.node_type.to_str())
                         switch callee.node_type {
                         case NodeType.Ident(id):

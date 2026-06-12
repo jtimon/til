@@ -37,7 +37,7 @@ priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) return
         switch d.node_type {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
-                switch d.child(0).node_type {
+                switch d.children[0].node_type {
                 case NodeType.Ident(di):
                     if di.ident_name().eq(name) {
                         if expr_uses_var(expr, dd.name) { return true }
@@ -83,7 +83,7 @@ priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(
             mut already := false
             for t : Str in tainted { if t.eq(hname) { already = true } }
             if already { continue }
-            ref init : Expr = pst.child(0)
+            ref init : Expr = pst.children[0]
             mut dep := expr_uses_var(init, target)
             if dep.not() {
                 for t : Str in tainted { if expr_uses_var(init, t) { dep = true } }
@@ -133,7 +133,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
 
         mut decl_idx : I32 = -1
         for j in 0..body.children.len() {
-            ref s : Expr = body.child(j)
+            ref s : Expr = body.children[j]
             switch s.node_type {
             case NodeType.Decl(dd):
                 if dd.name.eq(b.name) {
@@ -145,7 +145,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         }
         if decl_idx.eq(-1) {
             for j in 0..body.children.len() {
-                if expr_contains_decl(body.child(j), b.name) {
+                if expr_contains_decl(body.children[j], b.name) {
                     decl_idx = j.cast(I32)
                     break
                 }
@@ -159,7 +159,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             scan_from = decl_idx.add(1).to_usize()
         }
         for j in scan_from..body.children.len() {
-            ref stmt : Expr = body.child(j)
+            ref stmt : Expr = body.children[j]
             if is_compile_directive(stmt) { continue }
             if expr_uses_var(stmt, b.name) {
                 last_use = j.cast(I32)
@@ -182,8 +182,8 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         mut skip_scope_delete := is_program_scope.and(decl_idx.gte(0)).and(b.name.starts_with("hoisted__").not())
         if skip_scope_delete.not() {
             for j in scan_from..body.children.len() {
-                if is_compile_directive(body.child(j)) { continue }
-                if expr_used_in_nested_func(body.child(j), b.name) {
+                if is_compile_directive(body.children[j]) { continue }
+                if expr_used_in_nested_func(body.children[j], b.name) {
                     skip_scope_delete = true
                     break
                 }
@@ -216,9 +216,9 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // return, and which the typer otherwise leaves at Own for
         // Struct-returning FCalls).
         if decl_idx.gte(0) {
-            ref li_stmt : Expr = body.child(decl_idx.cast(U32))
+            ref li_stmt : Expr = body.children[decl_idx.cast(U32)]
             if li_stmt.node_type.is(NodeType.Decl).and(li_stmt.children.len().gt(0)) {
-                ref li_rhs : Expr = li_stmt.child(0)
+                ref li_rhs : Expr = li_stmt.children[0]
                 if li_rhs.node_type.is_literal_str() {
                     li.is_heap = false
                 } else if li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(li_rhs, scope).neq(0)) {
@@ -274,15 +274,15 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
         // be deleted at the FieldAssign itself, dangling `a.next` for the
         // later asserts.)
         for i in 0..body.children.len() {
-            ref mut stmt : Expr = body.child(i)
+            ref mut stmt : Expr = body.children[i]
             if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
             if stmt.fa_own_type(scope).is(OwnType.Ref).not() { continue }
             if stmt.children.len().lt(2) { continue }
             // target side: walk down the FieldAccess chain to find the
             // root Ident (the holder local's name).
-            ref mut target : Expr = stmt.child(0)
+            ref mut target : Expr = stmt.children[0]
             while target.node_type.is(NodeType.FieldAccess).and(target.children.len().gt(0)) {
-                target = target.child(0)
+                target = target.children[0]
             }
             mut holder_name := ""
             switch target.node_type {
@@ -292,7 +292,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             if holder_name.len().eq(0) { continue }
             // source side: the FieldAssign RHS, if an Ident, names the
             // local whose lifetime we extend.
-            ref value : Expr = stmt.child(1)
+            ref value : Expr = stmt.children[1]
             mut src_name := ""
             switch value.node_type {
             case NodeType.Ident(sn): src_name = sn.ident_name()
@@ -313,7 +313,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             }
         }
         for i in 0..body.children.len() {
-            ref mut stmt : Expr = body.child(i)
+            ref mut stmt : Expr = body.children[i]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             mut dd_name := ""
             mut dd_is_ref := false
@@ -324,11 +324,11 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             case:
             }
             if dd_is_ref.not() { continue }
-            ref mut rhs : Expr = stmt.child(0)
+            ref mut rhs : Expr = stmt.children[0]
 
             mut ref_last : I32 = -1
             for j in i.add(1)..body.children.len() {
-                if expr_uses_var(body.child(j), dd_name) {
+                if expr_uses_var(body.children[j], dd_name) {
                     ref_last = j.cast(I32)
                 }
             }
@@ -353,7 +353,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             if rhs.node_type.is(NodeType.FieldAccess) {
                 ref mut root : Expr = rhs
                 while root.node_type.is(NodeType.FieldAccess).and(root.children.len().gt(0)) {
-                    root = root.child(0)
+                    root = root.children[0]
                 }
                 switch root.node_type {
                 case NodeType.Ident(src_name):
@@ -369,9 +369,9 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             }
             if rhs.node_type.is(NodeType.FCall).not() { continue }
             for a in 1..rhs.children.len() {
-                ref mut arg : Expr = rhs.child(a)
+                ref mut arg : Expr = rhs.children[a]
                 while arg.node_type.is(NodeType.FieldAccess).and(arg.children.len().gt(0)) {
-                    arg = arg.child(0)
+                    arg = arg.children[0]
                 }
                 switch arg.node_type {
                 case NodeType.Ident(aname):
@@ -411,9 +411,9 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
         if tainted.len().eq(0) { continue }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
-            if is_compile_directive(body.child(j)) { continue }
+            if is_compile_directive(body.children[j]) { continue }
             for t : Str in tainted {
-                if expr_uses_var(body.child(j), t) { view_last = j.cast(I32) }
+                if expr_uses_var(body.children[j], t) { view_last = j.cast(I32) }
             }
         }
         if view_last.gt(local.last_use) { local.last_use = view_last }
@@ -423,9 +423,9 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
 priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), ctx: Context) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
-            ref stmt : Expr = body.child(local.last_use.to_usize())
+            ref stmt : Expr = body.children[local.last_use.to_usize()]
             stmt.type_error("use of '".concat(local.name).concat("' after ownership transfer"), ctx)
-            ref xfer : Expr = body.child(local.own_transfer.to_usize())
+            ref xfer : Expr = body.children[local.own_transfer.to_usize()]
             println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")
         }
@@ -456,11 +456,11 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         if is_compile_directive(stmt) { continue }
         if stmt.node_type.is(NodeType.If) {
             for c in 1..stmt.children.len() {
-                insert_exit_deletes(stmt.child(c), live, return_only)
+                insert_exit_deletes(stmt.children[c], live, return_only)
             }
         }
         if stmt.node_type.is(NodeType.While) {
-            insert_exit_deletes(stmt.child(1), live, true)
+            insert_exit_deletes(stmt.children[1], live, true)
         }
         if stmt.node_type.is(NodeType.Body) {
             insert_exit_deletes(stmt, live, return_only)
@@ -468,7 +468,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         if stmt.node_type.is(NodeType.Return).or(return_only.not().and(stmt.node_type.is(NodeType.Break).or(stmt.node_type.is(NodeType.Continue)))) {
             for local : LocalInfo in live {
                 if stmt.children.len().gt(0) {
-                    ref retval : Expr = stmt.child(0)
+                    ref retval : Expr = stmt.children[0]
                     if expr_uses_var(retval, local.name).or(alias_used_in_stmts(old, local.name, retval)) {
                         continue
                     }
@@ -534,10 +534,10 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
         switch stmt.node_type {
         case NodeType.If:
             for c in 1..stmt.children.len() {
-                insert_exit_deletes(stmt.child(c), live_vec, false)
+                insert_exit_deletes(stmt.children[c], live_vec, false)
             }
         case NodeType.While:
-            insert_exit_deletes(stmt.child(1), live_vec, true)
+            insert_exit_deletes(stmt.children[1], live_vec, true)
         case:
             // NodeType.Body -- a plain block: a desugared for-in wrapper
             // (its decls + while), the lowered form of a switch/match
@@ -562,7 +562,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
     }
     for local : LocalInfo in locals {
         if stmt.children.len().gt(0) {
-            ref retval : Expr = stmt.child(0)
+            ref retval : Expr = stmt.children[0]
             if expr_uses_var(retval, local.name).or(alias_used_in_stmts(body_stmts, local.name, retval)) {
                 continue
             }
@@ -646,9 +646,9 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // loop/conditional bodies).
             if local.is_heap.and(is_aggregate(local.type)) {
                 if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
-                    ref fa_rhs : Expr = stmt.child(1)
+                    ref fa_rhs : Expr = stmt.children[1]
                     if rhs_is_clone_fcall(fa_rhs).and(fa_rhs.children.len().gte(2)) {
-                        ref clone_arg : Expr = fa_rhs.child(1)
+                        ref clone_arg : Expr = fa_rhs.children[1]
                         switch clone_arg.node_type {
                         case NodeType.Ident(clone_arg_name):
                             if clone_arg_name.ident_name().eq(local.name) {
@@ -698,11 +698,11 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                     case NodeType.Assign(adata2): assign_target = adata2.name
                     case:
                     }
-                    ref assign_rhs : Expr = stmt.child(0)
+                    ref assign_rhs : Expr = stmt.children[0]
                     // Guard against self-assign `e = e.clone()`: moving there
                     // would alias the just-deleted old value.
                     if assign_target.eq(local.name).not().and(rhs_is_clone_fcall(assign_rhs)).and(assign_rhs.children.len().gte(2)) {
-                        ref clone_arg : Expr = assign_rhs.child(1)
+                        ref clone_arg : Expr = assign_rhs.children[1]
                         switch clone_arg.node_type {
                         case NodeType.Ident(clone_arg_name):
                             // Issue #238: never move a clone-arg that is a
@@ -752,7 +752,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
         for local : LocalInfo in locals {
             if local.name.eq(vname).not() { continue }
             if is_aggregate(local.type) {
-                ref rhs : Expr = stmt.child(0)
+                ref rhs : Expr = stmt.children[0]
                 if rhs_depends_on_var(rhs, vname, new_ch) {
                     ad.save_old_delete = true
                     stmt.set_expr_til_type(local.type.clone())
@@ -776,7 +776,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
 priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if local.decl_index.lt(0) { continue }
-        ref stmt : Expr = body.child(local.decl_index.cast(U32))
+        ref stmt : Expr = body.children[local.decl_index.cast(U32)]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         // Skip LiteralStr-RHS decls (temp or user-visible): the builder
         // emits these as stack-allocated compound-literal Str values, so
@@ -784,7 +784,7 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
         // would free a stack pointer). Keep them Shallow so make_delete_call
         // generates call_free=false.
         if stmt.children.len().gt(0) {
-            ref rhs0 : Expr = stmt.child(0)
+            ref rhs0 : Expr = stmt.children[0]
             if rhs0.node_type.is_literal_str() { continue }
             // Same shape, payload-less enum case: the builder emits a
             // stack value via the is_pod_enum_clone_call shortcut, so
@@ -810,10 +810,10 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
         // out cleanly.
         if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(is_struct) {
             if local.last_use.gte(0) {
-                ref last_stmt : Expr = body.child(local.last_use.cast(U32))
+                ref last_stmt : Expr = body.children[local.last_use.cast(U32)]
                 if last_stmt.node_type.is(NodeType.Return) {
                     if last_stmt.children.len().gt(0) {
-                        switch last_stmt.child(0).node_type {
+                        switch last_stmt.children[0].node_type {
                         case NodeType.Ident(rname):
                             if rname.ident_name().eq(local.name) { continue }
                         case:
@@ -890,21 +890,21 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
         if type_to_name(local.type).eq("Str") { continue }
         if local.last_use.gt(local.own_transfer) { continue }
         if local.own_transfer.gte(body.children.len().cast(I32)) { continue }
-        ref tstmt : Expr = body.child(local.own_transfer.cast(U32))
+        ref tstmt : Expr = body.children[local.own_transfer.cast(U32)]
         if tstmt.node_type.is(NodeType.If).not() { continue }
         if tstmt.children.len().lt(2) { continue }
-        ref then_body : Expr = tstmt.child(1)
+        ref then_body : Expr = tstmt.children[1]
         has_else := tstmt.children.len().gt(2)
         then_xfer := branch_unconditionally_transfers(then_body, local.name, scope, ctx)
         mut else_xfer := false
         if has_else {
-            else_xfer = branch_unconditionally_transfers(tstmt.child(2), local.name, scope, ctx)
+            else_xfer = branch_unconditionally_transfers(tstmt.children[2], local.name, scope, ctx)
         }
         if then_xfer.and(else_xfer.not()) {
             del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, tstmt)
             if del.is_null() { continue }
             if has_else {
-                tstmt.child(2).add_child(own del)
+                tstmt.children[2].add_child(own del)
             } else {
                 mut else_b := Expr.new(NodeType.Body, tstmt.line, tstmt.col)
                 else_b.add_child(own del)

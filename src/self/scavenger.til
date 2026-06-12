@@ -5,7 +5,7 @@ import("context")
 // The typer marks type-name idents with StructDef/EnumDef til_type.
 priv scav_fa_is_ns := func(e: Expr) returns Bool {
     if e.children.len().eq(0) { return false }
-    ref obj : Expr = e.child(0)
+    ref obj : Expr = e.children[0]
     switch obj.node_type {
     case NodeType.Ident(id):
         obj_type_name := til_type_name(obj.expr_til_type())
@@ -101,10 +101,10 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     case NodeType.FCall:
         // Check for namespace method call: Type.method(args...)
         if e.children.len().gt(0) {
-            if e.child(0).node_type.is(NodeType.FieldAccess) {
-                if scav_fa_is_ns(e.child(0)) {
-                    ref fa : Expr = e.child(0)
-                    switch fa.child(0).node_type {
+            if e.children[0].node_type.is(NodeType.FieldAccess) {
+                if scav_fa_is_ns(e.children[0]) {
+                    ref fa : Expr = e.children[0]
+                    switch fa.children[0].node_type {
                     case NodeType.Ident(type_name):
                         switch fa.node_type {
                         case NodeType.FieldAccess(method):
@@ -120,7 +120,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                                 mn := method.field_access_name()
                                 is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
                                 if is_named_type_ctor.and(e.children.len().gte(2)) {
-                                    switch e.child(1).node_type {
+                                    switch e.children[1].node_type {
                                     case NodeType.Literal(Literal.Str(tname)):
                                         vec_push_str(refs, tname)
                                     case:
@@ -137,7 +137,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     }
                     // Recurse into args (skip callee -- already handled)
                     for i in 1..e.children.len() {
-                        collect_refs(e.child(i), refs)
+                        collect_refs(e.children[i], refs)
                     }
                     return
                 }
@@ -145,8 +145,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         }
         // array()/vec() builtins need Array/Vec constructor methods
         if e.children.len().gte(2) {
-            if e.child(0).node_type.is(NodeType.Ident) {
-                switch e.child(0).node_type {
+            if e.children[0].node_type.is(NodeType.Ident) {
+                switch e.children[0].node_type {
                 case NodeType.Ident(cn):
                     if cn.ident_name().eq("array") {
                         push_builtin_methods(refs, "Array", "new", "set", "delete")
@@ -158,7 +158,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         // the introspection primitives for type X. Pull X out
                         // of the string-literal arg so the underlying decl
                         // isn't scavenged as unused.
-                        switch e.child(1).node_type {
+                        switch e.children[1].node_type {
                         case NodeType.Literal(Literal.Str(tname2)):
                             vec_push_str(refs, tname2)
                         case:
@@ -176,9 +176,9 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         // via the "*.method" wildcard the reachability walk
                         // expands (see scavenge_visited_imported).
                         if e.children.len().gte(3) {
-                            switch e.child(2).node_type {
+                            switch e.children[2].node_type {
                             case NodeType.Literal(Literal.Str(dyn_mname)):
-                                switch e.child(1).node_type {
+                                switch e.children[1].node_type {
                                 case NodeType.Literal(Literal.Str(dyn_tname)):
                                     vec_push_str(refs, dyn_tname)
                                     push_qn(refs, dyn_tname, dyn_mname)
@@ -211,8 +211,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         }
     case NodeType.FieldAccess(field_name):
         if scav_fa_is_ns(e) {
-            if e.child(0).node_type.is(NodeType.Ident) {
-                switch e.child(0).node_type {
+            if e.children[0].node_type.is(NodeType.Ident) {
+                switch e.children[0].node_type {
                 case NodeType.Ident(type_name):
                     vec_push_str(refs, type_name.ident_name())
                     push_qn(refs, type_name.ident_name(), field_name.field_access_name())
@@ -224,8 +224,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     case NodeType.FieldAssign(fad):
         field_name := fad.name
         if scav_fa_is_ns(e) {
-            if e.child(0).node_type.is(NodeType.Ident) {
-                switch e.child(0).node_type {
+            if e.children[0].node_type.is(NodeType.Ident) {
+                switch e.children[0].node_type {
                 case NodeType.Ident(type_name):
                     vec_push_str(refs, type_name.ident_name())
                     push_qn(refs, type_name.ident_name(), field_name)
@@ -277,7 +277,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
     pm : Dynamic = malloc(pn.cast(U64))
     memset(pm, 0, pn.cast(U64))
     for i in 0..pn {
-        ref stmt : Expr = program.child(i)
+        ref stmt : Expr = program.children[i]
         if is_def(stmt) {
             switch stmt.node_type {
             case NodeType.Decl(d):
@@ -305,7 +305,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
         if is_struct_or_enum(stmt).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
-            ref scv_ns2 : Vec(Declaration) = def_ns_decls(stmt.child(0))
+            ref scv_ns2 : Vec(Declaration) = def_ns_decls(stmt.children[0])
             scv_nn2 := scv_ns2.len()
             if scv_nn2.gt(0) {
                 scv_nm2 : Dynamic = malloc(scv_nn2.cast(U64))
@@ -342,14 +342,14 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
 priv dyn_call_real_arg_count := func(e: Expr) returns USize {
     if e.node_type.is(NodeType.FCall).not() { return e.children.len() }
     if e.children.len().lt(4) { return e.children.len() }
-    ref callee : Expr = e.child(0)
+    ref callee : Expr = e.children[0]
     mut is_dc := false
     switch callee.node_type {
     case NodeType.Ident(cn): is_dc = cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret"))
     case:
     }
     if is_dc.not() { return e.children.len() }
-    ref nargs_e : Expr = e.child(3)
+    ref nargs_e : Expr = e.children[3]
     mut nargs : USize = 0
     switch nargs_e.node_type {
     case NodeType.Literal(Literal.Num(s)):
@@ -408,7 +408,7 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
 priv match_trivial_delete := func(stmt: Expr) returns Str {
     if stmt.node_type.is(NodeType.FCall).not() { return "" }
     if stmt.children.len().neq(3) { return "" }
-    ref callee : Expr = stmt.child(0)
+    ref callee : Expr = stmt.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
     switch callee.node_type {
@@ -417,11 +417,11 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     }
     if method.eq("delete").not() { return "" }
     if callee.children.len().neq(1) { return "" }
-    ref tname : Expr = callee.child(0)
+    ref tname : Expr = callee.children[0]
     if tname.node_type.is(NodeType.Ident).not() { return "" }
-    ref arg0 : Expr = stmt.child(1)
+    ref arg0 : Expr = stmt.children[1]
     if arg0.node_type.is(NodeType.Ident).not() { return "" }
-    ref arg1 : Expr = stmt.child(2)
+    ref arg1 : Expr = stmt.children[2]
     if arg1.node_type.is_literal_bool().not() { return "" }
     mut bv := false
     switch arg1.node_type {
@@ -474,7 +474,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
             memset(marks, 0, n.cast(U64))
             mut any := false
             for i in 0..n {
-                ref stmt : Expr = e.child(i)
+                ref stmt : Expr = e.children[i]
                 target := match_trivial_delete(stmt)
                 if target.len().eq(0) { continue }
                 if dropped.has(target).not() { continue }
@@ -486,7 +486,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
         }
     }
     for j in 0..e.children.len() {
-        prune_trivial_deletes(e.child(j), dropped)
+        prune_trivial_deletes(e.children[j], dropped)
     }
 }
 
@@ -511,7 +511,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     candidates := Set(Str).new()
     candidates_replace := Set(Str).new()
     for i in 0..n {
-        ref stmt : Expr = body.child(i)
+        ref stmt : Expr = body.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         switch stmt.node_type {
@@ -528,7 +528,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
                 is_internal := dd.name.starts_with("hoisted__").or(dd.name.starts_with("_t_"))
                 if is_internal.not() { continue }
             }
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             if dd.own_type.is(OwnType.Ref) {
                 // Ref-typed hoisted temps come from stmt-level FCalls
                 // whose declared return is `ref T` (e.g. advance(p)):
@@ -553,7 +553,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // with the candidate.
     refs := Set(Str).new()
     for i in 0..n {
-        ref stmt : Expr = body.child(i)
+        ref stmt : Expr = body.children[i]
         target := match_trivial_delete(stmt)
         if target.len().gt(0).and(candidates.has(target)) { continue }
         collect_body_refs(stmt, refs, candidates)
@@ -566,7 +566,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     dropped := Set(Str).new()
     mut any := false
     for i in 0..n {
-        ref stmt : Expr = body.child(i)
+        ref stmt : Expr = body.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -582,7 +582,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     }
     if any {
         for j in 0..n {
-            ref stmt : Expr = body.child(j)
+            ref stmt : Expr = body.children[j]
             target := match_trivial_delete(stmt)
             if target.len().eq(0) { continue }
             if dropped.has(target).not() { continue }
@@ -610,7 +610,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
         for j in 0..body.children.len() {
-            prune_trivial_deletes(body.child(j), dropped)
+            prune_trivial_deletes(body.children[j], dropped)
         }
     }
     free(own marks)
@@ -628,7 +628,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
 priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     if stmt.node_type.is(NodeType.FCall).not() { return false }
     if stmt.children.len().neq(3) { return false }
-    ref callee : Expr = stmt.child(0)
+    ref callee : Expr = stmt.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return false }
     mut method_eq := false
     switch callee.node_type {
@@ -637,8 +637,8 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     }
     if method_eq.not() { return false }
     if callee.children.len().neq(1) { return false }
-    if callee.child(0).node_type.is(NodeType.Ident).not() { return false }
-    ref arg0 : Expr = stmt.child(1)
+    if callee.children[0].node_type.is(NodeType.Ident).not() { return false }
+    ref arg0 : Expr = stmt.children[1]
     if arg0.node_type.is(NodeType.Ident).not() { return false }
     mut name_eq := false
     switch arg0.node_type {
@@ -646,7 +646,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     case:
     }
     if name_eq.not() { return false }
-    return stmt.child(2).node_type.is_literal_bool()
+    return stmt.children[2].node_type.is_literal_bool()
 }
 
 // Precomp folds an FCall RHS to a LiteralStr in place but doesn't
@@ -661,21 +661,21 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
     n := body.children.len()
     if n.eq(0) { return }
     for i in 0..n {
-        ref stmt : Expr = body.child(i)
+        ref stmt : Expr = body.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Own).not() { continue }
-            ref rhs : Expr = stmt.child(0)
+            ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is_literal_str().not() { continue }
             ref target : Str = dd.name
             dd.own_type = OwnType.Shallow
             mut j : USize = i.add(1)
             while j.lt(n) {
-                ref del : Expr = body.child(j)
+                ref del : Expr = body.children[j]
                 if match_named_delete(del, target) {
-                    ref bool_arg : Expr = del.child(2)
+                    ref bool_arg : Expr = del.children[2]
                     bool_arg.node_type = NodeType.Literal(Literal.Bool(false))
                     break
                 }
@@ -696,7 +696,7 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for i in 0..e.children.len() {
-        body_dce_walk(e.child(i), child_top)
+        body_dce_walk(e.children[i], child_top)
     }
     if is_body {
         fix_stale_litstr_in_body(e)
@@ -711,7 +711,7 @@ priv body_dce_ns := proc(rhs: Expr) {
         if nsd.default_value.is_null() { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_value.children.len().eq(0) { continue }
-        body_dce_walk(nsd.default_value.child(0), false)
+        body_dce_walk(nsd.default_value.children[0], false)
     }
 }
 
@@ -724,7 +724,7 @@ dce_program_bodies := proc(mut program: Expr) {
     body_dce_walk(program, true)
     for stmt : Expr in program.children {
         if is_def(stmt).not() { continue }
-        ref rhs : Expr = stmt.child(0)
+        ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             body_dce_ns(rhs)
         }
