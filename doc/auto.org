@@ -30,19 +30,26 @@
    with owned or borrowed fields must define a content-aware hash if they
    need one.
 
-** eq / to_str (planned, #102)
-   Structs do not currently get field-wise ~eq~ or ~to_str~ unless those
-   methods are derived from an explicit ~cmp~ or written by the user.
-   Issue #102 tracks generating them when every instance field supports
-   the required method.
+** eq := func(self: T, other: T) returns Bool
+   Generated when every instance field is shallow and comparable. Compares
+   fields in declaration order and returns false at the first mismatch.
+   If the struct defines ~cmp~, the cmp-derived comparison helpers still
+   win. Structs with own/ref fields are left to explicit methods for now
+   (tracked by #270).
+
+** to_str := func(self: T) returns Str
+   Generated when every instance field is shallow and printable. Formats
+   the value in constructor style, e.g. ~Color(r=0, g=0, b=0, a=0)~.
+   Structs with own/ref fields are left to explicit methods for now
+   (tracked by #270).
 
 * Enums
 
 ** eq := func(self: E, other: E) returns Bool
    Tag comparison. For payload variants, also compares payloads via
    their type's eq method. FuncPtr payloads use tag-only comparison.
-   This is currently unconditional for payload enums; #125 tracks fixing
-   it so generation is skipped unless every payload type is comparable.
+   For payload enums, generation is skipped unless every payload type is
+   comparable.
 
 ** is := func(self: E, other: E) returns Bool
    Calls the runtime tag comparison helper.
@@ -61,9 +68,8 @@
 ** to_str := func(self: E) returns Str
    Returns variant name as string. Payload variants append the
    payload's to_str in parens: "Variant(payload)". FuncPtr payloads
-   use "Variant(func)". This is currently unconditional for payload
-   enums; #125 tracks fixing it so generation is skipped unless every
-   payload type is printable.
+   use "Variant(func)". For payload enums, generation is skipped unless
+   every payload type is printable.
 
 ** Variant constructors / constants
    Tag-only enums get variant constants in the enum namespace. Payload

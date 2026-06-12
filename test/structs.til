@@ -162,6 +162,32 @@ test_nested_structs := test() {
     assert_eq(__LOC__, l4.start.x, 0)
 }
 
+OverrideToStr := struct {
+    value := 0
+namespace:
+    to_str := func(self: OverrideToStr) returns Str { return format("override:", self.value.to_str()) }
+}
+
+test_generated_struct_eq_to_str := test() {
+    p := Point(x=3, y=7)
+    same := Point(x=3, y=7)
+    different := Point(x=3, y=8)
+    assert(__LOC__, p.eq(same))
+    assert(__LOC__, p.eq(different).not())
+    assert_eq_str(__LOC__, p.to_str(), "Point(x=3, y=7)")
+
+    bob := Person(name="Bob", age=30)
+    assert_eq_str(__LOC__, bob.to_str(), "Person(name=Bob, age=30)")
+
+    line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
+    assert_eq_str(__LOC__, line.to_str(), "Line(start=Point(x=1, y=2), end=Point(x=3, y=4))")
+    assert(__LOC__, line.eq(Line(start=Point(x=1, y=2), end=Point(x=3, y=4))))
+    assert(__LOC__, line.eq(Line(start=Point(x=1, y=2), end=Point(x=3, y=5))).not())
+
+    custom := OverrideToStr(value=9)
+    assert_eq_str(__LOC__, custom.to_str(), "override:9")
+}
+
 Counter := struct {
     value := 0
     namespace:

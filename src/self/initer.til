@@ -84,6 +84,147 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
     }
 }
 
+priv struct_field_supports_generated_method := func(fd: Declaration, method: Str, scope: TypeScope) returns Bool {
+    if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
+    type_name := field_inferred_type_name(fd)
+    if type_name.len().eq(0) { return false }
+    resolved := type_from_name_init(type_name, scope)
+    if resolved.is_funcptr() { return false }
+    return init_type_supports_generated_method(type_name, method, scope)
+}
+
+priv struct_fields_support_generated_method := func(sdd: StructDef, method: Str, scope: TypeScope) returns Bool {
+    for fd : Declaration in sdd.fields {
+        if struct_field_supports_generated_method(fd, method, scope).not() { return false }
+    }
+    return true
+}
+
+priv make_struct_field_access := func(receiver_name: Str, field_name: Str, line: U32, col: U32) returns Expr {
+    mut receiver := Expr.new(ident_node(receiver_name), line, col)
+    mut field := Expr.new(field_access_node(field_name), line, col)
+    field.add_child(own receiver)
+    return field
+}
+
+priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
+    mut field_count : USize = 0
+    switch struct_def.node_type {
+    case NodeType.StructDef(sdd):
+        field_count = sdd.fields.len()
+        for fd : Declaration in sdd.fields {
+            mut self_field := make_struct_field_access("self", fd.name, line, col)
+            mut eq_call := make_method_call_fcall(own self_field, "eq", line, col)
+            mut other_field := make_struct_field_access("other", fd.name, line, col)
+            eq_call.add_child(own other_field)
+            mut not_call := make_method_call_fcall(own eq_call, "not", line, col)
+
+            mut ret_false := Expr.new(NodeType.Return, line, col)
+            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
+            ret_false.add_child(own false_lit)
+            mut then_body := Expr.new(NodeType.Body, line, col)
+            then_body.add_child(own ret_false)
+            mut if_node := Expr.new(NodeType.If, line, col)
+            if_node.add_child(own not_call)
+            if_node.add_child(own then_body)
+            func_body.add_child(own if_node)
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+
+    mut ret_true := Expr.new(NodeType.Return, line, col)
+    mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
+    ret_true.add_child(own true_lit)
+    func_body.add_child(own ret_true)
+
+    mut fdecl := FunctionDef(auto_generated = true)
+    fdecl.func_type = FuncType.Func
+    mut self_name := "self"
+    mut other_name := "other"
+    if field_count.eq(0) {
+        self_name = "_self"
+        other_name = "_other"
+    }
+    fdecl.params.push(own decl_typed(name = self_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = other_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.return_type = "Bool"
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
+
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
+    fdef.add_child(own func_body)
+
+    switch struct_def.node_type {
+    case NodeType.StructDef(sdd2):
+        sdd2.ns_decls.push(own Declaration(name = "eq", default_value = fdef))
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
+priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
+    mut field_count : USize = 0
+
+    mut fmt_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    mut fmt_id := Expr.new(ident_node("format"), line, col)
+    fmt_call.add_child(own fmt_id)
+    mut prefix := Expr.new(NodeType.Literal(Literal.Str(format(sname, "("))), line, col)
+    fmt_call.add_child(own prefix)
+
+    switch struct_def.node_type {
+    case NodeType.StructDef(sdd):
+        field_count = sdd.fields.len()
+        mut idx : USize = 0
+        for fd : Declaration in sdd.fields {
+            if idx.gt(0) {
+                mut sep := Expr.new(NodeType.Literal(Literal.Str(", ")), line, col)
+                fmt_call.add_child(own sep)
+            }
+            mut name_part := Expr.new(NodeType.Literal(Literal.Str(format(fd.name, "="))), line, col)
+            fmt_call.add_child(own name_part)
+            mut field := make_struct_field_access("self", fd.name, line, col)
+            type_name := field_inferred_type_name(fd)
+            if type_name.eq("Str") {
+                fmt_call.add_child(own field)
+            } else {
+                mut to_str_call := make_method_call_fcall(own field, "to_str", line, col)
+                fmt_call.add_child(own to_str_call)
+            }
+            idx = idx.add(1)
+        }
+    case:
+        UNREACHABLE(__LOC__)
+    }
+
+    mut suffix := Expr.new(NodeType.Literal(Literal.Str(")")), line, col)
+    fmt_call.add_child(own suffix)
+    mut ret := Expr.new(NodeType.Return, line, col)
+    ret.add_child(own fmt_call)
+    func_body.add_child(own ret)
+
+    mut fdecl := FunctionDef(auto_generated = true)
+    fdecl.func_type = FuncType.Func
+    mut self_name := "self"
+    if field_count.eq(0) { self_name = "_self" }
+    fdecl.params.push(own decl_typed(name = self_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.return_type = "Str"
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
+
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
+    fdef.add_child(own func_body)
+
+    switch struct_def.node_type {
+    case NodeType.StructDef(sdd2):
+        sdd2.ns_decls.push(own Declaration(name = "to_str", default_value = fdef))
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
 priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children[0].node_type.is(NodeType.StructDef).not() { return }
@@ -104,11 +245,15 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         mut has_clone := false
         mut has_delete := false
         mut has_hash := false
+        mut has_eq := false
+        mut has_to_str := false
         for d_j : Declaration in sdd.ns_decls {
             ref fd : Declaration = d_j
             if fd.name.eq("clone") { has_clone = true }
             if fd.name.eq("delete") { has_delete = true }
             if fd.name.eq("hash") { has_hash = true }
+            if fd.name.eq("eq") { has_eq = true }
+            if fd.name.eq("to_str") { has_to_str = true }
         }
 
         if has_clone.not() {
@@ -322,6 +467,14 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
 
                 sdd.ns_decls.push(own Declaration(name = "hash", default_value = hash_def))
             }
+        }
+
+        if has_eq.not().and(init_ns_has_func(sdef, "cmp").not()).and(struct_fields_support_generated_method(sdd, "eq", scope)) {
+            generate_struct_eq_method(sdef, sname, stmt.line, stmt.col)
+        }
+
+        if has_to_str.not().and(struct_fields_support_generated_method(sdd, "to_str", scope)) {
+            generate_struct_to_str_method(sdef, sname, stmt.line, stmt.col)
         }
     case:
         UNREACHABLE(__LOC__)

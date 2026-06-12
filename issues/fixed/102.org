@@ -1,0 +1,55 @@
+# priority: low
+# category: features
+** FIXED #102 Auto-generate eq and to_str for structs and enums
+
+Post-mortem:
+
+The root problem was that auto-generated ~eq~ / ~to_str~ support was
+  inconsistent: enums emitted those helpers even when payload types could
+  not support the generated body, while structs did not get field-wise
+  helpers at all. That made simple value structs harder to inspect and
+  compare, and made payload enums fail later in the pipeline.
+
+The fix split the problem into capability-gated generation. Enum payload
+  helper generation was fixed in [[./125.org][#125]]. Struct generation now
+  emits ~eq~ and literal-style ~to_str~ when every instance field is shallow
+  and supports the needed method. User-written namespace methods still win,
+  and structs with ~own~ / ~ref~ fields are left to explicit methods for now.
+  Deep generated support for those fields is tracked separately in
+  [[../open/274.org][#274]].
+
+Regression test: ~test/structs.til:test_generated_struct_eq_to_str~.
+
+Auto-generated namespace helpers are synthesized during init
+  (~init_declarations~, implemented in ~src/self/initer.til~). Structs
+  currently get ~clone~, ~delete~, ~size~, and sometimes ~hash~. Enums
+  currently get constructors/variant constants, ~is~, ~eq~, ~delete~,
+  ~to_str~, ~clone~, and ~size~.
+
+  The missing feature is one capability-gated rule for generated ~eq~
+  and ~to_str~ across both structs and enums:
+
+  - for structs, generate ~eq~ when every instance field is comparable
+  - for structs, generate ~to_str~ when every instance field is printable
+  - for enums, apply the same rule to payload variants
+  - tag-only enum variants are always comparable and printable
+  - existing user-written namespace methods still win
+  - if a generated method would need unsupported field/payload methods,
+    omit it and let the user write an explicit method
+
+  Relationship to ~[[./125.org][#125]]~:
+
+  ~#125~ is the concrete enum-payload failure: enum generation currently
+  emits ~eq~ / ~to_str~ bodies that call payload methods without first
+  proving those methods exist. This issue should fix that by using the
+  same support check for struct fields and enum payloads. Once this is
+  implemented, ~#125~ should be closed by the same commit.
+
+Progress:
+
+  - [X] Enum payload ~eq~ / ~to_str~ generation is capability-gated
+    ([[../fixed/125.org][#125]]).
+  - [X] Struct field-wise ~eq~ generation.
+  - [X] Struct literal-style ~to_str~ generation.
+  - [X] Follow-up issue for own/ref deep generated ~eq~ / ~to_str~ support
+    ([[../open/274.org][#274]]).
