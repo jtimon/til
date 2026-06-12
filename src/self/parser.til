@@ -1711,6 +1711,7 @@ priv parse_expression := proc(mut p: Parser) returns Expr {
 priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: OwnType) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
+    start_pos := p.pos
     mut name := ""
     if check(p, TokenType.KwTest) {
         name = "test"
@@ -1931,6 +1932,10 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             inc_call.add_child(own inc_acc)
             return inc_call
         }
+        if check(p, TokenType.LBracket) {
+            p.pos = start_pos
+            return parse_expression(p)
+        }
         // Field assignment: name.field = value
         expect_token(p, TokenType.Eq)
         mut fa := Expr.new(NodeType.FieldAssign(FieldAssignData(name=last_field)), t_line, t_col)
@@ -1959,6 +1964,11 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             call = parse_call(p, own call.clone(), pc_line, pc_col)
         }
         return call
+    }
+
+    if check(p, TokenType.LBracket) {
+        p.pos = start_pos
+        return parse_expression(p)
     }
 
     // Postfix increment/decrement: name++ or name--

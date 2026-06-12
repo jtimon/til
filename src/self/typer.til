@@ -7440,6 +7440,12 @@ priv hoist_walk_consolidated := proc(
     // inject err out-args here directly.
     inject_err_args_on_one_fcall_consolidated(ctx, cloned, body)
     mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone())), line, col)
+    if fcall_is_get_method(cloned).or(fcall_returns_ref(cloned, ctx.scope).neq(0)) {
+        switch tmp_decl.node_type {
+        case NodeType.Decl(dd): dd.own_type = OwnType.Ref
+        case:
+        }
+    }
     tmp_decl.add_child(own cloned)
     pre_stmts.push(own tmp_decl)
     ref tts : Vec(Str) = ctx.throws_global[found_key]
@@ -10477,15 +10483,20 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // owned result box leaked -- nothing ever deleted it (the
     // ctx_field_layout/StructInstance.clone leak class). Hoist the base
     // into a temp Decl so the garbager schedules its delete like any
-    // other owned local. Gated on fcall_returns_own (false for
-    // `returns ref` callees: borrows stay inline, they own nothing) and
-    // on an aggregate result type (primitives/Dynamic have no box).
+    // other owned local. Ref-returning subscript gets are also hoisted,
+    // but as Ref temps via hoist_to_temp; this lets receivers like
+    // e.children[0].method() survive the throwing get(...)! lowering
+    // without trying to own the borrowed result. Keep this scoped to
+    // `.get(...)`: internal ref helpers such as get_payload(s) may carry
+    // precise field-access context that hoisting would erase.
+    // Non-ref owned results are gated on fcall_returns_own and on an
+    // aggregate result type (primitives/Dynamic have no box).
     // Shallow struct returns are fine to hoist: collect_scope_locals
     // keys is_heap=false off fcall_returns_shallow for the temp.
     if expr.node_type.is(NodeType.FieldAccess).and(expr.children.len().gt(0)) {
         ref fa_base : Expr = expr.child(0)
         if fa_base.node_type.is(NodeType.FCall).and(is_macro_call(fa_base, ctx).not()) {
-            if is_aggregate(fa_base.expr_til_type()).and(fcall_returns_own(fa_base, scope)) {
+            if fcall_is_get_method(fa_base).or(is_aggregate(fa_base.expr_til_type()).and(fcall_returns_own(fa_base, scope))) {
                 expr.children.set(0, own hoist_to_temp(ctx, fa_base, hoisted, scope, false))
             }
         }
@@ -11365,6 +11376,18 @@ priv narrow_dynamic := func(mut expr: Expr, target: Type) {
     expr.set_expr_til_type(target)
 }
 
+priv fcall_is_get_method := func(fcall: Expr) returns Bool {
+    if fcall.node_type.is(NodeType.FCall).not() { return false }
+    if fcall.children.len().eq(0) { return false }
+    ref callee : Expr = fcall.child(0)
+    switch callee.node_type {
+    case NodeType.FieldAccess(fad):
+        return fad.field_access_name().eq("get")
+    case:
+        return false
+    }
+}
+
 priv fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
     if fcall.node_type.is(NodeType.FCall).not() { return 0 }
     if fcall.children.len().eq(0) { return 0 }
@@ -11402,6 +11425,21 @@ priv fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
                     }
                 }
             case:
+            }
+        }
+        if callee.children.len().gt(0) {
+            ref obj : Expr = callee.child(0)
+            sname := til_type_name(obj.expr_til_type())
+            if sname.len().gt(0) {
+                ref sdef2 : Expr = scope.get_struct(sname)
+                ref method : Expr = find_namespace_func(sdef2, cfa.field_access_name(), scope)
+                if method.is_null().not() {
+                    switch method.node_type {
+                    case NodeType.FuncDef(ffd2):
+                        return ffd2.return_own_type.is(OwnType.Ref)
+                    case:
+                    }
+                }
             }
         }
     case:

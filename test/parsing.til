@@ -89,6 +89,20 @@ test_method_call := proc() {
     }
 }
 
+test_method_call_on_subscript_receiver := proc() {
+    root := parse_src("e.children[0].set_expr_til_type(t)")
+    ref call : Expr = root.children.get(0)
+    assert_eq_str(__LOC__, node_name(call.node_type), "fcall")
+    ref callee : Expr = call.children.get(0)
+    assert_eq_str(__LOC__, node_name(callee.node_type), "field_access")
+    switch callee.node_type {
+    case NodeType.FieldAccess(_cf):
+        assert_eq_str(__LOC__, _cf, "set_expr_til_type")
+    case:
+        UNREACHABLE(__LOC__)
+    }
+}
+
 test_if_else := proc() {
     root := parse_src("if true { x = 1 } else { x = 2 }")
     ref node : Expr = root.children.get(0)
@@ -160,6 +174,7 @@ test_typed_decl()
 test_assignment()
 test_call()
 test_method_call()
+test_method_call_on_subscript_receiver()
 test_if_else()
 test_while()
 test_func_def()

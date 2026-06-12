@@ -1,0 +1,72 @@
+# priority: high
+# category: bugs
+** FIXED #273 Statement parser rejects UFCS on subscript receivers
+
+*** Post-mortem
+
+Root cause: `parse_statement_ident` had a statement-only dotted-field path
+that assumed `name.field...` must end as a method call, postfix inc/dec, or
+field assignment. When the next token after the dotted receiver was `[`, the
+parser stayed in that statement-only path and expected `=`, even though the
+expression parser already knows how to parse field/subscript/method postfix
+chains.
+
+There was a second lowering issue after parsing: subscript syntax lowers to a
+throwing ref-returning `.get(...)!` call. When that call is the base of a
+method receiver, the hoist pass must preserve it as a `Ref` temp; otherwise
+the later declaration checks reject the borrowed result as an owned temp.
+The ownership query for function calls also only recognized bare functions and
+namespace calls, so ordinary UFCS method calls like `xs.get(i)` were not known
+to return `ref`. Finally, nested bang lowering creates `_bang_ret_*` temps for
+throwing calls; those temps also need `OwnType.Ref` when the throwing call
+returns a borrow. At that early lowering point, method return ownership is not
+always fully resolved yet, so subscript-lowered `.get(...)` calls must be
+recognized syntactically as ref-producing borrows.
+
+Fix: when the statement parser sees a dotted or bare identifier statement
+continue into a subscript expression, it rewinds to the identifier and lets
+`parse_expression` parse the whole postfix chain. The hoist pass also now
+hoists ref-returning `.get(...)` field-access bases as `Ref` temps, while
+leaving other ref-returning helpers such as `get_payload(...)` inline, and
+`fcall_returns_ref` resolves ordinary method calls through the receiver type.
+Nested bang lowering marks `_bang_ret_*` declarations as `Ref` when the
+hoisted bang call returns `ref`, and both hoist paths treat syntactic
+`.get(...)` calls as ref-producing subscript lowers.
+
+Regression test: `test_method_call_on_subscript_receiver` in
+`test/parsing.til` parses `e.children[0].set_expr_til_type(t)` as a normal
+method call statement.
+
+The statement parser rejects method-call syntax when the receiver is a
+subscript expression, e.g.::
+
+    e.children[2].type_error("bad", ctx)
+
+The expression parser already accepts postfix chains that mix field access,
+subscript, and method calls, but the statement-level special case for
+`name.field...` assumes a dotted chain must end in either `(`, `++`, `--`, or
+`=`. When the chain continues through `[...]`, parsing falls into the field
+assignment path and reports errors like::
+
+    expected '=', found '['
+
+This blocks removing `Expr.child()` cleanly because replacing
+`e.child(i).method(...)` with `e.children[i].method(...)` is the natural
+direct-child spelling.
+
+*** Repro
+
+After replacing an `Expr.child()` call with direct child indexing, code like
+this fails while building the compiler::
+
+    e.children[0].set_expr_til_type(t)
+
+The parser reports the error at the `[` token instead of treating the whole
+postfix chain as a normal expression statement.
+
+*** Fix idea
+
+Unify statement-position parsing with expression postfix parsing for calls and
+method calls. A statement beginning with an identifier should be parsed as a
+full expression statement unless it is one of the real statement-only forms
+such as declaration, assignment, or field assignment.

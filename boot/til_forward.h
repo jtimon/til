@@ -2993,6 +2993,7 @@ Bool priv___src_self_typer_til__expr_is_ref_decl_source(Expr * e, TypeScope * sc
 Bool priv___src_self_typer_til__field_assign_needs_delete(Expr * stmt, TypeScope * scope);
 void priv___src_self_typer_til__infer_literal_expr(Expr * expr);
 void priv___src_self_typer_til__narrow_dynamic(Expr * expr, Type * target);
+Bool priv___src_self_typer_til__fcall_is_get_method(Expr * fcall);
 I32 priv___src_self_typer_til__fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
 Expr * priv___src_self_typer_til__hoist_to_temp(Context * ctx, Expr * val, Vec__Expr * hoisted, TypeScope * scope, Bool is_own);
