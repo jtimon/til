@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc help install tmp two_pass profile
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc summary help install tmp two_pass profile
 
 all: bin/til
 
@@ -215,6 +215,14 @@ doc: bin/til
 	bin/til doc src/til.til
 	bin/til run examples/uml.til
 
+# --- Issue summary generator (regenerates issues/summary.org) ---
+#
+# Runs examples/issues.til which walks issues/open/, parses each
+# .org file, and writes issues/summary.org.  Use instead of `make test`
+# when only issue tracking files changed (Doc: commits).
+summary: bin/til
+	bin/til run examples/issues.til
+
 # --- Self-host build profiler / regression harness (issue #237) ---
 #
 # Times `bin/til build src/til.til` (the canonical self-host macro-bench)
@@ -293,6 +301,7 @@ help:
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
+	echo "make summary        Regenerate issues/summary.org from issues/open/"
 	echo "make profile        Time the self-host build + record/flag regressions (doc/profiling.org)"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"

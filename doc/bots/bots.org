@@ -246,12 +246,14 @@ the merger decides whether to accept them.
   `git mv` + OPEN -> FIXED + post-mortem. Same commit. Not "later, in a
   cleanup". Not "wait for the human to ask". If you think the next
   commit might be the last one, it usually is -- close it. The Progress
-  section in the issue file is for tracking work in flight; once the
+  section in the issue file is for tracking work in progress; once the
   last [ ] becomes done, the file moves to fixed/ in the same commit
   that flips it, with a post-mortem summarising the arc. The
   bug-vs-feature distinction is not in this file and is not a reason
   to defer the close.
-- `make test` regenerates `issues/summary.org`. Increment `issues/NEXT_ISSUE.txt` manually.
+- `make summary` regenerates `issues/summary.org` from `issues/open/`.
+  For doc-only commits, run `make summary` instead of the full `make test`.
+  Increment `issues/NEXT_ISSUE.txt` manually.
 - "Regen the issues summary" means rebuild `issues/summary.org` from the
   current `issues/open/*.org` set WITHOUT running the whole suite. Run the
   generator directly:
@@ -264,7 +266,6 @@ the merger decides whether to accept them.
   is unchanged the merge already regenerated it. When an open issue lacks a
   `# category:` line, classify it (see the category list above) before regen,
   or it lands in an `unknown` section.
-
 
 ## Build Output
 
@@ -421,7 +422,8 @@ way through.
   after the commit, otherwise the stop hook will block the session.
 - Local agents editing the main checkout directly on master: include
   doc/totals.csv and img/totals.svg in commits.
-- Use `make test` before every commit (skip when only documentation changed)
+- Use `make test` before every commit (run `make summary` instead when only
+  documentation or issue tracking files changed; `make doc` may also be relevant)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Always squash a feature branch into a single commit before pushing.
   Multiple commits on one branch are only justified when squashing

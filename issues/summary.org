@@ -48,7 +48,6 @@
 ** High
 *** [[./open/182.org][#182]] Support ~/** */~ block doc comments (in addition to ~///~)
 ** Medium
-*** [[./open/222.org][#222]] Dedicated bitwise operators and short-circuiting boolean operators
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

@@ -1,0 +1,25 @@
+# priority: medium
+** FIXED #222 Dedicated bitwise operators and short-circuiting boolean operators
+
+Postmortem:
+
+- Added band/bor/bxor/bnot/shl/shr methods to all integer types (I64,
+  U64, I32, U32, I8, U8) and Bool
+- Added corresponding C implementations in src/c/ext.{c,h}
+- Removed old and/or/xor from integer types (kept on Bool)
+- Lexer: Added AmpAmp (&&) and PipePipe (||) tokens
+- Parser: Desugar & -> .band(), | -> .bor(), ^ -> .bxor() for bitwise;
+  parse && -> .and(), || -> .or() at a separate precedence level for
+  boolean logic
+- Updated test/operators.til to use .band()/.bor()/.bxor() for bitwise
+- Updated all example files to use &&/|| for boolean logic
+- Replaced &/.and() and |/.or() calls throughout, including in
+  lib/fonts.til, lib/hash.til, lib/svg.til, examples/uml.til,
+  and all GUI examples
+- Used worktree cherry-pick workflow: 37 files, master 0c0317f2
+
+Remaining issues:
+
+- && and || still desugar to .and()/.or() method calls, which are
+  eagerly evaluated. True short-circuiting requires issue #117.
+- #231 tracks variadic and/or with lazy evaluation for general usage.
