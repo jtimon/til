@@ -87,30 +87,45 @@ code) violate the intended layering. The principles, as stated by Jorge:
   5. Builder/interpreter compensation removal, guarded by ASAN baseline
      (doc/bots/asan.org) at every step.
 
-*** Progress (step 3, in flight)
+*** Progress (step 3 DONE 2026-06-13; steps 1, 4, 5 remain)
 
   - Step 2 landed: Expr.replace_with removed; all rewrites go through
     the owning slot (children.set / assignment / field assignment).
-  - Step 3 reproduced with a clean ASAN debug compiler
-    (bin/til_boot build --asan -o tmp/til_dbg src/til.til, then
-    ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 tmp/til_dbg interpret
-    test/strings.til). With deep scope_free (b.cell.val = val_none()):
-    heap-use-after-free, shape:
-      - alloc: result = c.return_value.clone() at the FieldAccess-callee
-        eval_call return boundary (interpreter.til ~1497) -- an
-        INDEPENDENT clone that becomes some local v's cell payload.
-      - free: scope_free(call_scope2) of a LATER direct-ident user call
-        (interpreter.til ~1714): that call's scope held an UNFLAGGED
-        alias of v's payload in one of its cells (param or local),
-        so the deep delete freed v's bytes.
-      - read: read_field on v.field after the call -> UAF
-        (Value_Uint32 / read_field / eval_expr FieldAccess).
-    Next: find which arg/local binding path in eval_call (direct-ident
-    branch, call_scope2) stores an alias of a caller local's payload
-    without borrowed=true or without nulling the source. Suspects: the
-    non-Ident arg eval branch (gen 211955), own-arg consumption for
-    user calls (ext calls null the source cell, user calls may not),
-    reinterpret_ptr_value / widen_numeric struct paths.
+  - Step 3 LANDED: deep scope_free (b.cell.val = val_none()) is ON and
+    the suite is 154/154. The recorded round-6 fixes were re-applied
+    plus three blockers found on top:
+      (a) own params MOVE: Ident arg bound to an own Dynamic param
+          nulls the caller's cell after scope_set_owned (Func cells
+          excluded -- code pointers, same exclusion as the Decl move;
+          unrestricted (a) was the 146/154 breakage: ops.push(own
+          fn_add) consumed top-level function bindings).
+      (b) non-own params BORROW: box_scalar_to_dynamic grew a
+          borrow_passthrough param; only the Ident-arg call sites pass
+          true (eval'd temps are moved by scope_set_owned already;
+          borrowing them dangles under the caller's save_old_delete --
+          unrestricted (b) was the prior 152/154 enums/errors
+          breakage).
+      (c) h_free FieldAccess slot-zero (dispatch.til): free(own
+          holder.field) now zeroes the field slot via ctx_field_layout
+          so the holder's deep delete does not re-free (round 3 fix).
+      (d) payload-writeback borrow flag (#211 contract): after the
+          Assign handler mirrors an unborrowed compound payload into
+          the enum's payload memory, the binding's cell is flagged
+          borrowed -- the enum owns the bytes, the cell is a view
+          (was: double owner, enums.til payload Str corruption).
+      (e) bare-Ident Assign MOVE (round 2 fix): `x = y` with y an
+          unborrowed Struct/Enum moves the payload and nulls y's cell,
+          mirroring the Decl handler; eval_expr's borrow_value view
+          dangled when y's scope was deep-freed (repro: the throw
+          lowering's `_err_T = my_error` across the if-scope boundary,
+          test/errors.til + first_class segfault).
+    ASAN on test/strings.til after landing: interpret 15922 -> 6356 B
+    (1230 -> 569 allocs); translate 4649 -> 1753 B (405 -> 200
+    allocs). Session arc: interpret started at 165347 B.
+  - Remaining: step 1 inventory (malloc/free/delete outside core),
+    step 4 (CFG-based liveness in garbager), step 5 (builder/interp
+    compensation removal vs ASAN baseline), and the residual ~6.4K/
+    ~1.8K leak classes above.
 
 *** Step 3 findings, round 6 -- the wall is mapped end to end (2026-06-12)
 

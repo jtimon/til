@@ -1140,6 +1140,31 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         // re-free the payload free_value_full just released; null it so the
         // scope-end delete is a no-op.
         memcpy(val, val_none(), Value.size().cast(U64))
+        // #272 step 3: `free(own holder.field)` (core delete bodies) frees
+        // through a borrowed COPY of the field value -- the field SLOT
+        // inside the holder still stores the freed pointers, so the
+        // holder's own deep delete would re-free them. Zero the slot for
+        // the Ident-base FieldAccess shape those bodies use.
+        switch e.children[1].node_type {
+        case NodeType.FieldAccess(fa):
+            ref fobj : Expr = e.children[1]
+            switch fobj.children[0].node_type {
+            case NodeType.Ident(base_id):
+                ref bcell : Cell = scope_get(s, base_id.ident_name())
+                if bcell.is_null().not() {
+                    switch bcell.val {
+                    case Value.Struct(bsi):
+                        fl := ctx_field_layout(bsi.struct_name, fa.field_access_name(), ctx)
+                        if fl.size.gt(0).and(bsi.data.is_null().not()) {
+                            memset(ptr_add(bsi.data, fl.offset.cast(U64)), 0, fl.size.cast(U64))
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        case:
+        }
     }
     r = val_none()
     return true

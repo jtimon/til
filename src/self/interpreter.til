@@ -978,7 +978,35 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     continue
                 }
             }
-            new_val := eval_expr(scope, rhs, ctx)
+            mut new_val := val_none()
+            mut moved_src := false
+            // Bare-Ident rhs with an unborrowed heap payload is a MOVE,
+            // mirroring the Decl handler above (and compiled own
+            // semantics): take the payload and null the source cell.
+            // eval_expr would hand out a borrow_value view instead, which
+            // dangles once the source's scope is deep-freed at exit (#272
+            // step 3: `_err_T = my_error` across the throw-lowering's if
+            // scope was the repro). Borrowed sources and scalars keep the
+            // eval_expr path (#227 ref write-through relies on it).
+            switch rhs.node_type {
+            case NodeType.Ident(rhs_ident2):
+                ref src2 : Cell = scope_get(scope, rhs_ident2.ident_name())
+                if src2.is_null().not() {
+                    mut src_movable := false
+                    switch src2.val {
+                    case Value.Struct(ssi): src_movable = ssi.borrowed.not()
+                    case Value.Enum(sei):   src_movable = sei.borrowed.not()
+                    case:
+                    }
+                    if src_movable {
+                        new_val = shallow_copy_value(src2.val)
+                        memcpy(src2.val, val_none(), Value.size().cast(U64))
+                        moved_src = true
+                    }
+                }
+            case:
+            }
+            if moved_src.not() { new_val = eval_expr(scope, rhs, ctx) }
             // Free the cell's previous payload before the overwrite -- the
             // interp-mode mirror of the compiled backend's save_old_delete.
             // The FieldAssign emits the deep delete of the old Value (the
@@ -1095,6 +1123,17 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                             }
                                         } else {
                                             memcpy(dest, si.data, sz.cast(U64))
+                                            // MOVE into the enum payload: the
+                                            // enum now owns the heap contents
+                                            // (e.g. the Str c_str). The cell
+                                            // keeps the same bytes as a VIEW;
+                                            // flag it borrowed so the deep
+                                            // scope_free / later assigns skip
+                                            // it (#272 step 3 contract).
+                                            switch cell.val {
+                                            case Value.Struct(cell_si): cell_si.borrowed = true
+                                            case:
+                                            }
                                         }
                                     }
                                 case Value.Enum(new_ei):
@@ -1506,8 +1545,18 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         // Issue #217: scalar Ident bound to a Dynamic
                         // parameter needs a heap box so downstream
                         // ptr-deref sees a valid pointer.
-                        arg := box_scalar_to_dynamic(call_scope, arg_cell.val, param.own_type.is(OwnType.Own).not())
+                        arg := box_scalar_to_dynamic(call_scope, arg_cell.val, param.own_type.is(OwnType.Own).not(), param.own_type.is(OwnType.Own).not())
                         scope_set_owned(call_scope, param.name, arg)
+                        if param.own_type.is(OwnType.Own).and(arg_cell.val.is(Value.Func).not()) {
+                            // MOVE: the own param consumed the payload;
+                            // null the caller's cell without freeing so
+                            // the garbager's free(own arg) is a no-op
+                            // (#272 step 3 fix (a)). Func cells stay: a
+                            // function binding is a code pointer, not an
+                            // owned payload (same exclusion as the Decl
+                            // bare-Ident move).
+                            memcpy(arg_cell.val, val_none(), Value.size().cast(U64))
+                        }
                     } else {
                         scope_set_borrowed(call_scope, param.name, arg_cell)
                     }
@@ -1522,7 +1571,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     // anything-that-reads-bytes downstream sees a real
                     // pointer instead of dereferencing the scalar.
                     if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
-                        arg = box_scalar_to_dynamic(call_scope, arg, param.own_type.is(OwnType.Own).not())
+                        arg = box_scalar_to_dynamic(call_scope, arg, param.own_type.is(OwnType.Own).not(), false)
                     }
                     scope_set_owned(call_scope, param.name, arg)
                 }
@@ -1737,8 +1786,14 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         // Issue #217: scalar Ident bound to a Dynamic
                         // parameter needs a heap box; see the Literal
                         // branch below for context.
-                        arg := box_scalar_to_dynamic(call_scope2, arg_cell.val, param.own_type.is(OwnType.Own).not())
+                        arg := box_scalar_to_dynamic(call_scope2, arg_cell.val, param.own_type.is(OwnType.Own).not(), param.own_type.is(OwnType.Own).not())
                         scope_set_owned(call_scope2, param.name, arg)
+                        if param.own_type.is(OwnType.Own).and(arg_cell.val.is(Value.Func).not()) {
+                            // MOVE -- see the namespace path above (#272
+                            // step 3 fix (a)); Func cells excluded there
+                            // too.
+                            memcpy(arg_cell.val, val_none(), Value.size().cast(U64))
+                        }
                     } else {
                         scope_set_borrowed(call_scope2, param.name, arg_cell)
                     }
@@ -1747,7 +1802,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     arg = widen_numeric(arg, param.explicit_type, ctx)
                     // Issue #217: see the namespace path above.
                     if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
-                        arg = box_scalar_to_dynamic(call_scope2, arg, param.own_type.is(OwnType.Own).not())
+                        arg = box_scalar_to_dynamic(call_scope2, arg, param.own_type.is(OwnType.Own).not(), false)
                     }
                     scope_set_owned(call_scope2, param.name, arg)
                 }
@@ -1973,7 +2028,7 @@ priv borrow_value := func(v: Value) returns shallow Value {
 // via the cell's Value.Dynamic, because plenty of other paths put
 // borrowed Value.Dynamic into local cells and freeing those would
 // also double-free.
-priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: Bool) returns Value {
+priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: Bool, borrow_passthrough: Bool) returns Value {
     mut dp : Dynamic = 0
     switch v {
     case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
@@ -1986,7 +2041,16 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_fr
     case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)
     case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
     case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
-    case: return shallow_copy_value(v)
+    case:
+        // Non-scalar pass-through (Struct/Enum/Func). For an Ident arg
+        // bound to a non-own Dynamic param, the caller's cell keeps
+        // ownership: hand out a BORROWED view, not an unflagged shallow
+        // copy -- the unflagged duplicate was the #272 step-3 double-
+        // owner (garbager free(own val) + callee teardown re-free).
+        // Own params and eval'd-temp callers keep the shallow copy:
+        // the caller MOVEs (nulls the source) right after binding.
+        if borrow_passthrough { return borrow_value(v) }
+        return shallow_copy_value(v)
     }
     r := Value.Dynamic(dp)
     if track_for_free {
@@ -2203,26 +2267,15 @@ scope_free := func(own s: Scope) {
     for i in 0..s.bindings.len() {
         ref b : Binding = s.bindings.val_ptr(i)
         if b.cell_is_local {
-            // Only Enum payload data is freed here. A full deep Value
-            // delete (b.cell.val = val_none()) would also reclaim Struct
-            // payloads -- the dominant make_str_value interpret-mode leak
-            // (issue #272 step 3) -- but 13 suite files crash on it
-            // (kwargs, dynamic, maps, hashmaps, sets, tuples, asting,
-            // aliases, first_class, regression, own_fields, splat:
-            // 141/154 on 2026-06-12). The interpreter still stores
-            // UNFLAGGED aliases of cell payloads on paths like eval_call
-            // arg binding (reinterpret_ptr_value / widen_numeric /
-            // scope_set_owned sharing .data across frames), so a deep
-            // teardown frees bytes a live value still uses. The
-            // swap_replace move (eval_body FCall arm) removed ONE such
-            // aliasing source (mut-param assignment); the rest must be
-            // flagged/moved before this can become a deep delete. Flip it
-            // only when the FULL suite is green with it.
-            switch b.cell.val {
-            case Value.Enum(ei):
-                if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
-            case:
-            }
+            // Deep Value delete: reclaims Struct payloads (the dominant
+            // make_str_value interpret-mode leak, issue #272 step 3) as
+            // well as Enum payload data. Borrowed payloads are skipped by
+            // the deep delete itself. This needs every alias of a cell
+            // payload to be flagged borrowed or moved (source nulled):
+            // the Ident-arg Dynamic-param duplicate (box_scalar_to_dynamic
+            // pass-through) and the free(own holder.field) slot in h_free
+            // were the last unflagged ones.
+            b.cell.val = val_none()
             free(own b.cell)
         }
     }

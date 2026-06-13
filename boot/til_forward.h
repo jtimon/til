@@ -3502,7 +3502,7 @@ void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope,
 Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);
 Value priv___src_self_interpreter_til__shallow_copy_value(Value * v);
 Value priv___src_self_interpreter_til__borrow_value(Value * v);
-Value * priv___src_self_interpreter_til__box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free);
+Value * priv___src_self_interpreter_til__box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free, Bool borrow_passthrough);
 Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed, Context * ctx);
 Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * priv___src_self_interpreter_til__widen_numeric(Value * v, Str * ptype, Context * ctx);
