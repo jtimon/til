@@ -1121,13 +1121,10 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     }
     if failed { return false }
 
-    if ret_ptrs.eq(0).and(ret_is_void) {
-        out.push_str(sig.substr(name_start, before_end.sub(name_start)))
-        out.push_str(" := ext_proc(")
-    } else {
-        out.push_str(sig.substr(name_start, before_end.sub(name_start)))
-        out.push_str(" := ext_func(")
-    }
+    // C declarations do not encode til effects. Generate ext_func for every
+    // C function; hand-audit ext_proc after reading the API docs/tests.
+    out.push_str(sig.substr(name_start, before_end.sub(name_start)))
+    out.push_str(" := ext_func(")
     out.push_str(params_buf)
     out.push_str(")")
     if ret_ptrs.eq(0).and(ret_is_void).not() {

@@ -1,0 +1,11 @@
+# priority: low
+# category: deferred
+** OPEN #276 Generalize browser WASM support for arbitrary mode gui programs
+
+  Follow-up from #228. The first browser target supports
+  [[file:../../examples/shootil.til][examples/shootil.til]] by exposing explicit setup/frame entry points and
+  scheduling the frame with emscripten.
+
+  General ~mode gui~ support should recognize or transform the common raylib
+  loop shape, report unsupported control flow clearly, and decide what web
+  behavior replaces desktop-only APIs such as open-file dialogs.

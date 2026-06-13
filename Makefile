@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_wasm doc summary help install tmp two_pass profile
+.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_wasm doc help install tmp two_pass profile
 
 all: bin/til
 
@@ -30,6 +30,9 @@ TINYFD_LIB := vendor/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Lvendor/tinyfiledialogs -ltinyfd
 
 EMSDK_DIR := vendor/emscripten
+EMSDK_VERSION := 6.0.0
+EMSDK_COMMIT := d223ae73c6998296e3ab27cf81dc2c2c9fd383de
+EMSDK_STAMP := $(EMSDK_DIR)/.til-emsdk-$(EMSDK_VERSION)
 EMCC ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emcc
 EMAR ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emar
 EMRANLIB ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emranlib
@@ -220,14 +223,6 @@ doc: bin/til
 	bin/til doc src/til.til
 	bin/til run examples/uml.til
 
-# --- Issue summary generator (regenerates issues/summary.org) ---
-#
-# Runs examples/issues.til which walks issues/open/, parses each
-# .org file, and writes issues/summary.org.  Use instead of `make test`
-# when only issue tracking files changed (Doc: commits).
-summary: bin/til
-	bin/til run examples/issues.til
-
 # --- Self-host build profiler / regression harness (issue #237) ---
 #
 # Times `bin/til build src/til.til` (the canonical self-host macro-bench)
@@ -300,12 +295,15 @@ bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 
 RAYLIB_WASM_LIB := vendor/raylib/src/libraylib-web.a
 
-$(EMCC):
+$(EMSDK_STAMP):
+	rm -rf $(EMSDK_DIR)
 	git clone https://github.com/emscripten-core/emsdk.git $(EMSDK_DIR)
-	$(EMSDK_DIR)/emsdk install latest
-	$(EMSDK_DIR)/emsdk activate latest
+	git -C $(EMSDK_DIR) checkout $(EMSDK_COMMIT)
+	$(EMSDK_DIR)/emsdk install $(EMSDK_VERSION)
+	$(EMSDK_DIR)/emsdk activate $(EMSDK_VERSION)
+	touch $@
 
-$(RAYLIB_WASM_LIB): $(EMCC)
+$(RAYLIB_WASM_LIB): $(EMSDK_STAMP)
 	rm -rf tmp/raylib-web
 	mkdir -p tmp/raylib-web
 	cp -r vendor/raylib/src/. tmp/raylib-web/
@@ -320,7 +318,7 @@ WASM_EXAMPLES := $(patsubst examples/%.til,bin/%.html,$(WASM_EXAMPLES_SRC))
 
 build_wasm: two_pass $(RAYLIB_WASM_LIB) $(WASM_EXAMPLES)
 
-bin/%.html: examples/%.til bin/til $(RAYLIB_WASM_LIB)
+bin/%.html: examples/%.til bin/til $(RAYLIB_WASM_LIB) $(EMSDK_STAMP)
 	bin/til build --target=wasm32 --cc="$(EMCC)" -o $@ $<
 
 # --- Utilities ---
@@ -334,10 +332,10 @@ help:
 	echo "make build_wasm     Build browser WASM examples"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
-	echo "make summary        Regenerate issues/summary.org from issues/open/"
 	echo "make profile        Time the self-host build + record/flag regressions (doc/profiling.org)"
 	echo "make install        Install til under PREFIX (default /usr/local)"
 	echo "make clean          Remove build artifacts"
+	echo "make clean_vendor   Remove vendored dependency build artifacts"
 	echo ""
 	echo "bin/til_boot  From last commit (git). Always works."
 	echo "bin/til       From current sources. May break."
@@ -349,7 +347,13 @@ help:
 clean:
 	rm -rf bin/* gen/*
 	rm -rf tmp/boot
-# REM uncoment when upgrading dependency libraries
-#	$(MAKE) -C vendor/raylib/src clean
-#	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built
-#	rm -f vendor/tinyfiledialogs/tinyfiledialogs.o vendor/tinyfiledialogs/libtinyfd.a
+
+clean_vendor:
+	$(MAKE) -C vendor/raylib/src clean
+	rm -rf tmp/raylib-win tmp/raylib-web
+	rm -f vendor/raylib/src/libraylib.a vendor/raylib/src/libraylib-win64.a vendor/raylib/src/libraylib-web.a
+	rm -f vendor/tinyfiledialogs/tinyfiledialogs.o vendor/tinyfiledialogs/libtinyfd.a vendor/tinyfiledialogs/libtinyfd-win64.a
+	rm -rf vendor/nng/build vendor/nng/libnng.a
+	cd $(LIBFFI_DIR) && $(MAKE) clean || true
+	rm -rf vendor/libffi/.built vendor/libffi/*-*-*/ vendor/libffi/Makefile vendor/libffi/autom4te.cache
+	rm -rf $(EMSDK_DIR)

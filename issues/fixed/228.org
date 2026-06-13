@@ -9,10 +9,10 @@
   runtime, and the first browser bundle emitted separate ~.js~ and
   ~.wasm~ files that browsers would not load from ~file://~.
 
-  Fix: ~Target.Wasm32~ now switches ~mode gui~ builds to vendored
-  emscripten, links against a raylib-web archive, uses the raylib shell,
-  and passes ~-sSINGLE_FILE~ so ~bin/shootil.html~ embeds the wasm payload
-  and runs with only a browser. The C runtime has emscripten stubs and a
+  Fix: ~Target.Wasm32~ now switches ~mode gui~ builds to pinned emscripten
+  6.0.0, links against a raylib-web archive, uses the raylib shell, and
+  passes ~-sSINGLE_FILE~ so ~bin/shootil.html~ embeds the wasm payload and
+  runs with only a browser. The C runtime has emscripten stubs and a
   main-loop bridge, and [[file:../../examples/shootil.til][examples/shootil.til]] has explicit setup/frame entry
   points for browser scheduling.
 
@@ -28,8 +28,8 @@
 
   Depends on #232: wasm32 uses 32-bit pointers. The 32-bit audit
   for ~dyn_size_of~ (sizeof(Dynamic)) and ~get_payload~
-  (sizeof(void*)) is done. Browser GUI builds still need wasm/browser
-  versions of the vendor libraries they use, especially raylib-web.
+  (sizeof(void*)) is done. Browser GUI builds now use emscripten and
+  a raylib-web archive.
 
   This issue is only for browser execution. Hosted 32-bit Linux/Windows
   targets are [[./232.org][#232]], and TempleOS is [[./151.org][#151]].
@@ -54,15 +54,24 @@
     desktop runs the frame in the old native loop, wasm schedules the
     same frame with emscripten.
   - [[file:../../Makefile][Makefile]] has ~build_wasm~, a vendored emsdk bootstrap under
-    ~vendor/emscripten/~, and a raylib-web archive target.
+    ~vendor/emscripten/~, and a raylib-web archive target. Emsdk is pinned
+    to 6.0.0 at commit ~d223ae73c6998296e3ab27cf81dc2c2c9fd383de~.
+  - ~bin/shootil.html~ is emitted as one self-contained HTML file via
+    ~-sSINGLE_FILE~, so users need only a browser.
+  - Follow-up polish remains out of scope for #228: broader automatic
+    GUI loop rewriting (#276), browser UI polish for [[file:../../examples/shootil.til][shootil.til]] (#275),
+    fully bundled browser toolchain source (#277), headless browser CI,
+    and any concrete visual or input bugs found while using [[file:../../examples/shootil.til][shootil.til]] in
+    the browser.
 
 *** Plan
 
   1. *Vendor emscripten.* Put the browser toolchain under
      ~vendor/emscripten/~ so users do not need an external emscripten
      install. Use its ~emcc~ only for browser GUI wasm builds. The
-     Makefile bootstrap is wired; it still needs a real emsdk download
-     and browser build verification.
+     Makefile bootstrap downloads pinned emsdk 6.0.0 on demand and has
+     been verified by ~make build_wasm~. Fully bundling the browser
+     toolchain source is tracked in #277.
 
   2. *Build raylib-web once.* Compile [[file:../../vendor/raylib/src][vendor/raylib/src]] with
      emscripten and ~-DPLATFORM_WEB~ to produce one Makefile artifact,
@@ -72,7 +81,7 @@
 
   3. *Keep one wasm target.* Prefer mode-dependent behavior for
      ~Target.Wasm32~ instead of adding ~Target.Wasm32Web~:
-     ~mode gui~ uses emscripten and emits ~.html/.js/.wasm~;
+     ~mode gui~ uses emscripten and emits a self-contained ~.html~ file;
      non-GUI wasm may keep the bare ~clang --target=wasm32 -nostdlib~
      path if it remains useful.
 

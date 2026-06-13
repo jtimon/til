@@ -77,10 +77,13 @@
 ** Low
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
+*** [[./open/275.org][#275]] Polish shootil browser UX
 * Deferred
 ** High
 *** [[./open/232.org][#232]] Hosted 32-bit targets: Linux and Windows
+*** [[./open/277.org][#277]] Vendor browser WASM toolchain source instead of cloning emsdk
 ** Low
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
+*** [[./open/276.org][#276]] Generalize browser WASM support for arbitrary mode gui programs

@@ -35,6 +35,13 @@ When the user tells you to do something, DO IT. Do not analyze the order. Do not
 
 Always pay attention to what the user says. Always follow the user's instructions. Do not force the user to repeat himself or beg you to do what he asks.
 
+When the human describes what *he* is doing or plans to do, that is not an
+instruction to you. "I'm going back to X", "I'll reset master", "I'm going to
+merge this", and similar first-person statements mean the human is doing it.
+Do not run any command in response unless the human explicitly tells you to do
+it (for example: "reset master to X", "cherry-pick this to master", "rebase
+your worktree on master").
+
 ### No Random "Adjustments"
 
 The training prior pushes you toward unsolicited "improvements" that sound like good engineering hygiene: renaming a branch to match the new task, splitting one commit into two, adding a follow-up TODO, "cleaning up" surrounding code, switching to a `Doc:` prefix because the diff is doc-heavy, picking a "better" file name, putting work on a new branch because the previous one "feels done". DO NOT DO ANY OF THIS. Every one of these is an extra step. None of them is "the action the user specified". They look harmless individually and add up to a session of constant surprises the user has to undo.
@@ -176,6 +183,15 @@ Commit policy for local sessions:
 - Local agents still must not cherry-pick, merge to `master`, fetch, or push
   unless explicitly instructed. The human handles integration from the
   committed worktree branch.
+- The main checkout is human-owned. If you are working in a dedicated
+  worktree, run commands and edit files in that worktree only. Do not run
+  `git checkout`, `git reset`, `git restore`, `git cherry-pick`, `git merge`,
+  build commands, cleanup commands, or file edits in the main checkout unless
+  the human gives an explicit command addressed to you to do exactly that.
+- The only normal reasons for a local worktree agent to touch the main checkout
+  are: the human explicitly asks you to cherry-pick a committed worktree change
+  to `master`, or the human explicitly asks you to inspect/operate on `master`.
+  A human saying what he will do himself is not permission.
 
 Merging to master (local sessions)::
 
@@ -237,6 +253,7 @@ the merger decides whether to accept them.
   then `** OPEN #NNN Title`. Categories: bugs, cleanups, features, experiments,
   examples, deferred (or `unknown` if none fit). summary.org groups by category, then priority.
 - Process is in `issues/process.org`; the counter is in `issues/NEXT_ISSUE.txt`.
+- Do NOT open new issues unless the human explicitly asks you to open an issue.
 - New issues go at the top of their priority, numbered from `issues/NEXT_ISSUE.txt`.
 - When work starts, change OPEN -> WIP in the title line.
 - When you fix an issue, do all of these in the SAME commit as the fix:
@@ -256,21 +273,6 @@ the merger decides whether to accept them.
   that flips it, with a post-mortem summarising the arc. The
   bug-vs-feature distinction is not in this file and is not a reason
   to defer the close.
-- `make summary` regenerates `issues/summary.org` from `issues/open/`.
-  For doc-only commits, run `make summary` instead of the full `make test`.
-  Increment `issues/NEXT_ISSUE.txt` manually.
-- "Regen the issues summary" means rebuild `issues/summary.org` from the
-  current `issues/open/*.org` set WITHOUT running the whole suite. Run the
-  generator directly:
-      bin/til run -o bin/c/issues_summary -c gen/c/issues_summary.c examples/issues.til
-  It lists `issues/open/` numerically by issue number (locale-independent),
-  reads each file's `# category:` / `# priority:` headers, and writes the
-  grouped tree (category, then High/Medium/Low). It is deterministic: a
-  second run with the same issue set produces a byte-identical file. After a
-  merge that added/fixed issues, regen so the summary matches; if the output
-  is unchanged the merge already regenerated it. When an open issue lacks a
-  `# category:` line, classify it (see the category list above) before regen,
-  or it lands in an `unknown` section.
 
 ## Build Output
 
@@ -427,8 +429,8 @@ way through.
   after the commit, otherwise the stop hook will block the session.
 - Local agents editing the main checkout directly on master: include
   doc/totals.csv and img/totals.svg in commits.
-- Use `make test` before every commit (run `make summary` instead when only
-  documentation or issue tracking files changed; `make doc` may also be relevant)
+- Use `make test` before every commit (`make doc` may also be relevant for
+  documentation changes)
 - Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
 - Always squash a feature branch into a single commit before pushing.
   Multiple commits on one branch are only justified when squashing

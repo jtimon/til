@@ -1,0 +1,10 @@
+# priority: low
+# category: examples
+** OPEN #275 Polish shootil browser UX
+
+  Follow-up from #228. The browser build works, but the UI needs polish:
+  returning from god mode, menu behavior, and the raylib shell/borders make
+  the browser artifact feel like a demo shell instead of a native page.
+
+  The goal is a cleaner ~bin/shootil.html~ experience while preserving the
+  same desktop behavior.
