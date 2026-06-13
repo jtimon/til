@@ -2287,6 +2287,7 @@ U32 priv___src_self_parser_til__peek_line(priv___src_self_parser_til__Parser * p
 U32 priv___src_self_parser_til__peek_col(priv___src_self_parser_til__Parser * p);
 Map__Str_Type * priv___src_self_parser_til__make_builtin_type_table(void);
 Bool builtin_type_from_name(Str * name, Type * out);
+void register_target_int_alias_types(Str * usize_name, Str * uptr_name);
 Type * til_type_from_explicit_type(Str * name);
 Declaration * decl_typed(Str * explicit_type, Str * name, Str * doc, Bool is_mut, Bool redundant_mut, Bool is_priv, Bool used, OwnType * own_type);
 void priv___src_self_parser_til__set_decl_type(Declaration * d, Str * name);
@@ -4104,6 +4105,8 @@ extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
 extern Map__Str_Type builtin_type_table;
+extern Str g_usize_pname;
+extern Str g_uptr_pname;
 extern I64 anon_struct_counter;
 extern Map__Str_Mode mode_registry;
 extern Str I64Name;

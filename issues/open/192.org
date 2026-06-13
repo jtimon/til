@@ -77,25 +77,89 @@ flip later only needs to touch ~ext.h~ + ~target_usize_name~.
   is still ~U32~ this expansion is byte-for-byte identical to before, but
   it widens automatically once the typedef goes target-driven.
 
-*** Remaining (to be done in follow-up commits)
+*** Remaining (revised plan, 2026-06-05)
 
-The actual width flip on 64-bit targets is not done yet because it
-participates in the C ABI between ~bin/til_boot~ and ~bin/til~. Doing it
-safely needs the staged migration described in ~doc/self.org~:
+The earlier step-4/5/6 split assumed the width flip (step 5) could land
+green on its own, with the bare-~U32~ cleanup (step 6) deferred to a
+later commit. A spike showed that assumption is wrong:
 
-- Step 4 (preparation, single commit): teach ~src/self/builder.til~ to
-  emit the ~USize~ alias name (e.g. ~USize *~ in a ~Vec_set~ signature)
-  instead of resolving it to the underlying primitive (~U32 *~) at
-  translation time. After this lands, the next ~til_boot~ baked from
-  master emits alias-spelled signatures, which is what the ~USIZE_REF~
-  box (and any future U64 widening) needs to line up with.
-- Step 5 (the flip, two-pass commit): make ~src/c/ext.h~'s ~USize~
-  typedef target-driven (mirror the existing ~#if UINTPTR_MAX ==
-  0xffffffff~ block for ~UPtr~) AND change ~target_usize_name~ to return
-  ~U64~ on 64-bit targets. Ships as a ~Two-pass:~ commit so ~boot/til.c~
-  is regenerated against the new alias.
-- Step 6 (post-flip cleanup): sweep callsites that route container sizes
-  through ~UPtr~ or explicit ~to_u64()~ and route them back through
-  ~USize~. Also fix typer/parser counters declared as bare ~U32~ that
-  consume ~.len()~ values (they typecheck today only because ~USize ==
-  U32~).
+- ~USize~ is a SOURCE-LEVEL alias (~src/core/usize.til~). The moment the
+  alias resolves to ~U64~ (whether via ~USize := U64~ in source or via
+  ~target_usize_name~), the compiler doing the typecheck -- INCLUDING the
+  ~bin/til_boot~ baked from master -- resolves ~USize~ to ~U64~ on a
+  64-bit host. ~target_usize_name~'s retarget to ~U32~ does not save us:
+  the host target is 64-bit, so the alias is ~U64~.
+- That immediately surfaces ~958~ type errors across ~18 files at PASS 1
+  (~bin/til_boot build~), so the flip cannot compile at all until the
+  whole self-compiler is width-correct. There is no green intermediate
+  with the flip in and the cleanup out. Flip and cleanup are coupled.
+
+The errors fall into four mechanical buckets:
+1. ~argument type mismatch ... expected U32/U64~ (~816): a ~USize~ value
+   meets a bare-~U32~ counter/param, or a ~U32~ counter meets a ~USize~
+   operand (e.g. ~usize_val.lt(u32_counter)~ -- ~U64.lt~ wants a ~U64~
+   second arg, no implicit coercion for a NAMED ~U64~ param).
+2. ~redundant self-cast: cast(U64)~ (~106): ~usize_val.cast(U64)~ is a
+   no-op once ~USize == U64~.
+3. ~cannot cast U64 to I32~ (~24): ~usize_val.cast(I32)~ stops being a
+   same-size reinterpret once ~USize == U64~.
+4. ~no method to_i64 for U64~ (a few): the ~to_*~ conversion APIs on
+   ~U32~ and ~U64~ are asymmetric (~U32~ has ~to_i64~, ~U64~ does not;
+   ~U64~ has ~to_i32~, ~U32~ does not), so code written against ~USize~
+   only typechecks on the width whose underlying type happens to carry
+   that method.
+
+Key consequence: nearly all of this cleanup is WIDTH-NEUTRAL and can be
+done while ~USize~ is still ~U32~, where it typechecks against the
+current ~boot/~ and ~make test~ stays green. So the build can be split
+into a green preparation commit plus the flip:
+
+**** Commit 1 -- preparation (plain ~make test~, ~USize~ stays ~U32~)
+
+Make the source width-agnostic without changing any width:
+
+- Symmetric numeric conversions so a ~USize~ value converts portably on
+  either width: add the missing ~to_*~ ext_funcs to ~src/core/u32.til~
+  and ~src/core/u64.til~ (at least ~U64.to_i64~, ~U64.to_u64~,
+  ~U32.to_i32~, ~U32.to_u32~, ~U32.to_u64~) plus their ~src/c/ext.h~ +
+  ~src/c/ext.c~ plumbing.
+- Sweep the self-compiler (~src/self/*.til~) and any core/std callers:
+  change bare-~U32~ length/index/count/offset/capacity locals and params
+  that consume ~.len()~ / ~.count~ / size values to ~USize~.
+- Replace ~usize_val.cast(U64)~ with a portable conversion: drop the cast
+  where the target param is ~UPtr~/~USize~-aliased (the existing
+  ~can_implicit_usize_coerce~ handles it), else ~.to_u64()~ for a bare
+  ~U64~ target.
+- Replace ~usize_val.cast(I32)~ with ~.to_i32()~ and ~usize_val.to_i64()~
+  stays valid once ~U64.to_i64~ exists.
+- Find the exact site list by flipping on a throwaway branch and reading
+  the ~bin/til_boot build~ errors, then apply those fixes on the
+  UNflipped base. Verify ~make clean && make test~ (green: ~USize == U32~
+  so every change is a no-op width-wise).
+
+**** Commit 2 -- the flip (~Two-pass:~ commit)
+
+With the source already width-clean, widen in one shot:
+
+- ~src/core/usize.til~: ~USize := U64~ (import ~u64~).
+- ~src/self/targets.til~: ~target_usize_name~ returns ~U64~ on 64-bit
+  (keep ~U32~ on 32-bit), mirroring ~target_uptr_name~.
+- ~src/self/context.til~ + ~src/self/initer.til~: init-side ~USize~
+  hardcode -> ~U64~ (default; loader still retargets to ~U32~ on 32-bit).
+- ~src/c/ext.h~: make the ~USize~ typedef target-driven (mirror the
+  ~#if UINTPTR_MAX == 0xffffffff~ block already used for ~UPtr~).
+- ~src/self/typer.til~: ~can_implicit_usize_coerce~ gains a ~U64~ case
+  for ~USize~ (mirror the ~UPtr~ arm).
+- ~src/self/interpreter.til~: make the four ~USize~ scalar/FFI decode
+  sites alias-aware (mirror the existing ~UPtr~ arms). ~dispatch.til~ is
+  already alias-aware from step 1.
+- Ships as ~Two-pass:~ so ~boot/til.c~ regenerates against the widened
+  alias. Verify ~make clean && make test_two_pass~. If commit 1 was
+  complete this commit should produce no NEW type errors -- only the
+  boot regen.
+
+**** Commit 3 -- optional post-flip polish
+
+Sweep any remaining container sizes still routed through ~UPtr~ or
+explicit ~to_u64()~ and put them back on ~USize~; remove now-dead
+width-bridging helpers. Plain ~make test~.

@@ -9139,6 +9139,10 @@ priv type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Co
 priv type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
+    // #192: USize/UPtr resolve to the loader-stamped per-target primitive
+    // name, same authority as type_from_name_init and resolve_type_alias.
+    if name.eq("USize") { return type_from_name(g_usize_pname, scope, ctx) }
+    if name.eq("UPtr") { return type_from_name(g_uptr_pname, scope, ctx) }
     if scope.is_null().not() {
         ref mut b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {
@@ -9199,6 +9203,12 @@ priv type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns T
 }
 
 resolve_type_alias := func(scope: TypeScope, name: Str) returns ref Str {
+    // #192: USize/UPtr resolve to the per-target width registered by the
+    // loader, the same authority the builtin type table uses, so the
+    // name-form (this function) and the type-form never disagree -- even
+    // during init, before the alias binding is retargeted.
+    if name.eq("USize") { return g_usize_pname }
+    if name.eq("UPtr") { return g_uptr_pname }
     ref b : TypeBinding = scope.get_binding(name)
     if b.is_null().not() {
         if b.is_type_alias {
