@@ -4077,10 +4077,66 @@ priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context)
     }
 }
 
+// #251 follow-up: box a conforming concrete RETURNED where an interface is
+// declared, with OWNED semantics. The box escapes the function, so a borrow
+// (to_ptr, as args/locals use) would dangle once the concrete's frame is gone;
+// instead iface_val holds a heap deep-copy via dyn_call_ret(.., "clone", ..)
+// and iface_owned = true, so the box's delete frees that copy (see
+// gen_interface_clone_delete_for_stmt). The raw return value is snapshotted
+// BEFORE infer_expr desugars a struct ctor's named args to positional, since
+// the box re-infers that snapshot and a desugared ctor would fail the
+// named-arg requirement. The snapshot is moved into the box, or reclaimed by
+// the garbager when the value is already the interface / not conforming.
+priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
+    iface_name := ctx.typer_return_type_name.clone()
+    mut raw_val := stmt.children[0].clone()
+    infer_expr(scope, stmt.children[0], in_func, ctx)
+    narrow_return_literal(scope, stmt.children[0], ctx)
+    rbox_cname := til_type_name(stmt.children[0].expr_til_type())
+    if rbox_cname.len().gt(0).and(rbox_cname.eq(iface_name).not()).and(type_implements_iface(rbox_cname, iface_name, scope)) {
+        rb_line := stmt.children[0].line
+        rb_col := stmt.children[0].col
+        mut riface_box := Expr.new(NodeType.FCall(FCallData()), rb_line, rb_col)
+        riface_box.add_child(own Expr.new(ident_node(iface_name), rb_line, rb_col))
+        mut rna_tag := Expr.new(NodeType.NamedArg("iface_type_name"), rb_line, rb_col)
+        rna_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(rbox_cname.clone())), rb_line, rb_col))
+        riface_box.add_child(own rna_tag)
+        mut rna_val := Expr.new(NodeType.NamedArg("iface_val"), rb_line, rb_col)
+        // dyn_call_ret(rbox_cname, "clone", 1, raw_val): a heap deep-copy of
+        // the concrete (dyn_call_<method> mallocs shallow returns). Pass the
+        // value directly, not to_ptr(value): the dyn_call lowering already
+        // takes its address for the C backend (emit_as_ptr), and the
+        // interpreter binds a value to clone's ref self correctly whereas a
+        // raw pointer yields a garbage self for enum receivers.
+        mut rclone := Expr.new(NodeType.FCall(FCallData()), rb_line, rb_col)
+        rclone.add_child(own Expr.new(ident_node("dyn_call_ret"), rb_line, rb_col))
+        rclone.add_child(own Expr.new(NodeType.Literal(Literal.Str(rbox_cname.clone())), rb_line, rb_col))
+        rclone.add_child(own Expr.new(NodeType.Literal(Literal.Str("clone")), rb_line, rb_col))
+        rclone.add_child(own Expr.new(NodeType.Literal(Literal.Num(LiteralNumData(text = "1"))), rb_line, rb_col))
+        rclone.add_child(own raw_val)
+        rna_val.add_child(own rclone)
+        riface_box.add_child(own rna_val)
+        mut rna_owned := Expr.new(NodeType.NamedArg("iface_owned"), rb_line, rb_col)
+        rna_owned.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), rb_line, rb_col))
+        riface_box.add_child(own rna_owned)
+        stmt.children.set(0, own riface_box)
+        infer_expr(scope, stmt.children[0], in_func, ctx)
+    }
+}
+
 priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     if stmt.children.len().gt(0) {
-        infer_expr(scope, stmt.children[0], in_func, ctx)
-        narrow_return_literal(scope, stmt.children[0], ctx)
+        // #251 follow-up: a conforming concrete RETURNED where an interface is
+        // declared coerces to an OWNED box (box_return_value). Done in a
+        // helper because it must snapshot the raw value BEFORE inference
+        // desugars a struct ctor's named args. Non-interface returns infer
+        // normally and pay nothing.
+        if ctx.typer_return_type_name.len().gt(0).and(name_is_interface(ctx.typer_return_type_name, scope)) {
+            box_return_value(scope, stmt, in_func, ctx)
+        } else {
+            infer_expr(scope, stmt.children[0], in_func, ctx)
+            narrow_return_literal(scope, stmt.children[0], ctx)
+        }
         stmt.set_expr_til_type(stmt.children[0].expr_til_type())
         if returns_ref.eq(0) {
             switch stmt.children[0].node_type {

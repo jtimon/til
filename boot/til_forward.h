@@ -2825,6 +2825,7 @@ void priv___src_self_typer_til__check_unused_mut_locals(TypeScope * scope, Str *
 I32 check_unused_priv_top_level(TypeScope * scope, Context * ctx);
 I32 check_unused_priv_members_in_program(Expr * program, Str * path, Context * ctx);
 void priv___src_self_typer_til__narrow_return_literal(TypeScope * scope, Expr * rv, Context * ctx);
+void priv___src_self_typer_til__box_return_value(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);

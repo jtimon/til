@@ -175,3 +175,26 @@ test_local_binding_dispatch := test() {
     pd : Drawable = p
     assert_eq_str(__LOC__, pd.draw(), "polygon")
 }
+
+// #251 follow-up: a conforming concrete RETURNED where an interface is
+// declared is boxed with OWNED semantics -- the box outlives the function,
+// so iface_val is a heap deep-copy, not a borrow that would dangle. A fresh
+// temporary (`return Circle(r=1)`), a struct, and an enum all box and then
+// dispatch to the runtime type through the returned interface value.
+make_drawable := func(which: Bool) returns Drawable {
+    if which { return Circle(r = 1) }
+    return Polygon.Tri
+}
+
+test_return_dispatch := test() {
+    assert_eq_str(__LOC__, make_drawable(true).draw(), "circle")
+    assert_eq_str(__LOC__, make_drawable(false).draw(), "polygon")
+}
+
+// The returned owned box also dispatches an inherited default whose body
+// calls an abstract method (describe -> self.draw()); the box survives being
+// bound to a local and freed at scope end.
+test_return_default_dispatch := test() {
+    d := make_drawable(true)
+    assert_eq_str(__LOC__, d.describe(), "circle")
+}
