@@ -1853,6 +1853,12 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
 init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
+    // #192: register the target-dependent USize/UPtr widths in the builtin
+    // type table before any init/typer resolution, so every position
+    // resolves them uniformly to the per-target primitive. lp.target is
+    // final here (after any --target override).
+    register_target_int_alias_types(target_usize_name(lp.target), target_uptr_name(lp.target))
+
     // Desugar namespace and selective imports BEFORE init_file runs,
     // so the initer sees the generated Decls and populates the scope.
     if lp.skip_core.not() {

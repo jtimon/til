@@ -689,11 +689,12 @@ funcptr_eq := func(a: Type, b: Type) returns Bool {
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
-    // USize is target-dependent. Keep this in sync with target_usize_name
-    // (currently U32 on every target, per #192); when that becomes
-    // target-driven (U64 on 64-bit), this hardcode must follow or the init
-    // phase and the retargetable alias will disagree.
-    if name.eq("USize") { return Type.Primitive(Primitive.U32) }
+    // #192: USize/UPtr resolve to the loader-stamped per-target primitive
+    // name (g_usize_pname/g_uptr_pname), the same authority the typer's
+    // type_from_name and resolve_type_alias use, so the init phase agrees
+    // with the typer regardless of the source-alias width.
+    if name.eq("USize") { return type_from_name_init(g_usize_pname, scope) }
+    if name.eq("UPtr") { return type_from_name_init(g_uptr_pname, scope) }
     if scope.is_null().not() {
         ref b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {

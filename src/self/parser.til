@@ -128,6 +128,26 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
     return true
 }
 
+// #192: the per-target primitive NAME ("U32"/"U64") that USize and UPtr
+// map to. The loader sets these from target_usize_name / target_uptr_name
+// before any init/typer resolution, and every USize/UPtr resolver routes
+// through them (type_from_name, type_from_name_init, resolve_type_alias),
+// so EVERY position (struct fields, layouts, signatures, locals, exprs,
+// and the name-form FFI lookups) agrees on the per-target width. Without
+// this, some positions reached the source-level alias (src/core/usize.til)
+// while others reached the loader-retargeted binding, and the two
+// disagreed once the target width and the source width differ (the
+// U32 -> U64 flip). NOT registered as a builtin type, because that makes
+// codegen/alias handling treat USize as a primitive and shifts unrelated
+// behavior; this stays a name indirection only.
+mut g_usize_pname := "U32"
+mut g_uptr_pname := "U64"
+
+register_target_int_alias_types := func(usize_name: Str, uptr_name: Str) {
+    g_usize_pname = usize_name.clone()
+    g_uptr_pname = uptr_name.clone()
+}
+
 til_type_from_explicit_type := func(name: Str) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }

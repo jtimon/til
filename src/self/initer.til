@@ -16,7 +16,11 @@ priv primitive_type_info := func(name: Str, mut prim: Primitive, mut sz: USize, 
     if name.eq("I32") { prim = Primitive.I32; sz = 4; al = 4; is_builtin = true; return true }
     if name.eq("U32") { prim = Primitive.U32; sz = 4; al = 4; is_builtin = true; return true }
     if name.eq("U64") { prim = Primitive.U64; sz = 8; al = 8; is_builtin = true; return true }
-    if name.eq("USize") { prim = Primitive.U32; sz = 4; al = 4; is_builtin = true; return true }
+    // #192: USize/UPtr are target-dependent -- recurse on the per-target
+    // primitive name so their Primitive tag AND size/align match the width
+    // the resolvers use, keeping struct layout consistent with field types.
+    if name.eq("USize") { return primitive_type_info(g_usize_pname, prim, sz, al, is_builtin) }
+    if name.eq("UPtr") { return primitive_type_info(g_uptr_pname, prim, sz, al, is_builtin) }
     if name.eq("Bool") { prim = Primitive.Bool; sz = 1; al = 1; is_builtin = true; return true }
     if name.eq("F32") { prim = Primitive.F32; sz = 4; al = 4; is_builtin = true; return true }
     if name.eq("Dynamic") { sz = 8; al = 8; is_builtin = true; return true }
@@ -1169,6 +1173,13 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if scope.find(sdecl.name).is(ScopeFind.Found) { return }
+        // #192: USize/UPtr are target-dependent. Bind them to the per-target
+        // primitive (g_usize_pname/g_uptr_pname) at creation, not the
+        // source-alias RHS, so code that reads the binding directly
+        // (binding.type / alias_target, e.g. before the loader retargets it)
+        // is authoritative and agrees with the type/name resolvers.
+        if sdecl.name.eq("USize") { target_name = g_usize_pname }
+        if sdecl.name.eq("UPtr") { target_name = g_uptr_pname }
         find := scope.find(target_name)
         switch find {
         case ScopeFind.Found(target):
