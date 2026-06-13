@@ -243,6 +243,8 @@ target_gui_libs := func(target: Target) returns Str {
         return "vendor/raylib/src/libraylib-arm32.a vendor/tinyfiledialogs/libtinyfd-arm32.a"
     case Target.WindowsX64:
         return "vendor/raylib/src/libraylib-win64.a vendor/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
+    case Target.Wasm32:
+        return "vendor/raylib/src/libraylib-web.a -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSINGLE_FILE --shell-file vendor/raylib/src/shell.html"
     case: return ""
     }
     return ""

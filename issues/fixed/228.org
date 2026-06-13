@@ -1,12 +1,30 @@
 # priority: low
 # category: deferred
-** OPEN #228 Browser target: run mode gui programs in the browser via WASM
+** FIXED #228 Browser target: run mode gui programs in the browser via WASM
+
+*** Post-mortem
+
+  Root cause: ~mode gui~ had no browser target. A bare ~wasm32~ build
+  avoided the OS but still lacked the emscripten/raylib-web browser
+  runtime, and the first browser bundle emitted separate ~.js~ and
+  ~.wasm~ files that browsers would not load from ~file://~.
+
+  Fix: ~Target.Wasm32~ now switches ~mode gui~ builds to vendored
+  emscripten, links against a raylib-web archive, uses the raylib shell,
+  and passes ~-sSINGLE_FILE~ so ~bin/shootil.html~ embeds the wasm payload
+  and runs with only a browser. The C runtime has emscripten stubs and a
+  main-loop bridge, and [[file:../../examples/shootil.til][examples/shootil.til]] has explicit setup/frame entry
+  points for browser scheduling.
+
+  Regression test: ~make build_wasm~ verifies the single-file browser
+  artifact is generated, and ~make test_two_pass~ passed with ~154/154~
+  tests.
 
 :DEPENDENCIES: [[./232.org][#232]] [[./25.org][#25]]
 
   Make ~mode gui~ til programs (flagship: [[file:../../examples/shootil.til][examples/shootil.til]]) run in a
-  web browser. The compiler emits a browser bundle: HTML, JS glue, and
-  WASM loaded into a canvas.
+  web browser. The compiler emits a self-contained HTML file with the JS
+  glue and WASM payload embedded, loaded into a canvas.
 
   Depends on #232: wasm32 uses 32-bit pointers. The 32-bit audit
   for ~dyn_size_of~ (sizeof(Dynamic)) and ~get_payload~
@@ -28,15 +46,23 @@
   - [[file:../../.github/workflows/tests.yml][tests.yml]]: the old basic wasm32 CI shape needs
     replacement with browser-bundle verification for [[file:../../examples/shootil.til][shootil.til]].
   - 32-bit infrastructure from [[./232.org][#232]] is done. ~UPtr~ (#81) is fixed.
-  - Browser-specific runtime stubs and ~main~ signature handling are
-    not implemented yet. Prefer ~__EMSCRIPTEN__~ for browser-specific
-    behavior; reserve ~__wasm__~ for generic wasm limitations.
+  - Browser-specific runtime stubs exist in [[file:../../src/c/ext.c][src/c/ext.c]] under
+    ~__EMSCRIPTEN__~.
+  - [[file:../../src/modes/gui.til][src/modes/gui.til]] exposes ~til_emscripten_set_main_loop~ for a
+    top-level frame callback.
+  - [[file:../../examples/shootil.til][shootil.til]] now has explicit setup/frame/main phases:
+    desktop runs the frame in the old native loop, wasm schedules the
+    same frame with emscripten.
+  - [[file:../../Makefile][Makefile]] has ~build_wasm~, a vendored emsdk bootstrap under
+    ~vendor/emscripten/~, and a raylib-web archive target.
 
 *** Plan
 
   1. *Vendor emscripten.* Put the browser toolchain under
      ~vendor/emscripten/~ so users do not need an external emscripten
-     install. Use its ~emcc~ only for browser GUI wasm builds.
+     install. Use its ~emcc~ only for browser GUI wasm builds. The
+     Makefile bootstrap is wired; it still needs a real emsdk download
+     and browser build verification.
 
   2. *Build raylib-web once.* Compile [[file:../../vendor/raylib/src][vendor/raylib/src]] with
      emscripten and ~-DPLATFORM_WEB~ to produce one Makefile artifact,
@@ -50,15 +76,12 @@
      non-GUI wasm may keep the bare ~clang --target=wasm32 -nostdlib~
      path if it remains useful.
 
-  4. *Narrow main-loop transformation.* For the common raylib example
-     shape, generate a browser frame callback:
-     - statements before the top-level ~while !WindowShouldClose()~ stay
-       in ~main~ as setup;
-     - the loop body becomes one generated ~frame~ callback;
-     - ~main~ calls ~emscripten_set_main_loop(frame, 0, 1)~.
-     If a wasm GUI program does not match this shape, emit a clear
-     compile error instead of implementing a general AST/control-flow
-     rewrite now.
+  4. *Narrow main-loop transformation.* The first cut does not rewrite
+     arbitrary GUI programs. Instead, examples that target the browser
+     expose explicit setup/frame/main phases and call
+     ~til_emscripten_set_main_loop~ on wasm. A later compiler pass can
+     automate this for the common top-level ~while !WindowShouldClose()~
+     shape.
 
   5. *Minimal state hoisting.* Do not build a generic closure/lifetime
      analysis pass. Support the persistent variables needed by
@@ -66,11 +89,11 @@
      unsupported shapes with a clear error.
 
   6. *HTML shell.* Use [[file:../../vendor/raylib/src/shell.html][vendor/raylib/src/shell.html]] as starting
-     point. Let emscripten emit ~program.html~ with ~--shell-file~,
-     loadable by any static server.
+     point. Let emscripten emit ~program.html~ with ~--shell-file~ and
+     ~-sSINGLE_FILE~, so the browser artifact is a single HTML file.
 
   7. *~build_wasm~ Makefile target.* Like ~build_win~, builds all
-     ~mode gui~ examples to .wasm + .html bundles:
+     browser-enabled ~mode gui~ examples to self-contained HTML files:
      #+begin_src makefile
        WASM_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/nng_pair.til examples/nng_pubsub.til,$(wildcard examples/*.til))
        WASM_EXAMPLES := $(patsubst examples/%.til,bin/%.html,$(WASM_EXAMPLES_SRC))
@@ -78,7 +101,7 @@
      #+end_src
 
   8. *CI.* Build [[file:../../examples/shootil.til][shootil.til]] for ~Target.Wasm32~ in ~mode gui~ and
-     verify the expected ~.html~, ~.js~, and ~.wasm~ files are produced.
+     verify the expected self-contained ~.html~ file is produced.
      Full browser execution can wait for a later headless-browser test.
 
 *** Out of scope

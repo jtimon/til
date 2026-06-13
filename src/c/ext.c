@@ -7,6 +7,10 @@
 #include <stdint.h>
 #include <errno.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 #ifdef _WIN32
 // winnt.h declares 'TokenType' as an enum constant inside
 // TOKEN_INFORMATION_CLASS, which collides with our 'TokenType' typedef from
@@ -30,14 +34,17 @@
 #else
 #include <dirent.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
+#ifndef __EMSCRIPTEN__
+#include <sys/wait.h>
 #include <sys/resource.h>
 #include <dlfcn.h>
+#endif
 #endif
 
 #ifdef _WIN32
 static HMODULE ffi_handle;
+#elif defined(__EMSCRIPTEN__)
 #else
 static void *ffi_handle;
 #endif
@@ -154,7 +161,7 @@ static int copy_file_cstr(const char *src, const char *dst) {
     }
     fclose(in);
     fclose(out);
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
     struct stat st;
     if (stat(src, &st) == 0) {
         chmod(dst, st.st_mode & 0777);
@@ -807,6 +814,10 @@ Str *realpath_str(const Str *path) {
 }
 
 I32 system_cmd(const Str *cmd) {
+#ifdef __EMSCRIPTEN__
+    (void)cmd;
+    return 1;
+#else
     char *c = malloc(cmd->count + 1);
     memcpy(c, cmd->c_str, cmd->count);
     c[cmd->count] = '\0';
@@ -818,6 +829,7 @@ I32 system_cmd(const Str *cmd) {
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return 1;
 #endif
+#endif
 }
 
 Str *get_bin_dir(void) {
@@ -828,6 +840,8 @@ Str *get_bin_dir(void) {
         return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
     }
     for (DWORD i = 0; i < len; i++) if (buf[i] == '\\') buf[i] = '/';
+#elif defined(__EMSCRIPTEN__)
+    return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
 #else
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (len <= 0) return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
@@ -882,7 +896,9 @@ Str *get_bin_dir(void) {
 // segments so til source can compare against "linux" / "windows" / "macos" /
 // "wasm" / "templeos". This is the host, not the build target.
 Str *host_os(void) {
-#if defined(_WIN32)
+#if defined(__EMSCRIPTEN__)
+    return Str_clone(&(Str){.c_str = (I8*)"wasm", .count = 4, .cap = CAP_LIT});
+#elif defined(_WIN32)
     return Str_clone(&(Str){.c_str = (I8*)"windows", .count = 7, .cap = CAP_LIT});
 #elif defined(__APPLE__)
     return Str_clone(&(Str){.c_str = (I8*)"macos", .count = 5, .cap = CAP_LIT});
@@ -928,6 +944,20 @@ I64 check_cmd_status(I64 pid) {
 
 void sleep_ms(I64 ms) {
     Sleep((DWORD)ms);
+}
+#elif defined(__EMSCRIPTEN__)
+I64 *spawn_cmd(const Str *cmd) {
+    (void)cmd;
+    return NULL;
+}
+
+I64 check_cmd_status(I64 pid) {
+    (void)pid;
+    return -1;
+}
+
+void sleep_ms(I64 ms) {
+    (void)ms;
 }
 #else
 I64 *spawn_cmd(const Str *cmd) {
@@ -1028,6 +1058,8 @@ U64 peak_rss_bytes(void) {
     PROCESS_MEMORY_COUNTERS pmc;
     if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) return 0;
     return (U64)pmc.PeakWorkingSetSize;
+#elif defined(__EMSCRIPTEN__)
+    return 0;
 #else
     struct rusage ru;
     if (getrusage(RUSAGE_SELF, &ru) != 0) return 0;
@@ -1039,7 +1071,7 @@ U64 peak_rss_bytes(void) {
 #endif
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 static U64 proc_rss_bytes(pid_t pid) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%lld/statm", (long long)pid);
@@ -1124,12 +1156,17 @@ Str *til_realpath(const Str *path) {
 }
 
 I32 til_system(const Str *cmd) {
+#ifdef __EMSCRIPTEN__
+    (void)cmd;
+    return 1;
+#else
     int status = system(cmd->c_str);
 #ifdef _WIN32
     return (I32)status;
 #else
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return 1;
+#endif
 #endif
 }
 
@@ -1185,6 +1222,33 @@ Str *ffi_last_error(void) {
     }
     return Str_clone(&(Str){.c_str = (I8 *)buf, .count = (USize)n, .cap = CAP_VIEW});
 }
+#elif defined(__EMSCRIPTEN__)
+Bool ffi_load_global_lib(const Str *soname) {
+    (void)soname;
+    return 0;
+}
+
+Bool ffi_open_user_so(const Str *path) {
+    (void)path;
+    return 0;
+}
+
+void ffi_close_user_so(void) {
+}
+
+U8 *ffi_user_symbol(const Str *name) {
+    (void)name;
+    return NULL;
+}
+
+U8 *ffi_global_symbol(const Str *name) {
+    (void)name;
+    return NULL;
+}
+
+Str *ffi_last_error(void) {
+    return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+}
 #else
 Bool ffi_load_global_lib(const Str *soname) {
     return dlopen(soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
@@ -1219,6 +1283,26 @@ Str *ffi_last_error(void) {
     return Str_clone(&(Str){.c_str = (I8 *)msg, .count = (USize)strlen(msg), .cap = CAP_VIEW});
 }
 #endif
+
+#ifdef __EMSCRIPTEN__
+static TilClosure *til_browser_frame;
+
+static void til_browser_frame_tick(void) {
+    if (!til_browser_frame) return;
+    ((void (*)(void *))til_browser_frame->call)(til_browser_frame->env);
+}
+#endif
+
+void til_emscripten_set_main_loop(TilClosure *frame, I32 fps, Bool simulate_infinite_loop) {
+#ifdef __EMSCRIPTEN__
+    til_browser_frame = frame;
+    emscripten_set_main_loop(til_browser_frame_tick, fps, simulate_infinite_loop);
+#else
+    (void)frame;
+    (void)fps;
+    (void)simulate_infinite_loop;
+#endif
+}
 
 I32 stderr_print(const Str *msg) {
     fprintf(stderr, "%.*s", (int)msg->count, msg->c_str ? (char *)msg->c_str : "");
@@ -1268,7 +1352,7 @@ Str *til_str_left(const Str *s, U64 n) {
 // self-host build, so the stats counters are not lock-protected (the call
 // stack is per-thread, so multithreaded programs will not crash but their
 // counters may race).
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 
 typedef struct {
     const char *dli_fname;
@@ -1379,7 +1463,7 @@ void __cyg_profile_func_exit(void *this_fn, void *call_site) {
     if (til_prof_depth > 0) til_prof_stack[til_prof_depth - 1].child_ns += incl;
 }
 
-#endif // !_WIN32
+#endif // !_WIN32 && !__EMSCRIPTEN__
 
 // Leak measurement. Runs as a destructor -- after main() returns, i.e. after
 // the program has finished tearing its data structures down -- and prints the
@@ -1398,5 +1482,3 @@ static void til_leak_probe(void) {
     if (&__sanitizer_get_current_allocated_bytes)
         fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
 }
-
-

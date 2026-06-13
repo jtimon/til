@@ -3793,6 +3793,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
         // forward decl from this path (top_level=false) -- nothing else
         // covers them.
         if top_level.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))) { return }
+        if name.eq("main") { return }
         ret := func_return_ctype(fd, ctx)
         f.write(ret).write(" ").write(name).write("(")
         emit_param_list(f, fdef, true, false, ctx)
@@ -4103,6 +4104,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                             if rhs.children.len().eq(0) { continue }
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { continue }
                             fc := func_to_c(dd.name)
+                            if fc.eq("main") { continue }
                             emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
                         case:
                         }
@@ -4134,6 +4136,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     if builder_is_type_gen_macro_def(rhs) { continue }
                     if rhs.children.len().eq(0) { continue }
                     fc := func_to_c(dd.name)
+                    if fc.eq("main") { continue }
                     emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
                 }
             case:
@@ -4776,6 +4779,10 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     return 0
 }
 
+priv is_gui_auto_import := func(auto_import: Str) returns Bool {
+    return auto_import.eq("gui").or(auto_import.eq("src/modes/gui")).or(auto_import.ends_with("/gui"))
+}
+
 priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
@@ -4784,9 +4791,16 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if lf.len().eq(0) { lf = "" }
     if ifl.len().eq(0) { ifl = "" }
 
+    wasm_gui := target.is(Target.Wasm32).and(is_gui_auto_import(mode_auto_import))
     mut compiler := cc_override
-    if compiler.len().eq(0) { compiler = toolchain_command(target, Lang.C) }
-    extra := toolchain_extra_args(target, compiler)
+    if compiler.len().eq(0) {
+        if wasm_gui { compiler = "emcc" }
+        else { compiler = toolchain_command(target, Lang.C) }
+    }
+    mut extra := toolchain_extra_args(target, compiler)
+    if wasm_gui {
+        extra = " -Wall -Wextra -Wno-sometimes-uninitialized -Wno-self-assign -Wno-uninitialized -Wno-unused-function -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
+    }
 
     // ASAN: keep -Werror but demote return-type to a non-fatal warning,
     // then add the sanitizer flags. Single cc invocation here, so the
@@ -4860,7 +4874,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // -rdynamic is a Linux/ELF gcc driver flag for exporting symbols to dlsym.
     // mingw silently ignores it but clangs error out, so only add for non-Windows.
     mut dyn_flag := " -rdynamic"
-    if target.is(Target.WindowsX64) { dyn_flag = "" }
+    if target.is(Target.WindowsX64).or(target.is(Target.Wasm32)) { dyn_flag = "" }
 
     // For Windows cross-compile, rewrite link_flags inherited from
     // vendor/bindings/{raylib,libffi,tinyfd}.til. Their link() directives carry
@@ -4868,21 +4882,31 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // -ldl/-lrt and can't load Linux ELF .a files. The Windows variants
     // are added via target_gui_libs / target_ffi_lib / target_system_libs
     // below, so it's safe to strip the Linux ones here.
-    if target.is(Target.WindowsX64) {
+    if target.is(Target.WindowsX64).or(target.is(Target.Wasm32)) {
         lf = lf.replace(" -ldl", "")
+        lf = lf.replace("-ldl", "")
         lf = lf.replace(" -lrt", "")
+        lf = lf.replace("-lrt", "")
+        lf = lf.replace(" -lpthread", "")
+        lf = lf.replace("-lpthread", "")
+        lf = lf.replace(" -lm", "")
+        lf = lf.replace("-lm", "")
         lf = lf.replace(" vendor/raylib/src/libraylib.a", "")
+        lf = lf.replace("vendor/raylib/src/libraylib.a", "")
         lf = lf.replace(" vendor/tinyfiledialogs/libtinyfd.a", "")
+        lf = lf.replace("vendor/tinyfiledialogs/libtinyfd.a", "")
         lf = lf.replace(" vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
+        lf = lf.replace("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
     }
+    if wasm_gui { lf = "" }
 
     // Per-target system + ffi + (gui) link flags. Tables in
-    // src/self/targets.til. mode_auto_import is "gui" iff the program
+    // src/self/targets.til. mode_auto_import points at gui iff the program
     // declared mode gui.
     sys_libs := target_system_libs(target)
     ffi_lib  := target_ffi_lib(target)
     mut gui_part := ""
-    if mode_auto_import.eq("gui") { gui_part = format(" ", target_gui_libs(target)) }
+    if is_gui_auto_import(mode_auto_import) { gui_part = format(" ", target_gui_libs(target)) }
 
     cmd := compiler.format(extra, werr, asan_flags, prof_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
@@ -7018,7 +7042,9 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
 
     mut c_path := format("gen/til/", name, ".c")
     if custom_c.len().gt(0) { c_path = custom_c.clone() }
-    mut bin_path := format("bin/", name, executable_extension(target))
+    mut ext := executable_extension(target)
+    if target.is(Target.Wasm32).and(is_gui_auto_import(lp.cur_mode.auto_import)) { ext = ".html" }
+    mut bin_path := format("bin/", name, ext)
     if custom_bin.len().gt(0) { bin_path = custom_bin.clone() }
 
     paths.c_path = c_path

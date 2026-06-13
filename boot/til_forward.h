@@ -3333,6 +3333,7 @@ Str * priv___src_self_builder_til__type_name_to_ctypes_param(Str * name, Bool is
 Str * priv___src_self_builder_til__type_name_to_ctypes_return(Str * name, Bool is_shallow);
 I32 priv___src_self_builder_til__build_python_binding(LoadedProgram * lp, Str * py_path, Str * lib_name);
 I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Bool asan);
+Bool priv___src_self_builder_til__is_gui_auto_import(Str * auto_import);
 I32 priv___src_self_builder_til__compile_c(Str * c_path, Str * bin_path, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Str * mode_auto_import, Bool asan, Bool prof);
 void priv___src_self_builder_til__register_funcsig_prog(Expr * prog, Context * ctx);
 void priv___src_self_builder_til__emit_global_inits_prog(File * f, Expr * prog, Context * ctx);

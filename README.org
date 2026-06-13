@@ -104,6 +104,7 @@ sysroots. Install these packages (Ubuntu/Debian) for each target:
 - ~linux-arm32~: ~gcc-arm-linux-gnueabihf~, ~qemu-user~ (for testing)
 - ~linux-riscv32~: No standard Ubuntu packages exist; use a Bootlin prebuilt toolchain (see CI configuration)
 - ~windows-x64~: ~mingw-w64~
+- ~wasm32~ browser GUI: ~make build_wasm~ bootstraps emscripten under ~vendor/emscripten/~ and builds raylib-web
 
 * Internal dependencies (bundled in the repository)
 

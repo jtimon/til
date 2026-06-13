@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win doc summary help install tmp two_pass profile
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_wasm doc summary help install tmp two_pass profile
 
 all: bin/til
 
@@ -28,6 +28,11 @@ RAYLIB_FLAGS := -Lvendor/raylib/src -lraylib -lm -lpthread -lrt
 
 TINYFD_LIB := vendor/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Lvendor/tinyfiledialogs -ltinyfd
+
+EMSDK_DIR := vendor/emscripten
+EMCC ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emcc
+EMAR ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emar
+EMRANLIB ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emranlib
 
 NNG_LIB := vendor/nng/libnng.a
 NNG_FLAGS := -Lvendor/nng -lnng -lpthread -latomic
@@ -291,6 +296,33 @@ build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
 bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
+# --- Browser WASM cross-compilation ---
+
+RAYLIB_WASM_LIB := vendor/raylib/src/libraylib-web.a
+
+$(EMCC):
+	git clone https://github.com/emscripten-core/emsdk.git $(EMSDK_DIR)
+	$(EMSDK_DIR)/emsdk install latest
+	$(EMSDK_DIR)/emsdk activate latest
+
+$(RAYLIB_WASM_LIB): $(EMCC)
+	rm -rf tmp/raylib-web
+	mkdir -p tmp/raylib-web
+	cp -r vendor/raylib/src/. tmp/raylib-web/
+	$(MAKE) -C tmp/raylib-web clean
+	$(MAKE) -C tmp/raylib-web \
+	  PLATFORM=PLATFORM_WEB CC=$(EMCC) AR=$(EMAR) RANLIB=$(EMRANLIB) \
+	  RAYLIB_LIB_NAME=raylib-web RAYLIB_RELEASE_PATH=.
+	cp tmp/raylib-web/libraylib-web.web.a $@
+
+WASM_EXAMPLES_SRC := $(filter examples/shootil.til,$(wildcard examples/*.til))
+WASM_EXAMPLES := $(patsubst examples/%.til,bin/%.html,$(WASM_EXAMPLES_SRC))
+
+build_wasm: two_pass $(RAYLIB_WASM_LIB) $(WASM_EXAMPLES)
+
+bin/%.html: examples/%.til bin/til $(RAYLIB_WASM_LIB)
+	bin/til build --target=wasm32 --cc="$(EMCC)" -o $@ $<
+
 # --- Utilities ---
 
 help:
@@ -299,6 +331,7 @@ help:
 	echo "make test_fast      Build + run tests (no --asan; faster, less strict)"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
+	echo "make build_wasm     Build browser WASM examples"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/ and UML docs"
 	echo "make summary        Regenerate issues/summary.org from issues/open/"

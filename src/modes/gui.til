@@ -1,5 +1,6 @@
 mode lib
 
+import("../std/sys")
 import("../../vendor/bindings/raylib")
 link("vendor/raylib/src/libraylib.a")
 link("m")
@@ -15,6 +16,9 @@ sinf := ext_func(shallow x: F32) returns shallow F32 {}
 
 // libc wrappers (implemented in src/c/ext.c)
 til_setenv := ext_func(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
+
+FrameProc := func()
+til_emscripten_set_main_loop := ext_proc(frame: FrameProc, shallow fps: I32, shallow simulate_infinite_loop: Bool) {}
 
 // Audio state
 mut prev_tone := Sound()

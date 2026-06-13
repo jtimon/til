@@ -84,4 +84,3 @@
 *** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
-*** [[./open/228.org][#228]] Browser target: run mode gui programs in the browser via WASM
