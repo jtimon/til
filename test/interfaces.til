@@ -198,3 +198,18 @@ test_return_default_dispatch := test() {
     d := make_drawable(true)
     assert_eq_str(__LOC__, d.describe(), "circle")
 }
+
+// #251 follow-up: an interface-typed FIELD holds an owned box -- a conforming
+// concrete given at construction is boxed (deep-copied) and dispatches to the
+// runtime type. The holder's auto-gen clone/delete recurse into the box, so
+// construct/use/destroy exercises the owned box's clone+free (ASAN-checked).
+DrawHolder := struct {
+    shape: Drawable
+}
+
+test_field_dispatch := test() {
+    hc := DrawHolder(shape = Circle(r = 1))
+    assert_eq_str(__LOC__, hc.shape.draw(), "circle")
+    hp := DrawHolder(shape = Polygon.Tri)
+    assert_eq_str(__LOC__, hp.shape.draw(), "polygon")
+}

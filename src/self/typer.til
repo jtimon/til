@@ -1128,7 +1128,27 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                         arg.type_error(msg, ctx)
                     }
                     if slot_arg.is(CtorArg.Filled).not() {
-                        field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.children[0].clone()))
+                        // #251 follow-up: a conforming concrete given for an
+                        // interface-typed field coerces to an OWNED box -- the
+                        // field outlives the ctor call, so a borrow would
+                        // dangle. Snapshot before inference desugars a struct
+                        // ctor's named args (the box re-infers the snapshot);
+                        // box if conforming, else store the value as usual.
+                        ref fld_tn : Str = ctor_fld.explicit_type
+                        if name_is_interface(fld_tn, scope) {
+                            mut fld_snap := arg.children[0].clone()
+                            infer_expr(scope, arg.children[0], in_func, ctx)
+                            fld_cname := til_type_name(arg.children[0].expr_til_type())
+                            if fld_cname.len().gt(0).and(fld_cname.eq(fld_tn).not()).and(type_implements_iface(fld_cname, fld_tn, scope)) {
+                                mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col)
+                                infer_expr(scope, fld_box, in_func, ctx)
+                                field_vals.set(slot.cast(U32), own CtorArg.Filled(fld_box))
+                            } else {
+                                field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.children[0].clone()))
+                            }
+                        } else {
+                            field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.children[0].clone()))
+                        }
                     }
                 }
             case:
@@ -4087,6 +4107,40 @@ priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context)
 // the box re-infers that snapshot and a desugared ctor would fail the
 // named-arg requirement. The snapshot is moved into the box, or reclaimed by
 // the garbager when the value is already the interface / not conforming.
+// #251 follow-up: build an OWNED interface box wrapping `value` (a conforming
+// concrete of type `concrete_name`) as interface `iface_name`:
+//   <Iface>(iface_type_name = "<Concrete>",
+//           iface_val = dyn_call_ret("<Concrete>", "clone", 1, value),
+//           iface_owned = true)
+// iface_val is a heap deep-copy (dyn_call_<method> mallocs shallow returns),
+// so the box owns it and its delete frees it (gen_interface_clone_delete_for_stmt).
+// Used at every ESCAPING coercion site (returns, fields, ...). `value` is
+// passed to clone directly, NOT to_ptr(value): the C backend addresses it via
+// emit_as_ptr and the interpreter binds a value to clone's ref self
+// correctly, whereas a raw pointer yields a garbage self for enum receivers.
+// The caller must pass a `value` snapshotted BEFORE inference desugared a
+// struct ctor's named args, since the returned box gets re-inferred.
+priv make_owned_iface_box := func(iface_name: Str, concrete_name: Str, own value: Expr, line: U32, col: U32) returns Expr {
+    mut box := Expr.new(NodeType.FCall(FCallData()), line, col)
+    box.add_child(own Expr.new(ident_node(iface_name), line, col))
+    mut na_tag := Expr.new(NodeType.NamedArg("iface_type_name"), line, col)
+    na_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
+    box.add_child(own na_tag)
+    mut na_val := Expr.new(NodeType.NamedArg("iface_val"), line, col)
+    mut clone_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    clone_call.add_child(own Expr.new(ident_node("dyn_call_ret"), line, col))
+    clone_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(concrete_name.clone())), line, col))
+    clone_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("clone")), line, col))
+    clone_call.add_child(own Expr.new(NodeType.Literal(Literal.Num(LiteralNumData(text = "1"))), line, col))
+    clone_call.add_child(own value)
+    na_val.add_child(own clone_call)
+    box.add_child(own na_val)
+    mut na_owned := Expr.new(NodeType.NamedArg("iface_owned"), line, col)
+    na_owned.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), line, col))
+    box.add_child(own na_owned)
+    return box
+}
+
 priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     iface_name := ctx.typer_return_type_name.clone()
     mut raw_val := stmt.children[0].clone()
@@ -4094,32 +4148,8 @@ priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ct
     narrow_return_literal(scope, stmt.children[0], ctx)
     rbox_cname := til_type_name(stmt.children[0].expr_til_type())
     if rbox_cname.len().gt(0).and(rbox_cname.eq(iface_name).not()).and(type_implements_iface(rbox_cname, iface_name, scope)) {
-        rb_line := stmt.children[0].line
-        rb_col := stmt.children[0].col
-        mut riface_box := Expr.new(NodeType.FCall(FCallData()), rb_line, rb_col)
-        riface_box.add_child(own Expr.new(ident_node(iface_name), rb_line, rb_col))
-        mut rna_tag := Expr.new(NodeType.NamedArg("iface_type_name"), rb_line, rb_col)
-        rna_tag.add_child(own Expr.new(NodeType.Literal(Literal.Str(rbox_cname.clone())), rb_line, rb_col))
-        riface_box.add_child(own rna_tag)
-        mut rna_val := Expr.new(NodeType.NamedArg("iface_val"), rb_line, rb_col)
-        // dyn_call_ret(rbox_cname, "clone", 1, raw_val): a heap deep-copy of
-        // the concrete (dyn_call_<method> mallocs shallow returns). Pass the
-        // value directly, not to_ptr(value): the dyn_call lowering already
-        // takes its address for the C backend (emit_as_ptr), and the
-        // interpreter binds a value to clone's ref self correctly whereas a
-        // raw pointer yields a garbage self for enum receivers.
-        mut rclone := Expr.new(NodeType.FCall(FCallData()), rb_line, rb_col)
-        rclone.add_child(own Expr.new(ident_node("dyn_call_ret"), rb_line, rb_col))
-        rclone.add_child(own Expr.new(NodeType.Literal(Literal.Str(rbox_cname.clone())), rb_line, rb_col))
-        rclone.add_child(own Expr.new(NodeType.Literal(Literal.Str("clone")), rb_line, rb_col))
-        rclone.add_child(own Expr.new(NodeType.Literal(Literal.Num(LiteralNumData(text = "1"))), rb_line, rb_col))
-        rclone.add_child(own raw_val)
-        rna_val.add_child(own rclone)
-        riface_box.add_child(own rna_val)
-        mut rna_owned := Expr.new(NodeType.NamedArg("iface_owned"), rb_line, rb_col)
-        rna_owned.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), rb_line, rb_col))
-        riface_box.add_child(own rna_owned)
-        stmt.children.set(0, own riface_box)
+        mut box := make_owned_iface_box(iface_name, rbox_cname, own raw_val, stmt.children[0].line, stmt.children[0].col)
+        stmt.children.set(0, own box)
         infer_expr(scope, stmt.children[0], in_func, ctx)
     }
 }
