@@ -1269,7 +1269,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             if c.has_return {
                 c.return_value = c.return_value.clone()
             }
-            scope_free(own block_scope)
+            scope_free(own block_scope, false)
         case NodeType.CaptureBlock:
             // Issue #54: a capture block runs its body inline -- the typer
             // already enforced the capture restriction, so at runtime it
@@ -1279,7 +1279,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             if c.has_return {
                 c.return_value = c.return_value.clone()
             }
-            scope_free(own cb_scope)
+            scope_free(own cb_scope, false)
         case NodeType.If:
             cond := eval_expr(scope, stmt.children[0], ctx)
             mut cv := false
@@ -1293,12 +1293,12 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 then_scope := scope_new(scope)
                 eval_body(then_scope, stmt.children[1], ctx)
                 if c.has_return { c.return_value = c.return_value.clone() }
-                scope_free(own then_scope)
+                scope_free(own then_scope, false)
             } else if stmt.children.len().gt(2) {
                 else_scope := scope_new(scope)
                 eval_body(else_scope, stmt.children[2], ctx)
                 if c.has_return { c.return_value = c.return_value.clone() }
-                scope_free(own else_scope)
+                scope_free(own else_scope, false)
             }
         case NodeType.While:
             while true {
@@ -1315,7 +1315,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 while_scope := scope_new(scope)
                 eval_body(while_scope, stmt.children[1], ctx)
                 if c.has_return { c.return_value = c.return_value.clone() }
-                scope_free(own while_scope)
+                scope_free(own while_scope, false)
                 if c.has_break { c.has_break = false; break }
                 if c.has_continue { c.has_continue = false }
             }
@@ -1537,7 +1537,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             c.has_return = false
         }
         free_non_own_temp_args(call_scope, e, func_def)
-        scope_free(own call_scope)
+        scope_free(own call_scope, true)
         return result
         case:
             interp_error(e, "namespace field is not a function", ctx)
@@ -1761,7 +1761,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 c.has_return = false
             }
             free_non_own_temp_args(call_scope2, e, func_def2)
-            scope_free(own call_scope2)
+            scope_free(own call_scope2, true)
             return result
         case:
             UNREACHABLE(__LOC__)
@@ -1814,7 +1814,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     c.has_return = false
                 }
                 free_non_own_temp_args(call_scope3, e, fdef3)
-                scope_free(own call_scope3)
+                scope_free(own call_scope3, true)
                 return result3
             case:
                 UNREACHABLE(__LOC__)
@@ -1986,7 +1986,13 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_fr
     case Value.Uint64(p):  dp = malloc(8); memcpy(dp, p, 8)
     case Value.Float(p):   dp = malloc(4); memcpy(dp, p, 4)
     case Value.Boolean(p): dp = malloc(1); memcpy(dp, p, 1)
-    case: return shallow_copy_value(v)
+    // Non-scalar (struct/enum) bound to a Dynamic param: the value already
+    // carries a heap .data pointer, so there is nothing to box -- the callee
+    // just reads/writes through it. Return a BORROW (not a bare
+    // shallow_copy_value): the caller's cell still owns the payload, so the
+    // callee's cell must not free it. An unflagged copy made two non-borrowed
+    // owners -> double-free once scope teardown frees both (auto.til).
+    case: return borrow_value(v)
     }
     r := Value.Dynamic(dp)
     if track_for_free {
@@ -2199,29 +2205,25 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     // cell_is_local = false (already zeroed by memset)
     s.bindings.set(name, own v)
 }
-scope_free := func(own s: Scope) {
+scope_free := func(own s: Scope, deep: Bool) {
     for i in 0..s.bindings.len() {
         ref b : Binding = s.bindings.val_ptr(i)
         if b.cell_is_local {
-            // Only Enum payload data is freed here. A full deep Value
-            // delete (b.cell.val = val_none()) would also reclaim Struct
-            // payloads -- the dominant make_str_value interpret-mode leak
-            // (issue #272 step 3) -- but 13 suite files crash on it
-            // (kwargs, dynamic, maps, hashmaps, sets, tuples, asting,
-            // aliases, first_class, regression, own_fields, splat:
-            // 141/154 on 2026-06-12). The interpreter still stores
-            // UNFLAGGED aliases of cell payloads on paths like eval_call
-            // arg binding (reinterpret_ptr_value / widen_numeric /
-            // scope_set_owned sharing .data across frames), so a deep
-            // teardown frees bytes a live value still uses. The
-            // swap_replace move (eval_body FCall arm) removed ONE such
-            // aliasing source (mut-param assignment); the rest must be
-            // flagged/moved before this can become a deep delete. Flip it
-            // only when the FULL suite is green with it.
-            switch b.cell.val {
-            case Value.Enum(ei):
-                if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
-            case:
+            // Deep teardown (call/function/global scopes) reclaims Struct and
+            // Str payloads -- the dominant make_str_value/struct interpret
+            // leak. Block/if/while/catch scopes stay shallow (Enum payload
+            // only): a `ref` binding or enum-payload alias in an enclosing
+            // scope can point into a block local, and the garbager's
+            // compile-mode lifetime extension has no interpret equivalent, so
+            // freeing block Struct payloads is a use-after-free (enums/errors).
+            if deep {
+                free_temp_arg_value(b.cell.val)
+            } else {
+                switch b.cell.val {
+                case Value.Enum(ei):
+                    if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
+                case:
+                }
             }
             free(own b.cell)
         }
@@ -3002,7 +3004,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 if c.has_return {
                                     c.return_value = c.return_value.clone()
                                 }
-                                scope_free(own test_scope)
+                                scope_free(own test_scope, true)
                                 pass_count = pass_count.add(1)
                                 eprint_single("  pass: ")
                                 eprint_single(dd.name)
@@ -3032,7 +3034,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                     if c.has_return {
                                         c.return_value = c.return_value.clone()
                                     }
-                                    scope_free(own test_scope)
+                                    scope_free(own test_scope, true)
                                     pass_count = pass_count.add(1)
                                     eprint_single("  pass: ")
                                     eprint_single(sdd.name)
@@ -3126,7 +3128,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 }
 
                 eval_body(main_scope, body, lp.ctx)
-                scope_free(own main_scope)
+                scope_free(own main_scope, true)
             case:
                 UNREACHABLE(__LOC__)
             }
@@ -3135,7 +3137,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         }
     } } }
 
-    scope_free(own global)
+    scope_free(own global, true)
     ffi_cleanup(lp.ctx)
     c.ns_inited = false
     return 0

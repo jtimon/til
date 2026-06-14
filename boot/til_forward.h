@@ -1040,6 +1040,7 @@ typedef struct FFIEntry {
     U32 nparam;
     U8 *param_shallows;
     Bool return_is_shallow;
+    Bool return_is_ref;
     ffi_cif *cif;
     void * *arg_types;
 } FFIEntry;
@@ -3528,7 +3529,7 @@ Bool priv___src_self_interpreter_til__interp_is_primitive_type_name(Str * name);
 void * priv___src_self_interpreter_til__scope_get_ref_primitive_ptr(Scope * s, Str * name);
 void scope_set_owned(Scope * s, Str * name, Value * val);
 void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, Cell * cell);
-void scope_free(Scope * s);
+void scope_free(Scope * s, Bool deep);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(Expr * obj_expr, Str * sname, Expr * sdef, Str * fname);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_inner(Scope * scope, Expr * e, Str * sname);
 Cell * priv___src_self_interpreter_til__field_assign_dyn_move_src(Scope * scope, Expr * val_expr);

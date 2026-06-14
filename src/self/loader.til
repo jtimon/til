@@ -367,7 +367,7 @@ priv precomp_imported := proc(mut lp: LoadedProgram) {
         }
     }
 
-    scope_free(own global)
+    scope_free(own global, true)
     precomp_reset_state(lp.ctx)
 }
 

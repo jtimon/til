@@ -16,6 +16,7 @@ FFIEntry := struct {
     nparam : USize = 0
     ref param_shallows : U8 = NULL
     return_is_shallow := false
+    return_is_ref := false
     ref cif : ffi_cif = NULL
     ref arg_types : Dynamic = NULL
 }
@@ -1671,14 +1672,23 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
         ref raw_ptr : Dynamic = deref(raw)
         if rtype.eq("Str") {
             ref sp : ExtStr = raw_ptr
-            result = make_str_value_own(sp.data, sp.count, ctx)
+            // A `returns ref Str` borrows the C buffer (caller must not free
+            // it); copy into an independent owned Str rather than claiming the
+            // foreign buffer with make_str_value_own (whose deep delete would
+            // free memory we do not own).
+            if fe.return_is_ref { result = make_str_value(sp.data, sp.count, ctx) }
+            else { result = make_str_value_own(sp.data, sp.count, ctx) }
         } else if rtype.eq("Dynamic") {
             result = Value.Dynamic(raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
         } else if ctx.ffi_struct_defs.has(fe.return_type) {
             ref box : ExprPtrBox = ctx.ffi_struct_defs[fe.return_type]
             ref sdef : Expr = box.ptr
-            result = make_struct_value(fe.return_type, sdef, raw_ptr, false, ctx)
+            // `returns ref T` hands back a borrowed pointer into foreign / C
+            // memory; flag the wrapper borrowed so the garbager's deep delete
+            // does not free a buffer the runtime never malloc'd (ext_libc:
+            // getenv returns a pointer into libc's environ).
+            result = make_struct_value(fe.return_type, sdef, raw_ptr, fe.return_is_ref, ctx)
         } else {
             result = val_none()
         }
@@ -1744,6 +1754,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         entry.nparam = np
         entry.param_shallows = pshallows
         entry.return_is_shallow = ret_shallow
+        entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
         entry.cif = cif
         entry.arg_types = atypes
 
