@@ -3255,6 +3255,9 @@ Str * priv___src_self_builder_til__builder_variadic_array_type_name(Context * ct
 Str * priv___src_self_builder_til__builder_variadic_vec_type_name(Context * ctx, Str * elem_type);
 Str * priv___src_self_builder_til__builder_variadic_array_ctype(Context * ctx, Str * elem_type);
 Str * priv___src_self_builder_til__builder_variadic_vec_ctype(Context * ctx, Str * elem_type);
+Bool priv___src_self_builder_til__enum_ctor_payload_is_own(Str * callee_name, Expr * fcall, Context * ctx);
+Bool priv___src_self_builder_til__templated_container_method_arg_is_own(Str * sname, Str * method, U32 arg_index);
+Bool priv___src_self_builder_til__templated_container_fcall_arg_is_own(Str * callee_name, U32 arg_index);
 File * priv___src_self_builder_til__emit_usize(File * f, U32 v);
 File * priv___src_self_builder_til__emit_i32(File * f, I32 v);
 File * priv___src_self_builder_til__emit_indent(File * f, I32 depth);
@@ -3290,7 +3293,8 @@ void priv___src_self_builder_til__emit_fcall_funcptr_cast(File * f, Expr * e, Ex
 void emit_fcall_closure_call(File * f, Expr * e, Expr * callee, Expr * sig, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_fcall_funcptr_args(File * f, Expr * e, Expr * sig, I32 depth, Context * ctx);
 File * emit_capturing_closure_value(File * f, Expr * e, I32 * _depth, Context * _ctx);
-void priv___src_self_builder_til__emit_str_lit_expr(File * f, Str * s);
+void priv___src_self_builder_til__emit_str_lit_expr(File * f, Str * s, Context * ctx);
+void priv___src_self_builder_til__emit_str_lit_box_expr(File * f, Str * s);
 Str * priv___src_self_builder_til__num_lit_to_c(Str * text);
 File * priv___src_self_builder_til__emit_expr(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_body(File * f, Expr * body, I32 depth, Context * ctx);
@@ -4098,7 +4102,6 @@ Value *Value_Ushort(U16 *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
-extern U32 CAP_STATIC;
 extern U32 ELEM_POD;
 extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;

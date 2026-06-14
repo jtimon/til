@@ -15,7 +15,7 @@ The ~cap~ field encodes ownership:
 | cap          | meaning                                          |
 |--------------+--------------------------------------------------|
 | cap >= 0     | owned buffer, cap = allocated size               |
-| CAP_LIT (-1) | points to static const C data (string literal)   |
+| CAP_LIT (-1) | static string literal wrapper and C data         |
 | CAP_VIEW (-2)| borrowed view into another Str's buffer          |
 
 For owned strings, ~count <= cap~. For literals and views, ~count~ is the
@@ -31,9 +31,9 @@ available via core import).
 s := "hello"   # count=5, cap=CAP_LIT in codegen (points to static const)
 #+end_src
 
-In codegen, literal data lives in static const storage — no malloc for data.
-Only the Str struct is heap-allocated. In interpreter, data is strndup'd
-with cap=CAP_LIT (also not freed by til delete).
+In codegen, literal data lives in static const storage and the Str wrapper is
+static too -- no malloc for either. In interpreter, data is strndup'd with
+cap=CAP_LIT (also not freed by til delete).
 
 *** Owned (from operations)
 #+begin_src til
@@ -60,14 +60,15 @@ s.push_str("hello")           # count=5, cap=100 (in-place, no realloc)
 
 #+begin_src til
 delete := func(own self: Str, call_free: Bool = true) {
-    if self.cap.gte(0) {     # owned — free the buffer
+    if self.cap.gte(0) {     # owned -- free the buffer
         free(own self.c_str)
     }
-    if call_free { free(own self) }
+    if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
 }
 #+end_src
 
-Negative cap (CAP_LIT or CAP_VIEW) means data is not owned — skip free.
+Negative cap (CAP_LIT or CAP_VIEW) means data is not owned -- skip data free.
+CAP_LIT also means the wrapper is static, so skip wrapper free too.
 
 ** Clone
 

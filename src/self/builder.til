@@ -809,6 +809,54 @@ priv builder_variadic_vec_ctype := func(ctx: Context, elem_type: Str) returns St
     return type_name_to_c(builder_variadic_vec_type_name(ctx, elem_type), ctx)
 }
 
+priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Context) returns Bool {
+    if fcall.children.len().neq(2) { return false }
+    ename := til_type_name(fcall.expr_til_type())
+    if ename.len().eq(0) { return false }
+    prefix := ename.concat("_")
+    if callee_name.starts_with(prefix).not() { return false }
+    ref def : Expr = ctx.scope.get_struct(ename)
+    if def.is_null() { return false }
+    if def.node_type.is(NodeType.EnumDef).not() { return false }
+    vname := callee_name.substr(prefix.len(), callee_name.len().sub(prefix.len()))
+    switch def.node_type {
+    case NodeType.EnumDef(edd):
+        for i in 0..edd.variants.len() {
+            ref vn : Str = edd.variants[i]
+            if vn.eq(vname).not() { continue }
+            vt := enum_variant_type(def, i.cast(I32))
+            if vt.len().eq(0) { return false }
+            if is_primitive_type(vt) { return false }
+            if is_funcsig_type(vt, ctx).or(vt.eq("Dynamic")) { return false }
+            return true
+        }
+    case:
+    }
+    return false
+}
+
+priv templated_container_method_arg_is_own := func(sname: Str, method: Str, arg_index: USize) returns Bool {
+    if sname.starts_with("Vec").and(method.eq("push")).and(arg_index.eq(1)) { return true }
+    if sname.starts_with("Set").and(method.eq("add")).and(arg_index.eq(1)) { return true }
+    if sname.starts_with("Array").and(method.eq("set")).and(arg_index.eq(2)) { return true }
+    if sname.starts_with("Map").and(method.eq("set")).and(arg_index.eq(2)) { return true }
+    return false
+}
+
+priv templated_container_fcall_arg_is_own := func(callee_name: Str, arg_index: USize) returns Bool {
+    if callee_name.starts_with("Vec__").and(callee_name.ends_with("_push")).and(arg_index.eq(1)) { return true }
+    if callee_name.starts_with("Set__").and(callee_name.ends_with("_add")).and(arg_index.eq(1)) { return true }
+    if callee_name.starts_with("Array__").and(callee_name.ends_with("_set")).and(arg_index.eq(2)) { return true }
+    if callee_name.starts_with("Map__").and(callee_name.ends_with("_set")).and(arg_index.eq(2)) { return true }
+    if callee_name.eq("push").and(arg_index.eq(1)) { return true }
+    if callee_name.eq("add").and(arg_index.eq(1)) { return true }
+    if callee_name.eq("set").and(arg_index.eq(2)) { return true }
+    if callee_name.ends_with(".push").and(arg_index.eq(1)) { return true }
+    if callee_name.ends_with(".add").and(arg_index.eq(1)) { return true }
+    if callee_name.ends_with(".set").and(arg_index.eq(2)) { return true }
+    return false
+}
+
 // Returns ref File so `f.emit_usize(v).write(...)` chains via UFCS.
 priv emit_usize := proc(f: File, shallow v: USize) returns ref File {
     f.write(v.to_str())
@@ -1147,7 +1195,9 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
         } else if callee_param_is_uptr(callee_name, i.sub(1), ctx).and(callee_param_is_own(callee_name, i.sub(1), ctx).not()) {
             f.write("UPTR_REF(").emit_deref(arg, depth, ctx).write(")")
         } else {
-            emit_as_ptr(f, arg, depth, get_own_arg(e, i), ctx)
+            mut own_arg := get_own_arg(e, i)
+            if templated_container_fcall_arg_is_own(callee_name, i.sub(1)) { own_arg = true }
+            emit_as_ptr(f, arg, depth, own_arg, ctx)
         }
     }
 }
@@ -1680,6 +1730,7 @@ priv emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     ctype := emit_return_ctype(rv, ctx)
     f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ")
     emit_expr(f, rv, depth, ctx)
+    if ctype.eq("Str") { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
     f.write(";\n")
     for i in 1..e.children.len() {
         emit_indent(f, depth)
@@ -1801,7 +1852,9 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 if is_stack_local(rv_name.ident_name(), ctx).or(is_value_global(rv_name.ident_name(), ctx)) {
                     if is_shallow_ret.not() {
                         ctype := emit_return_ctype(rv, ctx)
-                        f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(rv_name.ident_name()).write(";\n")
+                        f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(rv_name.ident_name())
+                        if ctype.eq("Str") { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
+                        f.write(";\n")
                         for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                         emit_indent(f, depth); f.write("return _r; }\n")
                     } else {
@@ -1905,12 +1958,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             // #221: `ref mut p : Str = get_payload(<enum>); p = "literal"`
             // must write the Str struct THROUGH `p` into the enum's payload
             // memory, not rebind the local pointer to a fresh heap Str.
-            // The default emit_expr for a Literal.Str produces a heap
-            // wrapper (`({ Str *_lit = malloc(...); *_lit = (Str){...}; _lit; })`)
-            // which `p = ...` would just store in `p`, leaving the enum
-            // payload empty (the garbager-inserted Str_delete already wiped
-            // it) and leaking the malloc'd Str. Emit a compound-literal
-            // direct write instead: `*p = (Str){.c_str = "lit", ...};`.
+            // A ref assignment must write through `p`, not rebind it to the
+            // literal wrapper pointer. Emit the value directly:
+            // `*p = (Str){.c_str = "lit", ...};`.
             if rhs.node_type.is_literal_str() {
                 f.write("*").write(aname).write(" = (Str){.c_str = (void *)\"")
                 switch rhs.node_type {
@@ -1947,13 +1997,8 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if ad.save_old_delete {
             ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
             if is_stack_local(aname, ctx).or(is_value_global(aname, ctx)) {
-                // For LiteralStr RHS, emit_expr produces a heap-malloc'd Str
-                // wrapper (`({ Str *_lit = malloc(...); *_lit = (Str){...}; _lit; })`).
-                // The usual `Str *_new = ...; aname = *_new; free(_new);` shape
-                // mallocs the wrapper just to copy its fields into the stack-
-                // local `aname` and free the wrapper immediately. Skip the
-                // wrapper entirely: emit the compound literal directly into
-                // aname after running the old destructor.
+                // LiteralStr RHS can be written directly into the stack-local
+                // after running the old destructor.
                 if rhs.node_type.is_literal_str() {
                     f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
                     f.write(aname).write(" = (Str){.c_str = (void *)\"")
@@ -1990,7 +2035,15 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 }
             } else {
                 f.write("{ ").write(ctype).write(" *_old = ").write(aname).write("; ").write(aname).write(" = ")
-                emit_expr(f, rhs, depth, ctx)
+                if ctype.eq("Str").and(rhs.node_type.is_literal_str()) {
+                    switch rhs.node_type {
+                    case NodeType.Literal(Literal.Str(lit_s)):
+                        emit_str_lit_box_expr(f, lit_s)
+                    case:
+                    }
+                } else {
+                    emit_expr(f, rhs, depth, ctx)
+                }
                 f.write("; ").write(ctype).write("_delete(_old, ").write(delete_call_free_lit(ctype, true, ctx)).write("); }\n")
             }
             return
@@ -2393,18 +2446,29 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
     return f
 }
 
-// Emit a Str literal as an inline expression that mallocs the wrapper
-// and initialises it from a compound literal. Replaces the old
-// Str_lit("...", N) runtime helper -- same heap-wrapper-with-static-c_str
-// semantics, just inlined so the codegen has no Str_lit function to call.
-// The `own` contract for callers like Array_set / Vec_push that
-// `free(own val)` the wrapper continues to hold.
-priv emit_str_lit_expr := proc(f: File, s: Str) {
+priv emit_str_lit_expr := proc(f: File, s: Str, ctx: Context) {
+    ctx.ctor_seq = ctx.ctor_seq.add(1)
+    id := ctx.ctor_seq
+    f.write("({ static Str _lit")
+    emit_i32(f, id)
+    f.write(" = (Str){.c_str = (void *)\"")
+    f.write(s)
+    f.write("\", .count = ")
+    emit_usize(f, c_lit_byte_count(s))
+    f.write("ULL, .cap = TIL_CAP_LIT}; &_lit")
+    emit_i32(f, id)
+    f.write("; })")
+}
+
+// Legacy own-taking Dynamic callsites free the incoming value box after
+// copying bytes out. Keep that ABI without ever putting CAP_LIT on a heap
+// wrapper: CAP_VIEW also means borrowed data, but the wrapper itself is heap.
+priv emit_str_lit_box_expr := proc(f: File, s: Str) {
     f.write("({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
     emit_usize(f, c_lit_byte_count(s))
-    f.write("ULL, .cap = TIL_CAP_LIT}; _lit; })")
+    f.write("ULL, .cap = TIL_CAP_VIEW}; _lit; })")
 }
 
 // Issue #255: number literals accept base prefixes (0x/0b/0o), '_' digit
@@ -2442,7 +2506,7 @@ priv num_lit_to_c := func(text: Str) returns Str {
 priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
     switch e.node_type {
     case NodeType.Literal(Literal.Str(s)):
-        emit_str_lit_expr(f, s)
+        emit_str_lit_expr(f, s, ctx)
     case NodeType.Literal(Literal.Num(num)):
         f.write(num_lit_to_c(num.literal_num_text()))
         // Issue #219: U64 literals whose value exceeds LLONG_MAX need
@@ -2516,7 +2580,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     } else if callee_param_is_uptr(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
                         f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else {
-                        emit_as_ptr(f, e.children[i], depth, get_own_arg(e, i), ctx)
+                        mut own_arg := get_own_arg(e, i)
+                        if i.eq(1).and(enum_ctor_payload_is_own(flat, e, ctx)) { own_arg = true }
+                        if templated_container_method_arg_is_own(sname, mname.field_access_name(), i.sub(1)) { own_arg = true }
+                        emit_as_ptr(f, e.children[i], depth, own_arg, ctx)
                     }
                 }
                 f.write(")")
@@ -2671,7 +2738,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
-                if fcall_has_inline_capturing_func_arg(e) {
+                if enum_ctor_payload_is_own(name.ident_name(), e, ctx) {
+                    f.write(fc)
+                    f.write("(")
+                    emit_as_ptr(f, e.children[1], depth, true, ctx)
+                    f.write(")")
+                } else if fcall_has_inline_capturing_func_arg(e) {
                     emit_user_fcall_with_inline_closure_cleanup(f, e, name.ident_name(), fc, depth, ctx)
                 } else {
                     f.write(fc)
@@ -2735,12 +2807,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             } else {
                 // Field access on a Str literal (e.g. `"foo".c_str`): emit a
-                // stack compound literal and dot-access the field. The
-                // default emit_str_lit_expr path mallocs a heap Str wrapper
-                // (for the `own val` callsite contract), but here we only
-                // need to read a field -- the wrapper would leak. (Issue
-                // #109: ext_libc_run was 64B/4 from `"..".c_str` args to
-                // setenv/getenv/unsetenv.)
+                // stack compound literal and dot-access the field.
                 mut obj_is_str_lit := false
                 switch obj.node_type {
                 case NodeType.Literal(Literal.Str(_sl)):
@@ -3092,6 +3159,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 f.write(ctype)
                 f.write(")); *_oa = ")
                 emit_expr(f, e, depth, ctx)
+                if ctype.eq("Str") { f.write("; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }") }
                 f.write("; _oa; })")
             } else {
                 f.write("&")
@@ -3129,7 +3197,12 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
         }
         emit_expr(f, e, depth, ctx)
     case NodeType.Literal(Literal.Str):
-        emit_expr(f, e, depth, ctx)
+        switch e.node_type {
+        case NodeType.Literal(Literal.Str(s)):
+            if is_own { emit_str_lit_box_expr(f, s) }
+            else { emit_expr(f, e, depth, ctx) }
+        case:
+        }
     case NodeType.FieldAccess(fname):
         if builder_fa_is_ptr(e, ctx) {
             emit_expr(f, e, depth, ctx)
@@ -5842,11 +5915,11 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
                 ref fd : Declaration = sd.fields[i]
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind.eq(1) {
-                    emit_str_lit_expr(f, fd.name)
+                    emit_str_lit_box_expr(f, fd.name)
                 } else if kind.eq(2) {
                     if fd.is_mut { f.write("1") } else { f.write("0") }
                 } else {
-                    emit_str_lit_expr(f, fd.explicit_type)
+                    emit_str_lit_box_expr(f, fd.explicit_type)
                 }
                 f.write(";\n")
             }
@@ -5922,15 +5995,15 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind.eq(1) {
                     ref vn : Str = ed.variants[i]
-                    emit_str_lit_expr(f, vn)
+                    emit_str_lit_box_expr(f, vn)
                 } else if kind.eq(2) {
                     if has_pl { f.write("1") } else { f.write("0") }
                 } else {
                     if has_pl {
                         ref pt2 : Str = ed.payload_types[idx]
-                        emit_str_lit_expr(f, pt2)
+                        emit_str_lit_box_expr(f, pt2)
                     } else {
-                        emit_str_lit_expr(f, "")
+                        emit_str_lit_box_expr(f, "")
                     }
                 }
                 f.write(";\n")
@@ -6006,20 +6079,20 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32) {
             for i in 0..fd.params.len() {
                 ref pd : Declaration = fd.params[i]
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
-                emit_str_lit_expr(f, pd.explicit_type)
+                emit_str_lit_box_expr(f, pd.explicit_type)
                 f.write(";\n")
             }
         } else if kind.eq(3) {
             if fd.return_type.len().gt(0) {
                 f.write("        if (*index == 0LL) return ")
-                emit_str_lit_expr(f, fd.return_type)
+                emit_str_lit_box_expr(f, fd.return_type)
                 f.write(";\n")
             }
         } else {
             for i in 0..fd.throw_types.len() {
                 ref tt : Str = fd.throw_types[i]
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
-                emit_str_lit_expr(f, tt)
+                emit_str_lit_box_expr(f, tt)
                 f.write(";\n")
             }
         }
@@ -6189,7 +6262,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         f.write(display)
         f.write("\", .count = ")
         emit_usize(f, c_lit_byte_count(display))
-        f.write("ULL, .cap = TIL_CAP_STATIC};\n")
+        f.write("ULL, .cap = TIL_CAP_LIT};\n")
     }
     f.write("    switch (type->tag) {\n")
     for j in 0..variant_names.len() {
@@ -6926,7 +6999,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     f.write("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
-    f.write("#define TIL_CAP_STATIC ((USize)-3)\n")
+    f.write("#define TIL_CAP_VIEW ((USize)-2)\n")
     f.write("void print_single(Str *s) {\n")
     f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
     f.write("}\n")

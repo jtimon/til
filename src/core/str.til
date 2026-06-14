@@ -11,7 +11,6 @@ import("vec")
 
 CAP_LIT : USize = -1.to_usize()
 CAP_VIEW : USize = -2.to_usize()
-CAP_STATIC : USize = -3.to_usize()
 
 /// Concatenate multiple strings into one.
 format := func(parts: ..Str) returns Str {
@@ -108,11 +107,11 @@ namespace:
         return Str(c_str = new_data, count = val.count, cap = val.count)
     }
 
-    /// Free the backing buffer (unless it's a view/literal) and optionally
-    /// the struct allocation.
+    /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
+    /// static literal wrapper, so call_free does not free that wrapper either.
     delete := func(own self: Str, call_free: Bool = true) {
-        if self.cap.lt(CAP_STATIC) { free(own self.c_str) }
-        if call_free.and(self.cap.neq(CAP_STATIC)) { free(own self) }
+        if self.cap.lt(CAP_VIEW) { free(own self.c_str) }
+        if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
     }
 
     /// Return a view into `s` from `start` for `n` bytes (no allocation).

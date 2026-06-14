@@ -189,7 +189,11 @@ test_fast: bin/til bin/test_runner bin/plot bin/tests
 # header comment on the two_pass target).
 test_two_pass:
 	$(MAKE) two_pass
-	$(MAKE) test
+	bin/til build src/test_runner.til
+	bin/til build examples/plot.til
+	bin/til build src/tests.til
+	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
+	cp gen/til/constfold.c test/constfold.c
 
 # test_asan: alias for `test` -- the default suite now passes --asan to
 # every `til build` / `til run` / `til test` invocation, so compiled test
