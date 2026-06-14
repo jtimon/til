@@ -165,10 +165,12 @@ bug185_bool_dyn_arg_chain := test() {
     // Top-level Bool helpers via UFCS receiver (Dynamic-typed receiver).
     assert(__LOC__, x.not())
     assert(__LOC__, y.not().not())
-    // Top-level Bool helpers via positional Dynamic arg.
-    assert(__LOC__, and(y, y))
-    assert(__LOC__, or(x, y))
-    assert(__LOC__, and(x, y).not())
+    // Lazy and/or inline before Dynamic call dispatch, so narrow first.
+    ref xb : Bool = x
+    ref yb : Bool = y
+    assert(__LOC__, and(yb, yb))
+    assert(__LOC__, or(xb, yb))
+    assert(__LOC__, and(xb, yb).not())
 }
 
 bug185_u8_dyn_arg := test() {

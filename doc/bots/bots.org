@@ -479,7 +479,7 @@ to already contain your commit. For "Declaring Your Commit", take the
 true master base from the SHA the human gives you rather than trusting
 origin/master.
 
-## Rebasing (remote sessions)
+## Rebasing feature branches
 
 When rebasing a feature branch on top of origin/master, do NOT abort on
 conflicts in automatically generated files (boot/*). Those files are
@@ -487,7 +487,13 @@ regenerated from source, so it's safe to accept whatever master has for
 them. Remote sessions don't commit doc/totals.csv or img/totals.svg, so
 those files don't enter rebase conflicts.
 
-The base procedure is:
+Local worktree sessions follow this same procedure, except they do not fetch
+and they rebase on the local ~master~ branch directly. In other words, replace
+steps 1-2 with just ~git rebase master~, then apply the same generated-file,
+soft-reset/regenerate, and "next to merge" rules below. Local sessions still
+do not push; the human handles syncing remotes.
+
+The base remote procedure is:
 
 1. `git fetch origin master` -- always. Earlier commits from this same
    feature branch may have already been merged into master between
@@ -535,8 +541,9 @@ merger picking it up), the soft-reset + regenerate step at (4b) /
 (5) can be skipped. The local merger's `make test` / `make test_two_pass`
 (run via the merge script) regenerates boot/* against the rebased source anyway,
 so the work would just be thrown away. Discard doc/totals.csv + img/totals.svg
-if they are modified, then commit and force-push. Only the human can grant this
-exception -- never assume it; redo the regen by default.
+if they are modified, then commit and force-push (remote session) or stop for
+the requested local cherry-pick / merge step (local worktree session). Only the
+human can grant this exception -- never assume it; redo the regen by default.
 
 "Next to merge" also means the human is about to test the branch
 locally and will come back with any errors. Push *immediately* -- do

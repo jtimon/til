@@ -1,0 +1,47 @@
+# priority: low
+# category: features
+** FIXED #117 Bool and/or do not short-circuit
+
+Post-mortem:
+  - Root cause: core ~and~ / ~or~ were strict ~ext_func~ builtins, so the
+    parser's ~&&~ / ~||~ lowering to ~.and(...)~ / ~.or(...)~ still evaluated
+    both operands before dispatch.
+  - Fix: #262's pre-typer lazy-call expansion now handles UFCS-style method
+    calls, and core ~and~ / ~or~ are ~lazy_func~ definitions whose ~match~ bodies
+    evaluate only the selected operand.
+  - Regression test: ~test/lazy.til~ covers ~.and(...)~, ~.or(...)~, ~&&~,
+    and ~||~ short-circuiting with skipped side effects.
+
+Previously, ~and~/~or~ were strict ~ext_func~ builtins
+  (~src/core/bool.til~), so both operands were always evaluated. That was
+  consistent, just not C-style. Short-circuiting depended on the lazy-call
+  machinery tracked in #262 (~lazy_func~ / ~lazy_proc~): once a call's
+  arguments could be evaluated lazily, ~and~/~or~ could become lazy funcs
+  whose desugaring yields short-circuit control flow.
+
+~and~ and ~or~ behaved like ordinary Bool calls rather than C-style
+  short-circuit operators.
+
+  Consequence:
+  - translations that are mechanically correct in C can become wrong in til
+    if they rely on ~&&~ / ~||~ evaluation order
+  - example from the ~initer.c~ translation:
+    - C: ~if (!target->struct_def && !target->is_builtin &&
+      (!target->func_def || target->func_def->children.count != 0))~
+    - naive til translation using ~.and(...)~ / ~.or(...)~ dereferenced
+      ~target.func_def~ even when it was null
+
+  This matters for ~c2til~ directly:
+  - mechanical C-to-til translation is harder and more error-prone than it
+    should be
+  - translators must currently rewrite many conditions into nested ~if~s
+    just to preserve C semantics
+
+  Desired end state, now implemented:
+  - a Bool-level surface that preserves short-circuit semantics where the
+    source expects them
+  - or, at minimum, a clearly documented distinction and a dedicated
+    short-circuiting form for translated code
+
+  Chosen direction:
+  - make core ~and~ / ~or~ short-circuit by defining them as lazy callables

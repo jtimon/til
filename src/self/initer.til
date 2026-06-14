@@ -3447,7 +3447,11 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
     mut synthesized := Vec(Expr).new()
     for i in 0..program.children.len() {
         ref mut stmt : Expr = program.children[i]
-        is_generic_decl := stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(init_func_is_generic(stmt.children[0]))
+        mut is_generic_decl := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            ref generic_candidate : Expr = stmt.children[0]
+            is_generic_decl = init_func_is_generic(generic_candidate)
+        }
         if is_generic_decl { continue }
         init_generic_walk(stmt, generics, seen, synthesized)
     }
@@ -3456,7 +3460,11 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
     // else, then append the synthesized monomorphizations.
     mut kept_stmts := Vec(Expr).new()
     for stmt2 : Expr in program.children {
-        drop := stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)).and(init_func_is_generic(stmt2.children[0]))
+        mut drop := false
+        if stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)) {
+            ref generic_candidate2 : Expr = stmt2.children[0]
+            drop = init_func_is_generic(generic_candidate2)
+        }
         if drop { continue }
         kept_stmts.push(own stmt2.clone())
     }

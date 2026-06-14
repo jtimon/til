@@ -1981,6 +1981,8 @@ IntegerOverflow * IntegerOverflow_clone(IntegerOverflow * self);
 void IntegerOverflow_delete(IntegerOverflow * self, Bool call_free);
 U64 IntegerOverflow_hash(IntegerOverflow * self, HashFn hasher);
 U32 IntegerOverflow_size(void);
+Bool and(Bool a, Bool b);
+Bool or(Bool a, Bool b);
 I64 Bool_cmp(Bool a, Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 U32 Bool_size(void);

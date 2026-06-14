@@ -38,6 +38,19 @@ test_lazy_nested := test() {
     expect(__LOC__, lazy_or(lazy_and(true, false), false).not(), "(T and F) or F")
 }
 
+test_core_bool_and_or := test() {
+    expect(__LOC__, true.and(true), "T.and(T)")
+    expect(__LOC__, true.and(false).not(), "T.and(F)")
+    expect(__LOC__, false.and(true).not(), "F.and(T)")
+    expect(__LOC__, true.or(false), "T.or(F)")
+    expect(__LOC__, false.or(true), "F.or(T)")
+    expect(__LOC__, false.or(false).not(), "F.or(F)")
+    expect(__LOC__, true && true, "T && T")
+    expect(__LOC__, (true && false).not(), "T && F")
+    expect(__LOC__, false || true, "F || T")
+    expect(__LOC__, (false || false).not(), "F || F")
+}
+
 # --- decisive short-circuit proof: an unused side-effecting argument must
 #     NOT run. bump() increments a global counter; if it ran when it should
 #     have been short-circuited, the count would be non-zero. ---
@@ -68,6 +81,34 @@ test_evaluates_taken_arm := test() {
     r := lazy_and(true, bump())
     expect(__LOC__, r, "true and bump() is true")
     assert_eq(__LOC__, eval_count, 1)
+}
+
+test_core_and_short_circuits := test() {
+    eval_count = 0
+    r := false.and(bump())
+    expect(__LOC__, r.not(), "false.and(bump()) is false")
+    assert_eq(__LOC__, eval_count, 0)
+}
+
+test_core_or_short_circuits := test() {
+    eval_count = 0
+    r := true.or(bump())
+    expect(__LOC__, r, "true.or(bump()) is true")
+    assert_eq(__LOC__, eval_count, 0)
+}
+
+test_ampamp_short_circuits := test() {
+    eval_count = 0
+    r := false && bump()
+    expect(__LOC__, r.not(), "false && bump() is false")
+    assert_eq(__LOC__, eval_count, 0)
+}
+
+test_pipepipe_short_circuits := test() {
+    eval_count = 0
+    r := true || bump()
+    expect(__LOC__, r, "true || bump() is true")
+    assert_eq(__LOC__, eval_count, 0)
 }
 
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call

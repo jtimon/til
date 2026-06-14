@@ -3,8 +3,12 @@ mode lib
 import("i64")
 import("str")
 
-and := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
-or := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
+and := lazy_func(a: Bool, b: Bool) returns Bool {
+    return match a { case true: b case: false }
+}
+or := lazy_func(a: Bool, b: Bool) returns Bool {
+    return match a { case true: true case: b }
+}
 not := ext_func(shallow a: Bool) returns shallow Bool {}
 
 /// Boolean value: true or false.

@@ -554,8 +554,6 @@ U64 U64_clone(const U64 *v) { return *v; }
 
 // Bool ops (shallow params, shallow return)
 Bool Bool_eq(Bool a, Bool b) { return a == b; }
-Bool and(Bool a, Bool b) { return a && b; }
-Bool or(Bool a, Bool b) { return a || b; }
 Bool not(Bool a) { return !a; }
 Bool band(Bool a, Bool b) { return a && b; }
 Bool bor(Bool a, Bool b) { return a || b; }

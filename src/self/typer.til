@@ -4441,7 +4441,8 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
     if type_is_primitive(while_cond_t, Primitive.Bool).not().and(while_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("while condition must be Bool, got ".concat(type_to_name(stmt.children[0].expr_til_type())), ctx)
     }
-    if expr_contains_fcall(stmt.children[0]) {
+    ref while_cond : Expr = stmt.children[0]
+    if expr_contains_fcall(while_cond).or(stmt_contains_match(while_cond)) {
         ref cond : Expr = stmt.children[0]
         line := cond.line
         col := cond.col
@@ -4517,8 +4518,9 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         if existing.is_null().not() {
             ref existing_sd : Expr = scope.struct_def_of(existing.name)
             if existing_sd.is_null().not() {
-                if existing_sd.line.neq(stmt.children[0].line).or(
-                    existing_sd.col.neq(stmt.children[0].col).or(
+                ref type_expr : Expr = stmt.children[0]
+                if existing_sd.line.neq(type_expr.line).or(
+                    existing_sd.col.neq(type_expr.col).or(
                         existing.path.eq(ctx.path).not()
                     )
                 ) {
@@ -4964,7 +4966,8 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
 
 priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, ctx: Context) {
     if stmt.children.len().eq(0) { return }
-    if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
+    ref first_child : Expr = stmt.children[0]
+    if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
         switch stmt.node_type {
         case NodeType.Decl(td_decl):
             saved_type_name := ctx.current_type_name.clone()
@@ -8274,7 +8277,8 @@ priv infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_fu
     // Issue #244: lower any match nested in this statement into a result temp
     // plus a switch, spliced before it. `i` is advanced past the inserted
     // statements so the now-match-free statement is type-checked next.
-    if stmt_contains_match(body.children[i]) {
+    ref stmt_for_match : Expr = body.children[i]
+    if stmt_for_match.node_type.is(NodeType.While).not().and(stmt_contains_match(stmt_for_match)) {
         inserted := lower_matches_in_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
         i = i.add(inserted)
     }
@@ -8358,13 +8362,14 @@ priv infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_fu
 priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
     for rstmt : Expr in body.children {
         if rstmt.children.len().eq(0) { continue }
+        ref rfirst : Expr = rstmt.children[0]
         switch rstmt.node_type {
         case NodeType.Decl(rdecl):
             ref mut rb : TypeBinding = scope.get_binding(rdecl.name)
             if rb.is_null().not() {
                 ref rb_old_sd : Expr = scope.struct_def_of(rb.name)
                 if rb_old_sd.is_null().not().and(
-                    rstmt.children[0].node_type.is(NodeType.StructDef).or(rstmt.children[0].node_type.is(NodeType.EnumDef))) {
+                    rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef))) {
                         scope.set_struct_def(rb.name, rstmt.children[0])
                         for bi in 0..scope.bindings.len() {
                             ref b : TypeBinding = scope.bindings.val_ptr(bi)
@@ -8374,7 +8379,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                         }
                     }
                 ref rb_old_fd : Expr = scope.lookup_func(rb.name)
-                if rb_old_fd.is_null().not().and(rstmt.children[0].node_type.is(NodeType.FuncDef)) {
+                if rb_old_fd.is_null().not().and(rfirst.node_type.is(NodeType.FuncDef)) {
                     scope.set_func_def(rb.name, rstmt.children[0])
                     for bi in 0..scope.bindings.len() {
                         ref b : TypeBinding = scope.bindings.val_ptr(bi)

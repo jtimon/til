@@ -3735,7 +3735,8 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
             for i in 0..iu.ast.children.len() {
                 ref stmt : Expr = iu.ast.children[i]
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                    if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
+                    ref decl_value : Expr = stmt.children[0]
+                    if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
                         tmp : Dynamic = malloc(I64.size().cast(U64))
                         write_ptr(tmp, stmt)
                         items.push(own tmp)
@@ -3749,7 +3750,8 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
         for i in 0..iu.ast.children.len() {
             ref stmt : Expr = iu.ast.children[i]
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)) {
+                ref decl_value2 : Expr = stmt.children[0]
+                if decl_value2.node_type.is(NodeType.StructDef).or(decl_value2.node_type.is(NodeType.EnumDef)) {
                     tmp2 : Dynamic = malloc(I64.size().cast(U64))
                     write_ptr(tmp2, stmt)
                     items.push(own tmp2)
@@ -6513,7 +6515,12 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
             if dyn_has_shallow { break }
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
+                mut is_func_decl := false
+                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                    ref decl_value3 : Expr = stmt.children[0]
+                    is_func_decl = decl_value3.node_type.is(NodeType.FuncDef)
+                }
+                if is_func_decl {
                     switch stmt.node_type {
                     case NodeType.Decl(dd):
                         if dd.name.eq("dyn_has_method") {
@@ -6536,7 +6543,12 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
         if dyn_has_shallow { break }
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
+            mut is_func_decl2 := false
+            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+                ref decl_value4 : Expr = stmt.children[0]
+                is_func_decl2 = decl_value4.node_type.is(NodeType.FuncDef)
+            }
+            if is_func_decl2 {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     if dd.name.eq("dyn_has_method") {

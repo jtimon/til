@@ -494,9 +494,13 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     }
                     // Seed namespace test() decls so emit_test_main's
                     // Type_test_name() calls don't get scavenged out.
-                    if stmt.children.len().gt(0)
-                        .and(stmt.children[0].node_type.is(NodeType.StructDef)
-                            .or(stmt.children[0].node_type.is(NodeType.EnumDef))) {
+                    mut is_type_decl := false
+                    if stmt.children.len().gt(0) {
+                        ref decl_value : Expr = stmt.children[0]
+                        is_type_decl = decl_value.node_type.is(NodeType.StructDef)
+                            .or(decl_value.node_type.is(NodeType.EnumDef))
+                    }
+                    if is_type_decl {
                         switch stmt.node_type {
                         case NodeType.Decl(sdecl):
                             ref nstv : Vec(Declaration) = def_ns_decls(stmt.children[0])
@@ -1715,19 +1719,21 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 
 // Issue #262: lazy_func / lazy_proc inlining.
 //
-// A lazy callable's body is a single `return <expr>`. A call f(a1..an) is
-// rewritten here -- before type-checking -- by cloning <expr> and
-// substituting each parameter Ident with the matching argument expression
-// (call-by-name). When <expr> is a `match` (the short-circuit form), only
-// the taken arm is evaluated at run time, so unused arguments never run.
+// A lazy callable's body is a single `return <expr>`. A call f(a1..an), or
+// UFCS-style a1.f(a2..an), is rewritten here -- before type-checking -- by
+// cloning <expr> and substituting each parameter Ident with the matching
+// argument expression (call-by-name). When <expr> is a `match` (the
+// short-circuit form), only the taken arm is evaluated at run time, so unused
+// arguments never run.
 // The lazy defs themselves are left in place: the typer checks them and
 // (being uncalled after inlining) they emit as ordinary dead functions,
 // exactly like macros.
 //
-// v1 scope: top-level lazy callables, called by bare name, fixed arity,
-// non-recursive. Variadic (Lisp-style) and first-class / recursive lazy
-// callables are deferred (issue #262). A call that does not match this
-// shape is simply left un-inlined and types as an ordinary (eager) call.
+// v1 scope: top-level lazy callables, called by bare name or UFCS method
+// syntax, fixed arity, non-recursive. Variadic (Lisp-style) and first-class /
+// recursive lazy callables are deferred (issue #262). A call that does not
+// match this shape is simply left un-inlined and types as an ordinary (eager)
+// call.
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     if e.is_null() { return }
@@ -1766,14 +1772,28 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
 
     mut subs := Map(Str, Expr).new()
     mut ok := false
+    mut is_method_call := false
+    ref call_callee : Expr = call.children[0]
+    switch call_callee.node_type {
+    case NodeType.FieldAccess:
+        is_method_call = call_callee.children.len().eq(1)
+    case:
+    }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.variadic_index.lt(0) {
-            nargs := call.children.len().sub(1)
+            mut nargs := call.children.len().sub(1)
+            if is_method_call { nargs = call.children.len() }
             if nargs.eq(fd.params.len()) {
                 for j in 0..fd.params.len() {
                     ref param : Declaration = fd.params[j]
-                    subs.set(param.name, own call.children[j.add(1)].clone())
+                    if is_method_call.and(j.eq(0)) {
+                        subs.set(param.name, own call_callee.children[0].clone())
+                    } else {
+                        mut arg_idx := j.add(1)
+                        if is_method_call { arg_idx = j }
+                        subs.set(param.name, own call.children[arg_idx].clone())
+                    }
                 }
                 ok = true
             }
@@ -1812,6 +1832,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
             mut lname := ""
             switch callee.node_type {
             case NodeType.Ident(idn): lname = idn.ident_name()
+            case NodeType.FieldAccess(fa): lname = fa.field_access_name()
             case:
             }
             if lname.len().gt(0) {

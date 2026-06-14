@@ -5,24 +5,29 @@
 v1 status (implemented):
   - ~lazy_func~ / ~lazy_proc~ keywords parse to ~FuncType.LazyFunc~ /
     ~FuncType.LazyProc~ (lexer, parser, ~FuncType~ enum + name mappers).
-  - A lazy callable's body is a single ~return <expr>~. Calls are inlined
-    by ~expand_lazy_calls_in_program~ (src/self/loader.til), a pre-typer
-    pass: it clones ~<expr>~ and substitutes each parameter Ident with the
-    matching argument expression (call-by-name), then the typer types and
-    lowers the result normally. When ~<expr>~ is a ~match~, only the taken
-    arm runs, so unused args never evaluate -> short-circuit.
+  - A lazy callable's body is a single ~return <expr>~. Bare-name calls and
+    UFCS-style method calls are inlined by ~expand_lazy_calls_in_program~
+    (src/self/loader.til), a pre-typer pass: it clones ~<expr>~ and
+    substitutes each parameter Ident with the matching argument expression
+    (call-by-name), then the typer types and lowers the result normally.
+    When ~<expr>~ is a ~match~, only the taken arm runs, so unused args never
+    evaluate -> short-circuit.
+  - Core ~and~ / ~or~ are now ~lazy_func~ definitions in ~src/core/bool.til~;
+    this gives short-circuit semantics to ~a.and(b)~, ~a.or(b)~, ~a && b~,
+    and ~a || b~ (#117).
   - The lazy defs themselves are left in place and type/emit as ordinary
     (uncalled) functions, like macros, so the builder needs no changes.
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
-    and decisive short-circuit proofs where an unused side-effecting
-    argument must not run).
+    core Bool and/or, operator syntax, and decisive short-circuit proofs where
+    an unused side-effecting argument must not run).
 
 Remaining (deferred):
   - Variadic, Lisp-style ~and~/~or~ folding (and N-ary lazy callables).
   - First-class lazy callables (stored in a var / funcptr) and recursive
     lazy callables, which cannot be inlined and need real thunks/closures.
   - Multi-statement lazy bodies (v1 requires a single ~return <expr>~).
-  - Migrating the core ~and~/~or~ to lazy callables (closes #117).
+  - Hard errors for lazy-call shapes that v1 cannot inline; today they are
+    left as residual eager calls.
   - call-by-need (memoize a reused argument once) vs the current
     call-by-name (re-evaluate on each use).
 
@@ -62,6 +67,33 @@ Open questions / honest caveats (these are why this is its own issue, not a
   - Each lazy parameter that is used more than once in the body would
     re-evaluate its argument unless we bind it once; decide whether lazy means
     call-by-name (re-eval) or call-by-need (memoized once).
+
+Possible next designs for repeated and variadic lazy args:
+  - Keep v1 call-by-name, Lisp-macro style. A parameter use is a splice site,
+    so using ~x~ twice clones the argument expression twice and may evaluate it
+    twice. This is simple and predictable for macro-like control forms, but it
+    must be documented as "lazy, not memoized".
+  - Add call-by-need for fixed-arity lazy params. During expansion, introduce a
+    hidden temp/thunk per parameter and force it at first use, so repeated uses
+    share one evaluation. This is closer to Haskell's sharing semantics, but it
+    needs a representation for "not forced yet" and careful ownership/lifetime
+    rules for the cached value.
+  - Special-case variadic ~and~ / ~or~ as syntactic folds. Because ordinary
+    variadic args currently become an ~Array(Bool)~, building that array would
+    eagerly evaluate every operand and destroy short-circuiting. Instead,
+    desugar ~and(a, b, c)~ directly to nested ~match~ / ~if~ expressions, and
+    desugar ~or~ with the opposite polarity. This matches Lisp's treatment of
+    ~and~ / ~or~ as special forms, not ordinary variadic functions.
+  - General variadic lazy callables need a different model: either a tuple/array
+    of thunks, or a compiler-only "lazy rest arg" that can be consumed only by
+    known fold-like constructs. The thunk-array route is more general and
+    first-class, but it pulls in closures, allocation, memoization choices, and
+    proc/ownership semantics. The compiler-only route is smaller but much less
+    expressive.
+  - A reasonable staged path is: keep fixed-arity call-by-name; add hard errors
+    for unsupported lazy shapes; add dedicated variadic ~and~ / ~or~ folding;
+    postpone first-class thunks and call-by-need until there is a concrete
+    user-visible need.
 
 Note: the binary short-circuit ~and~/~or~ from #117 could also be done as a
   narrow, special-cased desugar rewrite (~a.and(b)~ -> ~if a { b } else
