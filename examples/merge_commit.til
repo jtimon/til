@@ -19,6 +19,36 @@ capture := proc(cmd: Str) returns Str {
     return content
 }
 
+capture_status := proc(cmd: Str, mut status: I64) returns Str {
+    mk := run("mkdir -p tmp >/dev/null 2>&1")
+    if mk.lt(0) { }
+    tmpf := format("tmp/_mc_", clock_ms().to_str())
+    pid := spawn_cmd(format(cmd, " > ", tmpf, " 2>&1"))
+    status = wait_cmd(pid)
+    content := File.readfile(tmpf)
+    return content
+}
+
+asan_fail := proc(channel: Str, msg: Str, output: Str) {
+    eprint_single(format("ASAN ", channel, ": FAILED: ", msg, "\n"))
+    eprint_single(output)
+    exit(1)
+}
+
+require_asan_output_ok := proc(channel: Str, status: I64, output: Str) {
+    if status.neq(0) {
+        if output.find("ERROR: LeakSanitizer: detected memory leaks").eq(-1) {
+            asan_fail(channel, format("non-leak sanitizer error, exit ", status.to_str()), output)
+        }
+        if output.find("SUMMARY:").eq(-1) {
+            asan_fail(channel, "LeakSanitizer exit without SUMMARY", output)
+        }
+    }
+    if parse_true_leak(output).lt(0) {
+        asan_fail(channel, "missing TIL_TRUE_LEAK probe output", output)
+    }
+}
+
 parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     sum_start := summary.find("SUMMARY:")
     if sum_start.eq(-1) { return }
@@ -248,10 +278,22 @@ main := proc(args: ..Str) {
     print("Tests: PASSED\n")
 
     // ---- Step 6: ASAN leak check ----
-    run("make bin/til_asan > tmp/asan_build.log 2>&1")
+    asan_build_ec := run("make bin/til_asan > tmp/asan_build.log 2>&1")
+    if asan_build_ec.neq(0) {
+        eprint_single("ASAN build: FAILED\n")
+        eprint_single(File.readfile("tmp/asan_build.log"))
+        exit(1)
+    }
 
-    int_summary := capture("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til")
-    trans_summary := capture("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til")
+    mut int_status : I64 = 0
+    int_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til", int_status)
+    File.writefile("tmp/asan_interpret.log", int_summary.clone())
+    require_asan_output_ok("interpret", int_status, int_summary)
+
+    mut trans_status : I64 = 0
+    trans_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til", trans_status)
+    File.writefile("tmp/asan_translate.log", trans_summary.clone())
+    require_asan_output_ok("translate", trans_status, trans_summary)
 
     mut int_bytes : I64 = 0; mut int_allocs : I64 = 0
     mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
@@ -261,8 +303,8 @@ main := proc(args: ..Str) {
     // TIL_LEAK_PROBE destructor, not LeakSanitizer's "bytes leaked" -- the
     // latter is config-dependent and under-reports here by orders of
     // magnitude (inter-leak false-reachability). Allocs stay from the LSAN
-    // summary (no config-independent count is available). If the probe line
-    // is missing, fall back to the LSAN bytes already parsed above.
+    // summary (no config-independent count is available). Missing probe output
+    // is fatal above: otherwise a failed sanitizer run can masquerade as 0.
     int_true := parse_true_leak(int_summary)
     if int_true.gte(0) { int_bytes = int_true }
     trans_true := parse_true_leak(trans_summary)
