@@ -143,3 +143,40 @@ test_match_in_switch := test() {
     }
     assert_eq_str(__LOC__, label, "still-green")
 }
+
+# Issue #262/#244: a throwing call in a `match` arm body must be lowered INTO
+# the arm -- it gets its hidden _err_kind/_err_<T> out-args and only runs when
+# that arm is taken. Covers a subscript `get!`, an explicit `f()!` (panic on
+# throw), and (below) an `f()?` that propagates. Without the fix these failed
+# infer with "missing argument for parameter '_err_kind'"; a guarded subscript
+# would also out-of-bounds if the arm were evaluated eagerly.
+
+MatchArmErr := struct { }
+
+pos_or_throw := func(x: I64) returns I64 throws MatchArmErr {
+    if x.lt(1) { throw MatchArmErr() }
+    return x
+}
+
+test_match_arm_throwing_calls := test() {
+    v := Vec(I64).new()
+    # subscript get! in an arm, guarded by the (false) scrutinee -> no OOB
+    a := match v.len().gt(0) { case true: v[0].gt(0) case: false }
+    expect(__LOC__, a.not(), "subscript arm short-circuited")
+    v.push(own 42)
+    b := match v.len().gt(0) { case true: v[0].eq(42) case: false }
+    expect(__LOC__, b, "subscript arm taken")
+    # f()! in an arm: panics on throw; pos_or_throw(5) does not throw
+    c := match true { case true: pos_or_throw(5)!.gt(0) case: false }
+    expect(__LOC__, c, "bang call arm ok")
+}
+
+# f()? in a match arm propagates to the enclosing function's throws clause.
+match_q := func(go: Bool, n: I64) returns Bool throws MatchArmErr {
+    return match go { case true: pos_or_throw(n)?.gt(0) case: false }
+}
+
+test_match_arm_propagates := test() {
+    expect(__LOC__, match_q(false, -1)!.not(), "? arm not taken: no throw")
+    expect(__LOC__, match_q(true, 3)!, "? arm taken: ok")
+}

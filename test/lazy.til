@@ -157,4 +157,10 @@ test_and_or_throwing_arg_short_circuits := test() {
     v.push(own 42)
     expect(__LOC__, v.len().gt(0).and(v[0].eq(42)), "and: nonempty taken arm")
     expect(__LOC__, v.len().eq(0).or(v[0].eq(42)), "or: nonempty taken arm")
+    # operator forms && / || lower to the same lazy and/or, so they must
+    # short-circuit a guarded throwing subscript identically.
+    empty := Vec(I64).new()
+    expect(__LOC__, (empty.len().gt(0) && empty[0].gt(0)).not(), "&&: empty guarded")
+    expect(__LOC__, (empty.len().eq(0) || empty[0].gt(0)), "||: empty guarded")
+    expect(__LOC__, (v.len().gt(0) && v[0].eq(42)), "&&: nonempty taken arm")
 }
