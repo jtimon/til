@@ -3049,7 +3049,9 @@ void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Ve
 void priv___src_self_garbager_til__insert_post_stmt_deletes(Expr * stmt, Vec__LocalInfo * locals, U32 stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
 void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch);
 void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx, Expr * body, Vec__LocalInfo * locals);
-Bool priv___src_self_garbager_til__branch_unconditionally_transfers(Expr * branch, Str * name, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__stmt_is_conditional_container(Expr * stmt);
+Bool priv___src_self_garbager_til__add_delete_to_branch(Expr * branch, priv___src_self_garbager_til__LocalInfo * local, Expr * src);
+Bool priv___src_self_garbager_til__sink_nontransfer_paths(Expr * node, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
