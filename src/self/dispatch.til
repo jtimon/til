@@ -242,7 +242,7 @@ priv value_variant_name := func(v: Value) returns Str {
 // the Bool handlers are reached via FFI dispatch on top-level
 // and/or/not, so the typer should only let Bool-shaped values through).
 priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
-    v := reinterpret_ptr_value(eval_expr(s, e, ctx), "Bool", s, ctx)
+    v := reinterpret_ptr_value(eval_expr(s, e, ctx), "Bool", s, ctx, false)
     switch v {
     case Value.Boolean(bv):
         return bv.clone()
@@ -1534,7 +1534,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, v: Value, atype: Dynamic, dst: 
     mut sz : USize = 0
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
     if is_value_ptr(v) {
-        narrowed := reinterpret_ptr_value(v, tn, scope, ctx)
+        narrowed := reinterpret_ptr_value(v, tn, scope, ctx, false)
         ref payload : Dynamic = val_to_ptr(narrowed)
         memcpy(dst, payload, sz.cast(U64))
     } else if tn.eq("F32") {

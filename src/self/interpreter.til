@@ -795,7 +795,7 @@ priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) 
 // Reinterpret a pointer-like Value (Value.Ref / Value.Dynamic) to the
 // appropriate scalar/struct/enum Value based on a type name. Used by
 // eval_call (param binding) and eval_body (ref decl).
-reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Context) returns Value {
+reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Context, borrow: Bool) returns Value {
     if is_value_ptr(val) {
         ref pv : Dynamic = value_ptr_view(val)
         ref p : Dynamic = deref(pv)
@@ -825,6 +825,17 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
         if type_name.eq("F32") { ref v : F32 = p; return Value.Float(v) }
         if type_name.eq("Bool") { ref v : Bool = p; return Value.Boolean(v) }
         if type_name.eq("Str") {
+            if borrow {
+                // Issue #272: a `ref` binding VIEWS the Str at p (e.g. the
+                // payload alias `ref p : Str = get_payload(c)` aliases the enum
+                // payload's c_str). Return a BORROWED view -- there is no owned
+                // copy to leak, and the always-deep teardown skips it. (The
+                // value-binding path below still COPIES: see its comment.)
+                ref str_sdef : Expr = lookup_interp_type_def("Str", ctx)
+                if str_sdef.is_null().not() {
+                    return make_struct_value("Str", str_sdef, p, true, ctx)
+                }
+            }
             ref sp : Str = p
             // COPY (not _own): sp.c_str belongs to the underlying value the
             // pointer references, not to us. make_str_value_own would claim
@@ -1041,15 +1052,26 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 val = eval_expr(scope, rhs, ctx)
             }
             if dd.own_type.is(OwnType.Ref) {
-                if dd.explicit_type.len().gt(0) {
-                    // #227: for ref-mut bindings to primitive scalars at a
-                    // raw pointer, save the source ptr so a later Assign
-                    // can write back through it. reinterpret_ptr_value
-                    // collapses val into a Value.<Primitive>(scalar)
-                    // immediately below, which would otherwise lose the
-                    // address.
-                    if interp_is_primitive_type_name(dd.explicit_type) {
-                        if is_value_ptr(val) {
+                // Only a POINTER rhs is a genuine view (e.g. the ref-mut payload
+                // alias `ref p : Str = get_payload(c)` aliases the enum payload's
+                // c_str): reinterpret it to the declared type and mark it
+                // borrowed so the always-deep teardown never frees the aliased
+                // buffer (a later read would be a use-after-free). A VALUE rhs
+                // (e.g. `ref s : Str = f()`) instead binds -- and extends the
+                // lifetime of -- a temporary: fall through and let the cell OWN
+                // it (preserving val's real borrowed flag). Issue #272: the old
+                // code reinterpret-cloned AND force-borrowed every ref binding,
+                // so a value-rhs ref leaked the owned clone (the cell skipped it
+                // as "borrowed") -- the dominant precomp ref-binding leak.
+                if is_value_ptr(val) {
+                    if dd.explicit_type.len().gt(0) {
+                        // #227: for ref-mut bindings to primitive scalars at a
+                        // raw pointer, save the source ptr so a later Assign
+                        // can write back through it. reinterpret_ptr_value
+                        // collapses val into a Value.<Primitive>(scalar)
+                        // immediately below, which would otherwise lose the
+                        // address.
+                        if interp_is_primitive_type_name(dd.explicit_type) {
                             ref ptr_view : Dynamic = value_ptr_view(val)
                             ref source_addr : Dynamic = deref(ptr_view)
                             if is_null(source_addr).not() {
@@ -1058,18 +1080,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                 scope.ref_primitive_ptrs.set(dd.name, own holder)
                             }
                         }
+                        val = reinterpret_ptr_value(val, dd.explicit_type, scope, ctx, true)
                     }
-                    val = reinterpret_ptr_value(val, dd.explicit_type, scope, ctx)
-                }
-                // Issue #275: a `ref` binding is a BORROWED view (e.g. the
-                // ref-mut payload alias `ref p : Str = get_payload(c)` aliases
-                // the enum payload's c_str). Mark it borrowed so the always-deep
-                // scope teardown never frees the aliased buffer -- otherwise the
-                // owner's later read is a use-after-free.
-                switch val {
-                case Value.Struct(rsi): rsi.borrowed = true
-                case Value.Enum(rei):   rei.borrowed = true
-                case:
+                    switch val {
+                    case Value.Struct(rsi): rsi.borrowed = true
+                    case Value.Enum(rei):   rei.borrowed = true
+                    case:
+                    }
                 }
             }
             scope_set_owned(scope, dd.name, val)
@@ -1661,7 +1678,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         exit(1)
                     }
                     if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
-                        mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope, ctx)
+                        mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope, ctx, false)
                         arg = widen_numeric(arg, param.explicit_type, ctx)
                         scope_set_owned(call_scope, param.name, arg)
                     } else if needs_widen(arg_cell.val, param.explicit_type) {
@@ -1680,7 +1697,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 case:
                     mut arg := eval_expr(scope, arg_expr, ctx)
                     if is_value_ptr(arg).and(param.explicit_type.len().gt(0)) {
-                        arg = reinterpret_ptr_value(arg, param.explicit_type, scope, ctx)
+                        arg = reinterpret_ptr_value(arg, param.explicit_type, scope, ctx, false)
                     }
                     arg = widen_numeric(arg, param.explicit_type, ctx)
                     // Issue #217: scalar arg to a Dynamic param needs

@@ -3515,7 +3515,7 @@ Bool is_value_ptr(Value * v);
 void priv___src_self_interpreter_til__resolve_ptr_to_struct(Value * obj, Scope * scope, Str * obj_sname, Context * ctx);
 Value eval_expr(Scope * scope, Expr * e, Context * ctx);
 Expr * priv___src_self_interpreter_til__lookup_type_def_helper(Str * type_name, Scope * scope, Context * ctx);
-Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope, Context * ctx);
+Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope, Context * ctx, Bool borrow);
 Bool priv___src_self_interpreter_til__guard_own_param_skip(Scope * scope, Expr * e, Expr * func_def);
 void * priv___src_self_interpreter_til__resolve_field_assign_base(Scope * scope, Expr * obj_expr);
 Expr * priv___src_self_interpreter_til__resolve_field_assign_sdef(Scope * scope, Expr * obj_expr);
