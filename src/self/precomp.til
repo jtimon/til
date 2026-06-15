@@ -23,7 +23,7 @@ precomp_reset_state := func(mut ctx: Context) {
 // conservative program-wide blocklist, which only ever suppresses an
 // optimisation (the scope-read fold), never macro folding via precomp_known.
 priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Assign(ad):
         names.add(own ad.name.clone())
@@ -252,7 +252,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         switch val {
         case Value.Enum(ei):
             ref etag_ptr2 : Dynamic = ei.data
-            if etag_ptr2.is_null() { return NULL }
+            expect(__LOC__, etag_ptr2.is_null().not(), "etag_ptr2 is null")
             ref etag_ref2 : I32 = etag_ptr2
             etag2 := etag_ref2
             if etag2.lt(0) { return NULL }
@@ -362,7 +362,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         // read_field returns a shallow (borrowed) view into si.data, so the
         // field values are not freed here.
         ref sdef : Expr = si.struct_def
-        if sdef.is_null() { return NULL }
+        expect(__LOC__, sdef.is_null().not(), "sdef is null")
         // si.to_str() is called fresh per consumer: each builds its own
         // owned Str so no buffer is shared across the Ident and the two
         // Type.Struct payloads (a shared borrow would be freed multiple
@@ -1182,7 +1182,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
 }
 
 priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(eid):
         if eid.ident_name().eq(name) { return true }

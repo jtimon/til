@@ -2212,6 +2212,7 @@ Vec__Tuple * Vec__Tuple_clone(Vec__Tuple * self);
 U32 Vec__Tuple_size(void);
 void panic(Str * loc_str, Array__Str * parts);
 void UNREACHABLE(Str * loc_str);
+void expect(Str * loc_str, Bool cond, Array__Str * parts);
 void println(Array__Str * parts);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);

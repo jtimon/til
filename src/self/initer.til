@@ -2171,7 +2171,7 @@ priv init_rename_decl_in_place := func(mut dd: Declaration, renamings: Map(Str, 
 }
 
 priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     init_rename_ident_in_place(e, renamings)
     // `for x : LocalInfo in xs { ... }` stores the loop's explicit type
     // on the ForIn node's payload as Type.Custom("LocalInfo") (read back
@@ -2241,7 +2241,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
 }
 
 priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
-    if body.is_null() { return }
+    expect(__LOC__, body.is_null().not(), "body is null")
     if body.node_type.is(NodeType.Body).not() { return }
 
     mut renamings := Map(Str, Str).new()
@@ -2325,7 +2325,7 @@ priv init_recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut
 }
 
 priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.Body) {
         init_lift_in_body(e, parent_prefix, top_level)
         return
@@ -2414,7 +2414,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
 }
 
 priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Decl(dd):
         // Issue #243: a body-local declaration (`ref x : T = ...`,
@@ -2657,7 +2657,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return; the caller falls back to leaving the macro un-expanded.
 priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns ref Expr {
-    if body.is_null() { return NULL }
+    expect(__LOC__, body.is_null().not(), "body is null")
     if body.node_type.is(NodeType.Body).not() { return NULL }
     if body.children.len().neq(1) { return NULL }
     ref s : Expr = body.children[0]
@@ -2893,7 +2893,7 @@ priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scop
 // `genname := MACRO(args)` decls in `synthesized` for this unit only.
 // Replacing through `children.replace` frees the old call subtree.
 priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context, mut synthesized: Vec(Expr), mark_ctx: Bool) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
@@ -3083,7 +3083,7 @@ priv init_literal_child_type := func(e: Expr) returns Str {
 }
 
 priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.FCall:
         if e.children.len().gte(2) {
@@ -3395,7 +3395,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
 // Walk `e`'s subtree rewriting every generic-func call to its
 // monomorphization. `generics` maps name -> generic funcdef Expr.
 priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
         mut handled := false

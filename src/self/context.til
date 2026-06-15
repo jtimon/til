@@ -54,7 +54,7 @@ namespace:
         return a.name.eq(b.name)
     }
     to_str := func(self: TypeBinding) returns Str {
-        if self.name.is_null() { return "TypeBinding" }
+        expect(__LOC__, self.name.is_null().not(), "self.name is null")
         return self.name.clone()
     }
 }
@@ -767,7 +767,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
     if t.is_funcptr() { return true }
-    if scope.is_null() { return false }
+    expect(__LOC__, scope.is_null().not(), "scope is null")
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {

@@ -117,6 +117,51 @@ rejected here: in this codebase those habits hide bugs and burn tokens.
 Obey this section over the prior. When in doubt, surface the problem to
 the human rather than smoothing it over.
 
+## No Defensive Guards, No Silent Fallbacks
+
+Do not write guards or fallbacks that silently swallow a case that
+"should not happen". The archetype to avoid:
+
+    if e.is_null() { return false }   // <- NO
+
+A guard like this at the top of a function is almost never real control
+flow. It is a symptom that you do not know who calls the function or
+why, so you paper over the unknown by silently returning a default and
+continuing. That hides the actual bug -- the wrong caller, the missing
+initialization, the broken invariant -- and turns a crash that would
+have pointed straight at the cause into corrupted state that surfaces
+somewhere else, much later, impossible to trace. This is the single
+biggest source of low-quality, hard-to-debug software. Do not add to it.
+
+Rules:
+
+- If a value cannot legitimately be null/empty/missing at a given point,
+  do NOT guard it. Just use it. If the invariant is ever violated the
+  program crashes loudly at the real site (the generated C `DEREF` macro
+  already panics with "null deref" on a null dereference, and `exit(1)`s).
+  A loud crash at the broken site beats a silent wrong answer every time.
+- If you genuinely cannot prove the invariant but the case really is
+  unexpected, `panic(__LOC__, "<what was violated>")`. Never silently
+  `return <default>` / `continue` past it. Fail loud, fail at the source.
+- Only keep a null/empty check when the absence is a REAL, expected
+  state that the function's contract handles -- e.g. an optional AST
+  field (`default_value`, an optional else branch), a lookup that is
+  documented to miss and return None/NULL, or walking a parent chain to
+  its root. Those are control flow, not guards. When you keep one,
+  make it obvious from the surrounding code (or a brief `// REM`) that
+  the absence is expected, so the next reader does not mistake it for
+  defensive cruft.
+
+When in doubt, remove the guard and run the suite. If a test crashes
+with a null deref, the null was a real expected case -> restore the
+check (it was control flow). If nothing crashes, the guard was
+defensive cruft -> it stays gone. The test corpus, not a reflexive
+`if x.is_null()`, decides.
+
+Do NOT reintroduce these guards "to be safe", "to be defensive", or
+because some other codebase or prompt taught you to. In this codebase
+that habit is a bug, not a virtue.
+
 ## File Editing
 
 ALWAYS read a file before writing or editing it. No exceptions. If you haven't read it in this conversation, read it first. The Edit tool will error if you don't, but don't rely on that — make it a habit.
