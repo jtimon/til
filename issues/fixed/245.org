@@ -1,6 +1,45 @@
 # priority: high
 # category: bugs
-** OPEN #245 Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
+** FIXED #245 Value memcpy semantics block owned heap fields on StructInstance/EnumInstance
+
+*** Post-mortem
+
+    Root cause: ~StructInstance.struct_name~ / ~EnumInstance.enum_name~
+    were ~ref Str~ borrows pointed at AST ~Expr~ storage. The AST is
+    freed at program teardown before the Context's cached Values, so the
+    borrow dangled. The natural remediation -- make the field an owned
+    ~Str~ (#239 option 1) -- is what this issue investigated, and it
+    reintroduced reproducible UAFs: ~shallow_copy_value~ is a literal
+    ~memcpy~ of the Value, so copying a ~Value.Struct~/~Value.Enum~
+    duplicates the owned name's ~c_str~ pointer; the first destructor
+    frees it and every aliased copy dangles (the two failure modes
+    documented below).
+
+    Fix (the issue's recommended path 1): keep the field a ~ref Str~ but
+    canonicalise every name at construction to program-lifetime storage
+    via ~stable_type_name~ (~ctx.scope.get_binding(name).name~ -- a
+    TypeBinding name that lives for the whole program, never the dying
+    AST). With the borrow rooted in stable scope storage instead of the
+    AST, it never dangles and no per-instance ownership/cloning is
+    needed, so the memcpy-aliasing class cannot arise. This is landed at
+    every construction site: ~make_struct_value~ and ~make_enum_value~
+    (~stable_sname~ / ~stable_enum_name~), the ~StructInstance.clone~
+    nested-field paths (~stable_ftype~ / ~stable_ftype2~), ~read_field~,
+    and ~resolve_ptr_to_struct~ (which routes through
+    ~make_struct_value~). The deeper Value-model rework (clone-aware
+    copy, or interning type names into a Context table and dropping the
+    per-instance field) is tracked as cleanup under [[./147.org][#147]]
+    (dangerous AST refs) and [[./109.org][#109]] (interpreter leaks);
+    it is not required to close the UAFs this issue surfaced.
+
+    Regression tests (both pass under the ref+canonicalise model;
+    both were the failing cases under the abandoned owned-Str attempt):
+    - Failure 2 (nested enum payload mutation):
+      ~test/enums.til~ ~test_mut_nested_enum_payload_binding~.
+    - Failure 1 (owned-fields teardown):
+      ~test/own_fields.til~.
+    - Type-name stability across nested struct/enum copies:
+      ~test/regression.til~ ~bug239~.
 
    Attempted #239 option 1 (change ~StructInstance.struct_name~ and
    ~EnumInstance.enum_name~ from ~ref Str~ to owned ~Str~).

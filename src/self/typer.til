@@ -7757,6 +7757,60 @@ priv hoist_nested_bangs_consolidated := proc(
 //      execute before the return
 //   8. wrap stmt in `if I64.eq(_err_kind, 0)` when a previous stmt
 //      could have set _err_kind
+// A throwing call (subscript `v[i]` -> `get(i)!`, an `f()?`, or an `f()!`) in
+// a `match` arm value lives in a Body node that neither step 1 (hoist_walk
+// returns on Body) nor step 2 (which descends into if/while/for/switch/catch
+// bodies, but a `match` here is an expression nested in a Decl/Assign/FCall,
+// not a statement) reaches. So a `match` arm bang is left unlowered and infer
+// later fails with "missing argument for parameter '_err_kind'". `a.and(b)` /
+// `a.or(b)` desugar to `match a { ... }`, so `cond.and(v[i])` hits this.
+//
+// Walk the statement's expression tree for nested Match nodes and process each
+// arm Body exactly like a switch case body. The bang is hoisted INTO the arm
+// (only evaluated when that arm is taken -- short-circuit preserved) and gets
+// its _err_kind/_err_<T> out-args; the throw type lands in types_to_declare so
+// the function-level slot decls are prepended as usual.
+priv process_match_arms_in := proc(
+    mut ctx: Context,
+    mut e: Expr,
+    root_body: Expr,
+    fdef_throws: Vec(Str),
+    mut pending: Vec(Str),
+    mut seen: Vec(Str),
+    mut types_to_declare: Vec(Str),
+    path: Str,
+    return_type: Str,
+    return_own_type: OwnType
+) {
+    if e.node_type.is(NodeType.FuncDef)
+        .or(e.node_type.is(NodeType.StructDef))
+        .or(e.node_type.is(NodeType.EnumDef)) { return }
+    if e.node_type.is(NodeType.Match) {
+        for ci in 0..e.children.len() {
+            ref mut child : Expr = e.children[ci]
+            if child.node_type.is(NodeType.Case) {
+                // Case = [pattern, (guard,) body]; process its Body arm(s).
+                for cci in 0..child.children.len() {
+                    ref mut ccn : Expr = child.children[cci]
+                    if ccn.node_type.is(NodeType.Body) {
+                        process_throw_catch_in_body(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                    } else {
+                        process_match_arms_in(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+                    }
+                }
+            } else {
+                // The scrutinee (child 0) may itself nest a match.
+                process_match_arms_in(ctx, child, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+            }
+        }
+        return
+    }
+    for ci in 0..e.children.len() {
+        ref mut sub : Expr = e.children[ci]
+        process_match_arms_in(ctx, sub, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+    }
+}
+
 priv process_throw_catch_in_body := proc(
     mut ctx: Context,
     mut body: Expr,
@@ -7853,6 +7907,10 @@ priv process_throw_catch_in_body := proc(
             }
         case:
         }
+
+        // 2b. Lower throwing calls in nested `match` arm bodies (an expression
+        // form not covered by the statement-shaped recursion above).
+        process_match_arms_in(ctx, stmt, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
 
         // 3. Detect a stmt-root bang and clear the flag so step 4 sees
         // does_throw on the FCall. Bang-call-to-unknown is left in

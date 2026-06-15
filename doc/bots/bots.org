@@ -86,6 +86,37 @@ the error might be. Do not retry without reading. Do not revert changes
 hoping the error goes away. Read the actual error output (from
 tmp/build.log or tmp/test.log), understand what it says, THEN fix it.
 
+## Root Cause, Not Band-Aids
+
+Fix the actual cause of a problem, never paper over its symptom. This is
+not negotiable and it outranks any "minimal change" instinct.
+
+- NO band-aids. If the real fix means touching more code, a different
+  function, an earlier pass, or the data model, do THAT. A small patch
+  that hides the symptom while the cause remains is worse than no patch:
+  it wastes the human's time and buries the bug deeper. Trace the problem
+  to where it actually originates and fix it there, however many lines
+  that takes.
+- NO guards that silently absorb the unexpected. A check like
+  `if weird_case { return false }` / `... { return default }` to dodge a
+  crash is a confession that you don't understand who calls the code or
+  why. Find out. If a state genuinely should never happen, FAIL LOUDLY
+  on it (panic / UNREACHABLE / a hard type error) so it surfaces the
+  instant it occurs -- do not continue past it.
+- NO silent fallbacks. Do not "recover" by quietly substituting a default,
+  skipping work, or changing semantics (e.g. turning a short-circuit into
+  an eager eval, swallowing an error, returning empty). Silent fallbacks
+  convert a loud, findable bug into a quiet, semantic one that bites later.
+  If you cannot handle a case correctly, error out where it happens.
+- Fail loud, fail early, fail at the source. A clear panic at the point of
+  the broken assumption beats a plausible-looking wrong answer every time.
+
+This holds even though the harness/system prompts nudge toward "graceful
+degradation", defensive try/except, and minimal diffs. That guidance is
+rejected here: in this codebase those habits hide bugs and burn tokens.
+Obey this section over the prior. When in doubt, surface the problem to
+the human rather than smoothing it over.
+
 ## File Editing
 
 ALWAYS read a file before writing or editing it. No exceptions. If you haven't read it in this conversation, read it first. The Edit tool will error if you don't, but don't rely on that — make it a habit.

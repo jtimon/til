@@ -139,3 +139,22 @@ test_lazy_proc_runs_when_needed := test() {
     expect(__LOC__, r, "false or note() runs note()")
     assert_eq(__LOC__, log_count, 1)
 }
+
+# --- A throwing call in a lazy and/or argument must compile AND short-circuit.
+#     `cond.and(v[i])` desugars to `match cond { case true: v[i] ... }`, so the
+#     throwing subscript `v[i]` (= `get(i)!`) lands in a match arm body. It must
+#     be lowered INTO that arm so it (a) gets its hidden _err_kind/_err_<T>
+#     out-args (else infer fails with "missing argument for parameter
+#     '_err_kind'") and (b) only runs when the arm is taken. The empty-Vec cases
+#     below guard the access, so a non-short-circuiting (eager) evaluation would
+#     panic with OutOfBounds. ---
+
+test_and_or_throwing_arg_short_circuits := test() {
+    v := Vec(I64).new()
+    # guard is false / true-on-the-left: v[0] must NOT be evaluated (no OOB)
+    expect(__LOC__, v.len().gt(0).and(v[0].gt(0)).not(), "and: empty guarded")
+    expect(__LOC__, v.len().eq(0).or(v[0].gt(0)), "or: empty guarded")
+    v.push(own 42)
+    expect(__LOC__, v.len().gt(0).and(v[0].eq(42)), "and: nonempty taken arm")
+    expect(__LOC__, v.len().eq(0).or(v[0].eq(42)), "or: nonempty taken arm")
+}

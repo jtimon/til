@@ -2908,6 +2908,7 @@ void priv___src_self_typer_til__validate_and_inject_expr_consolidated(Context * 
 Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_type, U32 line, U32 col);
 void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 child_idx, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
 void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
+void priv___src_self_typer_til__process_match_arms_in(Context * ctx, Expr * e, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void priv___src_self_typer_til__process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec__Str * fdef_throws, Str * return_type, OwnType * return_own_type);
 Bool is_compile_directive(Expr * e);

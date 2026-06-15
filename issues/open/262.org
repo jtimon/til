@@ -17,9 +17,22 @@ v1 status (implemented):
     and ~a || b~ (#117).
   - The lazy defs themselves are left in place and type/emit as ordinary
     (uncalled) functions, like macros, so the builder needs no changes.
+  - A throwing call in an argument (subscript ~v[i]~ -> ~get(i)!~, an ~f()?~,
+    or an ~f()!~) works: ~cond.and(v[i])~ inlines to ~match cond { case true:
+    v[i] ... }~, putting the throwing call in a match arm body. The throw/bang
+    lowering pass (~process_match_arms_in~ in src/self/typer.til) descends into
+    match arm bodies just like switch case bodies, so the call is lowered INTO
+    the arm: it gets its hidden _err_kind/_err_<T> out-args and only runs when
+    that arm is taken (short-circuit preserved -- a guarded ~v[i]~ never
+    out-of-bounds). Previously the arm body was visited by neither the bang
+    hoister (skips Body nodes) nor the nested-body recursion (handled
+    if/while/for/switch/catch, not a match expression), so the call reached
+    infer unlowered and failed with "missing argument for parameter
+    '_err_kind'".
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
-    core Bool and/or, operator syntax, and decisive short-circuit proofs where
-    an unused side-effecting argument must not run).
+    core Bool and/or, operator syntax, decisive short-circuit proofs where
+    an unused side-effecting argument must not run, and a throwing call in a
+    lazy and/or argument that must compile and short-circuit).
 
 Remaining (deferred):
   - Variadic, Lisp-style ~and~/~or~ folding (and N-ary lazy callables).
