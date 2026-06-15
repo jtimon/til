@@ -3788,7 +3788,8 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 mut lptn := lpp.explicit_type.clone()
                 if lpi.cast(I32).eq(fdef.variadic_index) { lptn = variadic_array_type_name(scope, lpp.explicit_type) }
                 if lpi.cast(I32).eq(fdef.kwargs_index) { lptn = "KwargsMap" }
-                if lptn.len().gt(0) { ctx.lowering_param_types.set(lpp.name, own lptn) }
+                if lptn.len().eq(0) { continue }
+                ctx.lowering_param_types.set(lpp.name, own lptn)
             }
             // Also seed switch-case payload bindings: `case E.V(x):` binds
             // `x` to the variant's payload type. The case-body Decls don't
@@ -6360,7 +6361,11 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                 case:
                 }
             }
-            if tn.len().gt(0) { ctx.lowering_param_types.set(dd.name, own tn) }
+            if tn.len().eq(0) {
+                i = i.add(1)
+                continue
+            }
+            ctx.lowering_param_types.set(dd.name, own tn)
         case:
         }
         i = i.add(1)
