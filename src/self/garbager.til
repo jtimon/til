@@ -436,7 +436,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     // Quick check: any returns/breaks/continues or nested if/while/body?
     mut needs_scan := false
     for s : Expr in body.children {
-        if s.node_type.is(NodeType.Return).or(s.node_type.is(NodeType.If)).or(s.node_type.is(NodeType.While)).or(s.node_type.is(NodeType.Body)) {
+        if s.node_type.is(NodeType.Return).or(s.node_type.is(NodeType.If)).or(s.node_type.is(NodeType.While)).or(s.node_type.is(NodeType.Body)).or(s.node_type.is(NodeType.Switch)) {
             needs_scan = true
             break
         }
@@ -464,6 +464,14 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         }
         if stmt.node_type.is(NodeType.Body) {
             insert_exit_deletes(stmt, live, return_only)
+        }
+        if stmt.node_type.is(NodeType.Switch) {
+            for ci in 1..stmt.children.len() {
+                if stmt.children[ci].node_type.is(NodeType.Case) {
+                    cbi := stmt.children[ci].children.len().sub(1)
+                    insert_exit_deletes(stmt.children[ci].children[cbi], live, return_only)
+                }
+            }
         }
         if stmt.node_type.is(NodeType.Return).or(return_only.not().and(stmt.node_type.is(NodeType.Break).or(stmt.node_type.is(NodeType.Continue)))) {
             for local : LocalInfo in live {
@@ -503,7 +511,9 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
 priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: U32) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
-            if stmt.node_type.is(NodeType.Body).not() { return }
+            if stmt.node_type.is(NodeType.Body).not() {
+                if stmt.node_type.is(NodeType.Switch).not() { return }
+            }
         }
     }
     mut live_vec := Vec(LocalInfo).new()
@@ -538,6 +548,16 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
             }
         case NodeType.While:
             insert_exit_deletes(stmt.children[1], live_vec, true)
+        case NodeType.Switch:
+            // #254: an un-desugared C-like switch. break/continue inside a
+            // case exit the enclosing loop, so live outer locals need cleanup
+            // on those edges -- pass return_only=false like the Body arm.
+            for ci in 1..stmt.children.len() {
+                if stmt.children[ci].node_type.is(NodeType.Case) {
+                    cbi := stmt.children[ci].children.len().sub(1)
+                    insert_exit_deletes(stmt.children[ci].children[cbi], live_vec, false)
+                }
+            }
         case:
             // NodeType.Body -- a plain block: a desugared for-in wrapper
             // (its decls + while), the lowered form of a switch/match

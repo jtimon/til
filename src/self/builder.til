@@ -1939,6 +1939,38 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
+// #254: emit a C `switch` for a switch the typer left un-desugared (C-like:
+// integer/char scrutinee, constant literal case labels). Each case body is
+// wrapped in a `{ }` block (so case-local C decls are legal) and terminated
+// with `break;` -- til cases never fall through, and a case-level til `break`
+// would target the enclosing loop, so the typer keeps such switches out of the
+// C-like set (see switch_is_clike). A til `continue` maps to C `continue`,
+// which a C `switch` does not capture, so it reaches the enclosing loop.
+priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+    f.write("switch (")
+    emit_deref(f, e.children[0], depth, ctx)
+    f.write(") {\n")
+    for ci in 1..e.children.len() {
+        ref cn : Expr = e.children[ci]
+        emit_indent(f, depth)
+        if cn.children.len().eq(1) {
+            f.write("default: {\n")
+            emit_body_scoped(f, cn.children[0], depth.add(1), ctx)
+        } else {
+            f.write("case ")
+            emit_expr(f, cn.children[0], depth, ctx)
+            f.write(": {\n")
+            emit_body_scoped(f, cn.children[1], depth.add(1), ctx)
+        }
+        emit_indent(f, depth.add(1))
+        f.write("break;\n")
+        emit_indent(f, depth)
+        f.write("}\n")
+    }
+    emit_indent(f, depth)
+    f.write("}\n")
+}
+
 priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     if is_noop_delete_stmt(e, ctx) { return }
     emit_indent(f, depth)
@@ -2332,6 +2364,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         emit_body_scoped(f, e.children[1], depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.Break: f.write("break;\n")
     case NodeType.Continue: f.write("continue;\n")
+    case NodeType.Switch: emit_stmt_switch(f, e, depth, ctx)
     case: f.write("/* TODO: unknown stmt type */\n")
     }
 }

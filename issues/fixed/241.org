@@ -1,6 +1,34 @@
 # priority: high
 # category: bugs
-** OPEN #241 precomp fold scope keys alias freed AST names -> non-deterministic build UAF
+** FIXED #241 precomp fold scope keys alias freed AST names -> non-deterministic build UAF
+
+  POST-MORTEM
+  Root cause: scope_set_owned (src/self/interpreter.til) built each
+  fold-scope Map key as a non-owning Str view (cap = CAP_VIEW) whose c_str
+  aliased the caller's ~name~ buffer -- an AST Declaration's name. The
+  precomp fold scope (precomp_imported's shared ~global~) outlives AST
+  mutation: process_body folds a unit, then DCE drops orphaned ~hoisted__~
+  Decls via Vec.move_from, freeing those Decls' name buffers. A later
+  unit's fold then did scope_get -> Map_has -> Str_cmp against the
+  now-freed view key -- a heap-use-after-free that ASLR turned into an
+  intermittent "X is undefined" (or a silent miscompile) about 1 build in 3.
+
+  Fix: scope_set_owned now clones ~name~'s bytes into a fresh key buffer
+  (kbuf) and sets the key Str's cap = count, so the key is fully owned and
+  no longer depends on AST node lifetime. The fix landed in commit e95c18e
+  (alongside the lexer keyword-Map change) but the issue was never closed;
+  this commit closes it after verifying.
+
+  Verification / regression guard: the ASAN self-compile is the
+  deterministic check -- the compiler itself is sanitized, so a
+  re-introduced view key re-trips the UAF in Str_cmp. ~bin/til_asan build
+  src/til.til~ now runs clean: 0 heap-use-after-free (the only ASAN output
+  is the unrelated #109 compiler-leak baseline). That path is exercised by
+  ~make test_asan_full~ (compiler = bin/til_asan). NOTE: the default ~make
+  test~ does NOT sanitize the compiler, so a regression here is caught
+  deterministically only by test_asan_full, not by the default suite.
+
+  --- original report ---
 
    `make clean && make` (and `make clean && make test`) fails
    non-deterministically with `error: <name> is undefined` -- the name and

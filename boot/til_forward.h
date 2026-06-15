@@ -2853,7 +2853,10 @@ void priv___src_self_typer_til__replace_switch_stmt_with_block(Expr * body, U32 
 void priv___src_self_typer_til__append_switch_else_if(Expr * root_if, Expr * if_node);
 void priv___src_self_typer_til__attach_switch_default_body(Expr * root_if, Expr * default_body);
 void priv___src_self_typer_til__validate_struct_pattern_rest(TypeScope * scope, Expr * pattern, Context * ctx);
-void priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
+Bool priv___src_self_typer_til__expr_has_unguarded_break(Expr * e);
+Bool priv___src_self_typer_til__switch_is_clike(Expr * stmt, Expr * sw_expr, Bool is_match);
+void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 Expr * priv___src_self_typer_til__make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
 Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
@@ -3291,6 +3294,7 @@ Str * priv___src_self_builder_til__emit_return_ctype(Expr * rv, Context * ctx);
 void priv___src_self_builder_til__emit_return_box(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_stmt_return(File * f, Expr * e, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__is_noop_delete_stmt(Expr * e, Context * ctx);
+void priv___src_self_builder_til__emit_stmt_switch(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_stmt(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_fcall_funcptr_cast(File * f, Expr * e, Expr * sig);
 void emit_fcall_closure_call(File * f, Expr * e, Expr * callee, Expr * sig, I32 depth, Context * ctx);
@@ -3506,6 +3510,8 @@ Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope, Conte
 Bool priv___src_self_interpreter_til__guard_own_param_skip(Scope * scope, Expr * e, Expr * func_def);
 void * priv___src_self_interpreter_til__resolve_field_assign_base(Scope * scope, Expr * obj_expr);
 Expr * priv___src_self_interpreter_til__resolve_field_assign_sdef(Scope * scope, Expr * obj_expr);
+I64 priv___src_self_interpreter_til__value_as_i64(Value * v);
+void priv___src_self_interpreter_til__eval_switch(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
 Value eval_call(Scope * scope, Expr * e, Context * ctx);
 void priv___src_self_interpreter_til__free_value(Value v);

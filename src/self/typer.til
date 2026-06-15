@@ -5520,7 +5520,79 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
     }
 }
 
-priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) {
+// #254: a til `break` inside a switch case targets the ENCLOSING loop, but a
+// C `switch` captures `break`. Detect a break reachable from `e` without
+// crossing an inner loop boundary; such a switch must stay desugared so the
+// if/elif lowering routes the break to the loop. `continue` needs no guard:
+// C `continue` is not captured by `switch`.
+priv expr_has_unguarded_break := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.Break) { return true }
+    if e.node_type.is(NodeType.While) { return false }
+    if e.node_type.is(NodeType.ForIn) { return false }
+    for c : Expr in e.children {
+        if expr_has_unguarded_break(c) { return true }
+    }
+    return false
+}
+
+// #254: a switch is "C-like" -- emittable as a real C `switch (expr) { case K:
+// }` -- when the scrutinee is an integer/char and every case is a bare
+// constant integer/char literal (no payload binding, range, guard, or string)
+// whose body holds no loop-targeting `break`. Such switches are left as
+// Switch/Case nodes for the backends; everything else desugars to if/elif.
+priv switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
+    if is_match { return false }
+    if is_integral_numeric_type(sw_expr.expr_til_type()).not() { return false }
+    mut seen_default := false
+    mut labels := Vec(Str).new()
+    for ci in 1..stmt.children.len() {
+        ref cn : Expr = stmt.children[ci]
+        if cn.node_type.is(NodeType.Case).not() { return false }
+        if cn.children.len().eq(1) {
+            if seen_default { return false }
+            seen_default = true
+            if expr_has_unguarded_break(cn.children[0]) { return false }
+            continue
+        }
+        if seen_default { return false }
+        if cn.children.len().neq(2) { return false }
+        ref pat : Expr = cn.children[0]
+        mut lit_text := ""
+        switch pat.node_type {
+        case NodeType.Literal(Literal.Num(num)):
+            lit_text = num.literal_num_text()
+        case:
+            return false
+        }
+        for li in 0..labels.len() {
+            if labels[li].eq(lit_text) { return false }
+        }
+        labels.push(own lit_text.clone())
+        if expr_has_unguarded_break(cn.children[1]) { return false }
+    }
+    return true
+}
+
+// #254: type-check a C-like switch in place, leaving its Switch/Case nodes for
+// the backends instead of desugaring to if/elif. Each case body is inferred in
+// its own child scope, mirroring infer_if_stmt's branch handling.
+priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+    for ci in 1..stmt.children.len() {
+        ref mut cn : Expr = stmt.children[ci]
+        mut body_idx : U32 = 1
+        if cn.children.len().eq(1) { body_idx = 0 }
+        ref mut case_body : Expr = cn.children[body_idx]
+        case_scope := TypeScope(parent = scope)
+        infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
+        garbager_destroy_body(ctx, case_body, case_scope)
+        check_unused_locals(case_scope, ctx.path, ctx)
+        check_unused_mut_locals(case_scope, ctx.path, ctx)
+        TypeScope.delete(own case_scope)
+    }
+    stmt.set_expr_til_type(Type.None)
+}
+
+priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut sw_expr : Expr = stmt.children[0]
     sw_line := stmt.line
@@ -5554,6 +5626,10 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
         }
     }
     infer_expr(scope, sw_expr, in_func, ctx)
+    if switch_is_clike(stmt, sw_expr, is_match) {
+        infer_clike_switch(scope, stmt, in_func, in_loop, returns_ref, ctx)
+        return false
+    }
     mut coverage := CoverageNode()
     mut has_default_case := false
     mut has_switch_enum_def := false
@@ -5781,6 +5857,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
 
     if has_first_if { block.add_child(own first_if.clone()) }
     replace_switch_stmt_with_block(body, stmt_idx, own block)
+    return true
 }
 
 priv replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
@@ -8275,7 +8352,7 @@ priv infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_fu
             bare_match.set_expr_til_type(Type.None)
             return
         }
-        infer_switch_stmt(scope, body, i, in_func, ctx)
+        infer_switch_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
         i = i.sub(1)
         return
     }
@@ -8324,8 +8401,8 @@ priv infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_fu
     case NodeType.CaptureBlock:
         infer_capture_block(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case NodeType.Switch:
-        infer_switch_stmt(scope, body, i, in_func, ctx)
-        i = i.sub(1)
+        switch_lowered := infer_switch_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
+        if switch_lowered { i = i.sub(1) }
     case NodeType.ForIn:
         if desugar_for_in_range_stmt(scope, body, i, in_func, ctx) {
             i = i.sub(1)
