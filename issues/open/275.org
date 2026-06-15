@@ -112,3 +112,34 @@ patches. The enum-payload c_str ownership fix on this branch is one such patch
 -- it makes the symptom green for ~1% but adds to the manual layer this issue
 says to remove. The principled fix (move at construction + delete the manual
 layer + typer enforcement) subsumes it.
+
+*** Related issues (memory cluster vs the separate codegen track)
+
+Two unrelated tracks have been confused across sessions; recording the map.
+
+This issue is the hub of the *memory-ownership* track:
+
+  - #239 (FIXED) and #245 (FIXED) are the dangling ~ref Str~ type-name bug on
+    StructInstance.struct_name / EnumInstance.enum_name. Both shipped the
+    SAME workaround: keep the field a borrow, but canonicalise the name to
+    program-lifetime scope storage (~stable_type_name~) so it can't dangle.
+  - The DEEP fix for #239/#245 -- making those names *owned* ~Str~ -- was
+    tried and reverted: it double-frees because ~shallow_copy_value~ is a
+    literal ~memcpy~ that duplicates the owned ~c_str~. So owning the names
+    is GATED on this issue: once aggregate construction/copy moves instead of
+    memcpy-duplicating (step 1 + the ~shallow_copy_value~ rework), the names
+    (and other owned heap fields) can finally be owned, and the
+    ~stable_type_name~ borrow workaround can be deleted. i.e. #275 is the
+    follow-up that unblocks the #245 deep fix.
+  - #109 (interpreter leak baseline) and #147 (AST-as-cache / dangerous AST
+    refs) are where #245's post-mortem parked the deeper rework; #272 is the
+    governing principle (single ownership authority). All of these resolve
+    through this issue's plan.
+
+NOT part of this track -- a separate *codegen* effort, easy to mix up by
+number proximity:
+
+  - #254 (FIXED) emit a real C switch for C-like int/char/enum switches, and
+    #276 (its mixed-payload follow-up). These are builder/interpreter codegen
+    for ~switch~ statements -- nothing to do with Value ownership. #254 is the
+    one frequently conflated with #245.

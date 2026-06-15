@@ -5545,6 +5545,7 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
     sw_type := sw_expr.expr_til_type()
     sw_sname := til_type_name(sw_type)
     mut is_enum := false
+    mut is_bool := false
     if sw_type.is(Type.Enum) {
         if sw_sname.len().eq(0) { return false }
         // Only a simple lvalue scrutinee (ident / field access) emits as a
@@ -5555,6 +5556,8 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
         if edef0.is_null() { return false }
         if edef0.node_type.is(NodeType.EnumDef).not() { return false }
         is_enum = true
+    } else if type_is_primitive(sw_type, Primitive.Bool) {
+        is_bool = true
     } else if is_integral_numeric_type(sw_type).not() {
         return false
     }
@@ -5589,6 +5592,12 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
             }
             ref edef1 : Expr = scope.get_struct(sw_sname)
             if enum_variant_tag(edef1, lit_text).lt(0) { return false }
+        } else if is_bool {
+            switch pat.node_type {
+            case NodeType.Literal(Literal.Bool(bv)):
+                if bv { lit_text = "true" } else { lit_text = "false" }
+            case: return false
+            }
         } else {
             switch pat.node_type {
             case NodeType.Literal(Literal.Num(num)): lit_text = num.literal_num_text()
@@ -5614,6 +5623,8 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     ref sw_expr : Expr = stmt.children[0]
     sw_sname := til_type_name(sw_expr.expr_til_type())
     mut is_enum := false
+    is_bool := type_is_primitive(sw_expr.expr_til_type(), Primitive.Bool)
+    mut bool_labels := 0
     mut coverage := CoverageNode()
     if sw_expr.expr_til_type().is(Type.Enum).and(sw_sname.len().gt(0)) {
         ref edef : Expr = scope.get_struct(sw_sname)
@@ -5639,6 +5650,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
             default_col = cn.col
         } else {
             if is_enum { mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0]) }
+            if is_bool { bool_labels = bool_labels.add(1) }
             last_case_idx = ci
             has_last_case = true
         }
@@ -5667,6 +5679,16 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
             }
             stmt.type_error(msg, ctx)
         } else if has_last_case {
+            ref mut last_cn : Expr = stmt.children[last_case_idx]
+            mut bvec := Vec(Expr).new()
+            bvec.push_take(last_cn.children, 1)
+            last_cn.children.move_from(bvec)
+        }
+    } else if is_bool {
+        // A bool switch covering both true and false with no `case:` is
+        // exhaustive; turn the last case into the default so the emitted C
+        // switch has a terminal arm (C does not know bool is only 0/1).
+        if has_default.not().and(bool_labels.eq(2)).and(has_last_case) {
             ref mut last_cn : Expr = stmt.children[last_case_idx]
             mut bvec := Vec(Expr).new()
             bvec.push_take(last_cn.children, 1)

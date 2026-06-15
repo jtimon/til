@@ -32,5 +32,20 @@ experiments~, not a committed optimization.
 - Interaction with #254's C-like detection: a 2-case bool switch is
   trivially C-like.
 
+*** Progress
+- Foundation done: bool switches are now C-like. ~switch_is_clike~ accepts
+  a ~Bool~ scrutinee with ~case true:~ / ~case false:~ labels, and a bool
+  switch covering both arms with no ~case:~ folds its last arm into the
+  default (C does not know bool is only 0/1), so it emits a real C
+  ~switch (b) { case 1: ...; default: ... }~. test/flow.til exercises it.
+- Remaining (and the actual "if/else -> switch" rewrite): a typer pass
+  that converts ~if cond { A } else { B }~ into ~switch cond { case true:
+  A case false: B }~. NOTE: this is expected to yield NO codegen win -- a
+  2-case bool C switch lowers to the same branch the C compiler already
+  builds for an if/else -- and it would rewrite every if statement in the
+  codebase (large, behaviour-neutral churn). Deferred unless a concrete
+  benefit shows up; the value of this issue was the bool-C-like foundation
+  above, which #254 needed anyway.
+
 *** Depends on
 Pairs with #254 (real C switch emission).

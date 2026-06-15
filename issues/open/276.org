@@ -1,0 +1,30 @@
+# priority: medium
+# category: cleanups
+** OPEN #276 codegen: lower mixed (payload-binding) enum switches to a C switch on the tag
+
+#254 emits a real C switch only when EVERY case is a bare constant (an
+int/char literal, a bare ~Type.Variant~, or a bool). The hot enum
+dispatches in ~typer.til~ / ~builder.til~ / ~dispatch.til~ are *mixed*:
+most arms bind a payload (~case NodeType.Foo(fd):~), so the whole switch
+falls back to the if/elif chain and gets no jump table -- exactly the
+per-AST-node dispatch #254 set out to speed up. (After #254, ~boot/til.c~
+had 22 int/char C switches and 0 enum ones, because every compiler enum
+switch is mixed.)
+
+*** Goal
+Lower a mixed enum switch to a C ~switch ((expr).tag) { case Enum_TAG_V:
+... }~ where each case body is prefixed with the payload-binding decl the
+if/elif desugar already emits (the ~ref fd := get_payload(expr, T)~ form
+from ~make_switch_case_condition~). Guards, ranges, string compares, and
+nested/struct patterns still fall back to the chain.
+
+*** Notes
+- Reuse #254's ~switch_is_clike~ / ~infer_clike_switch~ +
+  ~emit_stmt_switch~ / ~eval_switch~; relax the "no payload binding" rule
+  to "payload binding via a single ~get_payload~ decl prepended to the
+  case body", which both backends already handle as ordinary statements.
+- Exhaustiveness / last-case-as-default handling is already in place from
+  #254's enum path.
+- This is where the real win is: ~dispatch.til~ / ~typer.til~ /
+  ~builder.til~ run a switch per AST node per phase, and those are the
+  switches that stayed as if/elif chains after #254.
