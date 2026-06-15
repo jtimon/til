@@ -1736,7 +1736,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 // call.
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
         mut replaced := false
@@ -1822,7 +1822,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
 }
 
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if depth.gt(256) { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]

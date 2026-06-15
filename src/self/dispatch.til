@@ -55,7 +55,7 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
 priv ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().cast(U64)) }
 
 priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
-    if cif.rtype.is_null() { return false }
+    expect(__LOC__, cif.rtype.is_null().not(), "cif.rtype is null")
     ref rt : ffi_type = cif.rtype
     return rt.type.eq(FFI_TYPE_STRUCT.to_i16())
 }
@@ -107,7 +107,7 @@ priv ffi_init_link_libs := func(link_flags: Str) {
 
 priv ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
-    if user_c_path.is_null() { return 0 }
+    expect(__LOC__, user_c_path.is_null().not(), "user_c_path is null")
     if user_c_path.len().eq(0) { return 0 }
 
     dot_str := "."
@@ -1491,7 +1491,7 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: C
 // NULL if the return type isn't a known shallow struct.
 priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
     if fe.return_is_shallow.not() { return NULL }
-    if fe.return_type.is_null() { return NULL }
+    expect(__LOC__, fe.return_type.is_null().not(), "fe.return_type is null")
     if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
     if ctx.ffi_struct_defs.has(fe.return_type).not() { return NULL }
     ref box : ExprPtrBox = ctx.ffi_struct_defs[fe.return_type]

@@ -90,7 +90,7 @@ namespace:
         return a.struct_name.eq(b.struct_name)
     }
     to_str := func(self: StructInstance) returns Str {
-        if self.struct_name.is_null() { return "StructInstance" }
+        expect(__LOC__, self.struct_name.is_null().not(), "self.struct_name is null")
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
@@ -261,7 +261,7 @@ namespace:
         return a.is(b)
     }
     to_str := func(self: EnumInstance) returns Str {
-        if self.enum_name.is_null() { return "EnumInstance" }
+        expect(__LOC__, self.enum_name.is_null().not(), "self.enum_name is null")
         return self.enum_name.clone()
     }
     clone := func(self: EnumInstance) returns EnumInstance {
@@ -959,7 +959,7 @@ priv value_as_i64 := func(v: Value) returns I64 {
 priv value_switch_key := func(v: Value) returns I64 {
     switch v {
     case Value.Enum(ei):
-        if ei.data.is_null() { return 0 }
+        expect(__LOC__, ei.data.is_null().not(), "ei.data is null")
         ref tag_ptr : Dynamic = ei.data
         ref tag_ref : I32 = tag_ptr
         return tag_ref.cast(I64)
@@ -2077,7 +2077,7 @@ priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def
 }
 
 priv needs_widen := func(val: Value, ptype: Str) returns Bool {
-    if ptype.is_null() { return false }
+    expect(__LOC__, ptype.is_null().not(), "ptype is null")
     if ptype.len().eq(0) { return false }
     if val.is(Value.Byte) {
         return ptype.eq("U8").not()
@@ -2212,7 +2212,7 @@ priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     // Pass-through returns clone (not shallow alias): callers reassign
     // `arg = widen_numeric(arg, ...)`, whose save_old_delete frees the old
     // arg AFTER evaluating the rhs -- an alias of arg would then dangle.
-    if ptype.is_null() { return v.clone() }
+    expect(__LOC__, ptype.is_null().not(), "ptype is null")
     if ptype.len().eq(0) { return v.clone() }
     mut ival : I64 = 0
     mut uval : U64 = 0

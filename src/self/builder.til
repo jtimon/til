@@ -915,7 +915,7 @@ priv c_lit_byte_count := func(s: Str) returns USize {
 // function-body entry pass to decide which params actually need the
 // `(void)<name>;` unused-arg suppressor.
 priv collect_ident_refs := proc(e: Expr, mut refs: Set(Str)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(name): refs.add(own name.ident_name())
     case NodeType.Assign(ad):  refs.add(own ad.name.clone())
@@ -998,7 +998,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
 }
 
 priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
             ref c0 : Expr = e.children[0]
@@ -1049,7 +1049,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
 }
 
 priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(2) {
             ref c0 : Expr = e.children[0]
@@ -1237,7 +1237,7 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
 }
 
 priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         ref mut fdef : Expr = fcall_fn_sig(e, ctx)
         if fdef.is_null() {
@@ -1330,7 +1330,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
             ref c0 : Expr = e.children[0]
@@ -3572,7 +3572,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
 }
 
 emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
     case NodeType.FuncDef(fd):
@@ -5173,7 +5173,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
 }
 
 collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(ident):
         if e.expr_til_type().is_funcptr() {
@@ -7041,7 +7041,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     build_register_funcsig_names_lp(lp)
     build_register_closure_values_lp(lp)
     f := File.new(c_output_path, true)
-    if f.is_null() { return 1 }
+    expect(__LOC__, f.is_null().not(), "f is null")
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
 

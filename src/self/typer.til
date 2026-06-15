@@ -3040,7 +3040,7 @@ priv infer_set_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx:
 // destruction site (Map.delete, Vec.delete, scope_free, the
 // auto-generated Value.delete chain, etc.).
 priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.FieldAccess(fa_name):
         if fa_name.field_access_name().eq(field_name) {
@@ -3367,7 +3367,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
 PTR_SIZE_BYTES : USize = 8
 priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len().eq(0) { return false }
-    if scope.is_null() { return false }
+    expect(__LOC__, scope.is_null().not(), "scope is null")
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {
@@ -8406,7 +8406,7 @@ priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
 priv capture_block_check_refs := proc(e: Expr,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
         captures: Vec(Declaration), ctx: Context) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.CaptureBlock: return
     case NodeType.FuncDef: return
@@ -8723,7 +8723,7 @@ normalize_scope_bindings := func(scope: TypeScope) {
 // happens during the typer phase rather than as its own #158 pass.
 
 priv typer_is_lambda_target := func(e: Expr) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef).not() { return false }
     if e.children.len().eq(0) { return false }
     // Issue #54: a capturing lambda is NOT lifted to top level -- a lifted
@@ -8756,7 +8756,7 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
 }
 
 priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
-    if e.is_null() { return counter }
+    expect(__LOC__, e.is_null().not(), "e is null")
     // Issue #57: don't descend into template macro bodies -- a func literal
     // inside `macro(T: Type) returns FuncDef { return func(x: T) ... }` is
     // a template that initer's pre-pass substitutes and lifts at each call
@@ -8859,7 +8859,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
 }
 
 priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
-    if prog.is_null() { return }
+    expect(__LOC__, prog.is_null().not(), "prog is null")
     if prog.node_type.is(NodeType.Body).not() { return }
     mut top_level := Vec(Expr).new()
     mut ctr : I64 = 0
@@ -9389,7 +9389,7 @@ priv type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Co
     pt := type_from_name(name, scope, ctx)
     if name.len().eq(0) { return pt }
     if ctx.current_type_name.eq(name) { return pt }
-    if scope.is_null() { return pt }
+    expect(__LOC__, scope.is_null().not(), "scope is null")
     ref mut b : TypeBinding = scope.get_binding(name)
     check_priv_access(e, name, b, ctx)
     return pt
@@ -9561,7 +9561,7 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns Bool {
 }
 
 priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    if e.is_null() { return NULL }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -9589,7 +9589,7 @@ priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
 }
 
 priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    if e.is_null() { return NULL }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -9607,7 +9607,7 @@ priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
 }
 
 priv find_array_vec_fcall := func(e: Expr) returns ref Expr {
-    if e.is_null() { return NULL }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -9734,7 +9734,7 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
 // transfer shapes -- own arg to a function, struct constructor with an Own
 // or Ref field -- already consume the wrapper, so we must NOT emit a free.
 transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return false }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(2) {
@@ -10419,7 +10419,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 // function definition or nested block, which the outer body_pre_passes
 // pass will reach separately.
 priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool) {
-    if e.is_null() { return }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
     if e.node_type.is(NodeType.EnumDef) { return }
@@ -11605,7 +11605,7 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
 }
 
 priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if e.node_type.is_literal_null() { return true }
     if e.node_type.is(NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
     switch e.node_type {
@@ -11628,7 +11628,7 @@ priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if expr_is_borrow_source(e, scope) { return true }
     switch e.node_type {
     case NodeType.Ident(id):
@@ -11651,7 +11651,7 @@ priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
-    if e.is_null() { return false }
+    expect(__LOC__, e.is_null().not(), "e is null")
     if expr_is_borrow_source(e, scope) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
         if fa_is_ns(e, scope) { return false }
