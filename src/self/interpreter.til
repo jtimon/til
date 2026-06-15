@@ -251,6 +251,11 @@ EnumInstance := struct {
     own data : U8 = 0
     data_size : USize = 0
     borrowed := false
+    // Issue #272: true when the active variant's payload is a Str whose c_str
+    // this enum OWNS (cloned at construction). delete frees it; clone deep-
+    // copies it. Without it the payload c_str was shared with the source Str,
+    // leaking (shallow scopes) or dangling (deep scopes) once the source died.
+    is_str := false
 namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns Bool {
         return a.is(b)
@@ -262,12 +267,15 @@ namespace:
     clone := func(self: EnumInstance) returns EnumInstance {
         if self.data.is_null() {
             return EnumInstance(enum_name = self.enum_name,
-                                data = NULL, data_size = self.data_size, borrowed = false)
+                                data = NULL, data_size = self.data_size, borrowed = false, is_str = self.is_str)
         }
         pdata : Dynamic = malloc(self.data_size.cast(U64))
         memcpy(pdata, self.data, self.data_size.cast(U64))
+        // Issue #272: the memcpy shared the Str-payload c_str; deep-copy it so
+        // the clone owns an independent buffer (mirrors StructInstance.clone).
+        if self.is_str { enum_clone_str_payload(pdata) }
         return EnumInstance(enum_name = self.enum_name,
-                            data = pdata, data_size = self.data_size, borrowed = false)
+                            data = pdata, data_size = self.data_size, borrowed = false, is_str = self.is_str)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
         // Deep delete: free the payload buffer unless this is a borrowed
@@ -276,7 +284,11 @@ namespace:
         // EnumInstance.delete at every owned enum value's last use, so this
         // is where the payload is reclaimed. enum_name is a ref (Issue #239)
         // -- never freed here, never read here.
-        if self.data.is_null().not().and(self.borrowed.not()) { free(own self.data) }
+        if self.data.is_null().not().and(self.borrowed.not()) {
+            // Issue #272: free the owned Str-payload c_str before the buffer.
+            if self.is_str { enum_free_str_payload(self.data) }
+            free(own self.data)
+        }
         if call_free { free(own self) }
     }
 }
@@ -457,28 +469,77 @@ val_u32 := func(v: I64) returns shallow Value {
 
 ENUM_PAYLOAD_OFFSET : USize = 8
 
-make_enum_value := func(enum_name: Str, data: Dynamic, data_size: USize, borrowed: Bool, ctx: Context) returns shallow Value {
+make_enum_value := func(enum_name: Str, data: Dynamic, data_size: USize, borrowed: Bool, is_str: Bool, ctx: Context) returns shallow Value {
     ref stable_enum_name : Str = stable_type_name(enum_name, ctx)
-    return Value.Enum(EnumInstance(enum_name = stable_enum_name, data = data, data_size = data_size, borrowed = borrowed))
+    return Value.Enum(EnumInstance(enum_name = stable_enum_name, data = data, data_size = data_size, borrowed = borrowed, is_str = is_str))
 }
 
-val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, ctx: Context) returns shallow Value {
+// Issue #272: does enum `enum_name`'s variant `etag` carry a Str payload?
+priv enum_variant_is_str := func(enum_name: Str, etag: I32, ctx: Context) returns Bool {
+    ref edef : Expr = lookup_interp_type_def(enum_name, ctx)
+    if edef.is_null() { return false }
+    switch edef.node_type {
+    case NodeType.EnumDef(edd):
+        if edd.payload_types.has(etag.cast(I64)) {
+            ref pt : Str = edd.payload_types[etag.cast(I64)]
+            return pt.eq("Str")
+        }
+    case:
+    }
+    return false
+}
+
+// Issue #272: the enum's Str payload (at ENUM_PAYLOAD_OFFSET) holds a c_str
+// pointer that, post-memcpy, aliases the source Str. Replace it with an
+// owned deep copy so the enum no longer shares the source's buffer.
+priv enum_clone_str_payload := func(data: Dynamic) {
+    ref pstr : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
+    if pstr.c_str.is_null().not().and(pstr.count.gt(0)).and(pstr.cap.lt(CAP_VIEW)) {
+        new_buf : Dynamic = malloc(pstr.count.add(1).cast(U64))
+        memcpy(new_buf, pstr.c_str, pstr.count.cast(U64))
+        memset(ptr_add(new_buf, pstr.count.cast(U64)), 0, 1)
+        // The Str's c_str is the first field (offset 0); write the owned copy
+        // directly. A `ref mut pstr; pstr.c_str = ...` did not write through.
+        write_ptr(ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64)), new_buf)
+    }
+}
+
+// Free the owned Str-payload c_str (set up by enum_clone_str_payload).
+priv enum_free_str_payload := func(data: Dynamic) {
+    ref s_str : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
+    if s_str.c_str.is_null().not().and(s_str.count.gt(0)).and(s_str.cap.lt(CAP_VIEW)) {
+        free(own s_str.c_str)
+    }
+}
+
+val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, str_payload: Bool, move_src: Bool, ctx: Context) returns shallow Value {
     mut alloc_size : USize = total_enum_size
     if alloc_size.lt(8) {
         alloc_size = 8
     }
     data : Dynamic = calloc(1, alloc_size.cast(U64))
     memcpy(data, etag, 4)
+    mut is_str := false
     if payload_data.is_null().not() {
         if payload_size.gt(0) {
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64)), payload_data, payload_size.cast(U64))
+            if str_payload {
+                is_str = true
+                // Issue #272: the enum OWNS its Str payload c_str.
+                //   move_src (construction): MOVE -- the source gives up the
+                //   c_str (null it), so there is a single owner and no clone.
+                //   else (reading an enum out of a pointer): CLONE, so the
+                //   borrowed source and this enum each own an independent c_str.
+                if move_src { write_ptr(payload_data, NULL) }
+                else        { enum_clone_str_payload(data) }
+            }
         }
     }
-    return make_enum_value(enum_name, data, alloc_size, false, ctx)
+    return make_enum_value(enum_name, data, alloc_size, false, is_str, ctx)
 }
 
 priv val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize, ctx: Context) returns shallow Value {
-    return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size, ctx)
+    return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size, false, false, ctx)
 }
 
 priv elem_size_for_type := func(type_name: Str) returns USize {
@@ -662,7 +723,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                             tag := enum_variant_tag(edef, fname.field_access_name())
                                             if tag.gte(0) {
                                                 if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, tag, NULL, 0, total_size, ctx)
+                                                    return val_enum_flat(sname, tag, NULL, 0, total_size, false, false, ctx)
                                                 } else {
                                                     return Value.Int32(tag)
                                                 }
@@ -790,7 +851,7 @@ reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx: Con
                     if total_size.gte(ENUM_PAYLOAD_OFFSET) {
                         inline_psz = total_size.sub(ENUM_PAYLOAD_OFFSET)
                     }
-                    return val_enum_flat(type_name, inline_etag, ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, ctx)
+                    return val_enum_flat(type_name, inline_etag, ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, enum_variant_is_str(type_name, inline_etag, ctx), false, ctx)
                 }
                 ref etag : I32 = p
                 return Value.Int32(etag)
@@ -2282,13 +2343,11 @@ scope_free := func(own s: Scope, deep: Bool) {
     for i in 0..s.bindings.len() {
         ref b : Binding = s.bindings.val_ptr(i)
         if b.cell_is_local {
-            // Deep teardown (call/function/global scopes) reclaims Struct and
-            // Str payloads -- the dominant make_str_value/struct interpret
-            // leak. Block/if/while/catch scopes stay shallow (Enum payload
-            // only): a `ref` binding or enum-payload alias in an enclosing
-            // scope can point into a block local, and the garbager's
-            // compile-mode lifetime extension has no interpret equivalent, so
-            // freeing block Struct payloads is a use-after-free (enums/errors).
+            // Deep teardown reclaims Struct and Str payloads -- the dominant
+            // make_str_value/struct interpret leak. With the enum-payload
+            // ownership contract (Issue #272: enums own their Str c_str), even
+            // block/if/while/catch scopes are safe to deep-delete. The shallow
+            // path (deep == false) survives for any caller that still needs it.
             if deep {
                 free_temp_arg_value(b.cell.val)
             } else {
@@ -2743,9 +2802,10 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size, ctx) }
-                    return make_enum_value(ei.enum_name, to_ptr(ei.data), total_size, true, ctx)
+                    return make_enum_value(ei.enum_name, to_ptr(ei.data), total_size, true, ei.is_str, ctx)
                 }
-                return make_enum_value(ftype, to_ptr(ptr), total_size, true, ctx)
+                ref vtag : I32 = ptr
+                return make_enum_value(ftype, to_ptr(ptr), total_size, true, enum_variant_is_str(ftype, vtag, ctx), ctx)
             }
             ref itag : I32 = ptr
             return Value.Int32(itag)

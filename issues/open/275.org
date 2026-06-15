@@ -1,0 +1,114 @@
+# priority: high
+# category: cleanups
+** OPEN #275 Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
+
+The interpreter's recurring leak / UAF / double-free class (the
+make_str_value, StructInstance_clone and enum-payload bugs chased across
+2026-06) is not a set of independent leaks. They are all symptoms of one
+design fault: the interpreter keeps a runtime value representation (~Value~
+over ~StructInstance~ / ~EnumInstance~ with raw ~Dynamic~ data buffers) that
+DIVERGES from the single-owner, typed program the garbager compiled, and it
+COMPOSES aggregates by ~memcpy~-ing sub-value bytes -- which duplicates owned
+pointers and forces a manual-memory layer that then fights the
+garbager-inserted deletes.
+
+This is the #272 principle stated as a concrete root cause: memory management
+is the garbager's job. The interpreter should do exactly two things with
+memory -- interpret the ~delete~/~free~ calls the garbager already placed in
+the AST, and free its OWN bookkeeping (the malloc'd ~Cell~/~Binding~/~Scope~).
+It should never manufacture double-ownership, and it should never compensate
+with manual reclamation.
+
+*** The exact mechanism (double-ownership at construction)
+
+~Token.Name("hello")~ in interpret mode:
+
+  1. ~enum_method_dispatch~ (dispatch.til) evals the arg -> a
+     ~Value.Struct(Str)~ that OWNS a heap ~c_str~ (call it A). The garbager
+     tracks this Value; its ~Value.delete~ would free A.
+  2. It drops to raw pointers: ~pdata = to_ptr(payload.data)~ -- a ~Dynamic~.
+  3. ~val_enum_flat~ (interpreter.til) does
+     ~memcpy(enum_buf + ENUM_PAYLOAD_OFFSET, pdata, 16)~ -- copies the whole
+     Str struct bytes, i.e. the c_str pointer A, into the enum's calloc'd
+     buffer.
+
+After step 3, A has TWO owners: the tracked source Value and the raw enum
+buffer. til's model (ownership.org) is owned XOR borrowed -- there are NO
+shared pointers -- so this is a flat violation, created by copying an owned
+pointer's bits without a transfer. The current code papers over it by setting
+~payload.borrowed = true~ to forge a move, and then the enum-payload c_str
+fix (this branch / #272) bolts on manual frees so the duplicate is reclaimed.
+
+*** Why the typer is blind to it
+
+The duplication goes through ~to_ptr(...) -> Dynamic -> memcpy~. ownership.org
+is explicit: a ~Dynamic~ IS owned ("owned raw pointer ... you must
+~free(own buf)~ or transfer it"); what the garbager opts out of is
+AUTO-destruction ("there is no type to call delete on"), NOT ownership. But
+once a value is a ~Dynamic~, the typer sees ~memcpy(Dynamic, Dynamic, n)~ with
+no idea those bytes contain an owned ~c_str~. The TYPE ERASURE at ~to_ptr~ is
+what hides the owned pointer from static analysis, so the single-owner
+invariant cannot be checked at that point.
+
+*** The manual-reclamation layer that compensates (all of it should die)
+
+Because construction duplicates ownership, the interpreted AST ~delete~/~free~
+either double-frees (so the source is forged ~borrowed = true~) or leaves the
+duplicate unreclaimed (a leak), so successive fixes added a SECOND manual
+layer that fights the deletes:
+
+  - ~scope_free~'s ~deep~ flag: re-frees Struct/Str payloads in cells that the
+    interpreted AST deletes were supposed to reclaim -- which is exactly why it
+    double-frees and why it could not be turned on for block scopes.
+  - ~StructInstance.delete~ / ~EnumInstance.delete~ doing payload heap work and
+    the ~is_str~ cache.
+  - per-site frees in dispatch / construction.
+
+~scope_free~ should reclaim ONLY its own bookkeeping (the ~Cell~/~Binding~
+mallocs), never the values -- those are the AST deletes' job.
+
+*** The fix
+
+  1. Construct interpreter aggregates with a real MOVE: consume the source
+     (single owner) instead of ~memcpy~-duplicating its bytes. Inventory and
+     convert every ~to_ptr(value.data) + memcpy/write_ptr~ construction site:
+     enum payloads (~val_enum_flat~), struct fields (~write_field~), FFI
+     marshaling, and the ~Value~ copy helpers (~shallow_copy_value~ et al).
+  2. Then DELETE the manual layer: ~scope_free~'s ~deep~ flag, the
+     StructInstance/EnumInstance payload frees and ~is_str~, the dispatch
+     frees, the ~borrowed = true~ forgeries -- and let the interpreted AST
+     ~delete~/~free~ stand alone.
+  3. Typer enforcement, so double-ownership is forbidden in the first place:
+     extend ~check_move_managed_dest~ (which already forbids ~move()~ onto a
+     managed dest) with its dual -- forbid copying a managed aggregate's bytes.
+     This can only fire over TYPED pointers, so it goes hand in hand with (1):
+     stop constructing managed values through raw ~Dynamic~ memcpy.
+
+*** Open questions / TODO (needs rstil + deeper verification)
+
+  - Does the interpreter need the ~Value~ representation at all? rstil (the
+    Rust prototype, ~src/rstil.rs~ / ~src/rs/~,
+    https://github.com/jtimon/rstil) interpreted WITHOUT this ~Value~
+    boilerplate and -- per discussion -- without manufacturing
+    double-ownership. Compare rstil's eval value/heap model and decide whether
+    til's ~Value~ union is necessary or can be replaced by the rstil approach.
+    (Could not access rstil source from the build sandbox -- ~git clone~ of any
+    repo but jtimon/til is denied; left for whoever can read ~src/rstil.rs~.)
+  - Verify ~Type.delete~ / ~free~ are interpreted with NO shortcuts. From the
+    2026-06 sessions: ~free(own x)~ dispatches to the ~h_free~ builtin (frees
+    the Value's payload); ~Type.delete(own x)~ dispatches to the interpreted
+    method body (the ~free(own self)~ tail reaches ~h_free~); the interpreter's
+    OWN Value locals get garbager-inserted ~Value.delete -> StructInstance /
+    EnumInstance.delete~. Confirm there is no ~.delete~/~.free~ special-case in
+    the call dispatch that bypasses the body -- that is the precondition for
+    ripping the manual layer out.
+
+*** Relation to #272
+
+This is #272 step 3 stated as its root: the interpreter's manual-memory island
+is not just "where leaks hide", it is where the interpreter actively
+MANUFACTURES the double-ownership that the rest of #272's whack-a-mole then
+patches. The enum-payload c_str ownership fix on this branch is one such patch
+-- it makes the symptom green for ~1% but adds to the manual layer this issue
+says to remove. The principled fix (move at construction + delete the manual
+layer + typer enforcement) subsumes it.

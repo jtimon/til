@@ -26,6 +26,7 @@
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
 *** [[./open/192.org][#192]] USize should not be hardwired to U32
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
+*** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 ** Medium
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
 ** Low
