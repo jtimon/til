@@ -574,11 +574,12 @@ precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
                 ref fdef : Expr = fdd.default_value
                 switch fdef.node_type {
                 case NodeType.FuncDef(ffd):
-                    qname := sdd.name.format("_", fdd.name)
                     if ffd.func_type.is(FuncType.Macro) {
+                        qname := sdd.name.format("_", fdd.name)
                         ctx.precomp_macros.add(own qname)
                     } else if ffd.func_type.is(FuncType.Func)
                         .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        qname := sdd.name.format("_", fdd.name)
                         ctx.precomp_funcs.add(own qname)
                     }
                 case:
@@ -594,11 +595,12 @@ precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
                 if nsd.default_value.is_null() { continue }
                 switch nsd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    qname := sdd.name.format("_", nsd.name)
                     if ffd.func_type.is(FuncType.Macro) {
+                        qname := sdd.name.format("_", nsd.name)
                         ctx.precomp_macros.add(own qname)
                     } else if ffd.func_type.is(FuncType.Func)
                         .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        qname := sdd.name.format("_", nsd.name)
                         ctx.precomp_funcs.add(own qname)
                     }
                 case:

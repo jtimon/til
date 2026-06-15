@@ -971,7 +971,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     p.pending_doc = saved_doc.clone()
     while p.active_type_params.len().gt(active_type_params_start) {
         mut dropped : Str = p.active_type_params.pop()
-        own dropped.delete(false)
+        own dropped.delete(true)
     }
     if is_generic {
         return wrap_struct_def_in_macro(own def.clone(), gparams, kw_line, kw_col)
