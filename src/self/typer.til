@@ -7757,19 +7757,23 @@ priv hoist_nested_bangs_consolidated := proc(
 //      execute before the return
 //   8. wrap stmt in `if I64.eq(_err_kind, 0)` when a previous stmt
 //      could have set _err_kind
-// A throwing call (subscript `v[i]` -> `get(i)!`, an `f()?`, or an `f()!`) in
-// a `match` arm value lives in a Body node that neither step 1 (hoist_walk
-// returns on Body) nor step 2 (which descends into if/while/for/switch/catch
-// bodies, but a `match` here is an expression nested in a Decl/Assign/FCall,
-// not a statement) reaches. So a `match` arm bang is left unlowered and infer
-// later fails with "missing argument for parameter '_err_kind'". `a.and(b)` /
-// `a.or(b)` desugar to `match a { ... }`, so `cond.and(v[i])` hits this.
+// A throwing call in a `match` arm value -- a subscript `v[i]` (= `get(i)!`),
+// an `f()?` (may throw; propagates to the caller's throws clause), or an
+// `f()!` (panics if it throws, so it needs no catch/rethrow) -- lives in a Body
+// node that neither step 1 (hoist_walk returns on Body) nor step 2 (which
+// descends into if/while/for/switch/catch bodies, but a `match` here is an
+// expression nested in a Decl/Assign/FCall, not a statement) reaches. So the
+// throwing call in a match arm is left unlowered and infer later fails with
+// "missing argument for parameter '_err_kind'". `a.and(b)` / `a.or(b)` desugar
+// to `match a { ... }`, so `cond.and(v[i])` hits this.
 //
-// Walk the statement's expression tree for nested Match nodes and process each
-// arm Body exactly like a switch case body. The bang is hoisted INTO the arm
-// (only evaluated when that arm is taken -- short-circuit preserved) and gets
-// its _err_kind/_err_<T> out-args; the throw type lands in types_to_declare so
-// the function-level slot decls are prepended as usual.
+// Walk the statement's expression tree for nested Match nodes and run the
+// throw/catch lowering on each arm Body exactly like a switch case body. That
+// lowering handles both forms correctly -- it appends a panic guard for `!`
+// and propagates for `?` -- and hoists the call INTO the arm, so it only runs
+// when that arm is taken (short-circuit preserved) and gets its
+// _err_kind/_err_<T> out-args; the throw type lands in types_to_declare so the
+// function-level slot decls are prepended as usual.
 priv process_match_arms_in := proc(
     mut ctx: Context,
     mut e: Expr,
