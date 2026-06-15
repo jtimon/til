@@ -2855,7 +2855,7 @@ void priv___src_self_typer_til__append_switch_else_if(Expr * root_if, Expr * if_
 void priv___src_self_typer_til__attach_switch_default_body(Expr * root_if, Expr * default_body);
 void priv___src_self_typer_til__validate_struct_pattern_rest(TypeScope * scope, Expr * pattern, Context * ctx);
 Bool priv___src_self_typer_til__expr_has_unguarded_break(Expr * e);
-Bool priv___src_self_typer_til__switch_is_clike(Expr * stmt, Expr * sw_expr, Bool is_match);
+Bool priv___src_self_typer_til__switch_is_clike(TypeScope * scope, Expr * stmt, Expr * sw_expr, Bool is_match);
 void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
@@ -3512,6 +3512,7 @@ Bool priv___src_self_interpreter_til__guard_own_param_skip(Scope * scope, Expr *
 void * priv___src_self_interpreter_til__resolve_field_assign_base(Scope * scope, Expr * obj_expr);
 Expr * priv___src_self_interpreter_til__resolve_field_assign_sdef(Scope * scope, Expr * obj_expr);
 I64 priv___src_self_interpreter_til__value_as_i64(Value * v);
+I64 priv___src_self_interpreter_til__value_switch_key(Value * v);
 void priv___src_self_interpreter_til__eval_switch(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
 Value eval_call(Scope * scope, Expr * e, Context * ctx);

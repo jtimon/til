@@ -1,6 +1,42 @@
 # priority: medium
 # category: cleanups
-** OPEN #254 codegen: emit a real C switch (jump table) for dense int/char/enum switches
+** FIXED #254 codegen: emit a real C switch (jump table) for dense int/char/enum switches
+
+  POST-MORTEM
+  Implemented the revised-scope plan in two commits. The typer's
+  switch_is_clike detects a C-like switch and infer_clike_switch
+  type-checks it in place, leaving Switch/Case nodes for the backends
+  instead of desugaring to if/elif; infer_switch_stmt returns whether it
+  lowered so the caller skips the re-infer pass for kept switches.
+
+  C-like = scrutinee is an integer/char, OR an enum whose scrutinee is a
+  simple lvalue, AND every case is a bare constant: an int/char literal,
+  or a bare `Type.Variant` (FieldAccess, no payload). No payload binding,
+  range, guard, string compare, duplicate label, or loop-targeting `break`
+  (a til `break` would be captured by the C switch; til `continue` maps to
+  C `continue`, which a C switch does not capture). Enum switches reuse the
+  desugar's coverage machinery for exhaustiveness; an exhaustive enum
+  switch with no `case:` turns its last case into the `default:` so the C
+  switch has a terminal arm (no -Wreturn-type).
+
+  Emission: builder.emit_stmt_switch writes `switch (expr) { case K: {..}
+  break; }` for int/char and `switch ((expr).tag) { case Enum_TAG_V: ... }`
+  for enums; interpreter.eval_switch dispatches on the scrutinee value
+  (value_switch_key reduces enum values to their tag). The garbager
+  recurses into surviving switch case bodies for exit-edge cleanup.
+
+  Verified: make test 154/154 (both backends). boot/til.c now contains 22
+  int/char C switches (e.g. the lexer's lookup_single_char). The full
+  suite (test/enums.til, test/strings.til, lexer/typer tests) exercises
+  both backends as the regression guard.
+
+  Known limitation (by design -- listed as a fallback in the original
+  scope): a switch that binds a payload in ANY case -- the bulk of the hot
+  enum switches in typer/builder/dispatch (`case NodeType.Foo(x):`) -- is
+  mixed and stays desugared, so it does NOT get a jump table yet. Only
+  all-bare-variant enum switches and int/char switches convert. A future
+  enhancement could split a mixed switch into a C switch on the tag with
+  payload extraction inside each case.
 
 The typer's ~infer_switch_stmt~ (src/self/typer.til) currently desugars
 EVERY ~switch~ (and ~match~) into a nested if/elif chain of equality tests

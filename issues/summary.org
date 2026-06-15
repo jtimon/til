@@ -28,7 +28,6 @@
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 ** Medium
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
-*** [[./open/254.org][#254]] codegen: emit a real C switch (jump table) for dense int/char/enum switches
 ** Low
 *** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs

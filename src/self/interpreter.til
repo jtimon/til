@@ -891,6 +891,21 @@ priv value_as_i64 := func(v: Value) returns I64 {
     }
 }
 
+// #254: the comparison key for a switch scrutinee or case label. For an enum
+// the discriminant is the tag (first I32 of the flat EnumInstance data); a
+// no-payload enum decodes as Value.Int32(tag) and a bare `Type.Variant` label
+// of a payload enum decodes as a flat Value.Enum -- both reduce to the tag.
+priv value_switch_key := func(v: Value) returns I64 {
+    switch v {
+    case Value.Enum(ei):
+        if ei.data.is_null() { return 0 }
+        ref tag_ptr : Dynamic = ei.data
+        ref tag_ref : I32 = tag_ptr
+        return tag_ref.cast(I64)
+    case: return value_as_i64(v)
+    }
+}
+
 // #254: execute a switch the typer left un-desugared (C-like). Evaluate the
 // scrutinee once, run the first case whose constant label compares equal, else
 // the default. break/continue/return propagate via Context flags (eval_body
@@ -899,7 +914,7 @@ priv value_as_i64 := func(v: Value) returns I64 {
 priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     subj := eval_expr(scope, stmt.children[0], ctx)
-    subj_i := value_as_i64(subj)
+    subj_i := value_switch_key(subj)
     mut has_default := false
     mut default_idx : U32 = 0
     for ci in 1..stmt.children.len() {
@@ -910,7 +925,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
             continue
         }
         label := eval_expr(scope, cn.children[0], ctx)
-        if value_as_i64(label).eq(subj_i) {
+        if value_switch_key(label).eq(subj_i) {
             case_scope := scope_new(scope)
             eval_body(case_scope, cn.children[1], ctx)
             if c.has_return { c.return_value = c.return_value.clone() }

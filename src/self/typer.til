@@ -5540,9 +5540,24 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
 // constant integer/char literal (no payload binding, range, guard, or string)
 // whose body holds no loop-targeting `break`. Such switches are left as
 // Switch/Case nodes for the backends; everything else desugars to if/elif.
-priv switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
+priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
     if is_match { return false }
-    if is_integral_numeric_type(sw_expr.expr_til_type()).not() { return false }
+    sw_type := sw_expr.expr_til_type()
+    sw_sname := til_type_name(sw_type)
+    mut is_enum := false
+    if sw_type.is(Type.Enum) {
+        if sw_sname.len().eq(0) { return false }
+        // Only a simple lvalue scrutinee (ident / field access) emits as a
+        // value whose `.tag` the C switch can read; a constructor call etc.
+        // emits as a pointer, so leave those to the desugar.
+        if is_simple_lvalue_expr(sw_expr).not() { return false }
+        ref edef0 : Expr = scope.get_struct(sw_sname)
+        if edef0.is_null() { return false }
+        if edef0.node_type.is(NodeType.EnumDef).not() { return false }
+        is_enum = true
+    } else if is_integral_numeric_type(sw_type).not() {
+        return false
+    }
     mut seen_default := false
     mut labels := Vec(Str).new()
     for ci in 1..stmt.children.len() {
@@ -5558,11 +5573,27 @@ priv switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool) returns 
         if cn.children.len().neq(2) { return false }
         ref pat : Expr = cn.children[0]
         mut lit_text := ""
-        switch pat.node_type {
-        case NodeType.Literal(Literal.Num(num)):
-            lit_text = num.literal_num_text()
-        case:
-            return false
+        if is_enum {
+            // Bare variant `Type.Variant` only -- a FieldAccess (payload
+            // bindings are FCalls and disqualify the switch). The base must
+            // name the scrutinee's enum and the variant must exist.
+            switch pat.node_type {
+            case NodeType.FieldAccess(fa): lit_text = fa.field_access_name()
+            case: return false
+            }
+            if pat.children.len().eq(0) { return false }
+            switch pat.children[0].node_type {
+            case NodeType.Ident(bn):
+                if bn.ident_name().eq(sw_sname).not() { return false }
+            case: return false
+            }
+            ref edef1 : Expr = scope.get_struct(sw_sname)
+            if enum_variant_tag(edef1, lit_text).lt(0) { return false }
+        } else {
+            switch pat.node_type {
+            case NodeType.Literal(Literal.Num(num)): lit_text = num.literal_num_text()
+            case: return false
+            }
         }
         for li in 0..labels.len() {
             if labels[li].eq(lit_text) { return false }
@@ -5575,12 +5606,42 @@ priv switch_is_clike := func(stmt: Expr, sw_expr: Expr, is_match: Bool) returns 
 
 // #254: type-check a C-like switch in place, leaving its Switch/Case nodes for
 // the backends instead of desugaring to if/elif. Each case body is inferred in
-// its own child scope, mirroring infer_if_stmt's branch handling.
+// its own child scope, mirroring infer_if_stmt's branch handling. For an enum
+// scrutinee, runs the same coverage/exhaustiveness checks as the desugar path;
+// an exhaustive enum switch with no `case:` turns its last case into the
+// default so the emitted C switch has a terminal arm (no -Wreturn-type).
 priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+    ref sw_expr : Expr = stmt.children[0]
+    sw_sname := til_type_name(sw_expr.expr_til_type())
+    mut is_enum := false
+    mut coverage := CoverageNode()
+    if sw_expr.expr_til_type().is(Type.Enum).and(sw_sname.len().gt(0)) {
+        ref edef : Expr = scope.get_struct(sw_sname)
+        if edef.is_null().not() {
+            if edef.node_type.is(NodeType.EnumDef) {
+                is_enum = true
+                init_coverage_for_enum(coverage, edef)
+            }
+        }
+    }
+    mut has_default := false
+    mut default_line : U32 = 0
+    mut default_col : U32 = 0
+    mut last_case_idx : U32 = 0
+    mut has_last_case := false
     for ci in 1..stmt.children.len() {
         ref mut cn : Expr = stmt.children[ci]
         mut body_idx : U32 = 1
-        if cn.children.len().eq(1) { body_idx = 0 }
+        if cn.children.len().eq(1) {
+            body_idx = 0
+            has_default = true
+            default_line = cn.line
+            default_col = cn.col
+        } else {
+            if is_enum { mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0]) }
+            last_case_idx = ci
+            has_last_case = true
+        }
         ref mut case_body : Expr = cn.children[body_idx]
         case_scope := TypeScope(parent = scope)
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
@@ -5588,6 +5649,29 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         check_unused_locals(case_scope, ctx.path, ctx)
         check_unused_mut_locals(case_scope, ctx.path, ctx)
         TypeScope.delete(own case_scope)
+    }
+    if is_enum {
+        ref edef2 : Expr = scope.get_struct(sw_sname)
+        mut missing := Vec(Str).new()
+        collect_missing_paths(scope, coverage, edef2, "", missing, ctx)
+        if has_default {
+            if missing.len().eq(0) {
+                type_error_at(ctx.path, default_line, default_col, "unnecessary default `case:`; all variants of enum '".concat(sw_sname).concat("' are already covered"), ctx)
+            }
+        } else if missing.len().gt(0) {
+            mut msg := "non-exhaustive switch on enum '".concat(sw_sname).concat("'; missing cases:")
+            for mi in 0..missing.len() {
+                ref mp : Str = missing[mi]
+                if msg.ends_with(":").not() { msg = msg.concat(",") }
+                msg = msg.concat(" ").concat(mp)
+            }
+            stmt.type_error(msg, ctx)
+        } else if has_last_case {
+            ref mut last_cn : Expr = stmt.children[last_case_idx]
+            mut bvec := Vec(Expr).new()
+            bvec.push_take(last_cn.children, 1)
+            last_cn.children.move_from(bvec)
+        }
     }
     stmt.set_expr_til_type(Type.None)
 }
@@ -5626,7 +5710,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
         }
     }
     infer_expr(scope, sw_expr, in_func, ctx)
-    if switch_is_clike(stmt, sw_expr, is_match) {
+    if switch_is_clike(scope, stmt, sw_expr, is_match) {
         infer_clike_switch(scope, stmt, in_func, in_loop, returns_ref, ctx)
         return false
     }

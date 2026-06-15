@@ -1947,8 +1947,20 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
 // C-like set (see switch_is_clike). A til `continue` maps to C `continue`,
 // which a C `switch` does not capture, so it reaches the enclosing loop.
 priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
+    ref scrut : Expr = e.children[0]
+    is_enum := scrut.expr_til_type().is(Type.Enum)
+    mut enum_name := ""
+    if is_enum { enum_name = til_type_name(scrut.expr_til_type()) }
     f.write("switch (")
-    emit_deref(f, e.children[0], depth, ctx)
+    if is_enum {
+        // Switch on the tag field. emit_deref yields the enum value, so
+        // `(value).tag` is the discriminant; labels are <Enum>_TAG_<Variant>.
+        f.write("(")
+        emit_deref(f, scrut, depth, ctx)
+        f.write(").tag")
+    } else {
+        emit_deref(f, scrut, depth, ctx)
+    }
     f.write(") {\n")
     for ci in 1..e.children.len() {
         ref cn : Expr = e.children[ci]
@@ -1958,7 +1970,18 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             emit_body_scoped(f, cn.children[0], depth.add(1), ctx)
         } else {
             f.write("case ")
-            emit_expr(f, cn.children[0], depth, ctx)
+            if is_enum {
+                mut vn := ""
+                switch cn.children[0].node_type {
+                case NodeType.FieldAccess(fa): vn = fa.field_access_name()
+                case:
+                }
+                f.write(enum_name)
+                f.write("_TAG_")
+                f.write(vn)
+            } else {
+                emit_expr(f, cn.children[0], depth, ctx)
+            }
             f.write(": {\n")
             emit_body_scoped(f, cn.children[1], depth.add(1), ctx)
         }
