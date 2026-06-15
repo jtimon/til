@@ -1950,6 +1950,7 @@ Vec__Str * Vec__Str_new(void);
 U32 Vec__Str_len(Vec__Str * self);
 void Vec__Str_clear(Vec__Str * self);
 void Vec__Str_push(Vec__Str * self, Str * val);
+void Vec__Str_move_from(Vec__Str * self, Vec__Str * other);
 Str * Vec__Str_get(Vec__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
 Str * Vec__Str_pop(Vec__Str * self);
 void Vec__Str_set(Vec__Str * self, U32 i, Str * val);

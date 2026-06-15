@@ -7375,20 +7375,16 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
 // that type, not just one. Returns true if at least one was found.
 priv pending_remove_all_matching := func(mut pending: Vec(Str), type_name: Str) returns Bool {
     mut found := false
-    // Rebuild pending in place, dropping matches.
-    mut write : USize = 0
+    mut kept := Vec(Str).new()
     for i in 0..pending.len() {
         ref n : Str = pending[i]
         if n.eq(type_name) {
             found = true
         } else {
-            if write.lt(i) {
-                pending.set(write, own n.clone())
-            }
-            write = write.add(1)
+            kept.push(own n.clone())
         }
     }
-    pending.count = write
+    pending.move_from(kept)
     return found
 }
 
