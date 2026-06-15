@@ -38,7 +38,7 @@ priv children_filter_expr := func(mut v: Vec(Expr), marks: Dynamic, n: USize) {
             Expr.delete(own ptr_add(v.data, i.mul(Expr.size()).cast(U64)), false)
             memset(ptr_add(v.data, i.mul(Expr.size()).cast(U64)), 0, Expr.size().cast(U64))
         }
-        i = i.add(1)
+        i++
     }
     // Compact: move kept elements forward
     mut w : USize = 0
@@ -49,9 +49,9 @@ priv children_filter_expr := func(mut v: Vec(Expr), marks: Dynamic, n: USize) {
             if w.neq(r) {
                 memcpy(ptr_add(v.data, w.mul(Expr.size()).cast(U64)), ptr_add(v.data, r.mul(Expr.size()).cast(U64)), Expr.size().cast(U64))
             }
-            w = w.add(1)
+            w++
         }
-        r = r.add(1)
+        r++
     }
     v.count = w
 }
@@ -64,7 +64,7 @@ priv children_filter_decl := func(mut v: Vec(Declaration), marks: Dynamic, n: US
             Declaration.delete(own ptr_add(v.data, i.mul(Declaration.size()).cast(U64)), false)
             memset(ptr_add(v.data, i.mul(Declaration.size()).cast(U64)), 0, Declaration.size().cast(U64))
         }
-        i = i.add(1)
+        i++
     }
     mut w : USize = 0
     mut r : USize = 0
@@ -74,9 +74,9 @@ priv children_filter_decl := func(mut v: Vec(Declaration), marks: Dynamic, n: US
             if w.neq(r) {
                 memcpy(ptr_add(v.data, w.mul(Declaration.size()).cast(U64)), ptr_add(v.data, r.mul(Declaration.size()).cast(U64)), Declaration.size().cast(U64))
             }
-            w = w.add(1)
+            w++
         }
-        r = r.add(1)
+        r++
     }
     v.count = w
 }
@@ -342,16 +342,14 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
 priv dyn_call_real_arg_count := func(e: Expr) returns USize {
     if e.node_type.is(NodeType.FCall).not() { return e.children.len() }
     if e.children.len().lt(4) { return e.children.len() }
-    ref callee : Expr = e.children[0]
     mut is_dc := false
-    switch callee.node_type {
+    switch e.children[0].node_type {
     case NodeType.Ident(cn): is_dc = cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret"))
     case:
     }
     if is_dc.not() { return e.children.len() }
-    ref nargs_e : Expr = e.children[3]
     mut nargs : USize = 0
-    switch nargs_e.node_type {
+    switch e.children[3].node_type {
     case NodeType.Literal(Literal.Num(s)):
         nargs = s.literal_num_text().to_usize()
     case:
@@ -383,12 +381,12 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
         if is_body {
             target := match_trivial_delete(c)
             if target.len().gt(0).and(candidates.has(target)) {
-                idx = idx.add(1)
+                idx++
                 continue
             }
         }
         collect_body_refs(c, refs, candidates)
-        idx = idx.add(1)
+        idx++
     }
 }
 
@@ -417,8 +415,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     }
     if method.eq("delete").not() { return "" }
     if callee.children.len().neq(1) { return "" }
-    ref tname : Expr = callee.children[0]
-    if tname.node_type.is(NodeType.Ident).not() { return "" }
+    if callee.children[0].node_type.is(NodeType.Ident).not() { return "" }
     ref arg0 : Expr = stmt.children[1]
     if arg0.node_type.is(NodeType.Ident).not() { return "" }
     ref arg1 : Expr = stmt.children[2]
@@ -485,8 +482,8 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
             free(own marks)
         }
     }
-    for j in 0..e.children.len() {
-        prune_trivial_deletes(e.children[j], dropped)
+    for c : Expr in e.children {
+        prune_trivial_deletes(c, dropped)
     }
 }
 
@@ -510,8 +507,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     //     bare FCall rather than dropping it.
     candidates := Set(Str).new()
     candidates_replace := Set(Str).new()
-    for i in 0..n {
-        ref stmt : Expr = body.children[i]
+    for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         switch stmt.node_type {
@@ -552,8 +548,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     // that target a candidate temp. Those are weak refs we'll drop along
     // with the candidate.
     refs := Set(Str).new()
-    for i in 0..n {
-        ref stmt : Expr = body.children[i]
+    for stmt : Expr in body.children {
         target := match_trivial_delete(stmt)
         if target.len().gt(0).and(candidates.has(target)) { continue }
         collect_body_refs(stmt, refs, candidates)
@@ -679,7 +674,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
                     bool_arg.node_type = NodeType.Literal(Literal.Bool(false))
                     break
                 }
-                j = j.add(1)
+                j++
             }
         case:
         }
@@ -695,8 +690,8 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
     expect(__LOC__, e.is_null().not(), "e is null")
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
-    for i in 0..e.children.len() {
-        body_dce_walk(e.children[i], child_top)
+    for c : Expr in e.children {
+        body_dce_walk(c, child_top)
     }
     if is_body {
         fix_stale_litstr_in_body(e)
