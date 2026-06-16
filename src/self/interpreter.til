@@ -2808,6 +2808,16 @@ priv ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context
 
 make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size().cast(U64))
+    if len.eq(0) {
+        // Empty string: no owned buffer to allocate. Point at the shared ""
+        // literal (cap=CAP_LIT) so teardown frees nothing. Avoids a 1-byte
+        // malloc per empty string that the count==0 free guards skip and leak
+        // (the dominant make_str_value leak, mostly from constfolder folds).
+        write_ptr(inst_data, "".c_str)
+        write_u32(ptr_add(inst_data, 8), 0)
+        write_u32(ptr_add(inst_data, 12), CAP_LIT)
+        return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    }
     copy : Dynamic = malloc(len.add(1).cast(U64))
     memcpy(copy, data, len.cast(U64))
     memset(ptr_add(copy, len.cast(U64)), 0, 1)
