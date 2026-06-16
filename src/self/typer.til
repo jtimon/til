@@ -5571,6 +5571,7 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
         if cn.children.len().neq(2) { return false }
         ref pat : Expr = cn.children[0]
         mut lit_text := ""
+        mut is_range := false
         if is_enum {
             // Accept a bare variant `Type.Variant` (FieldAccess) OR a single
             // payload binding `Type.Variant(x)` (#276: FCall with a FieldAccess
@@ -5622,15 +5623,26 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
             case: return false
             }
         } else {
+            // int/char: a constant literal, or a `lo..hi` range (Range.new
+            // FCall with int/char-literal bounds) emitted as a C case range.
             switch pat.node_type {
             case NodeType.Literal(Literal.Num(num)): lit_text = num.literal_num_text()
+            case NodeType.FCall:
+                if is_range_new_call(pat).not() { return false }
+                if pat.children[1].node_type.is_literal_num().not() { return false }
+                if pat.children[2].node_type.is_literal_num().not() { return false }
+                is_range = true
             case: return false
             }
         }
-        for lbl : Str in labels {
-            if lbl.eq(lit_text) { return false }
+        // Dedup constant labels (C rejects duplicates); ranges are left to the
+        // C compiler to reject on overlap.
+        if is_range.not() {
+            for lbl : Str in labels {
+                if lbl.eq(lit_text) { return false }
+            }
+            labels.push(own lit_text.clone())
         }
-        labels.push(own lit_text.clone())
         if expr_has_unguarded_break(cn.children[1]) { return false }
     }
     return true

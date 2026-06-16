@@ -316,6 +316,28 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     }
 }
 
+// #254 range cases: true when `e` is a `Range.new(lo, hi)` FCall -- the AST
+// shape a `lo..hi` range pattern parses to. Used by the C-like switch path to
+// recognise a `case lo..hi:` arm (emitted as a C case range `lo ... hi`).
+is_range_new_call := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().neq(3) { return false }
+    ref callee : Expr = e.children[0]
+    // Pre-inference the callee is `Range.new` (FieldAccess); the constructor
+    // rewrite later collapses it to a bare `Range` (Ident). Accept both.
+    switch callee.node_type {
+    case NodeType.Ident(id): return id.ident_name().eq("Range")
+    case NodeType.FieldAccess(fa):
+        if fa.field_access_name().eq("new").not() { return false }
+        if callee.children.len().eq(0) { return false }
+        switch callee.children[0].node_type {
+        case NodeType.Ident(bid): return bid.ident_name().eq("Range")
+        case: return false
+        }
+    case: return false
+    }
+}
+
 /// Struct definition: field declarations, namespace methods, c_tag.
 /// Issue #147 step 4: total_struct_size dropped from the AST in favour
 /// of ctx.struct_layouts[name].total_size, populated by

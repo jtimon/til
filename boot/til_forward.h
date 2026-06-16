@@ -2058,6 +2058,7 @@ Str * ident_name(IdentData * id);
 Str * field_access_name(FieldAccessData * fa);
 void set_own_arg(Expr * fcall, U32 arg_index);
 Bool get_own_arg(Expr * fcall, U32 arg_index);
+Bool is_range_new_call(Expr * e);
 StructDef * StructDef_clone(StructDef * self);
 void StructDef_delete(StructDef * self, Bool call_free);
 U64 StructDef_hash(StructDef * self, HashFn hasher);

@@ -1070,13 +1070,18 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
             default_idx = ci
             continue
         }
-        mut label_key : I64 = 0.sub(1)
+        mut matched := false
         if is_enum_subj.and(enum_def.is_null().not()) {
-            label_key = enum_variant_tag(enum_def, clike_case_variant_name(cn.children[0])).cast(I64)
+            matched = enum_variant_tag(enum_def, clike_case_variant_name(cn.children[0])).cast(I64).eq(subj_i)
+        } else if is_range_new_call(cn.children[0]) {
+            // #254 range case `lo..hi`: match lo <= subj <= hi.
+            lo := value_switch_key(eval_expr(scope, cn.children[0].children[1], ctx))
+            hi := value_switch_key(eval_expr(scope, cn.children[0].children[2], ctx))
+            matched = subj_i.gte(lo).and(subj_i.lte(hi))
         } else {
-            label_key = value_switch_key(eval_expr(scope, cn.children[0], ctx))
+            matched = value_switch_key(eval_expr(scope, cn.children[0], ctx)).eq(subj_i)
         }
-        if label_key.eq(subj_i) {
+        if matched {
             case_scope := scope_new(scope)
             eval_body(case_scope, cn.children[1], ctx)
             if c.has_return { c.return_value = c.return_value.clone() }

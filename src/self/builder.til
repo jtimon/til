@@ -1988,6 +1988,11 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 f.write(enum_name)
                 f.write("_TAG_")
                 f.write(vn)
+            } else if is_range_new_call(cn.children[0]) {
+                // #254 range case `lo..hi` -> C case range `lo ... hi`.
+                emit_expr(f, cn.children[0].children[1], depth, ctx)
+                f.write(" ... ")
+                emit_expr(f, cn.children[0].children[2], depth, ctx)
             } else {
                 emit_expr(f, cn.children[0], depth, ctx)
             }
