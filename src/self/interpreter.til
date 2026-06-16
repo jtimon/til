@@ -1014,6 +1014,193 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     }
 }
 
+priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx: Context) {
+    ref rhs : Expr = stmt.children[0]
+    if stmt.expr_til_type().is(Type.None) {
+        if rhs.node_type.is(NodeType.Ident) { return }
+    }
+    if dd.own_type.is(OwnType.Ref) {
+        switch rhs.node_type {
+        case NodeType.Ident(rhs_ident):
+            ref src : Cell = scope_get(scope, rhs_ident.ident_name())
+            scope_set_borrowed(scope, dd.name, src)
+            return
+        case:
+        }
+    }
+    mut val := val_none()
+    switch rhs.node_type {
+    case NodeType.Ident(rhs_ident):
+        ref src : Cell = scope_get(scope, rhs_ident.ident_name())
+        if src.is_null() {
+            interp_error(rhs, "undefined variable '".concat(rhs_ident.ident_name()).concat("'"), ctx)
+            exit(1)
+        }
+        val = shallow_copy_value(src.val)
+        if val.is(Value.Func).not() {
+            memcpy(src.val, val_none(), Value.size().cast(U64))
+        }
+    case:
+        val = eval_expr(scope, rhs, ctx)
+    }
+    if dd.own_type.is(OwnType.Ref) {
+        // Only a POINTER rhs is a genuine view (e.g. the ref-mut payload
+        // alias `ref p : Str = get_payload(c)` aliases the enum payload's
+        // c_str): reinterpret it to the declared type and mark it
+        // borrowed so the always-deep teardown never frees the aliased
+        // buffer (a later read would be a use-after-free). A VALUE rhs
+        // (e.g. `ref s : Str = f()`) instead binds -- and extends the
+        // lifetime of -- a temporary: fall through and let the cell OWN
+        // it (preserving val's real borrowed flag). Issue #272: the old
+        // code reinterpret-cloned AND force-borrowed every ref binding,
+        // so a value-rhs ref leaked the owned clone (the cell skipped it
+        // as "borrowed") -- the dominant precomp ref-binding leak.
+        if is_value_ptr(val) {
+            if dd.explicit_type.len().gt(0) {
+                // #227: for ref-mut bindings to primitive scalars at a
+                // raw pointer, save the source ptr so a later Assign
+                // can write back through it. reinterpret_ptr_value
+                // collapses val into a Value.<Primitive>(scalar)
+                // immediately below, which would otherwise lose the
+                // address.
+                if interp_is_primitive_type_name(dd.explicit_type) {
+                    ref ptr_view : Dynamic = value_ptr_view(val)
+                    ref source_addr : Dynamic = deref(ptr_view)
+                    if is_null(source_addr).not() {
+                        holder : Dynamic = malloc(8)
+                        write_ptr(holder, source_addr)
+                        scope.ref_primitive_ptrs.set(dd.name, own holder)
+                    }
+                }
+                val = reinterpret_ptr_value(val, dd.explicit_type, scope, ctx, true)
+            }
+            switch val {
+            case Value.Struct(rsi): rsi.borrowed = true
+            case Value.Enum(rei):   rei.borrowed = true
+            case:
+            }
+        }
+    }
+    scope_set_owned(scope, dd.name, val)
+    // #211 follow-up: register an alias for `ref T = get_payload(<ident>)`.
+    // When the user later assigns to dd.name, we'll mirror the write into
+    // the source enum's payload memory so the change is visible after
+    // the case body (matching the compile backend).
+    if dd.own_type.is(OwnType.Ref) {
+        switch rhs.node_type {
+        case NodeType.FCall:
+            if rhs.children.len().eq(2) {
+                ref head : Expr = rhs.children[0]
+                ref arg  : Expr = rhs.children[1]
+                switch head.node_type {
+                case NodeType.Ident(head_id):
+                    if head_id.ident_name().eq("get_payload") {
+                        switch arg.node_type {
+                        case NodeType.Ident(enum_id):
+                            enc := enum_id.ident_name().concat("|").concat(dd.explicit_type)
+                            scope.payload_aliases.set(dd.name, own enc.clone())
+                        case:
+                        }
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    }
+}
+
+priv eval_fcall := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
+    // #272 step 3: a swap_replace FCall is hoist_param_swap_assign's
+    // lowering of `param = rhs` for a mut aggregate param. The
+    // compiled backend emits delete-copy-free (a MOVE: delete the
+    // target's old value, value-copy the temp in, free the temp
+    // wrapper; the garbager's swap_freed accounting assumes the
+    // temp was consumed). Running the literal byte swap here
+    // instead left the target and the temp aliasing one payload,
+    // which blocks deep scope teardown (UAF). Mirror the move:
+    // deep-delete the target cell's old value, move the temp's
+    // Value in, null the temp cell so its teardown is a no-op.
+    mut did_swap_replace := false
+    switch stmt.node_type {
+    case NodeType.FCall(sw_fcd):
+        if sw_fcd.swap_replace.and(stmt.children.len().gte(3)) {
+            mut sw_target := ""
+            mut sw_src := ""
+            switch stmt.children[1].node_type {
+            case NodeType.Ident(sw_t): sw_target = sw_t.ident_name()
+            case:
+            }
+            switch stmt.children[2].node_type {
+            case NodeType.Ident(sw_s): sw_src = sw_s.ident_name()
+            case:
+            }
+            if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
+                ref sw_tcell : Cell = scope_get(scope, sw_target)
+                ref sw_scell : Cell = scope_get(scope, sw_src)
+                if sw_tcell.is_null().not().and(sw_scell.is_null().not()) {
+                    sw_tcell.val = val_none()
+                    memcpy(sw_tcell.val, sw_scell.val, Value.size().cast(U64))
+                    memcpy(sw_scell.val, val_none(), Value.size().cast(U64))
+                    did_swap_replace = true
+                }
+            }
+        }
+    case:
+    }
+    if did_swap_replace { return }
+    // Issue #109: a bare call-statement discards its result Value.
+    // The garbager inserts a deep Value.delete for this discarded
+    // result at its last use, reclaiming any heap payload. Borrowed
+    // results carry borrowed = true, so the deep delete skips them.
+    _ := eval_call(scope, stmt, ctx)
+}
+
+priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
+    ref mut c : Context = ctx
+    cond := eval_expr(scope, stmt.children[0], ctx)
+    mut cv := false
+    switch cond {
+    case Value.Boolean(b):
+        cv = b
+    case:
+        UNREACHABLE(__LOC__)
+    }
+    if cv {
+        then_scope := scope_new(scope)
+        eval_body(then_scope, stmt.children[1], ctx)
+        if c.has_return { c.return_value = c.return_value.clone() }
+        scope_free(own then_scope)
+    } else if stmt.children.len().gt(2) {
+        else_scope := scope_new(scope)
+        eval_body(else_scope, stmt.children[2], ctx)
+        if c.has_return { c.return_value = c.return_value.clone() }
+        scope_free(own else_scope)
+    }
+}
+
+priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
+    ref mut c : Context = ctx
+    while true {
+        if c.has_return { break }
+        cond := eval_expr(scope, stmt.children[0], ctx)
+        mut cv := false
+        switch cond {
+        case Value.Boolean(b):
+            cv = b
+        case:
+            UNREACHABLE(__LOC__)
+        }
+        if cv.not() { break }
+        while_scope := scope_new(scope)
+        eval_body(while_scope, stmt.children[1], ctx)
+        if c.has_return { c.return_value = c.return_value.clone() }
+        scope_free(own while_scope)
+        if c.has_break { c.has_break = false; break }
+        if c.has_continue { c.has_continue = false }
+    }
+}
+
 priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     for mut e_i : Expr in body.children {
@@ -1023,99 +1210,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            ref rhs : Expr = stmt.children[0]
-            if stmt.expr_til_type().is(Type.None) {
-                if rhs.node_type.is(NodeType.Ident) { continue }
-            }
-            if dd.own_type.is(OwnType.Ref) {
-                switch rhs.node_type {
-                case NodeType.Ident(rhs_ident):
-                    ref src : Cell = scope_get(scope, rhs_ident.ident_name())
-                    scope_set_borrowed(scope, dd.name, src)
-                    continue
-                case:
-                }
-            }
-            mut val := val_none()
-            switch rhs.node_type {
-            case NodeType.Ident(rhs_ident):
-                ref src : Cell = scope_get(scope, rhs_ident.ident_name())
-                if src.is_null() {
-                    interp_error(rhs, "undefined variable '".concat(rhs_ident.ident_name()).concat("'"), ctx)
-                    exit(1)
-                }
-                val = shallow_copy_value(src.val)
-                if val.is(Value.Func).not() {
-                    memcpy(src.val, val_none(), Value.size().cast(U64))
-                }
-            case:
-                val = eval_expr(scope, rhs, ctx)
-            }
-            if dd.own_type.is(OwnType.Ref) {
-                // Only a POINTER rhs is a genuine view (e.g. the ref-mut payload
-                // alias `ref p : Str = get_payload(c)` aliases the enum payload's
-                // c_str): reinterpret it to the declared type and mark it
-                // borrowed so the always-deep teardown never frees the aliased
-                // buffer (a later read would be a use-after-free). A VALUE rhs
-                // (e.g. `ref s : Str = f()`) instead binds -- and extends the
-                // lifetime of -- a temporary: fall through and let the cell OWN
-                // it (preserving val's real borrowed flag). Issue #272: the old
-                // code reinterpret-cloned AND force-borrowed every ref binding,
-                // so a value-rhs ref leaked the owned clone (the cell skipped it
-                // as "borrowed") -- the dominant precomp ref-binding leak.
-                if is_value_ptr(val) {
-                    if dd.explicit_type.len().gt(0) {
-                        // #227: for ref-mut bindings to primitive scalars at a
-                        // raw pointer, save the source ptr so a later Assign
-                        // can write back through it. reinterpret_ptr_value
-                        // collapses val into a Value.<Primitive>(scalar)
-                        // immediately below, which would otherwise lose the
-                        // address.
-                        if interp_is_primitive_type_name(dd.explicit_type) {
-                            ref ptr_view : Dynamic = value_ptr_view(val)
-                            ref source_addr : Dynamic = deref(ptr_view)
-                            if is_null(source_addr).not() {
-                                holder : Dynamic = malloc(8)
-                                write_ptr(holder, source_addr)
-                                scope.ref_primitive_ptrs.set(dd.name, own holder)
-                            }
-                        }
-                        val = reinterpret_ptr_value(val, dd.explicit_type, scope, ctx, true)
-                    }
-                    switch val {
-                    case Value.Struct(rsi): rsi.borrowed = true
-                    case Value.Enum(rei):   rei.borrowed = true
-                    case:
-                    }
-                }
-            }
-            scope_set_owned(scope, dd.name, val)
-            // #211 follow-up: register an alias for `ref T = get_payload(<ident>)`.
-            // When the user later assigns to dd.name, we'll mirror the write into
-            // the source enum's payload memory so the change is visible after
-            // the case body (matching the compile backend).
-            if dd.own_type.is(OwnType.Ref) {
-                switch rhs.node_type {
-                case NodeType.FCall:
-                    if rhs.children.len().eq(2) {
-                        ref head : Expr = rhs.children[0]
-                        ref arg  : Expr = rhs.children[1]
-                        switch head.node_type {
-                        case NodeType.Ident(head_id):
-                            if head_id.ident_name().eq("get_payload") {
-                                switch arg.node_type {
-                                case NodeType.Ident(enum_id):
-                                    enc := enum_id.ident_name().concat("|").concat(dd.explicit_type)
-                                    scope.payload_aliases.set(dd.name, own enc.clone())
-                                case:
-                                }
-                            }
-                        case:
-                        }
-                    }
-                case:
-                }
-            }
+            eval_declaration(scope, stmt, dd, ctx)
         case NodeType.Assign(ad):
             ref rhs : Expr = stmt.children[0]
             ref cell : Cell = scope_get(scope, ad.name)
@@ -1401,49 +1496,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
             }
         case NodeType.FCall:
-            // #272 step 3: a swap_replace FCall is hoist_param_swap_assign's
-            // lowering of `param = rhs` for a mut aggregate param. The
-            // compiled backend emits delete-copy-free (a MOVE: delete the
-            // target's old value, value-copy the temp in, free the temp
-            // wrapper; the garbager's swap_freed accounting assumes the
-            // temp was consumed). Running the literal byte swap here
-            // instead left the target and the temp aliasing one payload,
-            // which blocks deep scope teardown (UAF). Mirror the move:
-            // deep-delete the target cell's old value, move the temp's
-            // Value in, null the temp cell so its teardown is a no-op.
-            mut did_swap_replace := false
-            switch stmt.node_type {
-            case NodeType.FCall(sw_fcd):
-                if sw_fcd.swap_replace.and(stmt.children.len().gte(3)) {
-                    mut sw_target := ""
-                    mut sw_src := ""
-                    switch stmt.children[1].node_type {
-                    case NodeType.Ident(sw_t): sw_target = sw_t.ident_name()
-                    case:
-                    }
-                    switch stmt.children[2].node_type {
-                    case NodeType.Ident(sw_s): sw_src = sw_s.ident_name()
-                    case:
-                    }
-                    if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
-                        ref sw_tcell : Cell = scope_get(scope, sw_target)
-                        ref sw_scell : Cell = scope_get(scope, sw_src)
-                        if sw_tcell.is_null().not().and(sw_scell.is_null().not()) {
-                            sw_tcell.val = val_none()
-                            memcpy(sw_tcell.val, sw_scell.val, Value.size().cast(U64))
-                            memcpy(sw_scell.val, val_none(), Value.size().cast(U64))
-                            did_swap_replace = true
-                        }
-                    }
-                }
-            case:
-            }
-            if did_swap_replace { continue }
-            // Issue #109: a bare call-statement discards its result Value.
-            // The garbager inserts a deep Value.delete for this discarded
-            // result at its last use, reclaiming any heap payload. Borrowed
-            // results carry borrowed = true, so the deep delete skips them.
-            _ := eval_call(scope, stmt, ctx)
+            eval_fcall(scope, stmt, ctx)
         case NodeType.Body:
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt, ctx)
@@ -1462,44 +1515,9 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             }
             scope_free(own cb_scope)
         case NodeType.If:
-            cond := eval_expr(scope, stmt.children[0], ctx)
-            mut cv := false
-            switch cond {
-            case Value.Boolean(b):
-                cv = b
-            case:
-                UNREACHABLE(__LOC__)
-            }
-            if cv {
-                then_scope := scope_new(scope)
-                eval_body(then_scope, stmt.children[1], ctx)
-                if c.has_return { c.return_value = c.return_value.clone() }
-                scope_free(own then_scope)
-            } else if stmt.children.len().gt(2) {
-                else_scope := scope_new(scope)
-                eval_body(else_scope, stmt.children[2], ctx)
-                if c.has_return { c.return_value = c.return_value.clone() }
-                scope_free(own else_scope)
-            }
+            eval_if(scope, stmt, ctx)
         case NodeType.While:
-            while true {
-                if c.has_return { break }
-                cond := eval_expr(scope, stmt.children[0], ctx)
-                mut cv := false
-                switch cond {
-                case Value.Boolean(b):
-                    cv = b
-                case:
-                    UNREACHABLE(__LOC__)
-                }
-                if cv.not() { break }
-                while_scope := scope_new(scope)
-                eval_body(while_scope, stmt.children[1], ctx)
-                if c.has_return { c.return_value = c.return_value.clone() }
-                scope_free(own while_scope)
-                if c.has_break { c.has_break = false; break }
-                if c.has_continue { c.has_continue = false }
-            }
+            eval_while(scope, stmt, ctx)
         case NodeType.Break:
             c.has_break = true
         case NodeType.Continue:

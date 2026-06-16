@@ -3522,6 +3522,10 @@ Expr * priv___src_self_interpreter_til__resolve_field_assign_sdef(Scope * scope,
 I64 priv___src_self_interpreter_til__value_as_i64(Value * v);
 I64 priv___src_self_interpreter_til__value_switch_key(Value * v);
 void priv___src_self_interpreter_til__eval_switch(Scope * scope, Expr * stmt, Context * ctx);
+void priv___src_self_interpreter_til__eval_declaration(Scope * scope, Expr * stmt, Declaration * dd, Context * ctx);
+void priv___src_self_interpreter_til__eval_fcall(Scope * scope, Expr * stmt, Context * ctx);
+void priv___src_self_interpreter_til__eval_if(Scope * scope, Expr * stmt, Context * ctx);
+void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
 Value eval_call(Scope * scope, Expr * e, Context * ctx);
 void priv___src_self_interpreter_til__free_value(Value v);
