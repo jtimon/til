@@ -2322,6 +2322,7 @@ void priv___src_self_parser_til__set_fcall_splat(Expr * fcall);
 Bool priv___src_self_parser_til__parse_named_arg(priv___src_self_parser_til__Parser * p, Expr * call);
 void priv___src_self_parser_til__append_arg(priv___src_self_parser_til__Parser * p, Expr * call, Expr * arg, Bool is_own_arg);
 void priv___src_self_parser_til__parse_throw_bang_suffix(priv___src_self_parser_til__Parser * p, Expr * call);
+Expr * priv___src_self_parser_til__parse_subscript_assign(priv___src_self_parser_til__Parser * p, Expr * lhs);
 Expr * priv___src_self_parser_til__parse_call(priv___src_self_parser_til__Parser * p, Expr * callee, U32 call_line, U32 call_col);
 Expr * priv___src_self_parser_til__make_binop_call(Expr * lhs, Str * method, U32 op_line, U32 op_col, Expr * rhs);
 Expr * priv___src_self_parser_til__take_expr(Expr * e);

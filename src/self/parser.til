@@ -1249,6 +1249,48 @@ priv parse_throw_bang_suffix := func(mut p: Parser, mut call: Expr) {
     }
 }
 
+// Issue #225: subscript assignment. The LHS has already been re-parsed
+// via parse_expression (from start_pos), so a trailing `a[b]` arrives
+// here as the read-side get-call `a.get(b)!` -- an FCall with is_bang
+// set, children [FieldAccess("get")[recv], index]. If an `=` follows,
+// rewrite that outermost get-call in place into `a.set(b, own RHS)!`:
+// rename the field access "get" -> "set" and append the parsed RHS as
+// an owned arg, keeping the bang. The `own` mirrors Vec.set/Array.set's
+// `own val` parameter, so the desugar transfers the RHS into the
+// container exactly like a hand-written `a.set(b, own c)!`. It is
+// generic over any type whose `set` throws -- no type-name special
+// casing, exactly like the read side. Shapes that are not a trailing
+// subscript (bare `a[b]` expression statements, `a[b] += c`,
+// `a[b].field = c`, ...) fall through unchanged, same as before.
+priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
+    if check(p, TokenType.Eq).not() { return lhs }
+    if lhs.node_type.is(NodeType.FCall).not() { return lhs }
+    mut is_bang := false
+    switch lhs.node_type {
+    case NodeType.FCall(fcd): is_bang = fcd.is_bang
+    case:
+    }
+    if is_bang.not() { return lhs }
+    if lhs.children.len().neq(2) { return lhs }
+    ref mut callee : Expr = lhs.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return lhs }
+    mut is_get := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(fad): is_get = fad.name.eq("get")
+    case:
+    }
+    if is_get.not() { return lhs }
+    advance(p) // consume '='
+    mut rhs := parse_expression(p)
+    switch callee.node_type {
+    case NodeType.FieldAccess(fad2): fad2.name = "set"
+    case: UNREACHABLE(__LOC__)
+    }
+    set_own_arg(lhs, lhs.children.len())
+    lhs.add_child(own rhs)
+    return lhs
+}
+
 // parse_call: callee Expr already built, current token is '('. The callee
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
@@ -1934,6 +1976,13 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 expect_token(p, TokenType.RParen)
                 mcall = next_call
             }
+            // Statement-level throwing method call: `obj.m(args)?` /
+            // `obj.m(args)!`. The free-call statement path gets this via
+            // parse_call; the method-call path did not, so a bare throwing
+            // method call (e.g. the `a.set(b, own c)!` that subscript
+            // assignment lowers to) could only appear in expression
+            // position. Parse the suffix here so it works as a statement too.
+            parse_throw_bang_suffix(p, mcall)
             return mcall
         }
         // Postfix increment/decrement on field: obj.field++ or obj.field--
@@ -1954,7 +2003,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         }
         if check(p, TokenType.LBracket) {
             p.pos = start_pos
-            return parse_expression(p)
+            return parse_subscript_assign(p, own parse_expression(p))
         }
         // Field assignment: name.field = value
         expect_token(p, TokenType.Eq)
@@ -1988,7 +2037,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
 
     if check(p, TokenType.LBracket) {
         p.pos = start_pos
-        return parse_expression(p)
+        return parse_subscript_assign(p, own parse_expression(p))
     }
 
     // Postfix increment/decrement: name++ or name--

@@ -645,3 +645,67 @@ test_array_get_bang_ok := test() {
     ref v : I64 = arr.get(2)!
     assert(__LOC__, v.eq(7))
 }
+
+// ==========================================================
+// Issue #225 prep: statement-level `?`/`!` on method calls.
+//
+// A free-function call already parsed a trailing `?`/`!` at statement
+// position (`f(x)?` works), but a method call did not -- a bare
+// `obj.m(args)!` only parsed in expression position. Subscript
+// assignment `a[b] = c` lowers to `a.set(b, own c)!`, a throwing
+// method call in statement position, so the statement parser must
+// accept the suffix. These exercise that shape directly with a
+// throwing void method (no subscript involved).
+// ==========================================================
+
+StmtThrowError := struct { msg: Str = "" }
+
+StmtThrower := struct {
+    n: I64 = 0
+namespace:
+    bump := func(mut self: StmtThrower, by: I64) throws StmtThrowError {
+        if by.lt(0) {
+            throw StmtThrowError(msg = "negative bump")
+        }
+        self.n = self.n.add(by)
+    }
+}
+
+// `!` on a statement-level method call: no throw on this path, so no
+// panic; the call runs to completion.
+test_stmt_method_bang_ok := test() {
+    mut t := StmtThrower()
+    t.bump(5)!
+    assert_eq(__LOC__, t.n, 5)
+    t.bump(3)!
+    assert_eq(__LOC__, t.n, 8)
+}
+
+// `?` on a statement-level method call, throw path: the catch runs and
+// the statements after the throwing call (inside bump) do not.
+test_stmt_method_question_throws := test() {
+    mut t := StmtThrower()
+    mut caught := false
+    mut emsg := ""
+    t.bump(-1)?
+    catch (err: StmtThrowError) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.eq("negative bump"))
+    assert_eq(__LOC__, t.n, 0)
+}
+
+// `?` on a statement-level method call, success path: the catch is
+// skipped and the call's effect is visible.
+test_stmt_method_question_ok := test() {
+    mut t := StmtThrower()
+    mut caught := false
+    t.bump(2)?
+    catch (err: StmtThrowError) {
+        caught = true
+    }
+    assert(__LOC__, caught.not())
+    assert_eq(__LOC__, t.n, 2)
+}
