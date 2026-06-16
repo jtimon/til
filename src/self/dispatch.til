@@ -1680,7 +1680,19 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
             // foreign buffer with make_str_value_own (whose deep delete would
             // free memory we do not own).
             if fe.return_is_ref { result = make_str_value(sp.data, sp.count, ctx) }
-            else { result = make_str_value_own(sp.data, sp.count, ctx) }
+            else {
+                result = make_str_value_own(sp.data, sp.count, ctx)
+                // Issue #272: a by-value `returns Str` ext_func malloc'd the Str
+                // STRUCT wrapper too (e.g. F32_to_str: `malloc(sizeof(Str))`)
+                // and handed its ownership to us along with the c_str.
+                // make_str_value_own claimed the c_str; free the now-spent
+                // wrapper so it does not leak. This was the dominant interpret-
+                // mode FFI leak: every by-value Str return leaked its 16-byte
+                // wrapper. (A `returns ref Str` hands back a borrowed pointer we
+                // must NOT free, so only the owned branch frees.)
+                mut str_wrapper : Dynamic = raw_ptr
+                free(own str_wrapper)
+            }
         } else if rtype.eq("Dynamic") {
             result = Value.Dynamic(raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
