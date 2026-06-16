@@ -28,7 +28,6 @@
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 ** Medium
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
-*** [[./open/276.org][#276]] codegen: lower mixed (payload-binding) enum switches to a C switch on the tag
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs

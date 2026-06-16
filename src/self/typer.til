@@ -5572,21 +5572,49 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
         ref pat : Expr = cn.children[0]
         mut lit_text := ""
         if is_enum {
-            // Bare variant `Type.Variant` only -- a FieldAccess (payload
-            // bindings are FCalls and disqualify the switch). The base must
-            // name the scrutinee's enum and the variant must exist.
+            // Accept a bare variant `Type.Variant` (FieldAccess) OR a single
+            // payload binding `Type.Variant(x)` (#276: FCall with a FieldAccess
+            // callee and one bare-Ident arg). The base must name the
+            // scrutinee's enum and the variant must exist; a payload binding
+            // additionally requires the variant to carry a payload. Guards,
+            // ranges, nested/struct patterns, and multi-arg payloads still fall
+            // back to the desugar.
+            mut vname := ""
+            mut base_ok := false
+            mut needs_payload := false
             switch pat.node_type {
-            case NodeType.FieldAccess(fa): lit_text = fa.field_access_name()
+            case NodeType.FieldAccess(fa):
+                vname = fa.field_access_name()
+                if pat.children.len().gt(0) {
+                    switch pat.children[0].node_type {
+                    case NodeType.Ident(bn): base_ok = bn.ident_name().eq(sw_sname)
+                    case:
+                    }
+                }
+            case NodeType.FCall:
+                if pat.children.len().neq(2) { return false }
+                if pat.children[1].node_type.is(NodeType.Ident).not() { return false }
+                ref callee : Expr = pat.children[0]
+                if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+                switch callee.node_type {
+                case NodeType.FieldAccess(fa2): vname = fa2.field_access_name()
+                case:
+                }
+                if callee.children.len().gt(0) {
+                    switch callee.children[0].node_type {
+                    case NodeType.Ident(bn2): base_ok = bn2.ident_name().eq(sw_sname)
+                    case:
+                    }
+                }
+                needs_payload = true
             case: return false
             }
-            if pat.children.len().eq(0) { return false }
-            switch pat.children[0].node_type {
-            case NodeType.Ident(bn):
-                if bn.ident_name().eq(sw_sname).not() { return false }
-            case: return false
-            }
+            if base_ok.not() { return false }
             ref edef1 : Expr = scope.get_struct(sw_sname)
-            if enum_variant_tag(edef1, lit_text).lt(0) { return false }
+            vtag := enum_variant_tag(edef1, vname)
+            if vtag.lt(0) { return false }
+            if needs_payload.and(enum_variant_type(edef1, vtag).len().eq(0)) { return false }
+            lit_text = vname
         } else if is_bool {
             switch pat.node_type {
             case NodeType.Literal(Literal.Bool(bv)):
@@ -5606,6 +5634,78 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
         if expr_has_unguarded_break(cn.children[1]) { return false }
     }
     return true
+}
+
+// #276: root Ident name of a simple lvalue (`x` -> "x", `a.b.c` -> "a"); ""
+// for anything else. Used to mark a switch scrutinee's root binding written.
+priv lvalue_root_name := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.Ident(id): return id.ident_name()
+    case NodeType.FieldAccess:
+        if e.children.len().eq(1) { return lvalue_root_name(e.children[0]) }
+        return ""
+    case: return ""
+    }
+}
+
+// #276: for a payload-binding C-like enum case `Type.V(x)`, prepend the
+// `ref x := get_payload(scrutinee, T)` decl to the case body (mirroring
+// make_switch_case_condition's #211/#164 binding logic) so the body type-checks
+// with x in scope. The C switch label stays the variant tag; the binding rides
+// the case body as an ordinary statement both backends already handle.
+priv prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str) {
+    ref pat : Expr = case_node.children[0]
+    if pat.node_type.is(NodeType.FCall).not() { return }
+    if pat.children.len().neq(2) { return }
+    ref callee : Expr = pat.children[0]
+    mut variant_name := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(vn): variant_name = vn.field_access_name()
+    case: return
+    }
+    mut binding_name := ""
+    switch pat.children[1].node_type {
+    case NodeType.Ident(bn): binding_name = bn.ident_name()
+    case: return
+    }
+    ref enum_def : Expr = scope.get_struct(sw_sname)
+    if enum_def.is_null() { return }
+    vt_tag := enum_variant_tag(enum_def, variant_name)
+    if vt_tag.lt(0) { return }
+    payload_type := enum_variant_type(enum_def, vt_tag)
+    if payload_type.len().eq(0) { return }
+    mut source_mut := false
+    switch sw_expr.node_type {
+    case NodeType.Ident(sw_idn):
+        ref sw_b : TypeBinding = scope.get_binding(sw_idn.ident_name())
+        if sw_b.is_null().not() { source_mut = sw_b.is_mut }
+    case:
+    }
+    payload_const := enum_variant_payload_const(enum_def, vt_tag)
+    bind_is_mut := source_mut.and(payload_const.not())
+    // Mark the scrutinee's root binding written: the case body holds a `ref`
+    // into the scrutinee's payload (get_payload) and may write through it
+    // (e.g. set_own_arg's `fcd.own_args = ...`). The desugar marks the source
+    // written too; do it here for both `x` and `x.field` scrutinees so a `mut`
+    // param/local is not wrongly flagged redundant-mut. Only mut roots are
+    // marked -- an immutable root can't be written and keeps its own checks.
+    root_name := lvalue_root_name(sw_expr)
+    if root_name.len().gt(0) {
+        ref mut rb : TypeBinding = scope.get_binding(root_name)
+        if is_null(rb).not() {
+            if rb.is_mut { rb.written = true }
+        }
+    }
+    mut bind_decl := make_payload_ref_decl(own sw_expr.clone(), binding_name, payload_type, case_node.line, case_node.col, bind_is_mut)
+    ref mut body : Expr = case_node.children[1]
+    mut old := Vec(Expr).new()
+    old.move_from(body.children)
+    mut new_ch := Vec(Expr).new()
+    new_ch.push(own bind_decl)
+    for bi in 0..old.len() {
+        new_ch.push_take(old, bi)
+    }
+    body.children.move_from(new_ch)
 }
 
 // #254: type-check a C-like switch in place, leaving its Switch/Case nodes for
@@ -5644,7 +5744,10 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
             default_line = cn.line
             default_col = cn.col
         } else {
-            if is_enum { mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0]) }
+            if is_enum {
+                mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0])
+                prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname)
+            }
             if is_bool { bool_labels = bool_labels.add(1) }
             last_case_idx = ci
             has_last_case = true

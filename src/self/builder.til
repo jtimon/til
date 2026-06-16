@@ -1971,9 +1971,18 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         } else {
             f.write("case ")
             if is_enum {
+                // #276: a payload-binding case `Type.V(x)` is an FCall whose
+                // FieldAccess callee names the variant; a bare `Type.V` is the
+                // FieldAccess itself. The binding decl already rides the body.
                 mut vn := ""
-                switch cn.children[0].node_type {
+                ref pat : Expr = cn.children[0]
+                switch pat.node_type {
                 case NodeType.FieldAccess(fa): vn = fa.field_access_name()
+                case NodeType.FCall:
+                    switch pat.children[0].node_type {
+                    case NodeType.FieldAccess(fa2): vn = fa2.field_access_name()
+                    case:
+                    }
                 case:
                 }
                 f.write(enum_name)

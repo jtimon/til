@@ -1,0 +1,64 @@
+# priority: medium
+# category: cleanups
+** FIXED #276 codegen: lower mixed (payload-binding) enum switches to a C switch on the tag
+
+  POST-MORTEM
+  Relaxed #254's C-like rule so a switch whose cases bind a single payload
+  (`case Type.V(x):`) still emits a real C switch on the tag, with the
+  payload binding riding the case body. This made the hot enum dispatches
+  qualify: boot/til.c went from 0 enum C switches to 47 (246 case labels)
+  -- the per-AST-node switches in typer/builder/dispatch now build jump
+  tables.
+
+  Changes:
+  - typer switch_is_clike: accept an enum case that is a bare `Type.V`
+    (FieldAccess) OR a single payload binding `Type.V(x)` (FCall with a
+    FieldAccess callee naming the variant + one bare-Ident arg; the variant
+    must carry a payload). Guards, ranges, strings, nested/struct patterns,
+    and multi-arg payloads still fall back to the desugar.
+  - typer prepend_clike_payload_binding: for a payload case, prepend
+    `ref x := get_payload(scrutinee, T)` to the case body (via
+    make_payload_ref_decl), mirroring make_switch_case_condition. Mark the
+    scrutinee's ROOT ident (`x` or `x.field`) written when mut, so a `mut`
+    param/local switched on with a payload binding that writes through the
+    ref (e.g. ast.til set_own_arg's `fcd.own_args = ...`) is not wrongly
+    flagged redundant-mut.
+  - builder emit_stmt_switch: take the variant name from the FCall callee
+    for payload cases.
+  - interpreter eval_switch: resolve enum case labels by variant TAG via
+    the enum def (lookup_type_def_helper + enum_variant_tag), NOT by
+    eval'ing the pattern -- a bare payload variant `Type.V` evaluates to
+    its CONSTRUCTOR function, not a tagged value, so the old eval-based key
+    gave 0 and never matched (the bug that first failed enums/first_class/
+    regression).
+
+  Verified: make test 154/154 (both backends). Regression coverage: the
+  payload-binding enum switches across test/enums.til, test/first_class.til,
+  test/regression.til and the compiler's own self-build exercise both paths.
+
+#254 emits a real C switch only when EVERY case is a bare constant (an
+int/char literal, a bare ~Type.Variant~, or a bool). The hot enum
+dispatches in ~typer.til~ / ~builder.til~ / ~dispatch.til~ are *mixed*:
+most arms bind a payload (~case NodeType.Foo(fd):~), so the whole switch
+falls back to the if/elif chain and gets no jump table -- exactly the
+per-AST-node dispatch #254 set out to speed up. (After #254, ~boot/til.c~
+had 22 int/char C switches and 0 enum ones, because every compiler enum
+switch is mixed.)
+
+*** Goal
+Lower a mixed enum switch to a C ~switch ((expr).tag) { case Enum_TAG_V:
+... }~ where each case body is prefixed with the payload-binding decl the
+if/elif desugar already emits (the ~ref fd := get_payload(expr, T)~ form
+from ~make_switch_case_condition~). Guards, ranges, string compares, and
+nested/struct patterns still fall back to the chain.
+
+*** Notes
+- Reuse #254's ~switch_is_clike~ / ~infer_clike_switch~ +
+  ~emit_stmt_switch~ / ~eval_switch~; relax the "no payload binding" rule
+  to "payload binding via a single ~get_payload~ decl prepended to the
+  case body", which both backends already handle as ordinary statements.
+- Exhaustiveness / last-case-as-default handling is already in place from
+  #254's enum path.
+- This is where the real win is: ~dispatch.til~ / ~typer.til~ /
+  ~builder.til~ run a switch per AST node per phase, and those are the
+  switches that stayed as if/elif chains after #254.
