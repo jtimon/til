@@ -1234,6 +1234,86 @@ priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
     out.push_str("\n")
 }
 
+DocMeta := struct {
+    body := ""
+    group := ""
+    since := ""
+    deprecated := ""
+    hidden := false
+}
+
+doc_keyword_value := func(line: Str, key: Str) returns Str {
+    trimmed := line.trim()
+    if trimmed.starts_with(key).not() { return "" }
+    return trimmed.substr(key.len(), trimmed.len().sub(key.len())).trim().clone()
+}
+
+doc_false_value := func(value: Str) returns Bool {
+    trimmed := value.trim()
+    return trimmed.eq("false").or(trimmed.eq("nil")).or(trimmed.eq("no"))
+}
+
+doc_meta_line := func(line: Str, mut meta: DocMeta) returns Bool {
+    trimmed := line.trim()
+    if trimmed.starts_with("#+doc:") {
+        value := doc_keyword_value(trimmed, "#+doc:")
+        if doc_false_value(value) { meta.hidden = true }
+        return true
+    }
+    if trimmed.starts_with("#+group:") {
+        meta.group = doc_keyword_value(trimmed, "#+group:")
+        return true
+    }
+    if trimmed.starts_with("#+since:") {
+        meta.since = doc_keyword_value(trimmed, "#+since:")
+        return true
+    }
+    if trimmed.starts_with("#+deprecated:") {
+        meta.deprecated = doc_keyword_value(trimmed, "#+deprecated:")
+        return true
+    }
+    return false
+}
+
+parse_doc_meta := func(doc: Str) returns DocMeta {
+    mut meta := DocMeta()
+    mut body := Str.with_capacity(doc.len())
+    mut start : USize = 0
+    for i in 0..doc.len() {
+        ref c : I8 = doc.byte_at(i)
+        if c.eq(10) {
+            line := doc.substr(start, i.sub(start))
+            if doc_meta_line(line, meta).not() {
+                if body.is_empty().not() { body.push_str("\n") }
+                body.push_str(line)
+            }
+            start = i.add(1)
+        }
+    }
+    if start.lt(doc.len()) {
+        line := doc.substr(start, doc.len().sub(start))
+        if doc_meta_line(line, meta).not() {
+            if body.is_empty().not() { body.push_str("\n") }
+            body.push_str(line)
+        }
+    }
+    meta.body = body
+    return meta
+}
+
+format_doc_for_help := func(doc: Str) returns Str {
+    meta := parse_doc_meta(doc)
+    if meta.hidden { return "" }
+    cap := meta.body.len().add(meta.group.len()).add(meta.since.len()).add(meta.deprecated.len()).add(64)
+    mut out := Str.with_capacity(cap)
+    if meta.since.is_empty().not() { out.push_str("Since: "); out.push_str(meta.since); out.push_str("\n") }
+    if meta.deprecated.is_empty().not() { out.push_str("Deprecated: "); out.push_str(meta.deprecated); out.push_str("\n") }
+    if meta.group.is_empty().not() { out.push_str("Group: "); out.push_str(meta.group); out.push_str("\n") }
+    if out.is_empty().not().and(meta.body.is_empty().not()) { out.push_str("\n") }
+    out.push_str(meta.body)
+    return out
+}
+
 // Append "    [own |ref |shallow ][mut ]name : Type" for a struct field.
 priv append_field_indented := func(mut out: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
@@ -1437,7 +1517,10 @@ priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut in
     }
     append_packed_entry(info, qual, method_info)
     if d.doc.is_empty().not() {
-        append_packed_entry(docs, qual, d.doc)
+        help_doc := format_doc_for_help(d.doc)
+        if help_doc.is_empty().not() {
+            append_packed_entry(docs, qual, help_doc)
+        }
     }
 }
 
@@ -1456,7 +1539,10 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
         }
         append_packed_entry(info, qual, field_info)
         if f.doc.is_empty().not() {
-            append_packed_entry(docs, qual, f.doc)
+            help_doc := format_doc_for_help(f.doc)
+            if help_doc.is_empty().not() {
+                append_packed_entry(docs, qual, help_doc)
+            }
         }
     }
     for d : Declaration in sdef.ns_decls {
@@ -1497,7 +1583,10 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
                 append_packed_entry(info, dd.name, entry_info)
             }
             if dd.doc.is_empty().not() {
-                append_packed_entry(docs, dd.name, dd.doc)
+                help_doc := format_doc_for_help(dd.doc)
+                if help_doc.is_empty().not() {
+                    append_packed_entry(docs, dd.name, help_doc)
+                }
             }
             if stmt.children.len().gt(0) {
                 ref rhs : Expr = stmt.children[0]

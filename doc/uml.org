@@ -305,6 +305,12 @@
 ** DeclRef: StructDef
 *** path := ""
 *** idx : U32 = 0
+** DocMeta: StructDef
+*** body := ""
+*** group := ""
+*** since := ""
+*** deprecated := ""
+*** hidden := false
 * typer
 ** CtorArg: EnumDef
 *** Unfilled

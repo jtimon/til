@@ -59,6 +59,49 @@ func retarget_loaded_aliases(lp: LoadedProgram)
 proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str) returns LoadedProgram
 #+end_src
 
+* DocMeta
+#+begin_src til
+struct DocMeta {
+    mut body : Str
+    mut group : Str
+    mut since : Str
+    mut deprecated : Str
+    mut hidden : Bool
+namespace:
+    func clone(self: DocMeta) returns DocMeta
+    func delete(own self: DocMeta, shallow call_free: Bool)
+    func hash(self: DocMeta, hasher: HashFn) returns shallow U64
+    func eq(self: DocMeta, other: DocMeta) returns shallow Bool
+    func to_str(self: DocMeta) returns Str
+    func size() returns shallow U32
+}
+#+end_src
+
+* doc_keyword_value
+#+begin_src til
+func doc_keyword_value(line: Str, key: Str) returns Str
+#+end_src
+
+* doc_false_value
+#+begin_src til
+func doc_false_value(value: Str) returns shallow Bool
+#+end_src
+
+* doc_meta_line
+#+begin_src til
+func doc_meta_line(line: Str, mut meta: DocMeta) returns shallow Bool
+#+end_src
+
+* parse_doc_meta
+#+begin_src til
+func parse_doc_meta(doc: Str) returns DocMeta
+#+end_src
+
+* format_doc_for_help
+#+begin_src til
+func format_doc_for_help(doc: Str) returns Str
+#+end_src
+
 * format_decl_info
 #+begin_src til
 func format_decl_info(stmt: Expr, scope: TypeScope) returns Str

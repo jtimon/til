@@ -289,6 +289,7 @@ typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
+typedef struct DocMeta DocMeta;
 typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__DeclRef Vec__DeclRef;
@@ -861,6 +862,15 @@ typedef struct priv___src_self_loader_til__DeclRef {
     Str path;
     U32 idx;
 } priv___src_self_loader_til__DeclRef;
+
+
+typedef struct DocMeta {
+    Str body;
+    Str group;
+    Str since;
+    Str deprecated;
+    Bool hidden;
+} DocMeta;
 
 
 typedef struct Vec__ProgramUnit {
@@ -1918,6 +1928,7 @@ void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool call_free);
 Str * Str_substr(Str * s, U32 start, U32 n);
+Str * Str_trim(Str * s);
 Bool Str_contains(Str * a, Str * b);
 Bool Str_starts_with(Str * a, Str * b);
 Bool Str_ends_with(Str * a, Str * b);
@@ -3198,6 +3209,15 @@ void priv___src_self_loader_til__append_packed_entry(Str * packed, Str * name, S
 void priv___src_self_loader_til__append_qualifier_prefix(Str * out, Declaration * d, OwnType * default_own);
 void priv___src_self_loader_til__append_fn_signature(Str * out, FunctionDef * fd);
 void priv___src_self_loader_til__append_doc_lines_indented(Str * out, Str * doc, Str * indent);
+DocMeta * DocMeta_clone(DocMeta * self);
+void DocMeta_delete(DocMeta * self, Bool call_free);
+U64 DocMeta_hash(DocMeta * self, HashFn hasher);
+U32 DocMeta_size(void);
+Str * doc_keyword_value(Str * line, Str * key);
+Bool doc_false_value(Str * value);
+Bool doc_meta_line(Str * line, DocMeta * meta);
+DocMeta * parse_doc_meta(Str * doc);
+Str * format_doc_for_help(Str * doc);
 void priv___src_self_loader_til__append_field_indented(Str * out, Declaration * d);
 void priv___src_self_loader_til__append_ns_method_indented(Str * out, Declaration * d);
 Str * priv___src_self_loader_til__format_var_info(Str * name, Declaration * dd, TypeScope * scope);

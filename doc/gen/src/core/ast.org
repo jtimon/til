@@ -336,6 +336,11 @@ func set_own_arg(mut fcall: Expr, shallow arg_index: U32)
 func get_own_arg(fcall: Expr, shallow arg_index: U32) returns shallow Bool
 #+end_src
 
+* is_range_new_call
+#+begin_src til
+func is_range_new_call(e: Expr) returns shallow Bool
+#+end_src
+
 * StructDef
 Struct definition: field declarations, namespace methods, c_tag.
 Issue #147 step 4: total_struct_size dropped from the AST in favour
