@@ -67,6 +67,48 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
     return true
 }
 
+// Issue #275: free a struct's nested owned heap -- the dual of clone's deep
+// copy. StructInstance.clone deep-copies Str-typed fields (Str_clone) and
+// inline nested structs; the shallow scope teardown freed only the struct
+// buffer, so every cloned struct-with-Str-field leaked the field's c_str.
+// Frees owned Str-field c_strs (cap<CAP_VIEW guards against borrowed views and
+// literals) and recurses into inline nested structs. Owned-pointer (own)
+// struct/enum fields and inline payload-enum fields are deferred -- freeing
+// them here would risk a double-free with the pointer-sharing construction
+// paths, and they leak more rarely than direct Str fields. Only call while the
+// AST is live (scope teardown during execution); reads struct_def/field names.
+priv struct_deep_free := func(struct_name: Str, sdef: Expr, data: Dynamic, ctx: Context) {
+    if sdef.is_null() { return }
+    if data.is_null() { return }
+    switch sdef.node_type {
+    case NodeType.StructDef(sdef_data):
+        if struct_def_shallow_safe(sdef_data, ctx) { return }
+        for dd : Declaration in sdef_data.fields {
+            if dd.own_type.is(OwnType.Own) { continue }
+            if dd.own_type.is(OwnType.Ref) { continue }
+            ref ftype : Str = dd.explicit_type
+            foff := ctx_field_layout(struct_name, dd.name, ctx).offset
+            if ftype.eq("Str") {
+                ref s : Str = ptr_add(data, foff.cast(U64))
+                if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+                    if s.c_str.is_null().not() { free(own s.c_str) }
+                }
+                continue
+            }
+            ref nested_def : Expr = field_nested_def(dd, ctx)
+            if nested_def.is_null().not() {
+                switch nested_def.node_type {
+                case NodeType.StructDef:
+                    ref stable_ftype : Str = stable_type_name(ftype, ctx)
+                    struct_deep_free(stable_ftype, nested_def, ptr_add(data, foff.cast(U64)), ctx)
+                case:
+                }
+            }
+        }
+    case:
+    }
+}
+
 StructInstance := struct {
     ref struct_name : Str = NULL
     // Issue #239: struct_name is a `ref` into the AST and dangles once the
@@ -2116,6 +2158,11 @@ priv free_temp_arg_value := func(shallow v: Value) {
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
+                } else if si.ctx.is_null().not() {
+                    // Issue #275: free nested Str-field heap that clone deep-
+                    // copied -- otherwise every cloned struct-with-Str-field
+                    // leaks the field's c_str at scope teardown.
+                    struct_deep_free(si.struct_name, si.struct_def, si.data, si.ctx)
                 }
                 free(own si.data)
             }

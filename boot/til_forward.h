@@ -3482,6 +3482,7 @@ void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Con
 Expr * priv___src_self_interpreter_til__field_nested_def(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
+void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, Expr * sdef, void * data, Context * ctx);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
 void StructInstance_delete(StructInstance * self, Bool call_free);
