@@ -235,6 +235,7 @@ typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
+typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Map__Str_Value Map__Str_Value;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
@@ -246,6 +247,7 @@ typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__StructLayout Vec__StructLayout;
+typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__Value Vec__Value;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
@@ -753,6 +755,13 @@ typedef struct Vec__StructLayout {
     U32 count;
     U32 cap;
 } Vec__StructLayout;
+
+
+typedef struct Vec__FuncType {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__FuncType;
 
 
 typedef struct Vec__Value {
@@ -1621,6 +1630,12 @@ typedef struct Map__Str_StructLayout {
 } Map__Str_StructLayout;
 
 
+typedef struct Map__Str_FuncType {
+    Vec__Str keys;
+    Vec__FuncType values;
+} Map__Str_FuncType;
+
+
 typedef struct Map__Str_Value {
     Vec__Str keys;
     Vec__Value values;
@@ -1732,14 +1747,11 @@ typedef struct Context {
     Set__Str imports_init_done;
     Set__Str imports_typer_decls_done;
     Set__Str imports_typer_bodies_done;
-    Set__Str imports_constfolder_done;
-    Set__Str imports_eval_done;
     Set__Str type_gen_synths;
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
-    Set__Str constfolder_macros;
-    Set__Str constfolder_funcs;
+    Map__Str_FuncType constfolder_foldables;
     Map__Str_Value constfolder_known;
     Set__Str constfolder_assigned;
     Bool has_return;
@@ -2470,6 +2482,17 @@ void Map__Str_StructLayout_delete(Map__Str_StructLayout * self, Bool call_free);
 Map__Str_StructLayout * Map__Str_StructLayout_clone(Map__Str_StructLayout * self);
 U64 Map__Str_StructLayout_hash(Map__Str_StructLayout * self, HashFn hasher);
 U32 Map__Str_StructLayout_size(void);
+Map__Str_FuncType * Map__Str_FuncType_new(void);
+U32 Map__Str_FuncType_len(Map__Str_FuncType * self);
+Str * Map__Str_FuncType_key_ptr(Map__Str_FuncType * self, U32 * i);
+FuncType * Map__Str_FuncType_val_ptr(Map__Str_FuncType * self, U32 * i);
+Bool Map__Str_FuncType_has(Map__Str_FuncType * self, Str * key);
+FuncType * Map__Str_FuncType_get(Map__Str_FuncType * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_FuncType_set(Map__Str_FuncType * self, Str * key, FuncType * val);
+void Map__Str_FuncType_delete(Map__Str_FuncType * self, Bool call_free);
+Map__Str_FuncType * Map__Str_FuncType_clone(Map__Str_FuncType * self);
+U64 Map__Str_FuncType_hash(Map__Str_FuncType * self, HashFn hasher);
+U32 Map__Str_FuncType_size(void);
 Map__Str_Value * Map__Str_Value_new(void);
 U32 Map__Str_Value_len(Map__Str_Value * self);
 void Map__Str_Value_clear(Map__Str_Value * self);
@@ -2559,6 +2582,11 @@ void Vec__StructLayout_clear(Vec__StructLayout * self);
 void Vec__StructLayout_delete(Vec__StructLayout * self, Bool call_free);
 Vec__StructLayout * Vec__StructLayout_clone(Vec__StructLayout * self);
 U32 Vec__StructLayout_size(void);
+Vec__FuncType * Vec__FuncType_new(void);
+void Vec__FuncType_clear(Vec__FuncType * self);
+void Vec__FuncType_delete(Vec__FuncType * self, Bool call_free);
+Vec__FuncType * Vec__FuncType_clone(Vec__FuncType * self);
+U32 Vec__FuncType_size(void);
 Vec__Value * Vec__Value_new(void);
 U32 Vec__Value_len(Vec__Value * self);
 void Vec__Value_clear(Vec__Value * self);

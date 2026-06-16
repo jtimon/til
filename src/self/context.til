@@ -292,9 +292,6 @@ Context := struct {
     // own per-file memo Set.
     imports_typer_decls_done := Set(Str).new()
     imports_typer_bodies_done := Set(Str).new()
-    imports_constfolder_done := Set(Str).new()
-    imports_eval_done := Set(Str).new()
-
     // Issue #267: deterministic type-gen macro instantiations such as
     // `TemplVec__Bool` are shared across all initialized units. The first
     // unit that sees an inline `TemplVec(Bool)` owns the synthesized decl;
@@ -311,10 +308,9 @@ Context := struct {
     struct_layouts := Map(Str, StructLayout).new()
 
     // Constfolder state moved off module globals. The same Context crosses
-    // imported files and later phases, so these three tables live here
-    // directly rather than as a separate module-global side store.
-    constfolder_macros := Set(Str).new()
-    constfolder_funcs := Set(Str).new()
+    // imported files and later phases, so these tables live here directly
+    // rather than as a separate module-global side store.
+    constfolder_foldables := Map(Str, FuncType).new()
     constfolder_known := Map(Str, Value).new()
     // Names that are the target of an assignment somewhere (so their value
     // is not a compile-time constant -- a mut local reassigned in a loop is
@@ -560,10 +556,10 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if fd.func_type.is(FuncType.Macro) {
-                ctx.constfolder_macros.add(own dd.name.clone())
+                ctx.constfolder_foldables.set(dd.name, own FuncType.Macro)
             } else if fd.func_type.is(FuncType.Func)
                 .or(fd.func_type.is(FuncType.ExtFunc)) {
-                ctx.constfolder_funcs.add(own dd.name.clone())
+                ctx.constfolder_foldables.set(dd.name, own fd.func_type.clone())
             }
         case:
         }
@@ -577,10 +573,10 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                 case NodeType.FuncDef(ffd):
                     qname := sdd.name.format("_", fdd.name)
                     if ffd.func_type.is(FuncType.Macro) {
-                        ctx.constfolder_macros.add(own qname)
+                        ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                     } else if ffd.func_type.is(FuncType.Func)
                         .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                        ctx.constfolder_funcs.add(own qname)
+                        ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
                     }
                 case:
                 }
@@ -597,10 +593,10 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                 case NodeType.FuncDef(ffd):
                     qname := sdd.name.format("_", nsd.name)
                     if ffd.func_type.is(FuncType.Macro) {
-                        ctx.constfolder_macros.add(own qname)
+                        ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                     } else if ffd.func_type.is(FuncType.Func)
                         .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                        ctx.constfolder_funcs.add(own qname)
+                        ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
                     }
                 case:
                 }

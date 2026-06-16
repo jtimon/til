@@ -273,8 +273,8 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // Make codegen_lp() available so dispatch helpers like make_str_value can
     // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
-    // Only clear the fold-results map here; the foldable-name sets
-    // (constfolder_macros/funcs) were populated upstream by the typer
+    // Only clear the fold-results map here; the foldable-name table
+    // (constfolder_foldables) was populated upstream by the typer
     // (constfolder_classify_stmt) and must survive into this phase.
     constfolder_clear_known(lp.ctx)
     // Issue #109: populate ctx.cached_str/array/vec_def BEFORE
@@ -313,7 +313,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // (near-empty) scope built above via the single cleanup at the end.
     // til's ownership checker is flow-insensitive, so we keep exactly one
     // scope_free(own global) rather than an early-return that moves it.
-    has_fold := lp.ctx.constfolder_macros.count.gt(0).or(lp.ctx.constfolder_funcs.count.gt(0))
+    has_fold := lp.ctx.constfolder_foldables.len().gt(0)
     if has_fold {
         // Issue #191: core constants registered after the defs walk so they
         // win over any like-named definition (e.g. CAP_VIEW for Str ops).

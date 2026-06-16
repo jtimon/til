@@ -8777,7 +8777,7 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         // Issue #158: record foldable macro/func names as we walk the final
         // top-level decls (lambdas already lifted, methods already generated),
-        // so constfolder reuses ctx.constfolder_macros/funcs instead of re-scanning.
+        // so constfolder reuses ctx.constfolder_foldables instead of re-scanning.
         constfolder_classify_stmt(body.children[i], ctx)
         i++
     }

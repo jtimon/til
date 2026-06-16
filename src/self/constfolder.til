@@ -10,9 +10,9 @@ constfolder_clear_known := func(mut ctx: Context) {
 
 constfolder_reset_state := func(mut ctx: Context) {
     constfolder_clear_known(ctx)
-    ctx.constfolder_macros.clear()
-    ctx.constfolder_funcs.clear()
-    ctx.constfolder_assigned.clear()
+    ctx.constfolder_known = Map(Str, Value).new()
+    ctx.constfolder_foldables = Map(Str, FuncType).new()
+    ctx.constfolder_assigned = Set(Str).new()
 }
 
 // Collect every variable name that is the target of an assignment in the
@@ -35,11 +35,14 @@ priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
 }
 
 priv constfolder_has_macro := func(ctx: Context, name: Str) returns Bool {
-    return ctx.constfolder_macros.has(name)
+    if ctx.constfolder_foldables.has(name).not() { return false }
+    return ctx.constfolder_foldables[name].is(FuncType.Macro)
 }
 
 priv constfolder_has_func := func(ctx: Context, name: Str) returns Bool {
-    return ctx.constfolder_funcs.has(name)
+    if ctx.constfolder_foldables.has(name).not() { return false }
+    ref ft : FuncType = ctx.constfolder_foldables[name]
+    return ft.is(FuncType.Func).or(ft.is(FuncType.ExtFunc))
 }
 
 
@@ -1236,7 +1239,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
 // literal global constant. Core constants (CAP_VIEW/CAP_LIT) are registered
 // afterward (constfolder_register_core_constants) so they keep winning over any
 // like-named def. Foldable-name classification is NOT done here: the typer
-// already populated ctx.constfolder_macros/funcs during its walk
+// already populated ctx.constfolder_foldables during its walk
 // (constfolder_classify_stmt), and constfolder reuses those. This walk stays in
 // constfolder because the runtime Scope it builds has no upstream equivalent
 // (the typer builds a TypeScope; scavenge invalidates AST pointers before
