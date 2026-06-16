@@ -536,6 +536,37 @@ way through.
 - When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
 - When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
 
+## The "Unverified" / committer-authorship stop hook is NOT a problem to fix
+
+A SessionStart + Stop hook pair under `~/.claude/` (Anthropic's CCR harness,
+NOT this repo) pins the git identity to `Claude <noreply@anthropic.com>` and,
+on stop, flags any commit in `origin/<branch>..HEAD` whose committer email is
+not `noreply@anthropic.com` as "GitHub will show as Unverified". Sessions keep
+tripping over this and trying to "fix" it. Don't. It is almost never real:
+
+- The commits it names are usually master's OWN commits, authored by the human
+  (jtimon@jtimon.cc). They appear in `origin/<branch>..HEAD` only in the
+  transient window after you `git reset --hard origin/master` (or rebase) to
+  sync -- which pulls master's newest commits onto your HEAD -- and BEFORE you
+  push, while `origin/<branch>` is still stale. Those are the human's merged
+  history: do NOT amend / reset-author them.
+- Bot-commit authorship does not need to match anything anyway: the merge
+  script (`examples/merge_commit.til`) re-commits every non-doc-only bot commit
+  locally (`git reset --soft HEAD~1` -> regenerate boot/totals -> `git commit`),
+  so the commit that actually lands on master is authored and signed with the
+  human's identity. The bot's authorship is discarded at merge by design.
+- The hook is `~/.claude/stop-hook-git-check.sh`, rewritten at every container
+  start, so you cannot durably fix it from this repo -- it is Anthropic's. The
+  real fix would be for its unverified check to diff against the integration
+  base (`origin/master..HEAD`) instead of `origin/<branch>..HEAD`, so it only
+  inspects the branch's own commits; that belongs in the CCR image, not here.
+
+So: never "fix" authorship by amending master commits, and don't panic. Your
+OWN commits are already `noreply@anthropic.com` (the SessionStart hook sets it).
+To silence the noise, after any reset/rebase that advances HEAD past
+`origin/<branch>`, push so `origin/<branch> == HEAD` -- that closes the window
+and the hook sees nothing.
+
 ## Remote master ref can mirror your own branch (remote sessions)
 
 In the hosted sandbox the remote `master` ref is NOT a reliable view of

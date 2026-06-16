@@ -1,0 +1,38 @@
+# priority: low
+# category: cleanups
+** OPEN #278 codegen: faster string switch dispatch (not a C switch)
+
+Follow-up to the C-like switch work (#254 / #276). A switch on a ~Str~
+scrutinee -- ~switch s { case "foo": ...; case "bar": ...; case: ... }~ --
+still lowers to a linear ~Str_eq~ if/elif chain: O(N) full string compares
+per dispatch. Unlike the int/char/enum cases #254/#276 handle, this CANNOT
+become a C ~switch~ (C switches only dispatch on integer constants), so it
+needs a different mechanism.
+
+*** Why it was left out of #254/#276
+The C-like path emits `switch (k) { case K: }` over an integer key. A
+string has no integer key, so string switches were explicitly kept on the
+desugar's ~Str_eq~ chain. This issue is the separate optimization for that
+remaining case.
+
+*** Possible approaches (pick during design)
+- Length bucket first: group case labels by byte length, branch on
+  ~s.count~ (an integer -- could even reuse the C-switch path on length),
+  then ~Str_eq~ only within the matching-length bucket. Cheap, simple, and
+  skips most compares.
+- First-byte (or length+first-byte) dispatch: branch on ~s.get(0)~ before
+  the per-label compare.
+- Perfect hash / FNV over the bytes with a final confirm ~Str_eq~ (guards
+  against collisions). More work; only worth it for large case sets.
+
+*** Notes / scope
+- Both backends: the builder emits the chosen dispatch in C; the
+  interpreter's ~eval_switch~ would need a matching path (or string
+  switches can keep desugaring in interpret mode, where dispatch cost is
+  dominated by tree-walking anyway -- decide during design).
+- Keep correctness identical to the ~Str_eq~ chain (first matching arm
+  wins; ~case:~ default unchanged).
+- Low priority: string switches are relatively rare in the compiler
+  (type-name dispatch is the main user, and several of those are already
+  Map-backed), so the win is modest. Filed so the remaining switch-dispatch
+  gap is tracked rather than forgotten.
