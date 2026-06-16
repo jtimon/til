@@ -92,7 +92,7 @@ priv ffi_init_link_libs := func(link_flags: Str) {
                 if link_flags.byte_at(i).eq(32) {
                     break
                 }
-                i = i.add(1)
+                i++
             }
             if i.gt(start) {
                 lib := link_flags.substr(start, i.sub(start))
@@ -100,7 +100,7 @@ priv ffi_init_link_libs := func(link_flags: Str) {
                 ffi_load_global_lib(soname)
             }
         } else {
-            i = i.add(1)
+            i++
         }
     }
 }

@@ -257,7 +257,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
         return hit.clone()
     }
     name := kind.concat(anon_struct_counter.to_str())
-    anon_struct_counter = anon_struct_counter.add(1)
+    anon_struct_counter++
     p.anon_cache.set(key, own name.clone())
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
     decl.add_child(own def)
@@ -322,7 +322,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         argname := expect_text(p, TokenType.Ident)
         mangled = mangled.concat(argname)
         args.push(own argname.clone())
-        argi = argi.add(1)
+        argi++
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
@@ -710,7 +710,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 }
                 ref pp : Declaration = sfd.params[pi]
                 pp.name = pn.clone()
-                pi = pi.add(1)
+                pi++
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
@@ -1144,7 +1144,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             // payload_consts is dense, parallel to variants: push one
             // entry per variant (false for non-const / no-payload).
             edd.payload_consts.push(own v_payload_const.clone())
-            variant_idx = variant_idx.add(1)
+            variant_idx++
             if check(p, TokenType.Comma) { advance(p) }
         }
     }

@@ -273,8 +273,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
         // misclassification fixed in expr_transfers_own, b would otherwise
         // be deleted at the FieldAssign itself, dangling `a.next` for the
         // later asserts.)
-        for i in 0..body.children.len() {
-            ref mut stmt : Expr = body.children[i]
+        for mut stmt : Expr in body.children {
             if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
             if stmt.fa_own_type(scope).is(OwnType.Ref).not() { continue }
             if stmt.children.len().lt(2) { continue }
@@ -893,8 +892,7 @@ priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: Typ
     }
 
     if node.node_type.is(NodeType.Body).not() { return false }
-    for ci in 0..node.children.len() {
-        ref mut child : Expr = node.children[ci]
+    for mut child : Expr in node.children {
         if is_compile_directive(child) { continue }
         if child.node_type.is(NodeType.If).and(expr_transfers_own(child, local.name, scope, ctx)) {
             if sink_nontransfer_paths(child, local, scope, ctx) { return true }

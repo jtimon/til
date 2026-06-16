@@ -637,8 +637,8 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 }
             }
             memcpy(ptr_add(buf, j.cast(U64)), ptr_add(raw.c_str, i.cast(U64)), 1)
-            j = j.add(1)
-            i = i.add(1)
+            j++
+            i++
         }
         memset(ptr_add(buf, j.cast(U64)), 0, 1)
         v := make_str_value(buf, j, ctx)
@@ -1442,7 +1442,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     ref mut cur : Expr = stmt.children[0]
                     mut depth : I32 = 0
                     while cur.node_type.is(NodeType.FieldAccess) {
-                        depth = depth.add(1)
+                        depth++
                         cur = cur.children[0]
                     }
                     switch cur.node_type {
@@ -1831,7 +1831,7 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     for fdd : Declaration in sdd.fields {
                         cur_idx := arg_idx
                         ref arg : Expr = e.children[cur_idx]
-                        arg_idx = arg_idx.add(1)
+                        arg_idx++
                         mut val := val_none()
                         switch arg.node_type {
                         case NodeType.Ident(arg_ident):
@@ -2445,8 +2445,7 @@ scope_free := func(own s: Scope) {
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // stores owning pointer boxes so the raw heap pointer can be passed to
     // free() through an `own` field.
-    for i in 0..s.box_owned_dynamics.len() {
-        ref box : DynPtrBox = s.box_owned_dynamics[i]
+    for box : DynPtrBox in s.box_owned_dynamics {
         if box.p.is_null().not() { free(own box.p) }
     }
     free(own s.box_owned_dynamics.data)
@@ -3190,7 +3189,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         if fd.func_type.is(FuncType.Test) {
                             switch stmt.node_type {
                             case NodeType.Decl(dd):
-                                test_count = test_count.add(1)
+                                test_count++
                                 test_scope := scope_new(global)
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
@@ -3198,7 +3197,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                     c.return_value = c.return_value.clone()
                                 }
                                 scope_free(own test_scope)
-                                pass_count = pass_count.add(1)
+                                pass_count++
                                 eprint_single("  pass: ")
                                 eprint_single(dd.name)
                                 eprint_single("\n")
@@ -3220,7 +3219,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 switch nsfdef.node_type {
                                 case NodeType.FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
-                                    test_count = test_count.add(1)
+                                    test_count++
                                     test_scope := scope_new(global)
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
@@ -3228,7 +3227,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                         c.return_value = c.return_value.clone()
                                     }
                                     scope_free(own test_scope)
-                                    pass_count = pass_count.add(1)
+                                    pass_count++
                                     eprint_single("  pass: ")
                                     eprint_single(sdd.name)
                                     eprint_single(".")
@@ -3310,7 +3309,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             ref arg_s : Str = user_argv[argi.to_usize()]
                             v := parse_cli_arg(arg_s, param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, v)
-                            argi = argi.add(1)
+                            argi++
                         }
                     }
                 } else if user_argc.gt(0) {

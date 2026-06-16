@@ -282,7 +282,7 @@ priv scan_to_eol := func(src: Str, from: USize, src_len: USize) returns USize {
     mut p := from
     while p.lt(src_len) {
         if src.byte_at(p).eq('\n') { break }
-        p = p.add(1)
+        p++
     }
     return p
 }
@@ -322,7 +322,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
         case ';':  pos++; continue
         case '\n':
             pos++
-            line = line.add(1)
+            line++
             line_start = pos
             continue
 
@@ -341,7 +341,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     if is_doc {
                         mut text_start := pos.add(3)
                         if text_start.lt(src_len).and(src.byte_at(text_start).eq(' ')) {
-                            text_start = text_start.add(1)
+                            text_start++
                         }
                         text_end := scan_to_eol(src, text_start, src_len)
                         push_tok(tokens, TokenType.DocComment, text_start, text_end.sub(text_start), line, col)
@@ -361,18 +361,18 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                             ref b1 : I8 = src.byte_at(pos)
                             ref b2 : I8 = src.byte_at(pos.add(1))
                             if b1.eq('/').and(b2.eq('*')) {
-                                depth = depth.add(1)
+                                depth++
                                 pos = pos.add(2)
                                 continue
                             }
                             if b1.eq('*').and(b2.eq('/')) {
-                                depth = depth.sub(1)
+                                depth--
                                 pos = pos.add(2)
                                 continue
                             }
                         }
                         if src.byte_at(pos).eq('\n') {
-                            line = line.add(1)
+                            line++
                             line_start = pos.add(1)
                         }
                         pos++
@@ -397,7 +397,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     pos++
                 }
                 if src.byte_at(pos).eq('\n') {
-                    line = line.add(1)
+                    line++
                     line_start = pos.add(1)
                 }
                 pos++
@@ -486,7 +486,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     if e.eq('e').or(e.eq('E')) {
                         mut epos := pos.add(1)
                         if epos.lt(src_len).and(src.byte_at(epos).eq('+').or(src.byte_at(epos).eq('-'))) {
-                            epos = epos.add(1)
+                            epos++
                         }
                         if epos.lt(src_len).and(is_digit(src.byte_at(epos))) {
                             pos = epos

@@ -38,7 +38,7 @@ priv skip_ws := func(s: Str, from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
         if bind_is_ws(s.byte_at(i)).not() { break }
-        i = i.add(1)
+        i++
     }
     return i
 }
@@ -49,7 +49,7 @@ priv skip_word := func(s: Str, from: USize) returns USize {
     mut i := from
     while i.lt(s.len()) {
         if is_alnum(s.byte_at(i)).not() { break }
-        i = i.add(1)
+        i++
     }
     return i
 }
@@ -58,7 +58,7 @@ priv trim_right := func(s: Str, from: USize, to: USize) returns USize {
     mut end := to
     while end.gt(from) {
         if bind_is_ws(s.byte_at(end.sub(1))).not() { break }
-        end = end.sub(1)
+        end--
     }
     return end
 }
@@ -70,7 +70,7 @@ priv range_eq_lit := func(s: Str, start: USize, end: USize, lit: Str) returns Bo
     mut i : USize = 0
     while i.lt(lit.len()) {
         if s.byte_at(start.add(i)).neq(lit.byte_at(i)) { return false }
-        i = i.add(1)
+        i++
     }
     return true
 }
@@ -113,14 +113,14 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
             else if c.gte('A').and(c.lte('F')) { digit = c.sub('A').cast(I64).add(10) }
             else { success = false; return 0 }
             val = val.mul(16).add(digit)
-            p = p.add(1)
+            p++
         }
     } else {
         while p.lt(e) {
             ref c : I8 = s.byte_at(p)
             if c.gte('0').and(c.lte('9')).not() { success = false; return 0 }
             val = val.mul(10).add(c.sub('0').cast(I64))
-            p = p.add(1)
+            p++
         }
     }
     if negate { val = 0.sub(val) }
@@ -254,7 +254,7 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         ref b : I8 = line.byte_at(p)
         if b.eq('[').or(b.eq('(')).or(b.eq(':')).or(b.eq(','))
         .or(b.eq('{')).or(b.eq('}')) { return false }
-        p = p.add(1)
+        p++
     }
     // Token-walk with USize indices. We rotate `name candidates` so the
     // last one is the field name and `[base_first, prev_end)` is the base
@@ -269,8 +269,8 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
     p = skip_ws(line, 0)
     while p.lt(n) {
         if line.byte_at(p).eq('*') {
-            ptrs = ptrs.add(1)
-            p = p.add(1)
+            ptrs++
+            p++
             p = skip_ws(line, p)
             continue
         }
@@ -418,13 +418,13 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
                     break
                 }
             }
-            k = k.add(1)
+            k++
         }
         // Now drop a trailing `;` from the code-only span.
         code_end = trim_right(line, lead, code_end)
         if code_end.gt(lead) {
             if line.byte_at(code_end.sub(1)).eq(';') {
-                code_end = code_end.sub(1)
+                code_end--
                 code_end = trim_right(line, lead, code_end)
             }
         }
@@ -436,7 +436,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
                     comment_end = m
                     break
                 }
-                m = m.add(1)
+                m++
             }
         }
         if found_line_cmt.not().and(found_blk.not()) {
@@ -449,12 +449,12 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
         mut cs := comment_start
         while cs.lt(comment_end) {
             if bind_is_ws(line.byte_at(cs)).not() { break }
-            cs = cs.add(1)
+            cs++
         }
         mut ce := comment_end
         while ce.gt(cs) {
             if bind_is_ws(line.byte_at(ce.sub(1))).not() { break }
-            ce = ce.sub(1)
+            ce--
         }
         comment_view := line.substr(cs, ce.sub(cs))
         code_view := line.substr(lead, new_code_end.sub(lead))
@@ -476,7 +476,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
     cp = skip_ws(close_line, cp)
     mut cright := trim_right(close_line, cp, cn)
     if cright.gt(cp).and(close_line.byte_at(cright.sub(1)).eq(';')) {
-        cright = cright.sub(1)
+        cright--
         cright = trim_right(close_line, cp, cright)
     }
     if cp.gte(cright) { return start.add(1) }
@@ -485,10 +485,10 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
     mut nk := cp
     while nk.lt(cright) {
         if bind_is_ws(close_line.byte_at(nk)) { name_start = nk.add(1) }
-        nk = nk.add(1)
+        nk++
     }
     while name_start.lt(cright).and(bind_is_ws(close_line.byte_at(name_start))) {
-        name_start = name_start.add(1)
+        name_start++
     }
     name_len := cright.sub(name_start)
     if name_len.eq(0) { return start.add(1) }
@@ -515,7 +515,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
         mut q := p
         while q.lt(n) {
             if line.byte_at(q).eq('{') { break }
-            q = q.add(1)
+            q++
         }
         end := trim_right(line, p, q)
         if end.gt(p) {
@@ -554,7 +554,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
                 tag_eq_name = false
                 break
             }
-            m = m.add(1)
+            m++
         }
     }
     if tag_eq_name {
@@ -593,7 +593,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
     cp = skip_ws(close_line, cp)
     mut cright := trim_right(close_line, cp, cn)
     if cright.gt(cp).and(close_line.byte_at(cright.sub(1)).eq(';')) {
-        cright = cright.sub(1)
+        cright--
         cright = trim_right(close_line, cp, cright)
     }
     // Emit the enum type as an I32 alias so downstream uses of the
@@ -630,7 +630,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
         while tok_end.lt(end) {
             ref c : I8 = line.byte_at(tok_end)
             if is_alnum(c).not() { break }
-            tok_end = tok_end.add(1)
+            tok_end++
         }
         if tok_end.eq(lead) { continue }
         member_start := lead
@@ -643,7 +643,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
             while v_end.lt(end) {
                 ref c : I8 = line.byte_at(v_end)
                 if c.eq(',') { break }
-                v_end = v_end.add(1)
+                v_end++
             }
             v_end = trim_right(line, p, v_end)
             if v_end.gt(p) {
@@ -669,7 +669,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
                                     eq = false
                                     break
                                 }
-                                m = m.add(1)
+                                m++
                             }
                             if eq {
                                 ref kv : I64 = prev_val[k]
@@ -677,7 +677,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
                                 break
                             }
                         }
-                        k = k.add(1)
+                        k++
                     }
                 }
             }
@@ -710,12 +710,12 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
             ref c1 : I8 = line.byte_at(q.add(1))
             if c1.eq('/').or(c1.eq('*')) { n = q; break }
         }
-        q = q.add(1)
+        q++
     }
     body_start := skip_ws(line, lead.add(8))
     mut body_end := trim_right(line, body_start, n)
     if body_end.gt(body_start).and(line.byte_at(body_end.sub(1)).eq(';')) {
-        body_end = body_end.sub(1)
+        body_end--
         body_end = trim_right(line, body_start, body_end)
     }
     // Index-walk: count `*`, drop qualifiers, last useful word is the
@@ -792,7 +792,7 @@ priv emit_typedef_fnptr := func(mut bs: BinderState, mut out: Str, line: Str) re
     mut p := lead.add(8)
     while p.add(1).lt(n) {
         if line.byte_at(p).eq('(').and(line.byte_at(p.add(1)).eq('*')) { break }
-        p = p.add(1)
+        p++
     }
     if p.add(1).gte(n) { return false }
     name_start := p.add(2)
@@ -816,7 +816,7 @@ priv emit_define := func(mut out: Str, line: Str) returns Bool {
     while name_end.lt(n) {
         ref c : I8 = line.byte_at(name_end)
         if is_alnum(c).not() { break }
-        name_end = name_end.add(1)
+        name_end++
     }
     if name_end.eq(p) { return false }
     if name_end.lt(n).and(line.byte_at(name_end).eq('(')) { return false }  // function-like
@@ -852,7 +852,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                 piece_end = s
                 break
             }
-            s = s.add(1)
+            s++
         }
         piece_end = trim_right(line, lead, piece_end)
         if piece_end.gt(lead) {
@@ -877,7 +877,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         sm = sm.add(2)
                         break
                     }
-                    sm = sm.add(1)
+                    sm++
                 }
                 sk = sm
                 sig_no_blk.push_str(" ")
@@ -888,7 +888,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
             // One-byte copy via substr view; no Str.from_byte (which still
             // takes U8 while Str.c_str is I8 -- avoids the round-trip).
             sig_no_blk.push_str(sig.substr(sk, 1))
-            sk = sk.add(1)
+            sk++
         }
     }
     sig = sig_no_blk
@@ -916,20 +916,20 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     mut before_end := op_u
     while before_end.gt(0) {
         if bind_is_ws(sig.byte_at(before_end.sub(1))).not() { break }
-        before_end = before_end.sub(1)
+        before_end--
     }
     if before_end.eq(0) { return false }
     mut name_start := before_end
     while name_start.gt(0) {
         ref c : I8 = sig.byte_at(name_start.sub(1))
         if is_alnum(c).not() { break }
-        name_start = name_start.sub(1)
+        name_start--
     }
     if name_start.eq(before_end) { return false }
     mut ret_end := name_start
     while ret_end.gt(0) {
         if bind_is_ws(sig.byte_at(ret_end.sub(1))).not() { break }
-        ret_end = ret_end.sub(1)
+        ret_end--
     }
     // Walk [0, ret_end) of sig for the return-type's base + pointer depth.
     mut ret_ptrs : I32 = 0
@@ -974,7 +974,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
             if c.eq('(') { dep = dep.add(1) }
             else if c.eq(')') { dep = dep.sub(1) }
             else if c.eq(',').and(dep.eq(0)) { break }
-            e = e.add(1)
+            e++
         }
         mut a := pp
         while a.lt(e).and(bind_is_ws(params_view.byte_at(a))) { a = a.add(1) }
@@ -990,7 +990,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         has_fnptr = true
                         break
                     }
-                    s = s.add(1)
+                    s++
                 }
                 if has_fnptr {
                     name_a := s.add(2)
@@ -1027,7 +1027,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         if bind_is_ws(c) { t = t.add(1); continue }
                         if c.eq('*') { p_ptrs = p_ptrs.add(1); t = t.add(1); continue }
                         if c.eq('[') {
-                            p_ptrs = p_ptrs.add(1)
+                            p_ptrs++
                             while t.lt(b).and(params_view.byte_at(t).neq(']')) { t = t.add(1) }
                             if t.lt(b) { t = t.add(1) }
                             continue
@@ -1176,7 +1176,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
         if in_block_comment {
             emit_comment_line(out, line)
             if line.contains("*/") { in_block_comment = false }
-            i = i.add(1)
+            i++
             continue
         }
         // Compute an effective lead that skips both whitespace AND any
@@ -1199,7 +1199,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     closed = true
                     break
                 }
-                q = q.add(1)
+                q++
             }
             if closed.not() {
                 emit_comment_line(out, line)
@@ -1214,7 +1214,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
         if lead.eq(ln) {
             if had_block_prefix { emit_comment_line(out, line) }
             else { out.push_str("\n") }
-            i = i.add(1)
+            i++
             continue
         }
         ref b : I8 = line.byte_at(lead)
@@ -1227,14 +1227,14 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
         }
         if is_line_comment {
             emit_comment_line(out, line)
-            i = i.add(1)
+            i++
             continue
         }
         if b.eq('*') {
             // Block-comment continuation that the cc preprocessor merged
             // onto its own line.
             emit_comment_line(out, line)
-            i = i.add(1)
+            i++
             continue
         }
         // Preprocessor.
@@ -1242,7 +1242,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
             if range_eq_lit(line, lead, lead.add(8), "#define ") {
                 emit_define(out, line)
             }
-            i = i.add(1)
+            i++
             continue
         }
         // typedef ...
@@ -1256,7 +1256,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     ref nc : I8 = line.byte_at(sp.add(1))
                     if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
                 }
-                sp = sp.add(1)
+                sp++
             }
             // Function-pointer typedef?
             mut has_fnptr := false
@@ -1266,13 +1266,13 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     has_fnptr = true
                     break
                 }
-                s = s.add(1)
+                s++
             }
             stmt_right := trim_right(line, lead, stmt_end)
             if has_fnptr.and(stmt_right.gt(0))
             .and(line.byte_at(stmt_right.sub(1)).eq(';')) {
                 emit_typedef_fnptr(bs, out, line)
-                i = i.add(1)
+                i++
                 continue
             }
             // Discriminate by the word after "typedef ".
@@ -1287,7 +1287,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     ref c : I8 = line.byte_at(k)
                     if c.eq('{') { has_brace = true }
                     if c.eq(';') { has_semi = true }
-                    k = k.add(1)
+                    k++
                 }
                 if has_brace.not().and(has_semi) {
                     // Forward decl: `typedef struct X X;`.
@@ -1305,7 +1305,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                             out.push_str("\") {}\n\n")
                         }
                     }
-                    i = i.add(1)
+                    i++
                     continue
                 }
                 // Find `{` line (current or subsequent) then matching `}`.
@@ -1317,7 +1317,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
                         if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
-                        j = j.add(1)
+                        j++
                     }
                 }
                 mut depth : I32 = 0
@@ -1333,10 +1333,10 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         ref cc : I8 = l3.byte_at(k2)
                         if cc.eq('{') { depth = depth.add(1); found_open = true }
                         else if cc.eq('}') {
-                            depth = depth.sub(1)
+                            depth--
                             if found_open.and(depth.eq(0)) { close = j2; done = true; break }
                         }
-                        k2 = k2.add(1)
+                        k2++
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
@@ -1351,7 +1351,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                 mut k := lead
                 while k.lt(end) {
                     if line.byte_at(k).eq('{') { has_brace = true; break }
-                    k = k.add(1)
+                    k++
                 }
                 if has_brace.not() {
                     mut j := i.add(1)
@@ -1360,7 +1360,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         l2n := l2.len()
                         l2lead := skip_ws(l2, 0)
                         if l2lead.lt(l2n).and(l2.byte_at(l2lead).eq('{')) { open = j; break }
-                        j = j.add(1)
+                        j++
                     }
                 }
                 mut depth : I32 = 0
@@ -1376,10 +1376,10 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         ref cc : I8 = l3.byte_at(k2)
                         if cc.eq('{') { depth = depth.add(1); found_open = true }
                         else if cc.eq('}') {
-                            depth = depth.sub(1)
+                            depth--
                             if found_open.and(depth.eq(0)) { close = j2; done = true; break }
                         }
-                        k2 = k2.add(1)
+                        k2++
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
@@ -1405,10 +1405,10 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         ref cc : I8 = l3.byte_at(k2)
                         if cc.eq('{') { depth = depth.add(1); found_open = true }
                         else if cc.eq('}') {
-                            depth = depth.sub(1)
+                            depth--
                             if found_open.and(depth.eq(0)) { done = true; break }
                         }
-                        k2 = k2.add(1)
+                        k2++
                     }
                     if done.not() { j2 = j2.add(1) }
                 }
@@ -1424,7 +1424,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         mut cl_right := trim_right(close_l, cl_p, cln)
                         if cl_right.gt(cl_p) {
                             if close_l.byte_at(cl_right.sub(1)).eq(';') {
-                                cl_right = cl_right.sub(1)
+                                cl_right--
                                 cl_right = trim_right(close_l, cl_p, cl_right)
                             }
                         }
@@ -1433,10 +1433,10 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         mut nk := cl_p
                         while nk.lt(cl_right) {
                             if bind_is_ws(close_l.byte_at(nk)) { name_a = nk.add(1) }
-                            nk = nk.add(1)
+                            nk++
                         }
                         while name_a.lt(cl_right).and(bind_is_ws(close_l.byte_at(name_a))) {
-                            name_a = name_a.add(1)
+                            name_a++
                         }
                         if name_a.lt(cl_right) {
                             out.push_str(close_l.substr(name_a, cl_right.sub(name_a)))
@@ -1452,7 +1452,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
             }
             // Plain alias on one line.
             emit_typedef_alias(bs, out, line)
-            i = i.add(1)
+            i++
             continue
         }
         // Otherwise: scan forward for a `);` terminator. If found, this is
@@ -1476,7 +1476,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     is_func = saw_paren
                     break
                 }
-                k = k.add(1)
+                k++
             }
             if found_end.not() { j = j.add(1) }
         }
@@ -1509,7 +1509,7 @@ priv path_in_dir := func(marker_path: Str, incdir: Str) returns Bool {
     mut i : USize = 0
     while i.lt(incdir.len()) {
         if marker_path.byte_at(i).neq(incdir.byte_at(i)) { return false }
-        i = i.add(1)
+        i++
     }
     return marker_path.byte_at(incdir.len()).eq('/')
 }
@@ -1527,12 +1527,12 @@ priv looks_like_macro_fragment := func(line: Str) returns Bool {
         if b.eq(';').or(b.eq('{')).or(b.eq('}')).or(b.eq('('))
         .or(b.eq(')')).or(b.eq(',')).or(b.eq('/')) { return false }
         if bind_is_ws(b).or(b.eq('*')) {
-            i = i.add(1)
+            i++
             continue
         }
         if is_alnum(b) {
             had_word = true
-            i = i.add(1)
+            i++
             continue
         }
         return false
@@ -1578,7 +1578,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
                                     break
                                 }
                             }
-                            fi = fi.add(1)
+                            fi++
                         }
                     }
                     continue
@@ -1633,7 +1633,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
                 // the rest of the line can open a block.
                 if c0.eq('/').and(c1.eq('/')) { break }
             }
-            scan = scan.add(1)
+            scan++
         }
         // Trim trailing line/block comments and whitespace to inspect the
         // last meaningful byte.
@@ -1644,7 +1644,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
                 ref nc : I8 = line.byte_at(sp.add(1))
                 if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
             }
-            sp = sp.add(1)
+            sp++
         }
         right := trim_right(line, 0, stmt_end)
         mut last : I8 = ' '
@@ -1739,7 +1739,7 @@ priv collapse_blank_runs := func(s: Str) returns Str {
             continue
         }
         out.push_str(s.substr(i, 1))
-        i = i.add(1)
+        i++
     }
     return out
 }

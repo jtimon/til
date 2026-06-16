@@ -197,7 +197,7 @@ priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U
                 mut to_str_call := make_method_call_fcall(own field, "to_str", line, col)
                 fmt_call.add_child(own to_str_call)
             }
-            idx = idx.add(1)
+            idx++
         }
     case:
         UNREACHABLE(__LOC__)
@@ -2234,8 +2234,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
         }
     case:
     }
-    for i in 0..e.children.len() {
-        ref mut c : Expr = e.children[i]
+    for mut c : Expr in e.children {
         init_rewrite_refs(c, renamings)
     }
 }
@@ -2264,8 +2263,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
     }
 
     if renamings.len().gt(0) {
-        for i in 0..body.children.len() {
-            ref mut c : Expr = body.children[i]
+        for mut c : Expr in body.children {
             init_rewrite_refs(c, renamings)
         }
     }
@@ -2317,9 +2315,8 @@ priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_le
     }
 }
 
-priv init_recurse_into_subbodies := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
-    for i in 0..body.children.len() {
-        ref mut c : Expr = body.children[i]
+priv init_recurse_into_subbodies := proc(body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
+    for mut c : Expr in body.children {
         init_recurse_into_expr(c, parent_prefix, top_level)
     }
 }
@@ -2337,8 +2334,7 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
         }
         return
     }
-    for i in 0..e.children.len() {
-        ref mut c : Expr = e.children[i]
+    for mut c : Expr in e.children {
         init_recurse_into_expr(c, parent_prefix, top_level)
     }
 }
@@ -2967,8 +2963,7 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map(Str, Expr),
 // monomorphization, plus one canonical decl if this unit owns that instantiation.
 priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
     mut synthesized := Vec(Expr).new()
-    for i in 0..program.children.len() {
-        ref mut stmt : Expr = program.children[i]
+    for mut stmt : Expr in program.children {
         if init_is_direct_macro_inst_decl(stmt, macros, scope).not() { continue }
         ref rhs : Expr = stmt.children[0]
         genname := init_macro_inst_name_in_scope(rhs, macros, scope)
@@ -3156,8 +3151,8 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
         }
     case:
     }
-    for i in 0..e.children.len() {
-        init_collect_variadic_arrays(e.children[i], synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+    for c : Expr in e.children {
+        init_collect_variadic_arrays(c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
 }
 
@@ -3169,8 +3164,8 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     synth_set := ctx.scope.get_struct("Set").is_null()
     synth_map := ctx.scope.get_struct("Map").is_null()
     if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
-    for i in 0..program.children.len() {
-        init_collect_variadic_arrays(program.children[i], synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+    for c : Expr in program.children {
+        init_collect_variadic_arrays(c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
     for d : Expr in synthesized {
         switch d.node_type {
@@ -3382,7 +3377,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                 src_own := get_own_arg(call, vargidx)
                 newcall.add_child(own call.children[vargidx].clone())
                 if src_own { set_own_arg(newcall, new_arg_pos.to_usize()) }
-                new_arg_pos = new_arg_pos.add(1)
+                new_arg_pos++
             }
         }
         // Rewrite through the parent slot: Vec.set deep-deletes the old
@@ -3445,8 +3440,7 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
     // bodies reference the still-unbound type-param).
     mut seen := Map(Str, Str).new()
     mut synthesized := Vec(Expr).new()
-    for i in 0..program.children.len() {
-        ref mut stmt : Expr = program.children[i]
+    for mut stmt : Expr in program.children {
         mut is_generic_decl := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref generic_candidate : Expr = stmt.children[0]
@@ -3611,8 +3605,7 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
     // declarations to import cycles without pretending the file is fully
     // initialized yet. Private names are skipped here because their full
     // init pass rewrites them to file-keyed C names before registration.
-    for i in 0..program.children.len() {
-        ref stmt : Expr = program.children[i]
+    for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
         mut is_priv := false
@@ -3684,8 +3677,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // lift from the walk avoids mutating program.children while we
     // hold refs into it (which previously corrupted memory).
     mut nested_lifted := Vec(Expr).new()
-    for li in 0..program.children.len() {
-        ref lstmt : Expr = program.children[li]
+    for lstmt : Expr in program.children {
         if lstmt.node_type.is(NodeType.Decl).not() { continue }
         if lstmt.children.len().eq(0) { continue }
         ref lrhs : Expr = lstmt.children[0]
@@ -3718,8 +3710,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // identifier. The original user-facing name lives on dd.orig_name
     // for diagnostics.
     mut priv_renamings := Map(Str, Str).new()
-    for pi in 0..program.children.len() {
-        ref pstmt : Expr = program.children[pi]
+    for pstmt : Expr in program.children {
         if pstmt.node_type.is(NodeType.Decl).not() { continue }
         switch pstmt.node_type {
         case NodeType.Decl(pdd):
@@ -3744,8 +3735,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         }
     }
     if priv_renamings.len().gt(0) {
-        for ri in 0..program.children.len() {
-            ref mut rc : Expr = program.children[ri]
+        for mut rc : Expr in program.children {
             init_rewrite_refs(rc, priv_renamings)
         }
     }
@@ -4132,8 +4122,7 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
 // from explicit imports that appear in the source AST.
 count_ast_imports := func(body: Expr) returns USize {
     mut n : USize = 0
-    for i in 0..body.children.len() {
-        ref stmt : Expr = body.children[i]
+    for stmt : Expr in body.children {
         mut is_imp := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref imp_stmt : Expr = stmt.children[0]
@@ -4188,8 +4177,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
         init_file(dep, ctx)
     }
     mut import_idx : USize = auto_count
-    for i in 0..iu.ast.children.len() {
-        ref stmt : Expr = iu.ast.children[i]
+    for stmt : Expr in iu.ast.children {
         mut is_imp := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref imp_stmt : Expr = stmt.children[0]
@@ -4217,7 +4205,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
         if is_imp {
             ref dep : Str = iu.imports[import_idx]
             init_file(dep, ctx)
-            import_idx = import_idx.add(1)
+            import_idx++
         }
     }
 

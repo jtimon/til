@@ -541,7 +541,7 @@ priv_c_name := func(path: Str, name: Str) returns Str {
                 last_was_underscore = true
             }
         }
-        i = i.add(1)
+        i++
     }
     buf.push_str("__")
     buf.push_str(name)

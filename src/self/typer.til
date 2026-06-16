@@ -245,8 +245,7 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
     if enum_def.is_null() { return }
     switch enum_def.node_type {
     case NodeType.EnumDef(cn_edd):
-        for cvi in 0..cn_edd.variants.len() {
-            ref vn : Str = cn_edd.variants[cvi]
+        for vn : Str in cn_edd.variants {
             node.sub_names.push(own vn.clone())
             node.sub_nodes.push(own CoverageNode())
         }
@@ -915,7 +914,7 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
             fa.set_expr_til_type(Type.FuncPtr)
             ref sig : Expr = ftb_fd
             mut nargs : U32 = e.children.len()
-            nargs = nargs.sub(1)
+            nargs--
             switch sig.node_type {
             case NodeType.FuncDef(sig_fdef):
                 if nargs.neq(sig_fdef.params.len()) {
@@ -925,7 +924,7 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
                 while ai.lt(nargs) {
                     if ai.gte(sig_fdef.params.len()) { break }
                     infer_expr(scope, e.children[ai.add(1)], in_func, ctx)
-                    ai = ai.add(1)
+                    ai++
                 }
                 if sig_fdef.return_type.len().gt(0) {
                     e.set_expr_til_type(type_from_name(sig_fdef.return_type, scope, ctx))
@@ -980,14 +979,14 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
             if fvi.gte(0) {
                 if pi.cast(I32).eq(fvi) {
                     ci = ci.add(fvc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             if fkwi.gte(0) {
                 if pi.cast(I32).eq(fkwi) {
                     ci = ci.add(fkc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
@@ -1041,8 +1040,8 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
                     arg.type_error("cannot pass null to 'shallow' parameter", ctx)
                 }
             }
-            ci = ci.add(1)
-            pi = pi.add(1)
+            ci++
+            pi++
         }
     case:
         UNREACHABLE(__LOC__)
@@ -1274,7 +1273,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
                 } else if pos_idx.lt(nparam) {
                     new_args.set(pos_idx, own arg.clone())
                 }
-                pos_idx = pos_idx.add(1)
+                pos_idx++
             }
         }
         for i in 0..nparam {
@@ -1292,7 +1291,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
         }
         mut max_pos : U32 = nparam
         if kwi.gte(0) {
-            max_pos = max_pos.sub(1)
+            max_pos--
         }
         if vi.lt(0) {
             if pos_idx.gt(max_pos) {
@@ -1528,14 +1527,14 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                         narrow_dynamic(e.children[ci.add(vk)], vptype)
                     }
                     ci = ci.add(fvc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             if fkwi.gte(0) {
                 if pi.cast(I32).eq(fkwi) {
                     ci = ci.add(fkc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
@@ -1561,8 +1560,8 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                 case:
                 }
             }
-            ci = ci.add(1)
-            pi = pi.add(1)
+            ci++
+            pi++
         }
         ci = 1
         pi = 0
@@ -1604,28 +1603,28 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                         }
                     }
                     ci = ci.add(fvc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             if fkwi.gte(0) {
                 if pi.cast(I32).eq(fkwi) {
                     ci = ci.add(fkc)
-                    pi = pi.add(1)
+                    pi++
                     continue
                 }
             }
             ref param2 : Declaration = fdef_data.params[pi]
             ref ptype_name : Str = param2.explicit_type
             if ptype_name.len().eq(0) {
-                ci = ci.add(1)
-                pi = pi.add(1)
+                ci++
+                pi++
                 continue
             }
             ptype := type_from_name(ptype_name, scope, ctx)
             if ptype.is(Type.Dynamic) {
-                ci = ci.add(1)
-                pi = pi.add(1)
+                ci++
+                pi++
                 continue
             }
             // #269: a conforming concrete value where an interface is
@@ -1660,8 +1659,8 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
             }
             rewrite_til_type_arg(scope, e, ci, ptype, in_func, ctx)
             validate_fcall_arg(e.children[ci], ptype, ptype_name, param2.name, ctx)
-            ci = ci.add(1)
-            pi = pi.add(1)
+            ci++
+            pi++
         }
     case:
         UNREACHABLE(__LOC__)
@@ -1730,7 +1729,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                     switch sig.node_type {
                     case NodeType.FuncDef(sig_fdef):
                         mut nargs : U32 = e.children.len()
-                        nargs = nargs.sub(1)
+                        nargs--
                         if nargs.neq(sig_fdef.params.len()) {
                             e.type_error("function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
                         }
@@ -1741,22 +1740,22 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                             ref expected_param : Declaration = sig_fdef.params[ai]
                             ref expected_name : Str = expected_param.explicit_type
                             if expected_name.len().eq(0) {
-                                ai = ai.add(1)
+                                ai++
                                 continue
                             }
                             expected := type_from_name(expected_name, scope, ctx)
                             if expected.is(Type.Unknown).or(expected.is(Type.Dynamic)) {
-                                ai = ai.add(1)
+                                ai++
                                 continue
                             }
                             if arg.expr_til_type().is(Type.Dynamic) {
-                                ai = ai.add(1)
+                                ai++
                                 continue
                             }
                             if arg.expr_til_type().is(expected).not() {
                                 e.type_error("function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
                             }
-                            ai = ai.add(1)
+                            ai++
                         }
                     case:
                         UNREACHABLE(__LOC__)
@@ -2152,7 +2151,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 if pos_idx.lt(np) {
                     new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
                 }
-                pos_idx = pos_idx.add(1)
+                pos_idx++
             }
         }
         for i in 0..np {
@@ -2450,8 +2449,7 @@ priv check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, m
 priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
     if e.children.len().lt(2) { return }
     if get_own_arg(e, 1).not() { return }
-    ref arg : Expr = e.children[1]
-    switch arg.node_type {
+    switch e.children[1].node_type {
     case NodeType.Ident(an):
         sf := scope.find(an.ident_name())
         switch sf {
@@ -2490,8 +2488,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // registered, not a meaningful filter.
 priv check_move_managed_dest := proc(scope: TypeScope, e: Expr, ctx: Context) {
     if e.children.len().lt(2) { return }
-    ref dest : Expr = e.children[1]
-    tn := til_type_name(dest.expr_til_type())
+    tn := til_type_name(e.children[1].expr_til_type())
     if tn.len().eq(0) { return }
     ref sdef : Expr = scope.get_struct(tn)
     if sdef.is_null() { return }
@@ -3563,8 +3560,7 @@ priv collect_switch_case_bindings := proc(mut ctx: Context, e: Expr) {
             }
         }
     }
-    for ci in 0..e.children.len() {
-        ref c : Expr = e.children[ci]
+    for c : Expr in e.children {
         collect_switch_case_bindings(ctx, c)
     }
 }
@@ -3979,7 +3975,7 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
             type_error_at(b.path, b.line, b.col,
                 "unused priv ".concat(kind).concat(" '").concat(b.orig_name)
                     .concat("'; remove 'priv' to expose it"), ctx)
-            found = found.add(1)
+            found++
             continue
         }
         if b.orig_name.len().gt(0) {
@@ -3991,13 +3987,13 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
                 "unused local ".concat(kind).concat(" '").concat(b.orig_name)
                     .concat("' in '").concat(parent_name)
                     .concat("'; remove it or move it to file scope"), ctx)
-            found = found.add(1)
+            found++
             continue
         }
         type_error_at(b.path, b.line, b.col,
             "unused priv ".concat(kind).concat(" '").concat(b.name)
                 .concat("'; remove 'priv' to expose it"), ctx)
-        found = found.add(1)
+        found++
     }
     return found
 }
@@ -4046,7 +4042,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
                 type_error_at(path, fl_line, fl_col,
                     "unused priv field '".concat(owner_name).concat(".").concat(fld.name)
                         .concat("'; remove 'priv' to expose it"), ctx)
-                found = found.add(1)
+                found++
             }
         case:
         }
@@ -4068,7 +4064,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
             type_error_at(path, ns_line, ns_col,
                 "unused priv ns member '".concat(owner_name).concat(".").concat(nsd.name)
                     .concat("'; remove 'priv' to expose it"), ctx)
-            found = found.add(1)
+            found++
         }
     }
     return found
@@ -4675,8 +4671,8 @@ priv pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type) {
             pre_coerce_decl_numeric_literals(expr.children[i], target)
         }
     case:
-        for i in 0..expr.children.len() {
-            pre_coerce_decl_numeric_literals(expr.children[i], target)
+        for c : Expr in expr.children {
+            pre_coerce_decl_numeric_literals(c, target)
         }
     }
 }
@@ -5501,8 +5497,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
     if vsp_has_rest { return }
     switch vsp_def.node_type {
     case NodeType.StructDef(vsp_sdd):
-        for vfi in 0..vsp_sdd.fields.len() {
-            ref vfld : Declaration = vsp_sdd.fields[vfi]
+        for vfld : Declaration in vsp_sdd.fields {
             mut vsp_found := false
             for vnai in 1..pattern.children.len() {
                 ref vnac : Expr = pattern.children[vnai]
@@ -5604,8 +5599,8 @@ priv switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_mat
             case: return false
             }
         }
-        for li in 0..labels.len() {
-            if labels[li].eq(lit_text) { return false }
+        for lbl : Str in labels {
+            if lbl.eq(lit_text) { return false }
         }
         labels.push(own lit_text.clone())
         if expr_has_unguarded_break(cn.children[1]) { return false }
@@ -5672,8 +5667,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
             }
         } else if missing.len().gt(0) {
             mut msg := "non-exhaustive switch on enum '".concat(sw_sname).concat("'; missing cases:")
-            for mi in 0..missing.len() {
-                ref mp : Str = missing[mi]
+            for mp : Str in missing {
                 if msg.ends_with(":").not() { msg = msg.concat(",") }
                 msg = msg.concat(" ").concat(mp)
             }
@@ -5938,8 +5932,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
             }
         } else if missing_paths.len().gt(0) {
             mut msg := "non-exhaustive ".concat(kind_word).concat(" on enum '").concat(sw_expr_sname).concat("'; missing cases:")
-            for mi in 0..missing_paths.len() {
-                ref mp : Str = missing_paths[mi]
+            for mp : Str in missing_paths {
                 if msg.ends_with(":").not() { msg = msg.concat(",") }
                 msg = msg.concat(" ").concat(mp)
             }
@@ -6465,7 +6458,7 @@ priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_na
         ref stmt : Expr = stmts[i]
         guess := guess_local_type(stmt, var_name)
         if guess.len().gt(0) { return guess }
-        i = i.add(1)
+        i++
     }
     return ""
 }
@@ -6545,13 +6538,13 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                 }
             }
             if tn.len().eq(0) {
-                i = i.add(1)
+                i++
                 continue
             }
             ctx.lowering_param_types.set(dd.name, own tn)
         case:
         }
-        i = i.add(1)
+        i++
     }
 }
 
@@ -6648,7 +6641,7 @@ priv has_prior_throw_type_in_vec := proc(stmts: Vec(Expr), root_body: Expr, upto
     while i.lt(limit) {
         ref stmt : Expr = stmts[i]
         if subtree_has_throw_type(stmt, root_body, type_name) { return true }
-        i = i.add(1)
+        i++
     }
     return false
 }
@@ -6786,7 +6779,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
                                 }
                             }
                             if tn.len().gt(0).or(scan.eq(0)) { break }
-                            scan = scan.sub(1)
+                            scan--
                         }
                     case:
                     }
@@ -6807,8 +6800,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
             }
         }
     }
-    for ci in 0..e.children.len() {
-        ref mut sub : Expr = e.children[ci]
+    for mut sub : Expr in e.children {
         annotate_throw_types_in(sub, root_body)
     }
 }
@@ -6929,8 +6921,7 @@ priv rewrite_ident := proc(mut e: Expr, old_name: Str, new_name: Str) {
         }
     case:
     }
-    for ci in 0..e.children.len() {
-        ref mut sub : Expr = e.children[ci]
+    for mut sub : Expr in e.children {
         rewrite_ident(sub, old_name, new_name)
     }
 }
@@ -7012,8 +7003,7 @@ priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                 // conflating them by the bare method name.
                 switch rhs.node_type {
                 case NodeType.StructDef(rsd):
-                    for ci in 0..rsd.ns_decls.len() {
-                        ref nd : Declaration = rsd.ns_decls[ci]
+                    for nd : Declaration in rsd.ns_decls {
                         ref dv : Expr = nd.default_value
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
@@ -7024,8 +7014,7 @@ priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                         }
                     }
                 case NodeType.EnumDef(red):
-                    for ci in 0..red.ns_decls.len() {
-                        ref nd : Declaration = red.ns_decls[ci]
+                    for nd : Declaration in red.ns_decls {
                         ref dv : Expr = nd.default_value
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
@@ -7098,19 +7087,16 @@ priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // at the owning Decl above, so it is not repeated here.
     switch e.node_type {
     case NodeType.StructDef(esd_ns):
-        for ci in 0..esd_ns.ns_decls.len() {
-            ref mut nd : Declaration = esd_ns.ns_decls[ci]
+        for mut nd : Declaration in esd_ns.ns_decls {
             extend_throwing_func_sigs(ctx, nd.default_value)
         }
     case NodeType.EnumDef(eed_ns):
-        for ci in 0..eed_ns.ns_decls.len() {
-            ref mut nd : Declaration = eed_ns.ns_decls[ci]
+        for mut nd : Declaration in eed_ns.ns_decls {
             extend_throwing_func_sigs(ctx, nd.default_value)
         }
     case:
     }
-    for ci in 0..e.children.len() {
-        ref mut sub : Expr = e.children[ci]
+    for mut sub : Expr in e.children {
         extend_throwing_func_sigs(ctx, sub)
     }
 }
@@ -7160,8 +7146,7 @@ priv clear_bang_flag := proc(mut e: Expr) {
         }
     case:
     }
-    for ci in 0..e.children.len() {
-        ref mut sub : Expr = e.children[ci]
+    for mut sub : Expr in e.children {
         clear_bang_flag(sub)
     }
 }
@@ -7273,8 +7258,7 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
     if sdef.is_null() { return "" }
     switch sdef.node_type {
     case NodeType.StructDef(sd):
-        for fi in 0..sd.fields.len() {
-            ref fd : Declaration = sd.fields[fi]
+        for fd : Declaration in sd.fields {
             if fd.name.eq(field_name) {
                 if fd.explicit_type.len().gt(0) { return fd.explicit_type.clone() }
                 tn := til_type_name(fd.til_type)
@@ -7482,8 +7466,7 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
 priv pending_remove_all_matching := func(mut pending: Vec(Str), type_name: Str) returns Bool {
     mut found := false
     mut kept := Vec(Str).new()
-    for i in 0..pending.len() {
-        ref n : Str = pending[i]
+    for n : Str in pending {
         if n.eq(type_name) {
             found = true
         } else {
@@ -7495,8 +7478,7 @@ priv pending_remove_all_matching := func(mut pending: Vec(Str), type_name: Str) 
 }
 
 priv vec_str_contains := func(v: Vec(Str), name: Str) returns Bool {
-    for i in 0..v.len() {
-        ref n : Str = v[i]
+    for n : Str in v {
         if n.eq(name) { return true }
     }
     return false
@@ -7638,8 +7620,7 @@ priv validate_and_inject_expr_consolidated := proc(
     if e.node_type.is(NodeType.Body) { return }
     validate_one_fcall_consolidated(ctx, e, body, pending, seen, types_to_declare, path)
     inject_err_args_on_one_fcall_consolidated(ctx, e, body)
-    for ci in 0..e.children.len() {
-        ref mut sub : Expr = e.children[ci]
+    for mut sub : Expr in e.children {
         validate_and_inject_expr_consolidated(ctx, sub, body, pending, seen, types_to_declare, path)
     }
 }
@@ -7812,12 +7793,10 @@ priv process_match_arms_in := proc(
         .or(e.node_type.is(NodeType.StructDef))
         .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Match) {
-        for ci in 0..e.children.len() {
-            ref mut child : Expr = e.children[ci]
+        for mut child : Expr in e.children {
             if child.node_type.is(NodeType.Case) {
                 // Case = [pattern, (guard,) body]; process its Body arm(s).
-                for cci in 0..child.children.len() {
-                    ref mut ccn : Expr = child.children[cci]
+                for mut ccn : Expr in child.children {
                     if ccn.node_type.is(NodeType.Body) {
                         process_throw_catch_in_body(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                     } else {
@@ -7831,8 +7810,7 @@ priv process_match_arms_in := proc(
         }
         return
     }
-    for ci in 0..e.children.len() {
-        ref mut sub : Expr = e.children[ci]
+    for mut sub : Expr in e.children {
         process_match_arms_in(ctx, sub, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
     }
 }
@@ -7918,8 +7896,7 @@ priv process_throw_catch_in_body := proc(
             for ci in 1..stmt.children.len() {
                 ref mut cn : Expr = stmt.children[ci]
                 if cn.node_type.is(NodeType.Case) {
-                    for cci in 0..cn.children.len() {
-                        ref mut ccn : Expr = cn.children[cci]
+                    for mut ccn : Expr in cn.children {
                         if ccn.node_type.is(NodeType.Body) {
                             process_throw_catch_in_body(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                         }
@@ -7963,18 +7940,15 @@ priv process_throw_catch_in_body := proc(
         // into nested bodies (which step 2 already covered).
         switch stmt.node_type {
         case NodeType.Decl:
-            for ci in 0..stmt.children.len() {
-                ref mut sub : Expr = stmt.children[ci]
+            for mut sub : Expr in stmt.children {
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.Assign:
-            for ci in 0..stmt.children.len() {
-                ref mut sub : Expr = stmt.children[ci]
+            for mut sub : Expr in stmt.children {
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.FieldAssign:
-            for ci in 0..stmt.children.len() {
-                ref mut sub : Expr = stmt.children[ci]
+            for mut sub : Expr in stmt.children {
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.Return:
@@ -8007,8 +7981,7 @@ priv process_throw_catch_in_body := proc(
             for ci in 1..stmt.children.len() {
                 ref mut cn : Expr = stmt.children[ci]
                 if cn.node_type.is(NodeType.Case) {
-                    for cci in 0..cn.children.len() {
-                        ref mut ccn : Expr = cn.children[cci]
+                    for mut ccn : Expr in cn.children {
                         if ccn.node_type.is(NodeType.Body).not() {
                             validate_and_inject_expr_consolidated(ctx, ccn, root_body, pending, seen, types_to_declare, path)
                         }
@@ -8021,8 +7994,7 @@ priv process_throw_catch_in_body := proc(
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case:
-            for ci in 0..stmt.children.len() {
-                ref mut sub : Expr = stmt.children[ci]
+            for mut sub : Expr in stmt.children {
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         }
@@ -8077,7 +8049,7 @@ priv process_throw_catch_in_body := proc(
                             }
                         }
                         if tn.len().gt(0).or(scan.eq(0)) { break }
-                        scan = scan.sub(1)
+                        scan--
                     }
                     if tn.len().gt(0) {
                         register_throw_type(ctx, tn)
@@ -8095,7 +8067,7 @@ priv process_throw_catch_in_body := proc(
                     ctx.throw_used_local_names.add(own idn.name.clone())
                     mut scan_decl : I32 = new_ch.len().cast(I32)
                     if scan_decl.gt(0) {
-                        scan_decl = scan_decl.sub(1)
+                        scan_decl--
                     }
                     while scan_decl.gte(0) {
                         ref prior_stmt : Expr = new_ch[scan_decl.cast(U32)]
@@ -8128,10 +8100,9 @@ priv process_throw_catch_in_body := proc(
                         case:
                         }
                         if scan_decl.eq(0) { break }
-                        scan_decl = scan_decl.sub(1)
+                        scan_decl--
                     }
-                    for nui in 0..new_ch.len() {
-                        ref nstmt : Expr = new_ch[nui]
+                    for nstmt : Expr in new_ch {
                         switch nstmt.node_type {
                         case NodeType.Decl(ndd):
                             if ndd.name.eq(idn.name.clone()) { ndd.used = true }
@@ -8331,8 +8302,7 @@ priv process_throw_catch_in_func_body := proc(
         new_ch.push(own make_typed_mut_decl("_err_kind", "I64",
             make_int_lit(0, line, col), line, col))
     }
-    for i in 0..types_to_declare.len() {
-        ref tn : Str = types_to_declare[i]
+    for tn : Str in types_to_declare {
         mut is_param := false
         for ft : Str in fdef_throws {
             if ft.eq(tn) { is_param = true }
@@ -8447,9 +8417,8 @@ priv capture_block_check_refs := proc(e: Expr,
 // captured name must exist; mark it used (so listing it counts as a use)
 // and check the `mut` modifier against the source binding's mutability.
 // Shared by capture blocks and capturing functions.
-priv validate_captures := proc(scope: TypeScope, mut captures: Vec(Declaration), errnode: Expr, ctx: Context) {
-    for ci in 0..captures.len() {
-        ref mut cap : Declaration = captures[ci]
+priv validate_captures := proc(scope: TypeScope, captures: Vec(Declaration), errnode: Expr, ctx: Context) {
+    for mut cap : Declaration in captures {
         ref mut b : TypeBinding = scope.get_binding(cap.name)
         if b.is_null() {
             errnode.type_error(format("capture '", cap.name,
@@ -8517,7 +8486,7 @@ priv infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_fu
             return
         }
         infer_switch_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
-        i = i.sub(1)
+        i--
         return
     }
     // Issue #244: lower any match nested in this statement into a result temp
@@ -8569,9 +8538,9 @@ priv infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_fu
         if switch_lowered { i = i.sub(1) }
     case NodeType.ForIn:
         if desugar_for_in_range_stmt(scope, body, i, in_func, ctx) {
-            i = i.sub(1)
+            i--
         } else if desugar_for_in_collection_stmt(scope, body, i, in_func, ctx) {
-            i = i.sub(1)
+            i--
         }
     case NodeType.Throw:
         // Issue #198 step 5a: minimal dispatch -- type-check the
@@ -8764,7 +8733,7 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
     if typer_is_lambda_target(dd.default_value) {
         counter = typer_lift_lambdas_in_expr(dd.default_value, top_level, counter)
         lname := format("_lambda_", counter.to_str())
-        counter = counter.add(1)
+        counter++
         mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), dd.default_value.line, dd.default_value.col)
         decl.add_child(own dd.default_value.clone())
         top_level.push(own decl)
@@ -8788,7 +8757,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     case NodeType.FuncDef(lift_fd_check):
         if lift_fd_check.captures.len().gt(0).and(lift_fd_check.closure_name.len().eq(0)) {
             lift_fd_check.closure_name = format("closure_", counter.to_str())
-            counter = counter.add(1)
+            counter++
         }
         if lift_fd_check.func_type.is(FuncType.Macro) {
             mtg_ret_lift := lift_fd_check.return_type.eq("StructDef")
@@ -8845,7 +8814,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
         if typer_is_lambda_target(c).and(is_decl_rhs.not()) {
             counter = typer_lift_lambdas_in_expr(c, top_level, counter)
             lname := format("_lambda_", counter.to_str())
-            counter = counter.add(1)
+            counter++
             mut decl := Expr.new(NodeType.Decl(Declaration(name = lname.clone(), is_priv = true)), c.line, c.col)
             decl.add_child(own c.clone())
             top_level.push(own decl)
@@ -8973,8 +8942,7 @@ priv type_decls_file := proc(path: Str, ctx: Context) returns I32 {
         total = total.add(type_decls_file(dep, ctx))
     }
     mut import_idx : USize = auto_count
-    for i in 0..iu.ast.children.len() {
-        ref stmt : Expr = iu.ast.children[i]
+    for stmt : Expr in iu.ast.children {
         mut is_imp := false
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref imp_stmt : Expr = stmt.children[0]
@@ -9002,7 +8970,7 @@ priv type_decls_file := proc(path: Str, ctx: Context) returns I32 {
         if is_imp {
             ref dep : Str = iu.imports[import_idx]
             total = total.add(type_decls_file(dep, ctx))
-            import_idx = import_idx.add(1)
+            import_idx++
         }
     }
 
@@ -9081,7 +9049,7 @@ priv type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
             if id.ident_name().eq("import").not() { continue }
             ref dep : Str = iu.imports[import_idx]
             total = total.add(type_bodies_file(dep, ctx))
-            import_idx = import_idx.add(1)
+            import_idx++
         case:
             continue
         }
@@ -10893,7 +10861,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         mut hoist_fi := fi
         if is_ctor_call.and(hoist_sdef.is_null().not()) {
         if hoist_sdef.node_type.is(NodeType.StructDef) {
-            fi = fi.add(1)
+            fi++
         }
         }
         if arg.node_type.is(NodeType.FCall).not() {

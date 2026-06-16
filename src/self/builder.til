@@ -889,11 +889,11 @@ priv c_lit_byte_count := func(s: Str) returns USize {
             ref nx : I8 = s.byte_at(i.add(1))
             if nx.eq('x').and(i.add(3).lt(n)) {
                 i = i.add(4)
-                count = count.add(1)
+                count++
                 continue
             }
             i = i.add(2)
-            count = count.add(1)
+            count++
             continue
         }
         // str_to_source_form emits a `""` (close-quote + open-quote) after
@@ -905,8 +905,8 @@ priv c_lit_byte_count := func(s: Str) returns USize {
             i = i.add(2)
             continue
         }
-        i = i.add(1)
-        count = count.add(1)
+        i++
+        count++
     }
     return count
 }
@@ -1424,7 +1424,7 @@ priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Con
                 if pod_fi.lt(pod_sdd.fields.len()) {
                     ref pod_fd : Declaration = pod_sdd.fields[pod_fi]
                     pod_fname = pod_fd.name
-                    pod_fi = pod_fi.add(1)
+                    pod_fi++
                 }
                 f.write(".").write(pod_fname).write(" = ")
                 ref arg : Expr = ctor.children[i]
@@ -2915,7 +2915,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                     fld_own = dd.own_type
                     field_type = dd.til_type
                     fname = dd.name
-                    fi = fi.add(1)
+                    fi++
                 }
             case:
             }
@@ -3064,8 +3064,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if is_struct_or_enum(stmt) {
                     switch stmt.node_type {
                     case NodeType.Decl(sdecl):
@@ -3093,8 +3092,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt) {
                 switch stmt.node_type {
                 case NodeType.Decl(sdecl):
@@ -3375,7 +3373,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             f.write("int main(int argc, char **argv) {\n")
             mut fixed := nparam.cast(I32)
             if vi.gte(0) {
-                fixed = fixed.sub(1)
+                fixed--
                 f.write("    if (argc - 1 < "); emit_i32(f, fixed); f.write(") { fprintf(stderr, \"error: main expects at least "); emit_i32(f, fixed); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
             } else {
                 f.write("    if (argc - 1 != "); emit_i32(f, nparam.cast(I32)); f.write(") { fprintf(stderr, \"error: main expects "); emit_i32(f, nparam.cast(I32)); f.write(" argument(s), got %d\\n\", argc - 1); return 1; }\n")
@@ -3386,8 +3384,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             if lp.skip_core.not() {
                 for u : ProgramUnit in lp.core_units {
                     ref iu : ImportUnit = lp.ctx.imported[u.path]
-                    for gi in 0..iu.ast.children.len() {
-                        ref gs : Expr = iu.ast.children[gi]
+                    for gs : Expr in iu.ast.children {
                         if gs.node_type.is(NodeType.Decl) {
                             ref rhs : Expr = gs.children[0]
                             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
@@ -3399,8 +3396,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             }
             for u : ProgramUnit in lp.units {
                 ref iu : ImportUnit = lp.ctx.imported[u.path]
-                for gi in 0..iu.ast.children.len() {
-                    ref gs : Expr = iu.ast.children[gi]
+                for gs : Expr in iu.ast.children {
                     if gs.node_type.is(NodeType.Decl) {
                         ref rhs : Expr = gs.children[0]
                         if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
@@ -3444,7 +3440,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")
                     emit_cli_parse_value(f, "    ", p.explicit_type, p.name, arg)
-                    argi = argi.add(1)
+                    argi++
                 }
             }
         }
@@ -3788,8 +3784,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                     ref decl_value : Expr = stmt.children[0]
                     if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
@@ -3803,8 +3798,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
                 ref decl_value2 : Expr = stmt.children[0]
                 if decl_value2.node_type.is(NodeType.StructDef).or(decl_value2.node_type.is(NodeType.EnumDef)) {
@@ -3868,7 +3862,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                 emitted.add(own sdecl.name.clone())
                 mut t_val := true
                 done.set(ei, own t_val)
-                remaining = remaining.sub(1)
+                remaining--
                 progress = true
             case:
                 UNREACHABLE(__LOC__)
@@ -4035,8 +4029,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
@@ -4063,8 +4056,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
@@ -4095,8 +4087,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
@@ -4131,8 +4122,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
@@ -4209,8 +4199,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
@@ -4248,8 +4237,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
@@ -4279,8 +4267,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     // Enum auto-helper forward declarations (user units only)
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
@@ -4298,7 +4285,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         } else {
                             f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("();\n")
                         }
-                        hdr_vi = hdr_vi.add(1)
+                        hdr_vi++
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -4315,8 +4302,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if is_exported_top_level_global(stmt).not() { continue }
                 ref rhs : Expr = stmt.children[0]
                 switch stmt.node_type {
@@ -4335,8 +4321,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
             ref rhs : Expr = stmt.children[0]
             switch stmt.node_type {
@@ -4454,7 +4439,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     f.write("    ").write(bind_vn)
                     if bind_vt.len().gt(0) { f.write(": ").write(bind_vt) }
                     f.write(",\n")
-                    bind_vi = bind_vi.add(1)
+                    bind_vi++
                 }
                 emit_binding_ns_methods(f, rhs)
                 f.write("}\n\n")
@@ -4623,7 +4608,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 for ct_vn : Str in ct_edd.variants {
                     f.write(dd.name).write("_TAG_").write(ct_vn)
                     f.write(" = ").write(tag.to_str()).write("\n")
-                    tag = tag.add(1)
+                    tag++
                 }
 
                 // Emit union if has payloads
@@ -4638,7 +4623,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                             f.write(type_name_to_ctypes_param(ct_vt, false))
                             f.write("),\n")
                         }
-                        ct_vi = ct_vi.add(1)
+                        ct_vi++
                     }
                     f.write("    ]\n")
                 }
@@ -4803,7 +4788,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                             f.write("_lib.").write(sname).write("_").write(py_vn)
                             f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
                         }
-                        py_vi = py_vi.add(1)
+                        py_vi++
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -5255,8 +5240,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
@@ -5301,8 +5285,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
@@ -5346,8 +5329,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     // Enum auto-helper declarations (user units only)
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
@@ -5365,7 +5347,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         } else {
                             f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("();\n")
                         }
-                        hdr_vi = hdr_vi.add(1)
+                        hdr_vi++
                     }
                 case:
                     UNREACHABLE(__LOC__)
@@ -5382,8 +5364,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 switch stmt.node_type {
@@ -5425,8 +5406,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             switch stmt.node_type {
@@ -5469,8 +5449,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for i in 0..iu.ast.children.len() {
-                ref stmt : Expr = iu.ast.children[i]
+            for stmt : Expr in iu.ast.children {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 if stmt.children.len().eq(0) { continue }
                 if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
@@ -5488,7 +5467,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                             } else {
                                 f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("();\n")
                             }
-                            shdr_vi = shdr_vi.add(1)
+                            shdr_vi++
                         }
                     case:
                         UNREACHABLE(__LOC__)
@@ -5501,8 +5480,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for i in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[i]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
@@ -5520,7 +5498,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     } else {
                         f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("();\n")
                     }
-                    shdr_vi = shdr_vi.add(1)
+                    shdr_vi++
                 }
             case:
                 UNREACHABLE(__LOC__)
@@ -6283,7 +6261,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
                 val : USize = seq
                 static_index_by_display.set(display, own val)
                 static_displays.push(own display)
-                seq = seq.add(1)
+                seq++
             }
         } else if vt.eq("Str") {
         } else {
@@ -6293,13 +6271,12 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
                 panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
             }
-            for k in 0..inner_names.len() {
-                ref ivn : Str = inner_names[k]
+            for ivn : Str in inner_names {
                 if static_index_by_display.has(ivn).not() {
                     val2 : USize = seq
                     static_index_by_display.set(ivn, own val2)
                     static_displays.push(own ivn.clone())
-                    seq = seq.add(1)
+                    seq++
                 }
             }
         }
@@ -6309,7 +6286,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
         fallback_val : USize = seq
         static_index_by_display.set("?", own fallback_val)
         static_displays.push(own "?")
-        seq = seq.add(1)
+        seq++
     }
     // Emit static-local Str variables before the switch
     for j in 0..static_displays.len() {
@@ -6353,8 +6330,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             f.write("        switch (type->data.")
             f.write(vn)
             f.write(".tag) {\n")
-            for k in 0..inner_names.len() {
-                ref ivn : Str = inner_names[k]
+            for ivn : Str in inner_names {
                 ref idx : USize = static_index_by_display[ivn]
                 f.write("        case ")
                 f.write(vt)
@@ -6839,7 +6815,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                         if fd.func_type.is(FuncType.Test).not() { continue }
                         f.write("    ").write(dd.name).write("();\n")
                         f.write("    fprintf(stderr, \"  pass: %s\\n\", \"").write(dd.name).write("\");\n")
-                        test_count = test_count.add(1)
+                        test_count++
                     case:
                         UNREACHABLE(__LOC__)
                     }
@@ -6857,7 +6833,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                             qual_name := dd.name.format(".", nsd.name)
                             f.write("    ").write(full_name).write("();\n")
                             f.write("    fprintf(stderr, \"  pass: %s\\n\", \"").write(qual_name).write("\");\n")
-                            test_count = test_count.add(1)
+                            test_count++
                         case:
                         }
                     }
@@ -6888,8 +6864,7 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for gi in 0..iu.ast.children.len() {
-                ref gs : Expr = iu.ast.children[gi]
+            for gs : Expr in iu.ast.children {
                 if gs.node_type.is(NodeType.Decl) {
                     ref rhs : Expr = gs.children[0]
                     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
@@ -6902,8 +6877,7 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     // Emit top-level non-def statements across all user units, in order.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for gi in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[gi]
+        for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl) {
                 ref rhs : Expr = stmt.children[0]
                 if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
