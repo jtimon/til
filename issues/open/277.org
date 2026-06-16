@@ -1,0 +1,61 @@
+# priority: medium
+# category: bugs
+** OPEN #277 Const-folder cannot fold variadic (`..T`) calls
+
+The compile-time constant folder (~src/self/constfolder.til~, formerly
+~precomp.til~) never folds a call that routes through a variadic
+(~..T~) function, even when every argument is a compile-time constant.
+Concretely, ~format(..Str)~ is not const-foldable: a pure wrapper such
+as
+
+   concat := func(a: Str, b: Str) returns Str { return format(a, b) }
+   result := concat("hello", " world")   // emits a runtime call, not "hello world"
+
+emits a runtime ~concat(...)~ + ~format(...)~ instead of baking the
+literal. Before ~Str.concat~ was removed in favour of ~format~, the same
+wrapper folded to the ~"hello world"~ literal (~Str.concat~ is a plain
+2-arg function). The string-concat cases in ~test/constfold.til~
+(~test_string_concat~, ~test_lolalalo~) therefore still pass but now
+exercise runtime concatenation rather than the folding they were written
+to verify.
+
+*** Root cause (verified by isolation)
+
+Experiments compiling ~test/constfold.til~ and checking whether the call
+folds to a baked literal (and the helper gets eliminated):
+
+  - non-variadic 2-arg helper (inline body)            -> folds
+  - non-variadic helper with a range ~for~ loop        -> folds
+  - local variadic helper ~myfmt(..Str)~               -> does NOT fold
+  - core ~format(..Str)~                               -> does NOT fold
+
+So for-loops fold fine and ordinary functions fold fine; the single
+variable that turns folding off is the variadic ~..T~ parameter.
+~try_eval_call~ (constfolder.til) rebuilds the call with literal args and
+runs it through the interpreter, but cannot bind N args into a ~..T~ param
+/ construct the splat array at fold time, so it bails (returns NULL) and
+the call is emitted at runtime.
+
+*** Secondary latent bug found along the way
+
+~body_has_local~ (constfolder.til) only recognizes ~NodeType.Decl~ names,
+not ~for~-in loop variables (those live in the ~ForIn~ payload, not as a
+~Decl~ child). So ~func_uses_unknown_globals~ flags a loop variable as an
+"unknown global" and refuses to fold any foldable *free* function whose
+body loops. It is masked today by the variadic limitation above (and by
+the fact that core free functions like ~format~ are not registered in the
+fold scope, so the recursion never reaches their body), but it would bite
+any non-variadic foldable free function that uses a ~for~ loop. A
+one-line fix restores it:
+
+   case NodeType.ForIn(fd):
+       if fd.name.eq(name) { return true }
+
+*** Fix direction
+
+Teach the const-folder's eval path to handle variadic calls: pack the
+comptime splat arguments into the ~..T~ array value before interpreting
+the body (mirroring the typer's ~desugar_variadic_calls~), and add the
+~ForIn~ case to ~body_has_local~. A regression test would assert that a
+~format(...)~ / variadic-wrapper call with comptime args folds to a baked
+literal (the helper eliminated from the generated C).
