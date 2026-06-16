@@ -58,7 +58,7 @@ test_core_bool_and_or := test() {
 mut eval_count := 0
 
 bump := func() returns Bool {
-    eval_count = eval_count.add(1)
+    eval_count++
     return true
 }
 
@@ -122,7 +122,7 @@ mut log_count := 0
 
 note := proc() returns Bool {
     println("note ran")
-    log_count = log_count.add(1)
+    log_count++
     return true
 }
 

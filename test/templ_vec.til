@@ -223,7 +223,7 @@ test_templvec_u8 := test() {
 
 fill_i64 := func(mut v: TemplVec(I64), n: I64) {
     mut i := 0
-    while i.lt(n) { v.push(own i.clone()); i = i.add(1) }
+    while i.lt(n) { v.push(own i.clone()); i++ }
 }
 
 test_templvec_type_annotation := test() {

@@ -82,7 +82,7 @@ make_link := func(fname: Str, title: Str) returns Str {
             .or(ch.eq('4')).or(ch.eq('5')).or(ch.eq('6')).or(ch.eq('7'))
             .or(ch.eq('8')).or(ch.eq('9'))
         {
-            num_end = num_end.add(1)
+            num_end++
         } else {
             break
         }

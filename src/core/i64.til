@@ -30,11 +30,11 @@ namespace:
         mut ndigits : U64 = 0
         mut tmp := v
         while tmp.gt(0) {
-            ndigits = ndigits.add(1)
+            ndigits++
             tmp = tmp.div(10)
         }
         mut total := ndigits
-        if is_neg { total = total.add(1) }
+        if is_neg { total++ }
         buf : Dynamic = malloc(total.add(1))
         if is_neg {
             memcpy(buf, 45, 1)
@@ -43,7 +43,7 @@ namespace:
         while v.gt(0) {
             memcpy(ptr_add(buf, i), v.mod(10).add(48).to_u8(), 1)
             v = v.div(10)
-            i = i.sub(1)
+            i--
         }
         memset(ptr_add(buf, total), 0, 1)
         return Str(c_str = buf, count = total, cap = total)

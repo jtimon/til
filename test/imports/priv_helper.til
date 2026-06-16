@@ -72,7 +72,7 @@ priv mut counter := 0
 
 magic_value := func() returns I64 { return MAGIC }
 bump_counter := proc() returns I64 {
-    counter = counter.add(1)
+    counter++
     println("bump")
     return counter
 }

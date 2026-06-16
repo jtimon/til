@@ -80,7 +80,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
     while i.lt(64) {
         ref v : I64 = src[i.to_u32()]
         dst.set(i.to_u32(), own v.clone())
-        i = i.add(1)
+        i++
     }
 }
 
@@ -127,11 +127,11 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
                 if is_opp(mid_p, side).and(land_p.eq(0)) {
                     moves.set(count.to_u32(), own land_idx.clone())
                     jumped.set(count.to_u32(), own mid_idx.clone())
-                    count = count.add(1)
+                    count++
                 }
             }
         }
-        di = di.add(1)
+        di++
     }
 
     return count
@@ -170,11 +170,11 @@ gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
                 ref dp : I64 = board[dest.to_u32()]
                 if dp.eq(0) {
                     moves.set(count.to_u32(), own dest.clone())
-                    count = count.add(1)
+                    count++
                 }
             }
         }
-        di = di.add(1)
+        di++
     }
 
     return count
@@ -190,7 +190,7 @@ has_any_captures := func(mut board: Array(I64), side: I64,
             cc := gen_captures(board, i, side, moves, jumped)
             if cc.gt(0) { return true }
         }
-        i = i.add(1)
+        i++
     }
     return false
 }
@@ -206,7 +206,7 @@ has_legal_moves := func(mut board: Array(I64), side: I64,
             mc := gen_simple_moves(board, i, side, moves)
             if mc.gt(0) { return true }
         }
-        i = i.add(1)
+        i++
     }
     return false
 }
@@ -252,7 +252,7 @@ checkers_pack := func(mut b: Board, mut cells: Array(I64), side: I64) {
     while i.lt(64) {
         ref v : I64 = cells[i.to_u32()]
         board_set_i64(b, i, v)
-        i = i.add(1)
+        i++
     }
     board_set_i64(b, 64, side)
 }
@@ -273,7 +273,7 @@ checkers_heuristic : Heuristic = (b) {
         if p.eq(2) { score = score.add(3) }
         if p.eq(3) { score = score.sub(1) }
         if p.eq(4) { score = score.sub(3) }
-        i = i.add(1)
+        i++
     }
     if side.eq(2) { return 0.sub(score) }
     return score
@@ -309,7 +309,7 @@ expand_jumps := func(mut cells: Array(I64), piece_pos: I64, side: I64,
         } else {
             expand_jumps(child, dest, side, result, tmp_m, tmp_j)
         }
-        j = j.add(1)
+        j++
     }
 }
 
@@ -320,7 +320,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     mut ci := 0
     while ci.lt(64) {
         cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
-        ci = ci.add(1)
+        ci++
     }
     side := checkers_unpack_side(cb)
     result := Vec(Board).new()
@@ -345,11 +345,11 @@ checkers_next_boards : NextBoardsFn = (b) {
                     mut nb := Board()
                     checkers_pack(nb, child, opp)
                     result.push(own nb)
-                    j = j.add(1)
+                    j++
                 }
             }
         }
-        i = i.add(1)
+        i++
     }
     return result
 }
@@ -393,7 +393,7 @@ main := proc() {
     while init_i.lt(64) {
         ref init_p : I64 = INIT_BOARD[init_i.to_u32()]
         board.set(init_i.to_u32(), own init_p.clone())
-        init_i = init_i.add(1)
+        init_i++
     }
 
     while !WindowShouldClose() {
@@ -452,7 +452,7 @@ main := proc() {
 
         // --- AI MOVE ---
         if vs_ai.eq(2).and(turn.eq(ai_side)).and(game_over.eq(0)) {
-            ai_timer = ai_timer.add(1)
+            ai_timer++
             if ai_timer.gt(20) {
                 ai_timer = 0
 
@@ -476,7 +476,7 @@ main := proc() {
                                 best_score = score
                                 best_j = mj
                             }
-                            mj = mj.add(1)
+                            mj++
                         }
                         ref bd : I64 = tmp_moves[best_j.to_u32()]
                         ref bj : I64 = tmp_jumped[best_j.to_u32()]
@@ -487,9 +487,9 @@ main := proc() {
                         orig_val := orig.clone()
                         new_piece := execute_move(board, multi_jump_idx, bd_val, bj_val)
                         if ai_side.eq(1) {
-                            red_caps = red_caps.add(1)
+                            red_caps++
                         } else {
-                            black_caps = black_caps.add(1)
+                            black_caps++
                         }
 
                         // Check for more jumps
@@ -539,8 +539,8 @@ main := proc() {
                                     ai_pieces.set(ai_total.to_u32(), own sq.clone())
                                     ai_dests.set(ai_total.to_u32(), own md.clone())
                                     ai_jumps.set(ai_total.to_u32(), own jd.clone())
-                                    ai_total = ai_total.add(1)
-                                    mj = mj.add(1)
+                                    ai_total++
+                                    mj++
                                 }
                             } else {
                                 mc := gen_simple_moves(board, sq, ai_side, tmp_moves)
@@ -550,12 +550,12 @@ main := proc() {
                                     ai_pieces.set(ai_total.to_u32(), own sq.clone())
                                     ai_dests.set(ai_total.to_u32(), own md.clone())
                                     ai_jumps.set(ai_total.to_u32(), own -1)
-                                    ai_total = ai_total.add(1)
-                                    mj = mj.add(1)
+                                    ai_total++
+                                    mj++
                                 }
                             }
                         }
-                        sq = sq.add(1)
+                        sq++
                     }
 
                     if ai_total.gt(0) {
@@ -583,7 +583,7 @@ main := proc() {
                                 best_score = score
                                 best_idx = mi
                             }
-                            mi = mi.add(1)
+                            mi++
                         }
 
                         ref best_from : I64 = ai_pieces[best_idx.to_u32()]
@@ -598,9 +598,9 @@ main := proc() {
                         new_piece := execute_move(board, from_val, to_val, jmp_val)
                         if jmp_val.gte(0) {
                             if ai_side.eq(1) {
-                                red_caps = red_caps.add(1)
+                                red_caps++
                             } else {
-                                black_caps = black_caps.add(1)
+                                black_caps++
                             }
                         }
 
@@ -664,7 +664,7 @@ main := proc() {
                             while vi.lt(valid_count) {
                                 ref vm : I64 = valid_moves[vi.to_u32()]
                                 if vm.eq(click_idx) { is_valid = true }
-                                vi = vi.add(1)
+                                vi++
                             }
                             if is_valid {
                                 mut ji := 0
@@ -678,9 +678,9 @@ main := proc() {
                                         orig_val := orig.clone()
                                         new_piece := execute_move(board, multi_jump_idx, click_idx, jmp_val)
                                         if turn.eq(1) {
-                                            red_caps = red_caps.add(1)
+                                            red_caps++
                                         } else {
-                                            black_caps = black_caps.add(1)
+                                            black_caps++
                                         }
 
                                         mut was_promoted := false
@@ -705,7 +705,7 @@ main := proc() {
                                         }
                                         break
                                     }
-                                    ji = ji.add(1)
+                                    ji++
                                 }
                             }
                         } else {
@@ -719,7 +719,7 @@ main := proc() {
                                         is_valid = true
                                         found_ji = vi
                                     }
-                                    vi = vi.add(1)
+                                    vi++
                                 }
 
                                 if is_valid {
@@ -734,9 +734,9 @@ main := proc() {
                                     new_piece := execute_move(board, selected, click_idx, jmp_val)
                                     if jmp_val.gte(0) {
                                         if turn.eq(1) {
-                                            red_caps = red_caps.add(1)
+                                            red_caps++
                                         } else {
-                                            black_caps = black_caps.add(1)
+                                            black_caps++
                                         }
                                     }
 
@@ -935,7 +935,7 @@ main := proc() {
                             DrawRectangle(px + CELL - 12, py + CELL - 12, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
                         }
                     }
-                    vi = vi.add(1)
+                    vi++
                 }
 
                 // Draw piece

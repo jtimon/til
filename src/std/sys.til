@@ -37,7 +37,7 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
         } else {
             cmd = arg.clone()
         }
-        i = i.add(1)
+        i++
     }
     if host_os().eq("windows") {
         _mk := spawn_cmd("if not exist tmp mkdir tmp >NUL 2>&1")

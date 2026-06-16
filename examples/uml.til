@@ -80,7 +80,7 @@ vec_contains_str := func(v: Vec(Str), s: Str) returns Bool {
     while i.lt(v.len()) {
         ref e : Str = v.get(i)!
         if e.eq(s) { return true }
-        i = i.add(1)
+        i++
     }
     return false
 }
@@ -96,7 +96,7 @@ sort_paths := func(mut v: Vec(Str)) {
             ref cand : Str = v.get(j)!
             ref cur : Str = v.get(min_idx)!
             if Str.cmp(cand, cur).lt(0) { min_idx = j }
-            j = j.add(1)
+            j++
         }
         if min_idx.neq(i) {
             ref ai : Str = v.get(i)!
@@ -106,7 +106,7 @@ sort_paths := func(mut v: Vec(Str)) {
             v.set(i, own tmp_m)
             v.set(min_idx, own tmp_i)
         }
-        i = i.add(1)
+        i++
     }
 }
 
@@ -123,7 +123,7 @@ discover_self_files := proc() returns Vec(Str) {
         if name.ends_with(".til") {
             out.push(own "src/self/".concat(name))
         }
-        i = i.add(1)
+        i++
     }
     sort_paths(out)
     return out
@@ -141,7 +141,7 @@ ordered_paths := proc() returns Vec(Str) {
         if vec_contains_str(paths, f).not() {
             paths.push(own f.clone())
         }
-        i = i.add(1)
+        i++
     }
     return paths
 }
@@ -151,7 +151,7 @@ trim_ws := func(s: Str) returns Str {
     while start.lt(s.len()) {
         ref c : I8 = s.get(start)
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
-            start = start.add(1)
+            start++
         } else {
             break
         }
@@ -160,7 +160,7 @@ trim_ws := func(s: Str) returns Str {
     while end.gt(start) {
         ref c : I8 = s.get(end.sub(1))
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
-            end = end.sub(1)
+            end--
         } else {
             break
         }
@@ -174,7 +174,7 @@ count_char := func(s: Str, ch: I8) returns I64 {
     while i.lt(s.len()) {
         ref c : I8 = s.get(i)
         if c.eq(ch) { n = n.add(1) }
-        i = i.add(1)
+        i++
     }
     return n
 }
@@ -192,7 +192,7 @@ extract_body_lines := func(lines: Vec(Str), start_line: U32) returns Vec(Str) {
         if !started {
             brace_pos := raw.find("{")
             if brace_pos.eq(-1) {
-                i = i.add(1)
+                i++
                 continue
             }
             started = true
@@ -208,7 +208,7 @@ extract_body_lines := func(lines: Vec(Str), start_line: U32) returns Vec(Str) {
             }
             depth = depth.add(count_char(trailing, '{')).sub(count_char(trailing, '}'))
             if depth.lte(0) { break }
-            i = i.add(1)
+            i++
             continue
         }
 
@@ -223,7 +223,7 @@ extract_body_lines := func(lines: Vec(Str), start_line: U32) returns Vec(Str) {
 
         depth = depth.add(count_char(raw, '{')).sub(count_char(raw, '}'))
         if depth.lte(0) { break }
-        i = i.add(1)
+        i++
     }
 
     return out
@@ -238,7 +238,7 @@ join_lines := func(lines: Vec(Str)) returns Str {
             out = out.concat(" ")
         }
         out = out.concat(line)
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -276,10 +276,10 @@ split_enum_variants := proc(lines: Vec(Str)) returns Vec(Str) {
 
         switch tok.type {
         case TokenType.LParen:
-            paren_depth = paren_depth.add(1)
+            paren_depth++
             current = append_token_text(current, tok, body)
         case TokenType.RParen:
-            paren_depth = paren_depth.sub(1)
+            paren_depth--
             current = append_token_text(current, tok, body)
         case TokenType.Comma:
             if paren_depth.eq(0) {
@@ -323,7 +323,7 @@ cap_lines := func(lines: Vec(Str)) returns Vec(Str) {
     while i.lt(keep) {
         ref line : Str = lines.get(i)!
         out.push(own line.clone())
-        i = i.add(1)
+        i++
     }
     remaining := lines.len().sub(keep)
     out.push(own format("... (", remaining.to_str(), " more)"))
@@ -376,9 +376,9 @@ collect_types := proc(paths: Vec(Str)) returns Vec(UmlType) {
         while j.lt(file_types.len()) {
             ref t : UmlType = file_types.get(j)!
             out.push(own t.clone())
-            j = j.add(1)
+            j++
         }
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -396,14 +396,14 @@ collect_panels := func(paths: Vec(Str), types: Vec(UmlType)) returns Vec(UmlPane
             if t.file.eq(label) {
                 panel.types.push(own t.clone())
             }
-            j = j.add(1)
+            j++
         }
         // Skip files that declare no struct/enum (modes, precomp, scavenger,
         // initer, ...) so they don't render as empty boxes.
         if panel.types.len().gt(0) {
             out.push(own panel)
         }
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -422,11 +422,11 @@ generate_org := func(panels: Vec(UmlPanel)) returns Str {
             while k.lt(t.lines.len()) {
                 ref line : Str = t.lines.get(k)!
                 out = out.format("*** ", line, NL)
-                k = k.add(1)
+                k++
             }
-            j = j.add(1)
+            j++
         }
-        i = i.add(1)
+        i++
     }
     return out
 }
@@ -512,7 +512,7 @@ panel_h := func(p: UmlPanel) returns I64 {
             h = h.add(BOX_GAP_Y)
         }
         h = h.add(box_h(t))
-        i = i.add(1)
+        i++
     }
     return h.add(PANEL_PAD_Y)
 }
@@ -530,7 +530,7 @@ generate_svg := func(panels: Vec(UmlPanel)) returns Str {
             total_w = total_w.add(PANEL_GAP_X)
         }
         if h.gt(max_h) { max_h = h }
-        i = i.add(1)
+        i++
     }
     total_w = total_w.add(PAGE_PAD_X)
     total_h := PAGE_PAD_Y.add(max_h).add(PAGE_PAD_Y)
@@ -591,13 +591,13 @@ generate_svg := func(panels: Vec(UmlPanel)) returns Str {
                 ref line : Str = t.lines.get(k)!
                 line_y := box_y.add(BOX_PAD_Y).add(HEADER_H).add(ROW_H).add(k.to_i64().mul(ROW_H))
                 svg = svg.format("  ", svg_text(box_x.add(BOX_PAD_X), line_y, "line", xml_escape(line)))
-                k = k.add(1)
+                k++
             }
             box_y = box_y.add(h).add(BOX_GAP_Y)
-            j = j.add(1)
+            j++
         }
         panel_x = panel_x.add(pw).add(PANEL_GAP_X)
-        i = i.add(1)
+        i++
     }
 
     svg = svg.format("</svg>", NL)

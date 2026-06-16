@@ -70,16 +70,14 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
 
     // Global init: methods/layouts later phases assume exist.
     if lp.skip_core.not() {
-        for i in 0..lp.core_units.len() {
-            ref u : ProgramUnit = lp.core_units[i]
+        for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             lp.ctx.mode = iu.mode.clone()
             context_enter_file(lp.ctx, u.path)
             init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
         }
     }
-    for i in 0..lp.units.len() {
-        ref u : ProgramUnit = lp.units[i]
+    for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         lp.ctx.mode = iu.mode.clone()
         context_enter_file(lp.ctx, u.path)
@@ -415,7 +413,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             } else if flag.starts_with("-").not() {
                 mode_arg = flag.clone()
             }
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         }
         run_repl(mode_arg, cli.extra_modes)
         cli.early_return = true
@@ -449,7 +447,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
     while cli.path_idx.lt(args.len()) {
         ref flag : Str = args[cli.path_idx]
         if flag.eq("--") {
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
             break
         } else if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
             ref oval : Str = args[cli.path_idx.add(1)]
@@ -461,7 +459,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.path_idx = cli.path_idx.add(2)
         } else if flag.starts_with("--target=") {
             cli.target_str = flag.strip_prefix("--target=").clone()
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         } else if flag.starts_with("--cc=") {
             // format() (not strip_prefix(...).clone()): strip_prefix returns a
             // borrowed view, and cloning a view that is stored into a field
@@ -471,7 +469,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             // compile_c as a single garbage byte: "sh: 1: U: not found").
             // format() copies the bytes into an owned buffer.
             cli.cc = format(flag.strip_prefix("--cc="))
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
             ref pval : Str = args[cli.path_idx.add(1)]
             cli.install_prefix = pval.clone()
@@ -481,16 +479,16 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             // miscompile as --cc above (issue #258); install_prefix is read
             // later in cmd_install, so the moved-in borrow would dangle.
             cli.install_prefix = format(flag.strip_prefix("--prefix="))
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         } else if flag.eq("--asan") {
             cli.asan = true
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         } else if flag.eq("--prof") {
             cli.prof = true
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         } else if flag.starts_with("--extra-modes=") {
             cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
-            cli.path_idx = cli.path_idx.add(1)
+            cli.path_idx++
         } else {
             break
         }
@@ -515,7 +513,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: US
         if arg.starts_with("-l") {
             mut lib := arg.strip_prefix("-l")
             if lib.len().eq(0).and(ai.add(1).lt(args.len())) {
-                ai = ai.add(1)
+                ai++
                 ref next_arg : Str = args[ai]
                 lib = next_arg.clone()
             }
@@ -523,7 +521,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: US
         } else {
             user_argv.push(own arg.clone())
         }
-        ai = ai.add(1)
+        ai++
     }
     return user_argv
 }

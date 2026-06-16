@@ -81,7 +81,7 @@ test_block_capture_isolation := test() {
     mut touched := 0
     untouched := 99
     [mut touched] {
-        touched = touched.add(1)
+        touched++
     }
     assert_eq(__LOC__, touched, 1)
     assert_eq(__LOC__, untouched, 99)

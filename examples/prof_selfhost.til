@@ -74,7 +74,7 @@ previous_build_ms := func() returns I64 {
     mut ms : I64 = -1
     for col : Str in cols {
         if idx.eq(1) { ms = col.trim().to_i64() }
-        idx = idx.add(1)
+        idx++
     }
     return ms
 }

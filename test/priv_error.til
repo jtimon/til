@@ -29,7 +29,7 @@ main := proc() {
     // Step 6: priv top-level global -- direct read.
     println(MAGIC.to_str())
     // Step 6: priv top-level mutable global -- direct write.
-    counter = counter.add(1)
+    counter++
 }
 
 // Closing the type_from_name gap: a priv struct/enum can no longer

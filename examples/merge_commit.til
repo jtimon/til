@@ -67,7 +67,7 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     mut bstart : I64 = byte_pos.sub(1)
     while bstart.gte(0) {
         if tail.byte_at(bstart.to_usize()).eq(' ') { break }
-        bstart = bstart.sub(1)
+        bstart--
     }
     num_str := tail.substr(bstart.add(1).to_usize(), byte_pos.sub(bstart).sub(1).to_usize())
     bytes = num_str.to_i64()
@@ -77,7 +77,7 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     bstart = alloc_pos.sub(1)
     while bstart.gte(0) {
         if tail.byte_at(bstart.to_usize()).eq(' ') { break }
-        bstart = bstart.sub(1)
+        bstart--
     }
     num_str2 := tail.substr(bstart.add(1).to_usize(), alloc_pos.sub(bstart).sub(1).to_usize())
     allocs = num_str2.to_i64()
@@ -147,12 +147,12 @@ trim_spaces := func(s: Str) returns Str {
     while start.lt(end) {
         c := s.substr(start, 1)
         if c.eq(" ").not() { break }
-        start = start.add(1)
+        start++
     }
     while end.gt(start) {
         c := s.substr(end.sub(1), 1)
         if c.eq(" ").not() { break }
-        end = end.sub(1)
+        end--
     }
     return s.substr(start, end.sub(start)).clone()
 }
@@ -164,7 +164,7 @@ trim_leading_whitespace := func(s: Str) returns Str {
         if c.eq(" ").not().and(c.eq("\n").not()).and(c.eq("\r").not()).and(c.eq("\t").not()) {
             break
         }
-        start = start.add(1)
+        start++
     }
     return s.substr(start, s.len().sub(start)).clone()
 }
@@ -174,12 +174,12 @@ trim_quotes := func(s: Str) returns Str {
     while start.lt(end) {
         c := s.substr(start, 1)
         if c.eq("\"").not().and(c.eq("'").not()) { break }
-        start = start.add(1)
+        start++
     }
     while end.gt(start) {
         c := s.substr(end.sub(1), 1)
         if c.eq("\"").not().and(c.eq("'").not()) { break }
-        end = end.sub(1)
+        end--
     }
     return s.substr(start, end.sub(start)).clone()
 }

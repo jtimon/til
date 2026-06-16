@@ -57,12 +57,12 @@ parse_csv := func(content: Str) returns Vec(Row) {
     while i.lt(lines.len()) {
         ref line : Str = lines[i]
         if line.is_empty() {
-            i = i.add(1)
+            i++
             continue
         }
         cols := line.split(",")
         if cols.len().lt(8) {
-            i = i.add(1)
+            i++
             continue
         }
         ref c0 : Str = cols[0]
@@ -107,7 +107,7 @@ parse_csv := func(content: Str) returns Vec(Row) {
             mem_run = c12.to_i64(),
             mem_total = c13.to_i64()
         ))
-        i = i.add(1)
+        i++
     }
     return rows
 }
@@ -144,7 +144,7 @@ build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
         y := y_px(val, y_max)
         if i.gt(0) { pts = pts.concat(" ") }
         pts = pts.concat(x.to_str()).concat(",").concat(y.to_str())
-        i = i.add(1)
+        i++
     }
     return pts
 }
@@ -298,7 +298,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
             if has_mem_comp { svg = svg.concat(svg_circle(x, y_px(row.mem_comp, mem_max), 3, MEM_COMP_COLOR)) }
             if has_mem_run { svg = svg.concat(svg_circle(x, y_px(row.mem_run, mem_max), 3, MEM_RUN_COLOR)) }
             if has_mem_total { svg = svg.concat(svg_circle(x, y_px(row.mem_total, mem_max), 3, MEM_TOTAL_COLOR)) }
-            i = i.add(1)
+            i++
         }
 
         // X-axis commit labels
@@ -310,7 +310,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
                 mut label := row.commit
                 if label.len().gt(7) { label = label.substr(0, 7) }
                 svg = svg.concat(svg_text(x, MARGIN_TOP.add(CHART_H).add(15), "middle", 10, COMMIT_LABEL_COLOR, label))
-                i = i.add(1)
+                i++
             }
         }
     }
@@ -380,7 +380,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
                                   wall_ms = r.wall_ms, mem_inte = r.mem_inte,
                                   mem_comp = r.mem_comp, mem_run = r.mem_run,
                                   mem_total = r.mem_total))
-                i = i.add(1)
+                i++
             }
         } else {
             rows = all_rows
@@ -410,7 +410,7 @@ main := proc(args: ..Str) {
         } else {
             last_n = a.to_i64()
         }
-        i = i.add(1)
+        i++
     }
     plot_csv(csv_path, svg_path, last_n, show_x_labels=show_x)
 }

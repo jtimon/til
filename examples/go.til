@@ -47,7 +47,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64), total: I64) {
     while i.lt(total) {
         ref v : I64 = src[i.to_u32()]
         dst.set(i.to_u32(), own v.clone())
-        i = i.add(1)
+        i++
     }
 }
 
@@ -58,7 +58,7 @@ boards_equal := func(mut a: Array(I64), mut b: Array(I64), total: I64) returns B
         ref va : I64 = a[i.to_u32()]
         ref vb : I64 = b[i.to_u32()]
         if va.neq(vb) { return false }
-        i = i.add(1)
+        i++
     }
     return true
 }
@@ -68,7 +68,7 @@ clear_arr := func(mut arr: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         arr.set(i.to_u32(), own 0)
-        i = i.add(1)
+        i++
     }
 }
 
@@ -103,7 +103,7 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -123,7 +123,7 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -143,7 +143,7 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -163,7 +163,7 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
                             lib_seen.set(ni.to_u32(), own 1)
-                            libs = libs.add(1)
+                            libs++
                         }
                     }
                 }
@@ -188,7 +188,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
         stk.count = stk.count.sub(1)
 
         board.set(cur.to_u32(), own 0)
-        removed = removed.add(1)
+        removed++
 
         cr := cur.div(size)
         cc := cur.mod(size)
@@ -368,7 +368,7 @@ go_pack := func(mut b: Board, mut cells: Array(I64), side: I64, size: I64,
     while i.lt(total) {
         ref v : I64 = cells[i.to_u32()]
         board_set_i64(b, i, v)
-        i = i.add(1)
+        i++
     }
     board_set_i64(b, MAX_CELLS.cast(I64), side)
     board_set_i64(b, GO_IDX_SIZE.cast(I64), size)
@@ -379,7 +379,7 @@ go_pack := func(mut b: Board, mut cells: Array(I64), side: I64, size: I64,
     while i.lt(total) {
         ref v : I64 = ko_board[i.to_u32()]
         board_set_i64(b, (GO_IDX_KO + i.to_i32()).cast(I64), v)
-        i = i.add(1)
+        i++
     }
 }
 
@@ -407,7 +407,7 @@ go_heuristic : Heuristic = (b) {
         ref p : I64 = board_get_i64(gb, i)
         if p.eq(side) { score = score.add(1) }
         if p.eq(opp) { score = score.sub(1) }
-        i = i.add(1)
+        i++
     }
     return score
 }
@@ -424,7 +424,7 @@ go_next_boards : NextBoardsFn = (b) {
     while ci.lt(total) {
         cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
         ko_cells.set(ci.to_u32(), own board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).cast(I64)).clone())
-        ci = ci.add(1)
+        ci++
     }
     result := Vec(Board).new()
     mut i := 0
@@ -444,7 +444,7 @@ go_next_boards : NextBoardsFn = (b) {
                 result.push(own nb)
             }
         }
-        i = i.add(1)
+        i++
     }
     return result
 }
@@ -465,7 +465,7 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
         ref p : I64 = board[i.to_u32()]
         if p.eq(1) { black_score = black_score.add(1) }
         if p.eq(2) { white_score = white_score.add(1) }
-        i = i.add(1)
+        i++
     }
 
     // Flood fill empty regions to assign territory
@@ -486,7 +486,7 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
                 cur := top_ref
                 stk.count = stk.count.sub(1)
 
-                region_size = region_size.add(1)
+                region_size++
                 cr := cur.div(size)
                 cc := cur.mod(size)
 
@@ -564,7 +564,7 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
                 white_score = white_score.add(region_size)
             }
         }
-        i = i.add(1)
+        i++
     }
 
     return black_score.mul(10000).add(white_score)
@@ -687,7 +687,7 @@ main := proc() {
 
         // --- AI MOVE (alpha-beta search) ---
         if vs_ai.eq(2).and(turn.eq(ai_color)).and(!game_over) {
-            ai_timer = ai_timer.add(1)
+            ai_timer++
             if ai_timer.gt(20) {
                 ai_timer = 0
 
@@ -712,7 +712,7 @@ main := proc() {
                             ai_moved = true
                         }
                     }
-                    sq = sq.add(1)
+                    sq++
                 }
 
                 if ai_moved {
@@ -729,10 +729,10 @@ main := proc() {
                     last_move = best_move
                     pass_count = 0
                     turn = human_color
-                    move_num = move_num.add(1)
+                    move_num++
                 } else {
                     // AI passes
-                    pass_count = pass_count.add(1)
+                    pass_count++
                     has_ko = false
                     last_move = -1
                     turn = human_color
@@ -754,7 +754,7 @@ main := proc() {
             if is_human {
                 // Pass with P
                 if IsKeyPressed(80) {
-                    pass_count = pass_count.add(1)
+                    pass_count++
                     has_ko = false
                     last_move = -1
                     if turn.eq(1) { turn = 2 } else { turn = 1 }
@@ -790,7 +790,7 @@ main := proc() {
                                 }
                                 last_move = idx
                                 pass_count = 0
-                                move_num = move_num.add(1)
+                                move_num++
                                 if turn.eq(1) { turn = 2 } else { turn = 1 }
                             }
                         }

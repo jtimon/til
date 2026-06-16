@@ -27,7 +27,7 @@ g()
 h()
 
 inc := func() {
-    counter = counter.add(1)
+    counter++
 }
 
 get_counter := func() returns I64 {

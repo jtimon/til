@@ -974,10 +974,10 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
         ref ch : Vec(Expr) = fcall.children
         mut i : USize = ch.len()
         while i.gt(0) {
-            i = i.sub(1)
+            i--
             ref c : Expr = ch[i]
             if c.node_type.is(NodeType.NamedArg).not() { break }
-            count = count.add(1)
+            count++
         }
         return count
     case:

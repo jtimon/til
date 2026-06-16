@@ -25,7 +25,7 @@ test_while_loop := test() {
     }
     mut i := 0
     while i.lt(5) {
-        i = i.add(1)
+        i++
     }
     assert_eq(__LOC__, i, 5)
 }
@@ -34,7 +34,7 @@ test_break := test() {
     mut i := 0
     while true {
         if i.eq(3) { break }
-        i = i.add(1)
+        i++
     }
     assert_eq(__LOC__, i, 3)
     mut sum := 0
@@ -42,7 +42,7 @@ test_break := test() {
     while true {
         if j.eq(5) { break }
         sum = sum.add(j)
-        j = j.add(1)
+        j++
     }
     assert_eq(__LOC__, sum, 10)
 }
@@ -51,7 +51,7 @@ test_continue := test() {
     mut k := 0
     mut total := 0
     while k.lt(5) {
-        k = k.add(1)
+        k++
         if k.eq(3) { continue }
         total = total.add(k)
     }
@@ -91,7 +91,7 @@ asap_return_from_while := func(n: I64) returns Str {
     mut i := 0
     while i.lt(n) {
         if i.eq(2) { return "early" }
-        i = i.add(1)
+        i++
     }
     return s
 }
@@ -113,7 +113,7 @@ asap_return_nested := func(n: I64) returns Str {
                 return s1
             }
         }
-        i = i.add(1)
+        i++
     }
     return s2
 }
@@ -130,7 +130,7 @@ asap_break_no_leak := func() returns Str {
     mut i := 0
     while i.lt(10) {
         if i.eq(2) { break }
-        i = i.add(1)
+        i++
     }
     # s must still be alive after break (not freed by break)
     return s
@@ -302,7 +302,7 @@ test_switch_in_loop := test() {
     for i in 0..10 {
         switch i.mod(3) {
         case 0: total = total.add(i)
-        case 1: total = total.add(1)
+        case 1: total++
         case: total = total.add(0)
         }
     }
@@ -393,7 +393,7 @@ test_switch_break_in_loop := test() {
     for i in 0..10 {
         switch i {
         case 5: break
-        case: total = total.add(1)
+        case: total++
         }
     }
     assert_eq(__LOC__, total, 5)

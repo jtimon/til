@@ -26,7 +26,7 @@ while true {
     rc := nng_recv(sub, rbuf.c_str, sz, 0.to_i32())
     if rc.neq(0.to_i32()) { break }
     println(format("received: ", read_cstr(rbuf.c_str)))
-    nrecv = nrecv.add(1)
+    nrecv++
 }
 println(format("total matched messages: ", nrecv.to_str()))
 

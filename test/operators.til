@@ -124,7 +124,7 @@ test_f32_arithmetic := test() {
 test_mutation := test() {
     mut counter := 0
     counter = 1
-    counter = counter.add(1)
+    counter++
     assert_eq(__LOC__, counter, 2)
     mut msg : Str = "hello"
     msg = "world"

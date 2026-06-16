@@ -29,7 +29,7 @@ main := proc(src: Str, dest: Str) {
     while i.lt(paths.len()) {
         ref d : Str = paths[i]
         parse_path_d(d, segments)
-        i = i.add(1)
+        i++
     }
 
     write_ttf(segments, LOGO_CODEPOINT, dest)

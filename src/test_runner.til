@@ -38,7 +38,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     while start.lte(haystack.len().sub(needle.len())) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
-        count = count.add(1)
+        count++
         pos_u : USize = pos.to_usize()
         start = start.add(pos_u).add(needle.len())
     }
@@ -210,7 +210,7 @@ main := proc(args: ..Str) {
         while dd.lt(args.len()) {
             ref a : Str = args[dd]
             if a.eq("--") { break }
-            dd = dd.add(1)
+            dd++
         }
 
         // If there's an arg between expected_exit and "--", it's the expected output file
@@ -278,7 +278,7 @@ main := proc(args: ..Str) {
         while dd.lt(args.len()) {
             ref a : Str = args[dd]
             if a.eq("--") { break }
-            dd = dd.add(1)
+            dd++
         }
 
         // Join args after "--" as command
