@@ -4,7 +4,7 @@ mode cli
 // Usage: plot <csv_path> <svg_output_path> [last_n]
 //
 // CSV format (header + data rows):
-//   commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms
+//   commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem
 
 NL := "\n"
 Q := "\""
@@ -32,6 +32,7 @@ MEM_INTE_COLOR := "#56B4E9"
 MEM_COMP_COLOR := "#E69F00"
 MEM_RUN_COLOR := "#C44E52"
 MEM_TOTAL_COLOR := "#000000"
+SELF_MEM_COLOR := "#8C564B"
 
 // Helper to wrap a value in quotes: "val"
 qa := func(val: Str) returns Str {
@@ -50,6 +51,7 @@ Row := struct {
     const mem_comp := 0
     const mem_run := 0
     const mem_total := 0
+    const self_mem := 0
 }
 
 parse_csv := func(content: Str) returns Vec(Row) {
@@ -77,6 +79,7 @@ parse_csv := func(content: Str) returns Vec(Row) {
         mut c12 := "0"
         mut c13 := "0"
         mut c14 := "0"
+        mut c15 := "0"
         if cols.len().eq(11) {
             // Older history stored a single memory column; treat it as mem_total.
             ref c10r : Str = cols[10]
@@ -102,6 +105,10 @@ parse_csv := func(content: Str) returns Vec(Row) {
                 ref c14r : Str = cols[14]
                 c14 = c14r.clone()
             }
+            if cols.len().gt(15) {
+                ref c15r : Str = cols[15]
+                c15 = c15r.clone()
+            }
         }
         rows.push(own Row(
             commit = c0.clone(),
@@ -113,7 +120,8 @@ parse_csv := func(content: Str) returns Vec(Row) {
             mem_inte = c10.to_i64(),
             mem_comp = c11.to_i64(),
             mem_run = c12.to_i64(),
-            mem_total = c13.to_i64()
+            mem_total = c13.to_i64(),
+            self_mem = c15.to_i64()
         ))
         i++
     }
@@ -149,6 +157,7 @@ build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
         if series.eq("mem-comp") { val = row.mem_comp }
         if series.eq("mem-run") { val = row.mem_run }
         if series.eq("mem-total") { val = row.mem_total }
+        if series.eq("self-mem") { val = row.self_mem }
         x := x_px(i.to_i64(), rows.len().to_i64())
         y := y_px(val, y_max)
         if i.gt(0) { pts = format(pts, " ") }
@@ -195,6 +204,7 @@ series_has_data := func(rows: Vec(Row), series: Str) returns Bool {
         if series.eq("mem-comp") { val = row.mem_comp }
         if series.eq("mem-run") { val = row.mem_run }
         if series.eq("mem-total") { val = row.mem_total }
+        if series.eq("self-mem") { val = row.self_mem }
         if val.gt(0) { return true }
     }
     return false
@@ -218,6 +228,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
         mem_max = max_val(mem_max, row.mem_comp)
         mem_max = max_val(mem_max, row.mem_run)
         mem_max = max_val(mem_max, row.mem_total)
+        mem_max = max_val(mem_max, row.self_mem)
     }
     // Round up y_max to nice number (next multiple of 1000)
     if y_max.mod(1000).gt(0) {
@@ -244,7 +255,8 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
     has_mem_comp := series_has_data(rows, "mem-comp")
     has_mem_run := series_has_data(rows, "mem-run")
     has_mem_total := series_has_data(rows, "mem-total")
-    has_any_mem := has_mem_inte.or(has_mem_comp).or(has_mem_run).or(has_mem_total)
+    has_self_mem := series_has_data(rows, "self-mem")
+    has_any_mem := has_mem_inte.or(has_mem_comp).or(has_mem_run).or(has_mem_total).or(has_self_mem)
     if has_any_mem {
         svg = format(svg, svg_line(MARGIN_LEFT.add(CHART_W), MARGIN_TOP, MARGIN_LEFT.add(CHART_W), MARGIN_TOP.add(CHART_H), AXIS_COLOR))
     }
@@ -297,6 +309,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
         if has_mem_comp { svg = format(svg, svg_polyline(build_points(rows, "mem-comp", mem_max), MEM_COMP_COLOR)) }
         if has_mem_run { svg = format(svg, svg_polyline(build_points(rows, "mem-run", mem_max), MEM_RUN_COLOR)) }
         if has_mem_total { svg = format(svg, svg_polyline(build_points(rows, "mem-total", mem_max), MEM_TOTAL_COLOR)) }
+        if has_self_mem { svg = format(svg, svg_polyline(build_points(rows, "self-mem", mem_max), SELF_MEM_COLOR)) }
 
         // Dots on data points
         mut i : USize = 0
@@ -312,6 +325,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
             if has_mem_comp { svg = format(svg, svg_circle(x, y_px(row.mem_comp, mem_max), 3, MEM_COMP_COLOR)) }
             if has_mem_run { svg = format(svg, svg_circle(x, y_px(row.mem_run, mem_max), 3, MEM_RUN_COLOR)) }
             if has_mem_total { svg = format(svg, svg_circle(x, y_px(row.mem_total, mem_max), 3, MEM_TOTAL_COLOR)) }
+            if has_self_mem { svg = format(svg, svg_circle(x, y_px(row.self_mem, mem_max), 3, SELF_MEM_COLOR)) }
             i++
         }
 
@@ -329,10 +343,23 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
         }
     }
 
-    // Legend (only show series with data)
+    // Legend (only show series with data), horizontally centered so any
+    // number of entries stays on-canvas. First sum the widths of the present
+    // entries, then start at (W - total) / 2.
     ly := 20
-    lx2 := MARGIN_LEFT.add(20)
-    mut lx_pos := lx2
+    mut leg_total := 0
+    if has_interp { leg_total = leg_total.add(60) }
+    if has_compile { leg_total = leg_total.add(65) }
+    if has_run { leg_total = leg_total.add(55) }
+    if has_wall { leg_total = leg_total.add(65) }
+    if has_self { leg_total = leg_total.add(65) }
+    if has_mem_inte { leg_total = leg_total.add(90) }
+    if has_mem_comp { leg_total = leg_total.add(95) }
+    if has_mem_run { leg_total = leg_total.add(85) }
+    if has_mem_total { leg_total = leg_total.add(95) }
+    if has_self_mem { leg_total = leg_total.add(90) }
+    mut lx_pos := W.sub(leg_total).div(2)
+    if lx_pos.lt(MARGIN_LEFT) { lx_pos = MARGIN_LEFT }
     if has_interp {
         svg = format(svg, svg_circle(lx_pos, ly, 4, INTERP_COLOR))
         svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, INTERP_COLOR, "inte"))
@@ -376,6 +403,11 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
     if has_mem_total {
         svg = format(svg, svg_circle(lx_pos, ly, 4, MEM_TOTAL_COLOR))
         svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, MEM_TOTAL_COLOR, "mem-total"))
+        lx_pos = lx_pos.add(95)
+    }
+    if has_self_mem {
+        svg = format(svg, svg_circle(lx_pos, ly, 4, SELF_MEM_COLOR))
+        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, SELF_MEM_COLOR, "self-mem"))
     }
 
     svg = svg.format("</svg>", NL)
@@ -399,7 +431,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
                                   wall_ms = r.wall_ms, self_ms = r.self_ms,
                                   mem_inte = r.mem_inte,
                                   mem_comp = r.mem_comp, mem_run = r.mem_run,
-                                  mem_total = r.mem_total))
+                                  mem_total = r.mem_total, self_mem = r.self_mem))
                 i++
             }
         } else {
