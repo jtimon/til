@@ -292,7 +292,7 @@ Context := struct {
     // own per-file memo Set.
     imports_typer_decls_done := Set(Str).new()
     imports_typer_bodies_done := Set(Str).new()
-    imports_precomp_done := Set(Str).new()
+    imports_constfolder_done := Set(Str).new()
     imports_eval_done := Set(Str).new()
 
     // Issue #267: deterministic type-gen macro instantiations such as
@@ -310,19 +310,19 @@ Context := struct {
     // migrate to this map in step 4.
     struct_layouts := Map(Str, StructLayout).new()
 
-    // Precomp state moved off module globals. The same Context crosses
+    // Constfolder state moved off module globals. The same Context crosses
     // imported files and later phases, so these three tables live here
     // directly rather than as a separate module-global side store.
-    precomp_macros := Set(Str).new()
-    precomp_funcs := Set(Str).new()
-    precomp_known := Map(Str, Value).new()
+    constfolder_macros := Set(Str).new()
+    constfolder_funcs := Set(Str).new()
+    constfolder_known := Map(Str, Value).new()
     // Names that are the target of an assignment somewhere (so their value
     // is not a compile-time constant -- a mut local reassigned in a loop is
     // NOT foldable). Guards the scope-read fold in try_eval_call.
-    precomp_assigned := Set(Str).new()
+    constfolder_assigned := Set(Str).new()
 
     // Interpreter runtime state, moved off module globals (same
-    // direct-on-Context approach as the precomp tables above). The
+    // direct-on-Context approach as the constfolder tables above). The
     // control-flow flags and return slot drive eval_body /
     // eval_user_func; ns_fields/ns_keys hold static struct fields keyed
     // `<Type>.<field>`; ns_inited guards their one-time (re)creation.
@@ -552,17 +552,17 @@ align_up := func(offset: USize, align: USize) returns USize {
     return offset.add(align).sub(1).band(align.sub(1).bnot())
 }
 
-precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
+constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {
     case NodeType.FuncDef(fd):
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if fd.func_type.is(FuncType.Macro) {
-                ctx.precomp_macros.add(own dd.name.clone())
+                ctx.constfolder_macros.add(own dd.name.clone())
             } else if fd.func_type.is(FuncType.Func)
                 .or(fd.func_type.is(FuncType.ExtFunc)) {
-                ctx.precomp_funcs.add(own dd.name.clone())
+                ctx.constfolder_funcs.add(own dd.name.clone())
             }
         case:
         }
@@ -576,10 +576,10 @@ precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
                 case NodeType.FuncDef(ffd):
                     qname := sdd.name.format("_", fdd.name)
                     if ffd.func_type.is(FuncType.Macro) {
-                        ctx.precomp_macros.add(own qname)
+                        ctx.constfolder_macros.add(own qname)
                     } else if ffd.func_type.is(FuncType.Func)
                         .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                        ctx.precomp_funcs.add(own qname)
+                        ctx.constfolder_funcs.add(own qname)
                     }
                 case:
                 }
@@ -596,10 +596,10 @@ precomp_classify_stmt := func(stmt: Expr, ctx: Context) {
                 case NodeType.FuncDef(ffd):
                     qname := sdd.name.format("_", nsd.name)
                     if ffd.func_type.is(FuncType.Macro) {
-                        ctx.precomp_macros.add(own qname)
+                        ctx.constfolder_macros.add(own qname)
                     } else if ffd.func_type.is(FuncType.Func)
                         .or(ffd.func_type.is(FuncType.ExtFunc)) {
-                        ctx.precomp_funcs.add(own qname)
+                        ctx.constfolder_funcs.add(own qname)
                     }
                 case:
                 }

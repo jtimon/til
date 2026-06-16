@@ -1,27 +1,27 @@
 mode lib
 import("context")
 
-// Precomp: constant folding for macros and pure functions
-precomp_clear_known := func(mut ctx: Context) {
+// Constfolder: constant folding for macros and pure functions
+constfolder_clear_known := func(mut ctx: Context) {
     // Map.clear runs Value.delete on every value, which is now deep, so the
     // payloads are reclaimed without a manual sweep.
-    ctx.precomp_known.clear()
+    ctx.constfolder_known.clear()
 }
 
-precomp_reset_state := func(mut ctx: Context) {
-    precomp_clear_known(ctx)
-    ctx.precomp_macros.clear()
-    ctx.precomp_funcs.clear()
-    ctx.precomp_assigned.clear()
+constfolder_reset_state := func(mut ctx: Context) {
+    constfolder_clear_known(ctx)
+    ctx.constfolder_macros.clear()
+    ctx.constfolder_funcs.clear()
+    ctx.constfolder_assigned.clear()
 }
 
 // Collect every variable name that is the target of an assignment in the
 // subtree, into `names`. Such a variable is reassigned, so its value is
-// NOT a compile-time constant and must not be folded from the precomp
+// NOT a compile-time constant and must not be folded from the constfolder
 // interpreter scope (a mut loop counter would otherwise fold to its
 // initial value). Descends into nested FuncDef bodies too -- the set is a
 // conservative program-wide blocklist, which only ever suppresses an
-// optimisation (the scope-read fold), never macro folding via precomp_known.
+// optimisation (the scope-read fold), never macro folding via constfolder_known.
 priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     expect(__LOC__, e.is_null().not(), "e is null")
     switch e.node_type {
@@ -34,12 +34,12 @@ priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     }
 }
 
-priv precomp_has_macro := func(ctx: Context, name: Str) returns Bool {
-    return ctx.precomp_macros.has(name)
+priv constfolder_has_macro := func(ctx: Context, name: Str) returns Bool {
+    return ctx.constfolder_macros.has(name)
 }
 
-priv precomp_has_func := func(ctx: Context, name: Str) returns Bool {
-    return ctx.precomp_funcs.has(name)
+priv constfolder_has_func := func(ctx: Context, name: Str) returns Bool {
+    return ctx.constfolder_funcs.has(name)
 }
 
 
@@ -81,7 +81,7 @@ priv is_side_effecting_name := func(name: Str) returns Bool {
 // Inverse of str_to_source_form: convert source-form text (with C-style
 // escape sequences `\n`, `\"`, `\xNN`, ...) into the raw bytes that the
 // C compiler produces for the same literal at runtime. Needed so that
-// precomp's interpreter sees the same byte count and contents as runtime
+// constfolder's interpreter sees the same byte count and contents as runtime
 // (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
 priv hex_digit_value := func(b: I8) returns U8 {
     if b.lt(48).or(b.gt(102)) { return 0 }
@@ -149,7 +149,7 @@ priv needs_source_escape := func(s: Str) returns Bool {
 // parser produces for `"..."` literals: 0x0A becomes the two chars
 // `\n`, 0x22 (`"`) becomes `\"`, etc. Keeps LiteralStr storage
 // consistent regardless of whether the node came from the parser or
-// from a precomp-time fold.
+// from a constfolder-time fold.
 priv str_to_source_form := func(s: Str) returns Str {
     if needs_source_escape(s).not() { return s }
     n := s.len()
@@ -377,7 +377,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             for fd : Declaration in sfd.fields {
                 // Owned/ref fields are not POD; the compound-literal path
                 // can't represent them. Bail (leaks the partial ctor -- a
-                // precomp-only allocation, consistent with the arg loop's
+                // constfolder-only allocation, consistent with the arg loop's
                 // existing clone-without-free; the call just stays runtime).
                 if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
                     return NULL
@@ -423,7 +423,7 @@ priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         // (stable for the AST's lifetime) instead of allocating + memcpy
         // -ing a private copy. Saves the per-call buffer alloc and the
         // matching buffer leak (no caller frees Value.Struct payloads
-        // on the precomp hot path).
+        // on the constfolder hot path).
         mut has_bs := false
         for bi in 0..s.len() {
             if s.byte_at(bi).eq(92) { has_bs = true; break }
@@ -455,8 +455,8 @@ priv is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
         out = expr_to_value(e, ctx)
         return true
     case NodeType.Ident(id):
-        if ctx.precomp_known.has(id.ident_name()) {
-            ref v : Value = ctx.precomp_known[id.ident_name()]
+        if ctx.constfolder_known.has(id.ident_name()) {
+            ref v : Value = ctx.constfolder_known[id.ident_name()]
             out = v
             return true
         }
@@ -474,7 +474,7 @@ priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Str):  return true
     case NodeType.Literal(Literal.Bool): return true
-    case NodeType.Ident(id):   return ctx.precomp_known.has(id.ident_name())
+    case NodeType.Ident(id):   return ctx.constfolder_known.has(id.ident_name())
     case:                      return false
     }
 }
@@ -502,7 +502,7 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
+priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
@@ -518,13 +518,13 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
             }
         case:
         }
-        if ctx.precomp_known.has(name.ident_name()) { return false }
-        ref cell : Cell = scope_get(precomp_scope, name.ident_name())
+        if ctx.constfolder_known.has(name.ident_name()) { return false }
+        ref cell : Cell = scope_get(constfolder_scope, name.ident_name())
         if cell.is_null().not() {
-            // The Ident resolves to something in precomp scope. If it's
+            // The Ident resolves to something in constfolder scope. If it's
             // a Func, walk its body too -- the surface body may only
             // call helpers like `codegen_lp()` whose own body reads a
-            // mut global precomp scope doesn't have.
+            // mut global constfolder scope doesn't have.
             switch cell.val {
             case Value.Func(fp):
                 if visiting.has(name.ident_name()).not() {
@@ -534,7 +534,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
                     case NodeType.FuncDef:
                         if fdef.children.len().gt(0) {
                             ref called_body : Expr = fdef.children[0]
-                            if func_uses_unknown_globals(called_body, fdef, precomp_scope, called_body, lenient, visiting, ctx) {
+                            if func_uses_unknown_globals(called_body, fdef, constfolder_scope, called_body, lenient, visiting, ctx) {
                                 return true
                             }
                         }
@@ -551,7 +551,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
         // Assign carries the LHS name as the node payload, not as an Ident
         // child. If the LHS isn't a body-local, the function mutates a
         // global -- never fold (eval would crash on missing bindings, or
-        // worse, silently mutate precomp's interpreter scope).
+        // worse, silently mutate constfolder's interpreter scope).
         if body_has_local(body_root, ad.name).not() { return true }
     case NodeType.FieldAccess(mname):
         if mname.field_access_name().eq("new").and(e.children.len().gt(0)) {
@@ -564,7 +564,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, precomp_scope: S
     case:
     }
     for e_ci : Expr in e.children {
-        if func_uses_unknown_globals(e_ci, func_def, precomp_scope, body_root, lenient, visiting, ctx) { return true }
+        if func_uses_unknown_globals(e_ci, func_def, constfolder_scope, body_root, lenient, visiting, ctx) { return true }
     }
     return false
 }
@@ -737,7 +737,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             case NodeType.Ident(ri):
                 ref probe : Value = ns_get(ri.ident_name(), "size", ctx)
                 if probe.is_null() {
-                    if ctx.precomp_known.has(ri.ident_name()).not() { return NULL }
+                    if ctx.constfolder_known.has(ri.ident_name()).not() { return NULL }
                 }
             case:
             }
@@ -762,7 +762,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             // Issue #136 item 1: ext_funcs are foldable too. Built-ins
             // (I64_add etc.) are statically linked and dispatch via
             // ext_function_dispatch; a user .so that wasn't dlopen'd at
-            // precomp time is undispatchable and the interpreter returns
+            // constfolder time is undispatchable and the interpreter returns
             // val_none() for it, so try_eval_call bails cleanly below
             // (can_convert.not()) rather than baking a bad value.
             if fdef.children.len().gt(0) {
@@ -792,13 +792,13 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         mut arg_is_known := is_known(ctx, arg, arg_val)
         // Issue #191: also check interpreter scope for arg values. Skip
         // names that are assigned somewhere -- their scope value is just
-        // the precomp interpreter's last write (e.g. a mut loop counter's
+        // the constfolder interpreter's last write (e.g. a mut loop counter's
         // initial value), not the runtime value, so folding it is unsound.
         if arg_is_known.not() {
             switch arg.node_type {
             case NodeType.Ident(arg_id):
                 ref cell : Cell = scope_get(scope, arg_id.ident_name())
-                if cell.is_null().not().and(ctx.precomp_assigned.has(arg_id.ident_name()).not()) {
+                if cell.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name()).not()) {
                     switch cell.val {
                     case Value.Int(iv):
                         mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
@@ -953,14 +953,14 @@ priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
         // Map.set deletes the old value via Value.delete (now deep), so a
         // same-name overwrite reclaims the old payload automatically.
         mut vcopy := v
-        ctx.precomp_known.set(name, own vcopy)
+        ctx.constfolder_known.set(name, own vcopy)
         scope_set_owned(scope, name, v)
     }
 }
 
 // Like track_literal but skips the scope_set_owned step. Used by
 // fold_subtree for body-local Decls so the body's tracked values don't
-// share ownership with `scope` (the precomp interpreter scope used for
+// share ownership with `scope` (the constfolder interpreter scope used for
 // the entire compilation). Without this split, freeing known's payloads
 // during the FuncDef save/restore would dangle the shared scope binding
 // and corrupt the heap on the next interpreter lookup that touched it.
@@ -970,7 +970,7 @@ priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
         // Map.set deletes the old value via Value.delete (now deep), so a
         // same-name overwrite reclaims the old payload automatically.
         mut vcopy := v
-        ctx.precomp_known.set(name, own vcopy)
+        ctx.constfolder_known.set(name, own vcopy)
     }
     // v is reclaimed by the garbager's function-exit deep Value.delete -- no
     // manual free needed.
@@ -982,12 +982,12 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cname):
-        return precomp_has_macro(ctx, cname.ident_name())
+        return constfolder_has_macro(ctx, cname.ident_name())
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
         qname := sname.format("_", mname.field_access_name())
-        return precomp_has_macro(ctx, qname)
+        return constfolder_has_macro(ctx, qname)
     case:
         return false
     }
@@ -999,12 +999,12 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cname):
-        return precomp_has_func(ctx, cname.ident_name())
+        return constfolder_has_func(ctx, cname.ident_name())
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
         qname := sname.format("_", mname.field_access_name())
-        return precomp_has_func(ctx, qname)
+        return constfolder_has_func(ctx, qname)
     case:
         return false
     }
@@ -1021,7 +1021,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
-            snapshot_fd := ctx.precomp_known.clone()
+            snapshot_fd := ctx.constfolder_known.clone()
             fold_subtree(scope, child, ctx)
             // Drop every entry in `known` before restoring the snapshot.
             // Map.clear runs Value.delete (now deep) on each value, so the
@@ -1029,20 +1029,20 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // without a manual sweep. Safe because body-local
             // track_literal_known_only does not share Value payloads with
             // `scope`.
-            ctx.precomp_known.clear()
+            ctx.constfolder_known.clear()
             // Map.clear drops the entries but keeps the key/value backing
             // buffers allocated. The memcpy below overwrites the whole Map
             // struct (including the data pointers) with snapshot_fd's, so
             // free the now-empty buffers first -- otherwise every FuncDef
-            // body orphans a full precomp_known buffer (a large per-body leak).
-            free(own ctx.precomp_known.keys.data)
-            free(own ctx.precomp_known.values.data)
+            // body orphans a full constfolder_known buffer (a large per-body leak).
+            free(own ctx.constfolder_known.keys.data)
+            free(own ctx.constfolder_known.values.data)
             // Transfer snapshot_fd into known via memcpy (avoids the
             // implicit Map.clone that til codegen would emit for a plain
             // `known = snapshot_fd`, which would leak a second deep
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
-            memcpy(ctx.precomp_known, snapshot_fd, Map(Str, Value).size().cast(U64))
+            memcpy(ctx.constfolder_known, snapshot_fd, Map(Str, Value).size().cast(U64))
             memset(snapshot_fd, 0, Map(Str, Value).size().cast(U64))
             continue
         }
@@ -1087,7 +1087,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // reassigned variable is not a compile-time constant.
             if dd.is_mut.not()
             .and(dd.own_type.is(OwnType.Ref).not())
-            .and(ctx.precomp_assigned.has(dd.name).not())
+            .and(ctx.constfolder_assigned.has(dd.name).not())
             .and(child.children.len().gt(0)) {
                 track_literal_known_only(dd.name, child.children[0], ctx)
             }
@@ -1102,10 +1102,10 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // (e.g. a mut loop counter) as a comptime constant. Only done at the
     // top-level entry; the walk descends into all nested func bodies.
     if at_global {
-        collect_assign_targets(body, ctx.precomp_assigned)
+        collect_assign_targets(body, ctx.constfolder_assigned)
     }
     // Walk statement-by-statement so top-level non-mut Decls get bound
-    // in the precomp interpreter scope as soon as their RHS folds to a
+    // in the constfolder interpreter scope as soon as their RHS folds to a
     // literal. This mirrors rstil's EvalHeap::insert_primitive flow and
     // is what lets a later fold's eval-time invocation of Str.delete
     // resolve CAP_VIEW (which lives in str.til as a top-level const).
@@ -1137,7 +1137,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         case NodeType.Decl(dd):
             if dd.is_mut { continue }
             if dd.own_type.is(OwnType.Ref) { continue }
-            if ctx.precomp_assigned.has(dd.name) { continue }
+            if ctx.constfolder_assigned.has(dd.name) { continue }
             track_literal(scope, dd.name, rhs, ctx)
         case:
         }
@@ -1145,7 +1145,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
     // DCE: after folding, scan for `hoisted__`-prefixed Decls whose RHS is
     // a pure literal (no side effects) and whose name no longer appears
     // anywhere in the body. These are the typer's `own <literal>` hoists
-    // that got orphaned when precomp folded away their only consumer
+    // that got orphaned when constfolder folded away their only consumer
     // (a pure func call like `fn_identity(own 100)` -> `100`). The asap
     // pass already marked them own_transfer'd to the now-folded FCall,
     // so insert_post_stmt_deletes skips them and the heap malloc leaks.
@@ -1197,14 +1197,14 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
 // Issue #158: build the runtime fold scope in one walk -- register every
 // struct/enum/func def (so the fold interpreter can look them up) and every
 // literal global constant. Core constants (CAP_VIEW/CAP_LIT) are registered
-// afterward (precomp_register_core_constants) so they keep winning over any
+// afterward (constfolder_register_core_constants) so they keep winning over any
 // like-named def. Foldable-name classification is NOT done here: the typer
-// already populated ctx.precomp_macros/funcs during its walk
-// (precomp_classify_stmt), and precomp reuses those. This walk stays in
-// precomp because the runtime Scope it builds has no upstream equivalent
+// already populated ctx.constfolder_macros/funcs during its walk
+// (constfolder_classify_stmt), and constfolder reuses those. This walk stays in
+// constfolder because the runtime Scope it builds has no upstream equivalent
 // (the typer builds a TypeScope; scavenge invalidates AST pointers before
 // the interpreter rebuilds its own).
-precomp_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context) {
+constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len().eq(0) { continue }
@@ -1239,7 +1239,7 @@ precomp_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context)
 // defs walk so they win over any like-named definition.
 // CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
 // CAP_LIT  = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
-precomp_register_core_constants := func(mut global: Scope) {
+constfolder_register_core_constants := func(mut global: Scope) {
     cap_view_val := Value.Uint32(4294967294)
     scope_set_owned(global, "CAP_VIEW", cap_view_val)
     cap_lit_val := Value.Uint32(4294967295)

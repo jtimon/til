@@ -49,12 +49,12 @@
 
   *5. Other phases*
 
-  | Phase     | File                  | Passes          | Merge opportunity |
-  |-----------+-----------------------+-----------------+-------------------|
-  | Typer     | src/c/typer.c:3559    | 1 (recursive)   | None needed       |
-  | Builder   | src/c/builder.c:1638  | 1 + setup walks | Minor             |
-  | Precomp   | src/c/precomp.c:270   | 2 (collect+run) | Minimal           |
-  | Scavenger | src/c/scavenger.c:137 | BFS worklist    | None needed       |
+  | Phase       | File                    | Passes          | Merge opportunity |
+  |-------------+-------------------------+-----------------+-------------------|
+  | Typer       | src/c/typer.c:3559      | 1 (recursive)   | None needed       |
+  | Builder     | src/c/builder.c:1638    | 1 + setup walks | Minor             |
+  | Constfolder | src/c/constfolder.c:270 | 2 (collect+run) | Minimal           |
+  | Scavenger   | src/c/scavenger.c:137   | BFS worklist    | None needed       |
 
   Only the initer has significant multi-pass overhead.
 

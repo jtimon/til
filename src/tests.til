@@ -438,7 +438,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/files.til", flags)
     add_both(tests, "test/circular_imports.til", flags)
     add_both(tests, "test/import_diamond.til", flags)
-    // macros.til contains a macro that prints during precomp; the line
+    // macros.til contains a macro that prints during constfolder; the line
     // appears in interpret output but not in compiled-run output, so
     // skip the run-vs-interp comparison.
     add_both(tests, "test/macros.til", format(flags, " -no-match"))

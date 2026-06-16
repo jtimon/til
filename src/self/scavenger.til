@@ -326,9 +326,9 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
     }
 }
 
-// --- Body-level DCE (post-precomp dead temp elimination) -----------------
+// --- Body-level DCE (post-constfolder dead temp elimination) -----------------
 
-// Constant folding in precomp replaces FCall nodes with literals, but the
+// Constant folding in constfolder replaces FCall nodes with literals, but the
 // arg-temps that the typer hoisted (`hoisted__<Type>_<n>`) remain as sibling
 // Decls with no remaining references. They're side-effect-free (literal
 // RHS, by-value primitive type), so we can drop them outright instead of
@@ -517,7 +517,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             // user-named globals may be exported. Both hoisted__* and
             // codegen _t_* temps are compiler-internal (users cannot name
             // a leading-underscore binding), so both are safe to drop --
-            // _t_* matters since precomp's ext_func folding (issue #136
+            // _t_* matters since constfolder's ext_func folding (issue #136
             // item 1) orphans arg temps like `_t_I64_858 = -2` in main()'s
             // top-level init.
             if at_top_level {
@@ -619,7 +619,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
 // Match `<Type>.delete(<Ident name>, LiteralBool _)` without
 // constraining the bool value. Used by the stale-Own LiteralStr
 // fixup to find a Decl's paired cleanup when the cleanup's
-// call_free flag may still carry the typer's pre-precomp `true`.
+// call_free flag may still carry the typer's pre-constfolder `true`.
 priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     if stmt.node_type.is(NodeType.FCall).not() { return false }
     if stmt.children.len().neq(3) { return false }
@@ -644,7 +644,7 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     return stmt.children[2].node_type.is_literal_bool()
 }
 
-// Precomp folds an FCall RHS to a LiteralStr in place but doesn't
+// Constfolder folds an FCall RHS to a LiteralStr in place but doesn't
 // touch the surrounding Decl's `own_type` or the matching cleanup's
 // call_free flag -- the typer already committed to Own + call_free=true
 // when the RHS was still an FCall returning an owned Str. The builder

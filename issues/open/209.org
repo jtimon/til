@@ -47,7 +47,7 @@ non-heap pointer), so the builder rewrites the call at emission time.
 
 *** What is already partly fixed
 
-The post-precomp fold case (a Decl whose FCall RHS was constant-folded
+The post-constfolder fold case (a Decl whose FCall RHS was constant-folded
 to a LiteralStr after the typer ran) is ALREADY handled in the AST, not
 the builder: `fix_stale_litstr_in_body` in
 [[file:../../src/self/scavenger.til][src/self/scavenger.til]] re-aligns such Decls to `own_type =

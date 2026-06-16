@@ -211,7 +211,7 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     116/117.
   - ~svg2ttf_ok~ global-buffer-overflow (FIXED). ~build_post~ in
     ~lib/fonts.til~ constructs a 32-byte big-endian TTF "post"
-    table header; precomp folds it to a Value.Struct(Str) which
+    table header; constfolder folds it to a Value.Struct(Str) which
     ~value_to_expr~ rewrites as a LiteralStr after escaping the
     runtime bytes back to source form (via ~str_to_source_form~).
     Every ~\xNN~ hex escape gets a trailing ~""~ (close-quote +
@@ -631,11 +631,11 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     three different commands:
     - ~ast~: 0 byte leaks. Just parse + cmd_ast, no init/typer.
     - ~doc~: 64,323 byte leaks / 13,344 allocs. Adds ~init_and_type_program~.
-    - ~interpret~: 64,454 byte leaks / 13,322 allocs. Adds precomp + interpret.
+    - ~interpret~: 64,454 byte leaks / 13,322 allocs. Adds constfolder + interpret.
     Delta from ast to doc = 64K bytes / 13K allocs introduced by the
     ~init_and_type_program~ pipeline (init_file, init_declarations_global,
-    type_file, garbager_destroy).  precomp + interpret add only ~130 bytes
-    / -22 allocs net.  The 64K leak isn't precomp/scavenge/codegen --
+    type_file, garbager_destroy).  constfolder + interpret add only ~130 bytes
+    / -22 allocs net.  The 64K leak isn't constfolder/scavenge/codegen --
     it's init/typer.
 
     The top single-allocation leak attribution is ~457 bytes / 46
@@ -688,7 +688,7 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     produced garbage that survived to exit.  The move-not-clone version
     above improves all four.  Same Vec.set-bit-overwrite shape is worth
     auditing at the other ~children.set(...)~ sites (garbager.til:480,
-    typer.til:1610/7937/7949/7963/7994/8014, precomp.til:868/881/884,
+    typer.til:1610/7937/7949/7963/7994/8014, constfolder.til:868/881/884,
     initer.til:2600) for follow-up wins.
 
   - **Why 5f89ae8 ("Vec.get throws OutOfBounds; callers use vec[i]")
@@ -733,7 +733,7 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
        pattern.
     3. ~free_expr_slot_in_place(child)~ before the three
        ~e.children.set(i, own lit.clone())~ fold-overwrites in
-       ~fold_subtree~ (precomp.til ~1063/1076/1079) -- the orphaned
+       ~fold_subtree~ (constfolder.til ~1063/1076/1079) -- the orphaned
        FCall subtree IS a real leak, same shape as the try_ufcs_rewrite
        win. REGRESSED: interpret 120092 -> 135889 (+15.8KB), translate
        121871 -> 130740 (+8.9KB). The folded ~lit~ aliases payloads of
@@ -877,7 +877,7 @@ Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
     track_literal_known_only~ leak where ASAN said ~1.4KB / 88
     objects leaked from the 16-byte ~Str~-struct allocation, but
     every code path I could trace said
-    ~cleanup_value_payload~'s end-loop in ~precomp_imported~ /
+    ~cleanup_value_payload~'s end-loop in ~constfolder_imported~ /
     ~process_program~ should free them. Considered adding
     counters / a gdb watchpoint to find the gap.  Next rebase on
     master made the leak disappear: ~3534795 Two-pass:

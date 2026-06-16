@@ -42,7 +42,7 @@ Forcing the two garbager clone-to-move elision branches in
 ~insert_post_stmt_deletes~ to stand down (the #238 ~var_aliases_target~
 guard plus a view guard) does NOT stop it -- the clone is already gone by
 the time the garbager runs. So the drop happens in the typer hoist pass,
-the scavenger DCE, or precomp.
+the scavenger DCE, or constfolder.
 
 *** Hard to reduce
 
@@ -60,7 +60,7 @@ the first task.
 1. Find a minimal repro (vary: returned-struct field vs local; inside a
    loop vs not; ~ref~-into-collection source vs owned).
 2. Bisect which pass drops the clone: dump the post-typer, post-scavenger,
-   and post-precomp AST for ~parse_args~ and see where
+   and post-constfolder AST for ~parse_args~ and see where
    ~<view>.clone()~ becomes bare ~<view>~.
 3. Likely fix: the pass that turns ~x = view.clone()~ into a move at the
    view's last use must treat a *borrowed view* as non-owning and keep the

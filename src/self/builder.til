@@ -2305,7 +2305,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // Stack-local Str (compound-literal init). The typer
                         // may have generated this delete with arg_is_own=true
                         // and call_free=true because the binding's own_type
-                        // was Own pre-precomp. Force the safe shape:
+                        // was Own pre-constfolder. Force the safe shape:
                         // `Str_delete(&name, (Bool){0});` (no malloc, no
                         // free on a stack pointer). cap=CAP_LIT means the
                         // c_str data isn't freed either -- delete becomes

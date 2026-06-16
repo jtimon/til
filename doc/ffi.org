@@ -12,7 +12,7 @@ that the C header simply does not encode.  C has no syntax for:
 - *purity* / side effects.  ~int GetScreenWidth(void)~ and
   ~int CRC32(const char *)~ look identical to a header parser,
   but the first reads a process-global and the second is a pure
-  function of its input.  til's precomp pass folds pure calls at
+  function of its input.  til's constfolder pass folds pure calls at
   compile time; calling ~GetScreenWidth()~ at compile time
   silently returns 0 (no window) and bakes that 0 into the
   generated binary.  Folded vs not-folded is a til-side
@@ -70,7 +70,7 @@ in the output and ask:
 If any of (1)-(3) flips, also walk the matching wrapper in
 ~src/modes/gui.til~ (or wherever the user-facing surface lives)
 and propagate the same qualifier change.  A ~func~ wrapper
-around an ~ext_proc~ has to itself become a ~proc~, or precomp
+around an ~ext_proc~ has to itself become a ~proc~, or constfolder
 will still try to fold the wrapper.  A ~ref~-returning ext call
 threaded through a ~returns Str~ wrapper would leak the
 caller's expectation that the wrapper owns the buffer.
@@ -129,13 +129,13 @@ library names the aggregate twice (the ~struct foo~ tag vs the
 There is no ~ext_struct("")~ form: an empty tag is the same as no
 tag, so the parser rejects it and points you at bare ~ext_struct {}~.
 
-** noop_proc: forcing precomp to skip a wrapper
+** noop_proc: forcing constfolder to skip a wrapper
 
 Some user-level wrappers depend on runtime state but cannot
 inherit a ~proc~ tag from their callees -- e.g. the wrapper
 delegates to an ~ext_func~ that genuinely is pure on its
 arguments, but the wrapper itself adds context (reads a global,
-queries the current frame, etc) that precomp must not evaluate
+queries the current frame, etc) that constfolder must not evaluate
 at compile time.  Drop a call to ~noop_proc~ anywhere in the
 function body:
 
@@ -151,7 +151,7 @@ frame_relative_x := func(world_x: F32) returns F32 {
 ~noop_proc~ is a one-liner ~void noop_proc(void) {}~ in
 ~src/c/ext.c~, declared as ~ext_proc() {}~ in
 ~src/core/sys.til~ and listed in
-~is_side_effecting_name~ inside ~src/self/precomp.til~.  The
+~is_side_effecting_name~ inside ~src/self/constfolder.til~.  The
 call has zero runtime cost (the C body is empty) and exists
 purely as a flag for the constant folder.
 
@@ -180,7 +180,7 @@ which must be re-applied after regeneration:
    but nng has no pure functions -- each call mutates or reads live
    socket/pipe/dialer/listener/ctx/aio/msg state, does I/O,
    allocates, or returns an internal pointer.  Folding any of them
-   in precomp (opening sockets at compile time, or baking a
+   in constfolder (opening sockets at compile time, or baking a
    compiler-process pointer into the output) is wrong, so flip the
    whole file: ~sed -i 's/:= ext_func(/:= ext_proc(/g'~.
 

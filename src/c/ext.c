@@ -456,7 +456,7 @@ Str *F32_to_str(F32 v) {
 }
 
 // Round-trippable F32 repr: 9 significant digits uniquely identify any
-// IEEE-754 single, so strtof(F32_to_repr(x)) == x. Used by precomp to bake
+// IEEE-754 single, so strtof(F32_to_repr(x)) == x. Used by constfolder to bake
 // folded F32 results as source literals (F32_to_str's %g loses precision).
 Str *F32_to_repr(F32 v) {
     char buf[32];

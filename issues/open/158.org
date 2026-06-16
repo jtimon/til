@@ -15,14 +15,14 @@
    - typer (~infer_body~ -> ~body_pre_passes~): the 7 desugar/insert
      sub-passes are one prefilter + one move-out/rebuild/move-back.
      That is [[./146.org][#146]]'s scope. Done.
-   - precomp (~precomp_imported~): the three setup sub-passes
+   - constfolder (~constfolder_imported~): the three setup sub-passes
      (scan_names, register_defs, register_globals) re-walked the AST
      even though every statement already carries all the data each one
      needed and none reads the scope the others build. Collapsed into a
-     single walk (~precomp_collect_and_register~). Done. (precomp's
+     single walk (~constfolder_collect_and_register~). Done. (constfolder's
      state -- macro/func name sets and the fold-results map -- now also
-     lives on ~Context~ as ~precomp_macros~/~precomp_funcs~/
-     ~precomp_known~, per the [[./178.org][#178]] direction.)
+     lives on ~Context~ as ~constfolder_macros~/~constfolder_funcs~/
+     ~constfolder_known~, per the [[./178.org][#178]] direction.)
 
    Remaining phases keep multiple walks, but these are NOT redundant
    re-walks -- they are an irreducible dependency chain. Each later
@@ -46,21 +46,21 @@
      requires a declaration before its use. [[./178.org][#178]] already moved the
      builder's redundant lookup *tables* onto Context.
 
-   The one redundancy left is cross-phase, not within-phase: precomp's
+   The one redundancy left is cross-phase, not within-phase: constfolder's
    name classification (and the interpreter's def/alias/ns registration)
    re-derive facts the typer already computed. The storage half of that
    is done -- [[./178.org][#178]] / [[./147.org][#147]] moved the per-phase symbol/cache state
    onto Context. What remains is to *populate* the foldable-name set
-   during the typer's existing walk so precomp can drop its scan step
+   during the typer's existing walk so constfolder can drop its scan step
    entirely. The typer is the correct capture point because initer runs
    before the typer lifts lambdas and generates derived methods that
-   precomp must also see. That is the natural next step and is tracked
+   constfolder must also see. That is the natural next step and is tracked
    here.
 
 ** Original report (kept for reference)
 
 Each phase listed in doc/pipeline.org (lex, parse,
-   init_declarations, type_check, precomp, scavenge, interpret /
+   init_declarations, type_check, constfolder, scavenge, interpret /
    build) should walk the AST exactly once. At each statement, all
    the work that phase needs to do should happen before moving on.
 
@@ -90,7 +90,7 @@ Each phase listed in doc/pipeline.org (lex, parse,
      desugar_kwargs_calls, hoist_fcall_args, insert_field_deletes,
      insert_free_calls.
 
-   - ~precomp~ (src/self/precomp.til:506) has 3 numbered sub-passes
+   - ~constfolder~ (src/self/constfolder.til:506) has 3 numbered sub-passes
      (collect names, set up scope, fold calls).
 
    - ~scavenge~ (src/self/scavenger.til:212) has 5 numbered
@@ -116,7 +116,7 @@ Each phase listed in doc/pipeline.org (lex, parse,
 
    What I want: one pass per phase. Not one pass for some sub-passes
    inside the typer ([[./146.org][#146]]'s scope). Every phase: lexer, parser,
-   initer, typer, precomp, scavenger, builder, interpreter -- one
+   initer, typer, constfolder, scavenger, builder, interpreter -- one
    walk over the AST (or token stream / source for lexer/parser).
 
    Related:

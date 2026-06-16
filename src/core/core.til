@@ -29,8 +29,8 @@ import("usize")
 import("vec")
 
 // Empty proc; users stick `noop_proc()` inside a func body to force
-// precomp to treat that func as impure (no compile-time fold). It has no
+// constfolder to treat that func as impure (no compile-time fold). It has no
 // host side effect, so it stays in core rather than std/sys.til (issue
-// #216) -- it is a precomp escape hatch, not a syscall, and lives here in
+// #216) -- it is a constfolder escape hatch, not a syscall, and lives here in
 // the aggregator because it doesn't belong to any data-type module.
 noop_proc := ext_proc() {}

@@ -121,7 +121,7 @@
 *** Pipeline wrappers (lines 148-207)
     ~til_init_declarations~: passes through to init_declarations().
     ~til_type_check~: passes through to type_check().
-    ~til_precomp~: passes through to precomp().
+    ~til_constfolder~: passes through to constfolder().
     ~til_scavenge~: passes through to scavenge().
     ~til_interpret~: converts empty Str→NULL, Str**→char**.
     ~til_build~, ~til_build_header~, ~til_build_til_binding~: pass through.

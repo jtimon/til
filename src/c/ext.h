@@ -303,7 +303,7 @@ I64 *spawn_cmd(const Str *cmd);
 I64 check_cmd_status(I64 pid);
 void sleep_ms(I64 ms);
 // Empty proc -- callers stick `noop_proc()` inside a func body to force
-// precomp to treat the surrounding function as impure (procs are never
+// constfolder to treat the surrounding function as impure (procs are never
 // folded). The call has no runtime effect; only purpose is the tag.
 void noop_proc(void);
 I64 file_mtime(const Str *path);

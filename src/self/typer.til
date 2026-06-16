@@ -519,7 +519,7 @@ find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns r
 }
 
 // Issue #191: check if an Expr is comptime-known. Used by typer to
-// validate macro arguments and by precomp to decide func folding.
+// validate macro arguments and by constfolder to decide func folding.
 // Conservative: only accepts shapes that are definitely known at
 // compile time.
 priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
@@ -3902,7 +3902,7 @@ priv check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         // Hoist temps are compiler-internal and always have their use
         // substituted into the AST after typing, so `b.used` is never
         // flipped by the regular Ident-lookup path. Body DCE catches
-        // any of these that go dead after precomp; the typer's job
+        // any of these that go dead after constfolder; the typer's job
         // here is just to report user bugs.
         if b.name.starts_with("hoisted__") { continue }
         if ctx.throw_used_local_names.has(b.name) { continue }
@@ -8654,8 +8654,8 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         // Issue #158: record foldable macro/func names as we walk the final
         // top-level decls (lambdas already lifted, methods already generated),
-        // so precomp reuses ctx.precomp_macros/funcs instead of re-scanning.
-        precomp_classify_stmt(body.children[i], ctx)
+        // so constfolder reuses ctx.constfolder_macros/funcs instead of re-scanning.
+        constfolder_classify_stmt(body.children[i], ctx)
         i++
     }
     if body_pre_passes(ctx, body, scope, owns_scope) {
@@ -10818,7 +10818,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     }
     if expr.node_type.is(NodeType.FCall).not() { return }
     // Issue #57: don't hoist args of macro calls. Macro args are
-    // substituted into the macro body at compile time by precomp's
+    // substituted into the macro body at compile time by constfolder's
     // try_eval_call; hoisting an arg into a body-local temp burys its
     // value behind a name that the macro eval's sub-scope can't resolve.
     // Match rstil's pattern: macros take args verbatim (precomp.rs 821-847

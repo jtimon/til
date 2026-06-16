@@ -13,7 +13,7 @@ Two modules sit underneath every phase below:
   - Implemented in til: [[file:../src/self/loader.til][src/self/loader.til]]
   - Drives the whole pipeline: discovers and reads source files,
     resolves recursive `import(...)`, picks the mode, then runs
-    tokenize -> parse -> init -> type -> asap -> precomp -> scavenge
+    tokenize -> parse -> init -> type -> asap -> constfolder -> scavenge
     in order before handing the merged AST to a back end. The CLI
     (`src/til.til`) and the REPL both go through here.
 
@@ -89,15 +89,15 @@ Two modules sit underneath every phase below:
   ~garbager_destroy~ walk needs the per-body scope cache on ~Context~
   and is tracked under [[file:../issues/open/158.org][#158]].
 
-6. Precomp
+6. Constfolder
 
-- `precomp(ast)`
-- Implemented in til: [[file:../src/self/precomp.til][src/self/precomp.til]]
+- `constfolder(ast)`
+- Implemented in til: [[file:../src/self/constfolder.til][src/self/constfolder.til]]
 - Responsibilities:
   - fold macros
   - fold comptime-known pure calls recursively when possible
   - track known literal values
-- After precomp, macros should be gone from the AST.
+- After constfolder, macros should be gone from the AST.
 
 7. Scavenge
 
@@ -153,7 +153,7 @@ There are two main back ends.
 - Initer registers and synthesizes declarations.
 - Typer resolves and validates.
 - Garbager inserts the automatic destructor calls.
-- Precomp folds comptime work.
+- Constfolder folds comptime work.
 - Scavenger removes unused leftovers.
 - Builder/interpreter are the final execution back ends; dispatch
   handles the interpreter's FFI calls and targets defines build targets.
@@ -169,7 +169,7 @@ That is the current practical phase order to keep in mind when debugging:
 - missing declaration / auto-generated helper: `src/self/initer.til`
 - name/type resolution or enum switch behavior: `src/self/typer.til`
 - missing/extra `delete`/`free` call, use-after-move: `src/self/garbager.til`
-- comptime folding issue: `src/self/precomp.til`
+- comptime folding issue: `src/self/constfolder.til`
 - generated C / linkage issue: `src/self/builder.til`
 - cross-compile target/lang issue: `src/self/targets.til`
 - interpreter FFI call into native C: `src/self/dispatch.til`

@@ -9,7 +9,7 @@ in the plan below.
 
 ~Context~ in ~src/self/initer.til~ (initer.til:197) has grown to ~66
 fields. One ~Context~ value threads ~ref~/mut through every phase
-(init -> typer -> desugar -> garbager -> precomp -> eval/builder), and
+(init -> typer -> desugar -> garbager -> constfolder -> eval/builder), and
 over time each phase has parked its private scratch state directly on
 it. The struct is now a grab-bag of unrelated lifetimes:
 
@@ -17,7 +17,7 @@ it. The struct is now a grab-bag of unrelated lifetimes:
     ~mode~, ~path~, ~path_modes~, ~scope~, ~imported~,
     ~imports_*_done~ memo sets, ~struct_layouts~, ~interp_type_defs~,
     ~func_defs~, ~struct_def_exprs~, ~funcsig_names~.
-  - precomp tables: ~precomp_macros~, ~precomp_funcs~, ~precomp_known~.
+  - constfolder tables: ~constfolder_macros~, ~constfolder_funcs~, ~constfolder_known~.
   - interpreter runtime flags + slots: ~has_return~, ~has_break~,
     ~has_continue~, ~return_value~, ~ns_fields~, ~ns_keys~, ~ns_inited~,
     the six ~cached_*~ refs, ~dispatch_*~ / ~ffi_*~ FFI state.
@@ -48,7 +48,7 @@ stays small:
   - ~scope_stack~ -- the one real cache (declaration index)
   - import bookkeeping: ~imported_asts~, ~imported_modes~, and four
     per-phase ~imports_*_done~ sets (marked at entry, circular-safe)
-  - a small set of precomp + anon-def counters
+  - a small set of constfolder + anon-def counters
 
 Crucially, rstil's *per-function analysis state* (the moral equivalent
 of our ~stack_locals~, ~used_symbols~, shadowing tracking, consumed

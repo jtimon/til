@@ -115,7 +115,7 @@ Status (high level):
      would have called), and writes the layout into
      ~Context.struct_layouts~. After the visit, the Context looks
      identical to one in which the methods had been hand-written and
-     initer had registered them. Precomp / scavenger / builder look up
+     initer had registered them. Constfolder / scavenger / builder look up
      ~Type.clone~ in scope and never need to know whether the user wrote
      it or the typer synthesized it -- Context is the cross-phase memo,
      same pattern [[./147.org][#147]] calls out as one of rstil's wins.

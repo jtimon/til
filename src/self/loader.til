@@ -7,7 +7,7 @@ import("initer")
 import("targets")
 import("typer")
 import("garbager")
-import("precomp")
+import("constfolder")
 import("scavenger")
 
 // --- External C bridges used by the loader ---
@@ -267,18 +267,18 @@ retarget_loaded_aliases := func(lp: LoadedProgram) {
     retarget_alias_binding(lp.ctx.scope, "USize", target_usize_name(lp.target))
 }
 
-// Precomp across per-file units (rstil-style): fold macros/pure funcs in the
+// Constfolder across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
-priv precomp_imported := proc(mut lp: LoadedProgram) {
+priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // Make codegen_lp() available so dispatch helpers like make_str_value can
     // read shared Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
     // Only clear the fold-results map here; the foldable-name sets
-    // (precomp_macros/funcs) were populated upstream by the typer
-    // (precomp_classify_stmt) and must survive into this phase.
-    precomp_clear_known(lp.ctx)
+    // (constfolder_macros/funcs) were populated upstream by the typer
+    // (constfolder_classify_stmt) and must survive into this phase.
+    constfolder_clear_known(lp.ctx)
     // Issue #109: populate ctx.cached_str/array/vec_def BEFORE
-    // precomp_register_fold_scope, so the is_known -> expr_to_value
+    // constfolder_register_fold_scope, so the is_known -> expr_to_value
     // -> make_str_value(_view) path inside the fold-scope walk
     // produces Value.Struct values with struct_name = "Str" instead
     // of "". With NULL/empty struct_name, cleanup_value_payload's
@@ -302,22 +302,22 @@ priv precomp_imported := proc(mut lp: LoadedProgram) {
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            precomp_register_fold_scope(global, iu.ast, lp.ctx)
+            constfolder_register_fold_scope(global, iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        precomp_register_fold_scope(global, iu.ast, lp.ctx)
+        constfolder_register_fold_scope(global, iu.ast, lp.ctx)
     }
     // Nothing to fold? Skip the FFI/fold setup, but still free the
     // (near-empty) scope built above via the single cleanup at the end.
     // til's ownership checker is flow-insensitive, so we keep exactly one
     // scope_free(own global) rather than an early-return that moves it.
-    has_fold := lp.ctx.precomp_macros.count.gt(0).or(lp.ctx.precomp_funcs.count.gt(0))
+    has_fold := lp.ctx.constfolder_macros.count.gt(0).or(lp.ctx.constfolder_funcs.count.gt(0))
     if has_fold {
         // Issue #191: core constants registered after the defs walk so they
         // win over any like-named definition (e.g. CAP_VIEW for Str ops).
-        precomp_register_core_constants(global)
+        constfolder_register_core_constants(global)
 
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
@@ -330,7 +330,7 @@ priv precomp_imported := proc(mut lp: LoadedProgram) {
             interpreter_init_ns(lp.ctx, global, iu.ast)
         }
 
-        // 2b) Init FFI for the interpreter used by precomp.
+        // 2b) Init FFI for the interpreter used by constfolder.
         // Scan per-file ASTs directly to avoid merged-AST cloning.
         ffi_reset(lp.ctx)
         if lp.skip_core.not() {
@@ -347,12 +347,12 @@ priv precomp_imported := proc(mut lp: LoadedProgram) {
         }
         // Mark FFI loaded so ext_dispatch_ffi will dispatch the entries we
         // just registered. Built-in ext_funcs (I64_add etc.) are statically
-        // linked, so no .so needs dlopen'ing for precomp's eval-based fold
+        // linked, so no .so needs dlopen'ing for constfolder's eval-based fold
         // to call them.
         lp.ctx.ffi_loaded = true
 
         // 3) Fold calls in every file. The known-fold map lives on ctx
-        // (ctx.precomp_known); precomp_reset_state below clears it.
+        // (ctx.constfolder_known); constfolder_reset_state below clears it.
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
                 ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -368,7 +368,7 @@ priv precomp_imported := proc(mut lp: LoadedProgram) {
     }
 
     scope_free(own global)
-    precomp_reset_state(lp.ctx)
+    constfolder_reset_state(lp.ctx)
 }
 
 // Scavenge across per-file units (rstil-style): compute a single visited set
@@ -717,7 +717,7 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
     }
 
     // Body-level DCE: drop unreferenced hoisted temps left behind by
-    // precomp's constant folding. Runs over every imported unit (cores
+    // constfolder's constant folding. Runs over every imported unit (cores
     // included) so the codegen no longer needs `(void)<name>;` guards.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -1527,9 +1527,9 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
 // the REPL. Non-REPL pipelines don't synthesize doc init calls. `scope`
 // carries inferred types so e.g. `a := 1` shows up as "a is a I64".
 
-// Run init/typecheck/precomp/scavenge on the loaded program. Sets
+// Run init/typecheck/constfolder/scavenge on the loaded program. Sets
 // lp.run_tests and exits with code 1 if the typer reports any errors.
-// Run init + typer + field-struct resolution. Stops short of precomp and
+// Run init + typer + field-struct resolution. Stops short of constfolder and
 // scavenge so callers that only need a typed AST (e.g. `til doc`) don't pay
 // the codegen-prep cost.
 priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_decl_rhs: Bool, decl_name: Str, is_mut: Bool, decl_line: U32, decl_col: U32, ctx: Context, resolved_path: Str) returns Bool {
@@ -1894,9 +1894,9 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     }
 
     // Issue #158: the typer populates the foldable-name sets during its
-    // walk (precomp_classify_stmt); clear any stale state up front so a
+    // walk (constfolder_classify_stmt); clear any stale state up front so a
     // fresh build (or REPL re-eval reusing this Context) starts clean.
-    precomp_reset_state(lp.ctx)
+    constfolder_reset_state(lp.ctx)
 
     // Init phase (rstil-style): recursive imports per file.
     lp.ctx.scope = TypeScope()
@@ -1990,7 +1990,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
 prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     init_and_type_program(lp, run_tests)
 
-    precomp_imported(lp)
+    constfolder_imported(lp)
 
     // Skip top-level scavenging for libraries only. link() and link_c()
     // directives are compile-time concerns and should not disable normal

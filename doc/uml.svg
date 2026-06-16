@@ -293,16 +293,16 @@
   <text x="1380" y="1048" class="line">imports_init_done := Set(Str).new()</text>
   <text x="1380" y="1066" class="line">imports_typer_decls_done := Set(Str).new()</text>
   <text x="1380" y="1084" class="line">imports_typer_bodies_done := Set(Str).new()</text>
-  <text x="1380" y="1102" class="line">imports_precomp_done := Set(Str).new()</text>
+  <text x="1380" y="1102" class="line">imports_constfolder_done := Set(Str).new()</text>
   <text x="1380" y="1120" class="line">imports_eval_done := Set(Str).new()</text>
   <text x="1380" y="1138" class="line">type_gen_synths := Set(Str).new()</text>
   <text x="1380" y="1156" class="line">scope := TypeScope()</text>
   <text x="1380" y="1174" class="line">is_repl := false</text>
   <text x="1380" y="1192" class="line">struct_layouts := Map(Str, StructLayout).new()</text>
-  <text x="1380" y="1210" class="line">precomp_macros := Set(Str).new()</text>
-  <text x="1380" y="1228" class="line">precomp_funcs := Set(Str).new()</text>
-  <text x="1380" y="1246" class="line">precomp_known := Map(Str, Value).new()</text>
-  <text x="1380" y="1264" class="line">precomp_assigned := Set(Str).new()</text>
+  <text x="1380" y="1210" class="line">constfolder_macros := Set(Str).new()</text>
+  <text x="1380" y="1228" class="line">constfolder_funcs := Set(Str).new()</text>
+  <text x="1380" y="1246" class="line">constfolder_known := Map(Str, Value).new()</text>
+  <text x="1380" y="1264" class="line">constfolder_assigned := Set(Str).new()</text>
   <text x="1380" y="1282" class="line">has_return := false</text>
   <text x="1380" y="1300" class="line">has_break := false</text>
   <text x="1380" y="1318" class="line">has_continue := false</text>

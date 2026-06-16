@@ -576,7 +576,7 @@ test_macro_struct_infer_type := test() {
     assert_eq(__LOC__, h.val, 42)
 }
 
-// Issue #56 close-out: precomp of a default-value EXPRESSION inside an
+// Issue #56 close-out: constfolder of a default-value EXPRESSION inside an
 // expanded struct. The default is `N.add(1)` -- after N is substituted,
 // the expression evaluates at compile time.
 make_sized56 := macro(N: I64) returns StructDef {
@@ -586,7 +586,7 @@ make_sized56 := macro(N: I64) returns StructDef {
 }
 Sized5 := make_sized56(4)
 
-test_macro_struct_precomp_default := test() {
+test_macro_struct_constfolder_default := test() {
     s := Sized5()
     assert_eq(__LOC__, s.size, 5)
 }

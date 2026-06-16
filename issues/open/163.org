@@ -13,7 +13,7 @@ Goals:
 
    - Expr.path is removed. Remaining work is to keep phases per-file so we do
      not re-introduce merged-AST-only assumptions.
-   - This likely requires moving more phases (precomp/scavenge/eval/build)
+   - This likely requires moving more phases (constfolder/scavenge/eval/build)
      to per-file drivers, or adding explicit file boundaries to merged views.
 
    WIP branch:

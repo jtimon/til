@@ -62,7 +62,7 @@ lives, and step-by-step recipes for adding more throwing methods.
 
    *** Typer ([[file:../src/self/typer.til][src/self/typer.til]])
    This is where most of the work lives. The throw/catch lowering
-   runs *before* ~infer_body~ so downstream stages (precomp, asap,
+   runs *before* ~infer_body~ so downstream stages (constfolder, asap,
    interpreter, builder) never see ~Throw~ or ~Catch~ nodes.
 
    - ~throws_names_global~ / ~throw_type_registry~ on ~Context~:

@@ -18,7 +18,7 @@ builder later chooses to stack-allocate the binding (shallow-return
 funcs like ~str_view~, LiteralStr RHS, etc.).  ~call_free=true~ on a
 stack pointer is UB, so the builder rewrites the call at emission.
 
-The post-precomp fold case (FCall RHS folded to LiteralStr) is now
+The post-constfolder fold case (FCall RHS folded to LiteralStr) is now
 handled in the scavenger (~fix_stale_litstr_in_body~): the AST gets
 re-aligned to ~Shallow~ + ~bool=false~ so DCE can act on it and the
 emission stays correct without help.  The builder special-case still

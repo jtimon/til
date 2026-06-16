@@ -66,7 +66,7 @@ pipeline_order := func() returns Vec(Str) {
     paths.push(own "src/self/initer.til")
     paths.push(own "src/self/typer.til")
     paths.push(own "src/self/garbager.til")
-    paths.push(own "src/self/precomp.til")
+    paths.push(own "src/self/constfolder.til")
     paths.push(own "src/self/scavenger.til")
     paths.push(own "src/self/builder.til")
     paths.push(own "src/self/dispatch.til")
@@ -398,7 +398,7 @@ collect_panels := func(paths: Vec(Str), types: Vec(UmlType)) returns Vec(UmlPane
             }
             j++
         }
-        // Skip files that declare no struct/enum (modes, precomp, scavenger,
+        // Skip files that declare no struct/enum (modes, constfolder, scavenger,
         // initer, ...) so they don't render as empty boxes.
         if panel.types.len().gt(0) {
             out.push(own panel)

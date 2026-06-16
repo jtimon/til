@@ -1054,7 +1054,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         // it (preserving val's real borrowed flag). Issue #272: the old
         // code reinterpret-cloned AND force-borrowed every ref binding,
         // so a value-rhs ref leaked the owned clone (the cell skipped it
-        // as "borrowed") -- the dominant precomp ref-binding leak.
+        // as "borrowed") -- the dominant constfolder ref-binding leak.
         if is_value_ptr(val) {
             if dd.explicit_type.len().gt(0) {
                 // #227: for ref-mut bindings to primitive scalars at a
@@ -1779,9 +1779,9 @@ eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     }
 
     // An ext_func reaching here did not dispatch above (not a builtin and
-    // not FFI-registered -- e.g. a user .so not dlopen'd at precomp time).
+    // not FFI-registered -- e.g. a user .so not dlopen'd at constfolder time).
     // It has no body to execute, so refuse rather than falling through to
-    // the bodyless-func path. Lets precomp's try_eval_call bail cleanly via
+    // the bodyless-func path. Lets constfolder's try_eval_call bail cleanly via
     // can_convert.not() instead of crashing.
     switch fn_cell.val {
     case Value.Func(ext_fp):
@@ -2041,7 +2041,7 @@ priv free_value := func(shallow v: Value) {
 
 // End-of-lifetime cleanup for a Value's heap payload. Goes deeper than
 // free_value: also frees the c_str of a Value.Struct whose name is "Str".
-// Used by scope_free and precomp's known-map teardown, where the Value
+// Used by scope_free and constfolder's known-map teardown, where the Value
 // genuinely owns the payload.
 
 // Single owning-pointer box. Lets free_value_full reinterpret a
@@ -2629,7 +2629,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
 
 // Cache-only pass: populate ctx.cached_str/array/vec_def/name without
 // running eval_expr on namespace decl default values. Cheap walk that
-// must run BEFORE precomp_register_fold_scope so make_str_value_view /
+// must run BEFORE constfolder_register_fold_scope so make_str_value_view /
 // make_str_value calls from is_known(...) -> expr_to_value see a
 // non-NULL cached_str_name -- otherwise cleanup_value_payload's
 // struct_name.eq("Str") check fails for the resulting Values and the
@@ -2726,7 +2726,7 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
     write_u32(ptr_add(inst_data, 8), len)
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
     // which left the buffer alive forever -- a per-call leak that
-    // multiplied with every Str-typed precomp fold).
+    // multiplied with every Str-typed constfolder fold).
     write_u32(ptr_add(inst_data, 12), len)
     return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
 }
@@ -2734,8 +2734,8 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
 // Like make_str_value but builds a Value.Struct(Str) that VIEWS into
 // the caller's buffer (cap=CAP_VIEW) rather than copying. The caller
 // MUST guarantee `data` outlives every consumer of the returned Value.
-// Used by precomp to track LiteralStr Decls without copying the buffer:
-// the LiteralStr's c_str is stable for the entire precomp lifetime.
+// Used by constfolder to track LiteralStr Decls without copying the buffer:
+// the LiteralStr's c_str is stable for the entire constfolder lifetime.
 make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
     inst_data : Dynamic = malloc(Str.size().cast(U64))
     write_ptr(inst_data, data)

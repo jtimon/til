@@ -11,8 +11,8 @@ Issue [[../fixed/102.org][#102]] added generated ~eq~ and literal-style
   - define whether generated ~eq~ compares owned/ref fields by value or by
     identity
   - define how generated ~to_str~ should print owned/ref fields without
-    creating lifetime or precomp/builder inconsistencies
+    creating lifetime or constfolder/builder inconsistencies
   - update struct generation once those rules are clear
 
   This should be treated as a separate feature from shallow value structs;
-  the interactions with precomp and builder ownership are more complex.
+  the interactions with constfolder and builder ownership are more complex.

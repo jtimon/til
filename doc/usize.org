@@ -58,7 +58,7 @@ use U32 arithmetic instead of U64.
 - src/self/lexer.til, ast.til, parser.til
 - src/c/ext.c, ext.h
 - src/c/parser.c, typer.c, builder.c, initer.c, interpreter.c
-- src/c/dispatch.c, precomp.c, scavenger.c, til_bridge.c
+- src/c/dispatch.c, constfolder.c, scavenger.c, til_bridge.c
 - src/ctil.c
 
 ** U32 method availability
@@ -73,14 +73,14 @@ Need in ext.c (most already exist):
 ** Bootstrap chicken-and-egg problem
 
 The committed bootstrap has U64 types. The compiled ~_size()~ functions
-return U64. The precomp folds ~Str.size()~ at compile time by calling the
+return U64. The constfolder folds ~Str.size()~ at compile time by calling the
 compiled function, producing a U64 literal. This U64 literal then fails
 type-checking when passed to ~Vec.new(U32)~.
 
 Approaches tried:
 1. Relaxed first cc pass (~-Wno-error~): compiles but segfaults at runtime
    (U32 pointer passed to U64 parameter reads garbage upper bytes)
-2. Disabled precomp func folding: first cc compiles but ctil_core still
+2. Disabled constfolder func folding: first cc compiles but ctil_core still
    fails because the compiled bootstrap functions have U64 signatures
 3. Backup ctil: same issue — reads new core.til with U32 types but
    compiled functions return U64
@@ -94,10 +94,10 @@ The solution needs to either:
 ** WIP branch
 Code lives in ~wip_u32~ branch. .til files are fully updated. C files
 partially updated (agent did mechanical replacements but session was
-interrupted). precomp.c has func folding temporarily disabled.
+interrupted). constfolder.c has func folding temporarily disabled.
 
 ** Also needed (discovered during work)
 - Token line/col already changed to U32 (committed to master)
 - lexing.til and parsing.til tests disabled (interpreter U32 struct issue)
-- precomp.c had a bug: ~&(I64){0}~ passed as ~require_known~ (truthy
+- constfolder.c had a bug: ~&(I64){0}~ passed as ~require_known~ (truthy
   pointer instead of false) — fixed on master
