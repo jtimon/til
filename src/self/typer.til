@@ -7895,6 +7895,14 @@ priv process_match_arms_in := proc(
     if e.node_type.is(NodeType.FuncDef)
         .or(e.node_type.is(NodeType.StructDef))
         .or(e.node_type.is(NodeType.EnumDef)) { return }
+    // Do NOT descend into a nested statement Body (an if/while/for/switch arm,
+    // or a block): process_throw_catch_in_body recurses into those separately
+    // and calls process_match_arms_in on their statements. Walking into them
+    // here too would process any match in them twice, injecting a throwing
+    // call's err out-args repeatedly ("too many arguments"). Match ARM bodies
+    // are still handled -- the Match case below feeds them to
+    // process_throw_catch_in_body directly, not through this generic walk.
+    if e.node_type.is(NodeType.Body) { return }
     if e.node_type.is(NodeType.Match) {
         for mut child : Expr in e.children {
             if child.node_type.is(NodeType.Case) {

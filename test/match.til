@@ -180,3 +180,22 @@ test_match_arm_propagates := test() {
     expect(__LOC__, match_q(false, -1)!.not(), "? arm not taken: no throw")
     expect(__LOC__, match_q(true, 3)!, "? arm taken: ok")
 }
+
+# Issue #262: a throwing call in a NESTED match arm (a match inside a match
+# arm) is lowered too -- process_match_arms_in re-enters via the per-statement
+# throw/catch lowering it runs on each arm body, so depth is handled. The outer
+# guard means the inner subscript only runs when both arms are taken.
+test_nested_match_arm_throwing := test() {
+    v := Vec(I64).new()
+    a := match v.len().gt(0) {
+        case true: match true { case true: v[0].gt(0) case: false }
+        case: false
+    }
+    expect(__LOC__, a.not(), "nested empty: no OOB")
+    v.push(own 42)
+    b := match v.len().gt(0) {
+        case true: match true { case true: v[0].eq(42) case: false }
+        case: false
+    }
+    expect(__LOC__, b, "nested nonempty: taken arms")
+}
