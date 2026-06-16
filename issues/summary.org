@@ -30,7 +30,7 @@
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
 *** [[./open/276.org][#276]] codegen: lower mixed (payload-binding) enum switches to a C switch on the tag
 ** Low
-*** [[./open/70.org][#70]] Precomp: constant folding for all types (not just scalars)
+*** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
 *** [[./open/92.org][#92]] Bundle GL headers and linker scripts (zero apt deps)
 *** [[./open/101.org][#101]] Deterministic temp variable names in generated C

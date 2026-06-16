@@ -112,16 +112,16 @@ struct Context {
     mut imports_init_done : Set__Str
     mut imports_typer_decls_done : Set__Str
     mut imports_typer_bodies_done : Set__Str
-    mut imports_precomp_done : Set__Str
+    mut imports_constfolder_done : Set__Str
     mut imports_eval_done : Set__Str
     mut type_gen_synths : Set__Str
     mut scope : TypeScope
     mut is_repl : Bool
     mut struct_layouts : Map__Str_StructLayout
-    mut precomp_macros : Set__Str
-    mut precomp_funcs : Set__Str
-    mut precomp_known : Map__Str_Value
-    mut precomp_assigned : Set__Str
+    mut constfolder_macros : Set__Str
+    mut constfolder_funcs : Set__Str
+    mut constfolder_known : Map__Str_Value
+    mut constfolder_assigned : Set__Str
     mut has_return : Bool
     mut has_break : Bool
     mut has_continue : Bool
@@ -200,9 +200,9 @@ func priv_c_name(path: Str, name: Str) returns Str
 func align_up(shallow offset: U32, shallow align: U32) returns shallow U32
 #+end_src
 
-* precomp_classify_stmt
+* constfolder_classify_stmt
 #+begin_src til
-func precomp_classify_stmt(stmt: Expr, ctx: Context)
+func constfolder_classify_stmt(stmt: Expr, ctx: Context)
 #+end_src
 
 * make_method_call_fcall

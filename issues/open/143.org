@@ -5,7 +5,7 @@
 ~Expr.new~ itself constructs on the stack, but the generated C for
    callers that store the result does a heap round-trip: the return value
    is heap-allocated, copied to the stack, then freed (~Expr x = *_hp;
-   free(_hp)~). Similarly, ~try_eval_call~ in precomp.til allocates
+   free(_hp)~). Similarly, ~try_eval_call~ in constfolder.til allocates
    folded constants on the heap via ~malloc~ + ~memcpy~ just to return
    them. Could be avoided if the codegen supported returning structs by
    value without the heap detour.

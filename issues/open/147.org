@@ -22,7 +22,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
       pass agreeing not to drop the original node. Owned ~Expr~ fields or
       lookup-by-name in ~Context~ are safer.
    3. *Per-phase state without a home*: pre-rebase, til had no
-      ~imports_*_done~ memos, no precomp side-table; whether an import got
+      ~imports_*_done~ memos, no constfolder side-table; whether an import got
       re-walked depended on incidental control flow elsewhere. Per-phase
       Sets in ~Context~ (rstil pattern) make it explicit.
 
@@ -47,9 +47,9 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      payload struct (~5346d34~) so it stops being a bare variant.
    - Context enrichment landed:
      ~Context.path~, ~Context.imported~ (Map path -> ImportUnit),
-     ~imports_init_done~ / ~imports_typer_done~ / ~imports_precomp_done~ /
+     ~imports_init_done~ / ~imports_typer_done~ / ~imports_constfolder_done~ /
      ~imports_eval_done~ Sets (commits ~716b127~, ~4e2a1fa~, ~2b664c8~).
-   - Per-file unit drivers across loader/init/typer/precomp/scavenger/
+   - Per-file unit drivers across loader/init/typer/constfolder/scavenger/
      builder/interpreter (commits ~cb83f28~, ~2e8dd0e~, ~150a4c5~,
      ~c6cfca2~, ~0a4c734~, ~1b3d98c~, ~6f910e1~, ~cc2edbc~). The merged
      AST stops being the canonical view for those phases.
@@ -151,7 +151,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    |---------------+----------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------|
    | ~Expr~        | 4 fields: ~node_type, children, line, col~ (post #206: ~til_type~ removed, derived on demand from node_type + payload)                  | 4 fields: ~node_type, params, line, col~                       |
    | ~Declaration~ | 11 fields: ~name, doc, explicit_type, is_mut, redundant_mut, is_priv, used, own_type, til_type, default_value, orig_name~ (post step 4: ~field_offset~, ~field_size~, ~field_struct_def~ gone -- layout in ~ctx.struct_layouts~; ~explicit_type~/~til_type~ duplication is step 5, blocked on #58 / FuncPtr name-loss) | 5 fields: ~name, value_type, is_mut, is_own, default_value~ |
-   | ~Context~     | ~73 fields. Genuine cross-phase caches stay here (~struct_layouts~, ~interp_type_defs~, ~func_defs~, ~struct_def_exprs~, ~imported~, ~imports_*_done~ Sets); per-phase scratch state (precomp tables, interpreter runtime flags, typer/builder transients) is the #246 slimming surface. | 19 fields (rstil): mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_precomp_func, precomp_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
+   | ~Context~     | ~73 fields. Genuine cross-phase caches stay here (~struct_layouts~, ~interp_type_defs~, ~func_defs~, ~struct_def_exprs~, ~imported~, ~imports_*_done~ Sets); per-phase scratch state (constfolder tables, interpreter runtime flags, typer/builder transients) is the #246 slimming surface. | 19 fields (rstil): mode_def, path, scope_stack, temp_enum_payload, imported_asts, imported_modes, imports_*_done x4 Sets, current_constfolder_func, constfolder_forin_counter, precomputed_heap_values, anon_{struct,enum,func}_counter, anon_{struct,enum}_decls, anon_func_map |
    | ~TypeBinding~ | 19 fields (zero ref Expr): ~name, type, is_mut, is_priv, path, line, col, is_param, own_type, is_alias, is_type_alias, is_func_decl, alias_target, func_type, is_builtin, used, written, mut_explicit, orig_name~. The FuncDef/StructDef Exprs live in ~scope.func_defs~/~scope.struct_defs~ (commits ~1c9265a~, ~0d967a8~). | n/a (rstil scope stores names + computes lookups on demand)    |
    | ~FCallData~   | 5 fields (post step 7): ~is_splat, does_throw, is_bang, own_args, til_type~. Counts and indices for variadic/kwargs are derived via scope helpers (~fcall_kwargs_count~, ~fcall_variadic_count~, ~fcall_kwargs_index_via_scope~, ~fcall_variadic_index_via_scope~). | 2 fields: ~does_throw, is_bang~                                |
    | ~StructDef~   | 3 fields: ~fields, ns_decls, c_tag~ (post step 4: ~total_struct_size~ gone -- total in ~ctx.struct_layouts~)                            | 3 fields: ~members, default_values, ns~                        |
@@ -193,7 +193,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    | ~typer.til~      |   236 |    123 | self-consumption: propagates types up; rewrites   |
    | ~builder.til~    |    97 |      0 | pure consumer; pivots on ~is(Type.X)~             |
    | ~interpreter.til~ |    22 |      0 | pure consumer                                     |
-   | ~precomp.til~    |    14 |     11 | writes when synthesizing literals during folding  |
+   | ~constfolder.til~    |    14 |     11 | writes when synthesizing literals during folding  |
    | ~initer.til~     |    16 |      7 | writes during synthesized helper generation       |
    | ~parser.til~     |    12 |     11 | initial writes for literals + resolved Decls      |
    | ~dispatch.til~   |     5 |      2 |                                                   |
@@ -209,9 +209,9 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
      want a concrete ~Type~ value, not a re-derivation walk.
    - Builder + interpreter together: 119 reads, *zero* writes. They're
      pure consumers running after typer.
-   - Writes outside typer: literals (parser/precomp -- trivially
+   - Writes outside typer: literals (parser/constfolder -- trivially
      re-derivable from ~node_type~), and a few synthesized-node writes
-     in initer/precomp where the synthesizer already knows the type.
+     in initer/constfolder where the synthesizer already knows the type.
 
    Implications for removal:
 
@@ -390,7 +390,7 @@ rstil (the previous Rust implementation, at ~../rstil~) was slower and
    - ~[[./116.org][#116]]~ Imported files are parsed in isolation -- touched by the
      ~Context.imported~ + per-file unit work that already landed
    - ~[[./66.org][#66]]~ Better imports: qualified namespaces
-   - ~[[./136.org][#136]]~ Precomp doesn't fold namespace method calls
+   - ~[[./136.org][#136]]~ Constfolder doesn't fold namespace method calls
    - ~[[./146.org][#146]]~ Unify typer desugar/insert passes into a single walk --
      prerequisite for step 11
    - ~[[./158.org][#158]]~ One pass per phase across the whole pipeline -- broader

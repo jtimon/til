@@ -1,12 +1,12 @@
 # priority: low
 # category: cleanups
-** OPEN #70 Precomp: constant folding for all types (not just scalars)
+** OPEN #70 Constfolder: constant folding for all types (not just scalars)
 
 The builder emits top-level constants as heap-allocated runtime
-  variables. Precomp currently folds scalar expressions (I64, Str,
+  variables. Constfolder currently folds scalar expressions (I64, Str,
   Bool) but not struct-valued or collection-valued ones.
 
-  Broader scope: precomp should fold ANY compile-time-known expression
+  Broader scope: constfolder should fold ANY compile-time-known expression
   into a constant value in the generated code. Examples:
   - ~CAP_LIT := max_u64()~ → ~#define CAP_LIT ULLONG_MAX~
   - ~MODE_SCRIPT := Mode(name = "script")~ → ~Mode MODE_SCRIPT = {...}~
@@ -14,15 +14,15 @@ The builder emits top-level constants as heap-allocated runtime
   - Fibonacci via macro returning Vec → static array
 
   The syntax already works: ~ref MODE_SCRIPT : Mode = core_modes.get("script")~
-  is a typed reference to a compile-time-known value. Precomp just needs
+  is a typed reference to a compile-time-known value. Constfolder just needs
   to evaluate it and the builder needs to emit the result as a constant.
 
   CAP_LIT/CAP_VIEW no longer rely on [[file:../../src/c/pre70.h][src/c/pre70.h]]. Handwritten C now
   gets them through the normal generated headers, while the remaining
   broader constant-folding work stays here.
 
-  Progress: precomp now folds struct-VALUED pure calls. ~value_to_expr~
-  (src/self/precomp.til) reconstructs a non-Str ~Value.Struct~ into a
+  Progress: constfolder now folds struct-VALUED pure calls. ~value_to_expr~
+  (src/self/constfolder.til) reconstructs a non-Str ~Value.Struct~ into a
   positional POD-struct constructor (Ident(name) + one folded arg per
   field, in field order); the builder emits it as a compile-time C
   compound literal via ~emit_pod_compound_literal~. Only POD structs fold
@@ -30,7 +30,7 @@ The builder emits top-level constants as heap-allocated runtime
   test/constfold.til: ~CfVec2.magic()~ -> ~(CfVec2){.x=42,.y=99}~,
   ~CfVec2.at(10,20)~, and nested ~CfRect.sample()~ all fold (see
   test/constfold.c), with stack-value access and call_free=false deletes.
-  Progress: precomp also folds enum-VALUED pure calls (no-payload variants).
+  Progress: constfolder also folds enum-VALUED pure calls (no-payload variants).
   The interpreter resolves a no-payload variant access (~Color.Green~) via
   the EnumDef's ns_decls ~default_value~ to its integer tag (~Value.Int32~),
   so naively converting that to a Num literal baked ~*c = 1~ (an int into

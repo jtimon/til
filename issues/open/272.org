@@ -245,12 +245,12 @@ code) violate the intended layering. The principles, as stated by Jorge:
     OWNED "out" binding: next probe = binding creation (scope_set_owned
     is called for "out" somewhere -- note scope_set_owned/scope_free
     cannot call eprint_single while funcs; the lab tree made scope_free
-    a proc, scope_set_owned cascades into precomp funcs, so probe the
-    CALLERS instead, or check whether precomp's compile-time folding
-    scopes (precomp.til scope_set_owned sites) are the ones tearing
+    a proc, scope_set_owned cascades into constfolder funcs, so probe the
+    CALLERS instead, or check whether constfolder's compile-time folding
+    scopes (constfolder.til scope_set_owned sites) are the ones tearing
     down).
-  - Suspect to check next: precomp try_eval_call folds greet at compile
-    time? (probe output may mix precomp-phase scope_frees with runtime
+  - Suspect to check next: constfolder try_eval_call folds greet at compile
+    time? (probe output may mix constfolder-phase scope_frees with runtime
     ones; correlate with the ASAN free trace, which is RUNTIME
     eval_call -> scope_free.)
   - Lab tree changes (uncommitted): deep scope_free via

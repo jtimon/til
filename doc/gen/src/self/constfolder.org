@@ -1,14 +1,14 @@
-#+TITLE: src/self/precomp.til
+#+TITLE: src/self/constfolder.til
 #+OPTIONS: toc:t
 
-* precomp_clear_known
+* constfolder_clear_known
 #+begin_src til
-func precomp_clear_known(mut ctx: Context)
+func constfolder_clear_known(mut ctx: Context)
 #+end_src
 
-* precomp_reset_state
+* constfolder_reset_state
 #+begin_src til
-func precomp_reset_state(mut ctx: Context)
+func constfolder_reset_state(mut ctx: Context)
 #+end_src
 
 * side_effecting_names
@@ -26,14 +26,14 @@ func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
 proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
 #+end_src
 
-* precomp_register_fold_scope
+* constfolder_register_fold_scope
 #+begin_src til
-func precomp_register_fold_scope(mut global: Scope, prog: Expr, ctx: Context)
+func constfolder_register_fold_scope(mut global: Scope, prog: Expr, ctx: Context)
 #+end_src
 
-* precomp_register_core_constants
+* constfolder_register_core_constants
 #+begin_src til
-func precomp_register_core_constants(mut global: Scope)
+func constfolder_register_core_constants(mut global: Scope)
 #+end_src
 
 * Map__Str_Bool

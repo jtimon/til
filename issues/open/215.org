@@ -247,15 +247,15 @@ dependency issue (see "Dependencies" below).
 This is the one decision the issue intentionally does not resolve.
 Both have merit:
 
-- *Compile-time* (the typer / precomp rejects ~spawn_cmd(x)~ unless
+- *Compile-time* (the typer / constfolder rejects ~spawn_cmd(x)~ unless
   ~x~ is a string literal whose first word is on the whitelist).
   Pros: the safe_script *is* safe by construction; no dynamic
   command can be smuggled through a runtime-built string; composes
-  cleanly with the precomp constant-folding around ~run_cmd~ in
-  ~src/self/precomp.til:53,596~.
+  cleanly with the constfolder constant-folding around ~run_cmd~ in
+  ~src/self/constfolder.til:53,596~.
   Cons: forbids legitimate dynamic dispatch (e.g.
   ~spawn_cmd(format("ls ", dir))~) even when the command name is a
-  literal prefix; requires a precomp pass that walks the AST for
+  literal prefix; requires a constfolder pass that walks the AST for
   the first arg of every ~spawn_cmd~ call.
 
 - *Runtime* (the interpreter checks the string at call time).

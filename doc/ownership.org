@@ -253,7 +253,7 @@ matching free on every path:
     are raw ~Dynamic~): freed by ~scope_free~ / ~cleanup_value_payload~ /
     ~free_value_full~. ~cleanup_value_payload~ keys off ~struct_name == "Str"~;
     a ~Str~ value built with an empty ~struct_name~ slips the check and leaks
-    (documented at [[file:../src/self/loader.til][loader.til]] precomp_imported).
+    (documented at [[file:../src/self/loader.til][loader.til]] constfolder_imported).
   - ~Context~ side tables that hold ~Dynamic~ (~func_defs~, ~struct_def_exprs~,
     ~local_fn_sigs~ are ~Map(Str, Dynamic)~): these store BORROWED AST pointers,
     so their no-op element delete is correct -- but that also means anything
@@ -326,14 +326,14 @@ while compiling anything, so it cannot build its own ~--asan~ variant; the
 clean ~til_boot~ can). The empirical wall, in order:
 
   1. Made ~EnumInstance.delete~ deep -> immediate double-free. ASAN backtrace:
-     ~try_eval_call~ (precomp fold) frees the result payload BOTH via a manual
+     ~try_eval_call~ (constfolder fold) frees the result payload BOTH via a manual
      ~cleanup_value_payload(result)~ AND via the garbager-inserted
      ~Value.delete(result)~ at the same scope. So step 1 of the plan (deep
      deletes) is inseparable from removing the redundant manual cleanups.
   2. Classified all 14 manual ~cleanup_value_payload~/~free_value~ call sites:
      the ones on garbager-tracked LOCALS (~try_eval_call~'s ~result~/~arg_val~,
      the bare-FCall ~discarded~ in ~eval_body~, ~track_literal~'s ~v~) and on
-     ~precomp_known~ map values (~Map.set~/~Map.clear~ now deep-delete) are all
+     ~constfolder_known~ map values (~Map.set~/~Map.clear~ now deep-delete) are all
      REDUNDANT once the delete is deep; only the ~scope_free~ cell-teardown
      (Dynamic island) and the ~free_value_full~ composition stay. Removed the
      redundant ones.
@@ -409,7 +409,7 @@ left no-op in the first place.
 
 *** Revised recommendation: deep-delete is not the right target
 
-The interpreter deep-delete fixes only the ~12% (eval/precomp) slice of the
+The interpreter deep-delete fixes only the ~12% (eval/constfolder) slice of the
 compiler leak and requires the unbounded value-model rewrite above. The
 DOMINANT ~82% of the leak is the TYPER phase (AST / Type clones during
 type-checking -- see the phase table), which is garbager-managed compiler code,
@@ -423,7 +423,7 @@ the garbager -- the principle-aligned place.
 
 This is the concrete to-do list for making ~StructInstance.delete~ /
 ~EnumInstance.delete~ deep so the garbager reclaims interpreter Values (the
-dominant eval/precomp leak; required for ~make test_asan_full~). Written for
+dominant eval/constfolder leak; required for ~make test_asan_full~). Written for
 whoever picks it up; the in-progress patch was NOT committed (it does not pass
 ~make test~ yet), so the changes below are described well enough to redo.
 
@@ -518,8 +518,8 @@ introspection set) through ~eval_str_owned~. ~eval_str_owned~ must be a ~proc~
     field must be DEEP-COPIED (clone, memcpy the clone's struct bytes, free the
     clone wrapper), because the construction loop deletes the source after.
   - Remove the now-redundant manual ~cleanup_value_payload~ calls in
-    src/self/precomp.til (~try_eval_call~ result + arg_val, ~track_literal~,
-    ~track_literal_known_only~, ~precomp_clear_known~, the FuncDef snapshot)
+    src/self/constfolder.til (~try_eval_call~ result + arg_val, ~track_literal~,
+    ~track_literal_known_only~, ~constfolder_clear_known~, the FuncDef snapshot)
     and the bare-FCall ~discarded~ in eval_body -- once the delete is deep, the
     garbager and ~Map.clear~/~Map.set~ reclaim these; keeping them double-frees.
     ~h_free~ (dispatch.til): null ~val~ after ~free_value_full(val)~.

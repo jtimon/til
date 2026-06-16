@@ -45,7 +45,7 @@ Current uses (by file):
 
   src/self/typer.til:     22 calls
   src/self/garbager.til:     4 calls
-  src/self/precomp.til:    1 call
+  src/self/constfolder.til:    1 call
   src/self/scavenger.til:  3 calls
   src/core/vec.til:        definition
 

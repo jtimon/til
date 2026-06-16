@@ -4,7 +4,7 @@ mode lib
 // ext_func. nng has no pure functions: each call either mutates or
 // reads live socket/pipe/dialer/listener/ctx/aio/msg state, performs
 // I/O, allocates, or returns an internal pointer. Folding any of these
-// in precomp (which ext_func permits) would run the call at compile
+// in constfolder (which ext_func permits) would run the call at compile
 // time -- opening real sockets, or baking a compiler-process pointer
 // into the output. So all stay ext_proc. See doc/ffi.org.
 
