@@ -1,6 +1,39 @@
 # priority: low
 # category: experiments
-** OPEN #261 desugar if/else chains into switch (Gleam-inspired)
+** CANCELLED #261 desugar if/else chains into switch (Gleam-inspired)
+
+  CANCELLATION RATIONALE
+  The useful half shipped; the remaining half is a no-win dead end, so
+  this experiment is closed rather than left open.
+
+  What shipped (folded into the #254 line of work): bool switches are now
+  C-like -- ~switch b { case true: ... case false: ... }~ emits a real C
+  ~switch (b) { case 1: ...; default: ... }~ (switch_is_clike + the bool
+  exhaustiveness fold in infer_clike_switch; test/flow.til exercises it).
+  That was the only piece #254 actually needed.
+
+  Why the actual if/else -> switch rewrite is NOT worth doing:
+  - No codegen win. A 2-case bool ~switch~ lowers to the exact same
+    compare-and-branch the C compiler already emits for an ~if/else~;
+    jump tables only pay off for dense many-way dispatch, of which a bool
+    if/else has none. So routing if/else through switch changes the AST
+    but not the generated code.
+  - The only shape that WOULD benefit -- a long same-scrutinee
+    ~if x.eq(A) {} elif x.eq(B) {} ...~ equality chain collapsing to a
+    jump table -- is rare and, in practice, already written as ~switch~ in
+    til (that is what switch is for). Mixed-condition ~else if~ chains
+    (different scrutinees / boolean expressions) do not map to one switch
+    at all.
+  - The rewrite would touch essentially every ~if~ in the codebase: large,
+    behaviour-neutral churn with real regression risk for zero benefit.
+
+  The remaining "single canonical branching construct" argument is purely
+  architectural, not a performance lever; if that unification is ever
+  wanted it should be its own deliberate cleanup, not this perf-framed
+  experiment. The real switch-codegen win lives in #276 (lower mixed
+  payload-binding enum switches to a C switch on the tag).
+
+  --- original issue ---
 
 Experiment inspired by Gleam, which has no ~if/else~ and expresses all
 branching through ~case~. Desugar an ~if/elif/else~ chain into a ~switch~

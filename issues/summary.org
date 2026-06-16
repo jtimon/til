@@ -70,7 +70,6 @@
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
-*** [[./open/261.org][#261]] desugar if/else chains into switch (Gleam-inspired)
 * Examples
 ** Low
 *** [[./open/24.org][#24]] Music scale viewer: ongoing improvements
