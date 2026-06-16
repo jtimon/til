@@ -33,6 +33,24 @@ test_string_concat := test() {
     assert_eq_str(__LOC__, result, "hello world")
 }
 
+// Test 4b: variadic (`..Str`) folding through a wrapper (issue #277). A
+// pure wrapper that forwards comptime args into `format(..Str)` folds to
+// the baked literal: the const-folder evals through the variadic param and
+// the typer's `for s in parts` lowering (a bounds-checked `Array.get` with
+// a `panic` error branch). Before #277 the `..T` param turned folding off
+// and the wrapper + a runtime `format(...)` ran instead. Inspect
+// test/constfold.c: `vfmt`/`vfmt2` must be gone and `r`/`r2` baked as
+// "hello world" / "a-b-c".
+vfmt := func(a: Str, b: Str) returns Str { return format(a, b) }
+vfmt2 := func(a: Str, b: Str, c: Str) returns Str { return format(a, "-", b, "-", c) }
+
+test_variadic_fold := test() {
+    r := vfmt("hello", " world")
+    assert_eq_str(__LOC__, r, "hello world")
+    r2 := vfmt2("a", "b", "c")
+    assert_eq_str(__LOC__, r2, "a-b-c")
+}
+
 // Test 5: lolalalo -- recursive vs iterative. Generates the 4-syllable
 // permutation poem at compile time. Inspired by rstil/src/examples/lolalalo.til.
 // Top-level `poem` so the recursion doesn't need first-class nested funcs.

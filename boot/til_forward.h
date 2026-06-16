@@ -3078,6 +3078,7 @@ Bool priv___src_self_constfolder_til__constfolder_has_macro(Context * ctx, Str *
 Bool priv___src_self_constfolder_til__constfolder_has_func(Context * ctx, Str * name);
 Map__Str_Bool * priv___src_self_constfolder_til__make_side_effecting_names(void);
 Bool priv___src_self_constfolder_til__is_side_effecting_name(Str * name);
+Bool priv___src_self_constfolder_til__is_fold_abort_name(Str * name);
 U8 priv___src_self_constfolder_til__hex_digit_value(I8 b);
 Str * priv___src_self_constfolder_til__from_source_form(Str * s);
 Bool priv___src_self_constfolder_til__needs_source_escape(Str * s);
@@ -3087,7 +3088,7 @@ Value priv___src_self_constfolder_til__expr_to_value(Expr * e, Context * ctx);
 Bool priv___src_self_constfolder_til__is_known(Context * ctx, Expr * e, Value * out);
 Bool priv___src_self_constfolder_til__is_known_check(Context * ctx, Expr * e);
 Bool priv___src_self_constfolder_til__body_has_local(Expr * body, Str * name);
-Bool priv___src_self_constfolder_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * constfolder_scope, Expr * body_root, Bool lenient, Set__Str * visiting, Context * ctx);
+Bool priv___src_self_constfolder_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * constfolder_scope, Expr * body_root, Bool lenient, Bool top_level, Set__Str * visiting, Context * ctx);
 Expr * priv___src_self_constfolder_til__extract_trivial_literal_return(Expr * fdef);
 void * priv___src_self_constfolder_til__ns_lookup_flat(Str * name, Context * ctx);
 Str * priv___src_self_constfolder_til__fa_recv_type_name(Expr * callee, Context * ctx);

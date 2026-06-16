@@ -1,6 +1,38 @@
 # priority: medium
 # category: bugs
-** OPEN #277 Const-folder cannot fold variadic (`..T`) calls
+** FIXED #277 Const-folder cannot fold variadic (`..T`) calls
+
+*** Post-mortem
+
+Root cause was two-layered, both in ~src/self/constfolder.til~:
+
+1. ~body_has_local~ only recognised ~NodeType.Decl~ names, not ~ForIn~
+   loop variables (which live in the ~ForIn~ payload). So
+   ~func_uses_unknown_globals~ flagged a ~for~-in loop variable as an
+   "unknown global".
+
+2. The dominant blocker: the typer lowers a ~for s in parts~ loop over a
+   ~..T~ array into a bounds-checked ~Array.get~ whose error branch calls
+   ~panic~. ~func_uses_unknown_globals~ (the static reachability pre-filter
+   for folds) treats ~panic~ as a hard side-effecting blocker, so any
+   wrapper that forwards comptime args into ~format(..Str)~ (or any free
+   function that iterates a collection) was rejected before the interpreter
+   ever ran. That ~panic~ sits on a failure path valid comptime inputs never
+   reach, so the fold eval would have run cleanly.
+
+Fix: added the ~ForIn~ case to ~body_has_local~, and introduced
+~is_fold_abort_name~ (panic/TODO/UNREACHABLE). These abort builtins are now
+allowed inside a transitively *called* function's body (threaded via a new
+~top_level~ parameter on ~func_uses_unknown_globals~), where they are dead
+on the fold path, but stay hard blockers inside the directly-folded body --
+so ~assert~ (whose own body is ~if cond.not() { panic(...) }; return true~)
+still never folds. Without that distinction ~assert(loc, true)~ folded to a
+bare ~true~ literal statement and broke the whole suite.
+
+Regression test: ~test_variadic_fold~ in ~test/constfold.til~ (folds
+~vfmt(a,b)~ / ~vfmt2(a,b,c)~ wrappers around ~format(..Str)~ to baked
+string literals; the helpers are eliminated from the checked-in
+~test/constfold.c~ snapshot).
 
 The compile-time constant folder (~src/self/constfolder.til~, formerly
 ~precomp.til~) never folds a call that routes through a variadic

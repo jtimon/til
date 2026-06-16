@@ -78,6 +78,29 @@ priv is_side_effecting_name := func(name: Str) returns Bool {
     return side_effecting_names.has(name)
 }
 
+// Diverging "abort" builtins. They are side-effecting (panic prints and
+// exit()s), so a DIRECT fold of them is refused via is_side_effecting_name.
+// In func_uses_unknown_globals they are allowed ONLY inside a transitively
+// CALLED function's body, never inside the body being folded directly (the
+// `top_level` walk). Rationale:
+//   * Issue #277: core `format(..Str)` lowers its `for s in parts` loop into
+//     a bounds-checked `Array.get` whose error branch calls `panic`. A
+//     wrapper like `func(a,b){ return format(a,b) }` calls format
+//     transitively; that panic sits on a failure path valid comptime inputs
+//     never reach, so the eval runs cleanly and bakes the literal. Blocking
+//     it statically is what stopped every variadic/`..T` wrapper from folding.
+//   * A foldable func whose OWN body reaches an abort (canonically `assert`:
+//     `if cond.not() { panic(...) }; return true`) must NOT fold. Folding
+//     `assert(loc, true)` to `true` both drops the runtime check and leaves a
+//     bare-literal statement the interpreter rejects, so abort names in the
+//     directly-folded body stay hard blockers.
+// If a transitively-reached abort DOES fire at fold time, the interpreter
+// surfaces it loudly -- the same behaviour method-body folds (Array.get etc.)
+// already have.
+priv is_fold_abort_name := func(name: Str) returns Bool {
+    return name.eq("panic").or(name.eq("TODO")).or(name.eq("UNREACHABLE"))
+}
+
 // Inverse of str_to_source_form: convert source-form text (with C-style
 // escape sequences `\n`, `\"`, `\xNN`, ...) into the raw bytes that the
 // C compiler produces for the same literal at runtime. Needed so that
@@ -486,6 +509,12 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
     switch body.node_type {
     case NodeType.Decl(dd):
         if dd.name.eq(name) { return true }
+    case NodeType.ForIn(fd):
+        // for-in loop variables live in the ForIn payload, not as a Decl
+        // child. The interpreter binds them when it walks the loop, so
+        // they are body-locals just like a Decl name -- don't flag them
+        // as unknown globals.
+        if fd.name.eq(name) { return true }
     case NodeType.FuncDef:
         return false
     case:
@@ -502,11 +531,19 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
 // any Ident not in params/known/scope is unknown, which keeps macro
 // fold from forcing eval into a body whose hoisted temps the eval
 // scope can't see.
-priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
+priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scope: Scope, body_root: Expr, lenient: Bool, top_level: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef:
         return false
     case NodeType.Ident(name):
+        // Diverging abort builtins (panic/TODO/UNREACHABLE) inside a
+        // transitively CALLED body sit on failure branches valid comptime
+        // inputs never reach (e.g. format's for-in bounds check). Treat them
+        // as a safe terminal there: don't flag them, don't recurse into their
+        // exit/println-calling bodies. In the directly-folded body
+        // (top_level) they stay hard blockers so `assert` & friends never
+        // fold. See is_fold_abort_name.
+        if top_level.not().and(is_fold_abort_name(name.ident_name())) { return false }
         // Side-effecting names are "unknown" for fold purposes: their
         // bodies aren't, but invoking them at compile time would kill
         // or corrupt the build.
@@ -534,7 +571,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
                     case NodeType.FuncDef:
                         if fdef.children.len().gt(0) {
                             ref called_body : Expr = fdef.children[0]
-                            if func_uses_unknown_globals(called_body, fdef, constfolder_scope, called_body, lenient, visiting, ctx) {
+                            if func_uses_unknown_globals(called_body, fdef, constfolder_scope, called_body, lenient, false, visiting, ctx) {
                                 return true
                             }
                         }
@@ -564,7 +601,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
     case:
     }
     for e_ci : Expr in e.children {
-        if func_uses_unknown_globals(e_ci, func_def, constfolder_scope, body_root, lenient, visiting, ctx) { return true }
+        if func_uses_unknown_globals(e_ci, func_def, constfolder_scope, body_root, lenient, top_level, visiting, ctx) { return true }
     }
     return false
 }
@@ -769,7 +806,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
                     mut fuug_visiting := Set(Str).new()
-                    uses_unknown := func_uses_unknown_globals(fdef.children[0], fdef, scope, fdef.children[0], true, fuug_visiting, ctx)
+                    uses_unknown := func_uses_unknown_globals(fdef.children[0], fdef, scope, fdef.children[0], true, true, fuug_visiting, ctx)
                     own fuug_visiting.delete(true)
                     if uses_unknown {
                         return NULL
