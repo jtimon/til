@@ -673,7 +673,7 @@ ref result_box : ExprPtrBox = m.get(key)
 // result_box.ptr is the Expr*
 #+end_src
 
-Working example in ~src/self/dispatch.til~: ~ExprPtrBox~ for
+Working example in ~src/self/interpreter.til~: ~ExprPtrBox~ for
 ~ffi_struct_defs~, ~FFITypePtrBox~ for ~ffi_type_cache~.
 
 *** Set

@@ -6,11 +6,6 @@
 ext_func system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
-* interp_error
-#+begin_src til
-proc interp_error(e: Expr, msg: Str, ctx: Context)
-#+end_src
-
 * StructInstance
 #+begin_src til
 struct StructInstance {
@@ -141,79 +136,14 @@ func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
 func val_none() returns shallow Value
 #+end_src
 
-* val_u8
-#+begin_src til
-func val_u8(shallow v: I64) returns shallow Value
-#+end_src
-
-* val_i8
-#+begin_src til
-func val_i8(shallow v: I64) returns shallow Value
-#+end_src
-
-* val_i16
-#+begin_src til
-func val_i16(shallow v: I64) returns shallow Value
-#+end_src
-
-* val_u16
-#+begin_src til
-func val_u16(shallow v: I64) returns shallow Value
-#+end_src
-
-* val_i32
-#+begin_src til
-func val_i32(shallow v: I64) returns shallow Value
-#+end_src
-
-* val_u32
-#+begin_src til
-func val_u32(shallow v: I64) returns shallow Value
-#+end_src
-
 * ENUM_PAYLOAD_OFFSET
 #+begin_src til
 ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
-* make_enum_value
-#+begin_src til
-func make_enum_value(enum_name: Str, data: Dynamic, shallow data_size: U32, shallow borrowed: Bool, shallow is_str: Bool, ctx: Context) returns shallow Value
-#+end_src
-
-* val_enum_flat
-#+begin_src til
-func val_enum_flat(enum_name: Str, shallow etag: I32, payload_data: Dynamic, shallow payload_size: U32, shallow total_enum_size: U32, shallow str_payload: Bool, shallow move_src: Bool, ctx: Context) returns shallow Value
-#+end_src
-
-* is_value_ptr
-#+begin_src til
-func is_value_ptr(v: Value) returns shallow Bool
-#+end_src
-
 * eval_expr
 #+begin_src til
 proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
-#+end_src
-
-* reinterpret_ptr_value
-#+begin_src til
-func reinterpret_ptr_value(val: Value, type_name: Str, scope: Scope, ctx: Context, shallow borrow: Bool) returns Value
-#+end_src
-
-* eval_call
-#+begin_src til
-proc eval_call(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
-#+end_src
-
-* free_value_full
-#+begin_src til
-func free_value_full(shallow v: Value)
-#+end_src
-
-* make_struct_value
-#+begin_src til
-func make_struct_value(sname: Str, sdef: Expr, data: Dynamic, shallow borrowed: Bool, ctx: Context) returns shallow Value
 #+end_src
 
 * scope_get
@@ -261,11 +191,6 @@ func make_str_value(data: Dynamic, shallow len: U32, ctx: Context) returns shall
 func make_str_value_view(data: Dynamic, shallow len: U32, ctx: Context) returns shallow Value
 #+end_src
 
-* make_str_value_own
-#+begin_src til
-func make_str_value_own(data: Dynamic, shallow len: U32, ctx: Context) returns shallow Value
-#+end_src
-
 * str_view
 #+begin_src til
 func str_view(shallow v: Value) returns shallow Str
@@ -284,6 +209,111 @@ func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, 
 * cmd_interpret
 #+begin_src til
 proc cmd_interpret(lp: LoadedProgram, user_argv: Vec__Str) returns shallow I32
+#+end_src
+
+* FFIEntry
+#+begin_src til
+struct FFIEntry {
+    ref mut fn : U8
+    ref mut return_type : Str
+    mut nparam : U32
+    ref mut param_shallows : U8
+    mut return_is_shallow : Bool
+    mut return_is_ref : Bool
+    ref mut cif : ffi_cif
+    ref mut arg_types : Dynamic
+namespace:
+    func clone(self: FFIEntry) returns FFIEntry
+    func delete(own self: FFIEntry, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ExprPtrBox
+#+begin_src til
+struct ExprPtrBox {
+    ref mut ptr : Expr
+namespace:
+    func clone(self: ExprPtrBox) returns ExprPtrBox
+    func delete(own self: ExprPtrBox, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* FFITypePtrBox
+#+begin_src til
+struct FFITypePtrBox {
+    ref mut ptr : ffi_type
+namespace:
+    func clone(self: FFITypePtrBox) returns FFITypePtrBox
+    func delete(own self: FFITypePtrBox, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
+* ffi_reset
+#+begin_src til
+proc ffi_reset(ctx: Context)
+#+end_src
+
+* ffi_load_global_lib
+#+begin_src til
+ext_func ffi_load_global_lib(soname: Str) returns shallow Bool
+#+end_src
+
+* ffi_open_user_so
+#+begin_src til
+ext_func ffi_open_user_so(path: Str) returns shallow Bool
+#+end_src
+
+* ffi_close_user_so
+#+begin_src til
+ext_proc ffi_close_user_so()
+#+end_src
+
+* ffi_user_symbol
+#+begin_src til
+ext_func ffi_user_symbol(name: Str) returns ref U8
+#+end_src
+
+* ffi_global_symbol
+#+begin_src til
+ext_func ffi_global_symbol(name: Str) returns ref U8
+#+end_src
+
+* ffi_last_error
+#+begin_src til
+ext_func ffi_last_error() returns Str
+#+end_src
+
+* stderr_print
+#+begin_src til
+ext_func stderr_print(msg: Str) returns shallow I32
+#+end_src
+
+* unlink_path
+#+begin_src til
+ext_proc unlink_path(path: Str)
+#+end_src
+
+* process_id
+#+begin_src til
+ext_func process_id() returns shallow I32
+#+end_src
+
+* ffi_init_struct_defs_append
+#+begin_src til
+func ffi_init_struct_defs_append(program: Expr, ctx: Context)
+#+end_src
+
+* ffi_init_scan_program
+#+begin_src til
+proc ffi_init_scan_program(program: Expr, ctx: Context)
+#+end_src
+
+* ffi_cleanup
+#+begin_src til
+proc ffi_cleanup(ctx: Context)
 #+end_src
 
 * Map__Str_Binding

@@ -387,7 +387,7 @@ deep deletes + cleanup removals. Results, in order:
   - The ~borrow_value~ fix DID clear the earlier Str-view read UAF -- reads no
     longer dangle. Good: the move/borrow framing is correct as far as it goes.
   - But the deep delete then hit a NEW use-after-free in ~enum_method_dispatch~
-    (dispatch.til). It does ~pdata = to_ptr(si.data)~ -- a RAW pointer into the
+    (interpreter.til). It does ~pdata = to_ptr(si.data)~ -- a RAW pointer into the
     payload Value's heap -- then ~val_enum_flat(..., pdata, ...)~ memcpys from
     it, then ~free(own pdata)~. The garbager schedules the payload Value's deep
     ~Value.delete~ at the Value's last use, which is the ~to_ptr~ (everything
@@ -498,7 +498,7 @@ garbager never frees params):
 
 Route every ~type_name := str_view(eval_expr(s, e.child(N), ctx))~ and
 ~v := eval_expr(...); name := str_view(v)~ in the ~h_*~ builtins
-(src/self/dispatch.til: ~h_dyn_fn~, ~h_dyn_has_method~, ~h_dyn_size_of~,
+(src/self/interpreter.til: ~h_dyn_fn~, ~h_dyn_has_method~, ~h_dyn_size_of~,
 ~h_dyn_call~, ~h_cfile_open~, ~h_cfile_write_str~, and the ~struct_field_*~
 introspection set) through ~eval_str_owned~. ~eval_str_owned~ must be a ~proc~
 (it calls ~eval_expr~, a proc), else every builtin that called it trips the
@@ -506,7 +506,7 @@ introspection set) through ~eval_str_owned~. ~eval_str_owned~ must be a ~proc~
 
 *** Other concrete sites already found
 
-  - ~enum_method_dispatch~ (dispatch.til): mark the payload ~si.borrowed = true~
+  - ~enum_method_dispatch~ (interpreter.til): mark the payload ~si.borrowed = true~
     / ~cloned_ei.borrowed = true~ when ~must_free_pdata~ -- the manual
     ~free(own pdata)~ after ~val_enum_flat~ is the sole owner; the garbager's
     deep delete must hand off.
@@ -522,7 +522,7 @@ introspection set) through ~eval_str_owned~. ~eval_str_owned~ must be a ~proc~
     ~track_literal_known_only~, ~constfolder_clear_known~, the FuncDef snapshot)
     and the bare-FCall ~discarded~ in eval_body -- once the delete is deep, the
     garbager and ~Map.clear~/~Map.set~ reclaim these; keeping them double-frees.
-    ~h_free~ (dispatch.til): null ~val~ after ~free_value_full(val)~.
+    ~h_free~ (interpreter.til): null ~val~ after ~free_value_full(val)~.
 
 *** Remaining failures when the patch stopped (12 files)
 

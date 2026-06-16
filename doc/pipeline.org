@@ -114,8 +114,8 @@ There are two main back ends.
   - `interpret(ast, ...)`
   - [[file:../src/self/interpreter.til][src/self/interpreter.til]]
   - For calls into native C libraries the interpreter routes through
-    the FFI dispatcher in
-    [[file:../src/self/dispatch.til][src/self/dispatch.til]]
+    its own FFI dispatcher, in the same
+    [[file:../src/self/interpreter.til][src/self/interpreter.til]]
     (libffi-backed `ext_func`/`ext_proc` calls).
 
 - Build:
@@ -155,8 +155,8 @@ There are two main back ends.
 - Garbager inserts the automatic destructor calls.
 - Constfolder folds comptime work.
 - Scavenger removes unused leftovers.
-- Builder/interpreter are the final execution back ends; dispatch
-  handles the interpreter's FFI calls and targets defines build targets.
+- Builder/interpreter are the final execution back ends; the interpreter
+  also handles its own FFI calls and targets defines build targets.
 - Binder is a standalone C-header -> til bindings generator, outside
   the main pipeline.
 
@@ -172,6 +172,6 @@ That is the current practical phase order to keep in mind when debugging:
 - comptime folding issue: `src/self/constfolder.til`
 - generated C / linkage issue: `src/self/builder.til`
 - cross-compile target/lang issue: `src/self/targets.til`
-- interpreter FFI call into native C: `src/self/dispatch.til`
+- interpreter FFI call into native C: `src/self/interpreter.til`
 - runtime behavior mismatch: `src/self/interpreter.til` or `src/c/ext.c`
 - generated vendor bindings wrong: `src/self/binder.til`
