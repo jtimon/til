@@ -273,6 +273,8 @@ namespace:
     func clone(_self: ffi_closure) returns ffi_closure
     func delete(own self: ffi_closure, shallow call_free: Bool)
     func hash(self: ffi_closure, hasher: HashFn) returns shallow U64
+    func eq(_self: ffi_closure, _other: ffi_closure) returns shallow Bool
+    func to_str(_self: ffi_closure) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -299,6 +301,8 @@ namespace:
     func clone(_self: ffi_raw_closure) returns ffi_raw_closure
     func delete(own self: ffi_raw_closure, shallow call_free: Bool)
     func hash(self: ffi_raw_closure, hasher: HashFn) returns shallow U64
+    func eq(_self: ffi_raw_closure, _other: ffi_raw_closure) returns shallow Bool
+    func to_str(_self: ffi_raw_closure) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -310,6 +314,8 @@ namespace:
     func clone(_self: ffi_java_raw_closure) returns ffi_java_raw_closure
     func delete(own self: ffi_java_raw_closure, shallow call_free: Bool)
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns shallow U64
+    func eq(_self: ffi_java_raw_closure, _other: ffi_java_raw_closure) returns shallow Bool
+    func to_str(_self: ffi_java_raw_closure) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -341,6 +347,8 @@ namespace:
     func clone(_self: ffi_go_closure) returns ffi_go_closure
     func delete(own self: ffi_go_closure, shallow call_free: Bool)
     func hash(self: ffi_go_closure, hasher: HashFn) returns shallow U64
+    func eq(_self: ffi_go_closure, _other: ffi_go_closure) returns shallow Bool
+    func to_str(_self: ffi_go_closure) returns Str
     func size() returns shallow U32
 }
 #+end_src

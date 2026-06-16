@@ -53,9 +53,9 @@ namespace:
 * TypeScope
 #+begin_src til
 struct TypeScope {
-    mut bindings : Map
-    mut func_defs : Map
-    mut struct_defs : Map
+    mut bindings : Map__Str_TypeBinding
+    mut func_defs : Map__Str_Dynamic
+    mut struct_defs : Map__Str_Dynamic
     ref mut parent : TypeScope
 namespace:
     func get_binding(self: TypeScope, name: Str) returns ref TypeBinding
@@ -104,45 +104,45 @@ namespace:
 struct Context {
     mut mode : Mode
     mut path : Str
-    mut path_modes : Map
+    mut path_modes : Map__Str_Mode
     mut compile_mode : Bool
-    mut imported : Map
-    mut imports_init_seed_done : Set
-    mut imports_init_active : Set
-    mut imports_init_done : Set
-    mut imports_typer_decls_done : Set
-    mut imports_typer_bodies_done : Set
-    mut imports_precomp_done : Set
-    mut imports_eval_done : Set
-    mut type_gen_synths : Set
+    mut imported : Map__Str_ImportUnit
+    mut imports_init_seed_done : Set__Str
+    mut imports_init_active : Set__Str
+    mut imports_init_done : Set__Str
+    mut imports_typer_decls_done : Set__Str
+    mut imports_typer_bodies_done : Set__Str
+    mut imports_precomp_done : Set__Str
+    mut imports_eval_done : Set__Str
+    mut type_gen_synths : Set__Str
     mut scope : TypeScope
     mut is_repl : Bool
-    mut struct_layouts : Map
-    mut precomp_macros : Set
-    mut precomp_funcs : Set
-    mut precomp_known : Map
-    mut precomp_assigned : Set
+    mut struct_layouts : Map__Str_StructLayout
+    mut precomp_macros : Set__Str
+    mut precomp_funcs : Set__Str
+    mut precomp_known : Map__Str_Value
+    mut precomp_assigned : Set__Str
     mut has_return : Bool
     mut has_break : Bool
     mut has_continue : Bool
     mut return_value : Value
-    mut ns_fields : Map
+    mut ns_fields : Map__Str_Value
     mut ns_keys : Vec__Dynamic
     mut ns_inited : Bool
     mut typing_namespace_member : Bool
-    mut local_fn_sigs : Map
+    mut local_fn_sigs : Map__Str_Dynamic
     mut closure_emit_env : Str
-    mut closure_emit_captures : Set
-    mut func_defs : Map
-    mut struct_def_exprs : Map
-    mut funcsig_names : Set
-    mut closure_value_names : Set
-    mut script_globals : Set
-    mut ref_globals : Set
+    mut closure_emit_captures : Set__Str
+    mut func_defs : Map__Str_Dynamic
+    mut struct_def_exprs : Map__Str_Dynamic
+    mut funcsig_names : Set__Str
+    mut closure_value_names : Set__Str
+    mut script_globals : Set__Str
+    mut ref_globals : Set__Str
     mut throw_type_registry : Vec__Str
-    mut throws_global : Map
+    mut throws_global : Map__Str_call_Vec_Str
     mut bang_counter : I64
-    mut lowering_param_types : Map
+    mut lowering_param_types : Map__Str_Str
     mut typer_in_shallow_return : Bool
     mut typer_in_main_func : Bool
     mut typer_return_type_name : Str
@@ -159,14 +159,14 @@ struct Context {
     mut current_type_name : Str
     mut current_top_func_name : Str
     mut auto_gen_depth : I32
-    mut throw_used_local_names : Set
-    mut stack_locals : Set
-    mut stack_local_types : Map
-    mut unsafe_to_hoist : Set
-    mut ref_locals : Set
-    mut ptr_locals : Set
-    mut ref_dyn_locals : Set
-    mut swap_freed : Set
+    mut throw_used_local_names : Set__Str
+    mut stack_locals : Set__Str
+    mut stack_local_types : Map__Str_Str
+    mut unsafe_to_hoist : Set__Str
+    mut ref_locals : Set__Str
+    mut ptr_locals : Set__Str
+    mut ref_dyn_locals : Set__Str
+    mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
     ref mut cached_str_name : Str
@@ -174,13 +174,13 @@ struct Context {
     ref mut cached_array_name : Str
     ref mut cached_vec_def : Expr
     ref mut cached_vec_name : Str
-    mut interp_type_defs : Map
-    mut dispatch_map : Map
+    mut interp_type_defs : Map__Str_Dynamic
+    mut dispatch_map : Map__Str_Dynamic
     mut dispatch_inited : Bool
-    mut ffi_map : Map
+    mut ffi_map : Map__Str_FFIEntry
     mut ffi_map_inited : Bool
     mut ffi_loaded : Bool
-    mut ffi_struct_defs : Map
+    mut ffi_struct_defs : Map__Str_ExprPtrBox
     mut ffi_type_cache : Vec__FFITypePtrBox
     mut ffi_type_cache_inited : Bool
 namespace:
@@ -300,6 +300,181 @@ func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
 func enum_variant_payload_const(enum_def: Expr, shallow tag: I32) returns shallow Bool
 #+end_src
 
+* Map__Str_TypeBinding
+#+begin_src til
+struct Map__Str_TypeBinding {
+    mut keys : Vec__Str
+    mut values : Vec__TypeBinding
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_TypeBinding
+    func len(self: Map__Str_TypeBinding) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_TypeBinding)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_TypeBinding, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_TypeBinding, i: U32) returns ref TypeBinding
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_TypeBinding, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref TypeBinding
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
+    func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
+    func clone(self: Map__Str_TypeBinding) returns Map__Str_TypeBinding
+    func hash(self: Map__Str_TypeBinding, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_Mode
+#+begin_src til
+struct Map__Str_Mode {
+    mut keys : Vec__Str
+    mut values : Vec__Mode
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_Mode
+    func len(self: Map__Str_Mode) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_Mode)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_Mode, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_Mode, i: U32) returns ref Mode
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_Mode, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_Mode, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Mode
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_Mode, key: Str, own val: Mode)
+    func delete(own self: Map__Str_Mode, shallow call_free: Bool)
+    func clone(self: Map__Str_Mode) returns Map__Str_Mode
+    func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_ImportUnit
+#+begin_src til
+struct Map__Str_ImportUnit {
+    mut keys : Vec__Str
+    mut values : Vec__ImportUnit
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_ImportUnit
+    func len(self: Map__Str_ImportUnit) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_ImportUnit)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_ImportUnit, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_ImportUnit, i: U32) returns ref ImportUnit
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_ImportUnit, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_ImportUnit, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref ImportUnit
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
+    func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
+    func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
+    func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_StructLayout
+#+begin_src til
+struct Map__Str_StructLayout {
+    mut keys : Vec__Str
+    mut values : Vec__StructLayout
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_StructLayout
+    func len(self: Map__Str_StructLayout) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_StructLayout)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_StructLayout, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_StructLayout, i: U32) returns ref StructLayout
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_StructLayout, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_StructLayout, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref StructLayout
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
+    func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
+    func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
+    func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_Value
+#+begin_src til
+struct Map__Str_Value {
+    mut keys : Vec__Str
+    mut values : Vec__Value
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_Value
+    func len(self: Map__Str_Value) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_Value)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_Value, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_Value, i: U32) returns ref Value
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_Value, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_Value, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Value
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_Value, key: Str, own val: Value)
+    func delete(own self: Map__Str_Value, shallow call_free: Bool)
+    func clone(self: Map__Str_Value) returns Map__Str_Value
+    func hash(self: Map__Str_Value, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 * Vec__Dynamic
 #+begin_src til
 struct Vec__Dynamic {
@@ -353,6 +528,146 @@ namespace:
 }
 #+end_src
 
+* Map__Str_call_Vec_Str
+#+begin_src til
+struct Map__Str_call_Vec_Str {
+    mut keys : Vec__Str
+    mut values : Vec__call_Vec_Str
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_call_Vec_Str
+    func len(self: Map__Str_call_Vec_Str) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_call_Vec_Str)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_call_Vec_Str, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_call_Vec_Str, i: U32) returns ref Vec__Str
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_call_Vec_Str, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Vec__Str
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
+    func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
+    func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
+    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_Dynamic
+#+begin_src til
+struct Map__Str_Dynamic {
+    mut keys : Vec__Str
+    mut values : Vec__Dynamic
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_Dynamic
+    func len(self: Map__Str_Dynamic) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_Dynamic)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_Dynamic, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_Dynamic, i: U32) returns ref Dynamic
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_Dynamic, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Dynamic
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
+    func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
+    func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
+    func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_FFIEntry
+#+begin_src til
+struct Map__Str_FFIEntry {
+    mut keys : Vec__Str
+    mut values : Vec__FFIEntry
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_FFIEntry
+    func len(self: Map__Str_FFIEntry) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_FFIEntry)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_FFIEntry, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_FFIEntry, i: U32) returns ref FFIEntry
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref FFIEntry
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
+    func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
+    func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
+    func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_ExprPtrBox
+#+begin_src til
+struct Map__Str_ExprPtrBox {
+    mut keys : Vec__Str
+    mut values : Vec__ExprPtrBox
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_ExprPtrBox
+    func len(self: Map__Str_ExprPtrBox) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_ExprPtrBox)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_ExprPtrBox, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_ExprPtrBox, i: U32) returns ref ExprPtrBox
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref ExprPtrBox
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
+    func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
+    func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
+    func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 * Vec__FFITypePtrBox
 #+begin_src til
 struct Vec__FFITypePtrBox {
@@ -402,6 +717,430 @@ namespace:
     func delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__TypeBinding
+#+begin_src til
+struct Vec__TypeBinding {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__TypeBinding
+    func len(self: Vec__TypeBinding) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__TypeBinding)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__TypeBinding, own val: TypeBinding)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__TypeBinding, own other: Vec__TypeBinding)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__TypeBinding, mut other: Vec__TypeBinding)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__TypeBinding, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref TypeBinding
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__TypeBinding) returns TypeBinding
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__TypeBinding, shallow n: U32) returns Vec__TypeBinding
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__TypeBinding, shallow i: U32, own val: TypeBinding)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__TypeBinding, mut src: Vec__TypeBinding, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__TypeBinding, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__TypeBinding) returns Vec__TypeBinding
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__Mode
+#+begin_src til
+struct Vec__Mode {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Mode
+    func len(self: Vec__Mode) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Mode)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Mode, own val: Mode)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Mode, own other: Vec__Mode)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Mode, mut other: Vec__Mode)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Mode, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Mode
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Mode) returns Mode
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Mode, shallow n: U32) returns Vec__Mode
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__Mode, shallow i: U32, own val: Mode)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Mode, mut src: Vec__Mode, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Mode, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Mode) returns Vec__Mode
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__ImportUnit
+#+begin_src til
+struct Vec__ImportUnit {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__ImportUnit
+    func len(self: Vec__ImportUnit) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__ImportUnit)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__ImportUnit, own val: ImportUnit)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__ImportUnit, own other: Vec__ImportUnit)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__ImportUnit, mut other: Vec__ImportUnit)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__ImportUnit, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref ImportUnit
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__ImportUnit) returns ImportUnit
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__ImportUnit, shallow n: U32) returns Vec__ImportUnit
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__ImportUnit, shallow i: U32, own val: ImportUnit)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__ImportUnit, mut src: Vec__ImportUnit, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__ImportUnit, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__ImportUnit) returns Vec__ImportUnit
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__StructLayout
+#+begin_src til
+struct Vec__StructLayout {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__StructLayout
+    func len(self: Vec__StructLayout) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__StructLayout)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__StructLayout, own val: StructLayout)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__StructLayout, own other: Vec__StructLayout)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__StructLayout, mut other: Vec__StructLayout)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__StructLayout, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref StructLayout
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__StructLayout) returns StructLayout
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__StructLayout, shallow n: U32) returns Vec__StructLayout
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__StructLayout, shallow i: U32, own val: StructLayout)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__StructLayout, mut src: Vec__StructLayout, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__StructLayout, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__StructLayout) returns Vec__StructLayout
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__Value
+#+begin_src til
+struct Vec__Value {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Value
+    func len(self: Vec__Value) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Value)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Value, own val: Value)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Value, own other: Vec__Value)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Value, mut other: Vec__Value)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Value, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Value
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Value) returns Value
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Value, shallow n: U32) returns Vec__Value
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__Value, shallow i: U32, own val: Value)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Value, mut src: Vec__Value, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Value, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Value) returns Vec__Value
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__call_Vec_Str
+#+begin_src til
+struct Vec__call_Vec_Str {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__call_Vec_Str
+    func len(self: Vec__call_Vec_Str) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__call_Vec_Str)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__call_Vec_Str, mut other: Vec__call_Vec_Str)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__call_Vec_Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Vec__Str
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__call_Vec_Str, shallow n: U32) returns Vec__call_Vec_Str
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__call_Vec_Str, shallow i: U32, own val: Vec__Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__FFIEntry
+#+begin_src til
+struct Vec__FFIEntry {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__FFIEntry
+    func len(self: Vec__FFIEntry) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__FFIEntry)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__FFIEntry, own val: FFIEntry)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__FFIEntry, own other: Vec__FFIEntry)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__FFIEntry, mut other: Vec__FFIEntry)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__FFIEntry, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref FFIEntry
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__FFIEntry) returns FFIEntry
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__FFIEntry, shallow n: U32) returns Vec__FFIEntry
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__FFIEntry, shallow i: U32, own val: FFIEntry)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__FFIEntry, mut src: Vec__FFIEntry, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__FFIEntry, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
+    func size() returns shallow U32
+}
+#+end_src
+
+* Vec__ExprPtrBox
+#+begin_src til
+struct Vec__ExprPtrBox {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__ExprPtrBox
+    func len(self: Vec__ExprPtrBox) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__ExprPtrBox)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__ExprPtrBox, own val: ExprPtrBox)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__ExprPtrBox, own other: Vec__ExprPtrBox)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__ExprPtrBox, mut other: Vec__ExprPtrBox)
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__ExprPtrBox, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref ExprPtrBox
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__ExprPtrBox, shallow n: U32) returns Vec__ExprPtrBox
+    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
+    /// is out of bounds.
+    func set(mut self: Vec__ExprPtrBox, shallow i: U32, own val: ExprPtrBox)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__ExprPtrBox, mut src: Vec__ExprPtrBox, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
     func size() returns shallow U32
 }
 #+end_src

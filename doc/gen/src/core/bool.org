@@ -3,12 +3,12 @@
 
 * and
 #+begin_src til
-ext_func and(shallow a: Bool, shallow b: Bool) returns shallow Bool
+func and(shallow a: Bool, shallow b: Bool) returns shallow Bool
 #+end_src
 
 * or
 #+begin_src til
-ext_func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
+func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
 #+end_src
 
 * not

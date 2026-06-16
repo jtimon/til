@@ -24,6 +24,8 @@ namespace:
     func clone(shallow self: nng_ctx) returns shallow nng_ctx
     func delete(own self: nng_ctx, shallow call_free: Bool)
     func hash(shallow self: nng_ctx, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_ctx, shallow other: nng_ctx) returns shallow Bool
+    func to_str(shallow self: nng_ctx) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -36,6 +38,8 @@ namespace:
     func clone(shallow self: nng_dialer) returns shallow nng_dialer
     func delete(own self: nng_dialer, shallow call_free: Bool)
     func hash(shallow self: nng_dialer, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_dialer, shallow other: nng_dialer) returns shallow Bool
+    func to_str(shallow self: nng_dialer) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -48,6 +52,8 @@ namespace:
     func clone(shallow self: nng_listener) returns shallow nng_listener
     func delete(own self: nng_listener, shallow call_free: Bool)
     func hash(shallow self: nng_listener, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_listener, shallow other: nng_listener) returns shallow Bool
+    func to_str(shallow self: nng_listener) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -60,6 +66,8 @@ namespace:
     func clone(shallow self: nng_pipe) returns shallow nng_pipe
     func delete(own self: nng_pipe, shallow call_free: Bool)
     func hash(shallow self: nng_pipe, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_pipe, shallow other: nng_pipe) returns shallow Bool
+    func to_str(shallow self: nng_pipe) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -72,6 +80,8 @@ namespace:
     func clone(shallow self: nng_socket) returns shallow nng_socket
     func delete(own self: nng_socket, shallow call_free: Bool)
     func hash(shallow self: nng_socket, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_socket, shallow other: nng_socket) returns shallow Bool
+    func to_str(shallow self: nng_socket) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -93,6 +103,8 @@ namespace:
     func clone(_self: nng_msg) returns nng_msg
     func delete(own self: nng_msg, shallow call_free: Bool)
     func hash(self: nng_msg, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_msg, _other: nng_msg) returns shallow Bool
+    func to_str(_self: nng_msg) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -104,6 +116,8 @@ namespace:
     func clone(_self: nng_stat) returns nng_stat
     func delete(own self: nng_stat, shallow call_free: Bool)
     func hash(self: nng_stat, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stat, _other: nng_stat) returns shallow Bool
+    func to_str(_self: nng_stat) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -115,6 +129,8 @@ namespace:
     func clone(_self: nng_aio) returns nng_aio
     func delete(own self: nng_aio, shallow call_free: Bool)
     func hash(self: nng_aio, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_aio, _other: nng_aio) returns shallow Bool
+    func to_str(_self: nng_aio) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -126,6 +142,8 @@ namespace:
     func clone(_self: nng_sockaddr_inproc) returns nng_sockaddr_inproc
     func delete(own self: nng_sockaddr_inproc, shallow call_free: Bool)
     func hash(self: nng_sockaddr_inproc, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_inproc, _other: nng_sockaddr_inproc) returns shallow Bool
+    func to_str(_self: nng_sockaddr_inproc) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -137,6 +155,8 @@ namespace:
     func clone(_self: nng_sockaddr_path) returns nng_sockaddr_path
     func delete(own self: nng_sockaddr_path, shallow call_free: Bool)
     func hash(self: nng_sockaddr_path, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_path, _other: nng_sockaddr_path) returns shallow Bool
+    func to_str(_self: nng_sockaddr_path) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -148,6 +168,8 @@ namespace:
     func clone(_self: nng_sockaddr_ipc) returns nng_sockaddr_ipc
     func delete(own self: nng_sockaddr_ipc, shallow call_free: Bool)
     func hash(self: nng_sockaddr_ipc, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_ipc, _other: nng_sockaddr_ipc) returns shallow Bool
+    func to_str(_self: nng_sockaddr_ipc) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -159,6 +181,8 @@ namespace:
     func clone(_self: nng_sockaddr_in) returns nng_sockaddr_in
     func delete(own self: nng_sockaddr_in, shallow call_free: Bool)
     func hash(self: nng_sockaddr_in, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_in, _other: nng_sockaddr_in) returns shallow Bool
+    func to_str(_self: nng_sockaddr_in) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -170,6 +194,8 @@ namespace:
     func clone(_self: nng_sockaddr_in6) returns nng_sockaddr_in6
     func delete(own self: nng_sockaddr_in6, shallow call_free: Bool)
     func hash(self: nng_sockaddr_in6, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_in6, _other: nng_sockaddr_in6) returns shallow Bool
+    func to_str(_self: nng_sockaddr_in6) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -181,6 +207,8 @@ namespace:
     func clone(_self: nng_sockaddr_zt) returns nng_sockaddr_zt
     func delete(own self: nng_sockaddr_zt, shallow call_free: Bool)
     func hash(self: nng_sockaddr_zt, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_zt, _other: nng_sockaddr_zt) returns shallow Bool
+    func to_str(_self: nng_sockaddr_zt) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -192,6 +220,8 @@ namespace:
     func clone(_self: nng_sockaddr_abstract) returns nng_sockaddr_abstract
     func delete(own self: nng_sockaddr_abstract, shallow call_free: Bool)
     func hash(self: nng_sockaddr_abstract, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_abstract, _other: nng_sockaddr_abstract) returns shallow Bool
+    func to_str(_self: nng_sockaddr_abstract) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -203,6 +233,8 @@ namespace:
     func clone(_self: nng_sockaddr_storage) returns nng_sockaddr_storage
     func delete(own self: nng_sockaddr_storage, shallow call_free: Bool)
     func hash(self: nng_sockaddr_storage, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_storage, _other: nng_sockaddr_storage) returns shallow Bool
+    func to_str(_self: nng_sockaddr_storage) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -1366,6 +1398,8 @@ namespace:
     func clone(_self: nng_stream) returns nng_stream
     func delete(own self: nng_stream, shallow call_free: Bool)
     func hash(self: nng_stream, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stream, _other: nng_stream) returns shallow Bool
+    func to_str(_self: nng_stream) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -1377,6 +1411,8 @@ namespace:
     func clone(_self: nng_stream_dialer) returns nng_stream_dialer
     func delete(own self: nng_stream_dialer, shallow call_free: Bool)
     func hash(self: nng_stream_dialer, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stream_dialer, _other: nng_stream_dialer) returns shallow Bool
+    func to_str(_self: nng_stream_dialer) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -1388,6 +1424,8 @@ namespace:
     func clone(_self: nng_stream_listener) returns nng_stream_listener
     func delete(own self: nng_stream_listener, shallow call_free: Bool)
     func hash(self: nng_stream_listener, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stream_listener, _other: nng_stream_listener) returns shallow Bool
+    func to_str(_self: nng_stream_listener) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -1739,6 +1777,8 @@ namespace:
     func clone(_self: nng_udp) returns nng_udp
     func delete(own self: nng_udp, shallow call_free: Bool)
     func hash(self: nng_udp, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_udp, _other: nng_udp) returns shallow Bool
+    func to_str(_self: nng_udp) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -2315,6 +2355,8 @@ namespace:
     func clone(_self: nng_thread) returns nng_thread
     func delete(own self: nng_thread, shallow call_free: Bool)
     func hash(self: nng_thread, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_thread, _other: nng_thread) returns shallow Bool
+    func to_str(_self: nng_thread) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -2336,6 +2378,8 @@ namespace:
     func clone(_self: nng_mtx) returns nng_mtx
     func delete(own self: nng_mtx, shallow call_free: Bool)
     func hash(self: nng_mtx, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_mtx, _other: nng_mtx) returns shallow Bool
+    func to_str(_self: nng_mtx) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -2367,6 +2411,8 @@ namespace:
     func clone(_self: nng_cv) returns nng_cv
     func delete(own self: nng_cv, shallow call_free: Bool)
     func hash(self: nng_cv, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_cv, _other: nng_cv) returns shallow Bool
+    func to_str(_self: nng_cv) returns Str
     func size() returns shallow U32
 }
 #+end_src

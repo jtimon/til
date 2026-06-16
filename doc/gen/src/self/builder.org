@@ -28,12 +28,12 @@ proc emit_capturing_closure_value(f: File, e: Expr, _depth: I32, _ctx: Context) 
 
 * emit_capturing_closure_func
 #+begin_src til
-proc emit_capturing_closure_func(f: File, closure_expr: Expr, mut emitted: Set, lp: LoadedProgram)
+proc emit_capturing_closure_func(f: File, closure_expr: Expr, mut emitted: Set__Str, lp: LoadedProgram)
 #+end_src
 
 * emit_capturing_closures_in_expr
 #+begin_src til
-proc emit_capturing_closures_in_expr(f: File, e: Expr, mut emitted: Set, lp: LoadedProgram)
+proc emit_capturing_closures_in_expr(f: File, e: Expr, mut emitted: Set__Str, lp: LoadedProgram)
 #+end_src
 
 * emit_capturing_closures_lp
@@ -63,7 +63,7 @@ proc build_forward_header_lp(fwd_path: Str, lp: LoadedProgram) returns shallow I
 
 * collect_closure_value_names
 #+begin_src til
-proc collect_closure_value_names(e: Expr, mut names: Set, ctx: Context)
+proc collect_closure_value_names(e: Expr, mut names: Set__Str, ctx: Context)
 #+end_src
 
 * build_register_closure_values_lp
@@ -122,6 +122,41 @@ namespace:
     func set(self: Array__Bool, shallow i: U32, own val: Bool)
     func delete(own self: Array__Bool, shallow call_free: Bool)
     func clone(self: Array__Bool) returns Array__Bool
+    func size() returns shallow U32
+}
+#+end_src
+
+* Map__Str_U32
+#+begin_src til
+struct Map__Str_U32 {
+    mut keys : Vec__Str
+    mut values : Vec__U32
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_U32
+    func len(self: Map__Str_U32) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_U32)
+    /// Ref to the key slot at sorted index `i`. Unchecked: callers
+    /// guarantee `i < self.keys.count` (Map's binary-search consumers
+    /// always validate before calling). Bypasses Vec.get's throwing
+    /// bounds check.
+    func key_ptr(self: Map__Str_U32, i: U32) returns ref Str
+    /// Ref to the value slot at sorted index `i`. Same caller-validated
+    /// contract as key_ptr.
+    func val_ptr(self: Map__Str_U32, i: U32) returns ref U32
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_U32, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_U32, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref U32
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_U32, key: Str, own val: U32)
+    func delete(own self: Map__Str_U32, shallow call_free: Bool)
+    func clone(self: Map__Str_U32) returns Map__Str_U32
+    func hash(self: Map__Str_U32, hasher: HashFn) returns shallow U64
     func size() returns shallow U32
 }
 #+end_src

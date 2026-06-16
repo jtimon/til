@@ -25,6 +25,8 @@ namespace:
     func clone(shallow self: Vector2) returns shallow Vector2
     func delete(own self: Vector2, shallow call_free: Bool)
     func hash(shallow self: Vector2, hasher: HashFn) returns shallow U64
+    func eq(shallow self: Vector2, shallow other: Vector2) returns shallow Bool
+    func to_str(shallow self: Vector2) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -39,6 +41,8 @@ namespace:
     func clone(self: Vector3) returns Vector3
     func delete(own self: Vector3, shallow call_free: Bool)
     func hash(self: Vector3, hasher: HashFn) returns shallow U64
+    func eq(self: Vector3, other: Vector3) returns shallow Bool
+    func to_str(self: Vector3) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -54,6 +58,8 @@ namespace:
     func clone(self: Vector4) returns Vector4
     func delete(own self: Vector4, shallow call_free: Bool)
     func hash(self: Vector4, hasher: HashFn) returns shallow U64
+    func eq(self: Vector4, other: Vector4) returns shallow Bool
+    func to_str(self: Vector4) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -70,6 +76,8 @@ namespace:
     func clone(_self: Matrix) returns Matrix
     func delete(own self: Matrix, shallow call_free: Bool)
     func hash(self: Matrix, hasher: HashFn) returns shallow U64
+    func eq(_self: Matrix, _other: Matrix) returns shallow Bool
+    func to_str(_self: Matrix) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -85,6 +93,8 @@ namespace:
     func clone(shallow self: Color) returns shallow Color
     func delete(own self: Color, shallow call_free: Bool)
     func hash(shallow self: Color, hasher: HashFn) returns shallow U64
+    func eq(shallow self: Color, shallow other: Color) returns shallow Bool
+    func to_str(shallow self: Color) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -100,6 +110,8 @@ namespace:
     func clone(self: Rectangle) returns Rectangle
     func delete(own self: Rectangle, shallow call_free: Bool)
     func hash(self: Rectangle, hasher: HashFn) returns shallow U64
+    func eq(self: Rectangle, other: Rectangle) returns shallow Bool
+    func to_str(self: Rectangle) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -131,6 +143,8 @@ namespace:
     func clone(self: Texture) returns Texture
     func delete(own self: Texture, shallow call_free: Bool)
     func hash(self: Texture, hasher: HashFn) returns shallow U64
+    func eq(self: Texture, other: Texture) returns shallow Bool
+    func to_str(self: Texture) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -155,6 +169,8 @@ namespace:
     func clone(self: RenderTexture) returns RenderTexture
     func delete(own self: RenderTexture, shallow call_free: Bool)
     func hash(self: RenderTexture, hasher: HashFn) returns shallow U64
+    func eq(self: RenderTexture, other: RenderTexture) returns shallow Bool
+    func to_str(self: RenderTexture) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -177,6 +193,8 @@ namespace:
     func clone(self: NPatchInfo) returns NPatchInfo
     func delete(own self: NPatchInfo, shallow call_free: Bool)
     func hash(self: NPatchInfo, hasher: HashFn) returns shallow U64
+    func eq(self: NPatchInfo, other: NPatchInfo) returns shallow Bool
+    func to_str(self: NPatchInfo) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -225,6 +243,8 @@ namespace:
     func clone(self: Camera3D) returns Camera3D
     func delete(own self: Camera3D, shallow call_free: Bool)
     func hash(self: Camera3D, hasher: HashFn) returns shallow U64
+    func eq(self: Camera3D, other: Camera3D) returns shallow Bool
+    func to_str(self: Camera3D) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -245,6 +265,8 @@ namespace:
     func clone(self: Camera2D) returns Camera2D
     func delete(own self: Camera2D, shallow call_free: Bool)
     func hash(self: Camera2D, hasher: HashFn) returns shallow U64
+    func eq(self: Camera2D, other: Camera2D) returns shallow Bool
+    func to_str(self: Camera2D) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -297,6 +319,8 @@ namespace:
     func clone(self: MaterialMap) returns MaterialMap
     func delete(own self: MaterialMap, shallow call_free: Bool)
     func hash(self: MaterialMap, hasher: HashFn) returns shallow U64
+    func eq(self: MaterialMap, other: MaterialMap) returns shallow Bool
+    func to_str(self: MaterialMap) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -308,6 +332,8 @@ namespace:
     func clone(_self: Material) returns Material
     func delete(own self: Material, shallow call_free: Bool)
     func hash(self: Material, hasher: HashFn) returns shallow U64
+    func eq(_self: Material, _other: Material) returns shallow Bool
+    func to_str(_self: Material) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -322,6 +348,8 @@ namespace:
     func clone(self: Transform) returns Transform
     func delete(own self: Transform, shallow call_free: Bool)
     func hash(self: Transform, hasher: HashFn) returns shallow U64
+    func eq(self: Transform, other: Transform) returns shallow Bool
+    func to_str(self: Transform) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -338,6 +366,8 @@ namespace:
     func clone(_self: BoneInfo) returns BoneInfo
     func delete(own self: BoneInfo, shallow call_free: Bool)
     func hash(self: BoneInfo, hasher: HashFn) returns shallow U64
+    func eq(_self: BoneInfo, _other: BoneInfo) returns shallow Bool
+    func to_str(_self: BoneInfo) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -381,6 +411,8 @@ namespace:
     func clone(_self: ModelAnimation) returns ModelAnimation
     func delete(own self: ModelAnimation, shallow call_free: Bool)
     func hash(self: ModelAnimation, hasher: HashFn) returns shallow U64
+    func eq(_self: ModelAnimation, _other: ModelAnimation) returns shallow Bool
+    func to_str(_self: ModelAnimation) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -394,6 +426,8 @@ namespace:
     func clone(self: Ray) returns Ray
     func delete(own self: Ray, shallow call_free: Bool)
     func hash(self: Ray, hasher: HashFn) returns shallow U64
+    func eq(self: Ray, other: Ray) returns shallow Bool
+    func to_str(self: Ray) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -409,6 +443,8 @@ namespace:
     func clone(self: RayCollision) returns RayCollision
     func delete(own self: RayCollision, shallow call_free: Bool)
     func hash(self: RayCollision, hasher: HashFn) returns shallow U64
+    func eq(self: RayCollision, other: RayCollision) returns shallow Bool
+    func to_str(self: RayCollision) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -422,6 +458,8 @@ namespace:
     func clone(self: BoundingBox) returns BoundingBox
     func delete(own self: BoundingBox, shallow call_free: Bool)
     func hash(self: BoundingBox, hasher: HashFn) returns shallow U64
+    func eq(self: BoundingBox, other: BoundingBox) returns shallow Bool
+    func to_str(self: BoundingBox) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -448,6 +486,8 @@ namespace:
     func clone(_self: rAudioBuffer) returns rAudioBuffer
     func delete(own self: rAudioBuffer, shallow call_free: Bool)
     func hash(self: rAudioBuffer, hasher: HashFn) returns shallow U64
+    func eq(_self: rAudioBuffer, _other: rAudioBuffer) returns shallow Bool
+    func to_str(_self: rAudioBuffer) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -459,6 +499,8 @@ namespace:
     func clone(_self: rAudioProcessor) returns rAudioProcessor
     func delete(own self: rAudioProcessor, shallow call_free: Bool)
     func hash(self: rAudioProcessor, hasher: HashFn) returns shallow U64
+    func eq(_self: rAudioProcessor, _other: rAudioProcessor) returns shallow Bool
+    func to_str(_self: rAudioProcessor) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -513,6 +555,8 @@ namespace:
     func clone(_self: VrDeviceInfo) returns VrDeviceInfo
     func delete(own self: VrDeviceInfo, shallow call_free: Bool)
     func hash(self: VrDeviceInfo, hasher: HashFn) returns shallow U64
+    func eq(_self: VrDeviceInfo, _other: VrDeviceInfo) returns shallow Bool
+    func to_str(_self: VrDeviceInfo) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -524,6 +568,8 @@ namespace:
     func clone(_self: VrStereoConfig) returns VrStereoConfig
     func delete(own self: VrStereoConfig, shallow call_free: Bool)
     func hash(self: VrStereoConfig, hasher: HashFn) returns shallow U64
+    func eq(_self: VrStereoConfig, _other: VrStereoConfig) returns shallow Bool
+    func to_str(_self: VrStereoConfig) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -547,6 +593,8 @@ namespace:
     func clone(_self: AutomationEvent) returns AutomationEvent
     func delete(own self: AutomationEvent, shallow call_free: Bool)
     func hash(self: AutomationEvent, hasher: HashFn) returns shallow U64
+    func eq(_self: AutomationEvent, _other: AutomationEvent) returns shallow Bool
+    func to_str(_self: AutomationEvent) returns Str
     func size() returns shallow U32
 }
 #+end_src

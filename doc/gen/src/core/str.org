@@ -11,11 +11,6 @@ CAP_LIT is a U32
 CAP_VIEW is a U32
 #+end_src
 
-* CAP_STATIC
-#+begin_src til
-CAP_STATIC is a U32
-#+end_src
-
 * format
 Concatenate multiple strings into one.
 
@@ -54,8 +49,8 @@ namespace:
     func push_str(mut self: Str, s: Str)
     /// Deep-copy the string into a new owned Str.
     func clone(val: Str) returns Str
-    /// Free the backing buffer (unless it's a view/literal) and optionally
-    /// the struct allocation.
+    /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
+    /// static literal wrapper, so call_free does not free that wrapper either.
     func delete(own self: Str, shallow call_free: Bool)
     /// Return a view into `s` from `start` for `n` bytes (no allocation).
     /// Clamps to valid bounds.
@@ -166,6 +161,8 @@ namespace:
     func clone(self: OutOfBounds) returns OutOfBounds
     func delete(own self: OutOfBounds, shallow call_free: Bool)
     func hash(self: OutOfBounds, hasher: HashFn) returns shallow U64
+    func eq(self: OutOfBounds, other: OutOfBounds) returns shallow Bool
+    func to_str(self: OutOfBounds) returns Str
     func size() returns shallow U32
 }
 #+end_src
@@ -183,6 +180,8 @@ namespace:
     func clone(self: KeyNotFound) returns KeyNotFound
     func delete(own self: KeyNotFound, shallow call_free: Bool)
     func hash(self: KeyNotFound, hasher: HashFn) returns shallow U64
+    func eq(self: KeyNotFound, other: KeyNotFound) returns shallow Bool
+    func to_str(self: KeyNotFound) returns Str
     func size() returns shallow U32
 }
 #+end_src

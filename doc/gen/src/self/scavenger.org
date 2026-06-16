@@ -18,7 +18,7 @@ func collect_refs(e: Expr, mut refs: Vec__Str)
 
 * scavenge_filter
 #+begin_src til
-func scavenge_filter(mut program: Expr, visited: Set)
+func scavenge_filter(mut program: Expr, visited: Set__Str)
 #+end_src
 
 * dce_program_bodies

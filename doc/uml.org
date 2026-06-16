@@ -122,7 +122,7 @@
 ** EnumDef: StructDef
 *** ns_decls := Vec(Declaration).new()
 *** variants := Vec(Str).new()
-*** payload_types : Map = Map.new(I64, Str)
+*** payload_types : Map(I64, Str) = Map(I64, Str).new()
 *** payload_consts := Vec(Bool).new()
 *** implements_name := ""
 ** FieldLayout: StructDef
@@ -196,9 +196,10 @@
 *** path := ""
 *** fn_sig_decls := Vec(Expr).new()
 *** type_gen_decls := Vec(Expr).new()
-*** type_gen_seen := Set.new(Str)
+*** type_gen_seen := Set(Str).new()
+*** active_type_params := Vec(Str).new()
 *** anon_decls := Vec(Expr).new()
-*** anon_cache := Map.new(Str, Str)
+*** anon_cache := Map(Str, Str).new()
 *** pending_doc := ""
 *** source := ""
 * context
@@ -226,9 +227,9 @@
 *** NotFound
 *** Found:TypeBinding }
 ** TypeScope: StructDef
-*** bindings := Map.new(Str, TypeBinding)
-*** func_defs := Map.new(Str, Dynamic)
-*** struct_defs := Map.new(Str, Dynamic)
+*** bindings := Map(Str, TypeBinding).new()
+*** func_defs := Map(Str, Dynamic).new()
+*** struct_defs := Map(Str, Dynamic).new()
 *** ref parent : TypeScope = NULL
 ** ImportUnit: StructDef
 *** mode_str := ""
@@ -238,29 +239,29 @@
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
-*** path_modes := Map.new(Str, Mode)
+*** path_modes := Map(Str, Mode).new()
 *** compile_mode := false
-*** imported := Map.new(Str, ImportUnit)
-*** imports_init_seed_done := Set.new(Str)
-*** imports_init_active := Set.new(Str)
-*** imports_init_done := Set.new(Str)
-*** imports_typer_decls_done := Set.new(Str)
-*** imports_typer_bodies_done := Set.new(Str)
-*** imports_precomp_done := Set.new(Str)
-*** imports_eval_done := Set.new(Str)
-*** type_gen_synths := Set.new(Str)
+*** imported := Map(Str, ImportUnit).new()
+*** imports_init_seed_done := Set(Str).new()
+*** imports_init_active := Set(Str).new()
+*** imports_init_done := Set(Str).new()
+*** imports_typer_decls_done := Set(Str).new()
+*** imports_typer_bodies_done := Set(Str).new()
+*** imports_precomp_done := Set(Str).new()
+*** imports_eval_done := Set(Str).new()
+*** type_gen_synths := Set(Str).new()
 *** scope := TypeScope()
 *** is_repl := false
-*** struct_layouts := Map.new(Str, StructLayout)
-*** precomp_macros := Set.new(Str)
-*** precomp_funcs := Set.new(Str)
-*** precomp_known := Map.new(Str, Value)
-*** precomp_assigned := Set.new(Str)
+*** struct_layouts := Map(Str, StructLayout).new()
+*** precomp_macros := Set(Str).new()
+*** precomp_funcs := Set(Str).new()
+*** precomp_known := Map(Str, Value).new()
+*** precomp_assigned := Set(Str).new()
 *** has_return := false
 *** has_break := false
 *** has_continue := false
 *** return_value := Value.None
-*** ns_fields := Map.new(Str, Value)
+*** ns_fields := Map(Str, Value).new()
 *** ns_keys := Vec(Dynamic).new()
 *** ns_inited := false
 *** ... (54 more)
@@ -349,6 +350,7 @@
 *** nparam : USize = 0
 *** ref param_shallows : U8 = NULL
 *** return_is_shallow := false
+*** return_is_ref := false
 *** ref cif : ffi_cif = NULL
 *** ref arg_types : Dynamic = NULL
 ** ExprPtrBox: StructDef
@@ -368,6 +370,7 @@
 *** own data : U8 = 0
 *** data_size : USize = 0
 *** borrowed := false
+*** is_str := false
 ** Value: EnumDef
 *** None
 *** Int:I64
@@ -392,10 +395,10 @@
 *** ref cell : Cell = NULL
 *** cell_is_local := false
 ** Scope: StructDef
-*** bindings := Map.new(Str, Binding)
+*** bindings := Map(Str, Binding).new()
 *** ref parent : Scope = NULL
-*** payload_aliases := Map.new(Str, Str)
-*** ref_primitive_ptrs := Map.new(Str, Dynamic)
+*** payload_aliases := Map(Str, Str).new()
+*** ref_primitive_ptrs := Map(Str, Dynamic).new()
 *** box_owned_dynamics := Vec(DynPtrBox).new()
 ** DynPtrBox: StructDef
 *** own p : U8 = 0

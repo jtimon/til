@@ -18,7 +18,7 @@ func context_enter_file(mut ctx: Context, path: Str)
 
 * mode_registry
 #+begin_src til
-mode_registry is a Map
+mode_registry is a Map__Str_Mode
 #+end_src
 
 * mode_resolve
