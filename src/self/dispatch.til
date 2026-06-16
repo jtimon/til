@@ -1681,17 +1681,18 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
             // free memory we do not own).
             if fe.return_is_ref { result = make_str_value(sp.data, sp.count, ctx) }
             else {
-                result = make_str_value_own(sp.data, sp.count, ctx)
-                // Issue #272: a by-value `returns Str` ext_func malloc'd the Str
-                // STRUCT wrapper too (e.g. F32_to_str: `malloc(sizeof(Str))`)
-                // and handed its ownership to us along with the c_str.
-                // make_str_value_own claimed the c_str; free the now-spent
-                // wrapper so it does not leak. This was the dominant interpret-
-                // mode FFI leak: every by-value Str return leaked its 16-byte
-                // wrapper. (A `returns ref Str` hands back a borrowed pointer we
-                // must NOT free, so only the owned branch frees.)
-                mut str_wrapper : Dynamic = raw_ptr
-                free(own str_wrapper)
+                // Issue #275: ADOPT the ext_func's whole Str* as the Value's
+                // data -- a single owner of both the 16-byte struct AND the
+                // c_str. make_str_value_own used to malloc a SECOND Str and copy
+                // the c_str pointer into it, orphaning the ext_func's struct (a
+                // transient double-ownership that then needed a manual free).
+                // Reusing raw_ptr directly is one move: no re-wrap, no orphaned
+                // wrapper, no manual free -- the garbager's deep Str delete frees
+                // the struct and the c_str together at teardown. Force cap=count
+                // so delete reclaims the c_str (mirrors make_str_value_own;
+                // ExtStr and Str share the {ptr, count, cap} layout).
+                write_u32(ptr_add(raw_ptr, 12), sp.count)
+                result = make_struct_value(ctx.cached_str_name, ctx.cached_str_def, raw_ptr, false, ctx)
             }
         } else if rtype.eq("Dynamic") {
             result = Value.Dynamic(raw_ptr)
