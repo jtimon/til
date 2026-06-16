@@ -30,26 +30,26 @@ mutate := func(f: Fn(mut I64), mut x: I64) {
 
 test_basic_fn_ptr := test() {
     f := fn_double
-    assert_eq(__LOC__, f(5), 10)
-    assert_eq(__LOC__, f(0), 0)
-    assert_eq(__LOC__, f(3), 6)
+    assert_eq(__LOC__, I64, f(5), 10)
+    assert_eq(__LOC__, I64, f(0), 0)
+    assert_eq(__LOC__, I64, f(3), 6)
 }
 
 test_pass_fn_as_arg := test() {
-    assert_eq(__LOC__, apply(fn_double, 5), 10)
-    assert_eq(__LOC__, apply(fn_double, 3), 6)
-    assert_eq(__LOC__, apply(fn_negate, 7), -7)
+    assert_eq(__LOC__, I64, apply(fn_double, 5), 10)
+    assert_eq(__LOC__, I64, apply(fn_double, 3), 6)
+    assert_eq(__LOC__, I64, apply(fn_negate, 7), -7)
 }
 
 test_pass_fn_two_args := test() {
-    assert_eq(__LOC__, apply2(fn_add, 3, 4), 7)
-    assert_eq(__LOC__, apply2(fn_add, 10, 20), 30)
+    assert_eq(__LOC__, I64, apply2(fn_add, 3, 4), 7)
+    assert_eq(__LOC__, I64, apply2(fn_add, 10, 20), 30)
 }
 
 test_fn_ptr_mut_param := test() {
     mut val := 42
     mutate(greet, val)
-    assert_eq(__LOC__, val, 142)
+    assert_eq(__LOC__, I64, val, 142)
 }
 
 // --- FuncSig type definitions ---
@@ -65,23 +65,23 @@ apply_binop := func(op: BinaryOp, a: I64, b: I64) returns I64 {
 }
 
 test_funcsig_named_param := test() {
-    assert_eq(__LOC__, apply_binop(fn_add, 3, 5), 8)
-    assert_eq(__LOC__, apply_binop(fn_mul, 3, 5), 15)
+    assert_eq(__LOC__, I64, apply_binop(fn_add, 3, 5), 8)
+    assert_eq(__LOC__, I64, apply_binop(fn_mul, 3, 5), 15)
 }
 
 test_funcsig_decl_type := test() {
     f : BinaryOp = fn_add
-    assert_eq(__LOC__, f(10, 20), 30)
+    assert_eq(__LOC__, I64, f(10, 20), 30)
 
     g : BinaryOp = fn_mul
-    assert_eq(__LOC__, g(4, 5), 20)
+    assert_eq(__LOC__, I64, g(4, 5), 20)
 }
 
 test_funcsig_reassign := test() {
     mut f : BinaryOp = fn_add
-    assert_eq(__LOC__, f(2, 3), 5)
+    assert_eq(__LOC__, I64, f(2, 3), 5)
     f = fn_mul
-    assert_eq(__LOC__, f(2, 3), 6)
+    assert_eq(__LOC__, I64, f(2, 3), 6)
 }
 
 UnaryOp := func(I64) returns I64
@@ -91,8 +91,8 @@ apply_unary := func(op: UnaryOp, x: I64) returns I64 {
 }
 
 test_funcsig_unary := test() {
-    assert_eq(__LOC__, apply_unary(fn_double, 7), 14)
-    assert_eq(__LOC__, apply_unary(fn_negate, 5), -5)
+    assert_eq(__LOC__, I64, apply_unary(fn_double, 7), 14)
+    assert_eq(__LOC__, I64, apply_unary(fn_negate, 5), -5)
 }
 
 Mutator := func(mut I64)
@@ -104,7 +104,7 @@ apply_mutator := func(f: Mutator, mut x: I64) {
 test_funcsig_proc := test() {
     mut val := 10
     apply_mutator(greet, val)
-    assert_eq(__LOC__, val, 110)
+    assert_eq(__LOC__, I64, val, 110)
 }
 
 // --- FuncSig form declarations ---
@@ -122,20 +122,20 @@ greet_sig : func(mut I64) = (x) {
 }
 
 test_funcsig_form_basic := test() {
-    assert_eq(__LOC__, sum_sig(3, 5), 8)
-    assert_eq(__LOC__, negate_sig(7), -7)
+    assert_eq(__LOC__, I64, sum_sig(3, 5), 8)
+    assert_eq(__LOC__, I64, negate_sig(7), -7)
 }
 
 test_funcsig_form_proc := test() {
     mut val := 10
     greet_sig(val)
-    assert_eq(__LOC__, val, 110)
+    assert_eq(__LOC__, I64, val, 110)
 }
 
 test_funcsig_form_as_value := test() {
     f : BinaryOp = sum_sig
-    assert_eq(__LOC__, f(10, 20), 30)
-    assert_eq(__LOC__, apply_binop(sum_sig, 4, 6), 10)
+    assert_eq(__LOC__, I64, f(10, 20), 30)
+    assert_eq(__LOC__, I64, apply_binop(sum_sig, 4, 6), 10)
 }
 
 // --- Named FuncSig form ---
@@ -153,20 +153,20 @@ greet_named : Mutator = (x) {
 }
 
 test_named_funcsig_form := test() {
-    assert_eq(__LOC__, sum_named(3, 5), 8)
-    assert_eq(__LOC__, negate_named(7), -7)
-    assert_eq(__LOC__, apply_binop(sum_named, 4, 6), 10)
+    assert_eq(__LOC__, I64, sum_named(3, 5), 8)
+    assert_eq(__LOC__, I64, negate_named(7), -7)
+    assert_eq(__LOC__, I64, apply_binop(sum_named, 4, 6), 10)
 }
 
 test_named_funcsig_form_proc := test() {
     mut val := 10
     greet_named(val)
-    assert_eq(__LOC__, val, 110)
+    assert_eq(__LOC__, I64, val, 110)
 }
 
 test_named_funcsig_form_as_value := test() {
     f : BinaryOp = sum_named
-    assert_eq(__LOC__, f(10, 20), 30)
+    assert_eq(__LOC__, I64, f(10, 20), 30)
 }
 
 // --- Returning FuncSig-typed values ---
@@ -180,14 +180,14 @@ get_binop := func(which: Str) returns BinaryOp {
 
 test_return_funcsig := test() {
     op := get_binop("add")
-    assert_eq(__LOC__, op(3, 5), 8)
+    assert_eq(__LOC__, I64, op(3, 5), 8)
     op2 := get_binop("mul")
-    assert_eq(__LOC__, op2(3, 5), 15)
+    assert_eq(__LOC__, I64, op2(3, 5), 15)
 }
 
 test_return_funcsig_pass := test() {
     op := get_binop("add")
-    assert_eq(__LOC__, apply_binop(op, 10, 20), 30)
+    assert_eq(__LOC__, I64, apply_binop(op, 10, 20), 30)
 }
 
 // --- Struct fields with FuncSig type ---
@@ -198,14 +198,14 @@ Handler := struct {
 
 test_struct_field_funcsig := test() {
     h := Handler(on_click = fn_add)
-    assert_eq(__LOC__, h.on_click(3, 5), 8)
+    assert_eq(__LOC__, I64, h.on_click(3, 5), 8)
 }
 
 test_struct_field_reassign := test() {
     mut h := Handler(on_click = fn_add)
-    assert_eq(__LOC__, h.on_click(3, 5), 8)
+    assert_eq(__LOC__, I64, h.on_click(3, 5), 8)
     h.on_click = fn_mul
-    assert_eq(__LOC__, h.on_click(3, 5), 15)
+    assert_eq(__LOC__, I64, h.on_click(3, 5), 15)
 }
 
 // --- FuncSig type aliases ---
@@ -217,15 +217,15 @@ apply_callback := func(cb: Callback, a: I64, b: I64) returns I64 {
 }
 
 test_funcsig_alias := test() {
-    assert_eq(__LOC__, apply_callback(fn_add, 3, 5), 8)
-    assert_eq(__LOC__, apply_callback(fn_mul, 4, 5), 20)
+    assert_eq(__LOC__, I64, apply_callback(fn_add, 3, 5), 8)
+    assert_eq(__LOC__, I64, apply_callback(fn_mul, 4, 5), 20)
     f : Callback = fn_add
-    assert_eq(__LOC__, f(10, 20), 30)
+    assert_eq(__LOC__, I64, f(10, 20), 30)
 }
 
 test_struct_field_default := test() {
     h := Handler()
-    assert_eq(__LOC__, h.on_click(3, 5), 8)
+    assert_eq(__LOC__, I64, h.on_click(3, 5), 8)
 }
 
 // --- Enum payloads with FuncSig type ---
@@ -236,7 +236,7 @@ test_enum_funcsig_payload := test() {
     a := Action.Click(fn_add)
     switch a {
     case Action.Click(op):
-        assert_eq(__LOC__, op(3, 5), 8)
+        assert_eq(__LOC__, I64, op(3, 5), 8)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -246,7 +246,7 @@ test_enum_funcsig_payload_mul := test() {
     a := Action.Click(fn_mul)
     switch a {
     case Action.Click(op):
-        assert_eq(__LOC__, op(4, 5), 20)
+        assert_eq(__LOC__, I64, op(4, 5), 20)
     case:
         UNREACHABLE(__LOC__)
     }

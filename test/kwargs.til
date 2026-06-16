@@ -30,8 +30,8 @@ greet := func(name: Str, opts: ...) returns Str {
 }
 
 test_kwargs_str := test() {
-    assert_eq_str(__LOC__, greet("World"), "World")
-    assert_eq_str(__LOC__, greet("World", prefix = "Hello"), "Hello World")
+    assert_eq(__LOC__, Str, greet("World"), "World")
+    assert_eq(__LOC__, Str, greet("World", prefix = "Hello"), "Hello World")
 }
 
 // #188: a kwargs fcall nested inside another kwargs fcall (e.g.
@@ -46,7 +46,7 @@ test_kwargs_str := test() {
 // + KwargsMap.set wrap and rewrite.
 
 bug188_kwargs_nested_in_kwargs := test() {
-    assert_eq_str(__LOC__, greet("World", prefix = greet("Hi")), "Hi World")
+    assert_eq(__LOC__, Str, greet("World", prefix = greet("Hi")), "Hi World")
 }
 
 // Mixed-shape coverage: the recursion in process_call_desugars passes
@@ -65,11 +65,11 @@ bug188_kwargs_variadic_mixed := test() {
     // variadic fcall as a kwargs value arg: outer kwargs setter holds
     // bug188_join(...) whose own variadic args need their own
     // Array.new + Array.set wrap.
-    assert_eq_str(__LOC__, greet("World", prefix = bug188_join("a", "b")), "ab World")
+    assert_eq(__LOC__, Str, greet("World", prefix = bug188_join("a", "b")), "ab World")
     // kwargs fcall as a variadic arg: outer variadic setter holds
     // greet(..., prefix = ...) whose kwargs need their own KwargsMap.new
     // + KwargsMap.set wrap.
-    assert_eq_str(__LOC__, bug188_join("hi ", greet("Y", prefix = "Mr")), "hi Mr Y")
+    assert_eq(__LOC__, Str, bug188_join("hi ", greet("Y", prefix = "Mr")), "hi Mr Y")
 }
 
 // Sibling-position variant of #186 / #188 on the kwargs path: a stmt
@@ -84,7 +84,7 @@ bug189_pair := func(a: Str, b: Str) returns Str {
 bug189_sibling_kwargs := test() {
     // bug189_pair is regular but takes two greet-with-kwargs results --
     // two SIBLINGS in the same arg list.
-    assert_eq_str(__LOC__, bug189_pair(greet("X", prefix = "Mr"), greet("Y", prefix = "Ms")), "Mr X|Ms Y")
+    assert_eq(__LOC__, Str, bug189_pair(greet("X", prefix = "Mr"), greet("Y", prefix = "Ms")), "Mr X|Ms Y")
 }
 
 // Mixed-shape siblings: one sibling is a variadic fcall, the other
@@ -93,12 +93,12 @@ bug189_sibling_kwargs := test() {
 // that the two while-loops compose correctly when both shapes
 // appear at sibling position in the same stmt.
 bug189_sibling_mixed_variadic_kwargs := test() {
-    assert_eq_str(__LOC__,
+    assert_eq(__LOC__, Str,
         bug189_pair(bug188_join("a", "b"), greet("X", prefix = "Mr")),
         "ab|Mr X")
     // Reverse arg order so the kwargs sibling appears before the
     // variadic one in DFS order.
-    assert_eq_str(__LOC__,
+    assert_eq(__LOC__, Str,
         bug189_pair(greet("X", prefix = "Mr"), bug188_join("a", "b")),
         "Mr X|ab")
 }
@@ -123,15 +123,15 @@ combo_sum := func(_label: Str, items: ..I64, opts: ...) returns I64 {
 
 test_combo_variadic_and_kwargs := test() {
     // Neither variadic nor kwargs args supplied (both ranges empty).
-    assert_eq(__LOC__, combo_sum("x"), 0)
+    assert_eq(__LOC__, I64, combo_sum("x"), 0)
     // Variadic only.
-    assert_eq(__LOC__, combo_sum("x", 10, 20), 30)
+    assert_eq(__LOC__, I64, combo_sum("x", 10, 20), 30)
     // Kwargs only.
-    assert_eq(__LOC__, combo_sum("x", bias = 50), 50)
+    assert_eq(__LOC__, I64, combo_sum("x", bias = 50), 50)
     // Both supplied -- the case the parser used to reject.
-    assert_eq(__LOC__, combo_sum("x", 1, 2, 3, bias = 100), 106)
+    assert_eq(__LOC__, I64, combo_sum("x", 1, 2, 3, bias = 100), 106)
     // Multiple kwargs (only "bias" is read, the rest are ignored).
-    assert_eq(__LOC__, combo_sum("x", 1, 2, 3, bias = 100, extra = 999), 106)
+    assert_eq(__LOC__, I64, combo_sum("x", 1, 2, 3, bias = 100, extra = 999), 106)
 }
 
 // Splat into variadic + kwargs in the same call. The desugar runs
@@ -141,7 +141,7 @@ test_combo_variadic_and_kwargs := test() {
 // composes with kwargs.
 test_combo_splat_with_kwargs := test() {
     arr := array("I64", 10, 20, 30)
-    assert_eq(__LOC__, combo_sum("x", ..arr, bias = 100), 160)
+    assert_eq(__LOC__, I64, combo_sum("x", ..arr, bias = 100), 160)
 }
 
 // Default-valued positional between variadic and kwargs. The parser
@@ -163,16 +163,16 @@ combo_label := func(_a: Str, items: ..I64, label: Str = "default", opts: ...) re
 
 test_combo_default_between_variadic_and_kwargs := test() {
     // No items, no kwargs -- label defaults.
-    assert_eq_str(__LOC__, combo_label("x"), "default:0")
+    assert_eq(__LOC__, Str, combo_label("x"), "default:0")
     // Items only.
-    assert_eq_str(__LOC__, combo_label("x", 1, 2, 3), "default:6")
+    assert_eq(__LOC__, Str, combo_label("x", 1, 2, 3), "default:6")
     // Items + kwargs, label still defaults.
-    assert_eq_str(__LOC__, combo_label("x", 1, 2, 3, bias = 100), "default:106")
+    assert_eq(__LOC__, Str, combo_label("x", 1, 2, 3, bias = 100), "default:106")
     // Override label by name.
-    assert_eq_str(__LOC__, combo_label("x", 1, 2, 3, label = "override", bias = 100), "override:106")
+    assert_eq(__LOC__, Str, combo_label("x", 1, 2, 3, label = "override", bias = 100), "override:106")
     // Splat + override + kwargs, all composed.
     arr := array("I64", 10, 20, 30)
-    assert_eq_str(__LOC__, combo_label("x", ..arr, label = "splat", bias = 100), "splat:160")
+    assert_eq(__LOC__, Str, combo_label("x", ..arr, label = "splat", bias = 100), "splat:160")
 }
 
 // --- merged from test/optional_args.til ---
@@ -180,10 +180,10 @@ test_combo_default_between_variadic_and_kwargs := test() {
 minus := func(a: I64, b: I64) returns I64 { return a.sub(b) }
 
 test_named_args := test() {
-    assert_eq(__LOC__, minus(10, 3), 7)
-    assert_eq(__LOC__, minus(a=10, b=3), 7)
-    assert_eq(__LOC__, minus(b=3, a=10), 7)
-    assert_eq(__LOC__, minus(10, b=3), 7)
+    assert_eq(__LOC__, I64, minus(10, 3), 7)
+    assert_eq(__LOC__, I64, minus(a=10, b=3), 7)
+    assert_eq(__LOC__, I64, minus(b=3, a=10), 7)
+    assert_eq(__LOC__, I64, minus(10, b=3), 7)
 }
 
 opt_greet := func(name: Str, greeting: Str = "Hello") returns Str {
@@ -191,9 +191,9 @@ opt_greet := func(name: Str, greeting: Str = "Hello") returns Str {
 }
 
 test_optional_args := test() {
-    assert_eq_str(__LOC__, opt_greet("World"), "Hello, World!")
-    assert_eq_str(__LOC__, opt_greet("World", "Hi"), "Hi, World!")
-    assert_eq_str(__LOC__, opt_greet("World", greeting="Hey"), "Hey, World!")
+    assert_eq(__LOC__, Str, opt_greet("World"), "Hello, World!")
+    assert_eq(__LOC__, Str, opt_greet("World", "Hi"), "Hi, World!")
+    assert_eq(__LOC__, Str, opt_greet("World", greeting="Hey"), "Hey, World!")
 }
 
 opt_make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
@@ -201,11 +201,11 @@ opt_make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
 }
 
 test_all_optional := test() {
-    assert_eq(__LOC__, opt_make_point(), 0)
-    assert_eq(__LOC__, opt_make_point(5), 5)
-    assert_eq(__LOC__, opt_make_point(y=7), 7)
-    assert_eq(__LOC__, opt_make_point(5, 10), 15)
-    assert_eq(__LOC__, opt_make_point(y=10, x=5), 15)
+    assert_eq(__LOC__, I64, opt_make_point(), 0)
+    assert_eq(__LOC__, I64, opt_make_point(5), 5)
+    assert_eq(__LOC__, I64, opt_make_point(y=7), 7)
+    assert_eq(__LOC__, I64, opt_make_point(5, 10), 15)
+    assert_eq(__LOC__, I64, opt_make_point(y=10, x=5), 15)
 }
 
 opt_compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
@@ -213,7 +213,7 @@ opt_compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
 }
 
 test_mixed_required_optional := test() {
-    assert_eq(__LOC__, opt_compute(1, 2), 13)
-    assert_eq(__LOC__, opt_compute(1, 2, 3), 6)
-    assert_eq(__LOC__, opt_compute(1, 2, c=20), 23)
+    assert_eq(__LOC__, I64, opt_compute(1, 2), 13)
+    assert_eq(__LOC__, I64, opt_compute(1, 2, 3), 6)
+    assert_eq(__LOC__, I64, opt_compute(1, 2, c=20), 23)
 }

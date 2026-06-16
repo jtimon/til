@@ -6,12 +6,12 @@ macro_add := macro(a: I64, b: I64) returns I64 {
 }
 
 test_basic_macro := test() {
-    assert_eq(__LOC__, macro_add(3, 4), 7)
+    assert_eq(__LOC__, I64, macro_add(3, 4), 7)
 }
 
 test_macro_const_arg := test() {
     N := 10
-    assert_eq(__LOC__, macro_add(N, 5), 15)
+    assert_eq(__LOC__, I64, macro_add(N, 5), 15)
 }
 
 # macro returning Str
@@ -20,7 +20,7 @@ macro_greet := macro(name: Str) returns Str {
 }
 
 test_macro_str := test() {
-    assert_eq_str(__LOC__, macro_greet("world"), "hello world")
+    assert_eq(__LOC__, Str, macro_greet("world"), "hello world")
 }
 
 # macro body can call procs (runs at compile time)
@@ -30,7 +30,7 @@ macro_double := macro(x: I64) returns I64 {
 }
 
 test_macro_proc_call := test() {
-    assert_eq(__LOC__, macro_double(21), 42)
+    assert_eq(__LOC__, I64, macro_double(21), 42)
 }
 
 # macro called from inside a func (with literal arg)
@@ -43,7 +43,7 @@ square_plus_one := func() returns I64 {
 }
 
 test_macro_in_func := test() {
-    assert_eq(__LOC__, square_plus_one(), 50)
+    assert_eq(__LOC__, I64, square_plus_one(), 50)
 }
 
 # macro returning Bool
@@ -63,13 +63,13 @@ double := func(x: I64) returns I64 {
 }
 
 test_func_folding := test() {
-    assert_eq(__LOC__, double(5), 10)
-    assert_eq(__LOC__, double(double(3)), 12)
+    assert_eq(__LOC__, I64, double(5), 10)
+    assert_eq(__LOC__, I64, double(double(3)), 12)
 }
 
 test_func_const_arg := test() {
     K := 7
-    assert_eq(__LOC__, double(K), 14)
+    assert_eq(__LOC__, I64, double(K), 14)
 }
 
 greet := func(name: Str) returns Str {
@@ -77,12 +77,12 @@ greet := func(name: Str) returns Str {
 }
 
 test_func_str := test() {
-    assert_eq_str(__LOC__, greet("til"), "hi til")
+    assert_eq(__LOC__, Str, greet("til"), "hi til")
 }
 
 # #136: Dynamic.size() is defined as `func() returns USize { return 8 }`
 # in dyn.til; before the fix, the builder's size() override emitted
 # sizeof(Dynamic) = 1 (Dynamic is `struct { char _; }` in C).
 test_func_ns_method_size := test() {
-    assert_eq(__LOC__, Dynamic.size().to_i64(), 8)
+    assert_eq(__LOC__, I64, Dynamic.size().to_i64(), 8)
 }

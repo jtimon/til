@@ -27,8 +27,8 @@ test_nested_enum_payload_clone := test() {
 
     b = PayloadBox.Tok(Token.Name("bye"))
 
-    assert_eq_str(__LOC__, b.to_str(), "Tok(Name(bye))")
-    assert_eq_str(__LOC__, b2.to_str(), "Tok(Name(hello))")
+    assert_eq(__LOC__, Str, b.to_str(), "Tok(Name(bye))")
+    assert_eq(__LOC__, Str, b2.to_str(), "Tok(Name(hello))")
 }
 
 test_vec_payload_clone := test() {
@@ -46,9 +46,9 @@ test_vec_payload_clone := test() {
         case PayloadBox.Bag(bag2):
             ref s1 : Str = bag1.items[0]
             ref s2 : Str = bag2.items[0]
-            assert_eq_str(__LOC__, s1, "x")
-            assert_eq_str(__LOC__, s2, "a")
-            assert_eq(__LOC__, bag2.items.len().to_i64(), 2)
+            assert_eq(__LOC__, Str, s1, "x")
+            assert_eq(__LOC__, Str, s2, "a")
+            assert_eq(__LOC__, I64, bag2.items.len().to_i64(), 2)
         case:
             UNREACHABLE(__LOC__)
         }

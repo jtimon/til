@@ -32,14 +32,8 @@ expect := func(loc_str: Str, cond: Bool, parts: ..Str) {
     }
 }
 
-assert_eq := func(loc_str: Str, a: I64, b: I64) {
-    if a.neq(b) {
-        panic(loc_str, "assert_eq failed: expected '", a.to_str(), "', found '", b.to_str(), "'")
-    }
-}
-
-assert_eq_str := func(loc_str: Str, a: Str, b: Str) {
-    if a.eq(b).not() {
-        panic(loc_str, "assert_eq_str failed: expected '", a, "', found '", b, "'")
+assert_eq := func(loc_str: Str, T: Type, a: T, b: T) {
+    if T.neq(a, b) {
+        panic(loc_str, "assert_eq failed: expected '", T.to_str(a), "', found '", T.to_str(b), "'")
     }
 }

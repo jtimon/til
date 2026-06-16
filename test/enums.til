@@ -10,13 +10,13 @@ test_basic_enum := test() {
 }
 
 test_to_str := test() {
-    assert_eq_str(__LOC__, Color.Red.to_str(), "Red")
-    assert_eq_str(__LOC__, Color.Blue.to_str(), "Blue")
+    assert_eq(__LOC__, Str, Color.Red.to_str(), "Red")
+    assert_eq(__LOC__, Str, Color.Blue.to_str(), "Blue")
 }
 
 test_clone := test() {
     c2 := Color.Green
-    assert_eq_str(__LOC__, c2.to_str(), "Green")
+    assert_eq(__LOC__, Str, c2.to_str(), "Green")
 }
 
 # enum in func params
@@ -53,7 +53,7 @@ test_enum_type_alias := test() {
     c := Color2.Red
     expect(__LOC__, c.eq(Color.Red), "alias Red eq original Red")
     expect(__LOC__, c.eq(Color2.Green).not(), "alias Red neq alias Green")
-    assert_eq_str(__LOC__, Color2.Blue.to_str(), "Blue")
+    assert_eq(__LOC__, Str, Color2.Blue.to_str(), "Blue")
 }
 
 Direction2 := Direction
@@ -79,9 +79,9 @@ test_payload_construction := test() {
 }
 
 test_payload_to_str := test() {
-    assert_eq_str(__LOC__, Token.Num(42).to_str(), "Num(42)")
-    assert_eq_str(__LOC__, Token.Eof.to_str(), "Eof")
-    assert_eq_str(__LOC__, Token.Name("hello").to_str(), "Name(hello)")
+    assert_eq(__LOC__, Str, Token.Num(42).to_str(), "Num(42)")
+    assert_eq(__LOC__, Str, Token.Eof.to_str(), "Eof")
+    assert_eq(__LOC__, Str, Token.Name("hello").to_str(), "Name(hello)")
 }
 
 test_payload_eq := test() {
@@ -96,7 +96,7 @@ test_payload_clone := test() {
     t4 := Token.Num(7)
     switch t4 {
     case Token.Num(_tn4):
-        assert_eq(__LOC__, _tn4, 7)
+        assert_eq(__LOC__, I64, _tn4, 7)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -113,7 +113,7 @@ Painted := struct {
 test_simple_enum_field := test() {
     p := Painted(color = Color.Blue, label = "sky")
     expect(__LOC__, p.color.eq(Color.Blue), "simple enum field read")
-    assert_eq_str(__LOC__, p.label, "sky")
+    assert_eq(__LOC__, Str, p.label, "sky")
 }
 
 test_simple_enum_field_default := test() {
@@ -128,8 +128,8 @@ get_tag_name := func(tok: Token) returns Str {
 }
 
 test_payload_func_params := test() {
-    assert_eq_str(__LOC__, get_tag_name(Token.Num(1)), "num")
-    assert_eq_str(__LOC__, get_tag_name(Token.Eof), "eof")
+    assert_eq(__LOC__, Str, get_tag_name(Token.Num(1)), "num")
+    assert_eq(__LOC__, Str, get_tag_name(Token.Eof), "eof")
 }
 
 # --- struct payload in tagged enum ---
@@ -148,8 +148,8 @@ test_struct_payload := test() {
     s := Shape.Dot(Point(x = 3, y = 4))
     switch s {
     case Shape.Dot(p):
-        assert_eq(__LOC__, p.x, 3)
-        assert_eq(__LOC__, p.y, 4)
+        assert_eq(__LOC__, I64, p.x, 3)
+        assert_eq(__LOC__, I64, p.y, 4)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -169,16 +169,16 @@ test_struct_payload_clone := test() {
     s2 := s.clone()
     switch s2 {
     case Shape.Dot(p):
-        assert_eq(__LOC__, p.x, 5)
-        assert_eq(__LOC__, p.y, 6)
+        assert_eq(__LOC__, I64, p.x, 5)
+        assert_eq(__LOC__, I64, p.y, 6)
     case:
         UNREACHABLE(__LOC__)
     }
 }
 
 test_struct_payload_to_str := test() {
-    assert_eq_str(__LOC__, Shape.Empty.to_str(), "Empty")
-    assert_eq_str(__LOC__, Shape.Line("hi").to_str(), "Line(hi)")
+    assert_eq(__LOC__, Str, Shape.Empty.to_str(), "Empty")
+    assert_eq(__LOC__, Str, Shape.Line("hi").to_str(), "Line(hi)")
 }
 
 // payload enum as struct field (#53)
@@ -195,12 +195,12 @@ Container := struct { name := ""; kind := Kind.C }
 
 test_payload_enum_field := test() {
     c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))
-    assert_eq_str(__LOC__, c.kind.to_str(), "A(3,4)")
+    assert_eq(__LOC__, Str, c.kind.to_str(), "A(3,4)")
     switch c.kind {
     case Kind.A(d):
-        assert_eq(__LOC__, d.x, 3)
-        assert_eq(__LOC__, d.y, 4)
-        assert_eq_str(__LOC__, d.to_str(), "3,4")
+        assert_eq(__LOC__, I64, d.x, 3)
+        assert_eq(__LOC__, I64, d.y, 4)
+        assert_eq(__LOC__, Str, d.to_str(), "3,4")
     case:
         UNREACHABLE(__LOC__)
     }
@@ -210,7 +210,7 @@ test_payload_enum_field_b := test() {
     c := Container(name = "test", kind = Kind.B(42))
     switch c.kind {
     case Kind.B(_kb):
-        assert_eq(__LOC__, _kb, 42)
+        assert_eq(__LOC__, I64, _kb, 42)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -227,8 +227,8 @@ test_payload_enum_field_mut := test() {
     c.kind = Kind.A(Data(x = 7, y = 8))
     switch c.kind {
     case Kind.A(d):
-        assert_eq(__LOC__, d.x, 7)
-        assert_eq(__LOC__, d.y, 8)
+        assert_eq(__LOC__, I64, d.x, 7)
+        assert_eq(__LOC__, I64, d.y, 8)
     case:
         UNREACHABLE(__LOC__)
     }
@@ -243,7 +243,7 @@ test_switch_enum := test() {
     case Color.Green: result = "green"
     case Color.Blue: result = "blue"
     }
-    assert_eq_str(__LOC__, result, "green")
+    assert_eq(__LOC__, Str, result, "green")
 }
 
 test_switch_payload := test() {
@@ -253,7 +253,7 @@ test_switch_payload := test() {
     case Token.Name(_s): result = -1
     case Token.Eof: result = -2
     }
-    assert_eq(__LOC__, result, 42)
+    assert_eq(__LOC__, I64, result, 42)
 }
 
 test_switch_payload_multi := test() {
@@ -269,8 +269,8 @@ test_switch_payload_multi := test() {
     case Token.Eof:
         is_eof = true
     }
-    assert_eq(__LOC__, num_val, 0)
-    assert_eq_str(__LOC__, str_val, "hello")
+    assert_eq(__LOC__, I64, num_val, 0)
+    assert_eq(__LOC__, Str, str_val, "hello")
     assert(__LOC__, is_eof.not())
 }
 
@@ -281,7 +281,7 @@ test_switch_payload_with_default := test() {
     case Token.Name(_s): result = "name"
     case: result = "other"
     }
-    assert_eq_str(__LOC__, result, "other")
+    assert_eq(__LOC__, Str, result, "other")
 }
 
 # --- switch on enum without payload extraction ---
@@ -294,7 +294,7 @@ test_switch_payload_tag_only := test() {
     case Token.Name: result = "name"
     case Token.Eof: result = "eof"
     }
-    assert_eq_str(__LOC__, result, "num")
+    assert_eq(__LOC__, Str, result, "num")
 }
 
 # --- enum variant as function argument ---
@@ -348,7 +348,7 @@ test_switch_default_only := test() {
     switch Color.Blue {
     case: result = "other"
     }
-    assert_eq_str(__LOC__, result, "other")
+    assert_eq(__LOC__, Str, result, "other")
 }
 
 test_switch_default_covers_missing := test() {
@@ -358,7 +358,7 @@ test_switch_default_covers_missing := test() {
     case Color.Red: result = "red"
     case: result = "other"
     }
-    assert_eq_str(__LOC__, result, "other")
+    assert_eq(__LOC__, Str, result, "other")
 }
 
 # --- nested pattern matching (#36) ---
@@ -375,7 +375,7 @@ test_nested_payload_a := test() {
     case OuterE.WrapperA(InnerE.ValueC):     result = -2
     case OuterE.WrapperB(i):                 result = i
     }
-    assert_eq(__LOC__, result, 42)
+    assert_eq(__LOC__, I64, result, 42)
 }
 
 test_nested_payload_b := test() {
@@ -387,7 +387,7 @@ test_nested_payload_b := test() {
     case OuterE.WrapperA(InnerE.ValueC):     result = "got-c"
     case OuterE.WrapperB(_i):                result = "outer-b"
     }
-    assert_eq_str(__LOC__, result, "hello")
+    assert_eq(__LOC__, Str, result, "hello")
 }
 
 test_nested_bare_inner := test() {
@@ -411,7 +411,7 @@ test_nested_outer_b := test() {
     case OuterE.WrapperA(InnerE.ValueC):     result = 3
     case OuterE.WrapperB(i):                 result = i
     }
-    assert_eq(__LOC__, result, 99)
+    assert_eq(__LOC__, I64, result, 99)
 }
 
 # Three levels of nesting.
@@ -429,7 +429,7 @@ test_nested_triple := test() {
     case DeepE.O(MidE.N(i)):                result = i
     case DeepE.P:                           result = -99
     }
-    assert_eq(__LOC__, result, 7)
+    assert_eq(__LOC__, I64, result, 7)
 }
 
 test_nested_triple_fallthrough := test() {
@@ -441,7 +441,7 @@ test_nested_triple_fallthrough := test() {
     case DeepE.O(MidE.N(i)):                result = i
     case DeepE.P:                           result = -99
     }
-    assert_eq(__LOC__, result, 42)
+    assert_eq(__LOC__, I64, result, 42)
 }
 
 # --- struct field matching in switch cases (#36) ---
@@ -463,7 +463,7 @@ test_struct_field_literal := test() {
     case PointPat(x = nx, y = 0): r = format("x-", nx.to_str())
     case PointPat(x = _nx, y = _ny): r = "other"
     }
-    assert_eq_str(__LOC__, r, "y-5")
+    assert_eq(__LOC__, Str, r, "y-5")
 }
 
 test_struct_field_origin := test() {
@@ -473,7 +473,7 @@ test_struct_field_origin := test() {
     case PointPat(x = 0, y = 0): r = "origin"
     case PointPat(x = _nx, y = _ny): r = "other"
     }
-    assert_eq_str(__LOC__, r, "origin")
+    assert_eq(__LOC__, Str, r, "origin")
 }
 
 test_struct_field_bind_only := test() {
@@ -482,7 +482,7 @@ test_struct_field_bind_only := test() {
     switch p {
     case PointPat(x = nx, y = ny): sum = nx.add(ny)
     }
-    assert_eq(__LOC__, sum, 16)
+    assert_eq(__LOC__, I64, sum, 16)
 }
 
 ShapePat := enum { Dot: PointPat, Line: I64 }
@@ -498,7 +498,7 @@ test_enum_payload_then_struct_pattern := test() {
         }
     case ShapePat.Line(_l): hit = "line"
     }
-    assert_eq_str(__LOC__, hit, "y-axis-7")
+    assert_eq(__LOC__, Str, hit, "y-axis-7")
 }
 
 # Struct pattern *directly* inside an enum variant payload.
@@ -510,7 +510,7 @@ test_enum_with_struct_pattern := test() {
     case ShapePat.Dot(p): hit = format("dot-", p.x.to_str(), ",", p.y.to_str())
     case ShapePat.Line(_l): hit = "line"
     }
-    assert_eq_str(__LOC__, hit, "y-axis-7")
+    assert_eq(__LOC__, Str, hit, "y-axis-7")
 }
 
 test_enum_with_struct_pattern_fallthrough := test() {
@@ -521,7 +521,7 @@ test_enum_with_struct_pattern_fallthrough := test() {
     case ShapePat.Dot(p): hit = format("dot-", p.x.to_str(), ",", p.y.to_str())
     case ShapePat.Line(_l): hit = "line"
     }
-    assert_eq_str(__LOC__, hit, "dot-3,4")
+    assert_eq(__LOC__, Str, hit, "dot-3,4")
 }
 
 # --- `..` rest-pattern (partial struct match) ---
@@ -558,7 +558,7 @@ test_guard_positive := test() {
     case ColorG.Number(code): r = format("non-pos-", code.to_str())
     case ColorG.Name(name): r = format("named-", name)
     }
-    assert_eq_str(__LOC__, r, "positive")
+    assert_eq(__LOC__, Str, r, "positive")
 }
 
 test_guard_falls_through := test() {
@@ -570,7 +570,7 @@ test_guard_falls_through := test() {
     case ColorG.Number(code): r = format("non-pos-", code.to_str())
     case ColorG.Name(_name): r = "named"
     }
-    assert_eq_str(__LOC__, r, "non-pos--5")
+    assert_eq(__LOC__, Str, r, "non-pos--5")
 }
 
 test_guard_uses_binding := test() {
@@ -582,7 +582,7 @@ test_guard_uses_binding := test() {
     case ColorG.Unknown: hit = -2
     case ColorG.Name(_n): hit = -3
     }
-    assert_eq(__LOC__, hit, 7)
+    assert_eq(__LOC__, I64, hit, 7)
 }
 
 test_guard_bare_variant := test() {
@@ -595,7 +595,7 @@ test_guard_bare_variant := test() {
     case ColorG.Number(_n): r = "num"
     case ColorG.Name(_n): r = "name"
     }
-    assert_eq_str(__LOC__, r, "yes")
+    assert_eq(__LOC__, Str, r, "yes")
 }
 
 test_guard_bare_variant_false := test() {
@@ -608,7 +608,7 @@ test_guard_bare_variant_false := test() {
     case ColorG.Number(_n): r = "num"
     case ColorG.Name(_n): r = "name"
     }
-    assert_eq_str(__LOC__, r, "no")
+    assert_eq(__LOC__, Str, r, "no")
 }
 
 // #211: payload bindings inherit the matched value's mutability. A mut
@@ -624,8 +624,8 @@ test_mut_payload_binding := test() {
     case:
     }
     switch c {
-    case ColorG.Number(n2): assert_eq(__LOC__, n2, 99)
-    case: assert_eq_str(__LOC__, "wrong variant", "")
+    case ColorG.Number(n2): assert_eq(__LOC__, I64, n2, 99)
+    case: assert_eq(__LOC__, Str, "wrong variant", "")
     }
 }
 
@@ -640,8 +640,8 @@ test_mut_str_payload_binding := test() {
     case:
     }
     switch c {
-    case ColorG.Name(n2): assert_eq_str(__LOC__, n2, "world")
-    case: assert_eq_str(__LOC__, "wrong variant", "")
+    case ColorG.Name(n2): assert_eq(__LOC__, Str, n2, "world")
+    case: assert_eq(__LOC__, Str, "wrong variant", "")
     }
 }
 
@@ -657,9 +657,9 @@ test_mut_struct_payload_binding := test() {
     }
     switch s {
     case Shape.Dot(q):
-        assert_eq(__LOC__, q.x, 99)
-        assert_eq(__LOC__, q.y, 42)
-    case: assert_eq_str(__LOC__, "wrong variant", "")
+        assert_eq(__LOC__, I64, q.x, 99)
+        assert_eq(__LOC__, I64, q.y, 42)
+    case: assert_eq(__LOC__, Str, "wrong variant", "")
     }
 }
 
@@ -681,9 +681,9 @@ test_mut_nested_enum_payload_binding := test() {
     switch o {
     case NestedOuter.Wrap(q):
         switch q {
-        case NestedInner.A(n): assert_eq(__LOC__, n, 99)
-        case: assert_eq_str(__LOC__, "wrong inner variant", "")
+        case NestedInner.A(n): assert_eq(__LOC__, I64, n, 99)
+        case: assert_eq(__LOC__, Str, "wrong inner variant", "")
         }
-    case: assert_eq_str(__LOC__, "wrong outer variant", "")
+    case: assert_eq(__LOC__, Str, "wrong outer variant", "")
     }
 }

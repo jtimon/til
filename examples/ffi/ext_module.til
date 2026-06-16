@@ -51,53 +51,53 @@ test_greet := proc() {
 
 test_instantiation := func() {
     p := Pair()
-    assert_eq(__LOC__, p.a, 0)
-    assert_eq(__LOC__, p.b, 0)
+    assert_eq(__LOC__, I64, p.a, 0)
+    assert_eq(__LOC__, I64, p.b, 0)
     p2 := Pair(a=3, b=7)
-    assert_eq(__LOC__, p2.a, 3)
-    assert_eq(__LOC__, p2.b, 7)
+    assert_eq(__LOC__, I64, p2.a, 3)
+    assert_eq(__LOC__, I64, p2.b, 7)
 }
 
 test_field_mutation := func() {
     p := Pair(a=1, b=2)
     p.a = 10
-    assert_eq(__LOC__, p.a, 10)
-    assert_eq(__LOC__, p.b, 2)
+    assert_eq(__LOC__, I64, p.a, 10)
+    assert_eq(__LOC__, I64, p.b, 2)
 }
 
 test_ext_methods := func() {
     p := Pair(a=3, b=7)
-    assert_eq(__LOC__, p.sum(), 10)
+    assert_eq(__LOC__, I64, p.sum(), 10)
     q := p.swap()
-    assert_eq(__LOC__, q.a, 7)
-    assert_eq(__LOC__, q.b, 3)
+    assert_eq(__LOC__, I64, q.a, 7)
+    assert_eq(__LOC__, I64, q.b, 3)
 }
 
 test_mixed_methods := func() {
     p := Pair(a=3, b=7)
-    assert_eq(__LOC__, p.double_sum(), 20)
+    assert_eq(__LOC__, I64, p.double_sum(), 20)
     assert(__LOC__, !p.is_equal())
-    assert_eq(__LOC__, p.diff(), -4)
-    assert_eq(__LOC__, p.swapped_sum(), 10)
+    assert_eq(__LOC__, I64, p.diff(), -4)
+    assert_eq(__LOC__, I64, p.swapped_sum(), 10)
 
     q := Pair(a=5, b=5)
     assert(__LOC__, q.is_equal())
-    assert_eq(__LOC__, q.diff(), 0)
+    assert_eq(__LOC__, I64, q.diff(), 0)
 
     r := p.with_offset(10)
-    assert_eq(__LOC__, r.a, 13)
-    assert_eq(__LOC__, r.b, 17)
-    assert_eq(__LOC__, r.sum(), 30)
+    assert_eq(__LOC__, I64, r.a, 13)
+    assert_eq(__LOC__, I64, r.b, 17)
+    assert_eq(__LOC__, I64, r.sum(), 30)
 }
 
 test_clone := func() {
     p := Pair(a=3, b=7)
     q := p.clone()
-    assert_eq(__LOC__, q.a, 3)
-    assert_eq(__LOC__, q.b, 7)
+    assert_eq(__LOC__, I64, q.a, 3)
+    assert_eq(__LOC__, I64, q.b, 7)
     q.a = 99
-    assert_eq(__LOC__, p.a, 3)
-    assert_eq(__LOC__, q.a, 99)
+    assert_eq(__LOC__, I64, p.a, 3)
+    assert_eq(__LOC__, I64, q.a, 99)
 }
 
 test_delete := func() {
@@ -120,14 +120,14 @@ test_add_points := func() {
     a := Point(x=1, y=2)
     b := Point(x=3, y=4)
     c := add_points(a, b)
-    assert_eq(__LOC__, c.x, 4)
-    assert_eq(__LOC__, c.y, 6)
+    assert_eq(__LOC__, I64, c.x, 4)
+    assert_eq(__LOC__, I64, c.y, 6)
 }
 
 test_variadic := func() {
-    assert_eq(__LOC__, sum_all(10, 20, 30), 60)
-    assert_eq(__LOC__, sum_all(1, 2, 3, 4, 5), 15)
-    assert_eq(__LOC__, sum_all(42), 42)
+    assert_eq(__LOC__, I64, sum_all(10, 20, 30), 60)
+    assert_eq(__LOC__, I64, sum_all(1, 2, 3, 4, 5), 15)
+    assert_eq(__LOC__, I64, sum_all(42), 42)
 }
 
 test_greet()

@@ -66,49 +66,49 @@ test_and_short_circuits := test() {
     eval_count = 0
     r := lazy_and(false, bump())
     expect(__LOC__, r.not(), "false and bump() is false")
-    assert_eq(__LOC__, eval_count, 0)
+    assert_eq(__LOC__, I64, eval_count, 0)
 }
 
 test_or_short_circuits := test() {
     eval_count = 0
     r := lazy_or(true, bump())
     expect(__LOC__, r, "true or bump() is true")
-    assert_eq(__LOC__, eval_count, 0)
+    assert_eq(__LOC__, I64, eval_count, 0)
 }
 
 test_evaluates_taken_arm := test() {
     eval_count = 0
     r := lazy_and(true, bump())
     expect(__LOC__, r, "true and bump() is true")
-    assert_eq(__LOC__, eval_count, 1)
+    assert_eq(__LOC__, I64, eval_count, 1)
 }
 
 test_core_and_short_circuits := test() {
     eval_count = 0
     r := false.and(bump())
     expect(__LOC__, r.not(), "false.and(bump()) is false")
-    assert_eq(__LOC__, eval_count, 0)
+    assert_eq(__LOC__, I64, eval_count, 0)
 }
 
 test_core_or_short_circuits := test() {
     eval_count = 0
     r := true.or(bump())
     expect(__LOC__, r, "true.or(bump()) is true")
-    assert_eq(__LOC__, eval_count, 0)
+    assert_eq(__LOC__, I64, eval_count, 0)
 }
 
 test_ampamp_short_circuits := test() {
     eval_count = 0
     r := false && bump()
     expect(__LOC__, r.not(), "false && bump() is false")
-    assert_eq(__LOC__, eval_count, 0)
+    assert_eq(__LOC__, I64, eval_count, 0)
 }
 
 test_pipepipe_short_circuits := test() {
     eval_count = 0
     r := true || bump()
     expect(__LOC__, r, "true || bump() is true")
-    assert_eq(__LOC__, eval_count, 0)
+    assert_eq(__LOC__, I64, eval_count, 0)
 }
 
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
@@ -130,14 +130,14 @@ test_lazy_proc_short_circuits := test() {
     log_count = 0
     r := lazy_or_p(true, note())
     expect(__LOC__, r, "true or note() is true")
-    assert_eq(__LOC__, log_count, 0)
+    assert_eq(__LOC__, I64, log_count, 0)
 }
 
 test_lazy_proc_runs_when_needed := test() {
     log_count = 0
     r := lazy_or_p(false, note())
     expect(__LOC__, r, "false or note() runs note()")
-    assert_eq(__LOC__, log_count, 1)
+    assert_eq(__LOC__, I64, log_count, 1)
 }
 
 # --- A throwing call in a lazy and/or argument must compile AND short-circuit.

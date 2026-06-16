@@ -3,16 +3,16 @@ mode test
 test_i64_basics := test() {
     a := 34
     b := 35
-    assert_eq(__LOC__, a.add(b), 69)
-    assert_eq(__LOC__, a, 34)
-    assert_eq(__LOC__, b, 35)
+    assert_eq(__LOC__, I64, a.add(b), 69)
+    assert_eq(__LOC__, I64, a, 34)
+    assert_eq(__LOC__, I64, b, 35)
 }
 
 test_str_basics := test() {
     s := "Hello"
-    assert_eq_str(__LOC__, s, "Hello")
+    assert_eq(__LOC__, Str, s, "Hello")
     greeting := "Hi there"
-    assert_eq_str(__LOC__, greeting, "Hi there")
+    assert_eq(__LOC__, Str, greeting, "Hi there")
 }
 
 test_bool_basics := test() {
@@ -20,21 +20,21 @@ test_bool_basics := test() {
     f := false
     assert(__LOC__, t)
     assert(__LOC__, f.not())
-    assert_eq_str(__LOC__, t.to_str(), "true")
-    assert_eq_str(__LOC__, f.to_str(), "false")
+    assert_eq(__LOC__, Str, t.to_str(), "true")
+    assert_eq(__LOC__, Str, f.to_str(), "false")
 }
 
 test_u8 := test() {
     a : U8 = 200
     b : U8 = 55
-    assert_eq_str(__LOC__, a.add(b).to_str(), "255")
-    assert_eq_str(__LOC__, a.add(b).add(b).to_str(), "54")
-    assert_eq_str(__LOC__, a.sub(b).to_str(), "145")
-    assert_eq_str(__LOC__, a.to_str(), "200")
+    assert_eq(__LOC__, Str, a.add(b).to_str(), "255")
+    assert_eq(__LOC__, Str, a.add(b).add(b).to_str(), "54")
+    assert_eq(__LOC__, Str, a.sub(b).to_str(), "145")
+    assert_eq(__LOC__, Str, a.to_str(), "200")
     assert(__LOC__, a.gt(b))
     assert(__LOC__, a.eq(a))
     c : U8 = 42
-    assert_eq_str(__LOC__, c.to_str(), "42")
+    assert_eq(__LOC__, Str, c.to_str(), "42")
 }
 
 types_double := func(n: I64) returns I64 {
@@ -43,10 +43,10 @@ types_double := func(n: I64) returns I64 {
 
 test_explicit_types := test() {
     x : I64 = 35
-    assert_eq(__LOC__, x, 35)
+    assert_eq(__LOC__, I64, x, 35)
     greeting : Str = "Hi there"
-    assert_eq_str(__LOC__, greeting, "Hi there")
-    assert_eq(__LOC__, types_double(5), 10)
+    assert_eq(__LOC__, Str, greeting, "Hi there")
+    assert_eq(__LOC__, I64, types_double(5), 10)
 }
 
 takes_u64 := func(n: U64) returns U64 { return n }
@@ -55,48 +55,48 @@ takes_i64 := func(n: I64) returns I64 { return n }
 test_implicit_widen := test() {
     // U32 → U64 widening
     a : U32 = 42
-    assert_eq_str(__LOC__, takes_u64(a.cast(U64)).to_str(), "42")
+    assert_eq(__LOC__, Str, takes_u64(a.cast(U64)).to_str(), "42")
     // U32 → I64 widening
-    assert_eq(__LOC__, takes_i64(a.to_i64()), 42)
+    assert_eq(__LOC__, I64, takes_i64(a.to_i64()), 42)
     // U8 → U64 widening
     b : U8 = 200
-    assert_eq_str(__LOC__, takes_u64(b.cast(U64)).to_str(), "200")
+    assert_eq(__LOC__, Str, takes_u64(b.cast(U64)).to_str(), "200")
 }
 
 test_typed_literal_coercion := test() {
     neg_i32 : I32 = -1
-    assert_eq(__LOC__, neg_i32.cast(I64), -1)
+    assert_eq(__LOC__, I64, neg_i32.cast(I64), -1)
 
     neg_chain : I32 = -34.add(-35)
-    assert_eq(__LOC__, neg_chain.cast(I64), -69)
+    assert_eq(__LOC__, I64, neg_chain.cast(I64), -69)
 
     half : F32 = 1 / 2
-    assert_eq_str(__LOC__, half.to_str(), "0.5")
+    assert_eq(__LOC__, Str, half.to_str(), "0.5")
 
     half_explicit : F32 = 1.to_f32() / 2
-    assert_eq_str(__LOC__, half_explicit.to_str(), "0.5")
+    assert_eq(__LOC__, Str, half_explicit.to_str(), "0.5")
 }
 
 test_format := test() {
-    assert_eq_str(__LOC__, "hello".concat(" world"), "hello world")
-    assert_eq_str(__LOC__, format("a", "b", "c"), "abc")
+    assert_eq(__LOC__, Str, "hello".concat(" world"), "hello world")
+    assert_eq(__LOC__, Str, format("a", "b", "c"), "abc")
 }
 
 test_i16 := test() {
     // Arithmetic
     a : I16 = 100
     b : I16 = 42
-    assert_eq(__LOC__, a.add(b).cast(I64), 142)
-    assert_eq(__LOC__, a.sub(b).cast(I64), 58)
-    assert_eq(__LOC__, a.mul(b).cast(I64), 4200)
-    assert_eq(__LOC__, a.div(b).cast(I64), 2)
-    assert_eq(__LOC__, a.mod(b).cast(I64), 16)
+    assert_eq(__LOC__, I64, a.add(b).cast(I64), 142)
+    assert_eq(__LOC__, I64, a.sub(b).cast(I64), 58)
+    assert_eq(__LOC__, I64, a.mul(b).cast(I64), 4200)
+    assert_eq(__LOC__, I64, a.div(b).cast(I64), 2)
+    assert_eq(__LOC__, I64, a.mod(b).cast(I64), 16)
 
     // Negative values
     c : I16 = -100
-    assert_eq(__LOC__, c.cast(I64), -100)
-    assert_eq(__LOC__, c.neg().cast(I64), 100)
-    assert_eq(__LOC__, c.add(a).cast(I64), 0)
+    assert_eq(__LOC__, I64, c.cast(I64), -100)
+    assert_eq(__LOC__, I64, c.neg().cast(I64), 100)
+    assert_eq(__LOC__, I64, c.add(a).cast(I64), 0)
 
     // Comparisons
     assert(__LOC__, a.gt(b))
@@ -108,26 +108,26 @@ test_i16 := test() {
     assert(__LOC__, c.lt(a))
 
     // to_str
-    assert_eq_str(__LOC__, 12345.to_i16().to_str(), "12345")
-    assert_eq_str(__LOC__, -100.to_i16().to_str(), "-100")
+    assert_eq(__LOC__, Str, 12345.to_i16().to_str(), "12345")
+    assert_eq(__LOC__, Str, -100.to_i16().to_str(), "-100")
 
     // size
-    assert_eq(__LOC__, I16.size().to_i64(), 2)
+    assert_eq(__LOC__, I64, I16.size().to_i64(), 2)
 }
 
 test_i32 := test() {
     a : I32 = 100
     b : I32 = 42
-    assert_eq(__LOC__, a.add(b).cast(I64), 142)
-    assert_eq(__LOC__, a.sub(b).cast(I64), 58)
-    assert_eq(__LOC__, a.mul(b).cast(I64), 4200)
-    assert_eq(__LOC__, a.div(b).cast(I64), 2)
-    assert_eq(__LOC__, a.mod(b).cast(I64), 16)
+    assert_eq(__LOC__, I64, a.add(b).cast(I64), 142)
+    assert_eq(__LOC__, I64, a.sub(b).cast(I64), 58)
+    assert_eq(__LOC__, I64, a.mul(b).cast(I64), 4200)
+    assert_eq(__LOC__, I64, a.div(b).cast(I64), 2)
+    assert_eq(__LOC__, I64, a.mod(b).cast(I64), 16)
 
     // Negative
     c : I32 = -100
-    assert_eq(__LOC__, c.cast(I64), -100)
-    assert_eq(__LOC__, c.neg().cast(I64), 100)
+    assert_eq(__LOC__, I64, c.cast(I64), -100)
+    assert_eq(__LOC__, I64, c.neg().cast(I64), 100)
 
     // Comparisons
     assert(__LOC__, a.gt(b))
@@ -137,22 +137,22 @@ test_i32 := test() {
     assert(__LOC__, c.lt(a))
 
     // to_str
-    assert_eq_str(__LOC__, 12345.to_i32().to_str(), "12345")
-    assert_eq_str(__LOC__, -100.to_i32().to_str(), "-100")
+    assert_eq(__LOC__, Str, 12345.to_i32().to_str(), "12345")
+    assert_eq(__LOC__, Str, -100.to_i32().to_str(), "-100")
 
     // size
-    assert_eq(__LOC__, I32.size().to_i64(), 4)
+    assert_eq(__LOC__, I64, I32.size().to_i64(), 4)
 }
 
 test_u32 := test() {
     // Arithmetic
     a : U32 = 100
     b : U32 = 42
-    assert_eq(__LOC__, a.add(b).to_i64(), 142)
-    assert_eq(__LOC__, a.sub(b).to_i64(), 58)
-    assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
-    assert_eq(__LOC__, a.div(b).to_i64(), 2)
-    assert_eq(__LOC__, a.mod(b).to_i64(), 16)
+    assert_eq(__LOC__, I64, a.add(b).to_i64(), 142)
+    assert_eq(__LOC__, I64, a.sub(b).to_i64(), 58)
+    assert_eq(__LOC__, I64, a.mul(b).to_i64(), 4200)
+    assert_eq(__LOC__, I64, a.div(b).to_i64(), 2)
+    assert_eq(__LOC__, I64, a.mod(b).to_i64(), 16)
 
     // Comparisons (auto-generated from cmp)
     assert(__LOC__, a.gt(b))
@@ -165,30 +165,30 @@ test_u32 := test() {
     // Bitwise (0xFF00=65280, 0x0FF0=4080, AND=3840, OR=65520, XOR=61680)
     x : U32 = 65280
     y : U32 = 4080
-    assert_eq(__LOC__, x.band(y).to_i64(), 3840)
-    assert_eq(__LOC__, x.bor(y).to_i64(), 65520)
-    assert_eq(__LOC__, x.bxor(y).to_i64(), 61680)
+    assert_eq(__LOC__, I64, x.band(y).to_i64(), 3840)
+    assert_eq(__LOC__, I64, x.bor(y).to_i64(), 65520)
+    assert_eq(__LOC__, I64, x.bxor(y).to_i64(), 61680)
 
     // to_str
-    assert_eq_str(__LOC__, 12345.to_u32().to_str(), "12345")
+    assert_eq(__LOC__, Str, 12345.to_u32().to_str(), "12345")
 
     // size
-    assert_eq(__LOC__, U32.size().to_i64(), 4)
+    assert_eq(__LOC__, I64, U32.size().to_i64(), 4)
 }
 
 test_char_literals := test() {
     // Basic chars
-    assert_eq(__LOC__, 'a'.to_i64(), 97)
-    assert_eq(__LOC__, '0'.to_i64(), 48)
-    assert_eq(__LOC__, '('.to_i64(), 40)
+    assert_eq(__LOC__, I64, 'a'.to_i64(), 97)
+    assert_eq(__LOC__, I64, '0'.to_i64(), 48)
+    assert_eq(__LOC__, I64, '('.to_i64(), 40)
 
     // Escape sequences
-    assert_eq(__LOC__, '\n'.to_i64(), 10)
-    assert_eq(__LOC__, '\t'.to_i64(), 9)
-    assert_eq(__LOC__, '\r'.to_i64(), 13)
-    assert_eq(__LOC__, '\\'.to_i64(), 92)
-    assert_eq(__LOC__, '\''.to_i64(), 39)
-    assert_eq(__LOC__, '\0'.to_i64(), 0)
+    assert_eq(__LOC__, I64, '\n'.to_i64(), 10)
+    assert_eq(__LOC__, I64, '\t'.to_i64(), 9)
+    assert_eq(__LOC__, I64, '\r'.to_i64(), 13)
+    assert_eq(__LOC__, I64, '\\'.to_i64(), 92)
+    assert_eq(__LOC__, I64, '\''.to_i64(), 39)
+    assert_eq(__LOC__, I64, '\0'.to_i64(), 0)
 
     // Comparison
     assert(__LOC__, 'a'.eq('a'))
@@ -199,5 +199,5 @@ test_char_literals := test() {
 
     // Type is U8
     c := 'x'
-    assert_eq(__LOC__, c.to_i64(), 120)
+    assert_eq(__LOC__, I64, c.to_i64(), 120)
 }

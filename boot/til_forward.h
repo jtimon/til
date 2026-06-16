@@ -234,6 +234,7 @@ typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
+typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Map__Str_Value Map__Str_Value;
@@ -254,7 +255,6 @@ typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__I32 Vec__I32;
 typedef struct Map__Str_I64 Map__Str_I64;
-typedef struct Map__Str_Expr Map__Str_Expr;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -710,6 +710,12 @@ struct ScopeFind {
     } data;
 };
 
+typedef struct Map__Str_Expr {
+    Vec__Str keys;
+    Vec__Expr values;
+} Map__Str_Expr;
+
+
 typedef struct Vec__Dynamic {
     U8 *data;
     U32 count;
@@ -804,12 +810,6 @@ typedef struct Map__Str_I64 {
     Vec__Str keys;
     Vec__I64 values;
 } Map__Str_I64;
-
-
-typedef struct Map__Str_Expr {
-    Vec__Str keys;
-    Vec__Expr values;
-} Map__Str_Expr;
 
 
 struct Lang {
@@ -1758,6 +1758,8 @@ typedef struct Context {
     Set__Str imports_typer_decls_done;
     Set__Str imports_typer_bodies_done;
     Set__Str type_gen_synths;
+    Map__Str_Expr generic_funcs;
+    Set__Str generic_func_synths;
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
@@ -2483,6 +2485,17 @@ void Map__Str_ImportUnit_delete(Map__Str_ImportUnit * self, Bool call_free);
 Map__Str_ImportUnit * Map__Str_ImportUnit_clone(Map__Str_ImportUnit * self);
 U64 Map__Str_ImportUnit_hash(Map__Str_ImportUnit * self, HashFn hasher);
 U32 Map__Str_ImportUnit_size(void);
+Map__Str_Expr * Map__Str_Expr_new(void);
+U32 Map__Str_Expr_len(Map__Str_Expr * self);
+Str * Map__Str_Expr_key_ptr(Map__Str_Expr * self, U32 * i);
+Expr * Map__Str_Expr_val_ptr(Map__Str_Expr * self, U32 * i);
+Bool Map__Str_Expr_has(Map__Str_Expr * self, Str * key);
+Expr * Map__Str_Expr_get(Map__Str_Expr * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
+void Map__Str_Expr_set(Map__Str_Expr * self, Str * key, Expr * val);
+void Map__Str_Expr_delete(Map__Str_Expr * self, Bool call_free);
+Map__Str_Expr * Map__Str_Expr_clone(Map__Str_Expr * self);
+U64 Map__Str_Expr_hash(Map__Str_Expr * self, HashFn hasher);
+U32 Map__Str_Expr_size(void);
 Map__Str_StructLayout * Map__Str_StructLayout_new(void);
 Str * Map__Str_StructLayout_key_ptr(Map__Str_StructLayout * self, U32 * i);
 StructLayout * Map__Str_StructLayout_val_ptr(Map__Str_StructLayout * self, U32 * i);
@@ -2676,9 +2689,9 @@ void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map__St
 I32 priv___src_self_initer_til__init_macro_cond_eval(Expr * cond);
 Expr * priv___src_self_initer_til__init_macro_pick_return(Expr * body, Map__Str_Expr * subs);
 Bool priv___src_self_initer_til__init_is_type_gen_macro_def(Expr * fdef);
-Expr * priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map__Str_Expr * macros, TypeScope * scope);
-Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map__Str_Expr * macros, TypeScope * scope);
-Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map__Str_Expr * macros, TypeScope * scope);
+Expr * priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
+Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
+Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef);
 Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
 Str * priv___src_self_initer_til__init_macro_inst_text_name(Str * prefix, Str * text);
@@ -2687,7 +2700,7 @@ Str * priv___src_self_initer_til__init_macro_inst_type_arg_name(Expr * arg, Type
 Str * priv___src_self_initer_til__init_macro_inst_arg_name(Expr * arg);
 Str * priv___src_self_initer_til__init_macro_inst_name(Expr * e);
 Str * priv___src_self_initer_til__init_macro_inst_name_for_macro(Expr * e, Expr * macro_fdef, TypeScope * scope);
-Str * priv___src_self_initer_til__init_macro_inst_name_in_scope(Expr * e, Map__Str_Expr * macros, TypeScope * scope);
+Str * priv___src_self_initer_til__init_macro_inst_name_in_scope(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_hoist_walk(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx, Vec__Expr * synthesized, Bool mark_ctx);
 void priv___src_self_initer_til__init_hoist_inline_macros(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_normalize_direct_type_gen_aliases(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
@@ -2702,9 +2715,9 @@ void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program,
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
-void priv___src_self_initer_til__init_generic_expand_call(Expr * parent, U32 call_idx, Str * gname, Expr * gfd_expr, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized);
-void priv___src_self_initer_til__init_generic_walk(Expr * e, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized);
-void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program);
+void priv___src_self_initer_til__init_generic_expand_call(Expr * parent, U32 call_idx, Str * gname, Expr * gfd_expr, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized, Context * ctx);
+void priv___src_self_initer_til__init_generic_walk(Expr * e, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized, Context * ctx);
+void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
@@ -2739,17 +2752,6 @@ void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
 Map__Str_I64 * Map__Str_I64_clone(Map__Str_I64 * self);
 U64 Map__Str_I64_hash(Map__Str_I64 * self, HashFn hasher);
 U32 Map__Str_I64_size(void);
-Map__Str_Expr * Map__Str_Expr_new(void);
-U32 Map__Str_Expr_len(Map__Str_Expr * self);
-Str * Map__Str_Expr_key_ptr(Map__Str_Expr * self, U32 * i);
-Expr * Map__Str_Expr_val_ptr(Map__Str_Expr * self, U32 * i);
-Bool Map__Str_Expr_has(Map__Str_Expr * self, Str * key);
-Expr * Map__Str_Expr_get(Map__Str_Expr * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
-void Map__Str_Expr_set(Map__Str_Expr * self, Str * key, Expr * val);
-void Map__Str_Expr_delete(Map__Str_Expr * self, Bool call_free);
-Map__Str_Expr * Map__Str_Expr_clone(Map__Str_Expr * self);
-U64 Map__Str_Expr_hash(Map__Str_Expr * self, HashFn hasher);
-U32 Map__Str_Expr_size(void);
 void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);

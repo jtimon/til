@@ -9,5 +9,5 @@ make_multiplier := func(factor: I64) returns UnaryOp {
 
 test_closure_return_captures_local := test() {
     triple := make_multiplier(3)
-    assert_eq(__LOC__, triple(6), 18)
+    assert_eq(__LOC__, I64, triple(6), 18)
 }

@@ -47,21 +47,21 @@ test_enum_namespace := test() {
 }
 
 test_struct_namespace := test() {
-    assert_eq(__LOC__, Counter.instances, 0)
-    assert_eq_str(__LOC__, Counter.label, "Counter")
+    assert_eq(__LOC__, I64, Counter.instances, 0)
+    assert_eq(__LOC__, Str, Counter.label, "Counter")
     c := Counter.make(7)
-    assert_eq(__LOC__, c.value, 7)
-    assert_eq(__LOC__, Counter.instances, 1)
+    assert_eq(__LOC__, I64, c.value, 7)
+    assert_eq(__LOC__, I64, Counter.instances, 1)
 }
 
 test_named_namespace_sugar := test() {
-    assert_eq(__LOC__, Math.answer, 42)
-    assert_eq(__LOC__, Math.add(2, 3), 5)
-    assert_eq(__LOC__, Math.twice(9), 18)
+    assert_eq(__LOC__, I64, Math.answer, 42)
+    assert_eq(__LOC__, I64, Math.add(2, 3), 5)
+    assert_eq(__LOC__, I64, Math.twice(9), 18)
 }
 
 test_namespace_mut_state := test() {
-    assert_eq(__LOC__, MyNamespace.get(), 69)
+    assert_eq(__LOC__, I64, MyNamespace.get(), 69)
     MyNamespace.set(420)
-    assert_eq(__LOC__, MyNamespace.get(), 420)
+    assert_eq(__LOC__, I64, MyNamespace.get(), 420)
 }

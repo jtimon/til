@@ -4,7 +4,7 @@ import("imports/priv_helper")
 // Same-file priv is fine; importer can call the public add_one which
 // internally uses priv internal_inc inside priv_helper.til.
 test_priv_indirect := test() {
-    assert_eq(__LOC__, add_one(40), 42)
+    assert_eq(__LOC__, I64, add_one(40), 42)
 }
 
 // Same-file priv: a priv helper used from the same file works.
@@ -13,7 +13,7 @@ priv local_double := func(x: I64) returns I64 {
 }
 
 test_priv_same_file := test() {
-    assert_eq(__LOC__, local_double(21), 42)
+    assert_eq(__LOC__, I64, local_double(21), 42)
 }
 
 // #179 step 2: same-file priv struct works (construct + method call).
@@ -27,13 +27,13 @@ namespace:
 
 test_priv_struct_same_file := test() {
     s := LocalSecret(value = 21)
-    assert_eq(__LOC__, s.doubled(), 42)
+    assert_eq(__LOC__, I64, s.doubled(), 42)
 }
 
 // Importer can use the public make_secret which internally
 // constructs a priv Secret in priv_helper.til.
 test_priv_struct_indirect := test() {
-    assert_eq(__LOC__, make_secret(99), 99)
+    assert_eq(__LOC__, I64, make_secret(99), 99)
 }
 
 // #179 step 3: same-file priv enum works.
@@ -46,32 +46,32 @@ test_priv_enum_same_file := test() {
     case LocalMood.Up:   score = 1
     case LocalMood.Down: score = -1
     }
-    assert_eq(__LOC__, score, 1)
+    assert_eq(__LOC__, I64, score, 1)
 }
 
 // Importer can use the public mood_score which internally references
 // a priv Mood enum in priv_helper.til.
 test_priv_enum_indirect := test() {
-    assert_eq(__LOC__, mood_score(0), 1)
-    assert_eq(__LOC__, mood_score(1), -1)
-    assert_eq(__LOC__, mood_score(2), 0)
+    assert_eq(__LOC__, I64, mood_score(0), 1)
+    assert_eq(__LOC__, I64, mood_score(1), -1)
+    assert_eq(__LOC__, I64, mood_score(2), 0)
 }
 
 // #179 steps 4-5: public Box has a priv field and a priv namespace
 // method. Public Box methods can use them, importers cannot.
 test_priv_field_indirect := test() {
     b := make_box(7, 41)
-    assert_eq(__LOC__, b.tag, 7)
+    assert_eq(__LOC__, I64, b.tag, 7)
     // hidden_plus_one is public and reads the priv field internally.
-    assert_eq(__LOC__, b.hidden_plus_one(), 42)
+    assert_eq(__LOC__, I64, b.hidden_plus_one(), 42)
 }
 
 test_priv_ns_method_indirect := test() {
     mut b := make_box(7, 0)
     // bump_and_show is public; it internally calls the priv
     // bump_hidden namespace method.
-    assert_eq(__LOC__, b.bump_and_show(), 1)
-    assert_eq(__LOC__, b.bump_and_show(), 2)
+    assert_eq(__LOC__, I64, b.bump_and_show(), 1)
+    assert_eq(__LOC__, I64, b.bump_and_show(), 2)
 }
 
 // #179 step 6: priv top-level globals.
@@ -79,18 +79,18 @@ priv LOCAL_MAGIC := 99
 priv mut local_counter := 0
 
 test_priv_global_same_file := test() {
-    assert_eq(__LOC__, LOCAL_MAGIC, 99)
+    assert_eq(__LOC__, I64, LOCAL_MAGIC, 99)
     local_counter = local_counter.add(5)
-    assert_eq(__LOC__, local_counter, 5)
+    assert_eq(__LOC__, I64, local_counter, 5)
 }
 
 test_priv_global_indirect := test() {
     // Importer can use the public accessors but not MAGIC/counter
     // directly.
-    assert_eq(__LOC__, magic_value(), 42)
+    assert_eq(__LOC__, I64, magic_value(), 42)
     bump_counter()
     bump_counter()
-    assert_eq(__LOC__, get_counter(), 2)
+    assert_eq(__LOC__, I64, get_counter(), 2)
 }
 
 // #187 auto_gen_depth gate: a USER-defined clone reading a priv
@@ -119,8 +119,8 @@ namespace:
 test_user_clone_marks_priv_used := test() {
     a := UserCloneStruct.new(7, 41)
     b := a.clone()
-    assert_eq(__LOC__, b.tag, 7)
-    assert_eq(__LOC__, b.leak_secret(), 41)
+    assert_eq(__LOC__, I64, b.tag, 7)
+    assert_eq(__LOC__, I64, b.leak_secret(), 41)
 }
 
 // Nested priv shapes: cross-file (priv struct/enum) and in-struct
@@ -149,9 +149,9 @@ namespace:
 test_priv_struct_with_priv_members := test() {
     s := NestedSecret.new(3, 4)
     // Public ns method reads priv field internally.
-    assert_eq(__LOC__, s.sum(), 7)
+    assert_eq(__LOC__, I64, s.sum(), 7)
     // Public ns method calls priv ns method internally.
-    assert_eq(__LOC__, s.drive_internal(), 8)
+    assert_eq(__LOC__, I64, s.drive_internal(), 8)
 }
 
 priv NestedMood := enum {
@@ -173,6 +173,6 @@ namespace:
 test_priv_enum_with_priv_ns_method := test() {
     a := NestedMood.Calm
     b := NestedMood.Stormy
-    assert_eq_str(__LOC__, a.describe(), "calm")
-    assert_eq_str(__LOC__, b.describe(), "stormy")
+    assert_eq(__LOC__, Str, a.describe(), "calm")
+    assert_eq(__LOC__, Str, b.describe(), "stormy")
 }

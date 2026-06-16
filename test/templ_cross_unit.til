@@ -8,8 +8,8 @@ test_templ_cross_unit_dedup := test() {
     b : CrossBox(I64) = cross_b_box()
     ref av : I64 = a.get()
     ref bv : I64 = b.get()
-    assert_eq(__LOC__, av, 11)
-    assert_eq(__LOC__, bv, 21)
-    assert_eq(__LOC__, cross_a_value(), 12)
-    assert_eq(__LOC__, cross_b_value(), 22)
+    assert_eq(__LOC__, I64, av, 11)
+    assert_eq(__LOC__, I64, bv, 21)
+    assert_eq(__LOC__, I64, cross_a_value(), 12)
+    assert_eq(__LOC__, I64, cross_b_value(), 22)
 }

@@ -104,7 +104,7 @@ test_bucket_covers_all_with_enough_keys := test() {
         seen = seen.bor(mask)
     }
     // 16 buckets -> low 16 bits all set -> 0xFFFF.
-    assert_eq(__LOC__, seen, 65535)
+    assert_eq(__LOC__, I64, seen, 65535)
 }
 
 // Local helper: 2^n for small n (n < 16). Cheap stand-in for a missing

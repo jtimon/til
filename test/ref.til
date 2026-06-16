@@ -10,7 +10,7 @@ test_ref_i64 := test() {
     x := 3
     y := 7
     ref m := min(x, y)
-    assert_eq(__LOC__, m, 3)
+    assert_eq(__LOC__, I64, m, 3)
 }
 
 # --- ref returns with Str ---
@@ -23,7 +23,7 @@ test_ref_str := test() {
     a := "hi"
     b := "hello"
     ref s := shorter(a, b)
-    assert_eq_str(__LOC__, s, "hi")
+    assert_eq(__LOC__, Str, s, "hi")
 }
 
 # --- ref from parameter ---
@@ -35,7 +35,7 @@ identity := func(x: I64) returns ref I64 {
 test_ref_from_param := test() {
     v := 42
     ref r := identity(v)
-    assert_eq(__LOC__, r, 42)
+    assert_eq(__LOC__, I64, r, 42)
 }
 
 # --- ref from owned compound local ---
@@ -48,8 +48,8 @@ RefPoint := struct {
 test_ref_from_owned_compound := test() {
     p := RefPoint(x = 42, y = 99)
     ref r : RefPoint = p
-    assert_eq(__LOC__, r.x, 42)
-    assert_eq(__LOC__, r.y, 99)
+    assert_eq(__LOC__, I64, r.x, 42)
+    assert_eq(__LOC__, I64, r.y, 99)
 }
 
 # --- ref from field access ---
@@ -65,13 +65,13 @@ RefBox := struct {
 test_ref_from_field_return := test() {
     b := RefBox(n = 9)
     ref n : I64 = b.get_n()
-    assert_eq(__LOC__, n, 9)
+    assert_eq(__LOC__, I64, n, 9)
 }
 
 test_ref_decl_from_field := test() {
     b := RefBox(n = 11)
     ref n : I64 = b.n
-    assert_eq(__LOC__, n, 11)
+    assert_eq(__LOC__, I64, n, 11)
 }
 
 # --- ref Dynamic from owned compound ---
@@ -80,8 +80,8 @@ test_ref_dynamic_from_struct := test() {
     p := RefPoint(x = 10, y = 20)
     ref d : Dynamic = p
     ref p2 : RefPoint = d
-    assert_eq(__LOC__, p2.x, 10)
-    assert_eq(__LOC__, p2.y, 20)
+    assert_eq(__LOC__, I64, p2.x, 10)
+    assert_eq(__LOC__, I64, p2.y, 20)
 }
 
 # --- NULL literal + ref struct fields ---
@@ -110,13 +110,13 @@ test_ref_struct_field := test() {
     a := RefNode(value = 10)
     b := RefNode(value = 20)
     a.next = b
-    assert_eq(__LOC__, a.value, 10)
-    assert_eq(__LOC__, a.next.value, 20)
+    assert_eq(__LOC__, I64, a.value, 10)
+    assert_eq(__LOC__, I64, a.next.value, 20)
 
     // clone copies the pointer (not deep clone)
     c := a.clone()
-    assert_eq(__LOC__, c.value, 10)
-    assert_eq(__LOC__, c.next.value, 20)
+    assert_eq(__LOC__, I64, c.value, 10)
+    assert_eq(__LOC__, I64, c.next.value, 20)
 }
 
 # --- Issue #226 / #227: ref mut primitive must deref-write ---
@@ -145,5 +145,5 @@ ref226_param_rhs := func(len: USize) returns U32 {
 
 test_ref_mut_primitive_assign := test() {
     got := ref226_param_rhs(42)
-    assert_eq(__LOC__, got.to_i64(), 42)
+    assert_eq(__LOC__, I64, got.to_i64(), 42)
 }

@@ -107,6 +107,13 @@ namespace:
         return Str(c_str = new_data, count = val.count, cap = val.count)
     }
 
+    /// String representation of a Str: a fresh owned copy of itself. Lets
+    /// Str satisfy the same `T.to_str(x)` contract as the numeric types, so
+    /// generic code (e.g. assert_eq(__LOC__, Str, a, b)) works uniformly.
+    to_str := func(self: Str) returns Str {
+        return self.clone()
+    }
+
     /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
     /// static literal wrapper, so call_free does not free that wrapper either.
     delete := func(own self: Str, call_free: Bool = true) {

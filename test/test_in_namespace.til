@@ -11,12 +11,12 @@ Counter := struct {
 
     test_bump_default := test() {
         c := Counter(value = 0)
-        assert_eq(__LOC__, c.bump(), 1)
+        assert_eq(__LOC__, I64, c.bump(), 1)
     }
 
     test_bump_seeded := test() {
         c := Counter(value = 10)
-        assert_eq(__LOC__, c.bump(), 11)
+        assert_eq(__LOC__, I64, c.bump(), 11)
     }
 }
 
@@ -32,20 +32,20 @@ Sign := enum {
     }
 
     test_classify_pos := test() {
-        assert_eq(__LOC__, Sign.classify(7), 1)
+        assert_eq(__LOC__, I64, Sign.classify(7), 1)
     }
 
     test_classify_neg := test() {
-        assert_eq(__LOC__, Sign.classify(-3), -1)
+        assert_eq(__LOC__, I64, Sign.classify(-3), -1)
     }
 
     test_classify_zero := test() {
-        assert_eq(__LOC__, Sign.classify(0), 0)
+        assert_eq(__LOC__, I64, Sign.classify(0), 0)
     }
 }
 
 # Sanity: a top-level test in the same file still runs.
 test_top_level_still_works := test() {
     c := Counter(value = 41)
-    assert_eq(__LOC__, c.bump(), 42)
+    assert_eq(__LOC__, I64, c.bump(), 42)
 }

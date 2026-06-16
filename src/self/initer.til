@@ -2702,11 +2702,19 @@ priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
     return false
 }
 
-priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope: TypeScope) returns ref Expr {
+priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) returns ref Expr {
     if macros.has(name) {
         ref local_macro : Expr = macros[name]
         return local_macro
     }
+    // A direct generic func (`func(T: Type, ...)`, e.g. core `assert_eq`) is
+    // NOT a type-gen macro, and init_expand_generic_funcs DROPS (frees) its
+    // top-level decl once the calls are monomorphized -- leaving
+    // scope.func_defs[name] dangling. Skip such names via the generic
+    // registry so the hoist never dereferences that freed FuncDef
+    // (heap-use-after-free, issue #58 cross-unit). The non-null check below
+    // would otherwise pass on the freed-but-non-null pointer.
+    if ctx.generic_funcs.has(name) { return NULL }
     ref imported_macro : Expr = scope.lookup_func(name)
     if imported_macro.is_null() { return NULL }
     if init_is_type_gen_macro_def(imported_macro).not() { return NULL }
@@ -2716,7 +2724,7 @@ priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope
 // Issue #267 (caveat 2): inline instantiation of a type-gen macro. `e` is a
 // macro-instantiation call `MACRO(arg1, ...)` when its callee is an Ident
 // naming a local or imported StructDef/EnumDef/FuncDef-returning macro.
-priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope) returns Bool {
+priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len().lt(1) { return false }
     ref callee : Expr = e.children[0]
@@ -2726,16 +2734,16 @@ priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: Typ
     case NodeType.Ident(cn): nm = cn.ident_name()
     case:
     }
-    return init_lookup_type_gen_macro(nm, macros, scope).is_null().not()
+    return init_lookup_type_gen_macro(nm, macros, scope, ctx).is_null().not()
 }
 
 // A top-level `Name := MACRO(args)` decl whose RHS is directly a macro
 // instantiation -- handled by the main expansion loop, so the inline-hoist
 // pass leaves it alone (its only nested calls are the type-arg idents).
-priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map(Str, Expr), scope: TypeScope) returns Bool {
+priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len().eq(0) { return false }
-    return init_is_macro_inst_call(stmt.children[0], macros, scope)
+    return init_is_macro_inst_call(stmt.children[0], macros, scope, ctx)
 }
 
 priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr) returns Bool {
@@ -2869,12 +2877,12 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
     return out
 }
 
-priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope) returns Str {
+priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) returns Str {
     if e.children.len().eq(0) { return init_macro_inst_name(e) }
     ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cn):
-        ref macro_fdef : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope)
+        ref macro_fdef : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
         if macro_fdef.is_null().not() {
             return init_macro_inst_name_for_macro(e, macro_fdef, scope)
         }
@@ -2918,8 +2926,8 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeSco
     }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
-        if init_is_macro_inst_call(c, macros, scope) {
-            genname := init_macro_inst_name_in_scope(c, macros, scope)
+        if init_is_macro_inst_call(c, macros, scope, ctx) {
+            genname := init_macro_inst_name_in_scope(c, macros, scope, ctx)
             if ctx.type_gen_synths.has(genname).not() {
                 mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), c.line, c.col)
                 decl.add_child(own c.clone())
@@ -2950,7 +2958,7 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map(Str, Expr),
                 if init_is_type_gen_macro_def(stmt.children[0]) { continue }
             }
         }
-        if init_is_direct_macro_inst_decl(stmt, macros, scope) { continue }
+        if init_is_direct_macro_inst_decl(stmt, macros, scope, ctx) { continue }
         init_hoist_walk(stmt, macros, scope, ctx, synthesized, false)
     }
     for d : Expr in synthesized {
@@ -2964,16 +2972,16 @@ priv init_hoist_inline_macros := func(mut program: Expr, macros: Map(Str, Expr),
 priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
     mut synthesized := Vec(Expr).new()
     for mut stmt : Expr in program.children {
-        if init_is_direct_macro_inst_decl(stmt, macros, scope).not() { continue }
+        if init_is_direct_macro_inst_decl(stmt, macros, scope, ctx).not() { continue }
         ref rhs : Expr = stmt.children[0]
-        genname := init_macro_inst_name_in_scope(rhs, macros, scope)
+        genname := init_macro_inst_name_in_scope(rhs, macros, scope, ctx)
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if dd.name.eq(genname) { continue }
             ref callee : Expr = rhs.children[0]
             switch callee.node_type {
             case NodeType.Ident(cn):
-                ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope)
+                ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
                 if mf.is_null() { continue }
                 if ctx.type_gen_synths.has(genname).not() {
                     mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), stmt.line, stmt.col)
@@ -3186,9 +3194,9 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
     mut last_direct := Map(Str, I64).new()
     for i in 0..program.children.len() {
         ref stmt0 : Expr = program.children[i]
-        if init_is_direct_macro_inst_decl(stmt0, macros, scope).not() { continue }
+        if init_is_direct_macro_inst_decl(stmt0, macros, scope, ctx).not() { continue }
         ref rhs0 : Expr = stmt0.children[0]
-        genname0 := init_macro_inst_name_in_scope(rhs0, macros, scope)
+        genname0 := init_macro_inst_name_in_scope(rhs0, macros, scope, ctx)
         switch stmt0.node_type {
         case NodeType.Decl(dd0):
             if dd0.name.eq(genname0) {
@@ -3202,9 +3210,9 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
     for i in 0..program.children.len() {
         ref stmt : Expr = program.children[i]
         mut keep := true
-        if init_is_direct_macro_inst_decl(stmt, macros, scope) {
+        if init_is_direct_macro_inst_decl(stmt, macros, scope, ctx) {
             ref rhs : Expr = stmt.children[0]
-            genname := init_macro_inst_name_in_scope(rhs, macros, scope)
+            genname := init_macro_inst_name_in_scope(rhs, macros, scope, ctx)
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 if dd.name.eq(genname) {
@@ -3212,7 +3220,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
                     ref callee : Expr = rhs.children[0]
                     switch callee.node_type {
                     case NodeType.Ident(cn):
-                        ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope)
+                        ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
                         if mf.is_null().not().and(init_macro_inst_uses_own_type_param(rhs, mf)) {
                             drop_placeholder = true
                         }
@@ -3300,7 +3308,7 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
 // (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
 // in place to the concrete `gname__T1_T2(valargs)`.
-priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
+priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr), ctx: Context) {
     ref call : Expr = parent.children[call_idx]
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
@@ -3331,33 +3339,40 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
         }
         if ok.not() { return }
 
-        // Synthesize the concrete copy once per distinct mono name.
+        // Synthesize the concrete copy once per distinct mono name. The local
+        // `seen` guards re-expansion within this unit; ctx.generic_func_synths
+        // dedupes the EMITTED decl across units in one binary (issue #58
+        // cross-unit): the first unit to need `assert_eq__I64` emits the
+        // concrete decl, later units only rewrite their calls to that name.
         if seen.has(mono).not() {
-            mut cloned := gfd_expr.clone()
-            switch cloned.node_type {
-            case NodeType.FuncDef(cfd):
-                mut kept := Vec(Declaration).new()
-                for kp : Declaration in cfd.params {
-                    if kp.explicit_type.eq("Type") { continue }
-                    kept.push(own kp.clone())
+            if ctx.generic_func_synths.has(mono).not() {
+                ctx.generic_func_synths.add(own mono.clone())
+                mut cloned := gfd_expr.clone()
+                switch cloned.node_type {
+                case NodeType.FuncDef(cfd):
+                    mut kept := Vec(Declaration).new()
+                    for kp : Declaration in cfd.params {
+                        if kp.explicit_type.eq("Type") { continue }
+                        kept.push(own kp.clone())
+                    }
+                    cfd.params.clear()
+                    for kp2 : Declaration in kept {
+                        cfd.params.push(own kp2.clone())
+                    }
+                case:
                 }
-                cfd.params.clear()
-                for kp2 : Declaration in kept {
-                    cfd.params.push(own kp2.clone())
-                }
-            case:
+                init_substitute_type_params(cloned, subs)
+                // Composition: the freshly-substituted body may now contain
+                // calls to OTHER generic funcs (or to this one with different
+                // type-args). Walk it with the same generics/seen/synthesized,
+                // so those calls get rewritten and any new monomorphizations
+                // get appended -- the program-level outer loop will then pick
+                // them up alongside the rest.
+                init_generic_walk(cloned, generics, seen, synthesized, ctx)
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone())), call.line, call.col)
+                decl.add_child(own cloned)
+                synthesized.push(own decl)
             }
-            init_substitute_type_params(cloned, subs)
-            // Composition: the freshly-substituted body may now contain
-            // calls to OTHER generic funcs (or to this one with different
-            // type-args). Walk it with the same generics/seen/synthesized,
-            // so those calls get rewritten and any new monomorphizations
-            // get appended -- the program-level outer loop will then pick
-            // them up alongside the rest.
-            init_generic_walk(cloned, generics, seen, synthesized)
-            mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone())), call.line, call.col)
-            decl.add_child(own cloned)
-            synthesized.push(own decl)
             seen.set(mono, own mono.clone())
         }
 
@@ -3389,8 +3404,30 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
 
 // Walk `e`'s subtree rewriting every generic-func call to its
 // monomorphization. `generics` maps name -> generic funcdef Expr.
-priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr)) {
+priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr), ctx: Context) {
     expect(__LOC__, e.is_null().not(), "e is null")
+    // Namespace members (struct/enum `namespace:` decls, including inline
+    // test() decls) live in ns_decls, not e.children, so the generic-call
+    // rewrite must descend into their bodies separately -- otherwise a
+    // generic call like assert_eq(__LOC__, I64, ...) inside a namespace
+    // method stays un-monomorphized (issue #51 + #58). Mirrors how
+    // init_subst_struct_params / init_subst_enum_params reach ns method
+    // bodies for type-param substitution.
+    switch e.node_type {
+    case NodeType.StructDef(sdd_g):
+        for mut nd : Declaration in sdd_g.ns_decls {
+            if nd.default_value.is_null().not() {
+                init_generic_walk(nd.default_value, generics, seen, synthesized, ctx)
+            }
+        }
+    case NodeType.EnumDef(edd_g):
+        for mut nd : Declaration in edd_g.ns_decls {
+            if nd.default_value.is_null().not() {
+                init_generic_walk(nd.default_value, generics, seen, synthesized, ctx)
+            }
+        }
+    case:
+    }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
         mut handled := false
@@ -3402,25 +3439,25 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
                 if generics.has(gnm) {
                     // Recurse into the args first (nested generic calls),
                     // then expand this call.
-                    init_generic_walk(c, generics, seen, synthesized)
+                    init_generic_walk(c, generics, seen, synthesized, ctx)
                     ref gfd_expr : Expr = generics[gnm]
                     // generics threaded through so the expander can
                     // recursively walk the synthesized body for composed
                     // generic calls (init_generic_expand_call signature
                     // now takes generics).
-                    init_generic_expand_call(e, i, gnm, gfd_expr, generics, seen, synthesized)
+                    init_generic_expand_call(e, i, gnm, gfd_expr, generics, seen, synthesized, ctx)
                     handled = true
                 }
             case:
             }
         }
         if handled.not() {
-            init_generic_walk(c, generics, seen, synthesized)
+            init_generic_walk(c, generics, seen, synthesized, ctx)
         }
     }
 }
 
-priv init_expand_generic_funcs := func(mut program: Expr) {
+priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
     // Collect top-level generic func/proc decls.
     mut generics := Map(Str, Expr).new()
     for stmt : Expr in program.children {
@@ -3434,6 +3471,16 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
         case:
         }
     }
+    // Issue #58 cross-unit: also pull in generics defined in imported units
+    // (recorded at seed time). A call here to a generic defined elsewhere
+    // (e.g. core `assert_eq`) is monomorphized against the imported decl.
+    // A local decl of the same name already in `generics` wins.
+    for gi in 0..ctx.generic_funcs.len() {
+        ref gname : Str = ctx.generic_funcs.key_ptr(gi)
+        if generics.has(gname) { continue }
+        ref gdef : Expr = ctx.generic_funcs.val_ptr(gi)
+        generics.set(gname.clone(), own gdef.clone())
+    }
     if generics.len().eq(0) { return }
 
     // Rewrite all calls (skipping the generic decls themselves, whose
@@ -3443,11 +3490,15 @@ priv init_expand_generic_funcs := func(mut program: Expr) {
     for mut stmt : Expr in program.children {
         is_generic_decl := stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(init_func_is_generic(stmt.children[0]))
         if is_generic_decl { continue }
-        init_generic_walk(stmt, generics, seen, synthesized)
+        init_generic_walk(stmt, generics, seen, synthesized, ctx)
     }
 
     // Rebuild program.children: drop the generic decls, keep everything
-    // else, then append the synthesized monomorphizations.
+    // else, then append the synthesized monomorphizations. The dropped
+    // generic decls are freed here, so scope.func_defs still holds a
+    // (now dangling) pointer for each generic name; nothing dereferences it
+    // -- calls were rewritten to the monomorphizations above, and the
+    // type-gen-macro hoist skips generic names (init_lookup_type_gen_macro).
     mut kept_stmts := Vec(Expr).new()
     for stmt2 : Expr in program.children {
         drop := stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)).and(init_func_is_generic(stmt2.children[0]))
@@ -3522,7 +3573,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             case NodeType.Ident(cn): callee_name = cn.ident_name()
             case:
             }
-            ref macro_fdef : Expr = init_lookup_type_gen_macro(callee_name, macros, scope)
+            ref macro_fdef : Expr = init_lookup_type_gen_macro(callee_name, macros, scope, ctx)
             if macro_fdef.is_null() { continue }
             if macro_fdef.children.len().eq(0) { continue }
             ref body : Expr = macro_fdef.children[0]
@@ -3617,6 +3668,16 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
                 register_funcsig_alias_for_stmt(ctx, stmt, scope)
             } else {
                 register_function_def_for_stmt(ctx, stmt, scope)
+                // Issue #58 cross-unit generics: record this public generic
+                // so a unit that imports this one can monomorphize calls to
+                // it (its own decl is dropped during this unit's expansion).
+                if init_func_is_generic(rhs) {
+                    switch stmt.node_type {
+                    case NodeType.Decl(gdd):
+                        ctx.generic_funcs.set(gdd.name, own rhs.clone())
+                    case:
+                    }
+                }
             }
         }
     }
@@ -3638,7 +3699,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // after macro expansion so a macro-generated generic func would also
     // be picked up. Rewrites each call to its concrete copy and removes
     // the generic decl.
-    init_expand_generic_funcs(program)
+    init_expand_generic_funcs(program, ctx)
     init_refresh_seeded_scope_defs(program, scope)
 
     // Single AST walk: register every type name in scope (struct, enum,

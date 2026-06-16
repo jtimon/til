@@ -10,18 +10,18 @@ test_loc_directives := test() {
 
     // __LINE__ returns I64
     line := __LINE__
-    assert_eq(__LOC__, line, 12)
+    assert_eq(__LOC__, I64, line, 12)
 
     // __COL__ returns I64
     col := __COL__
-    assert_eq(__LOC__, col, 12)
+    assert_eq(__LOC__, I64, col, 12)
 }
 
 test_line_increments := test() {
     // __LINE__ on consecutive source lines differs by exactly 1
     a := __LINE__
     b := __LINE__
-    assert_eq(__LOC__, b.sub(a), 1)
+    assert_eq(__LOC__, I64, b.sub(a), 1)
 }
 
 test_col_reflects_position := test() {
@@ -37,7 +37,7 @@ get_file := func() returns Str { return __FILE__ }
 test_directives_in_func := test() {
     // __LINE__ inside a func resolves to the source line of the
     // directive itself, not the call site
-    assert_eq(__LOC__, get_line(), 34)
+    assert_eq(__LOC__, I64, get_line(), 34)
     expect(__LOC__, get_file().find("directives.til").neq(-1),
            "__FILE__ in func resolves to source file")
 }

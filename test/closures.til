@@ -18,7 +18,7 @@ test_block_capture_const_read := test() {
     [base, mut result] {
         result = base.add(5)
     }
-    assert_eq(__LOC__, result, 15)
+    assert_eq(__LOC__, I64, result, 15)
 }
 
 // A global is always visible without being captured.
@@ -27,7 +27,7 @@ test_block_capture_global_allowed := test() {
     [mut r] {
         r = GLOBAL_SCALE.add(2)
     }
-    assert_eq(__LOC__, r, 12)
+    assert_eq(__LOC__, I64, r, 12)
 }
 
 // A top-level function is always callable without being captured.
@@ -37,7 +37,7 @@ test_block_capture_func_allowed := test() {
     [seed, mut out] {
         out = helper_double(seed)
     }
-    assert_eq(__LOC__, out, 12)
+    assert_eq(__LOC__, I64, out, 12)
 }
 
 // Block-local declarations are free to use inside the block.
@@ -48,7 +48,7 @@ test_block_capture_block_local := test() {
         doubled := seed.mul(2)
         out = doubled.add(1)
     }
-    assert_eq(__LOC__, out, 7)
+    assert_eq(__LOC__, I64, out, 7)
 }
 
 // A for-loop inside a capture block, accumulating into a captured mut.
@@ -59,7 +59,7 @@ test_block_capture_loop := test() {
             total = total.add(i)
         }
     }
-    assert_eq(__LOC__, total, 6)
+    assert_eq(__LOC__, I64, total, 6)
 }
 
 // Nested capture blocks each restrict to their own list.
@@ -73,7 +73,7 @@ test_block_capture_nested := test() {
         }
         sum = sum.add(b)
     }
-    assert_eq(__LOC__, sum, 3)
+    assert_eq(__LOC__, I64, sum, 3)
 }
 
 // A capture block leaves untouched outer locals genuinely untouched.
@@ -83,6 +83,6 @@ test_block_capture_isolation := test() {
     [mut touched] {
         touched++
     }
-    assert_eq(__LOC__, touched, 1)
-    assert_eq(__LOC__, untouched, 99)
+    assert_eq(__LOC__, I64, touched, 1)
+    assert_eq(__LOC__, I64, untouched, 99)
 }

@@ -5,20 +5,20 @@ test_kwargs_map_i64 := test() {
     dm.set("answer", "I64", I64.size(), own 42)
     dm.set("count", "I64", I64.size(), own 7)
 
-    assert_eq(__LOC__, dm.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, dm.len().to_i64(), 2)
     assert(__LOC__, dm.has("answer"))
     assert(__LOC__, dm.has("count"))
     assert(__LOC__, dm.has("missing").not())
 
     ref v0 : I64 = dm.get("answer")
     ref v1 : I64 = dm.get("count")
-    assert_eq(__LOC__, v0, 42)
-    assert_eq(__LOC__, v1, 7)
+    assert_eq(__LOC__, I64, v0, 42)
+    assert_eq(__LOC__, I64, v1, 7)
 
     ref t0 : Str = dm.type_at("answer")
     ref s0 : USize = dm.size_at("answer")
-    assert_eq_str(__LOC__, t0, "I64")
-    assert_eq(__LOC__, s0.to_i64(), 8)
+    assert_eq(__LOC__, Str, t0, "I64")
+    assert_eq(__LOC__, I64, s0.to_i64(), 8)
 }
 
 test_kwargs_map_mixed := test() {
@@ -31,16 +31,16 @@ test_kwargs_map_mixed := test() {
     ref enabled : Bool = dm.get("enabled")
     ref size : I64 = dm.get("size")
 
-    assert_eq_str(__LOC__, name, "til")
+    assert_eq(__LOC__, Str, name, "til")
     assert(__LOC__, enabled)
-    assert_eq(__LOC__, size, 64)
+    assert_eq(__LOC__, I64, size, 64)
 
     ref tn : Str = dm.type_at("name")
     ref tb : Str = dm.type_at("enabled")
     ref ts : Str = dm.type_at("size")
-    assert_eq_str(__LOC__, tn, "Str")
-    assert_eq_str(__LOC__, tb, "Bool")
-    assert_eq_str(__LOC__, ts, "I64")
+    assert_eq(__LOC__, Str, tn, "Str")
+    assert_eq(__LOC__, Str, tb, "Bool")
+    assert_eq(__LOC__, Str, ts, "I64")
 }
 
 test_kwargs_map_overwrite := test() {
@@ -48,13 +48,13 @@ test_kwargs_map_overwrite := test() {
     dm.set("v", "I64", I64.size(), own 1)
     dm.set("v", "Str", Str.size(), own "two")
 
-    assert_eq(__LOC__, dm.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, dm.len().to_i64(), 1)
     ref v : Str = dm.get("v")
     ref t : Str = dm.type_at("v")
     ref s : USize = dm.size_at("v")
-    assert_eq_str(__LOC__, v, "two")
-    assert_eq_str(__LOC__, t, "Str")
-    assert_eq(__LOC__, s.to_i64(), 16)
+    assert_eq(__LOC__, Str, v, "two")
+    assert_eq(__LOC__, Str, t, "Str")
+    assert_eq(__LOC__, I64, s.to_i64(), 16)
 }
 
 Foo := struct {
@@ -69,8 +69,8 @@ test_dyn_has_method := test() {
     hi := "hi"
     n_c  := n.clone()
     hi_c := hi.clone()
-    assert_eq(__LOC__, n_c, 1)
-    assert_eq_str(__LOC__, hi_c, "hi")
+    assert_eq(__LOC__, I64, n_c, 1)
+    assert_eq(__LOC__, Str, hi_c, "hi")
 
     expect(__LOC__, dyn_has_method("I64", "delete"), "I64 has delete")
     expect(__LOC__, dyn_has_method("I64", "clone"), "I64 has clone")
@@ -80,7 +80,7 @@ test_dyn_has_method := test() {
     expect(__LOC__, dyn_has_method("Bool", "eq"), "Bool has eq")
     expect(__LOC__, dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
     f := Foo(x=0)
-    assert_eq(__LOC__, f.bar(), 0)
+    assert_eq(__LOC__, I64, f.bar(), 0)
     expect(__LOC__, dyn_has_method("Foo", "bar"), "Foo has bar")
     expect(__LOC__, dyn_has_method("Foo", "baz").not(), "Foo no baz")
 }
@@ -89,15 +89,15 @@ test_dyn_has_method := test() {
 test_dynamic_narrowing := test() {
     my_vec := vec("I64", 10, 20, 30)
     ref x2 : I64 = my_vec[0]
-    assert_eq(__LOC__, x2, 10)
+    assert_eq(__LOC__, I64, x2, 10)
     // Dynamic value as typed argument
     ref x0 : I64 = my_vec[0]
-    assert_eq(__LOC__, 34.add(x0), 44)
+    assert_eq(__LOC__, I64, 34.add(x0), 44)
     // Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
     ref a0 : I64 = my_vec[0]
     ref a1 : I64 = my_vec[1]
     ref a2 : I64 = my_vec[2]
-    assert_eq(__LOC__, 0.add(a0).add(a1).add(a2), 60)
+    assert_eq(__LOC__, I64, 0.add(a0).add(a1).add(a2), 60)
 }
 
 // #166 regression: Bool values in Vec must round-trip correctly through
@@ -178,7 +178,7 @@ bug185_u8_dyn_arg := test() {
     ref x : Dynamic = v[1]
     y : U8 = 10
     // Mixed typed/Dynamic args to a typed-primitive method.
-    assert_eq(__LOC__, y.add(x).to_i64(), 12)
+    assert_eq(__LOC__, I64, y.add(x).to_i64(), 12)
 }
 
 test_dyn_size_of := test() {
@@ -187,18 +187,18 @@ test_dyn_size_of := test() {
     sz_str : USize = dyn_size_of("Str")
     sz_dynamic : USize = dyn_size_of("Dynamic")
 
-    assert_eq(__LOC__, sz_i64.to_i64(), 8)
-    assert_eq(__LOC__, sz_u8.to_i64(), 1)
-    assert_eq(__LOC__, sz_str.to_i64(), 16)
-    assert_eq(__LOC__, sz_dynamic.to_i64(), Dynamic.size().to_i64())
+    assert_eq(__LOC__, I64, sz_i64.to_i64(), 8)
+    assert_eq(__LOC__, I64, sz_u8.to_i64(), 1)
+    assert_eq(__LOC__, I64, sz_str.to_i64(), 16)
+    assert_eq(__LOC__, I64, sz_dynamic.to_i64(), Dynamic.size().to_i64())
 
     elem_type : Str = "I64"
     via_var : USize = dyn_size_of(elem_type)
-    assert_eq(__LOC__, via_var.to_i64(), 8)
+    assert_eq(__LOC__, I64, via_var.to_i64(), 8)
 
     via_size : USize = dyn_size_of("I64")
     via_method : USize = I64.size()
-    assert_eq(__LOC__, via_size.to_i64(), via_method.to_i64())
+    assert_eq(__LOC__, I64, via_size.to_i64(), via_method.to_i64())
 }
 
 TypeNameStruct := struct {
@@ -210,10 +210,10 @@ type_name_passthrough := func(T: Type) returns Str {
 }
 
 test_dyn_type_to_str := test() {
-    assert_eq_str(__LOC__, dyn_type_to_str(I64), "I64")
-    assert_eq_str(__LOC__, dyn_type_to_str(Str), "Str")
-    assert_eq_str(__LOC__, dyn_type_to_str(Bool), "Bool")
-    assert_eq_str(__LOC__, dyn_type_to_str(TypeNameStruct), "TypeNameStruct")
-    assert_eq_str(__LOC__, type_name_passthrough(Str), "Str")
-    assert_eq_str(__LOC__, type_name_passthrough(TypeNameStruct), "TypeNameStruct")
+    assert_eq(__LOC__, Str, dyn_type_to_str(I64), "I64")
+    assert_eq(__LOC__, Str, dyn_type_to_str(Str), "Str")
+    assert_eq(__LOC__, Str, dyn_type_to_str(Bool), "Bool")
+    assert_eq(__LOC__, Str, dyn_type_to_str(TypeNameStruct), "TypeNameStruct")
+    assert_eq(__LOC__, Str, type_name_passthrough(Str), "Str")
+    assert_eq(__LOC__, Str, type_name_passthrough(TypeNameStruct), "TypeNameStruct")
 }

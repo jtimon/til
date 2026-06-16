@@ -7,7 +7,7 @@ test_hashmap_i64_basic := test() {
     m.set(1, own 10)
     m.set(2, own 20)
     m.set(3, own 30)
-    assert_eq(__LOC__, m.len().to_i64(), 3)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 3)
     assert(__LOC__, m.has(1))
     assert(__LOC__, m.has(2))
     assert(__LOC__, m.has(3))
@@ -16,18 +16,18 @@ test_hashmap_i64_basic := test() {
     ref v1 : I64 = m.get(1)
     ref v2 : I64 = m.get(2)
     ref v3 : I64 = m.get(3)
-    assert_eq(__LOC__, v1, 10)
-    assert_eq(__LOC__, v2, 20)
-    assert_eq(__LOC__, v3, 30)
+    assert_eq(__LOC__, I64, v1, 10)
+    assert_eq(__LOC__, I64, v2, 20)
+    assert_eq(__LOC__, I64, v3, 30)
 }
 
 test_hashmap_i64_overwrite := test() {
     m := HashMap(I64, I64).new()
     m.set(5, own 50)
     m.set(5, own 500)
-    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 1)
     ref v : I64 = m.get(5)
-    assert_eq(__LOC__, v, 500)
+    assert_eq(__LOC__, I64, v, 500)
 }
 
 test_hashmap_str_keys := test() {
@@ -35,7 +35,7 @@ test_hashmap_str_keys := test() {
     m.set("apple", own 1)
     m.set("banana", own 2)
     m.set("cherry", own 3)
-    assert_eq(__LOC__, m.len().to_i64(), 3)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 3)
     assert(__LOC__, m.has("apple"))
     assert(__LOC__, m.has("banana"))
     assert(__LOC__, m.has("cherry"))
@@ -44,20 +44,20 @@ test_hashmap_str_keys := test() {
     ref va : I64 = m.get("apple")
     ref vb : I64 = m.get("banana")
     ref vc : I64 = m.get("cherry")
-    assert_eq(__LOC__, va, 1)
-    assert_eq(__LOC__, vb, 2)
-    assert_eq(__LOC__, vc, 3)
+    assert_eq(__LOC__, I64, va, 1)
+    assert_eq(__LOC__, I64, vb, 2)
+    assert_eq(__LOC__, I64, vc, 3)
 }
 
 test_hashmap_str_value := test() {
     m := HashMap(Str, Str).new()
     m.set("key1", own "value1")
     m.set("key2", own "value2")
-    assert_eq(__LOC__, m.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 2)
     ref v1 : Str = m.get("key1")
     ref v2 : Str = m.get("key2")
-    assert_eq_str(__LOC__, v1, "value1")
-    assert_eq_str(__LOC__, v2, "value2")
+    assert_eq(__LOC__, Str, v1, "value1")
+    assert_eq(__LOC__, Str, v2, "value2")
 }
 
 test_hashmap_grow_past_initial_buckets := test() {
@@ -68,11 +68,11 @@ test_hashmap_grow_past_initial_buckets := test() {
     for i in 0..100 {
         m.set(i, own i.mul(10))
     }
-    assert_eq(__LOC__, m.len().to_i64(), 100)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 100)
     for i in 0..100 {
         assert(__LOC__, m.has(i))
         ref v : I64 = m.get(i)
-        assert_eq(__LOC__, v, i.mul(10))
+        assert_eq(__LOC__, I64, v, i.mul(10))
     }
     assert(__LOC__, m.has(100).not())
     assert(__LOC__, m.has(-1).not())
@@ -85,16 +85,16 @@ test_hashmap_str_overwrite_releases_old_value := test() {
     m := HashMap(Str, Str).new()
     m.set("k", own "first")
     m.set("k", own "second")
-    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 1)
     ref v : Str = m.get("k")
-    assert_eq_str(__LOC__, v, "second")
+    assert_eq(__LOC__, Str, v, "second")
 }
 
 test_hashmap_remove_missing_is_noop := test() {
     m := HashMap(I64, I64).new()
     m.set(1, own 10)
     m.remove(99)
-    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 1)
     assert(__LOC__, m.has(1))
 }
 
@@ -102,7 +102,7 @@ test_hashmap_remove_only_entry := test() {
     m := HashMap(I64, I64).new()
     m.set(5, own 50)
     m.remove(5)
-    assert_eq(__LOC__, m.len().to_i64(), 0)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 0)
     assert(__LOC__, m.has(5).not())
 }
 
@@ -111,9 +111,9 @@ test_hashmap_remove_then_reinsert := test() {
     m.set(7, own 70)
     m.remove(7)
     m.set(7, own 700)
-    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 1)
     ref v : I64 = m.get(7)
-    assert_eq(__LOC__, v, 700)
+    assert_eq(__LOC__, I64, v, 700)
 }
 
 test_hashmap_remove_swap_keeps_others_findable := test() {
@@ -127,14 +127,14 @@ test_hashmap_remove_swap_keeps_others_findable := test() {
     m.remove(7)
     m.remove(23)
     m.remove(42)
-    assert_eq(__LOC__, m.len().to_i64(), 47)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 47)
     for i in 0..50 {
         if i.eq(7).or(i.eq(23)).or(i.eq(42)) {
             assert(__LOC__, m.has(i).not())
         } else {
             assert(__LOC__, m.has(i))
             ref v : I64 = m.get(i)
-            assert_eq(__LOC__, v, i.mul(10))
+            assert_eq(__LOC__, I64, v, i.mul(10))
         }
     }
 }
@@ -149,14 +149,14 @@ test_hashmap_remove_all := test() {
     for i in 0..20 {
         m.remove(i)
     }
-    assert_eq(__LOC__, m.len().to_i64(), 0)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 0)
     for i in 0..20 {
         assert(__LOC__, m.has(i).not())
     }
     m.set(99, own 990)
-    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 1)
     ref v : I64 = m.get(99)
-    assert_eq(__LOC__, v, 990)
+    assert_eq(__LOC__, I64, v, 990)
 }
 
 test_hashmap_remove_str_key_frees_c_str := test() {
@@ -166,9 +166,9 @@ test_hashmap_remove_str_key_frees_c_str := test() {
     m.set("apple", own 1)
     m.set("banana", own 2)
     m.remove("apple")
-    assert_eq(__LOC__, m.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, m.len().to_i64(), 1)
     assert(__LOC__, m.has("apple").not())
     assert(__LOC__, m.has("banana"))
     ref v : I64 = m.get("banana")
-    assert_eq(__LOC__, v, 2)
+    assert_eq(__LOC__, I64, v, 2)
 }

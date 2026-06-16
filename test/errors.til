@@ -676,9 +676,9 @@ namespace:
 test_stmt_method_bang_ok := test() {
     mut t := StmtThrower()
     t.bump(5)!
-    assert_eq(__LOC__, t.n, 5)
+    assert_eq(__LOC__, I64, t.n, 5)
     t.bump(3)!
-    assert_eq(__LOC__, t.n, 8)
+    assert_eq(__LOC__, I64, t.n, 8)
 }
 
 // `?` on a statement-level method call, throw path: the catch runs and
@@ -694,7 +694,7 @@ test_stmt_method_question_throws := test() {
     }
     assert(__LOC__, caught)
     assert(__LOC__, emsg.eq("negative bump"))
-    assert_eq(__LOC__, t.n, 0)
+    assert_eq(__LOC__, I64, t.n, 0)
 }
 
 // `?` on a statement-level method call, success path: the catch is
@@ -707,5 +707,5 @@ test_stmt_method_question_ok := test() {
         caught = true
     }
     assert(__LOC__, caught.not())
-    assert_eq(__LOC__, t.n, 2)
+    assert_eq(__LOC__, I64, t.n, 2)
 }

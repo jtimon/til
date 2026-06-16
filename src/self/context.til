@@ -298,6 +298,18 @@ Context := struct {
     // later units rewrite to the same name without emitting another type.
     type_gen_synths := Set(Str).new()
 
+    // Issue #58 cross-unit direct generics: a `func(T: Type, ...)` generic
+    // (e.g. core `assert_eq`) defined in one unit and CALLED from another is
+    // monomorphized at the calling unit. generic_funcs records every public
+    // generic funcdef at seed time (name -> generic FuncDef RHS), BEFORE each
+    // unit's own expansion drops its local generic decls, so a calling unit
+    // can find generics defined in imported units. generic_func_synths
+    // dedupes the synthesized monomorphizations across units in one binary
+    // (mirrors type_gen_synths): the first unit to need `assert_eq__I64`
+    // emits the concrete decl; later units only rewrite their calls to it.
+    generic_funcs := Map(Str, Expr).new()
+    generic_func_synths := Set(Str).new()
+
     scope := TypeScope()
     is_repl := false
 

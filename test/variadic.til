@@ -10,9 +10,9 @@ variadic_sum := func(nums: ..I64) returns I64 {
 }
 
 test_variadic := test() {
-    assert_eq(__LOC__, variadic_sum(1, 2, 3), 6)
-    assert_eq(__LOC__, variadic_sum(10), 10)
-    assert_eq(__LOC__, variadic_sum(), 0)
+    assert_eq(__LOC__, I64, variadic_sum(1, 2, 3), 6)
+    assert_eq(__LOC__, I64, variadic_sum(10), 10)
+    assert_eq(__LOC__, I64, variadic_sum(), 0)
 }
 
 // proc-based variadic test (not constant-foldable)
@@ -39,19 +39,19 @@ variadic_concat := func(parts: ..Str) returns Str {
 }
 
 test_variadic_str := test() {
-    assert_eq_str(__LOC__, variadic_concat("a", "b", "c"), "abc")
-    assert_eq_str(__LOC__, variadic_concat("hi"), "hi")
-    assert_eq_str(__LOC__, variadic_concat(), "")
+    assert_eq(__LOC__, Str, variadic_concat("a", "b", "c"), "abc")
+    assert_eq(__LOC__, Str, variadic_concat("hi"), "hi")
+    assert_eq(__LOC__, Str, variadic_concat(), "")
 }
 
 // #157: ..Str varargs auto-wrap non-Str args via T.to_str(). Allows
 // `print(1+1)` etc. to work like Python while keeping types honest --
 // types without a to_str method still error at the typer.
 test_variadic_str_auto_to_str := test() {
-    assert_eq_str(__LOC__, variadic_concat("x=", 42), "x=42")
-    assert_eq_str(__LOC__, variadic_concat(1, "+", 2, "=", 3), "1+2=3")
-    assert_eq_str(__LOC__, variadic_concat(true, " ", false), "true false")
-    assert_eq_str(__LOC__, variadic_concat("ok=", true), "ok=true")
+    assert_eq(__LOC__, Str, variadic_concat("x=", 42), "x=42")
+    assert_eq(__LOC__, Str, variadic_concat(1, "+", 2, "=", 3), "1+2=3")
+    assert_eq(__LOC__, Str, variadic_concat(true, " ", false), "true false")
+    assert_eq(__LOC__, Str, variadic_concat("ok=", true), "ok=true")
 }
 
 // Variadic Bool
@@ -79,9 +79,9 @@ prefix_sum := func(prefix: I64, nums: ..I64) returns I64 {
 }
 
 test_variadic_with_positional := test() {
-    assert_eq(__LOC__, prefix_sum(100, 1, 2, 3), 106)
-    assert_eq(__LOC__, prefix_sum(100), 100)
-    assert_eq(__LOC__, prefix_sum(0, 5), 5)
+    assert_eq(__LOC__, I64, prefix_sum(100, 1, 2, 3), 106)
+    assert_eq(__LOC__, I64, prefix_sum(100), 100)
+    assert_eq(__LOC__, I64, prefix_sum(0, 5), 5)
 }
 
 // Issue #186: a user-defined variadic call nested inside another
@@ -95,10 +95,10 @@ say_flags := func(bools: ..Bool) returns Str {
 }
 
 bug186_variadic_nested_in_variadic := test() {
-    assert_eq_str(__LOC__, say_flags(true, false, true), "TFT")
+    assert_eq(__LOC__, Str, say_flags(true, false, true), "TFT")
     // Nested user-defined variadic inside a variadic Str.concat-style
     // call: pass the result of one variadic into another variadic.
-    assert_eq_str(__LOC__, variadic_concat(say_flags(true, false), say_flags(true)), "TFT")
+    assert_eq(__LOC__, Str, variadic_concat(say_flags(true, false), say_flags(true)), "TFT")
 }
 
 // Sibling-position variant of #186 / #188: when a stmt contains
@@ -114,9 +114,9 @@ add2_i64 := func(a: I64, b: I64) returns I64 { return a.add(b) }
 bug189_sibling_variadic := test() {
     // add2_i64 is regular but takes two variadic-call results -- two
     // SIBLINGS in the same arg list.
-    assert_eq(__LOC__, add2_i64(variadic_sum(1, 2), variadic_sum(3, 4)), 10)
+    assert_eq(__LOC__, I64, add2_i64(variadic_sum(1, 2), variadic_sum(3, 4)), 10)
     // Mixed: a sibling variadic alongside a raw arg.
-    assert_eq(__LOC__, add2_i64(variadic_sum(1, 2, 3), 100), 106)
+    assert_eq(__LOC__, I64, add2_i64(variadic_sum(1, 2, 3), 100), 106)
 }
 
 // --- merged from test/splat.til ---
@@ -135,15 +135,15 @@ double_sum := func(nums: ..I64) returns I64 {
 }
 
 test_splat_forward := test() {
-    assert_eq(__LOC__, double_sum(1, 2, 3), 6)
-    assert_eq(__LOC__, double_sum(10), 10)
-    assert_eq(__LOC__, double_sum(), 0)
+    assert_eq(__LOC__, I64, double_sum(1, 2, 3), 6)
+    assert_eq(__LOC__, I64, double_sum(10), 10)
+    assert_eq(__LOC__, I64, double_sum(), 0)
 }
 
 // Splat an array into a variadic call
 test_splat_array := test() {
     a := array("I64", 1, 2, 3)
-    assert_eq(__LOC__, sum(..a), 6)
+    assert_eq(__LOC__, I64, sum(..a), 6)
 }
 
 // Forward Str variadic to format
@@ -152,11 +152,11 @@ my_format := func(parts: ..Str) returns Str {
 }
 
 test_splat_format := test() {
-    assert_eq_str(__LOC__, my_format("hello", " ", "world"), "hello world")
+    assert_eq(__LOC__, Str, my_format("hello", " ", "world"), "hello world")
 }
 
 test_splat_empty := test() {
-    assert_eq(__LOC__, sum(), 0)
-    assert_eq(__LOC__, double_sum(), 0)
-    assert_eq_str(__LOC__, my_format(), "")
+    assert_eq(__LOC__, I64, sum(), 0)
+    assert_eq(__LOC__, I64, double_sum(), 0)
+    assert_eq(__LOC__, Str, my_format(), "")
 }

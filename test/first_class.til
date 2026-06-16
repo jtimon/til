@@ -22,31 +22,31 @@ apply_unary := func(op: UnaryOp, x: I64) returns I64 {
 // --- Lambda as positional FCall argument ---
 
 test_lambda_basic_add := test() {
-    assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 4), 7)
+    assert_eq(__LOC__, I64, apply_binop(func(a: I64, b: I64) returns I64 { return a.add(b) }, 3, 4), 7)
 }
 
 test_lambda_basic_mul := test() {
-    assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.mul(b) }, 6, 7), 42)
+    assert_eq(__LOC__, I64, apply_binop(func(a: I64, b: I64) returns I64 { return a.mul(b) }, 6, 7), 42)
 }
 
 test_lambda_distinct_call_sites := test() {
-    assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.sub(b) }, 10, 3), 7)
-    assert_eq(__LOC__, apply_binop(func(a: I64, b: I64) returns I64 { return a.add(b.mul(2)) }, 1, 5), 11)
+    assert_eq(__LOC__, I64, apply_binop(func(a: I64, b: I64) returns I64 { return a.sub(b) }, 10, 3), 7)
+    assert_eq(__LOC__, I64, apply_binop(func(a: I64, b: I64) returns I64 { return a.add(b.mul(2)) }, 1, 5), 11)
 }
 
 // --- Lambda as named FCall argument ---
 
 test_lambda_named_arg := test() {
-    assert_eq(__LOC__, apply_unary(op = func(x: I64) returns I64 { return x.mul(3) }, x = 4), 12)
+    assert_eq(__LOC__, I64, apply_unary(op = func(x: I64) returns I64 { return x.mul(3) }, x = 4), 12)
 }
 
 // --- Lambda nested across multiple FCalls ---
 
 test_lambda_nested_calls := test() {
     inner := apply_unary(func(x: I64) returns I64 { return x.add(1) }, 5)
-    assert_eq(__LOC__, inner, 6)
+    assert_eq(__LOC__, I64, inner, 6)
     outer := apply_binop(func(a: I64, b: I64) returns I64 { return a.mul(b) }, inner, 7)
-    assert_eq(__LOC__, outer, 42)
+    assert_eq(__LOC__, I64, outer, 42)
 }
 
 // --- Lambda as UFCS method-call argument ---
@@ -62,34 +62,34 @@ namespace:
 
 test_lambda_ufcs_method_arg := test() {
     w := Wrapper(val = 6)
-    assert_eq(__LOC__, w.apply(func(x: I64) returns I64 { return x.mul(7) }), 42)
+    assert_eq(__LOC__, I64, w.apply(func(x: I64) returns I64 { return x.mul(7) }), 42)
 }
 
 // --- Lambda as RHS of FuncSig-typed declaration ---
 
 test_lambda_as_value_unary := test() {
     f : UnaryOp = func(x: I64) returns I64 { return x.mul(2) }
-    assert_eq(__LOC__, f(7), 14)
-    assert_eq(__LOC__, apply_unary(f, 5), 10)
+    assert_eq(__LOC__, I64, f(7), 14)
+    assert_eq(__LOC__, I64, apply_unary(f, 5), 10)
 }
 
 test_capturing_lambda_as_value_unary := test() {
     scale := 10
     f : UnaryOp = func(x: I64) returns I64 [scale] { return x.mul(scale) }
-    assert_eq(__LOC__, f(7), 70)
-    assert_eq(__LOC__, apply_unary(f, 5), 50)
+    assert_eq(__LOC__, I64, f(7), 70)
+    assert_eq(__LOC__, I64, apply_unary(f, 5), 50)
 }
 
 test_inferred_capturing_lambda_value_unary := test() {
     scale := 10
     f := func(x: I64) returns I64 [scale] { return x.mul(scale) }
-    assert_eq(__LOC__, f(3), 30)
+    assert_eq(__LOC__, I64, f(3), 30)
 }
 
 test_lambda_as_value_binary := test() {
     g : BinaryOp = func(a: I64, b: I64) returns I64 { return a.add(b) }
-    assert_eq(__LOC__, g(3, 4), 7)
-    assert_eq(__LOC__, apply_binop(g, 10, 20), 30)
+    assert_eq(__LOC__, I64, g(3, 4), 7)
+    assert_eq(__LOC__, I64, apply_binop(g, 10, 20), 30)
 }
 
 // --- Lambda as struct-field default value ---
@@ -100,33 +100,33 @@ Handler := struct {
 
 test_struct_field_lambda_default := test() {
     h := Handler()
-    assert_eq(__LOC__, h.on_click(3, 5), 8)
+    assert_eq(__LOC__, I64, h.on_click(3, 5), 8)
 }
 
 test_struct_field_lambda_ctor := test() {
     h := Handler(on_click = func(a: I64, b: I64) returns I64 { return a.mul(b) })
-    assert_eq(__LOC__, h.on_click(4, 6), 24)
+    assert_eq(__LOC__, I64, h.on_click(4, 6), 24)
 }
 
 // --- FuncSig-form lambda (type separated from param names) ---
 
 test_funcsig_form_lambda_unary := test() {
-    assert_eq(__LOC__, apply_unary(func(I64) returns I64 = (a) { return a.mul(2) }, 7), 14)
+    assert_eq(__LOC__, I64, apply_unary(func(I64) returns I64 = (a) { return a.mul(2) }, 7), 14)
 }
 
 test_funcsig_form_lambda_binary := test() {
-    assert_eq(__LOC__, apply_binop(func(I64, I64) returns I64 = (a, b) { return a.add(b) }, 3, 4), 7)
+    assert_eq(__LOC__, I64, apply_binop(func(I64, I64) returns I64 = (a, b) { return a.add(b) }, 3, 4), 7)
 }
 
 test_funcsig_form_lambda_as_value := test() {
     f : BinaryOp = func(I64, I64) returns I64 = (a, b) { return a.sub(b) }
-    assert_eq(__LOC__, f(10, 3), 7)
+    assert_eq(__LOC__, I64, f(10, 3), 7)
 }
 
 test_named_funcsig_form_capturing_lambda := test() {
     scale := 10
     f : UnaryOp = (x) [scale] { return x.mul(scale) }
-    assert_eq(__LOC__, f(3), 30)
+    assert_eq(__LOC__, I64, f(3), 30)
 }
 
 // --- FuncSig as first-class Type value (issue #58) ---
@@ -138,20 +138,20 @@ fn_add := func(a: I64, b: I64) returns I64 { return a.add(b) }
 fn_mul := func(a: I64, b: I64) returns I64 { return a.mul(b) }
 
 test_dyn_type_to_str_funcsig := test() {
-    assert_eq_str(__LOC__, "Fn", dyn_type_to_str(BinaryOp))
-    assert_eq_str(__LOC__, "Fn", dyn_type_to_str(Type.FuncPtr))
+    assert_eq(__LOC__, Str, "Fn", dyn_type_to_str(BinaryOp))
+    assert_eq(__LOC__, Str, "Fn", dyn_type_to_str(Type.FuncPtr))
 }
 
 test_vec_funcsig_create := test() {
     ops := DynVec.new(BinaryOp)
-    assert_eq(__LOC__, ops.len().to_i64(), 0)
+    assert_eq(__LOC__, I64, ops.len().to_i64(), 0)
 }
 
 test_vec_funcsig_push_len := test() {
     mut ops := DynVec.new(BinaryOp)
     ops.push(own fn_add)
     ops.push(own fn_mul)
-    assert_eq(__LOC__, ops.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, ops.len().to_i64(), 2)
 }
 
 // Round-trip: push fn_add / fn_mul into a DynVec.new(BinaryOp), pull each
@@ -165,9 +165,9 @@ test_vec_funcsig_call_through_ref := test() {
     ops.push(own fn_add)
     ops.push(own fn_mul)
     ref g : BinaryOp = ops[0.to_usize()]
-    assert_eq(__LOC__, g(3, 4), 7)
+    assert_eq(__LOC__, I64, g(3, 4), 7)
     ref h : BinaryOp = ops[1.to_usize()]
-    assert_eq(__LOC__, h(3, 4), 12)
+    assert_eq(__LOC__, I64, h(3, 4), 12)
 }
 
 // Inline `cast(<dyn>, BinaryOp)(args)` -- a fn ptr pulled directly out
@@ -184,8 +184,8 @@ test_vec_funcsig_cast_call_inline := test() {
     ops.push(own fn_mul)
     ref raw0 : Dynamic = ops[0.to_usize()]
     ref raw1 : Dynamic = ops[1.to_usize()]
-    assert_eq(__LOC__, cast(raw0, BinaryOp)(3, 4), 7)
-    assert_eq(__LOC__, cast(raw1, BinaryOp)(3, 4), 12)
+    assert_eq(__LOC__, I64, cast(raw0, BinaryOp)(3, 4), 7)
+    assert_eq(__LOC__, I64, cast(raw1, BinaryOp)(3, 4), 12)
 }
 
 // --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---
@@ -197,8 +197,8 @@ triple_funcdef : FuncDef = func(x: I64) returns I64 { return x.mul(3) }
 double_funcdef : FunctionDef = func(x: I64) returns I64 { return x.mul(2) }
 
 test_explicit_funcdef_annotation := test() {
-    assert_eq(__LOC__, triple_funcdef(5), 15)
-    assert_eq(__LOC__, double_funcdef(7), 14)
+    assert_eq(__LOC__, I64, triple_funcdef(5), 15)
+    assert_eq(__LOC__, I64, double_funcdef(7), 14)
 }
 
 // --- First-class structs (issue #56), verified-working foundation ---
@@ -219,14 +219,14 @@ type_name_of := func(T: Type) returns Str {
 }
 
 test_struct_type_as_type_arg := test() {
-    assert_eq_str(__LOC__, "Point56", type_name_of(Point56))
+    assert_eq(__LOC__, Str, "Point56", type_name_of(Point56))
 }
 
 // The StructDef metatype round-trips to "StructDef" both as the bare
 // type name and via the Type enum variant.
 test_structdef_metatype_str := test() {
-    assert_eq_str(__LOC__, "StructDef", dyn_type_to_str(StructDef))
-    assert_eq_str(__LOC__, "StructDef", dyn_type_to_str(Type.StructDef))
+    assert_eq(__LOC__, Str, "StructDef", dyn_type_to_str(StructDef))
+    assert_eq(__LOC__, Str, "StructDef", dyn_type_to_str(Type.StructDef))
 }
 
 // Struct instances (not definitions) are first-class values: storable in
@@ -235,7 +235,7 @@ test_vec_of_struct_instances := test() {
     mut points := Vec(Point56).new()
     points.push(own Point56(x=10, y=20))
     points.push(own Point56(x=30, y=40))
-    assert_eq(__LOC__, points.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, points.len().to_i64(), 2)
 }
 
 // --- Anonymous struct instantiation (issue #56) ---
@@ -248,15 +248,15 @@ test_anon_struct_ctor := test() {
         x: I64 = 0
         y: I64 = 0
     }(x=10, y=20)
-    assert_eq(__LOC__, p.x, 10)
-    assert_eq(__LOC__, p.y, 20)
+    assert_eq(__LOC__, I64, p.x, 10)
+    assert_eq(__LOC__, I64, p.y, 20)
 }
 
 test_anon_struct_defaults := test() {
     q := struct {
         a: I64 = 7
     }()
-    assert_eq(__LOC__, q.a, 7)
+    assert_eq(__LOC__, I64, q.a, 7)
 }
 
 // --- Anonymous enum literals (issue #57) ---
@@ -268,7 +268,7 @@ test_anon_enum_variant := test() {
     c := enum {
         Red, Green, Blue
     }.Green
-    assert_eq_str(__LOC__, c.to_str(), "Green")
+    assert_eq(__LOC__, Str, c.to_str(), "Green")
 }
 
 test_anon_enum_payload := test() {
@@ -276,7 +276,7 @@ test_anon_enum_payload := test() {
         Num: I64
         Nothing
     }.Num(42)
-    assert_eq_str(__LOC__, v.to_str(), "Num(42)")
+    assert_eq(__LOC__, Str, v.to_str(), "Num(42)")
 }
 
 // Structurally-identical anon literals unify to one generated type, so a
@@ -286,11 +286,11 @@ test_anon_enum_switch := test() {
     c := enum { Red, Green, Blue }.Green
     switch c {
     case enum { Red, Green, Blue }.Red:
-        assert_eq(__LOC__, 0, 1)
+        assert_eq(__LOC__, I64, 0, 1)
     case enum { Red, Green, Blue }.Green:
         assert(__LOC__, true)
     case enum { Red, Green, Blue }.Blue:
-        assert_eq(__LOC__, 0, 1)
+        assert_eq(__LOC__, I64, 0, 1)
     }
 }
 
@@ -303,7 +303,7 @@ test_anon_enum_payload_switch := test() {
     case enum { Num: I64, Nothing }.Nothing:
         got = -1
     }
-    assert_eq(__LOC__, got, 7)
+    assert_eq(__LOC__, I64, got, 7)
 }
 
 // Conversely, literals that differ observably (here, a field default) stay
@@ -311,8 +311,8 @@ test_anon_enum_payload_switch := test() {
 test_anon_struct_distinct_defaults := test() {
     a := struct { x: I64 = 1 }()
     b := struct { x: I64 = 2 }()
-    assert_eq(__LOC__, a.x, 1)
-    assert_eq(__LOC__, b.x, 2)
+    assert_eq(__LOC__, I64, a.x, 1)
+    assert_eq(__LOC__, I64, b.x, 2)
 }
 
 // --- Anonymous defs in type positions (issue #56/#57) ---
@@ -333,7 +333,7 @@ test_anon_param_type := test() {
         x: I64 = 0
         y: I64 = 0
     }(x=3, y=4)
-    assert_eq(__LOC__, anon_sum_xy(arg), 7)
+    assert_eq(__LOC__, I64, anon_sum_xy(arg), 7)
 }
 
 anon_make_pt := func() returns struct {
@@ -348,7 +348,7 @@ anon_make_pt := func() returns struct {
 
 test_anon_return_type := test() {
     p := anon_make_pt()
-    assert_eq(__LOC__, p.x.add(p.y), 11)
+    assert_eq(__LOC__, I64, p.x.add(p.y), 11)
 }
 
 // Anon enum as return type. Returning a bare tag-only enum variant used to
@@ -359,7 +359,7 @@ anon_make_color := func() returns enum { Red, Green, Blue } {
 }
 
 test_anon_enum_return_type := test() {
-    assert_eq_str(__LOC__, anon_make_color().to_str(), "Green")
+    assert_eq(__LOC__, Str, anon_make_color().to_str(), "Green")
 }
 
 anon_name_of := func(c: enum { Red, Green, Blue }) returns Str {
@@ -367,12 +367,12 @@ anon_name_of := func(c: enum { Red, Green, Blue }) returns Str {
 }
 
 test_anon_enum_param_type := test() {
-    assert_eq_str(__LOC__, anon_name_of(enum { Red, Green, Blue }.Blue), "Blue")
+    assert_eq(__LOC__, Str, anon_name_of(enum { Red, Green, Blue }.Blue), "Blue")
 }
 
 test_anon_local_decl_type := test() {
     p: struct { x: I64 = 0 } = struct { x: I64 = 0 }(x=9)
-    assert_eq(__LOC__, p.x, 9)
+    assert_eq(__LOC__, I64, p.x, 9)
 }
 
 AnonFieldHolder := struct {
@@ -381,7 +381,7 @@ AnonFieldHolder := struct {
 
 test_anon_field_type := test() {
     h := AnonFieldHolder(inner = struct { v: I64 = 0 }(v=42))
-    assert_eq(__LOC__, h.inner.v, 42)
+    assert_eq(__LOC__, I64, h.inner.v, 42)
 }
 
 // --- Bare anonymous defs as values (issue #56) ---
@@ -403,14 +403,14 @@ test_anon_struct_as_value := test() {
     defs.push(own struct {
         a: I64 = 0
     })
-    assert_eq(__LOC__, defs.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, defs.len().to_i64(), 2)
 }
 
 test_anon_enum_as_value := test() {
     mut enums := Vec(EnumDef).new()
     enums.push(own enum { Red, Green, Blue })
     enums.push(own enum { On, Off })
-    assert_eq(__LOC__, enums.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, enums.len().to_i64(), 2)
 }
 
 // --- Anonymous defs as introspection-func args (issue #57/#58) ---
@@ -433,17 +433,17 @@ count_fields_of := func(T: Type) returns I64 {
 NamedColor3 := enum { Red, Green, Blue }
 
 test_named_enum_as_type_arg := test() {
-    assert_eq(__LOC__, count_variants_of(NamedColor3), 3)
+    assert_eq(__LOC__, I64, count_variants_of(NamedColor3), 3)
 }
 
 test_anon_enum_as_type_arg := test() {
-    assert_eq(__LOC__, count_variants_of(enum { Red, Green, Blue }), 3)
-    assert_eq(__LOC__, count_variants_of(enum { A, B, C, D }), 4)
-    assert_eq(__LOC__, count_variants_of(enum { X: I64, Y, Z: Str }), 3)
+    assert_eq(__LOC__, I64, count_variants_of(enum { Red, Green, Blue }), 3)
+    assert_eq(__LOC__, I64, count_variants_of(enum { A, B, C, D }), 4)
+    assert_eq(__LOC__, I64, count_variants_of(enum { X: I64, Y, Z: Str }), 3)
 }
 
 test_anon_struct_as_type_arg := test() {
-    assert_eq(__LOC__, count_fields_of(struct {
+    assert_eq(__LOC__, I64, count_fields_of(struct {
         x: I64 = 0
         y: I64 = 0
     }), 2)
@@ -461,12 +461,12 @@ count_variants_macro := macro(T: Type) returns I64 {
 NamedColor3M := enum { Red, Green, Blue }
 
 test_named_enum_as_macro_arg := test() {
-    assert_eq(__LOC__, count_variants_macro(NamedColor3M), 3)
+    assert_eq(__LOC__, I64, count_variants_macro(NamedColor3M), 3)
 }
 
 test_anon_enum_as_macro_arg := test() {
-    assert_eq(__LOC__, count_variants_macro(enum { Red, Green, Blue }), 3)
-    assert_eq(__LOC__, count_variants_macro(enum { A, B, C, D }), 4)
+    assert_eq(__LOC__, I64, count_variants_macro(enum { Red, Green, Blue }), 3)
+    assert_eq(__LOC__, I64, count_variants_macro(enum { A, B, C, D }), 4)
 }
 
 // --- Macros as type generators (issue #57) ---
@@ -488,7 +488,7 @@ PairI64 := make_pair(I64)
 
 test_macro_struct_gen := test() {
     p := PairI64(first=3, second=4)
-    assert_eq(__LOC__, p.first.add(p.second), 7)
+    assert_eq(__LOC__, I64, p.first.add(p.second), 7)
 }
 
 make_kv := macro(K: Type, V: Type) returns StructDef {
@@ -501,8 +501,8 @@ KVI64Str := make_kv(I64, Str)
 
 test_macro_struct_gen_multi_param := test() {
     kv := KVI64Str(key=42, value="answer")
-    assert_eq(__LOC__, kv.key, 42)
-    assert_eq_str(__LOC__, kv.value, "answer")
+    assert_eq(__LOC__, I64, kv.key, 42)
+    assert_eq(__LOC__, Str, kv.value, "answer")
 }
 
 make_opt := macro(T: Type) returns EnumDef {
@@ -515,7 +515,7 @@ OptI64 := make_opt(I64)
 
 test_macro_enum_gen := test() {
     o := OptI64.Some(99)
-    assert_eq_str(__LOC__, o.to_str(), "Some(99)")
+    assert_eq(__LOC__, Str, o.to_str(), "Some(99)")
 }
 
 // Issue #243 follow-up: enum-generator macros get the same template type
@@ -538,8 +538,8 @@ make_pair_enum := macro(T: Type) returns EnumDef {
 PairEnumI64 := make_pair_enum(I64)
 
 test_macro_enum_ns_t_and_self := test() {
-    assert_eq(__LOC__, PairEnumI64.One(7).unwrap_or(0), 7)
-    assert_eq(__LOC__, PairEnumI64.Empty.unwrap_or(42), 42)
+    assert_eq(__LOC__, I64, PairEnumI64.One(7).unwrap_or(0), 7)
+    assert_eq(__LOC__, I64, PairEnumI64.Empty.unwrap_or(42), 42)
 }
 
 // --- Issue #56 close-out: macro StructDef + user namespace method.
@@ -558,7 +558,7 @@ BoxI64 := make_box56(I64)
 
 test_macro_struct_ns_method := test() {
     b := BoxI64(v = 5)
-    assert_eq(__LOC__, b.twice(), 10)
+    assert_eq(__LOC__, I64, b.twice(), 10)
 }
 
 // Issue #56 close-out: INFER_TYPE -- a field declared without an
@@ -573,7 +573,7 @@ Holder56 := make_holder56(42)
 
 test_macro_struct_infer_type := test() {
     h := Holder56()
-    assert_eq(__LOC__, h.val, 42)
+    assert_eq(__LOC__, I64, h.val, 42)
 }
 
 // Issue #56 close-out: constfolder of a default-value EXPRESSION inside an
@@ -588,7 +588,7 @@ Sized5 := make_sized56(4)
 
 test_macro_struct_constfolder_default := test() {
     s := Sized5()
-    assert_eq(__LOC__, s.size, 5)
+    assert_eq(__LOC__, I64, s.size, 5)
 }
 
 // Issue #57 close-out: reflection helper to count an arbitrary enum's
@@ -603,7 +603,7 @@ count_variants57 := func(E: Type) returns I64 {
 }
 
 test_macro_enum_count_variants := test() {
-    assert_eq(__LOC__, count_variants57(Dir57), 4)
+    assert_eq(__LOC__, I64, count_variants57(Dir57), 4)
 }
 
 // --- Function generators (issue #57) ---
@@ -621,11 +621,11 @@ id_i64 := make_id(I64)
 id_str := make_id(Str)
 
 test_macro_func_gen_i64 := test() {
-    assert_eq(__LOC__, id_i64(42), 42)
+    assert_eq(__LOC__, I64, id_i64(42), 42)
 }
 
 test_macro_func_gen_str := test() {
-    assert_eq_str(__LOC__, id_str("hi"), "hi")
+    assert_eq(__LOC__, Str, id_str("hi"), "hi")
 }
 
 // --- Function generators with value-typed params (issue #57) ---
@@ -643,8 +643,8 @@ add5 := make_adder(5)
 add100 := make_adder(100)
 
 test_macro_func_gen_value_param := test() {
-    assert_eq(__LOC__, add5(3), 8)
-    assert_eq(__LOC__, add100(1), 101)
+    assert_eq(__LOC__, I64, add5(3), 8)
+    assert_eq(__LOC__, I64, add100(1), 101)
 }
 
 make_typed_adder := macro(T: Type, N: I64) returns FuncDef {
@@ -653,7 +653,7 @@ make_typed_adder := macro(T: Type, N: I64) returns FuncDef {
 add_i64_5 := make_typed_adder(I64, 5)
 
 test_macro_func_gen_mixed_params := test() {
-    assert_eq(__LOC__, add_i64_5(7), 12)
+    assert_eq(__LOC__, I64, add_i64_5(7), 12)
 }
 
 // --- Conditional macro bodies (issue #58) ---
@@ -688,9 +688,9 @@ test_cond_macro_struct_else_if := test() {
     a := TaggedI64(value = 1)
     b := TaggedI32(value = 2)
     c := TaggedF32(value = 3)
-    assert_eq(__LOC__, a.tag.cast(I64), 1)
-    assert_eq(__LOC__, b.tag.cast(I64), 2)
-    assert_eq(__LOC__, c.tag.cast(I64), 3)
+    assert_eq(__LOC__, I64, a.tag.cast(I64), 1)
+    assert_eq(__LOC__, I64, b.tag.cast(I64), 2)
+    assert_eq(__LOC__, I64, c.tag.cast(I64), 3)
 }
 
 make_default_fn := macro(T: Type) returns FuncDef {
@@ -704,8 +704,8 @@ answer_fn := make_default_fn(I64)
 zero_fn   := make_default_fn(F32)
 
 test_cond_macro_funcdef := test() {
-    assert_eq(__LOC__, answer_fn(), 42)
-    assert_eq(__LOC__, zero_fn(), 0)
+    assert_eq(__LOC__, I64, answer_fn(), 42)
+    assert_eq(__LOC__, I64, zero_fn(), 0)
 }
 
 make_greeter := macro(name: Str) returns FuncDef {
@@ -714,7 +714,7 @@ make_greeter := macro(name: Str) returns FuncDef {
 greeter_hi := make_greeter("hello")
 
 test_macro_func_gen_str_param := test() {
-    assert_eq_str(__LOC__, greeter_hi(), "hello")
+    assert_eq(__LOC__, Str, greeter_hi(), "hello")
 }
 
 // --- Variant access on enum instance ---
@@ -736,12 +736,12 @@ test_enum_instance_variant_access := test() {
 // away), so the constructor call in the previous test keeps Point56 alive.
 
 test_struct_field_primitives := test() {
-    assert_eq(__LOC__, struct_field_count("Point56"), 2)
-    assert_eq_str(__LOC__, "x", struct_field_name("Point56", 0))
-    assert_eq_str(__LOC__, "y", struct_field_name("Point56", 1))
-    assert_eq(__LOC__, struct_field_is_mut("Point56", 0), 1)
-    assert_eq(__LOC__, struct_field_is_mut("Point56", 1), 1)
-    assert_eq_str(__LOC__, "I64", struct_field_type("Point56", 0))
+    assert_eq(__LOC__, I64, struct_field_count("Point56"), 2)
+    assert_eq(__LOC__, Str, "x", struct_field_name("Point56", 0))
+    assert_eq(__LOC__, Str, "y", struct_field_name("Point56", 1))
+    assert_eq(__LOC__, I64, struct_field_is_mut("Point56", 0), 1)
+    assert_eq(__LOC__, I64, struct_field_is_mut("Point56", 1), 1)
+    assert_eq(__LOC__, Str, "I64", struct_field_type("Point56", 0))
 }
 
 // --- struct_def_of assembler (issue #56/#58) ---
@@ -751,14 +751,14 @@ test_struct_field_primitives := test() {
 
 test_struct_def_of := test() {
     def := struct_def_of("Point56")
-    assert_eq(__LOC__, def.fields.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, def.fields.len().to_i64(), 2)
     ref f0 : Declaration = def.fields[0.to_usize()]
-    assert_eq_str(__LOC__, "x", f0.name)
-    assert_eq_str(__LOC__, "I64", f0.explicit_type)
+    assert_eq(__LOC__, Str, "x", f0.name)
+    assert_eq(__LOC__, Str, "I64", f0.explicit_type)
     expect(__LOC__, f0.is_mut, "f0 is_mut")
     ref f1 : Declaration = def.fields[1.to_usize()]
-    assert_eq_str(__LOC__, "y", f1.name)
-    assert_eq_str(__LOC__, "I64", f1.explicit_type)
+    assert_eq(__LOC__, Str, "y", f1.name)
+    assert_eq(__LOC__, Str, "I64", f1.explicit_type)
 }
 
 // --- Enum introspection primitives (issue #57/#58) ---
@@ -775,16 +775,16 @@ Shape56 := enum {
 test_enum_variant_primitives := test() {
     s := Shape56.Square
     expect(__LOC__, s.is(Shape56.Square), "Shape56 stays live")
-    assert_eq(__LOC__, enum_variant_count("Shape56"), 3)
-    assert_eq_str(__LOC__, "Circle", enum_variant_name("Shape56", 0))
-    assert_eq_str(__LOC__, "Square", enum_variant_name("Shape56", 1))
-    assert_eq_str(__LOC__, "Label", enum_variant_name("Shape56", 2))
-    assert_eq(__LOC__, enum_variant_has_payload("Shape56", 0), 1)
-    assert_eq(__LOC__, enum_variant_has_payload("Shape56", 1), 0)
-    assert_eq(__LOC__, enum_variant_has_payload("Shape56", 2), 1)
-    assert_eq_str(__LOC__, "I64", enum_variant_payload_type("Shape56", 0))
-    assert_eq_str(__LOC__, "", enum_variant_payload_type("Shape56", 1))
-    assert_eq_str(__LOC__, "Str", enum_variant_payload_type("Shape56", 2))
+    assert_eq(__LOC__, I64, enum_variant_count("Shape56"), 3)
+    assert_eq(__LOC__, Str, "Circle", enum_variant_name("Shape56", 0))
+    assert_eq(__LOC__, Str, "Square", enum_variant_name("Shape56", 1))
+    assert_eq(__LOC__, Str, "Label", enum_variant_name("Shape56", 2))
+    assert_eq(__LOC__, I64, enum_variant_has_payload("Shape56", 0), 1)
+    assert_eq(__LOC__, I64, enum_variant_has_payload("Shape56", 1), 0)
+    assert_eq(__LOC__, I64, enum_variant_has_payload("Shape56", 2), 1)
+    assert_eq(__LOC__, Str, "I64", enum_variant_payload_type("Shape56", 0))
+    assert_eq(__LOC__, Str, "", enum_variant_payload_type("Shape56", 1))
+    assert_eq(__LOC__, Str, "Str", enum_variant_payload_type("Shape56", 2))
 }
 
 // --- enum_def_of assembler (issue #57/#58) ---
@@ -792,20 +792,20 @@ test_enum_variant_primitives := test() {
 
 test_enum_def_of := test() {
     def := enum_def_of("Shape56")
-    assert_eq(__LOC__, def.variants.len().to_i64(), 3)
+    assert_eq(__LOC__, I64, def.variants.len().to_i64(), 3)
     ref v0 : Str = def.variants[0.to_usize()]
-    assert_eq_str(__LOC__, "Circle", v0)
+    assert_eq(__LOC__, Str, "Circle", v0)
     ref v1 : Str = def.variants[1.to_usize()]
-    assert_eq_str(__LOC__, "Square", v1)
+    assert_eq(__LOC__, Str, "Square", v1)
     ref v2 : Str = def.variants[2.to_usize()]
-    assert_eq_str(__LOC__, "Label", v2)
+    assert_eq(__LOC__, Str, "Label", v2)
     ref def_pts : Map(I64, Str) = def.payload_types
     expect(__LOC__, def_pts.has(0), "Circle has payload")
     expect(__LOC__, def_pts.has(1).not(), "Square no payload")
     ref p0 : Str = def_pts[0]
-    assert_eq_str(__LOC__, "I64", p0)
+    assert_eq(__LOC__, Str, "I64", p0)
     ref p2 : Str = def_pts[2]
-    assert_eq_str(__LOC__, "Str", p2)
+    assert_eq(__LOC__, Str, "Str", p2)
 }
 
 // --- FuncSig introspection primitives (issue #58) ---
@@ -819,28 +819,28 @@ apply_bin58 := func(op: BinaryOp, a: I64, b: I64) returns I64 { return op(a, b) 
 add58 := func(a: I64, b: I64) returns I64 { return a.add(b) }
 
 test_func_sig_primitives := test() {
-    assert_eq(__LOC__, apply_bin58(add58, 3, 4), 7)  // keep BinaryOp live
-    assert_eq(__LOC__, func_sig_param_count("BinaryOp"), 2)
-    assert_eq_str(__LOC__, "I64", func_sig_param_type("BinaryOp", 0))
-    assert_eq_str(__LOC__, "I64", func_sig_param_type("BinaryOp", 1))
-    assert_eq(__LOC__, func_sig_return_count("BinaryOp"), 1)
-    assert_eq_str(__LOC__, "I64", func_sig_return_type("BinaryOp", 0))
-    assert_eq(__LOC__, func_sig_throw_count("BinaryOp"), 0)
+    assert_eq(__LOC__, I64, apply_bin58(add58, 3, 4), 7)  // keep BinaryOp live
+    assert_eq(__LOC__, I64, func_sig_param_count("BinaryOp"), 2)
+    assert_eq(__LOC__, Str, "I64", func_sig_param_type("BinaryOp", 0))
+    assert_eq(__LOC__, Str, "I64", func_sig_param_type("BinaryOp", 1))
+    assert_eq(__LOC__, I64, func_sig_return_count("BinaryOp"), 1)
+    assert_eq(__LOC__, Str, "I64", func_sig_return_type("BinaryOp", 0))
+    assert_eq(__LOC__, I64, func_sig_throw_count("BinaryOp"), 0)
 }
 
 // --- func_sig_of assembler (issue #58) ---
 // Builds a FunctionDef (signature) value from the func_sig_* primitives.
 
 test_func_sig_of := test() {
-    assert_eq(__LOC__, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
+    assert_eq(__LOC__, I64, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
     sig := func_sig_of("BinaryOp")
-    assert_eq(__LOC__, sig.params.len().to_i64(), 2)
+    assert_eq(__LOC__, I64, sig.params.len().to_i64(), 2)
     ref p0 : Declaration = sig.params[0.to_usize()]
-    assert_eq_str(__LOC__, "I64", p0.explicit_type)
+    assert_eq(__LOC__, Str, "I64", p0.explicit_type)
     ref p1 : Declaration = sig.params[1.to_usize()]
-    assert_eq_str(__LOC__, "I64", p1.explicit_type)
-    assert_eq_str(__LOC__, "I64", sig.return_type)
-    assert_eq(__LOC__, sig.throw_types.len().to_i64(), 0)
+    assert_eq(__LOC__, Str, "I64", p1.explicit_type)
+    assert_eq(__LOC__, Str, "I64", sig.return_type)
+    assert_eq(__LOC__, I64, sig.throw_types.len().to_i64(), 0)
 }
 
 // --- Direct generic functions: func(T: Type, ...) (issue #58 "Phase now") ---
@@ -862,21 +862,21 @@ gcombine := func(A: Type, B: Type, a: A, b: B) returns A { return a.add(b) }
 uses_gid := func(n: I64) returns I64 { return gid(I64, n) }
 
 test_generic_func_identity := test() {
-    assert_eq(__LOC__, gid(I64, 42), 42)
+    assert_eq(__LOC__, I64, gid(I64, 42), 42)
 }
 test_generic_func_constructor := test() {
     p := gdefault(Point58g)
-    assert_eq(__LOC__, p.x, 0)
+    assert_eq(__LOC__, I64, p.x, 0)
 }
 test_generic_func_multi_param := test() {
-    assert_eq(__LOC__, gcombine(I64, I64, 7, 8), 15)
+    assert_eq(__LOC__, I64, gcombine(I64, I64, 7, 8), 15)
 }
 test_generic_func_dedup := test() {
     // Two uses of gid(I64, ..) share one monomorphization.
-    assert_eq(__LOC__, gid(I64, 1).add(gid(I64, 2)), 3)
+    assert_eq(__LOC__, I64, gid(I64, 1).add(gid(I64, 2)), 3)
 }
 test_generic_func_nested_call := test() {
-    assert_eq(__LOC__, uses_gid(99), 99)
+    assert_eq(__LOC__, I64, uses_gid(99), 99)
 }
 
 // Composition: a generic func calling another generic func with the
@@ -888,7 +888,7 @@ gid58g := func(T: Type, v: T) returns T { return v }
 gid58g_compose := func(T: Type, v: T) returns T { return gid58g(T, v) }
 
 test_generic_func_compose := test() {
-    assert_eq(__LOC__, gid58g_compose(I64, 99), 99)
+    assert_eq(__LOC__, I64, gid58g_compose(I64, 99), 99)
 }
 
 // own value-args flow through the generic-call rewrite. The source
@@ -906,9 +906,9 @@ test_generic_func_own_arg := test() {
     mut vec := Vec(GItem58).new()
     a := GItem58(n = 5)
     gstore58(vec, own a)
-    assert_eq(__LOC__, vec.len().to_i64(), 1)
+    assert_eq(__LOC__, I64, vec.len().to_i64(), 1)
     ref got : GItem58 = vec[0.to_usize()]
-    assert_eq(__LOC__, got.n.to_i64(), 5)
+    assert_eq(__LOC__, I64, got.n.to_i64(), 5)
 }
 
 // Canonical swap (issue #58 example): mut value-args through a generic.
@@ -922,8 +922,8 @@ test_generic_func_swap := test() {
     mut x := 3
     mut y := 7
     gswap58(I64, x, y)
-    assert_eq(__LOC__, x, 7)
-    assert_eq(__LOC__, y, 3)
+    assert_eq(__LOC__, I64, x, 7)
+    assert_eq(__LOC__, I64, y, 3)
 }
 
 // `func<T: Type>(...)` angle-bracket sugar (parser-level): desugars to
@@ -942,12 +942,12 @@ gswap_angle := func<T: Type>(mut a: T, mut b: T) {
 }
 
 test_generic_func_angle_identity := test() {
-    assert_eq(__LOC__, gid_angle(I64)(7), 7)
+    assert_eq(__LOC__, I64, gid_angle(I64)(7), 7)
 }
 test_generic_func_angle_swap := test() {
     mut x := 1
     mut y := 2
     gswap_angle(I64)(x, y)
-    assert_eq(__LOC__, x, 2)
-    assert_eq(__LOC__, y, 1)
+    assert_eq(__LOC__, I64, x, 2)
+    assert_eq(__LOC__, I64, y, 1)
 }
