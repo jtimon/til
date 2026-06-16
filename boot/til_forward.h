@@ -297,6 +297,7 @@ typedef struct Array__Bool Array__Bool;
 typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct Vec__CollectionInfo Vec__CollectionInfo;
+typedef struct _ffi_type ffi_type;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
 typedef enum {
@@ -322,14 +323,13 @@ typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
-typedef struct Map__Str_Binding Map__Str_Binding;
-typedef struct Vec__DynPtrBox Vec__DynPtrBox;
-typedef struct Vec__Binding Vec__Binding;
-typedef struct _ffi_type ffi_type;
-typedef struct priv___src_self_dispatch_til__ExtStr priv___src_self_dispatch_til__ExtStr;
+typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpreter_til__ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
+typedef struct Map__Str_Binding Map__Str_Binding;
+typedef struct Vec__DynPtrBox Vec__DynPtrBox;
+typedef struct Vec__Binding Vec__Binding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
 typedef struct Vector2 Vector2;
 typedef struct Vector3 Vector3;
@@ -396,7 +396,7 @@ typedef struct nng_cv nng_cv;
 typedef struct CliArgs CliArgs;
 
 typedef TilClosure *HashFn;
-typedef TilClosure *priv___src_self_dispatch_til__DispatchFn;
+typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
 
 
 
@@ -919,6 +919,44 @@ typedef struct Vec__CollectionInfo {
 } Vec__CollectionInfo;
 
 
+typedef struct _ffi_type {
+    U32 size;
+    I16 alignment;
+    I16 type;
+    void * *elements;
+} ffi_type;
+
+
+typedef struct {
+    I32 abi;
+    U32 nargs;
+    void * *arg_types;
+    ffi_type *rtype;
+    U32 bytes;
+    U32 flags;
+} ffi_cif;
+
+
+typedef struct {
+    char _;
+} ffi_closure;
+
+
+typedef struct {
+    char _;
+} ffi_raw_closure;
+
+
+typedef struct {
+    char _;
+} ffi_java_raw_closure;
+
+
+typedef struct {
+    char _;
+} ffi_go_closure;
+
+
 typedef struct StructInstance {
     Str *struct_name;
     Bool is_str;
@@ -976,63 +1014,11 @@ typedef struct priv___src_self_interpreter_til__DynPtrBox {
 } priv___src_self_interpreter_til__DynPtrBox;
 
 
-typedef struct Vec__DynPtrBox {
+typedef struct priv___src_self_interpreter_til__ExtStr {
     U8 *data;
     U32 count;
     U32 cap;
-} Vec__DynPtrBox;
-
-
-typedef struct Vec__Binding {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} Vec__Binding;
-
-
-typedef struct _ffi_type {
-    U32 size;
-    I16 alignment;
-    I16 type;
-    void * *elements;
-} ffi_type;
-
-
-typedef struct {
-    I32 abi;
-    U32 nargs;
-    void * *arg_types;
-    ffi_type *rtype;
-    U32 bytes;
-    U32 flags;
-} ffi_cif;
-
-
-typedef struct {
-    char _;
-} ffi_closure;
-
-
-typedef struct {
-    char _;
-} ffi_raw_closure;
-
-
-typedef struct {
-    char _;
-} ffi_java_raw_closure;
-
-
-typedef struct {
-    char _;
-} ffi_go_closure;
-
-
-typedef struct priv___src_self_dispatch_til__ExtStr {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} priv___src_self_dispatch_til__ExtStr;
+} priv___src_self_interpreter_til__ExtStr;
 
 
 typedef struct FFIEntry {
@@ -1055,6 +1041,20 @@ typedef struct ExprPtrBox {
 typedef struct FFITypePtrBox {
     ffi_type *ptr;
 } FFITypePtrBox;
+
+
+typedef struct Vec__DynPtrBox {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__DynPtrBox;
+
+
+typedef struct Vec__Binding {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__Binding;
 
 
 typedef struct priv___src_self_binder_til__BinderState {
@@ -3454,8 +3454,30 @@ priv___src_self_builder_til__CollectionInfo * Vec__CollectionInfo_get(Vec__Colle
 void Vec__CollectionInfo_delete(Vec__CollectionInfo * self, Bool call_free);
 Vec__CollectionInfo * Vec__CollectionInfo_clone(Vec__CollectionInfo * self);
 U32 Vec__CollectionInfo_size(void);
+ffi_type * ffi_type_clone(ffi_type * self);
+void ffi_type_delete(ffi_type * self, Bool call_free);
+U32 ffi_type_size(void);
+ffi_cif * ffi_cif_clone(ffi_cif * self);
+void ffi_cif_delete(ffi_cif * self, Bool call_free);
+U32 ffi_cif_size(void);
+ffi_closure * ffi_closure_clone(ffi_closure * _self);
+void ffi_closure_delete(ffi_closure * self, Bool call_free);
+U64 ffi_closure_hash(ffi_closure * self, HashFn hasher);
+U32 ffi_closure_size(void);
+ffi_raw_closure * ffi_raw_closure_clone(ffi_raw_closure * _self);
+void ffi_raw_closure_delete(ffi_raw_closure * self, Bool call_free);
+U64 ffi_raw_closure_hash(ffi_raw_closure * self, HashFn hasher);
+U32 ffi_raw_closure_size(void);
+ffi_java_raw_closure * ffi_java_raw_closure_clone(ffi_java_raw_closure * _self);
+void ffi_java_raw_closure_delete(ffi_java_raw_closure * self, Bool call_free);
+U64 ffi_java_raw_closure_hash(ffi_java_raw_closure * self, HashFn hasher);
+U32 ffi_java_raw_closure_size(void);
+ffi_go_closure * ffi_go_closure_clone(ffi_go_closure * _self);
+void ffi_go_closure_delete(ffi_go_closure * self, Bool call_free);
+U64 ffi_go_closure_hash(ffi_go_closure * self, HashFn hasher);
+U32 ffi_go_closure_size(void);
 Str * priv___src_self_interpreter_til__interp_error_path(Context * ctx);
-void interp_error(Expr * e, Str * msg, Context * ctx);
+void priv___src_self_interpreter_til__interp_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Context * ctx);
 Expr * priv___src_self_interpreter_til__field_nested_def(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
@@ -3499,26 +3521,26 @@ void Scope_delete(Scope * self, Bool call_free);
 U32 Scope_size(void);
 Expr * lookup_interp_type_def(Str * name, Context * ctx);
 Value val_none(void);
-Value val_u8(I64 v);
-Value val_i8(I64 v);
-Value val_i16(I64 v);
-Value val_u16(I64 v);
-Value val_i32(I64 v);
-Value val_u32(I64 v);
-Value make_enum_value(Str * enum_name, void * data, U32 data_size, Bool borrowed, Bool is_str, Context * ctx);
+Value priv___src_self_interpreter_til__val_u8(I64 v);
+Value priv___src_self_interpreter_til__val_i8(I64 v);
+Value priv___src_self_interpreter_til__val_i16(I64 v);
+Value priv___src_self_interpreter_til__val_u16(I64 v);
+Value priv___src_self_interpreter_til__val_i32(I64 v);
+Value priv___src_self_interpreter_til__val_u32(I64 v);
+Value priv___src_self_interpreter_til__make_enum_value(Str * enum_name, void * data, U32 data_size, Bool borrowed, Bool is_str, Context * ctx);
 Bool priv___src_self_interpreter_til__enum_variant_is_str(Str * enum_name, I32 etag, Context * ctx);
 void priv___src_self_interpreter_til__enum_clone_str_payload(void * data);
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data);
-Value val_enum_flat(Str * enum_name, I32 etag, void * payload_data, U32 payload_size, U32 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
+Value priv___src_self_interpreter_til__val_enum_flat(Str * enum_name, I32 etag, void * payload_data, U32 payload_size, U32 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
 Value priv___src_self_interpreter_til__val_enum_simple(Str * enum_name, I32 etag, U32 total_enum_size, Context * ctx);
 U32 priv___src_self_interpreter_til__elem_size_for_type(Str * type_name);
 Value priv___src_self_interpreter_til__parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 void * priv___src_self_interpreter_til__value_ptr_view(Value * v);
-Bool is_value_ptr(Value * v);
+Bool priv___src_self_interpreter_til__is_value_ptr(Value * v);
 void priv___src_self_interpreter_til__resolve_ptr_to_struct(Value * obj, Scope * scope, Str * obj_sname, Context * ctx);
 Value eval_expr(Scope * scope, Expr * e, Context * ctx);
 Expr * priv___src_self_interpreter_til__lookup_type_def_helper(Str * type_name, Scope * scope, Context * ctx);
-Value * reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope, Context * ctx, Bool borrow);
+Value * priv___src_self_interpreter_til__reinterpret_ptr_value(Value * val, Str * type_name, Scope * scope, Context * ctx, Bool borrow);
 Bool priv___src_self_interpreter_til__guard_own_param_skip(Scope * scope, Expr * e, Expr * func_def);
 void * priv___src_self_interpreter_til__resolve_field_assign_base(Scope * scope, Expr * obj_expr);
 Expr * priv___src_self_interpreter_til__resolve_field_assign_sdef(Scope * scope, Expr * obj_expr);
@@ -3531,19 +3553,19 @@ void priv___src_self_interpreter_til__eval_fcall(Scope * scope, Expr * stmt, FCa
 void priv___src_self_interpreter_til__eval_if(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
-Value eval_call(Scope * scope, Expr * e, Context * ctx);
+Value priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx);
 void priv___src_self_interpreter_til__free_value(Value v);
 priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__DynPtrBox_clone(priv___src_self_interpreter_til__DynPtrBox * self);
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
-void free_value_full(Value v);
+void priv___src_self_interpreter_til__free_value_full(Value v);
 void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
 void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope, Expr * call_expr, Expr * func_def);
 Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);
 Value priv___src_self_interpreter_til__shallow_copy_value(Value * v);
 Value priv___src_self_interpreter_til__borrow_value(Value * v);
 Value * priv___src_self_interpreter_til__box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free);
-Value make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed, Context * ctx);
+Value priv___src_self_interpreter_til__make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed, Context * ctx);
 Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * priv___src_self_interpreter_til__widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
@@ -3567,7 +3589,7 @@ Value * ns_get(Str * sname, Str * fname, Context * ctx);
 void priv___src_self_interpreter_til__ns_set(Str * sname, Str * fname, Value val, Context * ctx);
 Value make_str_value(void * data, U32 len, Context * ctx);
 Value make_str_value_view(void * data, U32 len, Context * ctx);
-Value make_str_value_own(void * data, U32 len, Context * ctx);
+Value priv___src_self_interpreter_til__make_str_value_own(void * data, U32 len, Context * ctx);
 Str str_view(Value v);
 Declaration * priv___src_self_interpreter_til__find_field_decl(Expr * struct_def, Str * fname);
 Value read_field(void * inst_data, Declaration * dd, U32 field_offset, Context * ctx);
@@ -3577,6 +3599,114 @@ void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global,
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
 I32 priv___src_self_interpreter_til__interpret_units(LoadedProgram * lp, Vec__Str * user_argv, Str * fwd_path);
 I32 cmd_interpret(LoadedProgram * lp, Vec__Str * user_argv);
+priv___src_self_interpreter_til__ExtStr * priv___src_self_interpreter_til__ExtStr_clone(priv___src_self_interpreter_til__ExtStr * self);
+void priv___src_self_interpreter_til__ExtStr_delete(priv___src_self_interpreter_til__ExtStr * self, Bool call_free);
+U32 priv___src_self_interpreter_til__ExtStr_size(void);
+FFIEntry * FFIEntry_clone(FFIEntry * self);
+void FFIEntry_delete(FFIEntry * self, Bool call_free);
+U32 FFIEntry_size(void);
+ExprPtrBox * ExprPtrBox_clone(ExprPtrBox * self);
+void ExprPtrBox_delete(ExprPtrBox * self, Bool call_free);
+U32 ExprPtrBox_size(void);
+FFITypePtrBox * FFITypePtrBox_clone(FFITypePtrBox * self);
+void FFITypePtrBox_delete(FFITypePtrBox * self, Bool call_free);
+U32 FFITypePtrBox_size(void);
+void ffi_reset(Context * ctx);
+ffi_type * priv___src_self_interpreter_til__ffi_type_ref(Str * name);
+void * priv___src_self_interpreter_til__ffi_alloc_cif(void);
+Bool priv___src_self_interpreter_til__ffi_cif_rtype_is_struct(ffi_cif * cif);
+U8 * priv___src_self_interpreter_til__ffi_dlsym(Str * name);
+void priv___src_self_interpreter_til__ffi_init_link_libs(Str * link_flags);
+I32 priv___src_self_interpreter_til__ffi_init_user_so(Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Str * so_path_out);
+void priv___src_self_interpreter_til__ffi_init_struct_defs(Expr * program, Context * ctx);
+void ffi_init_struct_defs_append(Expr * program, Context * ctx);
+U64 priv___src_self_interpreter_til__value_to_u64(Value * v);
+ffi_type * priv___src_self_interpreter_til__uptr_ffi_type(Context * ctx);
+ffi_type * priv___src_self_interpreter_til__usize_ffi_type(Context * ctx);
+F32 priv___src_self_interpreter_til__value_to_f32(Value * v);
+Str * priv___src_self_interpreter_til__value_variant_name(Value * v);
+Bool priv___src_self_interpreter_til__narrow_bool_arg(Scope * s, Expr * e, Context * ctx);
+Bool priv___src_self_interpreter_til__h_Bool_and(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_Bool_or(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_Bool_not(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_U8_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_I16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_U16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_I32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_F32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_U32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cast(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_print_single(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_print_flush(Scope * _s, Expr * _e, Value * r, Context * _ctx);
+Bool priv___src_self_interpreter_til__h_exit(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_readfile(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_writefile(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_spawn_cmd(Scope * s, Expr * e, Value * r, Context * ctx);
+void * priv___src_self_interpreter_til__val_to_ptr(Value * v);
+Bool priv___src_self_interpreter_til__h_dyn_has_method(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_dyn_fn(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_dyn_size_of(Scope * s, Expr * e, Value * r, Context * ctx);
+Value priv___src_self_interpreter_til__str_to_owned_value(Str * src, Context * ctx);
+Str * priv___src_self_interpreter_til__value_str_clone(Value * v);
+Str * priv___src_self_interpreter_til__eval_str_owned(Scope * s, Expr * arg, Context * ctx);
+Expr * priv___src_self_interpreter_til__interp_lookup_struct(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
+Bool priv___src_self_interpreter_til__h_struct_field_count(Scope * s, Expr * e, Value * r, Context * ctx);
+U32 priv___src_self_interpreter_til__eval_index_arg(Scope * s, Expr * e, Context * ctx);
+Bool priv___src_self_interpreter_til__h_struct_field_name(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_struct_field_is_mut(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_struct_field_type(Scope * s, Expr * e, Value * r, Context * ctx);
+Expr * priv___src_self_interpreter_til__interp_lookup_enum(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_count(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_name(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_has_payload(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_payload_type(Scope * s, Expr * e, Value * r, Context * ctx);
+Expr * priv___src_self_interpreter_til__interp_lookup_funcsig(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
+Bool priv___src_self_interpreter_til__h_func_sig_param_count(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_func_sig_param_type(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_func_sig_return_count(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_func_sig_return_type(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_func_sig_throw_count(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_func_sig_throw_type(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_dyn_type_to_str(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_check_cmd_status(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_sleep(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_file_mtime(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_str_parse_f32(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_clock_ms(Scope * _s, Expr * _e, Value * r);
+Bool priv___src_self_interpreter_til__h_get_thread_count(Scope * _s, Expr * _e, Value * r);
+Bool priv___src_self_interpreter_til__h_cfile_open(Scope * s, Expr * e, Value * r, Context * ctx);
+ffi_type * priv___src_self_interpreter_til__known_ffi_type(Str * type_name, Context * ctx);
+ffi_type * priv___src_self_interpreter_til__shallow_ffi_type(Str * type_name, Context * ctx);
+ffi_type * priv___src_self_interpreter_til__field_ffi_type(Declaration * dd, Context * ctx);
+ffi_type * priv___src_self_interpreter_til__build_struct_ffi_type(Expr * struct_def, Context * ctx);
+Bool priv___src_self_interpreter_til__h_free(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_til_closure_delete(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_seek(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_seek_cur(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_seek_end(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_read_n(Scope * s, Expr * e, Value * r, Context * ctx);
+void priv___src_self_interpreter_til__reg_dispatch(Str * name, priv___src_self_interpreter_til__DispatchFn handler, Context * ctx);
+void priv___src_self_interpreter_til__dispatch_init(Context * ctx);
+Bool priv___src_self_interpreter_til__ext_dispatch_builtin(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
+Bool priv___src_self_interpreter_til__h_dyn_call(Scope * s, Expr * e, Value * r, Context * ctx);
+U32 priv___src_self_interpreter_til__get_elem_size(Scope * s, Str * type_name, Expr * src, Context * ctx);
+Bool priv___src_self_interpreter_til__enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result, Context * ctx);
+Bool priv___src_self_interpreter_til__ffi_decode_scalar(Str * rtype, void * p, Value * result, Context * ctx);
+Expr * priv___src_self_interpreter_til__ffi_call_ret_struct_def(FFIEntry * fe, Context * ctx);
+Bool priv___src_self_interpreter_til__ffi_shallow_type_info(void * atype, Str * type_name, U32 * size);
+Bool priv___src_self_interpreter_til__ffi_write_shallow_arg(Scope * scope, Value * v, void * atype, void * dst, Context * ctx);
+Bool priv___src_self_interpreter_til__ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
+Bool priv___src_self_interpreter_til__ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
+void priv___src_self_interpreter_til__ffi_register(Str * name, void * fn, Expr * fdef, Context * ctx);
+void ffi_init_scan_program(Expr * program, Context * ctx);
+I32 priv___src_self_interpreter_til__ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
+void ffi_cleanup(Context * ctx);
 Map__Str_Binding * Map__Str_Binding_new(void);
 U32 Map__Str_Binding_len(Map__Str_Binding * self);
 Str * Map__Str_Binding_key_ptr(Map__Str_Binding * self, U32 * i);
@@ -3601,136 +3731,6 @@ void Vec__Binding_clear(Vec__Binding * self);
 void Vec__Binding_delete(Vec__Binding * self, Bool call_free);
 Vec__Binding * Vec__Binding_clone(Vec__Binding * self);
 U32 Vec__Binding_size(void);
-ffi_type * ffi_type_clone(ffi_type * self);
-void ffi_type_delete(ffi_type * self, Bool call_free);
-U32 ffi_type_size(void);
-ffi_cif * ffi_cif_clone(ffi_cif * self);
-void ffi_cif_delete(ffi_cif * self, Bool call_free);
-U32 ffi_cif_size(void);
-ffi_closure * ffi_closure_clone(ffi_closure * _self);
-void ffi_closure_delete(ffi_closure * self, Bool call_free);
-U64 ffi_closure_hash(ffi_closure * self, HashFn hasher);
-U32 ffi_closure_size(void);
-ffi_raw_closure * ffi_raw_closure_clone(ffi_raw_closure * _self);
-void ffi_raw_closure_delete(ffi_raw_closure * self, Bool call_free);
-U64 ffi_raw_closure_hash(ffi_raw_closure * self, HashFn hasher);
-U32 ffi_raw_closure_size(void);
-ffi_java_raw_closure * ffi_java_raw_closure_clone(ffi_java_raw_closure * _self);
-void ffi_java_raw_closure_delete(ffi_java_raw_closure * self, Bool call_free);
-U64 ffi_java_raw_closure_hash(ffi_java_raw_closure * self, HashFn hasher);
-U32 ffi_java_raw_closure_size(void);
-ffi_go_closure * ffi_go_closure_clone(ffi_go_closure * _self);
-void ffi_go_closure_delete(ffi_go_closure * self, Bool call_free);
-U64 ffi_go_closure_hash(ffi_go_closure * self, HashFn hasher);
-U32 ffi_go_closure_size(void);
-priv___src_self_dispatch_til__ExtStr * priv___src_self_dispatch_til__ExtStr_clone(priv___src_self_dispatch_til__ExtStr * self);
-void priv___src_self_dispatch_til__ExtStr_delete(priv___src_self_dispatch_til__ExtStr * self, Bool call_free);
-U32 priv___src_self_dispatch_til__ExtStr_size(void);
-FFIEntry * FFIEntry_clone(FFIEntry * self);
-void FFIEntry_delete(FFIEntry * self, Bool call_free);
-U32 FFIEntry_size(void);
-ExprPtrBox * ExprPtrBox_clone(ExprPtrBox * self);
-void ExprPtrBox_delete(ExprPtrBox * self, Bool call_free);
-U32 ExprPtrBox_size(void);
-FFITypePtrBox * FFITypePtrBox_clone(FFITypePtrBox * self);
-void FFITypePtrBox_delete(FFITypePtrBox * self, Bool call_free);
-U32 FFITypePtrBox_size(void);
-void ffi_reset(Context * ctx);
-ffi_type * priv___src_self_dispatch_til__ffi_type_ref(Str * name);
-void * priv___src_self_dispatch_til__ffi_alloc_cif(void);
-Bool priv___src_self_dispatch_til__ffi_cif_rtype_is_struct(ffi_cif * cif);
-U8 * priv___src_self_dispatch_til__ffi_dlsym(Str * name);
-void priv___src_self_dispatch_til__ffi_init_link_libs(Str * link_flags);
-I32 priv___src_self_dispatch_til__ffi_init_user_so(Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Str * so_path_out);
-void priv___src_self_dispatch_til__ffi_init_struct_defs(Expr * program, Context * ctx);
-void ffi_init_struct_defs_append(Expr * program, Context * ctx);
-U64 priv___src_self_dispatch_til__value_to_u64(Value * v);
-ffi_type * priv___src_self_dispatch_til__uptr_ffi_type(Context * ctx);
-ffi_type * priv___src_self_dispatch_til__usize_ffi_type(Context * ctx);
-F32 priv___src_self_dispatch_til__value_to_f32(Value * v);
-Str * priv___src_self_dispatch_til__value_variant_name(Value * v);
-Bool priv___src_self_dispatch_til__narrow_bool_arg(Scope * s, Expr * e, Context * ctx);
-Bool priv___src_self_dispatch_til__h_Bool_and(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_Bool_or(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_Bool_not(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_U8_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_I16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_U16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_I32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_F32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_U32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cast(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_print_single(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_print_flush(Scope * _s, Expr * _e, Value * r, Context * _ctx);
-Bool priv___src_self_dispatch_til__h_exit(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_readfile(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_writefile(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_spawn_cmd(Scope * s, Expr * e, Value * r, Context * ctx);
-void * priv___src_self_dispatch_til__val_to_ptr(Value * v);
-Bool priv___src_self_dispatch_til__h_dyn_has_method(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_dyn_fn(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_dyn_size_of(Scope * s, Expr * e, Value * r, Context * ctx);
-Value priv___src_self_dispatch_til__str_to_owned_value(Str * src, Context * ctx);
-Str * priv___src_self_dispatch_til__value_str_clone(Value * v);
-Str * priv___src_self_dispatch_til__eval_str_owned(Scope * s, Expr * arg, Context * ctx);
-Expr * priv___src_self_dispatch_til__interp_lookup_struct(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
-Bool priv___src_self_dispatch_til__h_struct_field_count(Scope * s, Expr * e, Value * r, Context * ctx);
-U32 priv___src_self_dispatch_til__eval_index_arg(Scope * s, Expr * e, Context * ctx);
-Bool priv___src_self_dispatch_til__h_struct_field_name(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_struct_field_is_mut(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_struct_field_type(Scope * s, Expr * e, Value * r, Context * ctx);
-Expr * priv___src_self_dispatch_til__interp_lookup_enum(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
-Bool priv___src_self_dispatch_til__h_enum_variant_count(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_enum_variant_name(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_enum_variant_has_payload(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_enum_variant_payload_type(Scope * s, Expr * e, Value * r, Context * ctx);
-Expr * priv___src_self_dispatch_til__interp_lookup_funcsig(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
-Bool priv___src_self_dispatch_til__h_func_sig_param_count(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_func_sig_param_type(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_func_sig_return_count(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_func_sig_return_type(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_func_sig_throw_count(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_func_sig_throw_type(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_dyn_type_to_str(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_check_cmd_status(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_sleep(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_file_mtime(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_str_parse_f32(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_clock_ms(Scope * _s, Expr * _e, Value * r);
-Bool priv___src_self_dispatch_til__h_get_thread_count(Scope * _s, Expr * _e, Value * r);
-Bool priv___src_self_dispatch_til__h_cfile_open(Scope * s, Expr * e, Value * r, Context * ctx);
-ffi_type * priv___src_self_dispatch_til__known_ffi_type(Str * type_name, Context * ctx);
-ffi_type * priv___src_self_dispatch_til__shallow_ffi_type(Str * type_name, Context * ctx);
-ffi_type * priv___src_self_dispatch_til__field_ffi_type(Declaration * dd, Context * ctx);
-ffi_type * priv___src_self_dispatch_til__build_struct_ffi_type(Expr * struct_def, Context * ctx);
-Bool priv___src_self_dispatch_til__h_free(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_til_closure_delete(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_seek(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_seek_cur(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_seek_end(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_dispatch_til__h_cfile_read_n(Scope * s, Expr * e, Value * r, Context * ctx);
-void priv___src_self_dispatch_til__reg_dispatch(Str * name, priv___src_self_dispatch_til__DispatchFn handler, Context * ctx);
-void dispatch_init(Context * ctx);
-Bool priv___src_self_dispatch_til__ext_dispatch_builtin(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
-Bool priv___src_self_dispatch_til__h_dyn_call(Scope * s, Expr * e, Value * r, Context * ctx);
-U32 priv___src_self_dispatch_til__get_elem_size(Scope * s, Str * type_name, Expr * src, Context * ctx);
-Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result, Context * ctx);
-Bool priv___src_self_dispatch_til__ffi_decode_scalar(Str * rtype, void * p, Value * result, Context * ctx);
-Expr * priv___src_self_dispatch_til__ffi_call_ret_struct_def(FFIEntry * fe, Context * ctx);
-Bool priv___src_self_dispatch_til__ffi_shallow_type_info(void * atype, Str * type_name, U32 * size);
-Bool priv___src_self_dispatch_til__ffi_write_shallow_arg(Scope * scope, Value * v, void * atype, void * dst, Context * ctx);
-Bool priv___src_self_dispatch_til__ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
-Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
-void priv___src_self_dispatch_til__ffi_register(Str * name, void * fn, Expr * fdef, Context * ctx);
-void ffi_init_scan_program(Expr * program, Context * ctx);
-I32 ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
-void ffi_cleanup(Context * ctx);
 Bool priv___src_self_binder_til__bind_is_ws(I8 c);
 U32 priv___src_self_binder_til__skip_ws(Str * s, U32 from);
 U32 priv___src_self_binder_til__skip_word(Str * s, U32 from);
@@ -4153,8 +4153,6 @@ extern U32 PTR_SIZE_BYTES;
 extern Map__Str_Bool side_effecting_names;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
-extern U32 ENUM_PAYLOAD_OFFSET;
-extern U32 ENUM_PAYLOAD_OFFSET;
 extern I64 FFI_TYPE_VOID;
 extern I64 FFI_TYPE_INT;
 extern I64 FFI_TYPE_FLOAT;
@@ -4188,6 +4186,8 @@ extern I32 FFI_BAD_TYPEDEF;
 extern I32 FFI_BAD_ABI;
 extern I32 FFI_BAD_ARGTYPE;
 extern I64 FFI_SIZEOF_ARG;
+extern U32 ENUM_PAYLOAD_OFFSET;
+extern U32 ENUM_PAYLOAD_OFFSET;
 extern I64 RAYLIB_VERSION_MAJOR;
 extern I64 RAYLIB_VERSION_MINOR;
 extern I64 RAYLIB_VERSION_PATCH;

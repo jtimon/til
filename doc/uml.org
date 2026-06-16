@@ -339,24 +339,6 @@
 *** til_path := ""
 *** py_path := ""
 *** do_lib := false
-* dispatch
-** ExtStr: StructDef
-*** ref data : U8 = NULL
-*** count : USize = 0
-*** cap : USize = 0
-** FFIEntry: StructDef
-*** ref fn : U8 = NULL
-*** ref return_type : Str = NULL
-*** nparam : USize = 0
-*** ref param_shallows : U8 = NULL
-*** return_is_shallow := false
-*** return_is_ref := false
-*** ref cif : ffi_cif = NULL
-*** ref arg_types : Dynamic = NULL
-** ExprPtrBox: StructDef
-*** ref ptr : Expr = NULL
-** FFITypePtrBox: StructDef
-*** ref ptr : ffi_type = NULL
 * interpreter
 ** StructInstance: StructDef
 *** ref struct_name : Str = NULL
@@ -402,6 +384,23 @@
 *** box_owned_dynamics := Vec(DynPtrBox).new()
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
+** ExtStr: StructDef
+*** ref data : U8 = NULL
+*** count : USize = 0
+*** cap : USize = 0
+** FFIEntry: StructDef
+*** ref fn : U8 = NULL
+*** ref return_type : Str = NULL
+*** nparam : USize = 0
+*** ref param_shallows : U8 = NULL
+*** return_is_shallow := false
+*** return_is_ref := false
+*** ref cif : ffi_cif = NULL
+*** ref arg_types : Dynamic = NULL
+** ExprPtrBox: StructDef
+*** ref ptr : Expr = NULL
+** FFITypePtrBox: StructDef
+*** ref ptr : ffi_type = NULL
 * binder
 ** BinderState: StructDef
 *** alias_to_primitive := "|"

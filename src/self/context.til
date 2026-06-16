@@ -505,8 +505,9 @@ Context := struct {
     interp_type_defs := Map(Str, Dynamic).new()
 
     // Dispatch / FFI runtime state (previously module-level globals in
-    // dispatch.til). FFIEntry / FFITypePtrBox are defined in dispatch.til
-    // but resolve here via whole-program merge (same as ns_fields' Value).
+    // the interpreter's FFI dispatch code). FFIEntry / FFITypePtrBox are
+    // defined in interpreter.til but resolve here via whole-program merge
+    // (same as ns_fields' Value).
     // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
     // these maps to fresh, so Context's auto-delete only ever frees empty
     // containers -- no double free of the libffi allocations.
