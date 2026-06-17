@@ -1,0 +1,85 @@
+# priority: medium
+# category: features
+** OPEN #280 Variadic (N-ary) and/or folding (short-circuit, const-foldable)
+
+   Make ~and~ / ~or~ N-ary (Lisp-style): ~and(p, q, r, ...)~ short-circuits
+   across all N operands, evaluating only up to the first ~false~ (dually,
+   ~or~ up to the first ~true~). Today (#262) ~and~ / ~or~ are binary
+   ~lazy_func~ definitions in ~src/core/bool.til~, inlined to
+   ~match a { case true: b case: false }~; an N-ary use must be written as
+   the chained method form ~a.and(b).and(c)~ or the operator chain
+   ~a && b && c~. This issue adds the direct variadic spelling while keeping
+   the two properties that make it worth doing:
+
+   1. *Short-circuit* -- an unused operand (and its side effects) never runs.
+   2. *Const-foldability* -- ~and(true, true, false)~ folds to ~false~ at
+      compile time, exactly like the binary form, with no residual runtime
+      branch.
+
+*** Why it is not just "make it variadic"
+
+    An ordinary variadic ~..Bool~ parameter collects its arguments into an
+    ~Array(Bool)~ at the call site. Building that array evaluates *every*
+    operand eagerly, which destroys short-circuit (property 1) and its side
+    effects. So ~and~ / ~or~ cannot be ordinary variadic functions; they are
+    Lisp-style *special forms* that must be lowered by folding, not by
+    array collection.
+
+    The #262 sketch (see [[./262.org][#262]] "Possible next designs for
+    repeated and variadic lazy args" and "Sketch of the desugaring
+    approach") proposes the right shape: right-fold the operand list into
+    nested ~match~ / ~if~ at expand time --
+
+    : and(a, b, c)  ->  match a { case true: match b { case true: c case: false } case: false }
+    : or(a, b, c)   ->  match a { case true: true case: match b { case true: true case: c } }
+
+    which reuses the existing binary lowering (~process_match_arms_in~ now
+    handles throwing calls in those nested arms, #262) and inherits its
+    short-circuit for free.
+
+*** Const-foldability is the load-bearing constraint
+
+    [[./277.org][#277]] (just fixed) taught the const-folder to fold
+    variadic ~(..T)~ calls through wrappers. That is the *prerequisite that
+    must not be undone here*: the variadic ~and~ / ~or~ must stay foldable.
+    Two ways it could go wrong, both to avoid:
+
+    - If ~and~ became an ordinary ~..Bool~ variadic function, the folder
+      would have to fold an ~Array(Bool)~ build + a loop -- more fragile,
+      and (per #277's post-mortem) the lowered ~for~ over the array carries
+      a bounds-check ~panic~ on its failure path that the folder's
+      reachability pre-filter rejects. The special-form fold avoids the
+      array entirely.
+    - The nested-~match~ desugar must itself be const-foldable: a
+      fully-constant ~and(true, true, false)~ must collapse to ~false~ in
+      the const-folder, leaving no runtime ~match~ (the binary form already
+      does this; verify the N-ary nesting does too, and add a constfold
+      test).
+
+*** Acceptance
+
+    - ~and(a, b, c, ...)~ / ~or(a, b, c, ...)~ (and any matching operator
+      spelling) parse and lower to the right-folded nested form.
+    - Short-circuit holds across N operands (extend test/lazy.til's
+      ~bump()~ / ~note()~ proofs to >2 operands; an unused operand must not
+      run, and a throwing operand past the short-circuit point must not
+      evaluate -- reuse the guarded-subscript pattern).
+    - All-constant N-ary ~and~ / ~or~ fold to a single Bool at compile time
+      (constfold test alongside the runtime tests; cf. test/constfold.til).
+    - The binary form, the chained method form, and ~&&~ / ~||~ keep their
+      current behaviour.
+
+*** Out of scope / staged
+
+    - First-class and recursive lazy callables, multi-statement lazy
+      bodies, and call-by-need (the other #262 deferred items) are NOT
+      required here -- this is specifically the variadic ~and~ / ~or~
+      special-form fold.
+    - A *general* variadic lazy-callable mechanism (thunk arrays, a
+      compiler-only "lazy rest arg") is the larger design #262 flags; this
+      issue takes the narrow special-form route for ~and~ / ~or~ only.
+
+   Cross-refs: [[./262.org][#262]] (lazy ~and~/~or~, parent; variadic is its
+   deferred item), [[./277.org][#277]] (const-folder can fold variadic
+   calls -- the foldability this issue must preserve), [[./117.org][#117]]
+   (short-circuit ~and~/~or~ motivation).
