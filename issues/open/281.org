@@ -1,0 +1,137 @@
+# priority: medium
+# category: features
+** OPEN #281 Caller-location default args (__CALLER_LOC__): drop the __LOC__ boilerplate
+
+   Almost every diagnostic helper takes the source location as an explicit
+   first argument the caller must spell as ~__LOC__~:
+
+   : panic(__LOC__, "...")          UNREACHABLE(__LOC__)
+   : assert(__LOC__, cond)          expect(__LOC__, cond, "...")
+   : assert_eq(__LOC__, T, a, b)    TODO(__LOC__, "...")
+
+   (~src/core/exit.til~), plus the many ~throw SomeError(msg = format(__LOC__,
+   ...))~ sites across ~src/core~ and ~src/self~. The ~__LOC__~ is pure
+   boilerplate -- the same token at every call. Make the location OPTIONAL,
+   defaulting to the CALL SITE, so the common case reads ~panic("...")~,
+   ~UNREACHABLE()~, ~assert_eq(T, a, b)~, while an explicit location still
+   works and overrides the default.
+
+   PRIMARY motivation is throw messages: a core helper that throws should
+   report the location of ITS CALLER (the user code), not the library
+   internals -- e.g. ~Vec.get(i)~ throwing ~OutOfBounds~ should point at the
+   line that called ~get~, with no ~__LOC__~ threaded through by hand.
+
+   HARD REQUIREMENT: the mechanism must be GENERIC. Nothing about ~panic~,
+   ~assert_eq~, or any specific function may be hardcoded in the compiler.
+   Any user-written func/proc (or struct field) may declare a
+   ~__CALLER_LOC__~-defaulted parameter and get the same behavior.
+
+*** Why parse-time expansion (the current __LOC__ path) cannot do this
+
+    ~__LOC__~ is expanded at PARSE TIME from the token's own position
+    (~src/self/parser.til~ parse_primary, ~if name.eq("__LOC__")~ ->
+    ~Literal.Str(format(p.path, ":", t_line, ":", t_col))~, alongside
+    ~__FILE__~ / ~__LINE__~ / ~__COL__~). So a default written in ~exit.til~
+    is parsed in ~exit.til~: ~loc: Str = __LOC__~ would bake in
+    ~src/core/exit.til:<line>~ -- the DEFINITION site -- and every defaulted
+    ~panic()~ would report exit.til, not the caller. The parser fundamentally
+    cannot know the caller. The caller's location is only known when the
+    OMITTED argument is filled in, which happens AFTER the parser.
+
+*** Where the caller location actually IS available (verified)
+
+    Default arguments are materialized post-parse, during typing, by cloning
+    the parameter's ~default_value~ into each call's missing slot. The fill
+    sites:
+
+    - Function calls: ~desugar_user_func_fcall_args~
+      (~src/self/typer.til~), ~new_args[i] = param.default_value.clone()~,
+      then the rewritten arg list is committed with ~e.children.move_from~.
+    - Struct-constructor fields: the ctor-arg fill in the same file
+      (~CtorArg.Filled(... .default_value.clone())~).
+
+    At those points BOTH coordinates exist: the call/ctor ~Expr~ has
+    ~line~/~col~ (the call site), and ~ctx.path~ is the file currently being
+    typed -- i.e. the CALLER's file (~Expr~ itself carries no path; ~__LOC__~
+    only ever gets its path from ~p.path~ / ~ctx.path~). The typer runs before
+    BOTH the interpreter and the C backend (~init_and_type_program~), and the
+    fill REWRITES the AST, so resolving here is inherited by both backends
+    automatically -- no second implementation in the interpreter.
+
+*** The feature: a post-parse ~__CALLER_LOC__~ sentinel
+
+    1. parse_primary emits ~__CALLER_LOC__~ as a distinct SENTINEL node (e.g.
+       a dedicated NodeType / Literal variant), NOT an expanded string -- it
+       must survive parsing to reach the fill stage. (~__LOC__~ may keep its
+       parse-time expansion; see below.)
+    2. A single shared helper resolves the sentinel to
+       ~Literal.Str(format(ctx.path, ":", call.line, ":", call.col))~ using
+       the CALL/ctor Expr's coords + ~ctx.path~.
+    3. Call that helper at EVERY default-fill site (function-call fill and
+       ctor-field fill) instead of a bare ~default_value.clone()~: if the
+       default is the ~__CALLER_LOC__~ sentinel, substitute the resolved
+       caller string; otherwise clone as today. Generic -- it keys on the
+       default VALUE, never on the callee's name.
+
+    With that, ~loc: Str = __CALLER_LOC__~ on ANY function works:
+    ~panic("boom")~ fills ~loc = "caller.til:42:5"~. An explicitly passed
+    location still overrides it (the slot is no longer NoDefaultArg).
+
+    Prior art: Rust ~#[track_caller]~ + ~Location::caller()~, C++
+    ~std::source_location::current()~ as a default argument, Swift
+    ~#file~/~#line~ default parameters, Nim ~instantiationInfo~.
+
+*** Should __LOC__ also move post-parse?
+
+    Not required for this feature. ~__LOC__~ at a direct use site is correct
+    today (token position == use site). The one wart: ~__LOC__~ inside a macro
+    / template body expands at the macro's DEFINITION parse, so every
+    instantiation reports the macro's location, not the instantiation site.
+    Routing ~__LOC__~ through the same post-parse sentinel + resolver (using
+    each node's own line/col + ~ctx.path~) would fix that and unify the two
+    intrinsics. Treat it as an OPTIONAL follow-on; ~__CALLER_LOC__~ is the
+    load-bearing part.
+
+*** Parameter ordering / variadic interaction
+
+    ~loc~ is FIRST today, but a defaulted location is most natural LAST so
+    callers pass only meaningful args. ~panic~ / ~TODO~ / ~expect~ take a
+    trailing ~parts: ..Str~ variadic, and the parser forbids a positional
+    param after a variadic and requires kwargs last (~src/self/parser.til~:
+    "positional param not allowed after variadic", "no parameter allowed
+    after kwargs"). So the defaulted ~loc~ likely becomes a trailing KWARG
+    after the variadic, or the helpers move ~loc~ to the end. Settle this in
+    the design; it also decides whether ~assert_eq(__LOC__, T, a, b)~ becomes
+    ~assert_eq(T, a, b)~ cleanly.
+
+*** Scope
+
+    - ~src/core/exit.til~: ~panic~, ~TODO~, ~UNREACHABLE~, ~assert~, ~expect~,
+      ~assert_eq~ gain a defaulted location; callers may omit ~__LOC__~.
+    - Error types / throw sites that embed ~format(__LOC__, ...)~ in a ~msg~
+      (~OutOfBounds~, ~KeyNotFound~, ~IntegerOverflow~, ~DivideByZero~, ...):
+      a ~__CALLER_LOC__~-defaulted ~loc~ on the throwing helper (or as a
+      struct field default on the error) makes the message point at the
+      caller without manual threading. This is the main payoff.
+
+*** Backward compatibility / migration
+
+    - Existing explicit calls (~panic(__LOC__, ...)~, ~assert_eq(__LOC__, T,
+      a, b)~, etc.) keep working: an explicit location overrides the default.
+    - A later, separate cleanup could drop the now-redundant explicit
+      ~__LOC__~ arguments across the tree (large but mechanical) once the
+      defaults land. Keep it out of the feature commit.
+
+*** Acceptance
+
+    - A USER-DEFINED func with a ~loc: Str = __CALLER_LOC__~ param (not a core
+      helper) reports the CALLER's file:line:col -- proving no hardcoding.
+    - A throwing helper whose error ~msg~ uses the caller location reports the
+      call site, NOT its own ~src/core~ line.
+    - ~panic("...")~, ~UNREACHABLE()~, ~assert(cond)~, ~assert_eq(T, a, b)~
+      compile and run identically under interpret and compile, location now
+      caller-supplied; explicit ~__LOC__~ still accepted and still wins.
+
+   Touch points: ~src/self/parser.til~ (sentinel in parse_primary),
+   ~src/self/typer.til~ (shared resolver used at desugar_user_func_fcall_args
+   and the ctor-field fill), ~src/core/exit.til~ (helper signatures).
