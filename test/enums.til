@@ -671,6 +671,45 @@ test_guard_question_throw_is_caught := test() {
     assert_eq(I64, r, 99)
 }
 
+# A guarded switch desugars to independent `if`s (not if/elif), built after the
+# pre-infer throw pass. When an earlier case's `?` guard throws, the LATER cases
+# must be skipped (gated on _err_kind == 0) -- otherwise their bodies would run
+# on the error path before the catch. `sink` records whether a later case ran.
+test_guard_question_throw_skips_later_cases := test() {
+    n := 1
+    mut sink := 0
+    mut r := 0
+    switch n {
+    case 1 if 10.safe_div(0)?.gt(0): r = 1   # hit; guard throws DivideByZero
+    case 1: sink = 777                        # must NOT run after the throw
+    case: sink = 888                          # must NOT run after the throw
+    }
+    catch (e: DivideByZero) { r = 99 }
+    assert_eq(I64, r, 99)
+    assert_eq(I64, sink, 0)
+}
+
+# An uncaught `?` guard propagates to the caller's throws clause.
+guard_classify := func(n: I64) returns I64 throws DivideByZero {
+    mut r := 0
+    switch n {
+    case 1 if 10.safe_div(0)?.gt(0): r = 1   # throws; no local catch -> propagates
+    case: r = 2
+    }
+    return r
+}
+
+test_guard_question_propagates := test() {
+    mut got := 0
+    got = guard_classify(1)?                  # n==1 hits the guard, which throws
+    catch (e: DivideByZero) { got = 99 }
+    assert_eq(I64, got, 99)
+    # n==2 misses the guarded case entirely -> no throw, default arm
+    got = guard_classify(2)?
+    catch (e: DivideByZero) { got = -1 }
+    assert_eq(I64, got, 2)
+}
+
 # --- #282: the throwing call's receiver may be a case PAYLOAD BINDING (`b`),
 #     synthesized by the switch desugar. It still resolves to the right owning
 #     type (GuardBox.checked) so the bang short-circuits / runs correctly. ---

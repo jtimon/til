@@ -5865,6 +5865,23 @@ priv lower_guard_bang_calls := proc(scope: TypeScope, mut guard_if: Expr, mut de
     }
 }
 
+// #282: true when `e` references the throw-state slot `_err_kind`. Used by
+// infer_switch_stmt to tell whether a desugared case can leave _err_kind set
+// (a `?` throw, or a bang's injected call) so that the following independent
+// case `if`s -- which the desugar builds AFTER the pre-infer throw pass, and
+// which would otherwise run regardless -- get gated on `_err_kind == 0`.
+priv subtree_references_name := func(e: Expr, name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        if idn.ident_name().eq(name) { return true }
+    case:
+    }
+    for c : Expr in e.children {
+        if subtree_references_name(c, name) { return true }
+    }
+    return false
+}
+
 priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut sw_expr : Expr = stmt.children[0]
@@ -5980,6 +5997,12 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
     mut default_line : U32 = 0
     mut default_col : U32 = 0
 
+    // #282: once an earlier case's guard/body can leave _err_kind set (a `?`
+    // throw), the following independent case `if`s must be gated on
+    // `_err_kind == 0` so they don't run after a throw. Tracks that state
+    // across the case loop (only meaningful on the any_guard path).
+    mut switch_can_throw := false
+
     for ci in 1..stmt.children.len() {
         ref case_node : Expr = stmt.children[ci]
         if case_node.children.len().eq(1) {
@@ -6070,7 +6093,17 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
             mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
             if_node.add_child(own gated_cond)
             if_node.add_child(own case_body.clone())
-            block.add_child(own if_node)
+            // #282: this case can leave _err_kind set if its guard or body
+            // contains a (lowered) throwing call -- detected by a reference to
+            // _err_kind. Gate it on `_err_kind == 0` when a PRIOR case could
+            // throw, then propagate the flag.
+            case_can_throw := subtree_references_name(if_node, "_err_kind")
+            if switch_can_throw {
+                block.add_child(own make_if_kind_eq_zero_wrap(if_node, case_node.line, case_node.col))
+            } else {
+                block.add_child(own if_node)
+            }
+            if case_can_throw { switch_can_throw = true }
         } else {
             mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
             if_node.add_child(own condition)
@@ -6093,7 +6126,12 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
             mut def_if := Expr.new(NodeType.If, stmt.line, stmt.col)
             def_if.add_child(own ncall2)
             def_if.add_child(own default_body.clone())
-            block.add_child(own def_if)
+            // #282: skip the default too if an earlier case's guard threw.
+            if switch_can_throw {
+                block.add_child(own make_if_kind_eq_zero_wrap(def_if, stmt.line, stmt.col))
+            } else {
+                block.add_child(own def_if)
+            }
         }
     } else {
         if has_default_body.and(has_first_if) {

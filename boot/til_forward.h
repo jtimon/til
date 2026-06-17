@@ -2903,6 +2903,7 @@ void priv___src_self_typer_til__prepend_clike_payload_binding(TypeScope * scope,
 void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__seed_guard_receiver_types(Context * ctx, Expr * e, TypeScope * scope);
 void priv___src_self_typer_til__lower_guard_bang_calls(TypeScope * scope, Expr * guard_if, Vec__Expr * dest, Expr * resolve_body, Context * ctx);
+Bool priv___src_self_typer_til__subtree_references_name(Expr * e, Str * name);
 Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 Expr * priv___src_self_typer_til__make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);

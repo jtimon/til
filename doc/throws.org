@@ -89,6 +89,16 @@ lives, and step-by-step recipes for adding more throwing methods.
    function-level ~_err_kind~/~_err_<T>~ slots are still declared. See
    ~lower_guard_bang_calls~ / ~register_bang_guard_throws~ in the typer.
 
+   A guarded ~switch~ desugars to *independent* ~if~s (the ~#199~ flag
+   form), not an if/elif chain, and those ~if~s are built at infer time --
+   after the throw pass has already wrapped the statements that follow a
+   throwing statement in ~if _err_kind == 0~. So a ~?~ guard that throws
+   would otherwise let the following cases run on the error path before the
+   ~catch~. ~infer_switch_stmt~ closes this by gating each case (and the
+   default) on ~_err_kind == 0~ once an earlier case's guard/body can throw
+   (~switch_can_throw~). A bang guard panics instead of setting ~_err_kind~,
+   so it never leaks; this matters only for ~?~ guards.
+
 ** Implementation map
 
    *** Parser ([[file:../src/self/parser.til][src/self/parser.til]])
