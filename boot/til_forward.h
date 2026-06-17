@@ -1964,7 +1964,7 @@ U32 KeyNotFound_size(void);
 Array__Str * Array__Str_new(U32 cap);
 U32 Array__Str_len(Array__Str * self);
 Str * Array__Str_get(Array__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
-void Array__Str_set_init(Array__Str * self, U32 i, Str * val);
+void Array__Str_set(Array__Str * self, U32 i, Str * val, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
 void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
 U32 Array__Str_size(void);

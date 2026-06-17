@@ -2891,6 +2891,13 @@ priv stmt_contains_match := func(e: Expr) returns Bool {
     case NodeType.FuncDef:   return false
     case NodeType.StructDef: return false
     case NodeType.EnumDef:   return false
+    // #282: a switch/match `Case`'s guard and body are conditionally
+    // evaluated -- a match there (e.g. from a lazy `&&`/`and` desugar) must
+    // be lowered into the pattern-gated position by infer_switch_stmt, NOT
+    // hoisted before the whole switch. The body is a Body (already skipped);
+    // stop at the Case so the guard is skipped too. Scrutinee matches (child
+    // 0 of the Switch/Match, not under a Case) are still hoisted.
+    case NodeType.Case:      return false
     case:
     }
     for c : Expr in e.children {
@@ -2924,6 +2931,10 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
     case NodeType.FuncDef:   return
     case NodeType.StructDef: return
     case NodeType.EnumDef:   return
+    // #282: do not hoist a match out of a case guard (or body) -- it is
+    // conditionally evaluated and infer_switch_stmt lowers it into the
+    // pattern-gated position. See stmt_contains_match for the rationale.
+    case NodeType.Case:      return
     case:
     }
     mut ci : U32 = 0

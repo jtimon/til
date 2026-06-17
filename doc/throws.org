@@ -89,6 +89,15 @@ lives, and step-by-step recipes for adding more throwing methods.
    function-level ~_err_kind~/~_err_<T>~ slots are still declared. See
    ~lower_guard_bang_calls~ / ~register_bang_guard_throws~ in the typer.
 
+   The two constructs compose: a lazy ~&&~/~and~ (or ~||~/~or~) in a guard
+   expands (pre-typer) to a ~match~, so a throwing call on either side of it
+   sits inside a ~match~ *in the guard*. ~stmt_contains_match~ /
+   ~replace_matches_rec~ therefore stop at a ~Case~ -- they must NOT hoist a
+   guard's (or arm's) ~match~ out before the ~switch~, or the guard would run
+   unconditionally. The guard ~match~ is lowered into the pattern-gated
+   position by ~infer_switch_stmt~ instead, so ~case P if a && v[i]~ evaluates
+   ~v[i]~ only when ~P~ matches and ~a~ is true.
+
    A guarded ~switch~ desugars to *independent* ~if~s (the ~#199~ flag
    form), not an if/elif chain, and those ~if~s are built at infer time --
    after the throw pass has already wrapped the statements that follow a

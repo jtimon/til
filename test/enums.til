@@ -740,6 +740,43 @@ test_guard_payload_binding_receiver := test() {
     assert_eq(I64, r, 3)
 }
 
+# --- #282 + #262: a lazy `&&`/`||`/`.and()`/`.or()` in a guard expands (pre-
+#     typer) to a `match`, so a throwing call on either side lands inside a
+#     match *in the guard*. That match must be lowered into the pattern-gated
+#     position, never hoisted out before the switch -- otherwise the guard (and
+#     its throwing call) runs unconditionally. Both the scrutinee side and the
+#     arm side of the lazy call must short-circuit on a pattern miss. ---
+test_guard_lazy_and_arm_bang := test() {
+    v := Vec(I64).new()                       # empty
+    mut r := 0
+    switch v.len() {                          # 0; pattern 9 misses
+    case 9 if true.and(v[0].gt(0)): r = 1     # arm-side bang -- must NOT run
+    case: r = 2
+    }
+    assert_eq(I64, r, 2)
+}
+
+test_guard_lazy_and_scrutinee_bang := test() {
+    v := Vec(I64).new()                       # empty
+    mut r := 0
+    switch v.len() {                          # 0; pattern 9 misses
+    case 9 if v[0].gt(0).and(true): r = 1     # scrutinee-side bang -- must NOT run
+    case: r = 2
+    }
+    assert_eq(I64, r, 2)
+}
+
+test_guard_lazy_and_on_hit := test() {
+    mut v := Vec(I64).new()
+    v.push(own 7)                             # len 1
+    mut r := 0
+    switch v.len() {                          # 1; pattern hits, both operands true
+    case 1 if (v.len().gt(0) && v[0].gt(0)): r = 1
+    case: r = 2
+    }
+    assert_eq(I64, r, 1)
+}
+
 // #211: payload bindings inherit the matched value's mutability. A mut
 // enum exposes a ref-mut payload binding in case patterns, so `n = 99`
 // type-checks AND propagates into the enum's payload memory -- the
