@@ -18,16 +18,16 @@ namespace:
 
     new_type_names := func(key_type: Str, val_type: Str) returns DynHashMap {
         if key_type.is_empty() {
-            panic(__LOC__, "DynHashMap.new: key_type required")
+            panic("DynHashMap.new: key_type required")
         }
         if val_type.is_empty() {
-            panic(__LOC__, "DynHashMap.new: val_type required")
+            panic("DynHashMap.new: val_type required")
         }
         if dyn_has_method(key_type, "hash").not() {
-            panic(__LOC__, "DynHashMap.new: type ", key_type, " must implement hash")
+            panic("DynHashMap.new: type ", key_type, " must implement hash")
         }
         if dyn_has_method(key_type, "cmp").not() {
-            panic(__LOC__, "DynHashMap.new: type ", key_type, " must implement cmp")
+            panic("DynHashMap.new: type ", key_type, " must implement cmp")
         }
         mut m := DynHashMap()
         m.keys = DynVec.new_type_name(key_type)
@@ -79,7 +79,7 @@ namespace:
 
     get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic {
         idx := self.find(key)
-        if idx.lt(0) { panic(__LOC__, "DynHashMap.get: key not found") }
+        if idx.lt(0) { panic("DynHashMap.get: key not found") }
         return self.values[idx.to_usize()]
     }
 

@@ -70,33 +70,33 @@ drawable_tag := func(_d: Drawable) returns I64 {
 }
 
 test_interface_usable_as_param_type := test() {
-    assert_eq(__LOC__, I64, collection_tag(Collection()), 7)
+    assert_eq(I64, collection_tag(Collection()), 7)
 }
 
 test_interface_value_passed_through := test() {
-    assert_eq(__LOC__, I64, relay(Collection()), 7)
+    assert_eq(I64, relay(Collection()), 7)
 }
 
 test_second_interface_type := test() {
-    assert_eq(__LOC__, I64, drawable_tag(Drawable()), 9)
+    assert_eq(I64, drawable_tag(Drawable()), 9)
 }
 
 // A concrete default method is a real, callable implementation.
 test_interface_concrete_default_method := test() {
     d := Drawable()
-    assert_eq(__LOC__, Str, d.label(), "shape")
+    assert_eq(Str, d.label(), "shape")
 }
 
 // A conforming struct compiles and its provided method is callable.
 test_implements_conformance := test() {
     c := Circle(r = 2)
-    assert_eq(__LOC__, Str, c.draw(), "circle")
+    assert_eq(Str, c.draw(), "circle")
 }
 
 // A conforming enum compiles and its provided method is callable.
 test_enum_implements_conformance := test() {
     p := Polygon.Tri
-    assert_eq(__LOC__, Str, p.draw(), "polygon")
+    assert_eq(Str, p.draw(), "polygon")
 }
 
 // #268: the interface's concrete default is copied into the implementer's
@@ -104,29 +104,29 @@ test_enum_implements_conformance := test() {
 // struct and an enum.
 test_struct_inherits_default := test() {
     c := Circle(r = 1)
-    assert_eq(__LOC__, Str, c.label(), "shape")
+    assert_eq(Str, c.label(), "shape")
 }
 
 test_enum_inherits_default := test() {
     p := Polygon.Quad
-    assert_eq(__LOC__, Str, p.label(), "shape")
+    assert_eq(Str, p.label(), "shape")
 }
 
 // #268: a default that calls an abstract method (`self.draw()`) dispatches to
 // the implementer's own method, because Self was substituted on copy.
 test_default_calls_self_method := test() {
     c := Circle(r = 1)
-    assert_eq(__LOC__, Str, c.describe(), "circle")
+    assert_eq(Str, c.describe(), "circle")
     p := Polygon.Tri
-    assert_eq(__LOC__, Str, p.describe(), "polygon")
+    assert_eq(Str, p.describe(), "polygon")
 }
 
 // #268: a type that defines its own copy of a default method overrides it;
 // methods it does not define are still inherited.
 test_default_override := test() {
     l := Labeled(n = 1)
-    assert_eq(__LOC__, Str, l.label(), "custom")
-    assert_eq(__LOC__, Str, l.describe(), "labeled")
+    assert_eq(Str, l.label(), "custom")
+    assert_eq(Str, l.describe(), "labeled")
 }
 
 // #269: dynamic dispatch. An interface-typed parameter accepts any
@@ -139,14 +139,14 @@ render := func(d: Drawable) returns Str {
 
 test_dispatch_struct := test() {
     c := Circle(r = 1)
-    assert_eq(__LOC__, Str, render(c), "circle")
+    assert_eq(Str, render(c), "circle")
     l := Labeled(n = 1)
-    assert_eq(__LOC__, Str, render(l), "labeled")
+    assert_eq(Str, render(l), "labeled")
 }
 
 test_dispatch_enum := test() {
     p := Polygon.Tri
-    assert_eq(__LOC__, Str, render(p), "polygon")
+    assert_eq(Str, render(p), "polygon")
 }
 
 // #269: a concrete default called through the interface value stays a
@@ -159,7 +159,7 @@ describe_of := func(d: Drawable) returns Str {
 
 test_default_through_iface_dispatches := test() {
     c := Circle(r = 1)
-    assert_eq(__LOC__, Str, describe_of(c), "circle")
+    assert_eq(Str, describe_of(c), "circle")
 }
 
 // #251 follow-up: a conforming concrete bound to an interface-typed LOCAL
@@ -170,10 +170,10 @@ test_default_through_iface_dispatches := test() {
 test_local_binding_dispatch := test() {
     c := Circle(r = 1)
     d : Drawable = c
-    assert_eq(__LOC__, Str, d.draw(), "circle")
+    assert_eq(Str, d.draw(), "circle")
     p := Polygon.Tri
     pd : Drawable = p
-    assert_eq(__LOC__, Str, pd.draw(), "polygon")
+    assert_eq(Str, pd.draw(), "polygon")
 }
 
 // #251 follow-up: a conforming concrete RETURNED where an interface is
@@ -187,8 +187,8 @@ make_drawable := func(which: Bool) returns Drawable {
 }
 
 test_return_dispatch := test() {
-    assert_eq(__LOC__, Str, make_drawable(true).draw(), "circle")
-    assert_eq(__LOC__, Str, make_drawable(false).draw(), "polygon")
+    assert_eq(Str, make_drawable(true).draw(), "circle")
+    assert_eq(Str, make_drawable(false).draw(), "polygon")
 }
 
 // The returned owned box also dispatches an inherited default whose body
@@ -196,7 +196,7 @@ test_return_dispatch := test() {
 // bound to a local and freed at scope end.
 test_return_default_dispatch := test() {
     d := make_drawable(true)
-    assert_eq(__LOC__, Str, d.describe(), "circle")
+    assert_eq(Str, d.describe(), "circle")
 }
 
 // #251 follow-up: an interface-typed FIELD holds an owned box -- a conforming
@@ -209,7 +209,7 @@ DrawHolder := struct {
 
 test_field_dispatch := test() {
     hc := DrawHolder(shape = Circle(r = 1))
-    assert_eq(__LOC__, Str, hc.shape.draw(), "circle")
+    assert_eq(Str, hc.shape.draw(), "circle")
     hp := DrawHolder(shape = Polygon.Tri)
-    assert_eq(__LOC__, Str, hp.shape.draw(), "polygon")
+    assert_eq(Str, hp.shape.draw(), "polygon")
 }

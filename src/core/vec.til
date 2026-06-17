@@ -106,7 +106,7 @@ namespace:
     /// takes ownership of the returned value.
     pop := func(mut self: Vec(T)) returns T {
         if self.count.eq(0) {
-            panic(__LOC__, "Vec.pop: empty vec")
+            panic("Vec.pop: empty vec")
         }
         last := self.count.sub(1)
         out : T = malloc(T.size().cast(U64))
@@ -120,7 +120,7 @@ namespace:
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: Vec(T), n: USize) returns Vec(T) {
         if n.gt(self.count) {
-            panic(__LOC__, "Vec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            panic("Vec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         mut prefix_cap : USize = 1
         if n.gt(0) {
@@ -159,7 +159,7 @@ namespace:
     /// count==0/data==NULL convention used by take_children and Vec.delete).
     push_take := func(mut self: Vec(T), mut src: Vec(T), i: USize) {
         if i.gte(src.count) {
-            panic(__LOC__, "Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
+            panic("Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)

@@ -1748,9 +1748,9 @@ generate_bindings := proc(in_path: Str, out_path: Str) {
     incdir := header_dir_of(in_path)
     mut pre := ""
     ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", format("-I", incdir), in_path)
-    if ec.neq(0) { panic(__LOC__, "cc preprocessing failed for ", in_path) }
+    if ec.neq(0) { panic("cc preprocessing failed for ", in_path) }
     lines := filter_preprocessed(pre, incdir)
-    if lines.len().eq(0) { panic(__LOC__, "no lines from ", in_path, " after filtering by ", incdir) }
+    if lines.len().eq(0) { panic("no lines from ", in_path, " after filtering by ", incdir) }
     mut out := Str.with_capacity(262144)
     out.push_str("mode lib\n\n")
     mut bs := BinderState()

@@ -74,7 +74,7 @@ namespace:
 
     get := func(self: HashMap(K, V), key: K) returns ref V {
         idx := self.find(key)
-        if idx.lt(0) { panic(__LOC__, "HashMap.get: key not found") }
+        if idx.lt(0) { panic("HashMap.get: key not found") }
         return self.values[idx.to_usize()]
     }
 

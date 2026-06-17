@@ -57,12 +57,12 @@ namespace:
 }
 
 test_priv_demo := test() {
-    expect(__LOC__, sum_of_squares(3, 4).eq(25), "3^2 + 4^2 = 25")
+    expect(sum_of_squares(3, 4).eq(25), "3^2 + 4^2 = 25")
 
     mut c := Counter.new(10)
     c.bump()
     c.bump()
     c.bump()
-    expect(__LOC__, c.get().eq(13), "value advanced 3 times")
-    expect(__LOC__, c.bump_count().eq(3), "bumps recorded 3 times")
+    expect(c.get().eq(13), "value advanced 3 times")
+    expect(c.bump_count().eq(3), "bumps recorded 3 times")
 }

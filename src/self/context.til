@@ -54,7 +54,7 @@ namespace:
         return a.name.eq(b.name)
     }
     to_str := func(self: TypeBinding) returns Str {
-        expect(__LOC__, self.name.is_null().not(), "self.name is null")
+        expect(self.name.is_null().not(), "self.name is null")
         return self.name.clone()
     }
 }
@@ -776,7 +776,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
     if t.is_funcptr() { return true }
-    expect(__LOC__, scope.is_null().not(), "scope is null")
+    expect(scope.is_null().not(), "scope is null")
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {
@@ -837,7 +837,7 @@ def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
     case NodeType.EnumDef(ed):
         return ed.ns_decls
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return NULL
     }
 }
@@ -847,7 +847,7 @@ enum_has_payloads := func(enum_def: Expr) returns Bool {
     case NodeType.EnumDef(edd):
         return edd.payload_types.len().gt(0)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -860,7 +860,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
             if vn.eq(variant_name) { return i.cast(I32) }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return -1
 }
@@ -874,7 +874,7 @@ enum_variant_type := func(enum_def: Expr, tag: I32) returns Str {
             return pt.clone()
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return ""
 }
@@ -888,7 +888,7 @@ enum_variant_payload_const := func(enum_def: Expr, tag: I32) returns Bool {
             if pc { return true }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return false
 }

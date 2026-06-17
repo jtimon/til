@@ -11,11 +11,11 @@ test_simplest_catch := test() {
     if I64.eq(1, 1) {
         throw AAAError()
     }
-    assert(__LOC__, false)  // unreachable on the error path
+    assert(false)  // unreachable on the error path
     catch (err: AAAError) {
         catched = true
     }
-    assert(__LOC__, catched)
+    assert(catched)
 }
 
 ErrorWithMessage := struct {
@@ -33,8 +33,8 @@ test_catch_with_fields := test() {
         caught_msg = err.msg
         catched = true
     }
-    assert(__LOC__, catched)
-    assert(__LOC__, caught_msg.eq("default error message"))
+    assert(catched)
+    assert(caught_msg.eq("default error message"))
 }
 
 // DivideByZero is defined in src/core/i64.til alongside I64.safe_div.
@@ -48,8 +48,8 @@ unsafe_div := func(a: I64, b: I64) returns I64 {
 }
 
 test_unsafe_div := test() {
-    assert(__LOC__, unsafe_div(42, 0).eq(0))
-    assert(__LOC__, unsafe_div(42, 2).eq(21))
+    assert(unsafe_div(42, 0).eq(0))
+    assert(unsafe_div(42, 2).eq(21))
 }
 
 test_catch_str_error := test() {
@@ -62,8 +62,8 @@ test_catch_str_error := test() {
         caught = true
         error_msg = err
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, error_msg.eq("This is a test error message"))
+    assert(caught)
+    assert(error_msg.eq("This is a test error message"))
 }
 
 test_catch_error_with_str_field := test() {
@@ -78,8 +78,8 @@ test_catch_error_with_str_field := test() {
         caught = true
         caught_msg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, caught_msg.eq("Custom error message"))
+    assert(caught)
+    assert(caught_msg.eq("Custom error message"))
 }
 
 // ==========================================================
@@ -103,7 +103,7 @@ test_bug34_after_catch_success := test() {
     catch (err: Bug34Error) {
     }
     after_catch_ran = true
-    assert(__LOC__, after_catch_ran)
+    assert(after_catch_ran)
 }
 
 test_bug34_after_catch_error := test() {
@@ -112,7 +112,7 @@ test_bug34_after_catch_error := test() {
     catch (err: Bug34Error) {
     }
     after_catch_ran = true
-    assert(__LOC__, after_catch_ran)
+    assert(after_catch_ran)
 }
 
 test_bug34_between_throw_and_catch := test() {
@@ -122,7 +122,7 @@ test_bug34_between_throw_and_catch := test() {
     catch (err: Bug34Error) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_bug34_between_success := test() {
@@ -133,8 +133,8 @@ test_bug34_between_success := test() {
     catch (err: Bug34Error) {
         caught = true
     }
-    assert(__LOC__, caught.not())
-    assert(__LOC__, between_ran)
+    assert(caught.not())
+    assert(between_ran)
 }
 
 // ==========================================================
@@ -174,10 +174,10 @@ test_non_consecutive_catches := test() {
         caught_b = true
     }
 
-    assert(__LOC__, after_a_ran.not())
-    assert(__LOC__, after_b_ran.not())
-    assert(__LOC__, caught_a)
-    assert(__LOC__, caught_b)
+    assert(after_a_ran.not())
+    assert(after_b_ran.not())
+    assert(caught_a)
+    assert(caught_b)
 }
 
 MultiThrowError := struct {}
@@ -201,9 +201,9 @@ test_multi_throw_single_catch := test() {
         caught = true
     }
 
-    assert(__LOC__, after_first_ran.not())
-    assert(__LOC__, after_second_ran.not())
-    assert(__LOC__, caught)
+    assert(after_first_ran.not())
+    assert(after_second_ran.not())
+    assert(caught)
 }
 
 test_multi_throw_success := test() {
@@ -219,9 +219,9 @@ test_multi_throw_success := test() {
         caught = true
     }
 
-    assert(__LOC__, after_first_ran)
-    assert(__LOC__, after_second_ran)
-    assert(__LOC__, caught.not())
+    assert(after_first_ran)
+    assert(after_second_ran)
+    assert(caught.not())
 }
 
 // ==========================================================
@@ -253,7 +253,7 @@ test_caller_callee_different_throws := test() {
     caught_b_internally := callee1_throws_a_only(false, true)?
     catch (err: CallerCalleeErrorA) {
     }
-    assert(__LOC__, caught_b_internally)
+    assert(caught_b_internally)
 
     mut after_callee1_ran := false
     mut caught_a := false
@@ -262,8 +262,8 @@ test_caller_callee_different_throws := test() {
     catch (err: CallerCalleeErrorA) {
         caught_a = true
     }
-    assert(__LOC__, after_callee1_ran.not())
-    assert(__LOC__, caught_a)
+    assert(after_callee1_ran.not())
+    assert(caught_a)
 }
 
 // ==========================================================
@@ -280,7 +280,7 @@ bang_throws := func(should_throw: Bool) returns I64 throws CallerCalleeErrorA {
 // Success path: bang on a call that doesn't throw returns normally.
 test_bang_success := test() {
     result := bang_throws(false)!
-    assert(__LOC__, result.eq(42))
+    assert(result.eq(42))
 }
 
 // Bang inside a Return: hoisted to a temp so the catch+panic
@@ -291,7 +291,7 @@ bang_return_wrapper := func(x: Bool) returns I64 throws CallerCalleeErrorA {
 
 test_bang_in_return := test() {
     result := bang_return_wrapper(false)!
-    assert(__LOC__, result.eq(42))
+    assert(result.eq(42))
 }
 
 // Nested-bang positions: bang inside an arg or method-chain receiver
@@ -300,21 +300,21 @@ test_bang_in_return := test() {
 // typer's arity check on the lowered throwing-call signature.
 test_bang_nested_in_arg := test() {
     // bang inside an FCall arg
-    assert(__LOC__, bang_throws(false)!.eq(42))
+    assert(bang_throws(false)!.eq(42))
 }
 
 test_bang_nested_in_chain := test() {
     // bang on the receiver of a method chain
     s := bang_throws(false)!.to_str()
-    assert(__LOC__, s.eq("42"))
+    assert(s.eq("42"))
 }
 
 test_bang_inside_bang := test() {
     // outer bang on a call whose arg is itself a bang
     inner := bang_throws(false)!
     outer := bang_return_wrapper(false)!
-    assert(__LOC__, inner.eq(42))
-    assert(__LOC__, outer.eq(42))
+    assert(inner.eq(42))
+    assert(outer.eq(42))
 }
 
 // ==========================================================
@@ -325,9 +325,9 @@ test_bang_inside_bang := test() {
 test_f32_safe_div_ok := test() {
     result := F32.safe_div(F32.from_i64(10), F32.from_i64(2))?
     catch (err: DivideByZero) {
-        assert(__LOC__, false)
+        assert(false)
     }
-    assert(__LOC__, result.eq(F32.from_i64(5)))
+    assert(result.eq(F32.from_i64(5)))
 }
 
 test_f32_safe_div_zero := test() {
@@ -336,7 +336,7 @@ test_f32_safe_div_zero := test() {
     catch (err: DivideByZero) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_f32_safe_div_ufcs := test() {
@@ -345,7 +345,7 @@ test_f32_safe_div_ufcs := test() {
     catch (err: DivideByZero) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 // ==========================================================
@@ -362,9 +362,9 @@ MAX_I64_LIT : I64 = 9223372036854775807
 test_i64_safe_add_ok := test() {
     result := 2.safe_add(3)?
     catch (err: IntegerOverflow) {
-        assert(__LOC__, false)
+        assert(false)
     }
-    assert(__LOC__, result.eq(5))
+    assert(result.eq(5))
 }
 
 test_i64_safe_add_overflow := test() {
@@ -375,8 +375,8 @@ test_i64_safe_add_overflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("I64.safe_add"))
+    assert(caught)
+    assert(emsg.contains("I64.safe_add"))
 }
 
 test_i64_safe_add_underflow := test() {
@@ -387,15 +387,15 @@ test_i64_safe_add_underflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_i64_safe_sub_ok := test() {
     result := 10.safe_sub(3)?
     catch (err: IntegerOverflow) {
-        assert(__LOC__, false)
+        assert(false)
     }
-    assert(__LOC__, result.eq(7))
+    assert(result.eq(7))
 }
 
 test_i64_safe_sub_underflow := test() {
@@ -408,8 +408,8 @@ test_i64_safe_sub_underflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("I64.safe_sub"))
+    assert(caught)
+    assert(emsg.contains("I64.safe_sub"))
 }
 
 test_i64_safe_sub_overflow := test() {
@@ -418,15 +418,15 @@ test_i64_safe_sub_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_i64_safe_mul_ok := test() {
     result := 7.safe_mul(6)?
     catch (err: IntegerOverflow) {
-        assert(__LOC__, false)
+        assert(false)
     }
-    assert(__LOC__, result.eq(42))
+    assert(result.eq(42))
 }
 
 test_i64_safe_mul_overflow := test() {
@@ -437,8 +437,8 @@ test_i64_safe_mul_overflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("I64.safe_mul"))
+    assert(caught)
+    assert(emsg.contains("I64.safe_mul"))
 }
 
 // --- U64 / U32 / U8 (unsigned widths) ---
@@ -452,8 +452,8 @@ test_u64_safe_add_overflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("U64.safe_add"))
+    assert(caught)
+    assert(emsg.contains("U64.safe_add"))
 }
 
 test_u64_safe_sub_underflow := test() {
@@ -465,8 +465,8 @@ test_u64_safe_sub_underflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("U64.safe_sub"))
+    assert(caught)
+    assert(emsg.contains("U64.safe_sub"))
 }
 
 test_u64_safe_mul_overflow := test() {
@@ -478,8 +478,8 @@ test_u64_safe_mul_overflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("U64.safe_mul"))
+    assert(caught)
+    assert(emsg.contains("U64.safe_mul"))
 }
 
 test_u32_safe_add_overflow := test() {
@@ -491,8 +491,8 @@ test_u32_safe_add_overflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("U32.safe_add"))
+    assert(caught)
+    assert(emsg.contains("U32.safe_add"))
 }
 
 test_u32_safe_sub_underflow := test() {
@@ -502,7 +502,7 @@ test_u32_safe_sub_underflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_u32_safe_mul_overflow := test() {
@@ -512,7 +512,7 @@ test_u32_safe_mul_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_u8_safe_add_overflow := test() {
@@ -522,7 +522,7 @@ test_u8_safe_add_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_u8_safe_sub_underflow := test() {
@@ -532,7 +532,7 @@ test_u8_safe_sub_underflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_u8_safe_mul_overflow := test() {
@@ -542,7 +542,7 @@ test_u8_safe_mul_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 // --- I32 / I16 / I8 (signed widths) ---
@@ -556,8 +556,8 @@ test_i32_safe_add_overflow := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("I32.safe_add"))
+    assert(caught)
+    assert(emsg.contains("I32.safe_add"))
 }
 
 test_i32_safe_sub_overflow := test() {
@@ -567,7 +567,7 @@ test_i32_safe_sub_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_i32_safe_mul_overflow := test() {
@@ -577,7 +577,7 @@ test_i32_safe_mul_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_i16_safe_add_overflow := test() {
@@ -587,7 +587,7 @@ test_i16_safe_add_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_i16_safe_sub_overflow := test() {
@@ -597,7 +597,7 @@ test_i16_safe_sub_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 test_i16_safe_mul_overflow := test() {
@@ -607,7 +607,7 @@ test_i16_safe_mul_overflow := test() {
     catch (err: IntegerOverflow) {
         caught = true
     }
-    assert(__LOC__, caught)
+    assert(caught)
 }
 
 
@@ -620,9 +620,9 @@ test_array_get_ok := test() {
     arr := array("I64", 10, 20, 30)
     ref v : I64 = arr.get(1)?
     catch (err: OutOfBounds) {
-        assert(__LOC__, false)
+        assert(false)
     }
-    assert(__LOC__, v.eq(20))
+    assert(v.eq(20))
 }
 
 test_array_get_oob := test() {
@@ -634,8 +634,8 @@ test_array_get_oob := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("Array.get"))
+    assert(caught)
+    assert(emsg.contains("Array.get"))
 }
 
 // The bang form panics on OOB (same as the old behavior). The
@@ -643,7 +643,7 @@ test_array_get_oob := test() {
 test_array_get_bang_ok := test() {
     arr := array("I64", 5, 6, 7)
     ref v : I64 = arr.get(2)!
-    assert(__LOC__, v.eq(7))
+    assert(v.eq(7))
 }
 
 // ==========================================================
@@ -676,9 +676,9 @@ namespace:
 test_stmt_method_bang_ok := test() {
     mut t := StmtThrower()
     t.bump(5)!
-    assert_eq(__LOC__, I64, t.n, 5)
+    assert_eq(I64, t.n, 5)
     t.bump(3)!
-    assert_eq(__LOC__, I64, t.n, 8)
+    assert_eq(I64, t.n, 8)
 }
 
 // `?` on a statement-level method call, throw path: the catch runs and
@@ -692,9 +692,9 @@ test_stmt_method_question_throws := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.eq("negative bump"))
-    assert_eq(__LOC__, I64, t.n, 0)
+    assert(caught)
+    assert(emsg.eq("negative bump"))
+    assert_eq(I64, t.n, 0)
 }
 
 // `?` on a statement-level method call, success path: the catch is
@@ -706,6 +706,6 @@ test_stmt_method_question_ok := test() {
     catch (err: StmtThrowError) {
         caught = true
     }
-    assert(__LOC__, caught.not())
-    assert_eq(__LOC__, I64, t.n, 2)
+    assert(caught.not())
+    assert_eq(I64, t.n, 2)
 }

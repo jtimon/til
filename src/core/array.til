@@ -55,7 +55,7 @@ namespace:
     /// codegen decoupled from `set`'s signature.
     set_init := func(self: Array(T), i: USize, own val: T) {
         if i.gte(self.cap) {
-            panic(__LOC__, "Array.set_init: index ", i.to_str(),
+            panic("Array.set_init: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")")
         }
         T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)

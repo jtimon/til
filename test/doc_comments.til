@@ -16,48 +16,48 @@ undocumented := func() returns Str {
 }
 
 test_single_line_doc := test() {
-    assert(__LOC__, __til_has_doc__("single_doc"))
-    assert_eq(__LOC__, Str, __til_get_doc__("single_doc"), "single-line documentation")
+    assert(__til_has_doc__("single_doc"))
+    assert_eq(Str, __til_get_doc__("single_doc"), "single-line documentation")
 }
 
 test_multi_line_doc := test() {
-    assert(__LOC__, __til_has_doc__("multi_doc"))
-    assert_eq(__LOC__, Str, __til_get_doc__("multi_doc"), "first line\nsecond line")
+    assert(__til_has_doc__("multi_doc"))
+    assert_eq(Str, __til_get_doc__("multi_doc"), "first line\nsecond line")
 }
 
 test_undocumented_decl := test() {
-    assert(__LOC__, __til_has_doc__("undocumented").not())
+    assert(__til_has_doc__("undocumented").not())
 }
 
 test_core_doc_registered := test() {
-    assert(__LOC__, __til_has_doc__("help"))
-    assert(__LOC__, __til_has_doc__("__doc_init__"))
-    assert(__LOC__, __til_has_doc__("__til_docs_blob__"))
-    assert(__LOC__, __til_has_doc__("__til_kinds_blob__"))
+    assert(__til_has_doc__("help"))
+    assert(__til_has_doc__("__doc_init__"))
+    assert(__til_has_doc__("__til_docs_blob__"))
+    assert(__til_has_doc__("__til_kinds_blob__"))
 }
 
 test_kind_func := test() {
-    assert(__LOC__, __til_has_kind__("undocumented"))
-    assert_eq(__LOC__, Str, __til_get_kind__("undocumented"), "func")
-    assert(__LOC__, __til_has_kind__("single_doc"))
-    assert_eq(__LOC__, Str, __til_get_kind__("single_doc"), "func")
+    assert(__til_has_kind__("undocumented"))
+    assert_eq(Str, __til_get_kind__("undocumented"), "func")
+    assert(__til_has_kind__("single_doc"))
+    assert_eq(Str, __til_get_kind__("single_doc"), "func")
 }
 
 test_kind_unknown := test() {
-    assert(__LOC__, __til_has_kind__("not_a_real_symbol_xyz").not())
-    assert(__LOC__, __til_has_doc__("not_a_real_symbol_xyz").not())
+    assert(__til_has_kind__("not_a_real_symbol_xyz").not())
+    assert(__til_has_doc__("not_a_real_symbol_xyz").not())
 }
 
 test_kind_struct := test() {
-    assert(__LOC__, __til_has_kind__("Str"))
-    assert_eq(__LOC__, Str, __til_get_kind__("Str"), "struct")
-    assert(__LOC__, __til_has_kind__("Vec"))
-    assert_eq(__LOC__, Str, __til_get_kind__("Vec"), "struct")
+    assert(__til_has_kind__("Str"))
+    assert_eq(Str, __til_get_kind__("Str"), "struct")
+    assert(__til_has_kind__("Vec"))
+    assert_eq(Str, __til_get_kind__("Vec"), "struct")
 }
 
 test_kind_proc := test() {
-    assert(__LOC__, __til_has_kind__("println"))
-    assert_eq(__LOC__, Str, __til_get_kind__("println"), "proc")
-    assert(__LOC__, __til_has_kind__("help"))
-    assert_eq(__LOC__, Str, __til_get_kind__("help"), "proc")
+    assert(__til_has_kind__("println"))
+    assert_eq(Str, __til_get_kind__("println"), "proc")
+    assert(__til_has_kind__("help"))
+    assert_eq(Str, __til_get_kind__("help"), "proc")
 }

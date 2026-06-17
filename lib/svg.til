@@ -61,7 +61,7 @@ count_colors := func(svg: Str) returns I64 {
 check_color_count := func(svg: Str) {
     n := count_colors(svg)
     if n.gt(2) {
-        panic(__LOC__, "svg uses ", n.to_str(), " colours (max 2 supported)")
+        panic("svg uses ", n.to_str(), " colours (max 2 supported)")
     }
 }
 
@@ -80,30 +80,30 @@ check_group_transform := func(svg: Str) {
     needle := "transform=\""
     pos := svg.find(needle)
     if pos.lt(0) {
-        panic(__LOC__, "expected a <g transform=\"...\"> element")
+        panic("expected a <g transform=\"...\"> element")
     }
     start : USize = pos.to_usize().add(needle.len())
     tail := svg.substr(start, svg.len().sub(start))
     end := tail.find("\"")
-    if end.lt(0) { panic(__LOC__, "malformed transform attribute") }
+    if end.lt(0) { panic("malformed transform attribute") }
     val := tail.substr(0, end.to_usize())
     if val.eq(EXPECTED_TRANSFORM).not() {
-        panic(__LOC__, "unsupported transform: '", val, "'")
+        panic("unsupported transform: '", val, "'")
     }
 }
 
 check_viewbox := func(svg: Str) {
     needle := "viewBox=\""
     pos := svg.find(needle)
-    if pos.lt(0) { panic(__LOC__, "expected viewBox attribute") }
+    if pos.lt(0) { panic("expected viewBox attribute") }
     start : USize = pos.to_usize().add(needle.len())
     tail := svg.substr(start, svg.len().sub(start))
     end := tail.find("\"")
-    if end.lt(0) { panic(__LOC__, "malformed viewBox") }
+    if end.lt(0) { panic("malformed viewBox") }
     val := tail.substr(0, end.to_usize())
     expected := "0 0 1024.000000 1024.000000"
     if val.eq(expected).not() {
-        panic(__LOC__, "unsupported viewBox: '", val, "' (expected '", expected, "')")
+        panic("unsupported viewBox: '", val, "' (expected '", expected, "')")
     }
 }
 
@@ -170,7 +170,7 @@ parse_int := func(d: Str, i: USize, mut out_idx: USize) returns I64 {
         j++
     }
     if digits.eq(0) {
-        panic(__LOC__, "expected integer in path data at byte ", j.to_str())
+        panic("expected integer in path data at byte ", j.to_str())
     }
     if neg { val = 0.sub(val) }
     out_idx = j
@@ -215,7 +215,7 @@ parse_path_d := func(d: Str, mut segments: Vec(Segment)) {
             i = skip_ws(d, i)
         }
         if cmd.eq(0) {
-            panic(__LOC__, "path data must start with a command")
+            panic("path data must start with a command")
         }
 
         if cmd.eq('M').or(cmd.eq('m')) {
@@ -284,7 +284,7 @@ parse_path_d := func(d: Str, mut segments: Vec(Segment)) {
             segments.push(own Segment(kind = SegKind.Close))
             last_cmd = 0
         } else {
-            panic(__LOC__, "unsupported SVG path command '",
+            panic("unsupported SVG path command '",
                   Str.from_byte(cmd.cast(U8)), "'")
         }
     }

@@ -11,7 +11,7 @@ context_register_path_mode := func(mut ctx: Context, path: Str, mode: Mode) {
 
 context_set_mode_from_path := func(mut ctx: Context, path: Str) {
     if ctx.path_modes.has(path).not() {
-        panic(__LOC__, "missing mode for path '", path, "'")
+        panic("missing mode for path '", path, "'")
     }
     ref path_mode : Mode = ctx.path_modes[path]
     ctx.mode = path_mode.clone()

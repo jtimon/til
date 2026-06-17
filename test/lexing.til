@@ -5,15 +5,15 @@ import("../src/self/lexer")
 check_tok := proc(tokens: Vec, i: USize, expected_type: TokenType, expected_text: Str) {
     ref t : Token = tokens.get(i)
     tt := t.type
-    expect(__LOC__, tt.eq(expected_type),
+    expect(tt.eq(expected_type),
         "token ", i.to_str(), " type: expected ", expected_type.to_str(),
         " got ", tt.to_str())
-    assert_eq(__LOC__, Str, t.text, expected_text)
+    assert_eq(Str, t.text, expected_text)
 }
 
 test_empty := proc() {
     tokens := tokenize("", "test")
-    assert_eq(__LOC__, USize, tokens.len(), 1)
+    assert_eq(USize, tokens.len(), 1)
     check_tok(tokens, 0, TokenType.Eof, "")
 }
 
@@ -107,14 +107,14 @@ test_hash_comment := proc() {
 }
 
 test_tok_name := proc() {
-    assert_eq(__LOC__, Str, tok_name(TokenType.LParen), "(")
-    assert_eq(__LOC__, Str, tok_name(TokenType.Ident), "identifier")
-    assert_eq(__LOC__, Str, tok_name(TokenType.StringTok), "string")
-    assert_eq(__LOC__, Str, tok_name(TokenType.KwIf), "if")
-    assert_eq(__LOC__, Str, tok_name(TokenType.KwTest), "test")
-    assert_eq(__LOC__, Str, tok_name(TokenType.KwShallow), "shallow")
-    assert_eq(__LOC__, Str, tok_name(TokenType.KwNull), "NULL")
-    assert_eq(__LOC__, Str, tok_name(TokenType.Eof), "eof")
+    assert_eq(Str, tok_name(TokenType.LParen), "(")
+    assert_eq(Str, tok_name(TokenType.Ident), "identifier")
+    assert_eq(Str, tok_name(TokenType.StringTok), "string")
+    assert_eq(Str, tok_name(TokenType.KwIf), "if")
+    assert_eq(Str, tok_name(TokenType.KwTest), "test")
+    assert_eq(Str, tok_name(TokenType.KwShallow), "shallow")
+    assert_eq(Str, tok_name(TokenType.KwNull), "NULL")
+    assert_eq(Str, tok_name(TokenType.Eof), "eof")
 }
 
 test_empty()

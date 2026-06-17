@@ -134,7 +134,7 @@ namespace:
         return a.struct_name.eq(b.struct_name)
     }
     to_str := func(self: StructInstance) returns Str {
-        expect(__LOC__, self.struct_name.is_null().not(), "self.struct_name is null")
+        expect(self.struct_name.is_null().not(), "self.struct_name is null")
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
@@ -253,7 +253,7 @@ namespace:
                                 free(own cloned.data)
                                 cloned.data = NULL
                             case:
-                                UNREACHABLE(__LOC__)
+                                UNREACHABLE()
                             }
                         }
                     }
@@ -261,7 +261,7 @@ namespace:
             }
             return StructInstance(struct_name = self.struct_name, is_str = self.is_str, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
             return StructInstance()
         }
     }
@@ -311,7 +311,7 @@ namespace:
         return a.is(b)
     }
     to_str := func(self: EnumInstance) returns Str {
-        expect(__LOC__, self.enum_name.is_null().not(), "self.enum_name is null")
+        expect(self.enum_name.is_null().not(), "self.enum_name is null")
         return self.enum_name.clone()
     }
     clone := func(self: EnumInstance) returns EnumInstance {
@@ -626,9 +626,9 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow
     if type_name.eq("Bool") {
         if s.eq("true") { return Value.Boolean(true) }
         if s.eq("false") { return Value.Boolean(false) }
-        panic(__LOC__, "cannot parse '", s, "' as Bool (expected true/false)")
+        panic("cannot parse '", s, "' as Bool (expected true/false)")
     }
-    panic(__LOC__, "unsupported CLI argument type '", type_name, "'")
+    panic("unsupported CLI argument type '", type_name, "'")
     return val_none()
 }
 
@@ -820,7 +820,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             fl := ctx_field_layout(si.struct_name, fname.field_access_name(), ctx)
             return read_field(si.data, fdecl, fl.offset, ctx)
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
             return val_none()
         }
     case:
@@ -956,7 +956,7 @@ priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns
             return false
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -1020,7 +1020,7 @@ priv value_as_i64 := func(v: Value) returns I64 {
 priv value_switch_key := func(v: Value) returns I64 {
     switch v {
     case Value.Enum(ei):
-        expect(__LOC__, ei.data.is_null().not(), "ei.data is null")
+        expect(ei.data.is_null().not(), "ei.data is null")
         ref tag_ptr : Dynamic = ei.data
         ref tag_ref : I32 = tag_ptr
         return tag_ref.cast(I64)
@@ -1250,7 +1250,7 @@ priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     case Value.Boolean(b):
         cv = b
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     if cv {
         then_scope := scope_new(scope)
@@ -1275,7 +1275,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         case Value.Boolean(b):
             cv = b
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         if cv.not() { break }
         while_scope := scope_new(scope)
@@ -1643,7 +1643,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             case NodeType.FuncDef(fp_fdef):
                 fp_func_type = fp_fdef.func_type
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
             if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
                 for ki in 0..c.ns_fields.len() {
@@ -1673,7 +1673,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         case NodeType.FuncDef(fdef_ns):
             fdef_func_type = fdef_ns.func_type
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)) {
             parent_sname := til_type_name(callee_expr.children[0].expr_til_type())
@@ -1706,14 +1706,14 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                                                 oc.val = val_none()
                                             }
                                         case:
-                                            UNREACHABLE(__LOC__)
+                                            UNREACHABLE()
                                         }
                                     }
                                 }
                                 return eresult
                             }
                         case:
-                            UNREACHABLE(__LOC__)
+                            UNREACHABLE()
                         }
                     }
                 case:
@@ -1745,7 +1745,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 e.children[0] = orig_callee_val
                 return result
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
 
@@ -1954,11 +1954,11 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                         write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
                 return inst
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     case:
@@ -2051,11 +2051,11 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             scope_free(own call_scope2)
             return result
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
             return val_none()
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return val_none()
     }
     case NodeType.FCall:
@@ -2104,15 +2104,15 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 scope_free(own call_scope3)
                 return result3
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
                 return val_none()
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
             return val_none()
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return val_none()
     }
 }
@@ -2203,7 +2203,7 @@ priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def
 }
 
 priv needs_widen := func(val: Value, ptype: Str) returns Bool {
-    expect(__LOC__, ptype.is_null().not(), "ptype is null")
+    expect(ptype.is_null().not(), "ptype is null")
     if ptype.len().eq(0) { return false }
     if val.is(Value.Byte) {
         return ptype.eq("U8").not()
@@ -2309,7 +2309,7 @@ priv make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: 
         payload.data = data
         payload.borrowed = borrowed
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     // Move r out: the returned copy becomes the sole owner of `data`, and
     // nulling r makes its scope-end (deep) delete a no-op so the payload is
@@ -2338,7 +2338,7 @@ priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     // Pass-through returns clone (not shallow alias): callers reassign
     // `arg = widen_numeric(arg, ...)`, whose save_old_delete frees the old
     // arg AFTER evaluating the rhs -- an alias of arg would then dangle.
-    expect(__LOC__, ptype.is_null().not(), "ptype is null")
+    expect(ptype.is_null().not(), "ptype is null")
     if ptype.len().eq(0) { return v.clone() }
     mut ival : I64 = 0
     mut uval : U64 = 0
@@ -2709,7 +2709,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
     }
     array_name := "Array__".concat(elem_type)
     ref array_binding : TypeBinding = ctx.scope.get_binding(array_name)
-    if array_binding.is_null() { panic(__LOC__, "missing Array type '", array_name, "'") }
+    if array_binding.is_null() { panic("missing Array type '", array_name, "'") }
     ref array_canon_name : Str = array_binding.name
     ref array_def : Expr = lookup_interp_type_def(array_canon_name, ctx)
     sz := ctx_total_size(array_canon_name, ctx)
@@ -2870,7 +2870,7 @@ str_view := func(shallow v: Value) returns shallow Str {
         ref s : Str = to_ptr(si.data)
         result = Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return result
 }
@@ -3026,7 +3026,7 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         case Value.Func(fv):
             write_ptr(ptr, deref(fv))
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         return
     }
@@ -3423,10 +3423,10 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 eval_body(main_scope, body, lp.ctx)
                 scope_free(own main_scope)
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     } } }
 
@@ -3505,7 +3505,7 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
 priv ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size().cast(U64)) }
 
 priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
-    expect(__LOC__, cif.rtype.is_null().not(), "cif.rtype is null")
+    expect(cif.rtype.is_null().not(), "cif.rtype is null")
     ref rt : ffi_type = cif.rtype
     return rt.type.eq(FFI_TYPE_STRUCT.to_i16())
 }
@@ -3556,7 +3556,7 @@ priv ffi_init_link_libs := func(link_flags: Str) {
 
 priv ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
-    expect(__LOC__, user_c_path.is_null().not(), "user_c_path is null")
+    expect(user_c_path.is_null().not(), "user_c_path is null")
     if user_c_path.len().eq(0) { return 0 }
 
     dot_str := "."
@@ -3696,7 +3696,7 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
     case Value.Boolean(bv):
         return bv.clone()
     case:
-        panic(__LOC__, "expected Bool argument to and/or/not, got Value.", value_variant_name(v))
+        panic("expected Bool argument to and/or/not, got Value.", value_variant_name(v))
         return false
     }
 }
@@ -3728,7 +3728,7 @@ priv h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
         r = val_u8(i)
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -3740,7 +3740,7 @@ priv h_I16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
         r = val_i16(i)
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -3752,7 +3752,7 @@ priv h_U16_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
         r = val_u16(i)
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -3764,7 +3764,7 @@ priv h_I32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
         r = val_i32(i)
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -3776,7 +3776,7 @@ priv h_F32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
         r = Value.Float(i.to_f32())
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -3788,7 +3788,7 @@ priv h_U32_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retur
         r = val_u32(i)
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -3875,7 +3875,7 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     if tn.eq("U32") { r = val_u32(raw.cast(I64)); return true }
     if tn.eq("I64") { r = Value.Int(raw.cast(I64)); return true }
     if tn.eq("U64") { r = Value.Uint64(raw); return true }
-    UNREACHABLE(__LOC__)
+    UNREACHABLE()
     return false
 }
 
@@ -3898,7 +3898,7 @@ priv h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     case Value.Int(code):
         exit(code)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     r = val_none()
     return true
@@ -3965,10 +3965,10 @@ priv h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
     // borrowed views.
     ref nsv : Value = ns_get(str_view(type_name_val), str_view(method_val), ctx)
     if nsv.is_null() {
-        panic(__LOC__, "dyn_fn: unknown ", str_view(type_name_val), ".", str_view(method_val))
+        panic("dyn_fn: unknown ", str_view(type_name_val), ".", str_view(method_val))
     }
     if nsv.is(Value.Func).not() {
-        panic(__LOC__, "dyn_fn: unknown ", str_view(type_name_val), ".", str_view(method_val))
+        panic("dyn_fn: unknown ", str_view(type_name_val), ".", str_view(method_val))
     }
     r = nsv.clone()
     return true
@@ -4043,7 +4043,7 @@ priv h_struct_field_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
     case NodeType.StructDef(sd):
         r = Value.Int(sd.fields.len().to_i64())
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4069,7 +4069,7 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
         ref fd : Declaration = sd.fields[idx]
         r = str_to_owned_value(fd.name, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4087,7 +4087,7 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
         ref fd : Declaration = sd.fields[idx]
         if fd.is_mut { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4105,7 +4105,7 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
         ref fd : Declaration = sd.fields[idx]
         r = str_to_owned_value(fd.explicit_type, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4141,7 +4141,7 @@ priv h_enum_variant_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
     case NodeType.EnumDef(ed):
         r = Value.Int(ed.variants.len().to_i64())
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4159,7 +4159,7 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
         ref vn : Str = ed.variants[idx]
         r = str_to_owned_value(vn, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4181,7 +4181,7 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Co
             r = Value.Int(0)
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4203,7 +4203,7 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: C
             r = str_to_owned_value("", ctx)
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4239,7 +4239,7 @@ priv h_func_sig_param_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
     case NodeType.FuncDef(fd):
         r = Value.Int(fd.params.len().to_i64())
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4257,7 +4257,7 @@ priv h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
         ref pd : Declaration = fd.params[idx]
         r = str_to_owned_value(pd.explicit_type, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4269,7 +4269,7 @@ priv h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Conte
     case NodeType.FuncDef(fd):
         if fd.return_type.len().gt(0) { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4286,7 +4286,7 @@ priv h_func_sig_return_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
         }
         r = str_to_owned_value(fd.return_type, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4298,7 +4298,7 @@ priv h_func_sig_throw_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Contex
     case NodeType.FuncDef(fd):
         r = Value.Int(fd.throw_types.len().to_i64())
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4316,7 +4316,7 @@ priv h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
         ref tt : Str = fd.throw_types[idx]
         r = str_to_owned_value(tt, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return true
 }
@@ -4327,7 +4327,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
     case Value.Enum(ei):
         ref til_type_def : Expr = lookup_interp_type_def("Type", ctx)
         if til_type_def.is_null() {
-            panic(__LOC__, "dyn_type_to_str: Type definition not registered")
+            panic("dyn_type_to_str: Type definition not registered")
         }
         ref tag_ptr : Dynamic = ei.data
         ref tag_ref : I32 = tag_ptr
@@ -4418,7 +4418,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
             // that emit_dyn_type_to_str_body generates for compiled code.
             ref prim_def : Expr = lookup_interp_type_def("Primitive", ctx)
             if prim_def.is_null() {
-                panic(__LOC__, "dyn_type_to_str: Primitive definition not registered")
+                panic("dyn_type_to_str: Primitive definition not registered")
             }
             ref prim_tag_ref : I32 = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
             ptag := prim_tag_ref
@@ -4432,13 +4432,13 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
             if ptag.eq(enum_variant_tag(prim_def, "I64")) { r = make_str_value("I64".c_str, 3, ctx); return true }
             if ptag.eq(enum_variant_tag(prim_def, "F32")) { r = make_str_value("F32".c_str, 3, ctx); return true }
             if ptag.eq(enum_variant_tag(prim_def, "Bool")) { r = make_str_value("Bool".c_str, 4, ctx); return true }
-            panic(__LOC__, "dyn_type_to_str: unknown Primitive tag")
+            panic("dyn_type_to_str: unknown Primitive tag")
         }
-        panic(__LOC__, "dyn_type_to_str: unknown Type tag")
+        panic("dyn_type_to_str: unknown Type tag")
         r = make_str_value("".c_str, 0, ctx)
         return true
     case:
-        panic(__LOC__, "dyn_type_to_str: expected Type enum value")
+        panic("dyn_type_to_str: expected Type enum value")
         return false
     }
 }
@@ -4450,7 +4450,7 @@ priv h_check_cmd_status := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) r
         r = Value.Int(check_cmd_status(pid))
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -4463,7 +4463,7 @@ priv h_sleep := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool
         r = val_none()
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -4501,7 +4501,7 @@ priv h_cfile_open := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns
         r = Value.Ref(cfile_open(path, is_write))
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -4572,7 +4572,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
         ctx.ffi_type_cache.push(own box)
         return stp
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return NULL
     }
 }
@@ -4791,7 +4791,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
     switch arity_expr.node_type {
     case NodeType.Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     for ai in 0..nargs {
         fake_call.push_child_clone(e.children[ai.add(4)])
@@ -4940,7 +4940,7 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: C
 // NULL if the return type isn't a known shallow struct.
 priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
     if fe.return_is_shallow.not() { return NULL }
-    expect(__LOC__, fe.return_type.is_null().not(), "fe.return_type is null")
+    expect(fe.return_type.is_null().not(), "fe.return_type is null")
     if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
     if ctx.ffi_struct_defs.has(fe.return_type).not() { return NULL }
     ref box : ExprPtrBox = ctx.ffi_struct_defs[fe.return_type]
@@ -5161,7 +5161,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     // ffi_call + result decode are done, so the arg payloads the FFI buffers
     // pointed into are no longer needed. Keep arg_vals visibly live until
     // here; arg_ptrs holds raw aliases the garbager cannot see.
-    if arg_vals.len().neq(nargs) { UNREACHABLE(__LOC__) }
+    if arg_vals.len().neq(nargs) { UNREACHABLE() }
     for i in 0..nargs {
         ref bf : Bool = ptr_add(boxed_flags, i.cast(U64))
         if bf {
@@ -5242,7 +5242,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         move(val, entry, FFIEntry.size().cast(U64))
         ctx.ffi_map.set(name, own val)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -5316,7 +5316,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                                                     ffi_register(iname.name, ifn, idef, ctx)
                                                 }
                                             case:
-                                                UNREACHABLE(__LOC__)
+                                                UNREACHABLE()
                                             }
                                         }
                                     case:
@@ -5326,10 +5326,10 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                         }
                     }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }

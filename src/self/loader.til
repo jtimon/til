@@ -40,7 +40,7 @@ priv display_path := func(p: Str, cwd: Str) returns Str {
 priv require_mode := func(path: Str, mode_name: Str) returns ref Mode {
     ref resolved : Mode = mode_resolve(mode_name)
     if resolved.is_null() {
-        panic(__LOC__, path, ": unknown mode '", mode_name, "'")
+        panic(": unknown mode '", mode_name, "'", loc = path)
     }
     return resolved
 }
@@ -118,8 +118,8 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(St
                     if p.ends_with(".til") {
                         bare := p.strip_suffix(".til")
                         loc := path.format(":", imp_stmt.line.to_str(), ":", imp_stmt.col.to_str())
-                        panic(loc, "import path must not end in '.til' (got \"", p,
-                            "\"); use import(\"", bare, "\") instead")
+                        panic("import path must not end in '.til' (got \"", p,
+                            "\"); use import(\"", bare, "\") instead", loc = loc)
                     }
                     paths.push(own p.concat(".til"))
                 case:
@@ -514,11 +514,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                                         push_qn(worklist, sdecl.name, nsd.name)
                                     }
                                 case:
-                                    UNREACHABLE(__LOC__)
+                                    UNREACHABLE()
                                 }
                             }
                         case:
-                            UNREACHABLE(__LOC__)
+                            UNREACHABLE()
                         }
                     }
                     if is_def(stmt) { continue }
@@ -591,7 +591,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")
@@ -627,7 +627,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
                 push_qn(worklist, name, "delete")
                 push_qn(worklist, name, "clone")
@@ -691,8 +691,8 @@ priv validate_cli_main := func(lp: LoadedProgram) {
                         .or(p.explicit_type.eq("U64")).or(p.explicit_type.eq("USize")).or(p.explicit_type.eq("UPtr")).or(p.explicit_type.eq("Bool"))
                         .or(p.explicit_type.eq("F32")).not() {
                         loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
-                        panic(loc, "main parameter '", p.name, "': type '", p.explicit_type,
-                            "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)")
+                        panic("main parameter '", p.name, "': type '", p.explicit_type,
+                            "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)", loc = loc)
                     }
                 }
             case:
@@ -799,7 +799,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     ast := parse(tokens, source, disp, mode_str)
     mode_str = normalize_mode_name(mode_str)
     if mode_str.eq("mode").not() {
-        panic(__LOC__, "file '", disp, "' is not a 'mode mode' file")
+        panic("file '", disp, "' is not a 'mode mode' file")
     }
     for stmt : Expr in ast.children {
         mut is_valid := false
@@ -828,15 +828,15 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                             else if arg_name.eq("is_pure") { m.is_pure = b }
                                             else if arg_name.eq("run_tests") { m.run_tests = b }
                                             else if arg_name.eq("debug_prints") { m.debug_prints = b }
-                                            else { panic(__LOC__, disp, ": unknown bool argument '", arg_name, "'") }
+                                            else { panic(": unknown bool argument '", arg_name, "'", loc = disp) }
                                         case NodeType.Literal(Literal.Str(s)):
                                             if arg_name.eq("auto_import") { m.auto_import = s.clone() }
-                                            else { panic(__LOC__, disp, ": unknown string argument '", arg_name, "'") }
+                                            else { panic(": unknown string argument '", arg_name, "'", loc = disp) }
                                         case:
-                                            panic(__LOC__, disp, ": argument '", arg_name, "' must be a literal")
+                                            panic(": argument '", arg_name, "' must be a literal", loc = disp)
                                         }
                                     case:
-                                        panic(__LOC__, disp, ": Mode arguments must be named (e.g. needs_main = true)")
+                                        panic(": Mode arguments must be named (e.g. needs_main = true)", loc = disp)
                                     }
                                 }
                                 mode_registry.set(decl.name, own m.clone())
@@ -850,14 +850,14 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
         }
         if is_valid.not() {
             loc := disp.format(":", stmt.line.to_str(), ":", stmt.col.to_str())
-            panic(loc, ": only Mode(...) declarations are allowed in 'mode mode' files")
+            panic(": only Mode(...) declarations are allowed in 'mode mode' files", loc = loc)
         }
     }
 
     // Store in lp.ctx.imported so it can be typechecked.
     ref mode_mode_def : Mode = mode_resolve(mode_str)
     if mode_mode_def.is_null() {
-        panic(__LOC__, "unknown mode '", mode_str, "' for mode file")
+        panic("unknown mode '", mode_str, "' for mode file")
     }
     mut iu := ImportUnit(mode_str = mode_str.clone())
     iu.mode = mode_mode_def.clone()
@@ -929,7 +929,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
                 core_units, "", lp.ctx, "lib", cwd)
             if err.gt(0) {
-                panic(__LOC__, "failed to resolve imports for mode file ", mode_file)
+                panic("failed to resolve imports for mode file ", mode_file)
             }
             ref miu : ImportUnit = lp.ctx.imported[mode_file]
             miu.imports = resolve_import_disps(mode_imports, mode_dir, "", cwd)
@@ -973,7 +973,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
             core_units, "", lp.ctx, "lib", cwd)
         if err.gt(0) {
-            panic(__LOC__, "failed to resolve core imports")
+            panic("failed to resolve core imports")
         }
     }
 
@@ -1000,7 +1000,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
             units, lib_dir, lp.ctx, "", cwd)
         if err.gt(0) {
-            panic(__LOC__, "failed to resolve imports")
+            panic("failed to resolve imports")
         }
     }
 
@@ -1043,7 +1043,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
                 units, lib_dir, lp.ctx, "", cwd)
             if err.gt(0) {
-                panic(__LOC__, "failed to resolve mode auto-import imports")
+                panic("failed to resolve mode auto-import imports")
             }
         }
 
@@ -1825,7 +1825,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 // call.
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
         mut replaced := false
@@ -1911,7 +1911,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
 }
 
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if depth.gt(256) { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]

@@ -11,7 +11,7 @@ DynArray := struct {
 namespace:
     /// Create a zero-initialized DynArray with the given element type and capacity.
     new_type_name := func(elem_type: Str, cap: USize) returns DynArray {
-        if elem_type.is_empty() { panic(__LOC__, "DynArray.new: elem_type required") }
+        if elem_type.is_empty() { panic("DynArray.new: elem_type required") }
         elem_size : USize = dyn_size_of(elem_type)
         return DynArray(data = calloc(cap.cast(U64), elem_size.cast(U64)), cap = cap,
                      elem_size = elem_size,
@@ -39,7 +39,7 @@ namespace:
     /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
     set := func(self: DynArray, i: USize, own val: Dynamic) {
         if i.gte(self.cap) {
-            panic(__LOC__, "DynArray.set: index ", i.to_str(),
+            panic("DynArray.set: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")")
         }
         self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)

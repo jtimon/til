@@ -3,31 +3,31 @@ mode test
 test_loc_directives := test() {
     // __LOC__ returns "file:line:col" string
     loc := __LOC__
-    expect(__LOC__, loc.find("directives.til").neq(-1), "__LOC__ contains filename")
+    expect(loc.find("directives.til").neq(-1), "__LOC__ contains filename")
 
     // __FILE__ returns file path string
-    expect(__LOC__, __FILE__.find("directives.til").neq(-1), "__FILE__ contains filename")
+    expect(__FILE__.find("directives.til").neq(-1), "__FILE__ contains filename")
 
     // __LINE__ returns I64
     line := __LINE__
-    assert_eq(__LOC__, I64, line, 12)
+    assert_eq(I64, line, 12)
 
     // __COL__ returns I64
     col := __COL__
-    assert_eq(__LOC__, I64, col, 12)
+    assert_eq(I64, col, 12)
 }
 
 test_line_increments := test() {
     // __LINE__ on consecutive source lines differs by exactly 1
     a := __LINE__
     b := __LINE__
-    assert_eq(__LOC__, I64, b.sub(a), 1)
+    assert_eq(I64, b.sub(a), 1)
 }
 
 test_col_reflects_position := test() {
     // Same line, different column
     x := __COL__; y := __COL__
-    assert(__LOC__, y.gt(x))
+    assert(y.gt(x))
 }
 
 // Helper to verify __LINE__/__FILE__ work inside a regular func
@@ -37,7 +37,39 @@ get_file := func() returns Str { return __FILE__ }
 test_directives_in_func := test() {
     // __LINE__ inside a func resolves to the source line of the
     // directive itself, not the call site
-    assert_eq(__LOC__, I64, get_line(), 34)
-    expect(__LOC__, get_file().find("directives.til").neq(-1),
+    assert_eq(I64, get_line(), 34)
+    expect(get_file().find("directives.til").neq(-1),
            "__FILE__ in func resolves to source file")
+}
+
+// Issue #281: __CALLER_LOC__ as a defaulted parameter resolves to the CALL
+// SITE, not this definition. Generic: an ordinary user func gets it, proving
+// nothing about the mechanism is hardcoded to the core diagnostic helpers.
+caller_loc_of := func(loc: Str = __CALLER_LOC__) returns Str { return loc }
+
+test_caller_loc_reports_call_site := test() {
+    // The default fills in THIS line (captured by __LINE__ on the same line),
+    // not caller_loc_of's definition line above.
+    here := caller_loc_of(); ln := __LINE__
+    expect(here.find("directives.til").neq(-1), "__CALLER_LOC__ has caller filename")
+    expect(here.find(format(":", ln.to_str(), ":")).neq(-1),
+           "__CALLER_LOC__ points at the call line, not the definition")
+}
+
+test_caller_loc_explicit_overrides := test() {
+    // An explicit location still wins over the __CALLER_LOC__ default.
+    assert_eq(Str, caller_loc_of(loc = "fixed:1:2"), "fixed:1:2")
+}
+
+// Issue #281: a struct FIELD default of __CALLER_LOC__ resolves at the
+// constructor call site (the ctor-field fill path).
+CallerLocField := struct {
+    loc : Str = __CALLER_LOC__
+}
+
+test_caller_loc_struct_field := test() {
+    h := CallerLocField(); hln := __LINE__
+    expect(h.loc.find("directives.til").neq(-1), "field __CALLER_LOC__ has filename")
+    expect(h.loc.find(format(":", hln.to_str(), ":")).neq(-1),
+           "field __CALLER_LOC__ points at the constructor call line")
 }

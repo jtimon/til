@@ -33,10 +33,10 @@ namespace:
 bug47 := test() {
     // Cross-namespace call between user-defined structs
     w := Bug47Wrapper.from_int(42)
-    assert_eq(__LOC__, I64, w.data.val, 42)
+    assert_eq(I64, w.data.val, 42)
     // Cross-namespace call into a core type's namespace
     s := Str.with_capacity(10)
-    assert_eq(__LOC__, Str, s, "")
+    assert_eq(Str, s, "")
 }
 
 // --- #125: enum payload helpers are capability-gated -----------------
@@ -60,7 +60,7 @@ bug125 := test() {
     case Bug125Enum.Empty:
         got = -1
     }
-    assert_eq(__LOC__, I64, got, 7)
+    assert_eq(I64, got, 7)
 }
 
 // --- #150 / #153: module-level enum-valued Map literal ---------------
@@ -82,9 +82,9 @@ Bug150M := {
 bug150 := test() {
     ref m : Map(Str, Bug150E) = Bug150M
     ref va : Bug150E = m["a"]
-    assert(__LOC__, va.eq(Bug150E.A))
+    assert(va.eq(Bug150E.A))
     ref vb : Bug150E = m["b"]
-    assert(__LOC__, vb.eq(Bug150E.B))
+    assert(vb.eq(Bug150E.B))
 }
 
 // Tests for #185 (ref-Dynamic narrowed into typed-primitive call sites)
@@ -117,12 +117,12 @@ bug239 := test() {
                      tag = Bug239Tag.Leaf(Bug239Leaf(n = 9)))
 
     ref leaf_ref : Bug239Leaf = box.leaf
-    assert_eq(__LOC__, Str, leaf_ref.to_str(), "7")
+    assert_eq(Str, leaf_ref.to_str(), "7")
 
     switch box.tag {
     case Bug239Tag.Leaf(payload):
-        assert_eq(__LOC__, Str, payload.to_str(), "9")
+        assert_eq(Str, payload.to_str(), "9")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }

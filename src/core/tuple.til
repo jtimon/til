@@ -52,7 +52,7 @@ namespace:
     /// Ref to element at index `i`. Panics if out of bounds.
     get := func(self: Tuple, i: USize) returns ref Dynamic {
         if i.gte(self.type_names.len()) {
-            panic(__LOC__, "Tuple.get: index ", i.to_str(), " out of bounds (len ", self.type_names.len().to_str(), ")")
+            panic("Tuple.get: index ", i.to_str(), " out of bounds (len ", self.type_names.len().to_str(), ")")
         }
         mut offset : USize = 0
         for j in 0..i {

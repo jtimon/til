@@ -73,7 +73,7 @@ namespace:
     /// for writing or update.
     write := proc(self: File, s: Str) returns ref File {
         if self.is_write.not().and(self.is_update.not()) {
-            panic(__LOC__, "File.write: file not opened for writing")
+            panic("File.write: file not opened for writing")
         }
         cfile_write_str(self.handle, s)
         return self
@@ -83,7 +83,7 @@ namespace:
     /// write-only.
     read_all := func(self: File) returns Str {
         if self.is_write {
-            panic(__LOC__, "File.read_all: file opened for writing")
+            panic("File.read_all: file opened for writing")
         }
         return cfile_read_all(self.handle)
     }
@@ -93,7 +93,7 @@ namespace:
     /// end-of-file. Panics if opened write-only.
     read := func(self: File, count: I64) returns Str {
         if self.is_write {
-            panic(__LOC__, "File.read: file opened for writing")
+            panic("File.read: file opened for writing")
         }
         return cfile_read_n(self.handle, count)
     }

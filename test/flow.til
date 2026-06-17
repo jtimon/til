@@ -2,32 +2,32 @@ mode test
 
 test_if_else := test() {
     if true {
-        assert(__LOC__, true)
+        assert(true)
     }
     if false {
-        panic(__LOC__, "unreachable")
+        panic("unreachable")
     } else {
-        assert(__LOC__, true)
+        assert(true)
     }
     if true.and(true) {
-        assert(__LOC__, true)
+        assert(true)
     }
     if true.and(false) {
-        panic(__LOC__, "unreachable")
+        panic("unreachable")
     } else {
-        assert(__LOC__, true)
+        assert(true)
     }
 }
 
 test_while_loop := test() {
     while false {
-        panic(__LOC__, "unreachable")
+        panic("unreachable")
     }
     mut i := 0
     while i.lt(5) {
         i++
     }
-    assert_eq(__LOC__, I64, i, 5)
+    assert_eq(I64, i, 5)
 }
 
 test_break := test() {
@@ -36,7 +36,7 @@ test_break := test() {
         if i.eq(3) { break }
         i++
     }
-    assert_eq(__LOC__, I64, i, 3)
+    assert_eq(I64, i, 3)
     mut sum := 0
     mut j := 0
     while true {
@@ -44,7 +44,7 @@ test_break := test() {
         sum = sum.add(j)
         j++
     }
-    assert_eq(__LOC__, I64, sum, 10)
+    assert_eq(I64, sum, 10)
 }
 
 test_continue := test() {
@@ -55,7 +55,7 @@ test_continue := test() {
         if k.eq(3) { continue }
         total = total.add(k)
     }
-    assert_eq(__LOC__, I64, total, 12)
+    assert_eq(I64, total, 12)
 }
 
 flow_early_ret := func(x: Bool) returns I64 {
@@ -66,8 +66,8 @@ flow_early_ret := func(x: Bool) returns I64 {
 }
 
 test_early_return := test() {
-    assert_eq(__LOC__, I64, flow_early_ret(true), 10)
-    assert_eq(__LOC__, I64, flow_early_ret(false), 20)
+    assert_eq(I64, flow_early_ret(true), 10)
+    assert_eq(I64, flow_early_ret(false), 20)
 }
 
 flow_check := func(n: I64) returns I64 {
@@ -78,10 +78,10 @@ flow_check := func(n: I64) returns I64 {
 }
 
 test_else_if := test() {
-    assert_eq(__LOC__, I64, flow_check(1), 10)
-    assert_eq(__LOC__, I64, flow_check(2), 20)
-    assert_eq(__LOC__, I64, flow_check(3), 30)
-    assert_eq(__LOC__, I64, flow_check(99), 0)
+    assert_eq(I64, flow_check(1), 10)
+    assert_eq(I64, flow_check(2), 20)
+    assert_eq(I64, flow_check(3), 30)
+    assert_eq(I64, flow_check(99), 0)
 }
 
 # ASAP edge cases: return from inside while must free parent-scope locals
@@ -98,9 +98,9 @@ asap_return_from_while := func(n: I64) returns Str {
 
 test_asap_while := test() {
     # Early return path: s must be freed before returning "early"
-    assert_eq(__LOC__, Str, asap_return_from_while(5), "early")
+    assert_eq(Str, asap_return_from_while(5), "early")
     # Normal path: s returned normally
-    assert_eq(__LOC__, Str, asap_return_from_while(1), "allocated")
+    assert_eq(Str, asap_return_from_while(1), "allocated")
 }
 
 asap_return_nested := func(n: I64) returns Str {
@@ -120,9 +120,9 @@ asap_return_nested := func(n: I64) returns Str {
 
 test_asap_nested := test() {
     # Return from if-inside-if-inside-while: s2 must be freed, s1 returned
-    assert_eq(__LOC__, Str, asap_return_nested(3), "first")
+    assert_eq(Str, asap_return_nested(3), "first")
     # Normal path: s1 freed by ASAP, s2 returned
-    assert_eq(__LOC__, Str, asap_return_nested(0), "second")
+    assert_eq(Str, asap_return_nested(0), "second")
 }
 
 asap_break_no_leak := func() returns Str {
@@ -137,7 +137,7 @@ asap_break_no_leak := func() returns Str {
 }
 
 test_asap_break := test() {
-    assert_eq(__LOC__, Str, asap_break_no_leak(), "alive")
+    assert_eq(Str, asap_break_no_leak(), "alive")
 }
 
 # ASAP edge case: variable used in both branches of if/else
@@ -175,27 +175,27 @@ asap_if_return_branch := func(x: I64) returns Str {
 }
 
 test_asap_if_else := test() {
-    assert_eq(__LOC__, Str, asap_if_both_branches(1), "done")
-    assert_eq(__LOC__, Str, asap_if_both_branches(0), "done")
-    assert_eq(__LOC__, Str, asap_if_one_branch(1), "done")
-    assert_eq(__LOC__, Str, asap_if_one_branch(0), "done")
+    assert_eq(Str, asap_if_both_branches(1), "done")
+    assert_eq(Str, asap_if_both_branches(0), "done")
+    assert_eq(Str, asap_if_one_branch(1), "done")
+    assert_eq(Str, asap_if_one_branch(0), "done")
     # return from if: s returned, t freed before return
-    assert_eq(__LOC__, Str, asap_if_return_branch(1), "kept")
+    assert_eq(Str, asap_if_return_branch(1), "kept")
     # fall through: t returned, s freed by ASAP
-    assert_eq(__LOC__, Str, asap_if_return_branch(0), "freed")
+    assert_eq(Str, asap_if_return_branch(0), "freed")
 }
 
 # ASAP edge case: mut variable reassignment must free old value
 test_reassign_str := test() {
     mut s := "hello"
     s = "world"
-    assert_eq(__LOC__, Str, s, "world")
+    assert_eq(Str, s, "world")
 }
 
 reassign_clone_helper := func(x: Str) {
     mut s := "hello"
     s = x
-    assert_eq(__LOC__, Str, s, "from_arg")
+    assert_eq(Str, s, "from_arg")
 }
 
 test_reassign_clone := test() {
@@ -207,7 +207,7 @@ test_reassign_multi := test() {
     s = "b"
     s = "c"
     s = "d"
-    assert_eq(__LOC__, Str, s, "d")
+    assert_eq(Str, s, "d")
 }
 
 # --- switch ---
@@ -220,14 +220,14 @@ test_switch_i64 := test() {
     case 3: result = 30
     case: result = 99
     }
-    assert_eq(__LOC__, I64, result, 20)
+    assert_eq(I64, result, 20)
 
     // Default case
     switch 99 {
     case 1: result = 10
     case: result = -1
     }
-    assert_eq(__LOC__, I64, result, -1)
+    assert_eq(I64, result, -1)
 }
 
 test_switch_str := test() {
@@ -237,7 +237,7 @@ test_switch_str := test() {
     case "bob": result = "b"
     case: result = "?"
     }
-    assert_eq(__LOC__, Str, result, "b")
+    assert_eq(Str, result, "b")
 }
 
 test_switch_char := test() {
@@ -247,7 +247,7 @@ test_switch_char := test() {
     case 'b': result = 2
     case 'c': result = 3
     }
-    assert_eq(__LOC__, I64, result, 2)
+    assert_eq(I64, result, 2)
 }
 
 test_switch_bool := test() {
@@ -256,7 +256,7 @@ test_switch_bool := test() {
     case true: result = 1
     case false: result = 2
     }
-    assert_eq(__LOC__, I64, result, 1)
+    assert_eq(I64, result, 1)
 }
 
 test_switch_default_only := test() {
@@ -264,7 +264,7 @@ test_switch_default_only := test() {
     switch 42 {
     case: result = 99
     }
-    assert_eq(__LOC__, I64, result, 99)
+    assert_eq(I64, result, 99)
 }
 
 test_switch_no_default := test() {
@@ -273,14 +273,14 @@ test_switch_no_default := test() {
     case 1: result = 10
     case 2: result = 20
     }
-    assert_eq(__LOC__, I64, result, 10)
+    assert_eq(I64, result, 10)
 
     // No match, no default -- nothing happens
     result = 0
     switch 5 {
     case 1: result = 10
     }
-    assert_eq(__LOC__, I64, result, 0)
+    assert_eq(I64, result, 0)
 }
 
 test_switch_nested := test() {
@@ -293,7 +293,7 @@ test_switch_nested := test() {
         }
     case 2: result = 20
     }
-    assert_eq(__LOC__, I64, result, 11)
+    assert_eq(I64, result, 11)
 }
 
 test_switch_in_loop := test() {
@@ -307,7 +307,7 @@ test_switch_in_loop := test() {
         }
     }
     // i=0: +0, i=1: +1, i=2: +0, i=3: +3, i=4: +1, i=5: +0, i=6: +6, i=7: +1, i=8: +0, i=9: +9
-    assert_eq(__LOC__, I64, total, 21)
+    assert_eq(I64, total, 21)
 }
 
 test_switch_multi_stmt := test() {
@@ -324,8 +324,8 @@ test_switch_multi_stmt := test() {
         a = 0
         b = 0
     }
-    assert_eq(__LOC__, I64, a, 2)
-    assert_eq(__LOC__, I64, b, 20)
+    assert_eq(I64, a, 2)
+    assert_eq(I64, b, 20)
 }
 
 // Phase 2: Range cases
@@ -337,7 +337,7 @@ test_switch_range_i64 := test() {
     case 8..10: result = "high"
     case: result = "other"
     }
-    assert_eq(__LOC__, Str, result, "mid")
+    assert_eq(Str, result, "mid")
 }
 
 test_switch_range_char := test() {
@@ -348,7 +348,7 @@ test_switch_range_char := test() {
     case '0'..'9': result = "digit"
     case: result = "other"
     }
-    assert_eq(__LOC__, Str, result, "lower")
+    assert_eq(Str, result, "lower")
 }
 
 test_switch_range_mixed := test() {
@@ -361,7 +361,7 @@ test_switch_range_mixed := test() {
     case 6..9: result = 4
     case: result = 5
     }
-    assert_eq(__LOC__, I64, result, 3)
+    assert_eq(I64, result, 3)
 }
 
 test_switch_range_boundary := test() {
@@ -370,20 +370,20 @@ test_switch_range_boundary := test() {
     switch 'z' {
     case 'a'..'z': result = true
     }
-    assert(__LOC__, result)
+    assert(result)
 
     result = false
     switch '9' {
     case '0'..'9': result = true
     }
-    assert(__LOC__, result)
+    assert(result)
 
     // Start value should also match
     result = false
     switch 'a' {
     case 'a'..'z': result = true
     }
-    assert(__LOC__, result)
+    assert(result)
 }
 
 // `break` inside a switch case should exit the enclosing loop, not the
@@ -396,5 +396,5 @@ test_switch_break_in_loop := test() {
         case: total++
         }
     }
-    assert_eq(__LOC__, I64, total, 5)
+    assert_eq(I64, total, 5)
 }

@@ -14,7 +14,7 @@ namespace:
     /// Create a new empty DynVec for elements of the given type.
     new_type_name := func(elem_type: Str) returns DynVec {
         if elem_type.is_empty() {
-            panic(__LOC__, "DynVec.new: elem_type required")
+            panic("DynVec.new: elem_type required")
         }
         if elem_type.eq("Dynamic") {
             return DynVec(data = malloc(8), cap = 1,
@@ -78,7 +78,7 @@ namespace:
     /// `other` is taken by ownership and will be empty after the call.
     append := func(mut self: DynVec, own other: DynVec) {
         if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
-            panic(__LOC__, "DynVec.append: incompatible vecs")
+            panic("DynVec.append: incompatible vecs")
         }
         if other.count.eq(0) {
             return
@@ -105,7 +105,7 @@ namespace:
     /// bytes were moved into self.
     move_from := func(mut self: DynVec, mut other: DynVec) {
         if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
-            panic(__LOC__, "DynVec.move_from: incompatible vecs")
+            panic("DynVec.move_from: incompatible vecs")
         }
         if self.elem_kind.eq(ELEM_BOXED) {
             for i in 0..self.count {
@@ -144,7 +144,7 @@ namespace:
     /// takes ownership of the returned value.
     pop := func(mut self: DynVec) returns Dynamic {
         if self.count.eq(0) {
-            panic(__LOC__, "DynVec.pop: empty vec")
+            panic("DynVec.pop: empty vec")
         }
         last := self.count.sub(1)
         out : Dynamic = malloc(self.elem_size.cast(U64))
@@ -157,7 +157,7 @@ namespace:
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: DynVec, n: USize) returns DynVec {
         if n.gt(self.count) {
-            panic(__LOC__, "DynVec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            panic("DynVec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         mut prefix_cap : USize = 1
         if n.gt(0) {
@@ -181,7 +181,7 @@ namespace:
     /// is out of bounds.
     set := func(mut self: DynVec, i: USize, own val: Dynamic) {
         if i.gte(self.count) {
-            panic(__LOC__, "DynVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            panic("DynVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         if self.elem_kind.eq(ELEM_BOXED) {
             self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
@@ -195,10 +195,10 @@ namespace:
     /// count==0/data==NULL convention used by take_children and DynVec.delete).
     push_take := func(mut self: DynVec, mut src: DynVec, i: USize) {
         if i.gte(src.count) {
-            panic(__LOC__, "DynVec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
+            panic("DynVec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
         if self.elem_size.eq(src.elem_size).not().or(self.elem_kind.eq(src.elem_kind).not()) {
-            panic(__LOC__, "DynVec.push_take: incompatible vecs")
+            panic("DynVec.push_take: incompatible vecs")
         }
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)

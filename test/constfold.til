@@ -12,25 +12,25 @@ concat := func(a: Str, b: Str) returns Str { return a.concat(b) }
 // Test 1: Simple arithmetic
 test_simple_add := test() {
     result := add(1, 2)
-    assert_eq(__LOC__, I64, result, 3)
+    assert_eq(I64, result, 3)
 }
 
 // Test 2: Nested arithmetic
 test_nested_arithmetic := test() {
     result := mul(add(1, 2), sub(10, 5))
-    assert_eq(__LOC__, I64, result, 15)
+    assert_eq(I64, result, 15)
 }
 
 // Test 3: Deeply nested
 test_deeply_nested := test() {
     result := add(mul(2, 3), mul(4, 5))
-    assert_eq(__LOC__, I64, result, 26)
+    assert_eq(I64, result, 26)
 }
 
 // Test 4: String concat -- folded at compile time.
 test_string_concat := test() {
     result := concat("hello", " world")
-    assert_eq(__LOC__, Str, result, "hello world")
+    assert_eq(Str, result, "hello world")
 }
 
 // Test 4b: variadic (`..Str`) folding through a wrapper (issue #277). A
@@ -46,9 +46,9 @@ vfmt2 := func(a: Str, b: Str, c: Str) returns Str { return format(a, "-", b, "-"
 
 test_variadic_fold := test() {
     r := vfmt("hello", " world")
-    assert_eq(__LOC__, Str, r, "hello world")
+    assert_eq(Str, r, "hello world")
     r2 := vfmt2("a", "b", "c")
-    assert_eq(__LOC__, Str, r2, "a-b-c")
+    assert_eq(Str, r2, "a-b-c")
 }
 
 // Test 5: lolalalo -- recursive vs iterative. Generates the 4-syllable
@@ -101,21 +101,21 @@ test_lolalalo := test() {
     lola_it := make_poem_it("lo", "la")
     lalo_rec := make_poem_rec("la", "lo")
     lalo_it := make_poem_it("la", "lo")
-    assert_eq(__LOC__, Str, lola_rec, lola_it)
-    assert_eq(__LOC__, Str, lalo_rec, lalo_it)
+    assert_eq(Str, lola_rec, lola_it)
+    assert_eq(Str, lalo_rec, lalo_it)
 }
 
 // Test 6: Const-folding through immutable variable bindings.
 test_fold_variable := test() {
     x := 5
     result := add(x, 3)
-    assert_eq(__LOC__, I64, result, 8)
+    assert_eq(I64, result, 8)
 }
 
 // Test 7: __LOC__ is a comptime string containing the source location.
 test_loc_folded := test() {
-    assert(__LOC__, __LOC__.contains("constfold.til"))
-    assert(__LOC__, __LOC__.contains(":"))
+    assert(__LOC__.contains("constfold.til"))
+    assert(__LOC__.contains(":"))
 }
 
 // Test 7b: F32-returning pure calls fold. The result bakes as a faithful
@@ -126,9 +126,9 @@ addf := func(a: F32, b: F32) returns F32 { return a.add(b) }
 
 test_fold_f32 := test() {
     r1 := mulf(2.5, 2.5)
-    assert_eq(__LOC__, Str, r1.to_str(), "6.25")
+    assert_eq(Str, r1.to_str(), "6.25")
     r2 := addf(1.5, 2.0)
-    assert_eq(__LOC__, Str, r2.to_str(), "3.5")
+    assert_eq(Str, r2.to_str(), "3.5")
 }
 
 // --- Struct comptime folding ---
@@ -150,15 +150,15 @@ CfVec2 := struct {
 // Test 8: Simple struct with pure constructor.
 test_struct_fold_simple := test() {
     v := CfVec2.magic()
-    assert_eq(__LOC__, I64, v.x, 42)
-    assert_eq(__LOC__, I64, v.y, 99)
+    assert_eq(I64, v.x, 42)
+    assert_eq(I64, v.y, 99)
 }
 
 // Test 9: Struct constructor with comptime argument values.
 test_struct_fold_values := test() {
     p := CfVec2.at(10, 20)
-    assert_eq(__LOC__, I64, p.x, 10)
-    assert_eq(__LOC__, I64, p.y, 20)
+    assert_eq(I64, p.x, 10)
+    assert_eq(I64, p.y, 20)
 }
 
 // Test 10: Nested struct.
@@ -174,10 +174,10 @@ CfRect := struct {
 
 test_struct_fold_nested := test() {
     r := CfRect.sample()
-    assert_eq(__LOC__, I64, r.top_left.x, 5)
-    assert_eq(__LOC__, I64, r.top_left.y, 10)
-    assert_eq(__LOC__, I64, r.bottom_right.x, 100)
-    assert_eq(__LOC__, I64, r.bottom_right.y, 200)
+    assert_eq(I64, r.top_left.x, 5)
+    assert_eq(I64, r.top_left.y, 10)
+    assert_eq(I64, r.bottom_right.x, 100)
+    assert_eq(I64, r.bottom_right.y, 200)
 }
 
 // Test 10b: struct with F32 fields folds correctly. Regression: F32 was
@@ -200,9 +200,9 @@ CfVec3f := struct {
 
 test_struct_fold_f32 := test() {
     v := CfVec3f.at(3.0, 4.0, 5.0)
-    assert_eq(__LOC__, Str, v.x.to_str(), "3")
-    assert_eq(__LOC__, Str, v.y.to_str(), "4")
-    assert_eq(__LOC__, Str, v.z.to_str(), "5")
+    assert_eq(Str, v.x.to_str(), "3")
+    assert_eq(Str, v.y.to_str(), "4")
+    assert_eq(Str, v.z.to_str(), "5")
 }
 
 // --- Enum comptime folding ---
@@ -212,8 +212,8 @@ Color := enum { Red, Green, Blue }
 // Test 11: Enum variant comparison folded at compile time.
 test_enum_fold := test() {
     c := Color.Red
-    assert(__LOC__, c.eq(Color.Red))
-    assert(__LOC__, c.eq(Color.Green).not())
+    assert(c.eq(Color.Red))
+    assert(c.eq(Color.Green).not())
 }
 
 Token := enum { Num: I64, Name: Str, Eof }
@@ -221,8 +221,8 @@ Token := enum { Num: I64, Name: Str, Eof }
 // Test 12: Payload enum construction folded at compile time.
 test_enum_payload_fold := test() {
     t := Token.Num(42)
-    assert(__LOC__, t.is(Token.Num))
-    assert(__LOC__, t.is(Token.Eof).not())
+    assert(t.is(Token.Num))
+    assert(t.is(Token.Eof).not())
 }
 
 // Test 12b: a no-payload enum-returning pure call folds to the bare
@@ -231,8 +231,8 @@ mk_color := func() returns Color { return Color.Green }
 
 test_enum_return_fold := test() {
     c := mk_color()
-    assert(__LOC__, c.eq(Color.Green))
-    assert(__LOC__, c.eq(Color.Red).not())
+    assert(c.eq(Color.Green))
+    assert(c.eq(Color.Red).not())
 }
 
 // Test 12c: payload-bearing enum-returning pure call folds to the variant
@@ -243,6 +243,6 @@ mk_tok := func(n: I64) returns Token { return Token.Num(n) }
 
 test_enum_payload_return_fold := test() {
     t := mk_tok(7)
-    assert(__LOC__, t.is(Token.Num))
-    assert(__LOC__, t.is(Token.Eof).not())
+    assert(t.is(Token.Num))
+    assert(t.is(Token.Eof).not())
 }

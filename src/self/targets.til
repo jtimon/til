@@ -73,7 +73,7 @@ target_from_str := func(s: Str) returns Target {
     case "templeos-x86":    return Target.TempleosX86
     case "templeos":        return Target.TempleosX86
     }
-    panic(__LOC__, "Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
+    panic("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
     return Target.LinuxX64
 }
 
@@ -143,7 +143,7 @@ priv is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bo
 
 priv validate_lang_for_target := func(lang: Lang, target: Target) {
     if is_lang_supported_for_target(lang, target).not() {
-        panic(__LOC__, "Lang '", lang_to_str(lang), "' is not supported for target '", target_to_str(target), "'")
+        panic("Lang '", lang_to_str(lang), "' is not supported for target '", target_to_str(target), "'")
     }
 }
 
@@ -179,7 +179,7 @@ priv target_prefix_args := func(target: Target) returns Str {
 
 toolchain_extra_args := func(target: Target, compiler: Str) returns Str {
     if target.is(Target.TempleosX86) {
-        panic(__LOC__, "HolyC doesn't support these flags")
+        panic("HolyC doesn't support these flags")
     }
     prefix := target_prefix_args(target)
     mut out := prefix

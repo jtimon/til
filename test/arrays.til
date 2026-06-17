@@ -10,10 +10,10 @@ test_array_new_get_set := test() {
     ref y : I64 = a.get(1)!
     ref z : I64 = a.get(2)!
 
-    assert_eq(__LOC__, I64, x, 10)
-    assert_eq(__LOC__, I64, y, 20)
-    assert_eq(__LOC__, I64, z, 30)
-    assert_eq(__LOC__, USize, a.len(), 3)
+    assert_eq(I64, x, 10)
+    assert_eq(I64, y, 20)
+    assert_eq(I64, z, 30)
+    assert_eq(USize, a.len(), 3)
 }
 
 // a[i] desugars to a.get(i)! in the parser (generic over any type
@@ -28,14 +28,14 @@ test_array_subscript := test() {
     ref y : I64 = a[1]
     ref z : I64 = a[2]
 
-    assert_eq(__LOC__, I64, x, 10)
-    assert_eq(__LOC__, I64, y, 20)
-    assert_eq(__LOC__, I64, z, 30)
+    assert_eq(I64, x, 10)
+    assert_eq(I64, y, 20)
+    assert_eq(I64, z, 30)
 
     // Subscript with a computed index expression.
     mut i : USize = 1
     ref w : I64 = a[i.add(1)]
-    assert_eq(__LOC__, I64, w, 30)
+    assert_eq(I64, w, 30)
 }
 
 // Issue #225: subscript assignment `a[i] = x` desugars to
@@ -55,9 +55,9 @@ test_array_subscript_assign := test() {
     ref x : I64 = a[0]
     ref y : I64 = a[1]
     ref z : I64 = a[2]
-    assert_eq(__LOC__, I64, x, 100)
-    assert_eq(__LOC__, I64, y, 20)
-    assert_eq(__LOC__, I64, z, 300)
+    assert_eq(I64, x, 100)
+    assert_eq(I64, y, 20)
+    assert_eq(I64, z, 300)
 }
 
 test_array_subscript_assign_str := test() {
@@ -67,8 +67,8 @@ test_array_subscript_assign_str := test() {
     a[0] = "zzz"
     ref s0 : Str = a[0]
     ref s1 : Str = a[1]
-    assert_eq(__LOC__, Str, s0, "zzz")
-    assert_eq(__LOC__, Str, s1, "world")
+    assert_eq(Str, s0, "zzz")
+    assert_eq(Str, s1, "world")
 }
 
 // Out-of-bounds set throws OutOfBounds. The bang form (`a[i] = x`)
@@ -83,8 +83,8 @@ test_array_subscript_assign_oob := test() {
         caught = true
         emsg = err.msg
     }
-    assert(__LOC__, caught)
-    assert(__LOC__, emsg.contains("Array.set"))
+    assert(caught)
+    assert(emsg.contains("Array.set"))
 }
 
 test_array_strings := test() {
@@ -95,8 +95,8 @@ test_array_strings := test() {
     ref s0 : Str = a.get(0)!
     ref s1 : Str = a.get(1)!
 
-    assert_eq(__LOC__, Str, s0, "hello")
-    assert_eq(__LOC__, Str, s1, "world")
+    assert_eq(Str, s0, "hello")
+    assert_eq(Str, s1, "world")
 }
 
 test_array_overwrite := test() {
@@ -106,49 +106,49 @@ test_array_overwrite := test() {
     a.set(0, own 99)!
 
     ref v : I64 = a.get(0)!
-    assert_eq(__LOC__, I64, v, 99)
+    assert_eq(I64, v, 99)
 }
 
 // --- merged from test/array_lit.til ---
 
 test_i64_array_literal := test() {
     arr := array("I64", 1, 2, 3)
-    assert_eq(__LOC__, USize, arr.len(), 3)
+    assert_eq(USize, arr.len(), 3)
     ref a0 : I64 = arr[0]
     ref a1 : I64 = arr[1]
     ref a2 : I64 = arr[2]
-    assert_eq(__LOC__, I64, a0, 1)
-    assert_eq(__LOC__, I64, a1, 2)
-    assert_eq(__LOC__, I64, a2, 3)
+    assert_eq(I64, a0, 1)
+    assert_eq(I64, a1, 2)
+    assert_eq(I64, a2, 3)
 }
 
 test_i64_vec_literal := test() {
     myvec := vec("I64", 10, 20, 30)
-    assert_eq(__LOC__, USize, myvec.len(), 3)
+    assert_eq(USize, myvec.len(), 3)
     ref v0 : I64 = myvec[0]
     ref v1 : I64 = myvec[1]
     ref v2 : I64 = myvec[2]
-    assert_eq(__LOC__, I64, v0, 10)
-    assert_eq(__LOC__, I64, v1, 20)
-    assert_eq(__LOC__, I64, v2, 30)
+    assert_eq(I64, v0, 10)
+    assert_eq(I64, v1, 20)
+    assert_eq(I64, v2, 30)
 }
 
 test_str_array_literal := test() {
     sarr := array("Str", "hello", "world")
-    assert_eq(__LOC__, USize, sarr.len(), 2)
+    assert_eq(USize, sarr.len(), 2)
     ref s0 : Str = sarr[0]
     ref s1 : Str = sarr[1]
-    assert_eq(__LOC__, Str, s0, "hello")
-    assert_eq(__LOC__, Str, s1, "world")
+    assert_eq(Str, s0, "hello")
+    assert_eq(Str, s1, "world")
 }
 
 test_str_vec_literal := test() {
     svec := vec("Str", "foo", "bar", "baz")
-    assert_eq(__LOC__, USize, svec.len(), 3)
+    assert_eq(USize, svec.len(), 3)
     ref sv0 : Str = svec[0]
     ref sv1 : Str = svec[1]
     ref sv2 : Str = svec[2]
-    assert_eq(__LOC__, Str, sv0, "foo")
-    assert_eq(__LOC__, Str, sv1, "bar")
-    assert_eq(__LOC__, Str, sv2, "baz")
+    assert_eq(Str, sv0, "foo")
+    assert_eq(Str, sv1, "bar")
+    assert_eq(Str, sv2, "baz")
 }

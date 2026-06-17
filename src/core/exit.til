@@ -6,34 +6,41 @@ import("str")
 
 exit := ext_func(shallow code: I64) {}
 
-panic := func(loc_str: Str, parts: ..Str) {
-    println(loc_str, ": panic: ", format(..parts))
+// Issue #281: the source location is an optional trailing parameter that
+// defaults to the CALL SITE (__CALLER_LOC__). The common case reads
+// panic("..."), UNREACHABLE(), assert(cond), assert_eq(T, a, b); an explicit
+// location still works as a trailing `loc = ...` argument and overrides the
+// default. Helpers that forward their own caller location to panic pass it
+// explicitly as `loc = loc`.
+
+panic := func(parts: ..Str, loc: Str = __CALLER_LOC__) {
+    println(loc, ": panic: ", format(..parts))
     exit(1)
 }
 
-TODO := func(loc_str: Str, parts: ..Str) {
-    panic(loc_str, "TODO: ", format(..parts))
+TODO := func(parts: ..Str, loc: Str = __CALLER_LOC__) {
+    panic("TODO: ", format(..parts), loc = loc)
 }
 
-UNREACHABLE := func(loc_str: Str) {
-    panic(loc_str, "unreachable")
+UNREACHABLE := func(loc: Str = __CALLER_LOC__) {
+    panic("unreachable", loc = loc)
 }
 
-assert := func(loc_str: Str, cond: Bool) returns Bool {
+assert := func(cond: Bool, loc: Str = __CALLER_LOC__) returns Bool {
     if cond.not() {
-        panic(loc_str, "assert failed")
+        panic("assert failed", loc = loc)
     }
     return true
 }
 
-expect := func(loc_str: Str, cond: Bool, parts: ..Str) {
+expect := func(cond: Bool, parts: ..Str, loc: Str = __CALLER_LOC__) {
     if cond.not() {
-        panic(loc_str, "assert failed: ", format(..parts))
+        panic("assert failed: ", format(..parts), loc = loc)
     }
 }
 
-assert_eq := func(loc_str: Str, T: Type, a: T, b: T) {
+assert_eq := func(T: Type, a: T, b: T, loc: Str = __CALLER_LOC__) {
     if T.neq(a, b) {
-        panic(loc_str, "assert_eq failed: expected '", T.to_str(a), "', found '", T.to_str(b), "'")
+        panic("assert_eq failed: expected '", T.to_str(a), "', found '", T.to_str(b), "'", loc = loc)
     }
 }

@@ -40,7 +40,7 @@ w_u32 := func(mut buf: Str, v: I64) {
 // Write a 4-byte ASCII tag literally.
 w_tag := func(mut buf: Str, tag: Str) {
     if tag.len().eq(4).not() {
-        panic(__LOC__, "w_tag: tag '", tag, "' must be 4 bytes")
+        panic("w_tag: tag '", tag, "' must be 4 bytes")
     }
     buf.push_str(tag)
 }
@@ -166,7 +166,7 @@ build_glyph := func(segments: Vec(Segment)) returns Glyph {
 
     n := xs.len()
     if n.eq(0) {
-        panic(__LOC__, "build_glyph: no points")
+        panic("build_glyph: no points")
     }
 
     // Bounding box.

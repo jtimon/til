@@ -5,19 +5,19 @@ mode test
 test_i64_alias := test() {
     x := 42
     y := x
-    assert_eq(__LOC__, I64, y, 42)
+    assert_eq(I64, y, 42)
 }
 
 test_str_alias := test() {
     s := "hello"
     t := s
-    assert_eq(__LOC__, Str, t, "hello")
+    assert_eq(Str, t, "hello")
 }
 
 test_bool_alias := test() {
     a := true
     b := a
-    assert(__LOC__, b)
+    assert(b)
 }
 
 Point := struct {
@@ -28,37 +28,37 @@ Point := struct {
 test_struct_alias := test() {
     p := Point(x = 10, y = 20)
     q := p
-    assert_eq(__LOC__, I64, q.x, 10)
-    assert_eq(__LOC__, I64, q.y, 20)
+    assert_eq(I64, q.x, 10)
+    assert_eq(I64, q.y, 20)
 }
 
 test_mut_source_clones := test() {
     mut x := 42
     y := x
     x = 99
-    assert_eq(__LOC__, I64, y, 42)
+    assert_eq(I64, y, 42)
 }
 
 test_mut_dest_clones := test() {
     x := 42
     mut _y := x
     _y = 99
-    assert_eq(__LOC__, I64, x, 42)
+    assert_eq(I64, x, 42)
 }
 
 test_multiple_aliases := test() {
     x := "shared"
     a := x
     b := x
-    assert_eq(__LOC__, Str, a, "shared")
-    assert_eq(__LOC__, Str, b, "shared")
+    assert_eq(Str, a, "shared")
+    assert_eq(Str, b, "shared")
 }
 
 test_alias_in_if := test() {
     x := 42
     if true {
         y := x
-        assert_eq(__LOC__, I64, y, 42)
+        assert_eq(I64, y, 42)
     }
 }
 
@@ -66,21 +66,21 @@ test_alias_in_loop := test() {
     x := "loop"
     for _i in 0..3 {
         y := x
-        assert_eq(__LOC__, Str, y, "loop")
+        assert_eq(Str, y, "loop")
     }
 }
 
 test_alias_lifetime := test() {
     x := "first"
     y := x
-    assert_eq(__LOC__, Str, y, "first")
+    assert_eq(Str, y, "first")
 }
 
 test_alias_chain := test() {
     x := 100
     y := x
     z := y
-    assert_eq(__LOC__, I64, z, 100)
+    assert_eq(I64, z, 100)
 }
 
 get_val := func() returns I64 {
@@ -90,7 +90,7 @@ get_val := func() returns I64 {
 }
 
 test_alias_return_clones := test() {
-    assert_eq(__LOC__, I64, get_val(), 42)
+    assert_eq(I64, get_val(), 42)
 }
 
 check_param_clones := func(val: I64) returns I64 {
@@ -99,14 +99,14 @@ check_param_clones := func(val: I64) returns I64 {
 }
 
 test_param_clones := test() {
-    assert_eq(__LOC__, I64, check_param_clones(77), 77)
+    assert_eq(I64, check_param_clones(77), 77)
 }
 
 test_struct_field_clones := test() {
     p := Point(x = 5, y = 10)
     mut _v := p.x
     _v = 99
-    assert_eq(__LOC__, I64, p.x, 5)
+    assert_eq(I64, p.x, 5)
 }
 
 # === Type aliases: structs ===
@@ -115,21 +115,21 @@ Point2 := Point
 
 test_struct_type_alias := test() {
     p := Point2(x=10, y=20)
-    assert_eq(__LOC__, I64, p.x, 10)
-    assert_eq(__LOC__, I64, p.y, 20)
+    assert_eq(I64, p.x, 10)
+    assert_eq(I64, p.y, 20)
 
     q : Point2 = Point2(x=5)
-    assert_eq(__LOC__, I64, q.x, 5)
+    assert_eq(I64, q.x, 5)
 
     // Alias and original are interchangeable
     r : Point = Point2(x=1, y=2)
-    assert_eq(__LOC__, I64, r.x, 1)
+    assert_eq(I64, r.x, 1)
     s : Point2 = Point(x=3, y=4)
-    assert_eq(__LOC__, I64, s.x, 3)
+    assert_eq(I64, s.x, 3)
 
     // Clone via alias
     p2 := p.clone()
-    assert_eq(__LOC__, I64, p2.x, 10)
+    assert_eq(I64, p2.x, 10)
 }
 
 Line := struct {
@@ -141,8 +141,8 @@ Line2 := Line
 
 test_nested_struct_alias := test() {
     l := Line2(start=Point(x=1, y=2), end=Point2(x=3, y=4))
-    assert_eq(__LOC__, I64, l.start.x, 1)
-    assert_eq(__LOC__, I64, l.end.x, 3)
+    assert_eq(I64, l.start.x, 1)
+    assert_eq(I64, l.end.x, 3)
 }
 
 # === Type aliases: enums ===
@@ -153,9 +153,9 @@ Color2 := Color
 
 test_enum_type_alias := test() {
     c := Color2.Red
-    expect(__LOC__, c.eq(Color.Red), "alias Red eq original Red")
-    expect(__LOC__, c.eq(Color2.Green).not(), "alias Red neq alias Green")
-    assert_eq(__LOC__, Str, Color2.Blue.to_str(), "Blue")
+    expect(c.eq(Color.Red), "alias Red eq original Red")
+    expect(c.eq(Color2.Green).not(), "alias Red neq alias Green")
+    assert_eq(Str, Color2.Blue.to_str(), "Blue")
 }
 
 TypeObject := Type
@@ -166,8 +166,8 @@ type_token_name := func(T: TypeObject2) returns Str {
 }
 
 test_type_object_alias := test() {
-    assert_eq(__LOC__, Str, type_token_name(I64), "I64")
-    assert_eq(__LOC__, Str, type_token_name(Str), "Str")
+    assert_eq(Str, type_token_name(I64), "I64")
+    assert_eq(Str, type_token_name(Str), "Str")
 }
 
 ByteCount := U32
@@ -178,7 +178,7 @@ byte_count := func() returns ByteCount {
 
 test_alias_return_type := test() {
     sz : ByteCount = byte_count()
-    assert_eq(__LOC__, I64, sz.to_i64(), I64.size().to_i64())
+    assert_eq(I64, sz.to_i64(), I64.size().to_i64())
 }
 
 # === Type aliases: primitives ===
@@ -195,19 +195,19 @@ make_vec_usize := func(_n: USize) returns Vec(U64) {
 
 test_primitive_type_alias := test() {
     x : USize = 42
-    assert_eq(__LOC__, I64, x.to_i64(), 42)
+    assert_eq(I64, x.to_i64(), 42)
     y : USize = 100
-    assert_eq(__LOC__, I64, x.add(y).to_i64(), 142)
+    assert_eq(I64, x.add(y).to_i64(), 142)
 }
 
 test_primitive_alias_in_func := test() {
-    assert_eq(__LOC__, I64, add_usize(3, 7).to_i64(), 10)
+    assert_eq(I64, add_usize(3, 7).to_i64(), 10)
 }
 
 test_primitive_alias_with_container := test() {
     mut v := make_vec_usize(I64.size())
     v.push(own 42)
-    assert_eq(__LOC__, USize, v.len(), 1)
+    assert_eq(USize, v.len(), 1)
 }
 
 # === Type aliases: function signatures ===
@@ -223,9 +223,9 @@ apply_callback := func(cb: Callback, a: I64, b: I64) returns I64 {
 }
 
 test_funcsig_alias := test() {
-    assert_eq(__LOC__, I64, apply_callback(fn_add, 3, 5), 8)
+    assert_eq(I64, apply_callback(fn_add, 3, 5), 8)
     f : Callback = fn_add
-    assert_eq(__LOC__, I64, f(10, 20), 30)
+    assert_eq(I64, f(10, 20), 30)
 }
 
 # === Tests needed for #80 (USize in container definitions) ===
@@ -240,31 +240,31 @@ test_alias_passthrough := test() {
     // Alias value passed through function and back
     n : USize = 64
     result := get_usize(n)
-    assert_eq(__LOC__, I64, result.to_i64(), 64)
+    assert_eq(I64, result.to_i64(), 64)
 }
 
 test_alias_arithmetic := test() {
     // Alias values support the same methods as the target type
     a : USize = 10
     b : USize = 3
-    assert_eq(__LOC__, I64, a.add(b).to_i64(), 13)
-    assert_eq(__LOC__, I64, a.sub(b).to_i64(), 7)
-    assert_eq(__LOC__, I64, a.mul(b).to_i64(), 30)
+    assert_eq(I64, a.add(b).to_i64(), 13)
+    assert_eq(I64, a.sub(b).to_i64(), 7)
+    assert_eq(I64, a.mul(b).to_i64(), 30)
 }
 
 test_alias_comparison := test() {
     a : USize = 5
     b : USize = 10
-    assert(__LOC__, a.lt(b))
-    assert(__LOC__, b.gt(a))
-    assert(__LOC__, a.eq(a))
+    assert(a.lt(b))
+    assert(b.gt(a))
+    assert(a.eq(a))
 }
 
 Sized := struct { n : USize = 0 }
 
 test_alias_in_struct_field := test() {
     s := Sized(n = 42)
-    assert_eq(__LOC__, I64, s.n.to_i64(), 42)
+    assert_eq(I64, s.n.to_i64(), 42)
 }
 
 # === Alias in struct with methods (simulates #80 container use case) ===
@@ -282,7 +282,7 @@ test_alias_in_struct_methods := test() {
     mut v := MyVec()
     v++
     v++
-    assert_eq(__LOC__, I64, v.len().cast(I64), 2)
+    assert_eq(I64, v.len().cast(I64), 2)
 }
 
 # === Type aliases: pointer-width integers (#81) ===
@@ -293,13 +293,13 @@ add_uptr := func(a: UPtr, b: UPtr) returns UPtr {
 
 test_uptr_type_alias := test() {
     x : UPtr = 42
-    assert_eq(__LOC__, I64, x.cast(I64), 42)
+    assert_eq(I64, x.cast(I64), 42)
     y : UPtr = 100
-    assert_eq(__LOC__, I64, x.add(y).cast(I64), 142)
+    assert_eq(I64, x.add(y).cast(I64), 142)
 }
 
 test_uptr_alias_in_func := test() {
-    assert_eq(__LOC__, I64, add_uptr(3, 7).cast(I64), 10)
+    assert_eq(I64, add_uptr(3, 7).cast(I64), 10)
 }
 
 test_uptr_memory_api := test() {
@@ -311,8 +311,8 @@ test_uptr_memory_api := test() {
     memcpy(ptr_add(buf, off), 66, 1)
     ref a : U8 = ptr_add(buf, 0)
     ref b : U8 = ptr_add(buf, off)
-    assert_eq(__LOC__, I64, a.to_i64(), 65)
-    assert_eq(__LOC__, I64, b.to_i64(), 66)
+    assert_eq(I64, a.to_i64(), 65)
+    assert_eq(I64, b.to_i64(), 66)
     free(own buf)
 }
 
@@ -333,6 +333,6 @@ DynAliasHolder := struct {
 
 test_dyn_alias_struct_field := test() {
     h := DynAliasHolder()
-    assert(__LOC__, is_null(h.a))
-    assert(__LOC__, is_null(h.b))
+    assert(is_null(h.a))
+    assert(is_null(h.b))
 }

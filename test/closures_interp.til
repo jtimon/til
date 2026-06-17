@@ -23,14 +23,14 @@ apply_unary := func(op: UnaryOp, x: I64) returns I64 {
 test_closure_named_same_scope := test() {
     scale := 10
     scaled := func(a: I64) returns I64 [scale] { return a.mul(scale) }
-    assert_eq(__LOC__, I64, scaled(3), 30)
-    assert_eq(__LOC__, I64, scaled(5), 50)
+    assert_eq(I64, scaled(3), 30)
+    assert_eq(I64, scaled(5), 50)
 }
 
 // A lambda closure passed to a higher-order function (escapes its scope).
 test_closure_lambda_escape := test() {
     factor := 7
-    assert_eq(__LOC__, I64, apply_unary(func(x: I64) returns I64 [factor] { return x.mul(factor) }, 4), 28)
+    assert_eq(I64, apply_unary(func(x: I64) returns I64 [factor] { return x.mul(factor) }, 4), 28)
 }
 
 // A closure may freely use globals, params and body-locals alongside captures.
@@ -40,7 +40,7 @@ test_closure_with_global := test() {
         doubled := a.mul(2)
         return doubled.add(bump).add(GLOBAL_BASE)
     }
-    assert_eq(__LOC__, I64, f(1), 107)
+    assert_eq(I64, f(1), 107)
 }
 
 // A `mut` capture lets the closure mutate the captured outer local.
@@ -50,7 +50,7 @@ test_closure_mut_capture := test() {
         total = total.add(x)
         return total
     }
-    assert_eq(__LOC__, I64, add_to_total(3), 3)
-    assert_eq(__LOC__, I64, add_to_total(4), 7)
-    assert_eq(__LOC__, I64, total, 7)
+    assert_eq(I64, add_to_total(3), 3)
+    assert_eq(I64, add_to_total(4), 7)
+    assert_eq(I64, total, 7)
 }

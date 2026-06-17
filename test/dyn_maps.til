@@ -7,24 +7,24 @@ test_i64_map := test() {
     m.set(3, own 30)
     m.set(1, own 10)
     m.set(2, own 20)
-    assert_eq(__LOC__, USize, m.len(), 3)
-    assert(__LOC__, m.has(1))
-    assert(__LOC__, m.has(2))
-    assert(__LOC__, m.has(3))
-    assert(__LOC__, m.has(4).not())
+    assert_eq(USize, m.len(), 3)
+    assert(m.has(1))
+    assert(m.has(2))
+    assert(m.has(3))
+    assert(m.has(4).not())
 
     ref v1 : I64 = m[1]
     ref v2 : I64 = m[2]
     ref v3 : I64 = m[3]
-    assert_eq(__LOC__, I64, v1, 10)
-    assert_eq(__LOC__, I64, v2, 20)
-    assert_eq(__LOC__, I64, v3, 30)
+    assert_eq(I64, v1, 10)
+    assert_eq(I64, v2, 20)
+    assert_eq(I64, v3, 30)
 
     // overwrite existing key
     m.set(2, own 99)
-    assert_eq(__LOC__, USize, m.len(), 3)
+    assert_eq(USize, m.len(), 3)
     ref v2b : I64 = m[2]
-    assert_eq(__LOC__, I64, v2b, 99)
+    assert_eq(I64, v2b, 99)
 }
 
 test_str_map := test() {
@@ -32,13 +32,13 @@ test_str_map := test() {
     sm.set("banana", own 2)
     sm.set("apple", own 1)
     sm.set("cherry", own 3)
-    assert_eq(__LOC__, USize, sm.len(), 3)
-    assert(__LOC__, sm.has("apple"))
-    assert(__LOC__, sm.has("banana"))
-    assert(__LOC__, sm.has("cherry"))
-    assert(__LOC__, sm.has("date").not())
+    assert_eq(USize, sm.len(), 3)
+    assert(sm.has("apple"))
+    assert(sm.has("banana"))
+    assert(sm.has("cherry"))
+    assert(sm.has("date").not())
     ref sa : I64 = sm["apple"]
     ref sb : I64 = sm["banana"]
-    assert_eq(__LOC__, I64, sa, 1)
-    assert_eq(__LOC__, I64, sb, 2)
+    assert_eq(I64, sa, 1)
+    assert_eq(I64, sb, 2)
 }

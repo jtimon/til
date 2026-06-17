@@ -14,8 +14,8 @@ test_local_struct := test() {
     mut p := LocalPoint()
     p.x = 5
     p.y = 7
-    assert_eq(__LOC__, I64, p.x, 5)
-    assert_eq(__LOC__, I64, p.y, 7)
+    assert_eq(I64, p.x, 5)
+    assert_eq(I64, p.y, 7)
 }
 
 test_local_struct_same_name_different_shape := test() {
@@ -23,7 +23,7 @@ test_local_struct_same_name_different_shape := test() {
         a := 11
     }
     p := LocalPoint()
-    assert_eq(__LOC__, I64, p.a, 11)
+    assert_eq(I64, p.a, 11)
 }
 
 test_local_enum := test() {
@@ -35,7 +35,7 @@ test_local_enum := test() {
     case LocalColor.LCGreen: tag = 2
     case LocalColor.LCBlue:  tag = 3
     }
-    assert_eq(__LOC__, I64, tag, 2)
+    assert_eq(I64, tag, 2)
 }
 
 test_local_enum_payload := test() {
@@ -46,12 +46,12 @@ test_local_enum_payload := test() {
     case LocalOp.LOAdd(v): acc = v
     case LocalOp.LODone:   acc = -1
     }
-    assert_eq(__LOC__, I64, acc, 42)
+    assert_eq(I64, acc, 42)
 }
 
 test_local_func := test() {
     local_add := func(a: I64, b: I64) returns I64 { return a.add(b) }
-    assert_eq(__LOC__, I64, local_add(2, 3), 5)
+    assert_eq(I64, local_add(2, 3), 5)
 }
 
 test_local_struct_with_local_func := test() {
@@ -63,7 +63,7 @@ test_local_struct_with_local_func := test() {
     mut q := LocalPair()
     q.a = 4
     q.b = 9
-    assert_eq(__LOC__, I64, sum_pair(q), 13)
+    assert_eq(I64, sum_pair(q), 13)
 }
 
 test_local_struct_in_block := test() {
@@ -71,7 +71,7 @@ test_local_struct_in_block := test() {
         BlockBox := struct { v := 0 }
         mut b := BlockBox()
         b.v = 11
-        assert_eq(__LOC__, I64, b.v, 11)
+        assert_eq(I64, b.v, 11)
     }
 }
 
@@ -83,7 +83,7 @@ test_local_func_field_name_match := test() {
         z := 0
     }
     z := LocalPair()
-    assert_eq(__LOC__, I64, z.z, 0)
+    assert_eq(I64, z.z, 0)
 }
 
 // A local struct with a namespace method whose body itself contains a
@@ -103,5 +103,5 @@ test_local_struct_with_method_with_nested := test() {
             return i.q
         }
     }
-    assert_eq(__LOC__, I64, Outer.build(), 7)
+    assert_eq(I64, Outer.build(), 7)
 }

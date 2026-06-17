@@ -300,7 +300,7 @@ set_own_arg := func(mut fcall: Expr, arg_index: USize) {
         for _ in 0..arg_index { bit = bit.mul(2) }
         fcd.own_args = fcd.own_args.bor(bit)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -311,7 +311,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
         for _ in 0..arg_index { bit = bit.mul(2) }
         return fcd.own_args.band(bit).gt(0)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -717,7 +717,7 @@ namespace:
         return Expr(node_type = data.clone(), line = line, col = col)
     }
     eq := func(_self: Expr, _other: Expr) returns Bool {
-        TODO(__LOC__, "Expr.eq")
+        TODO("Expr.eq")
         return false
     }
     to_str := func(self: Expr) returns Str {
@@ -1016,7 +1016,7 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
         }
         return count
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return 0
     }
 }
@@ -1050,7 +1050,7 @@ fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool
         }
         return fcall.children.len().sub(nparam)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return 0
     }
 }

@@ -3,26 +3,26 @@ import("imports/import_helper")
 
 test_import_func := test() {
     result := double(21)
-    expect(__LOC__, result.eq(42), "double(21)")
+    expect(result.eq(42), "double(21)")
 }
 
 test_import_struct := test() {
     p := Point(x = 3, y = 4)
-    expect(__LOC__, p.x.eq(3), "Point.x")
-    expect(__LOC__, p.y.eq(4), "Point.y")
+    expect(p.x.eq(3), "Point.x")
+    expect(p.y.eq(4), "Point.y")
 }
 
 helper := import("imports/import_helper")
 
 test_namespace_import := test() {
     r := helper.double(21)
-    expect(__LOC__, r.eq(42), "helper.double(21)")
+    expect(r.eq(42), "helper.double(21)")
     p := helper.Point(x = 1, y = 2)
-    expect(__LOC__, p.x.eq(1), "helper.Point.x")
+    expect(p.x.eq(1), "helper.Point.x")
 }
 
 import("imports/import_helper", MyConst)
 
 test_selective_import := test() {
-    expect(__LOC__, MyConst.eq(123), "MyConst")
+    expect(MyConst.eq(123), "MyConst")
 }

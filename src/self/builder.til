@@ -386,7 +386,7 @@ priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
         if decl.name.starts_with("hoisted__") { return false }
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -502,7 +502,7 @@ priv is_shallow_param := func(name: Str, ctx: Context) returns Bool {
         }
         return false
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -915,7 +915,7 @@ priv c_lit_byte_count := func(s: Str) returns USize {
 // function-body entry pass to decide which params actually need the
 // `(void)<name>;` unused-arg suppressor.
 priv collect_ident_refs := proc(e: Expr, mut refs: Set(Str)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(name): refs.add(own name.ident_name())
     case NodeType.Assign(ad):  refs.add(own ad.name.clone())
@@ -993,12 +993,12 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
 priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
             ref c0 : Expr = e.children[0]
@@ -1049,7 +1049,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
 }
 
 priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(2) {
             ref c0 : Expr = e.children[0]
@@ -1237,7 +1237,7 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
 }
 
 priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         ref mut fdef : Expr = fcall_fn_sig(e, ctx)
         if fdef.is_null() {
@@ -1310,7 +1310,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
         if stmt.node_type.is(NodeType.If) {
@@ -1330,7 +1330,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(3) {
             ref c0 : Expr = e.children[0]
@@ -1698,7 +1698,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         }
     }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 priv builder_get_c_return_type := func(ctx: Context) returns Str {
@@ -1878,7 +1878,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
             // Bare enum variant ref: heap-allocate
         } else if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv, ctx)).and(rv.expr_til_type().is(Type.Enum)) {
@@ -1889,7 +1889,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                 emit_indent(f, depth); f.write("return _r; }\n")
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         } else {
             if e.children.len().gt(1) {
@@ -2446,7 +2446,7 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
             f.write(arg_c)
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -2486,7 +2486,7 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ct
             else { emit_as_ptr(f, e.children[i], depth, get_own_arg(e, i), ctx) }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -2511,7 +2511,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
         f.write("TilClosure *til_closure = malloc(sizeof(TilClosure)); ")
         f.write("*til_closure = (TilClosure){ (void *)").write(fd.closure_name).write(", til_env, ").write(fd.closure_name).write("_drop }; til_closure; })")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return f
 }
@@ -2658,7 +2658,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
                 f.write(")")
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         } else {
         switch callee.node_type {
@@ -2681,10 +2681,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         }
                         f.write(")")
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             } else if name.ident_name().eq("dyn_fn") {
                 f.write("dyn_fn(")
@@ -2782,7 +2782,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     emit_as_ptr(f, e.children[1], depth, false, ctx)
                     f.write(")")
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             } else if til_type_name(e.expr_til_type()).len().gt(0).and(name.ident_name().eq(til_type_name(e.expr_til_type()))) {
                 // Struct constructor
@@ -2823,7 +2823,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         }
     case NodeType.FuncDef(fd):
@@ -2894,7 +2894,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         f.write("ULL, .cap = TIL_CAP_LIT}.")
                         f.write(fname.field_access_name())
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 } else {
                     emit_expr(f, obj, depth, ctx)
@@ -3098,7 +3098,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                             f.write(";\n")
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 }
             }
@@ -3126,7 +3126,7 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                         f.write(";\n")
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -3509,7 +3509,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         f.write("}\n")
     }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -3585,7 +3585,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
 }
 
 emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
     case NodeType.FuncDef(fd):
@@ -3664,7 +3664,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
         }
         f.write("} ").write(name).write(";\n\n")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     // Namespace non-function fields as globals
     ref ng_ns : Vec(Declaration) = def_ns_decls(struct_def)
@@ -3690,7 +3690,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: Lo
     case NodeType.FuncDef(fd):
         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) { return }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return
     }
     // A bodyless namespace signature (interface method, issue #251) is a
@@ -3755,7 +3755,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     // Namespace methods from ns_decls
     ref ens : Vec(Declaration) = def_ns_decls(enum_def)
@@ -3782,7 +3782,7 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
                 }
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         f.write("    } data;\n")
     }
@@ -3867,7 +3867,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
                 if deps_ok.not() { continue }
                 if def.node_type.is(NodeType.StructDef) {
@@ -3882,7 +3882,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                 remaining--
                 progress = true
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
         if progress.not() {
@@ -3903,7 +3903,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                     }
                     emitted.add(own sdecl.name.clone())
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
             break
@@ -3941,7 +3941,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
         emit_param_list(f, fdef, true, false, ctx)
         f.write(");\n")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -3959,7 +3959,7 @@ priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, ctx: Cont
         f.write(");\n")
         f.write("static __attribute__((unused)) TilClosure ").write(value_name).write(";\n")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -3988,7 +3988,7 @@ priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, ctx: Conte
         f.write("}\n")
         f.write("static __attribute__((unused)) TilClosure ").write(value_name).write(" = { (void *)").write(call_name).write(", NULL, NULL };\n")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -3997,7 +3997,7 @@ priv emit_funcsig_typedef := proc(f: File, name: Str, fdef: Expr, _ctx: Context)
     case NodeType.FuncDef:
         f.write("typedef TilClosure *").write(name).write(";\n")
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -4031,7 +4031,7 @@ emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
                 }
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     }
 }
@@ -4066,7 +4066,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -4093,7 +4093,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4132,7 +4132,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     case:
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -4167,7 +4167,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                 case:
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4247,7 +4247,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -4276,7 +4276,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4305,10 +4305,10 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         hdr_vi++
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4331,7 +4331,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
                         f.write("extern ").write(ctype).write(" ").write(dd.name).write(";\n")
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -4350,7 +4350,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
                     f.write("extern ").write(ctype).write(" ").write(dd.name).write(";\n")
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4489,7 +4489,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
             case:
             }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4574,7 +4574,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     f.write("    pass\n")
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4655,7 +4655,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             case:
             }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4738,7 +4738,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 }
             }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -4808,10 +4808,10 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                         py_vi++
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5075,7 +5075,7 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5157,7 +5157,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                                 write_ptr(nv, nfdef)
                                 ctx.func_defs.set(nd.name, own nv)
                             case:
-                                UNREACHABLE(__LOC__)
+                                UNREACHABLE()
                             }
                         }
                     }
@@ -5169,13 +5169,13 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                 ctx.func_defs.set(dd.name, own fv2)
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     }
 }
 
 collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(ident):
         if e.expr_til_type().is_funcptr() {
@@ -5295,7 +5295,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5338,7 +5338,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5367,10 +5367,10 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         hdr_vi++
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5416,7 +5416,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5457,7 +5457,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5487,10 +5487,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                             shdr_vi++
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5518,10 +5518,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     shdr_vi++
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5568,7 +5568,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         break
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5585,7 +5585,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     break
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5626,12 +5626,12 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         case NodeType.FuncDef(fd):
                             dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                         case:
-                            UNREACHABLE(__LOC__)
+                            UNREACHABLE()
                         }
                         break
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5648,12 +5648,12 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     case NodeType.FuncDef(fd):
                         dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                     break
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5810,7 +5810,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5839,7 +5839,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5871,7 +5871,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5901,7 +5901,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -5923,7 +5923,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
                     tlen := dd.name.len()
                     f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return sizeof(").write(dd.name).write(");\n")
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -5937,7 +5937,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
                 tlen := dd.name.len()
                 f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return sizeof(").write(dd.name).write(");\n")
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -6261,7 +6261,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     mut variant_names := Vec(Str).new()
     mut variant_types := Vec(Str).new()
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() {
-        panic(__LOC__, "emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
+        panic("emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
     }
     // First pass: collect all unique display strings so we can emit
     // static-local Str variables for the literal cases (one
@@ -6286,7 +6286,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             mut inner_names := Vec(Str).new()
             mut inner_types := Vec(Str).new()
             if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
-                panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
+                panic("emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
             }
             for ivn : Str in inner_names {
                 if static_index_by_display.has(ivn).not() {
@@ -6339,7 +6339,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
             mut inner_names := Vec(Str).new()
             mut inner_types := Vec(Str).new()
             if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
-                panic(__LOC__, "emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
+                panic("emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
             }
             f.write("    case Type_TAG_")
             f.write(vn)
@@ -6463,10 +6463,10 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                         }
                     }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 }
             }
@@ -6541,10 +6541,10 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     }
                 }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -6572,12 +6572,12 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                             case NodeType.FuncDef(fd):
                                 dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                             case:
-                                UNREACHABLE(__LOC__)
+                                UNREACHABLE()
                             }
                             break
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 }
             }
@@ -6595,12 +6595,12 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                         case NodeType.FuncDef(fd):
                             dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
                         case:
-                            UNREACHABLE(__LOC__)
+                            UNREACHABLE()
                         }
                         break
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -6641,7 +6641,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                             f.write("    if (type_name->count == "); emit_usize(f, dd.name.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, dd.name.len()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 }
             }
@@ -6666,7 +6666,7 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
                         f.write("    if (type_name->count == "); emit_usize(f, dd.name.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, dd.name.len()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -6775,7 +6775,7 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
                         lp.ctx.script_globals.add(own dd.name.clone())
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -6796,7 +6796,7 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
                     lp.ctx.script_globals.add(own dd.name.clone())
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -6824,7 +6824,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                         f.write("    fprintf(stderr, \"  pass: %s\\n\", \"").write(dd.name).write("\");\n")
                         test_count++
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                     continue
                 }
@@ -6846,7 +6846,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                     }
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -6923,7 +6923,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     case:
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -6951,7 +6951,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 case:
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -6998,10 +6998,10 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
                 emit_param_list(f, fdef, false, true, ctx)
                 f.write(");\n")
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     }
     f.write("\n")
@@ -7022,7 +7022,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     build_register_funcsig_names_lp(lp)
     build_register_closure_values_lp(lp)
     f := File.new(c_output_path, true)
-    expect(__LOC__, f.is_null().not(), "f is null")
+    expect(f.is_null().not(), "f is null")
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
 
@@ -7080,7 +7080,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
                         break
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -7097,7 +7097,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
                     break
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -7181,8 +7181,8 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
 
 priv make_build_dirs := func(paths: BuildPaths) {
     if paths.do_lib {
-        if mkdir_p("gen/til").neq(0) { panic(__LOC__, "failed to create gen/til") }
-        if mkdir_p("gen/lib").neq(0) { panic(__LOC__, "failed to create gen/lib") }
+        if mkdir_p("gen/til").neq(0) { panic("failed to create gen/til") }
+        if mkdir_p("gen/lib").neq(0) { panic("failed to create gen/lib") }
     } else {
         cp_slash := paths.c_path.rfind("/")
         bp_slash := paths.bin_path.rfind("/")
@@ -7196,8 +7196,8 @@ priv make_build_dirs := func(paths: BuildPaths) {
             bp_slash_u : USize = bp_slash.to_usize()
             bp_dir = paths.bin_path.substr(0, bp_slash_u)
         }
-        if mkdir_p(cp_dir).neq(0) { panic(__LOC__, "failed to create build output dir") }
-        if mkdir_p(bp_dir).neq(0) { panic(__LOC__, "failed to create binary output dir") }
+        if mkdir_p(cp_dir).neq(0) { panic("failed to create build output dir") }
+        if mkdir_p(bp_dir).neq(0) { panic("failed to create binary output dir") }
     }
 }
 
@@ -7376,7 +7376,7 @@ priv asan_child_prefix := func(asan: Bool) returns Str {
 
 cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if lp.cur_mode.is_library {
-        panic(__LOC__, "cannot run a library -- use translate or build")
+        panic("cannot run a library -- use translate or build")
     }
     paths := derive_build_paths(lp, custom_bin, custom_c, target)
     make_build_dirs(paths)
@@ -7480,7 +7480,7 @@ priv format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) re
                     chunks.push(own chunk)
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -7512,7 +7512,7 @@ priv ensure_parent_dir := func(path: Str) {
     if last_slash.lt(0) { return }
     last_slash_u : USize = last_slash.to_usize()
     dir := path.substr(0, last_slash_u).clone()
-    if mkdir_p(dir).neq(0) { panic(__LOC__, "failed to create parent dir for ", path) }
+    if mkdir_p(dir).neq(0) { panic("failed to create parent dir for ", path) }
 }
 
 priv emit_unit_doc := proc(u: ProgramUnit, ctx: Context) {

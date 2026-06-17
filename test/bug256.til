@@ -35,5 +35,5 @@ build := func() returns Holder {
 
 test_move_named_local_into_own_field := test() {
     h := build()
-    assert(__LOC__, h.child.label.eq("bug256-distinctive-literal-payload-tag!!"))
+    assert(h.child.label.eq("bug256-distinctive-literal-payload-tag!!"))
 }

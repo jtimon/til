@@ -24,7 +24,7 @@ priv fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
     case NodeType.FieldAssign(fad):
         fname = fad.name
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
     ref ns : Vec(Declaration) = def_ns_decls(sdef)
@@ -160,7 +160,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     case NodeType.FieldAssign(fad):
         fname = fad.name
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return OwnType.Shallow
     }
     switch sdef.node_type {
@@ -932,7 +932,7 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
                     e.set_expr_til_type(Type.None)
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
             return true
         }
@@ -1044,7 +1044,7 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
             pi++
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -1185,7 +1185,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
             case CtorArg.Filled(filled_arg):
                 new_ch.push(own filled_arg.clone())
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
         e.children = new_ch
@@ -1207,7 +1207,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         e.set_expr_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -1341,7 +1341,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
         }
         e.children.move_from(new_ch)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -1590,7 +1590,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                     case NodeType.FCall(fcd_v):
                         is_splat = fcd_v.is_splat
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                     if vptype_name.len().gt(0).and(is_splat.not()) {
                         vptype := type_from_name(vptype_name, scope, ctx)
@@ -1677,7 +1677,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
             pi++
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -1705,7 +1705,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                     }
                     return
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -1733,7 +1733,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                             e.set_expr_til_type(Type.None)
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 } else {
                     e.set_expr_til_type(Type.Dynamic)
@@ -1772,7 +1772,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                             ai++
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                     }
                 }
                 return
@@ -1867,7 +1867,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     case NodeType.FieldAccess(m):
         method = m.field_access_name()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
     // `.clone()` on a literal receiver is always redundant: the literal
@@ -1990,7 +1990,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             }
             ufcs_fcd.own_args = new_own
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         mut new_children := Vec(Expr).new()
         new_children.push_take(e.children, 0)
@@ -2004,7 +2004,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         case NodeType.FieldAccess(m2):
             method = m2.field_access_name()
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     }
 
@@ -2282,7 +2282,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 case NodeType.FCall(ufcs_fcd2):
                     ufcs_fcd2.own_args = ufcs_fcd2.own_args.sub(1)
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
                 set_own_arg(e, 1)
             }
@@ -2372,7 +2372,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         e.children[0] = type_ident
         return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, in_func, ctx)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
     return true
@@ -2747,7 +2747,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         }
         name = name0.ident_name()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return
     }
     ref resolved_name : Str = resolve_type_alias(scope, name)
@@ -3020,7 +3020,7 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -3051,7 +3051,7 @@ priv infer_set_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx:
 // destruction site (Map.delete, Vec.delete, scope_free, the
 // auto-generated Value.delete chain, etc.).
 priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.FieldAccess(fa_name):
         if fa_name.field_access_name().eq(field_name) {
@@ -3378,7 +3378,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
 PTR_SIZE_BYTES : USize = 8
 priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len().eq(0) { return false }
-    expect(__LOC__, scope.is_null().not(), "scope is null")
+    expect(scope.is_null().not(), "scope is null")
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {
@@ -3478,7 +3478,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     expr.set_expr_til_type(Type.FuncPtr)
 }
@@ -3490,7 +3490,7 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: 
         if fdef.return_own_type.is(OwnType.Ref).not() { return }
         throws_count = fdef.throw_types.len()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return
     }
     ref body : Expr = expr.children[0]
@@ -3848,7 +3848,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         }
         TypeScope.delete(own func_scope)
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     ctx.typing_namespace_member = ifd_in_ns
 }
@@ -3868,7 +3868,7 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -3899,7 +3899,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
                 "redundant 'mut' on parameter '".concat(param.name).concat("': never written through; drop the 'mut'"), ctx)
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -4031,7 +4031,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
         case NodeType.Decl(td_decl):
             owner_name = td_decl.name.clone()
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
         // Field walk (StructDef only). Report at the field's
         // default_value location (every field has one -- the parser
@@ -4248,7 +4248,7 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             case NodeType.FieldAccess(fn):
                 fname = fn.field_access_name()
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
                 return
             }
             mut found := false
@@ -4336,7 +4336,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
         fn := fad.name
         fname = fn.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return
     }
     // #164: walk to the root identifier of the obj chain and mark it
@@ -4568,7 +4568,7 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         b.orig_name = sdecl.orig_name.clone()
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -4626,11 +4626,11 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
             }
             return true
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
             return false
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -4648,7 +4648,7 @@ priv infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr)
         }
         return false
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -4666,7 +4666,7 @@ priv declared_type_for_decl := func(scope: TypeScope, stmt: Expr, ctx: Context) 
         }
         return declared
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return Type.Unknown
     }
 }
@@ -4805,7 +4805,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -4840,7 +4840,7 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
             stmt.type_error("cannot store Dynamic in '".concat(sdecl.name)
                 .concat("'; add a type annotation like '").concat(sdecl.name).concat(" : Type = ...' to specify the concrete type"), ctx)
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     }
 }
@@ -4971,7 +4971,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -4986,7 +4986,7 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
             infer_expr(scope, stmt.children[0], in_func, ctx)
             ctx.current_type_name = saved_type_name
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     } else {
         // Issue #93 follow-up: when the decl's rhs is a FuncDef body
@@ -5057,7 +5057,7 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
             infer_decl_untyped_value(stmt, ctx)
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     check_ref_decl_owned_init(stmt, scope, ctx)
     check_ref_local_null_init(stmt, ctx)
@@ -6215,7 +6215,7 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         var_name = forin_data_r.name.clone()
         forin_is_mut = forin_data_r.is_mut
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
     ref for_body : Expr = stmt.children[1]
@@ -6313,7 +6313,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         }
         idx_type = len_def.return_type.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 
@@ -6382,7 +6382,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
             }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 
@@ -6393,7 +6393,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         var_name = forin_data_c.name.clone()
         forin_is_mut = forin_data_c.is_mut
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
     ref for_body : Expr = stmt.children[1]
@@ -6481,7 +6481,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     wbody.add_child(own elem_decl)
 
     if get_throws {
-        // if _forin_err_kind_<n>.eq(0).not() { panic(__LOC__, "<T>") }
+        // if _forin_err_kind_<n>.eq(0).not() { panic("<T>") }
         // for-in is the only caller of this get; on-error semantics is
         // panic-with-type-name, matching the user-visible `arr[i]`.
         mut kind_id := Expr.new(ident_node(fk_name), line, col)
@@ -7114,12 +7114,12 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
     mut var_name := ""
     switch catch_node.children[0].node_type {
     case NodeType.Ident(n): var_name = n.ident_name()
-    case: UNREACHABLE(__LOC__)
+    case: UNREACHABLE()
     }
     mut type_name := ""
     switch catch_node.children[1].node_type {
     case NodeType.Ident(n): type_name = n.ident_name()
-    case: UNREACHABLE(__LOC__)
+    case: UNREACHABLE()
     }
     tag := tag_for_type(ctx, type_name, type_to_tag_names)
     mut new_body := Expr.new(NodeType.Body, line, col)
@@ -8668,7 +8668,7 @@ priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
 priv capture_block_check_refs := proc(e: Expr,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
         captures: Vec(Declaration), ctx: Context) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.CaptureBlock: return
     case NodeType.FuncDef: return
@@ -8718,7 +8718,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
     case NodeType.CaptureBlock(cbd):
         captures = cbd.captures.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     // Each captured name must exist in the enclosing scope; mark it used
     // (so listing it counts as a use) and validate the `mut` modifier.
@@ -8984,7 +8984,7 @@ normalize_scope_bindings := func(scope: TypeScope) {
 // happens during the typer phase rather than as its own #158 pass.
 
 priv typer_is_lambda_target := func(e: Expr) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef).not() { return false }
     if e.children.len().eq(0) { return false }
     // Issue #54: a capturing lambda is NOT lifted to top level -- a lifted
@@ -9017,7 +9017,7 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
 }
 
 priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     // Issue #57: don't descend into template macro bodies -- a func literal
     // inside `macro(T: Type) returns FuncDef { return func(x: T) ... }` is
     // a template that initer's pre-pass substitutes and lifts at each call
@@ -9120,7 +9120,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
 }
 
 priv typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
-    expect(__LOC__, prog.is_null().not(), "prog is null")
+    expect(prog.is_null().not(), "prog is null")
     if prog.node_type.is(NodeType.Body).not() { return }
     mut top_level := Vec(Expr).new()
     mut ctr : I64 = 0
@@ -9375,7 +9375,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     case NodeType.Assign(adata):
         aname = adata.name.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return
     }
     // A write isn't a read. Don't flip `used = true` on the assign
@@ -9649,7 +9649,7 @@ priv type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Co
     pt := type_from_name(name, scope, ctx)
     if name.len().eq(0) { return pt }
     if ctx.current_type_name.eq(name) { return pt }
-    expect(__LOC__, scope.is_null().not(), "scope is null")
+    expect(scope.is_null().not(), "scope is null")
     ref mut b : TypeBinding = scope.get_binding(name)
     check_priv_access(e, name, b, ctx)
     return pt
@@ -9821,7 +9821,7 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns Bool {
 }
 
 priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -9849,7 +9849,7 @@ priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
 }
 
 priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -9867,7 +9867,7 @@ priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
 }
 
 priv find_array_vec_fcall := func(e: Expr) returns ref Expr {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -9994,7 +9994,7 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
 // transfer shapes -- own arg to a function, struct constructor with an Own
 // or Ref field -- already consume the wrapper, so we must NOT emit a free.
 transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return false }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len().gte(2) {
@@ -10203,7 +10203,7 @@ priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     case NodeType.Decl(dd):
         dd.name = kw_name.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     kw_decl.set_expr_til_type(Type.Struct("KwargsMap"))
     kw_decl.add_child(own new_call)
@@ -10216,7 +10216,7 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     case NodeType.NamedArg(kn):
         key_name = kn.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     ref val : Expr = named_arg.children[0]
     mut set_call := make_ns_call("KwargsMap", "set", Type.None, fcall)
@@ -10268,7 +10268,7 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
         dd.name = va_name.clone()
         dd.own_type = OwnType.Own
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     va_decl.set_expr_til_type(Type.Struct(array_type.clone()))
     va_decl.add_child(own new_call)
@@ -10328,7 +10328,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
         dd.own_type = OwnType.Own
         dd.is_mut = true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     vec_decl.set_expr_til_type(Type.Struct(vec_type))
     vec_decl.add_child(own new_call)
@@ -10414,13 +10414,13 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
                 rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct(array_type))
                 return true
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         case:
         }
         return false
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -10435,7 +10435,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 
@@ -10464,7 +10464,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
                 }
                 return true
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
         if cn.ident_name().eq("array") {
@@ -10484,7 +10484,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
                 }
                 return true
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     case:
@@ -10501,7 +10501,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 
@@ -10542,7 +10542,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         dd.name = var_name.clone()
         dd.is_mut = true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     decl.set_expr_til_type(Type.Struct(set_type.clone()))
     decl.add_child(own new_call)
@@ -10573,7 +10573,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
     n_pairs := map_lit.children.len().div(2)
@@ -10636,7 +10636,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         dd.name = var_name.clone()
         dd.is_mut = true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     decl.set_expr_til_type(Type.Struct(map_type.clone()))
     decl.add_child(own new_call)
@@ -10685,7 +10685,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 // function definition or nested block, which the outer body_pre_passes
 // pass will reach separately.
 priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
     if e.node_type.is(NodeType.EnumDef) { return }
@@ -11238,7 +11238,7 @@ priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
     case NodeType.Assign(adata):
         a_name = adata.name.clone()
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     sf := scope.find(a_name)
     switch sf {
@@ -11369,7 +11369,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         fcall.children.move_from(fcall_new_ch)
         fcall_data.own_args = new_own
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -11688,7 +11688,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
         set_own_arg(fcall, vi.to_usize())
         return true
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
         return false
     }
 }
@@ -11749,7 +11749,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
         fcall.children.move_from(fcall_new_ch)
         fcd.own_args = new_own
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -11871,7 +11871,7 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
 }
 
 priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is_literal_null() { return true }
     if e.node_type.is(NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
     switch e.node_type {
@@ -11894,7 +11894,7 @@ priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if expr_is_borrow_source(e, scope) { return true }
     switch e.node_type {
     case NodeType.Ident(id):
@@ -11917,7 +11917,7 @@ priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if expr_is_borrow_source(e, scope) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
         if fa_is_ns(e, scope) { return false }
@@ -12132,7 +12132,7 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
             if tb.is_null().not() { tb.own_type = OwnType.Own }
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 
     hoisted.push(own decl)

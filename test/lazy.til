@@ -18,37 +18,37 @@ lazy_or := lazy_func(a: Bool, b: Bool) returns Bool {
 # --- functional correctness ---
 
 test_lazy_and := test() {
-    expect(__LOC__, lazy_and(true, true), "T and T")
-    expect(__LOC__, lazy_and(true, false).not(), "T and F")
-    expect(__LOC__, lazy_and(false, true).not(), "F and T")
-    expect(__LOC__, lazy_and(false, false).not(), "F and F")
+    expect(lazy_and(true, true), "T and T")
+    expect(lazy_and(true, false).not(), "T and F")
+    expect(lazy_and(false, true).not(), "F and T")
+    expect(lazy_and(false, false).not(), "F and F")
 }
 
 test_lazy_or := test() {
-    expect(__LOC__, lazy_or(true, true), "T or T")
-    expect(__LOC__, lazy_or(true, false), "T or F")
-    expect(__LOC__, lazy_or(false, true), "F or T")
-    expect(__LOC__, lazy_or(false, false).not(), "F or F")
+    expect(lazy_or(true, true), "T or T")
+    expect(lazy_or(true, false), "T or F")
+    expect(lazy_or(false, true), "F or T")
+    expect(lazy_or(false, false).not(), "F or F")
 }
 
 # --- nested lazy calls (re-expansion of the spliced body) ---
 
 test_lazy_nested := test() {
-    expect(__LOC__, lazy_and(lazy_or(false, true), true), "(F or T) and T")
-    expect(__LOC__, lazy_or(lazy_and(true, false), false).not(), "(T and F) or F")
+    expect(lazy_and(lazy_or(false, true), true), "(F or T) and T")
+    expect(lazy_or(lazy_and(true, false), false).not(), "(T and F) or F")
 }
 
 test_core_bool_and_or := test() {
-    expect(__LOC__, true.and(true), "T.and(T)")
-    expect(__LOC__, true.and(false).not(), "T.and(F)")
-    expect(__LOC__, false.and(true).not(), "F.and(T)")
-    expect(__LOC__, true.or(false), "T.or(F)")
-    expect(__LOC__, false.or(true), "F.or(T)")
-    expect(__LOC__, false.or(false).not(), "F.or(F)")
-    expect(__LOC__, true && true, "T && T")
-    expect(__LOC__, (true && false).not(), "T && F")
-    expect(__LOC__, false || true, "F || T")
-    expect(__LOC__, (false || false).not(), "F || F")
+    expect(true.and(true), "T.and(T)")
+    expect(true.and(false).not(), "T.and(F)")
+    expect(false.and(true).not(), "F.and(T)")
+    expect(true.or(false), "T.or(F)")
+    expect(false.or(true), "F.or(T)")
+    expect(false.or(false).not(), "F.or(F)")
+    expect(true && true, "T && T")
+    expect((true && false).not(), "T && F")
+    expect(false || true, "F || T")
+    expect((false || false).not(), "F || F")
 }
 
 # --- decisive short-circuit proof: an unused side-effecting argument must
@@ -65,50 +65,50 @@ bump := func() returns Bool {
 test_and_short_circuits := test() {
     eval_count = 0
     r := lazy_and(false, bump())
-    expect(__LOC__, r.not(), "false and bump() is false")
-    assert_eq(__LOC__, I64, eval_count, 0)
+    expect(r.not(), "false and bump() is false")
+    assert_eq(I64, eval_count, 0)
 }
 
 test_or_short_circuits := test() {
     eval_count = 0
     r := lazy_or(true, bump())
-    expect(__LOC__, r, "true or bump() is true")
-    assert_eq(__LOC__, I64, eval_count, 0)
+    expect(r, "true or bump() is true")
+    assert_eq(I64, eval_count, 0)
 }
 
 test_evaluates_taken_arm := test() {
     eval_count = 0
     r := lazy_and(true, bump())
-    expect(__LOC__, r, "true and bump() is true")
-    assert_eq(__LOC__, I64, eval_count, 1)
+    expect(r, "true and bump() is true")
+    assert_eq(I64, eval_count, 1)
 }
 
 test_core_and_short_circuits := test() {
     eval_count = 0
     r := false.and(bump())
-    expect(__LOC__, r.not(), "false.and(bump()) is false")
-    assert_eq(__LOC__, I64, eval_count, 0)
+    expect(r.not(), "false.and(bump()) is false")
+    assert_eq(I64, eval_count, 0)
 }
 
 test_core_or_short_circuits := test() {
     eval_count = 0
     r := true.or(bump())
-    expect(__LOC__, r, "true.or(bump()) is true")
-    assert_eq(__LOC__, I64, eval_count, 0)
+    expect(r, "true.or(bump()) is true")
+    assert_eq(I64, eval_count, 0)
 }
 
 test_ampamp_short_circuits := test() {
     eval_count = 0
     r := false && bump()
-    expect(__LOC__, r.not(), "false && bump() is false")
-    assert_eq(__LOC__, I64, eval_count, 0)
+    expect(r.not(), "false && bump() is false")
+    assert_eq(I64, eval_count, 0)
 }
 
 test_pipepipe_short_circuits := test() {
     eval_count = 0
     r := true || bump()
-    expect(__LOC__, r, "true || bump() is true")
-    assert_eq(__LOC__, I64, eval_count, 0)
+    expect(r, "true || bump() is true")
+    assert_eq(I64, eval_count, 0)
 }
 
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
@@ -129,15 +129,15 @@ note := proc() returns Bool {
 test_lazy_proc_short_circuits := test() {
     log_count = 0
     r := lazy_or_p(true, note())
-    expect(__LOC__, r, "true or note() is true")
-    assert_eq(__LOC__, I64, log_count, 0)
+    expect(r, "true or note() is true")
+    assert_eq(I64, log_count, 0)
 }
 
 test_lazy_proc_runs_when_needed := test() {
     log_count = 0
     r := lazy_or_p(false, note())
-    expect(__LOC__, r, "false or note() runs note()")
-    assert_eq(__LOC__, I64, log_count, 1)
+    expect(r, "false or note() runs note()")
+    assert_eq(I64, log_count, 1)
 }
 
 # --- A throwing call in a lazy and/or argument must compile AND short-circuit.
@@ -152,15 +152,15 @@ test_lazy_proc_runs_when_needed := test() {
 test_and_or_throwing_arg_short_circuits := test() {
     v := Vec(I64).new()
     # guard is false / true-on-the-left: v[0] must NOT be evaluated (no OOB)
-    expect(__LOC__, v.len().gt(0).and(v[0].gt(0)).not(), "and: empty guarded")
-    expect(__LOC__, v.len().eq(0).or(v[0].gt(0)), "or: empty guarded")
+    expect(v.len().gt(0).and(v[0].gt(0)).not(), "and: empty guarded")
+    expect(v.len().eq(0).or(v[0].gt(0)), "or: empty guarded")
     v.push(own 42)
-    expect(__LOC__, v.len().gt(0).and(v[0].eq(42)), "and: nonempty taken arm")
-    expect(__LOC__, v.len().eq(0).or(v[0].eq(42)), "or: nonempty taken arm")
+    expect(v.len().gt(0).and(v[0].eq(42)), "and: nonempty taken arm")
+    expect(v.len().eq(0).or(v[0].eq(42)), "or: nonempty taken arm")
     # operator forms && / || lower to the same lazy and/or, so they must
     # short-circuit a guarded throwing subscript identically.
     empty := Vec(I64).new()
-    expect(__LOC__, (empty.len().gt(0) && empty[0].gt(0)).not(), "&&: empty guarded")
-    expect(__LOC__, (empty.len().eq(0) || empty[0].gt(0)), "||: empty guarded")
-    expect(__LOC__, (v.len().gt(0) && v[0].eq(42)), "&&: nonempty taken arm")
+    expect((empty.len().gt(0) && empty[0].gt(0)).not(), "&&: empty guarded")
+    expect((empty.len().eq(0) || empty[0].gt(0)), "||: empty guarded")
+    expect((v.len().gt(0) && v[0].eq(42)), "&&: nonempty taken arm")
 }

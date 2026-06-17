@@ -2,7 +2,7 @@ mode test
 
 // forward reference: call a function defined later
 test_forward_func := test() {
-    assert_eq(__LOC__, I64, fwd_double(5), 10)
+    assert_eq(I64, fwd_double(5), 10)
 }
 
 fwd_double := func(n: I64) returns I64 {
@@ -15,9 +15,9 @@ fwd_factorial := func(n: I64) returns I64 {
 }
 
 test_recursion := test() {
-    assert_eq(__LOC__, I64, fwd_factorial(5), 120)
-    assert_eq(__LOC__, I64, fwd_factorial(1), 1)
-    assert_eq(__LOC__, I64, fwd_factorial(0), 1)
+    assert_eq(I64, fwd_factorial(5), 120)
+    assert_eq(I64, fwd_factorial(1), 1)
+    assert_eq(I64, fwd_factorial(0), 1)
 }
 
 fwd_is_even := func(n: I64) returns Bool {
@@ -31,11 +31,11 @@ fwd_is_odd := func(n: I64) returns Bool {
 }
 
 test_mutual_recursion := test() {
-    assert(__LOC__, fwd_is_even(0))
-    assert(__LOC__, fwd_is_odd(0).not())
-    assert(__LOC__, fwd_is_odd(1))
-    assert(__LOC__, fwd_is_even(4))
-    assert(__LOC__, fwd_is_odd(7))
+    assert(fwd_is_even(0))
+    assert(fwd_is_odd(0).not())
+    assert(fwd_is_odd(1))
+    assert(fwd_is_even(4))
+    assert(fwd_is_odd(7))
 }
 
 fwd_make_point := func(x: I64, y: I64) returns FwdPoint {
@@ -49,8 +49,8 @@ FwdPoint := struct {
 
 test_forward_struct := test() {
     p := fwd_make_point(3, 7)
-    assert_eq(__LOC__, I64, p.x, 3)
-    assert_eq(__LOC__, I64, p.y, 7)
+    assert_eq(I64, p.x, 3)
+    assert_eq(I64, p.y, 7)
 }
 
 // #165: type alias to a builtin primitive declared at the very top of the
@@ -72,7 +72,7 @@ test_alias_top_of_file := test() {
     h.inc()
     h.inc()
     h.inc()
-    assert_eq(__LOC__, USize, h.count, 3)
+    assert_eq(USize, h.count, 3)
 }
 
 // #165: type alias declared *after* a struct that uses it as a field type.
@@ -91,5 +91,5 @@ FwdAliasBottom := U32
 test_alias_bottom_of_file := test() {
     mut h := FwdAliasBottomHolder()
     h.set(42)
-    assert_eq(__LOC__, I64, h.value.to_i64(), 42)
+    assert_eq(I64, h.value.to_i64(), 42)
 }

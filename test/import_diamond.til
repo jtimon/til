@@ -3,6 +3,6 @@ import("imports/import_diamond_b")
 import("imports/import_diamond_c")
 
 // Both B and C import D, but D should only be included once
-expect(__LOC__, from_b().eq(42), "from_b")
-expect(__LOC__, from_c().eq(42), "from_c")
-expect(__LOC__, SHARED_VAL.eq(42), "SHARED_VAL direct")
+expect(from_b().eq(42), "from_b")
+expect(from_c().eq(42), "from_c")
+expect(SHARED_VAL.eq(42), "SHARED_VAL direct")

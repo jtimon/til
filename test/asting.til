@@ -1,31 +1,31 @@
 mode test
 
 test_node_name := test() {
-    assert_eq(__LOC__, Str, node_name(NodeType.Body), "body")
-    assert_eq(__LOC__, Str, node_name(NodeType.FCall), "fcall")
-    assert_eq(__LOC__, Str, node_name(NodeType.Literal(Literal.Null)), "null")
-    assert_eq(__LOC__, Str, node_name(NodeType.Return), "return")
-    assert_eq(__LOC__, Str, node_name(NodeType.Break), "break")
+    assert_eq(Str, node_name(NodeType.Body), "body")
+    assert_eq(Str, node_name(NodeType.FCall), "fcall")
+    assert_eq(Str, node_name(NodeType.Literal(Literal.Null)), "null")
+    assert_eq(Str, node_name(NodeType.Return), "return")
+    assert_eq(Str, node_name(NodeType.Break), "break")
 }
 
 test_func_type := test() {
-    assert_eq(__LOC__, Str, func_type_name(FuncType.Func), "func")
-    assert_eq(__LOC__, Str, func_type_name(FuncType.Proc), "proc")
-    assert_eq(__LOC__, Str, func_type_name(FuncType.ExtProc), "ext_proc")
+    assert_eq(Str, func_type_name(FuncType.Func), "func")
+    assert_eq(Str, func_type_name(FuncType.Proc), "proc")
+    assert_eq(Str, func_type_name(FuncType.ExtProc), "ext_proc")
 }
 
 test_til_type := test() {
-    assert_eq(__LOC__, Str, til_type_name_c(Type.Unknown), "unknown")
-    assert_eq(__LOC__, Str, til_type_name_c(Type.Primitive(Primitive.I64)), "I64")
-    assert_eq(__LOC__, Str, til_type_name_c(Type.FuncPtr), "Fn")
-    assert_eq(__LOC__, Str, til_type_name_c(Type.Primitive(Primitive.U64)), "U64")
-    assert_eq(__LOC__, Str, til_type_name_c(Type.Primitive(Primitive.F32)), "F32")
+    assert_eq(Str, til_type_name_c(Type.Unknown), "unknown")
+    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.I64)), "I64")
+    assert_eq(Str, til_type_name_c(Type.FuncPtr), "Fn")
+    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.U64)), "U64")
+    assert_eq(Str, til_type_name_c(Type.Primitive(Primitive.F32)), "F32")
 }
 
 test_expr_new := test() {
     e := Expr.new(NodeType.Body, 1, 5)
-    assert_eq(__LOC__, U32, e.line, 1)
-    assert_eq(__LOC__, U32, e.col, 5)
+    assert_eq(U32, e.line, 1)
+    assert_eq(U32, e.col, 5)
 }
 
 test_expr_children := test() {
@@ -34,5 +34,5 @@ test_expr_children := test() {
     child2 := Expr.new(NodeType.Body, 3, 1)
     Expr.add_child(parent, own child1)
     Expr.add_child(parent, own child2)
-    assert_eq(__LOC__, USize, parent.children.len(), 2)
+    assert_eq(USize, parent.children.len(), 2)
 }

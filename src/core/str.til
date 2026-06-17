@@ -39,7 +39,7 @@ namespace:
     /// Return a ref to byte `i`. Panics if `i` is out of bounds.
     get := func(self: Str, i: USize) returns ref I8 {
         if i.gte(self.count) {
-            panic(__LOC__, "Str.get: index out of bounds")
+            panic("Str.get: index out of bounds")
         }
         return ptr_add(self.c_str, i)
     }
@@ -88,11 +88,11 @@ namespace:
     /// capacity is exceeded.
     push_str := func(mut self: Str, s: Str) {
         if self.cap.gte(CAP_VIEW) {
-            panic(__LOC__, "Str.push_str: cannot mutate a string view or literal")
+            panic("Str.push_str: cannot mutate a string view or literal")
         }
         new_len := self.count.add(s.count)
         if new_len.gt(self.cap) {
-            panic(__LOC__, "Str.push_str: capacity exceeded")
+            panic("Str.push_str: capacity exceeded")
         }
         memcpy(ptr_add(self.c_str, self.count), s.c_str, s.count)
         self.count = new_len
@@ -109,7 +109,7 @@ namespace:
 
     /// String representation of a Str: a fresh owned copy of itself. Lets
     /// Str satisfy the same `T.to_str(x)` contract as the numeric types, so
-    /// generic code (e.g. assert_eq(__LOC__, Str, a, b)) works uniformly.
+    /// generic code (e.g. assert_eq(Str, a, b)) works uniformly.
     to_str := func(self: Str) returns Str {
         return self.clone()
     }
@@ -334,7 +334,7 @@ namespace:
     /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
     /// Bare digit runs are base-10. Panics on invalid input.
     to_i64 := func(self: Str) returns I64 {
-        if self.count.eq(0) { panic(__LOC__, "Str.to_i64: empty string") }
+        if self.count.eq(0) { panic("Str.to_i64: empty string") }
         mut start : USize = 0
         mut neg := false
         ref first : I8 = self.get(0)
@@ -342,7 +342,7 @@ namespace:
             neg = true
             start = 1
         }
-        if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
+        if start.eq(self.count) { panic("Str.to_i64: no digits") }
         // Base prefix: 0x (hex), 0b (binary), 0o (octal).
         mut base : I64 = 10
         if self.get(start).eq('0').and(start.add(1).lt(self.count)) {
@@ -358,7 +358,7 @@ namespace:
                 start = start.add(2)
             }
         }
-        if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits in '", self, "'") }
+        if start.eq(self.count) { panic("Str.to_i64: no digits in '", self, "'") }
         mut result := 0
         mut any := false
         for i in start..self.count {
@@ -366,12 +366,12 @@ namespace:
             if ch.eq('_') { continue }
             d := digit_value(ch)
             if d.lt(0).or(d.gte(base)) {
-                panic(__LOC__, "Str.to_i64: invalid char in '", self, "'")
+                panic("Str.to_i64: invalid char in '", self, "'")
             }
             result = result.mul(base).add(d)
             any = true
         }
-        if any.not() { panic(__LOC__, "Str.to_i64: no digits in '", self, "'") }
+        if any.not() { panic("Str.to_i64: no digits in '", self, "'") }
         if neg { return 0.sub(result) }
         return result
     }

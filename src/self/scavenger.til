@@ -93,7 +93,7 @@ priv push_builtin_methods := func(mut v: Vec(Str), builtin_name: Str, m1: Str, m
 }
 
 collect_refs := func(e: Expr, mut refs: Vec(Str)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
 
     switch e.node_type {
     case NodeType.Ident(ident):
@@ -128,11 +128,11 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                                 }
                             }
                         case:
-                            UNREACHABLE(__LOC__)
+                            UNREACHABLE()
                             return
                         }
                     case:
-                        UNREACHABLE(__LOC__)
+                        UNREACHABLE()
                         return
                     }
                     // Recurse into args (skip callee -- already handled)
@@ -190,7 +190,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         }
                     }
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -217,7 +217,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     vec_push_str(refs, type_name.ident_name())
                     push_qn(refs, type_name.ident_name(), field_name.field_access_name())
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -230,7 +230,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     vec_push_str(refs, type_name.ident_name())
                     push_qn(refs, type_name.ident_name(), field_name)
                 case:
-                    UNREACHABLE(__LOC__)
+                    UNREACHABLE()
                 }
             }
         }
@@ -294,7 +294,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
                     memset(ptr_add(pm, i.cast(U64)), 1, 1)
                 }
             case:
-                UNREACHABLE(__LOC__)
+                UNREACHABLE()
             }
         }
     }
@@ -321,7 +321,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
                 free(own scv_nm2)
             }
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     }
 }
@@ -365,7 +365,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
 // any nesting depth) so a candidate's auto-generated cleanup doesn't
 // pin it. Phase 3 prunes those cleanup stmts alongside the candidate.
 priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(name):
         refs.add(own name.ident_name())
@@ -441,7 +441,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
 // (no-op view cleanup) -- so dropping the Decl + its trivial delete
 // has no observable effect.
 priv rhs_is_pure_byvalue := func(e: Expr) returns Bool {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Bool): return true
@@ -463,7 +463,7 @@ priv MARK_REPLACE_RHS : U8 = 2
 // also live in nested early-return bodies (if-then deletes before a
 // return) that the outer body's phase 3 didn't reach.
 priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n.gt(0) {
@@ -687,7 +687,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
 // body; recursion turns it off when descending into any nested Body
 // (which is by definition inside a function/test/proc).
 priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
-    expect(__LOC__, e.is_null().not(), "e is null")
+    expect(e.is_null().not(), "e is null")
     is_body := e.node_type.is(NodeType.Body)
     child_top := at_top_level.and(is_body.not())
     for c : Expr in e.children {

@@ -10,12 +10,12 @@ DynMap := struct {
 
 namespace:
     priv new_type_names := func(key_type: Str, val_type: Str) returns DynMap {
-        if key_type.is_empty() { panic(__LOC__, "DynMap.new: key_type required") }
+        if key_type.is_empty() { panic("DynMap.new: key_type required") }
         if dyn_has_method(key_type, "cmp").not() {
-            panic(__LOC__, "DynMap.new: type ", key_type, " must implement cmp")
+            panic("DynMap.new: type ", key_type, " must implement cmp")
         }
         if val_type.is_empty() {
-            panic(__LOC__, "DynMap.new: val_type required")
+            panic("DynMap.new: val_type required")
         }
         mut m := DynMap()
         m.keys = DynVec.new_type_name(key_type)

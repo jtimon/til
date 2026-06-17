@@ -7,20 +7,20 @@ test_circular_import_funcs_and_types := test() {
     a := make_a(5)
     b := make_b(7)
 
-    assert_eq(__LOC__, I64, a_uses_b(3), 16)
-    assert_eq(__LOC__, I64, b_uses_a(3), 5)
-    assert_eq(__LOC__, I64, b_take_a(a), 9)
-    assert_eq(__LOC__, I64, a_take_b(b), 10)
-    assert_eq(__LOC__, I64, a.from_b(), 10)
-    assert_eq(__LOC__, I64, b.from_a(), 8)
+    assert_eq(I64, a_uses_b(3), 16)
+    assert_eq(I64, b_uses_a(3), 5)
+    assert_eq(I64, b_take_a(a), 9)
+    assert_eq(I64, a_take_b(b), 10)
+    assert_eq(I64, a.from_b(), 10)
+    assert_eq(I64, b.from_a(), 8)
 }
 
 test_circular_import_template_instantiation := test() {
     ib := make_i64_box(42)
     ref iv : I64 = ib.get()
-    assert_eq(__LOC__, I64, iv, 42)
+    assert_eq(I64, iv, 42)
 
     sb := make_str_box("cycle")
     ref sv : Str = sb.get()
-    assert_eq(__LOC__, Str, sv, "cycle")
+    assert_eq(Str, sv, "cycle")
 }

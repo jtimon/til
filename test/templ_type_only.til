@@ -8,5 +8,5 @@ RootTypeOnlyHolder := struct {
 }
 
 test_templ_type_only_instantiation := test() {
-    assert(__LOC__, RootTypeOnlyHolder.size().gt(0))
+    assert(RootTypeOnlyHolder.size().gt(0))
 }

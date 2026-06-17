@@ -589,7 +589,7 @@ main := proc(args: ..Str) {
     mut result : I32 = 0
     if cli.command.eq("interpret") {
         if lp.cur_mode.is_library {
-            panic(__LOC__, "cannot interpret a library -- use translate or build")
+            panic("cannot interpret a library -- use translate or build")
         }
         result = cmd_interpret(lp, user_argv)
     } else if cli.command.eq("test") {

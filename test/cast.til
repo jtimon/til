@@ -16,109 +16,109 @@ mode test
 test_cast_u8_i8 := test() {
     // 0xFF reinterpreted as I8 is -1.
     a : U8 = 255
-    assert_eq(__LOC__, I64, a.cast(I8).cast(I64), -1)
+    assert_eq(I64, a.cast(I8).cast(I64), -1)
 
     // -1 reinterpreted as U8 is 255 (round trip).
     b : I8 = -1
-    assert_eq(__LOC__, I64, b.cast(U8).to_i64(), 255)
+    assert_eq(I64, b.cast(U8).to_i64(), 255)
 
     // Small in-range value is unchanged.
     c : U8 = 42
-    assert_eq(__LOC__, I64, c.cast(I8).cast(I64), 42)
+    assert_eq(I64, c.cast(I8).cast(I64), 42)
 
     // High bit set: 0x80 -> I8 minimum.
     d : U8 = 128
-    assert_eq(__LOC__, I64, d.cast(I8).cast(I64), -128)
+    assert_eq(I64, d.cast(I8).cast(I64), -128)
 }
 
 test_cast_u16_i16 := test() {
     // 0xFFFF reinterpreted as I16 is -1.
     a : U16 = 65535
-    assert_eq(__LOC__, I64, a.cast(I16).cast(I64), -1)
+    assert_eq(I64, a.cast(I16).cast(I64), -1)
 
     // -1 reinterpreted as U16 is 65535 (round trip).
     b : I16 = -1
-    assert_eq(__LOC__, I64, b.cast(U16).to_i64(), 65535)
+    assert_eq(I64, b.cast(U16).to_i64(), 65535)
 
     // High bit set: 0x8000 -> I16 minimum.
     c : U16 = 32768
-    assert_eq(__LOC__, I64, c.cast(I16).cast(I64), -32768)
+    assert_eq(I64, c.cast(I16).cast(I64), -32768)
 }
 
 test_cast_u32_i32 := test() {
     // 0xFFFFFFFF reinterpreted as I32 is -1.
     a : U32 = 4294967295
-    assert_eq(__LOC__, I64, a.cast(I32).cast(I64), -1)
+    assert_eq(I64, a.cast(I32).cast(I64), -1)
 
     // Small in-range value is unchanged.
     b : U32 = 42
-    assert_eq(__LOC__, I64, b.cast(I32).cast(I64), 42)
+    assert_eq(I64, b.cast(I32).cast(I64), 42)
 
     // High bit set: 0x80000000 -> I32 minimum.
     c : U32 = 2147483648
-    assert_eq(__LOC__, I64, c.cast(I32).cast(I64), -2147483648)
+    assert_eq(I64, c.cast(I32).cast(I64), -2147483648)
 }
 
 test_cast_i32_u32 := test() {
     // -1 reinterpreted as U32 is 0xFFFFFFFF.
     a : I32 = -1
-    assert_eq(__LOC__, I64, a.cast(U32).to_i64(), 4294967295)
+    assert_eq(I64, a.cast(U32).to_i64(), 4294967295)
 
     b : I32 = 100
-    assert_eq(__LOC__, I64, b.cast(U32).to_i64(), 100)
+    assert_eq(I64, b.cast(U32).to_i64(), 100)
 }
 
 test_cast_u64_i64 := test() {
     a : U64 = 1000
-    assert_eq(__LOC__, I64, a.cast(I64), 1000)
+    assert_eq(I64, a.cast(I64), 1000)
 
     // -1 as U64 is 2^64-1; cast back to I64 is -1 again (round trip).
     c : I64 = -1
     d : U64 = c.cast(U64)
-    assert_eq(__LOC__, Str, d.to_str(), "18446744073709551615")
-    assert_eq(__LOC__, I64, d.cast(I64), -1)
+    assert_eq(Str, d.to_str(), "18446744073709551615")
+    assert_eq(I64, d.cast(I64), -1)
 }
 
 test_cast_plain_call := test() {
     // Non-UFCS spelling works too.
     a : U32 = 4294967295
-    assert_eq(__LOC__, I64, cast(a, I32).cast(I64), -1)
+    assert_eq(I64, cast(a, I32).cast(I64), -1)
 }
 
 test_cast_widen_unsigned := test() {
     // Unsigned widening: value preserved, high bits zero-filled.
     a : U8 = 200
-    assert_eq(__LOC__, I64, a.cast(U16).to_i64(), 200)
-    assert_eq(__LOC__, I64, a.cast(U32).to_i64(), 200)
-    assert_eq(__LOC__, I64, a.cast(U64).cast(I64), 200)
+    assert_eq(I64, a.cast(U16).to_i64(), 200)
+    assert_eq(I64, a.cast(U32).to_i64(), 200)
+    assert_eq(I64, a.cast(U64).cast(I64), 200)
 
     b : U16 = 65535
-    assert_eq(__LOC__, I64, b.cast(U32).to_i64(), 65535)
-    assert_eq(__LOC__, I64, b.cast(U64).cast(I64), 65535)
+    assert_eq(I64, b.cast(U32).to_i64(), 65535)
+    assert_eq(I64, b.cast(U64).cast(I64), 65535)
 
     c : U32 = 4000000000
-    assert_eq(__LOC__, Str, c.cast(U64).to_str(), "4000000000")
+    assert_eq(Str, c.cast(U64).to_str(), "4000000000")
 }
 
 test_cast_widen_signed := test() {
     // Signed widening preserves the numeric value: -1 in any signed
     // width is still -1 after widening (sign-extended bits).
     a : I8 = -1
-    assert_eq(__LOC__, I64, a.cast(I16).cast(I64), -1)
-    assert_eq(__LOC__, I64, a.cast(I32).cast(I64), -1)
-    assert_eq(__LOC__, I64, a.cast(I64), -1)
+    assert_eq(I64, a.cast(I16).cast(I64), -1)
+    assert_eq(I64, a.cast(I32).cast(I64), -1)
+    assert_eq(I64, a.cast(I64), -1)
 
     // Negative in-range value also rides through.
     b : I8 = -128
-    assert_eq(__LOC__, I64, b.cast(I32).cast(I64), -128)
+    assert_eq(I64, b.cast(I32).cast(I64), -128)
 
     // Positive value: trivial.
     c : I16 = 30000
-    assert_eq(__LOC__, I64, c.cast(I32).cast(I64), 30000)
-    assert_eq(__LOC__, I64, c.cast(I64), 30000)
+    assert_eq(I64, c.cast(I32).cast(I64), 30000)
+    assert_eq(I64, c.cast(I64), 30000)
 
     d : I32 = -123456789
-    assert_eq(__LOC__, I64, d.cast(I64), -123456789)
+    assert_eq(I64, d.cast(I64), -123456789)
 }
 
 // assert_eq is generic over the element type T (it used to be I64-only, so
@@ -126,11 +126,11 @@ test_cast_widen_signed := test() {
 // compared). It now takes a `T: Type` arg and compares via T.eq, so each
 // width is asserted against its own native type -- no widening crutch.
 test_assert_eq_generic := test() {
-    assert_eq(__LOC__, I64, -1, -1)
-    assert_eq(__LOC__, U8, 200.to_u8(), 200.to_u8())
-    assert_eq(__LOC__, U16, 65535.to_u16(), 65535.to_u16())
-    assert_eq(__LOC__, I32, 30000.to_i32(), 30000.to_i32())
-    assert_eq(__LOC__, U32, 4000000000.to_u32(), 4000000000.to_u32())
-    assert_eq(__LOC__, U64, 4000000000.cast(U64), 4000000000.cast(U64))
-    assert_eq(__LOC__, USize, 42.to_usize(), 42.to_usize())
+    assert_eq(I64, -1, -1)
+    assert_eq(U8, 200.to_u8(), 200.to_u8())
+    assert_eq(U16, 65535.to_u16(), 65535.to_u16())
+    assert_eq(I32, 30000.to_i32(), 30000.to_i32())
+    assert_eq(U32, 4000000000.to_u32(), 4000000000.to_u32())
+    assert_eq(U64, 4000000000.cast(U64), 4000000000.cast(U64))
+    assert_eq(USize, 42.to_usize(), 42.to_usize())
 }

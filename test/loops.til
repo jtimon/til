@@ -6,7 +6,7 @@ test_for_in_str := test() {
     for c in "hello" {
         result.push_str(Str.from_byte(c.cast(I64).band(255).to_u8()))
     }
-    assert_eq(__LOC__, Str, result, "hello")
+    assert_eq(Str, result, "hello")
 }
 
 test_for_in_str_explicit := test() {
@@ -15,7 +15,7 @@ test_for_in_str_explicit := test() {
     for c : I8 in "world" {
         result.push_str(Str.from_byte(c.cast(I64).band(255).to_u8()))
     }
-    assert_eq(__LOC__, Str, result, "world")
+    assert_eq(Str, result, "world")
 }
 
 test_for_in_vec := test() {
@@ -24,7 +24,7 @@ test_for_in_vec := test() {
     for x : I64 in v {
         sum = sum.add(x)
     }
-    assert_eq(__LOC__, I64, sum, 60)
+    assert_eq(I64, sum, 60)
 }
 
 test_for_in_array := test() {
@@ -33,7 +33,7 @@ test_for_in_array := test() {
     for x : I64 in a {
         sum = sum.add(x)
     }
-    assert_eq(__LOC__, I64, sum, 15)
+    assert_eq(I64, sum, 15)
 }
 
 test_for_in_break := test() {
@@ -42,7 +42,7 @@ test_for_in_break := test() {
         if count.eq(3) { break }
         count = count.add(1)
     }
-    assert_eq(__LOC__, I64, count, 3)
+    assert_eq(I64, count, 3)
 }
 
 test_for_in_continue := test() {
@@ -52,7 +52,7 @@ test_for_in_continue := test() {
         if c.eq('b') { continue }
         result.push_str(Str.from_byte(c.cast(I64).band(255).to_u8()))
     }
-    assert_eq(__LOC__, Str, result, "acd")
+    assert_eq(Str, result, "acd")
 }
 
 test_for_in_nested := test() {
@@ -62,7 +62,7 @@ test_for_in_nested := test() {
             count = count.add(1)
         }
     }
-    assert_eq(__LOC__, I64, count, 4)
+    assert_eq(I64, count, 4)
 }
 
 test_for_in_empty := test() {
@@ -70,14 +70,14 @@ test_for_in_empty := test() {
     for _c in "" {
         count = count.add(1)
     }
-    assert_eq(__LOC__, I64, count, 0)
+    assert_eq(I64, count, 0)
 
     v := vec("I64")
     mut sum := 0
     for x : I64 in v {
         sum = sum.add(x)
     }
-    assert_eq(__LOC__, I64, sum, 0)
+    assert_eq(I64, sum, 0)
 }
 
 test_for_in_scope := test() {
@@ -87,7 +87,7 @@ test_for_in_scope := test() {
     for _c in "abc" {
         // c is scoped inside the block
     }
-    assert_eq(__LOC__, I64, x, 42)
+    assert_eq(I64, x, 42)
 }
 
 test_range_ascending := test() {
@@ -95,7 +95,7 @@ test_range_ascending := test() {
     for i in 0..5 {
         sum = sum.add(i)
     }
-    assert_eq(__LOC__, I64, sum, 10)
+    assert_eq(I64, sum, 10)
 }
 
 test_range_descending := test() {
@@ -103,7 +103,7 @@ test_range_descending := test() {
     for i in 5..0 {
         sum = sum.add(i)
     }
-    assert_eq(__LOC__, I64, sum, 15)
+    assert_eq(I64, sum, 15)
 }
 
 test_range_empty := test() {
@@ -111,7 +111,7 @@ test_range_empty := test() {
     for _i in 3..3 {
         count = count.add(1)
     }
-    assert_eq(__LOC__, I64, count, 0)
+    assert_eq(I64, count, 0)
 }
 
 test_range_single := test() {
@@ -119,7 +119,7 @@ test_range_single := test() {
     for i in 0..1 {
         sum = sum.add(i)
     }
-    assert_eq(__LOC__, I64, sum, 0)
+    assert_eq(I64, sum, 0)
 }
 
 test_range_break := test() {
@@ -128,7 +128,7 @@ test_range_break := test() {
         if i.eq(5) { break }
         last = i
     }
-    assert_eq(__LOC__, I64, last, 4)
+    assert_eq(I64, last, 4)
 }
 
 test_range_continue := test() {
@@ -138,7 +138,7 @@ test_range_continue := test() {
         if i.mod(2).neq(0) { continue }
         sum = sum.add(i)
     }
-    assert_eq(__LOC__, I64, sum, 20)
+    assert_eq(I64, sum, 20)
 }
 
 test_range_nested := test() {
@@ -148,7 +148,7 @@ test_range_nested := test() {
             sum = sum.add(1)
         }
     }
-    assert_eq(__LOC__, I64, sum, 12)
+    assert_eq(I64, sum, 12)
 }
 
 test_range_u32_count := test() {
@@ -158,7 +158,7 @@ test_range_u32_count := test() {
     for i in 0..count {
         sum = sum.add(i.to_i64())
     }
-    assert_eq(__LOC__, I64, sum, 10)
+    assert_eq(I64, sum, 10)
 }
 
 test_range_u32_both := test() {
@@ -169,7 +169,7 @@ test_range_u32_both := test() {
     for i in start..end {
         sum = sum.add(i.to_i64())
     }
-    assert_eq(__LOC__, I64, sum, 6)
+    assert_eq(I64, sum, 6)
 }
 
 // #100: negative ranges (I64)
@@ -179,7 +179,7 @@ test_range_negative := test() {
         sum = sum.add(i)
     }
     // -2 + -1 + 0 + 1 + 2 = 0
-    assert_eq(__LOC__, I64, sum, 0)
+    assert_eq(I64, sum, 0)
 }
 
 test_range_negative_desc := test() {
@@ -188,7 +188,7 @@ test_range_negative_desc := test() {
         sum = sum.add(i)
     }
     // 2 + 1 + 0 + -1 + -2 = 0
-    assert_eq(__LOC__, I64, sum, 0)
+    assert_eq(I64, sum, 0)
 }
 
 // #100: I32 range
@@ -199,7 +199,7 @@ test_range_i32 := test() {
     for i in start..end {
         sum = sum.add(i.cast(I64))
     }
-    assert_eq(__LOC__, I64, sum, 6)
+    assert_eq(I64, sum, 6)
 }
 
 test_while_basic := test() {
@@ -207,12 +207,12 @@ test_while_basic := test() {
     while i.lt(5) {
         i = i.add(1)
     }
-    assert_eq(__LOC__, I64, i, 5)
+    assert_eq(I64, i, 5)
 }
 
 test_while_false := test() {
     while false {
-        panic(__LOC__, "unreachable")
+        panic("unreachable")
     }
 }
 
@@ -222,7 +222,7 @@ test_while_break := test() {
         if i.eq(3) { break }
         i = i.add(1)
     }
-    assert_eq(__LOC__, I64, i, 3)
+    assert_eq(I64, i, 3)
 }
 
 test_while_continue := test() {
@@ -233,7 +233,7 @@ test_while_continue := test() {
         if k.eq(3) { continue }
         total = total.add(k)
     }
-    assert_eq(__LOC__, I64, total, 12)
+    assert_eq(I64, total, 12)
 }
 
 // #160: 'for mut x : T in coll' makes the loop variable mutable
@@ -245,7 +245,7 @@ test_for_in_mut_collection := test() {
         sum = sum.add(x)
     }
     // 10 + 20 + 30 = 60
-    assert_eq(__LOC__, I64, sum, 60)
+    assert_eq(I64, sum, 60)
 }
 
 // #160: 'for mut i in <range>' allows mutating the loop variable inside the body
@@ -256,5 +256,5 @@ test_for_in_mut_range := test() {
         sum = sum.add(i)
     }
     // 0+2+4+6+8 = 20
-    assert_eq(__LOC__, I64, sum, 20)
+    assert_eq(I64, sum, 20)
 }

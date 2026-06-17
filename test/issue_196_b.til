@@ -39,12 +39,12 @@ test_nested_switch_fcall_subject := test() {
     case NT.Block(_outer):
         switch box.self_ref().nt {
         case NT.Block(inner):
-            assert(__LOC__, inner.items.len().eq(2))
+            assert(inner.items.len().eq(2))
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 
     // Source must remain intact after the inner case body unwinds:
@@ -52,9 +52,9 @@ test_nested_switch_fcall_subject := test() {
     // ~box.nt~'s Block payload, which corrupted later reads.
     switch box.nt {
     case NT.Block(after):
-        assert(__LOC__, after.items.len().eq(2))
+        assert(after.items.len().eq(2))
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }
 
@@ -66,11 +66,11 @@ test_nested_switch_fcall_str_payload := test() {
     case NT.Decl(_outer_name):
         switch box.self_ref().nt {
         case NT.Decl(inner_name):
-            assert(__LOC__, inner_name.eq("hello"))
+            assert(inner_name.eq("hello"))
         case:
-            UNREACHABLE(__LOC__)
+            UNREACHABLE()
         }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
 }

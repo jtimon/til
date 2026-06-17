@@ -14,14 +14,14 @@ mut TEST_FILE_LEVEL_HASHER : HashFn = fnv1a
 test_file_level_funcptr_default := test() {
     h := TEST_FILE_LEVEL_HASHER("abc", 3)
     expected := fnv1a("abc", 3)
-    assert(__LOC__, h.eq(expected))
+    assert(h.eq(expected))
 }
 
 test_file_level_funcptr_swap := test() {
     TEST_FILE_LEVEL_HASHER = knuth_bytes
     h := TEST_FILE_LEVEL_HASHER("abc", 3)
     expected := knuth_bytes("abc", 3)
-    assert(__LOC__, h.eq(expected))
+    assert(h.eq(expected))
     // Restore so the test pair is order-independent.
     TEST_FILE_LEVEL_HASHER = fnv1a
 }
@@ -29,66 +29,66 @@ test_file_level_funcptr_swap := test() {
 test_hash_i64_deterministic := test() {
     a := hash_i64(42)
     b := hash_i64(42)
-    assert(__LOC__, a.eq(b))
+    assert(a.eq(b))
 }
 
 test_hash_i64_distinct := test() {
     a := hash_i64(0)
     b := hash_i64(1)
     c := hash_i64(2)
-    assert(__LOC__, a.eq(b).not())
-    assert(__LOC__, b.eq(c).not())
-    assert(__LOC__, a.eq(c).not())
+    assert(a.eq(b).not())
+    assert(b.eq(c).not())
+    assert(a.eq(c).not())
 }
 
 test_hash_i64_negative_does_not_panic := test() {
     h := hash_i64(-1)
     g := hash_i64(-42)
-    assert(__LOC__, h.eq(g).not())
+    assert(h.eq(g).not())
 }
 
 test_hash_u64_deterministic := test() {
     a := hash_u64(99.cast(U64))
     b := hash_u64(99.cast(U64))
-    assert(__LOC__, a.eq(b))
+    assert(a.eq(b))
 }
 
 test_hash_u64_distinct := test() {
     a := hash_u64(0.cast(U64))
     b := hash_u64(1.cast(U64))
-    assert(__LOC__, a.eq(b).not())
+    assert(a.eq(b).not())
 }
 
 test_hash_str_deterministic := test() {
     a := hash_str("hello")
     b := hash_str("hello")
-    assert(__LOC__, a.eq(b))
+    assert(a.eq(b))
 }
 
 test_hash_str_distinct := test() {
     a := hash_str("hello")
     b := hash_str("world")
-    assert(__LOC__, a.eq(b).not())
+    assert(a.eq(b).not())
 }
 
 test_hash_str_one_char_diff := test() {
     // Avalanche check: a single-byte change must alter the hash.
     a := hash_str("abc")
     b := hash_str("abd")
-    assert(__LOC__, a.eq(b).not())
+    assert(a.eq(b).not())
 }
 
 test_hash_str_empty := test() {
     h := hash_str("")
     // Empty input collapses to the FNV offset basis.
-    assert(__LOC__, h.eq(FNV_OFFSET))
+    assert(h.eq(FNV_OFFSET))
 }
 
 test_bucket_in_range := test() {
     cap : USize = 16.to_usize()
     for i in 0..100 {
         bi := bucket(hash_i64(i), cap)
-        assert(__LOC__, bi.lt(cap))
+        assert(bi.lt(cap))
     }
 }
 
@@ -104,7 +104,7 @@ test_bucket_covers_all_with_enough_keys := test() {
         seen = seen.bor(mask)
     }
     // 16 buckets -> low 16 bits all set -> 0xFFFF.
-    assert_eq(__LOC__, I64, seen, 65535)
+    assert_eq(I64, seen, 65535)
 }
 
 // Local helper: 2^n for small n (n < 16). Cheap stand-in for a missing

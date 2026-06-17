@@ -23,11 +23,20 @@ Ask for explicit approval only when a decision materially changes one of these:
 
 If you need information to reproduce a bug, gather it by running commands and reading logs first. Only ask the user when a required fact cannot be obtained from the repo or environment.
 
-NEVER use the AskUserQuestion / interrogation interface. When a question
-is needed, ask it as plain text in the chat. Do not present numbered
-multiple-choice option lists ("(a) ... (b) ... (c) ...") either -- just
-ask the question in natural prose and let the user answer however they
-want.
+NEVER use the AskUserQuestion / interrogation interface. This is
+absolute and has no exceptions: do NOT call the `AskUserQuestion` tool
+(or any tool that renders a multiple-choice / option-card / "select an
+answer" UI) under ANY circumstance -- not for design forks, not for
+scope or backward-compatibility decisions, not "just this once" because
+the choice feels consequential. The fact that a decision is big, risky,
+or hard is NOT a license to use it; ask those in plain chat too. When a
+question is needed -- including every case listed above under "Ask for
+explicit approval" -- ask it as plain text in the chat. Do not present
+numbered or lettered multiple-choice option lists ("(a) ... (b) ...
+(c) ...") either -- just ask the question in natural prose and let the
+user answer however they want. If you catch yourself reaching for the
+tool because the options are complex, that is exactly when to write
+them out as a short paragraph instead.
 
 ## Following Orders
 

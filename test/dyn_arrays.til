@@ -12,10 +12,10 @@ test_dyn_array_new_get_set := test() {
     ref y : I64 = a.get(1)!
     ref z : I64 = a.get(2)!
 
-    assert_eq(__LOC__, I64, x, 10)
-    assert_eq(__LOC__, I64, y, 20)
-    assert_eq(__LOC__, I64, z, 30)
-    assert_eq(__LOC__, USize, a.len(), 3)
+    assert_eq(I64, x, 10)
+    assert_eq(I64, y, 20)
+    assert_eq(I64, z, 30)
+    assert_eq(USize, a.len(), 3)
 }
 
 test_dyn_array_subscript := test() {
@@ -28,13 +28,13 @@ test_dyn_array_subscript := test() {
     ref y : I64 = a[1]
     ref z : I64 = a[2]
 
-    assert_eq(__LOC__, I64, x, 10)
-    assert_eq(__LOC__, I64, y, 20)
-    assert_eq(__LOC__, I64, z, 30)
+    assert_eq(I64, x, 10)
+    assert_eq(I64, y, 20)
+    assert_eq(I64, z, 30)
 
     mut i : USize = 1
     ref w : I64 = a[i.add(1)]
-    assert_eq(__LOC__, I64, w, 30)
+    assert_eq(I64, w, 30)
 }
 
 test_dyn_array_strings := test() {
@@ -45,8 +45,8 @@ test_dyn_array_strings := test() {
     ref s0 : Str = a.get(0)!
     ref s1 : Str = a.get(1)!
 
-    assert_eq(__LOC__, Str, s0, "hello")
-    assert_eq(__LOC__, Str, s1, "world")
+    assert_eq(Str, s0, "hello")
+    assert_eq(Str, s1, "world")
 }
 
 test_dyn_array_overwrite := test() {
@@ -56,5 +56,5 @@ test_dyn_array_overwrite := test() {
     a.set(0, own 99)
 
     ref v : I64 = a.get(0)!
-    assert_eq(__LOC__, I64, v, 99)
+    assert_eq(I64, v, 99)
 }

@@ -35,9 +35,9 @@ main := proc() {
     inc()
     inc()
     inc()
-    assert(__LOC__, get_counter().eq(3))
-    assert(__LOC__, counter.eq(3))
+    assert(get_counter().eq(3))
+    assert(counter.eq(3))
     counter = 100
-    assert(__LOC__, counter.eq(100))
+    assert(counter.eq(100))
     println("globals cli: ok")
 }
