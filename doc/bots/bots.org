@@ -379,11 +379,18 @@ follow-up "is it done yet" check while something is still alive --
 that is the exact mistake that spawns the orphan pile. Every extra
 in-flight command is an orphan the human has to hand-kill.
 
-If a command auto-backgrounds (the cloud harness converts foreground
-bash after ~120s), END THE TURN -- do NOT send another command. There
-is NO completion notification in the cloud harness: at the next
-wake-up (user message or stop-hook poke) check the job's state
-yourself from its log/output file, never wait passively.
+The harness converts any foreground bash past ~120s into a background
+task and SAYS SO: the tool result reads `Command running in background
+with ID: <id>` instead of the command's output. `make`, `make clean &&
+make test`, `make two_pass`, `make bin/til_asan` and ASAN runs always
+cross 120s, so they always convert -- that is expected, not an error.
+The instant you see that message, END THE TURN: issue no further tool
+call -- not the next build, not a `git status`, not even reading the
+log. A second in-flight command is exactly the orphan the human
+hand-kills. There is NO completion notification: at the next wake-up
+(user message or stop-hook poke) check the job's log/output file
+yourself, never wait passively. A multi-build task is therefore several
+turns, one build per turn; never overlap builds to "save round trips".
 
 NEVER run commands in the background. No exceptions. This is the
 single most important operational rule on this machine: backgrounded
