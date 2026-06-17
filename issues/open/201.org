@@ -13,6 +13,11 @@
    below was not adopted for them; the file:line:col is recovered
    from the bang's panic shim instead.
 
+   The container accessors are now complete: ~Array.get~ also throws
+   ~OutOfBounds~, and ~Vec.set~ / ~Array.set~ throw ~OutOfBounds~ too
+   -- shipped with [[../fixed/225.org][#225]], driving the ~a[b]~ read
+   and ~a[b] = c~ write subscript desugars.
+
    Wanted (mirror rstil's ~src/core/~):
 
    - ~I64.safe_add~ / ~safe_sub~ / ~safe_mul~ throwing
@@ -25,15 +30,10 @@
      so ~I8.safe_add~ et al. drop in alongside the rest.
    - ~F32.safe_div~ throwing ~DivideByZero~ (reuse the existing
      type).
-   - ~Array.get(self, index: I64) returns Ptr throws OutOfBounds~
-     -- ~Vec.get~ and ~Map.get~ already throw; ~Array.get~ and
-     ~Str.get_byte_safe~ are the remaining containers. Either reuse
-     the empty ~OutOfBounds~ (consistent with ~Vec~) or introduce
-     the rstil-style ~IndexOutOfBoundsError~ with a ~msg: Str~
-     ~"file:line:col:Array.get: index out of bounds"~ -- decide on
-     one shape across Array/Vec/Str (the trend so far is empty).
-   - ~Vec.set~ / ~Array.set~ throwing ~OutOfBounds~. Needed to
-     unblock [[./225.org][#225]] (subscript assignment).
+   - ~Str.get_byte_safe(self, i: USize) returns I8 throws OutOfBounds~
+     -- the last container accessor still missing a throwing variant
+     (~Vec.get~, ~Map.get~, ~Array.get~ already throw). Reuse the
+     existing ~OutOfBounds~ for consistency.
    - Optional: ~Str.parse_i64~ throwing ~ParseError~ for the
      fallible-parse pattern.
 

@@ -1,0 +1,55 @@
+# priority: low
+# category: features
+** OPEN #279 Compound assignment operators (+=, -=, *=, ...) desugar a OP= b -> a = a OP b
+
+   Add the compound-assignment operators as a generic parser desugar:
+   ~a OP= b~ becomes ~a = a OP b~, reusing the existing binary-operator
+   desugar (~a + b -> a.add(b)~, etc.) and the assignment lowering. So:
+
+     a += b   ->  a = a + b   ->  a = a.add(b)
+     a -= b   ->  a = a - b   ->  a = a.sub(b)
+     a *= b   ->  a = a * b   ->  a = a.mul(b)
+
+   and likewise ~/=~, ~%=~, ~&=~, ~|=~, ~^=~ for the remaining
+   arithmetic/bitwise binops (comparisons and ~&&~/~||~ have no
+   compound form).
+
+   Because the assignment LHS handling is shared, this covers field
+   and subscript targets for free once ~a = a OP b~ is built on them:
+
+     obj.f += c  ->  obj.f = obj.f + c
+     a[i]  += c  ->  a[i]  = a[i] + c
+                 ->  a.set(i, own a.get(i)!.add(c))!   (via #225's desugars)
+
+   This is the compound-assignment piece explicitly deferred from
+   [[../fixed/225.org][#225]] (subscript assignment), generalised to
+   every lvalue.
+
+   *** Parser work
+
+   ~OP=~ sits where ~=~ does on an assignment target. The
+   assignment-statement parser already recognises ~name = value~,
+   ~name.field = value~, and (via #225) ~EXPR[INDEX] = RHS~. For each,
+   when the token after the target is a compound-assign token instead
+   of ~=~, build the RHS as ~<target-as-rvalue> OP <parsed-rhs>~ and
+   route it through the existing assignment path. ~<target-as-rvalue>~
+   is the target parsed as an expression (so ~a[i]~ reads as
+   ~a.get(i)!~, ~obj.f~ as a field read), and OP is the matching binop
+   from ~binop_method~.
+
+   Evaluating the target twice is acceptable for a first cut -- it is
+   exactly what the literal ~a = a OP b~ rewrite does. A single-eval
+   lowering (bind the target address/ref once) can come later if a
+   double-evaluated index or receiver with side effects proves to be a
+   problem.
+
+   *** Test
+
+   Cover ~+=~ and at least one other (e.g. ~*=~) on a plain local, a
+   struct field, and a Vec/Array subscript, under both interp and
+   compile.
+
+   *** Why low priority
+
+   Pure ergonomics: ~a = a + b~ already works; this is just shorter
+   syntax for it.
