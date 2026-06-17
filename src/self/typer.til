@@ -131,7 +131,7 @@ priv rewrite_til_type_arg := proc(scope: TypeScope, mut parent: Expr, arg_idx: U
         ref b : TypeBinding = scope.get_binding(arg_name.ident_name())
         if type_binding_is_type_token(scope, b).not() { return }
         replacement := arg.make_til_type_expr(b.type)
-        parent.children.set(arg_idx, own replacement)
+        parent.children[arg_idx] = replacement
         infer_expr(scope, parent.children[arg_idx], in_func, ctx)
     case:
     }
@@ -1141,12 +1141,12 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                             if fld_cname.len().gt(0).and(fld_cname.eq(fld_tn).not()).and(type_implements_iface(fld_cname, fld_tn, scope)) {
                                 mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col)
                                 infer_expr(scope, fld_box, in_func, ctx)
-                                field_vals.set(slot.cast(U32), own CtorArg.Filled(fld_box))
+                                field_vals[slot.cast(U32)] = CtorArg.Filled(fld_box)
                             } else {
-                                field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.children[0].clone()))
+                                field_vals[slot.cast(U32)] = CtorArg.Filled(arg.children[0].clone())
                             }
                         } else {
-                            field_vals.set(slot.cast(U32), own CtorArg.Filled(arg.children[0].clone()))
+                            field_vals[slot.cast(U32)] = CtorArg.Filled(arg.children[0].clone())
                         }
                     }
                 }
@@ -1166,7 +1166,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                     e.type_error(format("missing required field '", fld_d.name, "' in '", name, "(...)'"), ctx)
                     missing_required = true
                 } else {
-                    field_vals.set(i, own CtorArg.Filled(fld_d.default_value.clone()))
+                    field_vals[i] = CtorArg.Filled(fld_d.default_value.clone())
                 }
             }
         }
@@ -1257,7 +1257,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
                     if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        new_args.set(slot.cast(U32), own arg.children[0].clone())
+                        new_args[slot.cast(U32)] = arg.children[0].clone()
                     }
                 }
             case:
@@ -1268,10 +1268,10 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
                     if pos_idx.gte(fixed_count) {
                         va_args.push(own arg.clone())
                     } else if pos_idx.lt(nparam) {
-                        new_args.set(pos_idx, own arg.clone())
+                        new_args[pos_idx] = arg.clone()
                     }
                 } else if pos_idx.lt(nparam) {
-                    new_args.set(pos_idx, own arg.clone())
+                    new_args[pos_idx] = arg.clone()
                 }
                 pos_idx++
             }
@@ -1283,7 +1283,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params[i]
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args.set(i, own param.default_value.clone())
+                    new_args[i] = param.default_value.clone()
                 } else {
                     e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 }
@@ -1590,7 +1590,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                                             arg_tname := type_to_name(vk_arg.expr_til_type())
                                                 if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
                                                     if type_has_to_str(scope, arg_tname) {
-                                                        e.children.set(ci.add(vk), own make_to_str_call(arg_tname, vk_arg))
+                                                        e.children[ci.add(vk)] = make_to_str_call(arg_tname, vk_arg)
                                                         continue
                                                     }
                                             }
@@ -1653,7 +1653,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                     val_ptr.add_child(own e.children[ci].clone())
                     na_val.add_child(own val_ptr)
                     iface_box.add_child(own na_val)
-                    e.children.set(ci, own iface_box)
+                    e.children[ci] = iface_box
                     infer_expr(scope, e.children[ci], in_func, ctx)
                 }
             }
@@ -1955,7 +1955,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         // -- the clone+orphan was a per-UFCS-call leak of the whole receiver.
         mut recv_holder := Vec(Expr).new()
         recv_holder.push_take(fa.children, 0)
-        fa.children.set(0, own type_ident)
+        fa.children[0] = type_ident
         // Shift own_args bitmask: bits at position >=1 move to position+1
         // (UFCS inserts self at position 1)
         switch e.node_type {
@@ -2141,7 +2141,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                     if slot_arg.is(CtorArg.Filled) {
                         arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        new_args.set(slot.cast(U32), own CtorArg.Filled(arg.children[0].clone()))
+                        new_args[slot.cast(U32)] = CtorArg.Filled(arg.children[0].clone())
                     }
                 }
             case:
@@ -2149,7 +2149,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                     arg.type_error("positional argument after named argument", ctx)
                 }
                 if pos_idx.lt(np) {
-                    new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+                    new_args[pos_idx] = CtorArg.Filled(arg.clone())
                 }
                 pos_idx++
             }
@@ -2159,7 +2159,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             if slot_arg.is(CtorArg.Filled).not() {
                 ref param : Declaration = ns_fdef.params[i]
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args.set(i, own CtorArg.Filled(param.default_value.clone()))
+                    new_args[i] = CtorArg.Filled(param.default_value.clone())
                 } else {
                     e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 }
@@ -2355,7 +2355,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         }
     case NodeType.StructDef(_ns_sdef):
         mut type_ident := Expr.new(ident_node(method), e.children[0].line, e.children[0].col)
-        e.children.set(0, own type_ident)
+        e.children[0] = type_ident
         return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, in_func, ctx)
     case:
         UNREACHABLE(__LOC__)
@@ -2616,7 +2616,7 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         return
     }
     replacement := e.children[2].make_til_type_expr(target_type)
-    e.children.set(2.to_usize(), own replacement)
+    e.children[2.to_usize()] = replacement
     infer_expr(scope, e.children[2], in_func, ctx)
     e.set_expr_til_type(target_type)
 }
@@ -2919,7 +2919,7 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
             mname := lower_one_match(scope, node.children[ci], in_func, in_loop, returns_ref, ctx, pre)
             mut id := Expr.new(ident_node(mname), node.children[ci].line, node.children[ci].col)
             id.set_expr_til_type(node.children[ci].expr_til_type())
-            node.children.set(ci, own id)
+            node.children[ci] = id
         } else {
             replace_matches_rec(scope, node.children[ci], in_func, in_loop, returns_ref, ctx, pre)
         }
@@ -4146,7 +4146,7 @@ priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ct
     rbox_cname := til_type_name(stmt.children[0].expr_til_type())
     if rbox_cname.len().gt(0).and(rbox_cname.eq(iface_name).not()).and(type_implements_iface(rbox_cname, iface_name, scope)) {
         mut box := make_owned_iface_box(iface_name, rbox_cname, own raw_val, stmt.children[0].line, stmt.children[0].col)
-        stmt.children.set(0, own box)
+        stmt.children[0] = box
         infer_expr(scope, stmt.children[0], in_func, ctx)
     }
 }
@@ -4179,7 +4179,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
                             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
                             if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
                                 mc := make_clone_call(tname, stmt.expr_til_type(), stmt.children[0], stmt)
-                                stmt.children.set(0, own mc)
+                                stmt.children[0] = mc
                             }
                         }
                 case:
@@ -4427,7 +4427,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
         if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
             mc := make_clone_call(tname, rhs.expr_til_type(), rhs, rhs)
-            stmt.children.set(1, own mc)
+            stmt.children[1] = mc
         }
     }
 }
@@ -4472,7 +4472,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         if_node.add_child(own else_body)
 
         mut true_lit := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
-        stmt.children.set(0, own true_lit)
+        stmt.children[0] = true_lit
 
         mut old := Vec(Expr).new()
         old.move_from(body.children)
@@ -4710,7 +4710,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
                 val_ptr.add_child(own stmt.children[0].clone())
                 na_val.add_child(own val_ptr)
                 iface_box.add_child(own na_val)
-                stmt.children.set(0, own iface_box)
+                stmt.children[0] = iface_box
                 infer_expr(scope, stmt.children[0], in_func, ctx)
             }
         }
@@ -4952,7 +4952,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 // T_clone method; it's a plain 8-byte pointer.
                 if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
                     mc := make_clone_call(tname, stmt.expr_til_type(), rhs, stmt)
-                    stmt.children.set(0, own mc)
+                    stmt.children[0] = mc
                 }
             }
         }
@@ -5436,7 +5436,7 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
 }
 
 priv replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
-    body.children.set(stmt_idx, own block)
+    body.children[stmt_idx] = block
 }
 
 priv append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
@@ -6075,7 +6075,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
 }
 
 priv replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
-    body.children.set(stmt_idx, own block)
+    body.children[stmt_idx] = block
 }
 
 priv make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, line: U32, col: U32, elem_type: Str, var_is_mut: Bool) returns Expr {
@@ -7823,7 +7823,7 @@ priv hoist_walk_consolidated := proc(
         vec_str_push_uniq(seen, tn)
         pre_stmts.push(own build_bang_lowered(ctx, tn, line, col))
     }
-    parent.children.set(child_idx, own Expr.new(ident_node(tmp_name), line, col))
+    parent.children[child_idx] = Expr.new(ident_node(tmp_name), line, col)
 }
 
 // Walk stmt's expression tree hoisting nested bangs (not the
@@ -8942,7 +8942,7 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
             decl.add_child(own c.clone())
             top_level.push(own decl)
             mut ident := Expr.new(ident_node(lname), c.line, c.col)
-            e.children.set(i, own ident)
+            e.children[i] = ident
         } else {
             counter = typer_lift_lambdas_in_expr(c, top_level, counter)
         }
@@ -9326,7 +9326,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
             if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
                 mc := make_clone_call(tname, rhs.expr_til_type(), rhs, stmt)
-                stmt.children.set(0, own mc)
+                stmt.children[0] = mc
                 if scope.bindings.has(aname).not() {
                     if is_aggregate(existing) {
                         if assign_target_is_func_local(scope, aname) {
@@ -10130,7 +10130,13 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
 
 priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: U32, ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
-    mut set_call := make_ns_call(array_type, "set", Type.None, fcall)
+    // Issue #225: use the non-throwing `set_init`, not `set`. `set` is
+    // about to throw OutOfBounds (so `arr[i] = v` can desugar to a bang
+    // call), and this lowering runs after throws-lowering -- a throwing
+    // `set` here would emit a call missing its err-args. The slot is
+    // freshly allocated and `j` is in bounds, so set_init's panic-on-OOB
+    // is unreachable.
+    mut set_call := make_ns_call(array_type, "set_init", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(va_name), fcall.line, fcall.col)
     self_id.set_expr_til_type(Type.Struct(array_type.clone()))
@@ -10935,7 +10941,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         ref fa_base : Expr = expr.children[0]
         if fa_base.node_type.is(NodeType.FCall).and(is_macro_call(fa_base, ctx).not()) {
             if fcall_is_get_method(fa_base).or(is_aggregate(fa_base.expr_til_type()).and(fcall_returns_own(fa_base, scope))) {
-                expr.children.set(0, own hoist_to_temp(ctx, fa_base, hoisted, scope, false))
+                expr.children[0] = hoist_to_temp(ctx, fa_base, hoisted, scope, false)
             }
         }
     }
@@ -11050,7 +11056,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
             set_own_arg(expr, i)
         }
 
-        expr.children.set(i, own hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own))
+        expr.children[i] = hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own)
     }
 }
 
@@ -11062,7 +11068,7 @@ priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Ex
     hoist_expr(ctx, stmt.children[0], hoisted, scope)
     ref cond : Expr = stmt.children[0]
     if cond.node_type.is(NodeType.FCall) {
-        stmt.children.set(0, own hoist_to_temp(ctx, cond, hoisted, scope, false))
+        stmt.children[0] = hoist_to_temp(ctx, cond, hoisted, scope, false)
     }
 }
 
@@ -11073,7 +11079,7 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     if rhs.node_type.is(NodeType.FCall)
     .or(rhs.node_type.is_nonnull_literal()) {
         replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
-        stmt.children.set(0, own replacement)
+        stmt.children[0] = replacement
     }
 }
 
@@ -11102,7 +11108,7 @@ priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        stmt.children.set(0, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
+        stmt.children[0] = hoist_to_temp(ctx, rhs, hoisted, scope, false)
     }
 }
 
@@ -11145,7 +11151,7 @@ priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoiste
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        stmt.children.set(1, own hoist_to_temp(ctx, rhs, hoisted, scope, false))
+        stmt.children[1] = hoist_to_temp(ctx, rhs, hoisted, scope, false)
     }
 }
 

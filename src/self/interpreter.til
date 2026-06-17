@@ -1651,9 +1651,9 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                             orig_callee := callee_expr.clone()
                             mut flat_ident := callee_expr.clone()
                             flat_ident.node_type = ident_node(fp_flat)
-                            e.children.set(0, own flat_ident)
+                            e.children[0] = flat_ident
                             result := eval_call(scope, e, ctx)
-                            e.children.set(0, own orig_callee)
+                            e.children[0] = orig_callee
                             return result
                         }
                     case:
@@ -1734,9 +1734,9 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 orig_callee_val := callee_expr.clone()
                 mut flat_ident2 := callee_expr.clone()
                 flat_ident2.node_type = ident_node(flat_str)
-                e.children.set(0, own flat_ident2)
+                e.children[0] = flat_ident2
                 result := eval_call(scope, e, ctx)
-                e.children.set(0, own orig_callee_val)
+                e.children[0] = orig_callee_val
                 return result
             case:
                 UNREACHABLE(__LOC__)

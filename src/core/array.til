@@ -42,6 +42,24 @@ namespace:
         memset(val, 0, T.size().cast(U64))
     }
 
+    /// Non-throwing in-place set used by the variadic-argument codegen
+    /// (build_variadic_array_set fills a freshly-allocated, in-bounds slot
+    /// for every variadic call). Once `set` starts throwing OutOfBounds --
+    /// so `arr[i] = v` can desugar to `arr.set(i, own v)!` -- the variadic
+    /// codegen must not call the throwing `set` (the typer emits these
+    /// after throws-lowering, so they would never get the err-args). This
+    /// variant panics on a bad index instead of throwing, keeping the
+    /// codegen decoupled from `set`'s signature.
+    set_init := func(self: Array(T), i: USize, own val: T) {
+        if i.gte(self.cap) {
+            panic(__LOC__, "Array.set_init: index ", i.to_str(),
+                  " out of bounds (len ", self.cap.to_str(), ")")
+        }
+        T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+        memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
+        memset(val, 0, T.size().cast(U64))
+    }
+
     delete := func(own self: Array(T), call_free: Bool = true) {
         for i in 0..self.cap {
             T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)

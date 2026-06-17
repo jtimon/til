@@ -2286,7 +2286,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
             UNREACHABLE(__LOC__)
         }
         mut empty_body := Expr.new(NodeType.Body, slot.line, slot.col)
-        body.children.set(idx, own empty_body)
+        body.children[idx] = empty_body
     }
 
     init_recurse_into_subbodies(body, parent_prefix, top_level)
@@ -2436,7 +2436,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
                 // the old Ident, so no manual in-place rewrite is needed
                 // (issue #272; replaces the old Expr.replace_with).
                 ref repl_expr : Expr = subs[nm]
-                e.children.set(i, own repl_expr.clone())
+                e.children[i] = repl_expr.clone()
                 replaced = true
             }
         case:
@@ -2550,7 +2550,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr)) 
         ref tt : Str = fdd.throw_types[i]
         new_throw := init_subst_ident_name(subs, tt)
         if new_throw.len().gt(0) {
-            fdd.throw_types.set(i, own new_throw.clone())
+            fdd.throw_types[i] = new_throw.clone()
         }
     }
 }
@@ -2935,7 +2935,7 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeSco
                 if mark_ctx { ctx.type_gen_synths.add(own genname.clone()) }
             }
             mut idn := Expr.new(ident_node(genname), c.line, c.col)
-            e.children.set(i, own idn)
+            e.children[i] = idn
         } else {
             init_hoist_walk(c, macros, scope, ctx, synthesized, mark_ctx)
         }
@@ -2989,7 +2989,7 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
                     synthesized.push(own decl)
                 }
                 mut alias_target := Expr.new(ident_node(genname), stmt.line, stmt.col)
-                stmt.children.set(0.to_usize(), own alias_target)
+                stmt.children[0.to_usize()] = alias_target
             case:
             }
         case:
@@ -3397,7 +3397,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
         }
         // Rewrite through the parent slot: Vec.set deep-deletes the old
         // call (issue #272; replaces Expr.replace_with).
-        parent.children.set(call_idx, own newcall)
+        parent.children[call_idx] = newcall
     case:
     }
 }
@@ -3625,7 +3625,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             init_substitute_type_params(cloned, subs)
             mut nested_synthesized := Vec(Expr).new()
             init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, true)
-            stmt.children.set(0.to_usize(), own cloned)
+            stmt.children[0.to_usize()] = cloned
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }

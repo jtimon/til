@@ -673,7 +673,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                             if clone_arg_name.ident_name().eq(local.name) {
                                 mut bare := Expr.new(ident_node(local.name), fa_rhs.line, fa_rhs.col)
                                 bare.set_expr_til_type(local.type.clone())
-                                stmt.children.set(1, own bare)
+                                stmt.children[1] = bare
                                 // A Shallow (value) field deref-copies the move
                                 // source (`field = *local`), so the inner data
                                 // transfers but the heap wrapper must still be
@@ -734,7 +734,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                                 .and(var_aliases_target(local.name, assign_target, preceding).not()) {
                                 mut bare_ident := Expr.new(ident_node(local.name), assign_rhs.line, assign_rhs.col)
                                 bare_ident.set_expr_til_type(local.type.clone())
-                                stmt.children.set(0, own bare_ident)
+                                stmt.children[0] = bare_ident
                                 continue
                             }
                         case:

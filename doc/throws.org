@@ -32,6 +32,13 @@ lives, and step-by-step recipes for adding more throwing methods.
      struct/enum whose ~get~ method throws is therefore subscriptable
      -- no per-type special case in the parser. The desugar is
      generic in exactly the same way ~a + b -> a.add(b)~ is.
+   - Subscript assignment ~a[b] = c~ desugars to ~a.set(b, own c)!~,
+     the write-side mirror. Any type whose ~set~ method throws is
+     therefore assignable through a subscript; the ~own~ transfers the
+     RHS into the container exactly like a hand-written
+     ~a.set(b, own c)!~. ~Vec.set~ throws ~OutOfBounds~ today, so
+     ~vec[i] = x~ works. (~Map.set~ inserts-or-overwrites and never
+     throws, so ~map[k] = v~ does not compile -- use ~map.set(k, v)~.)
 
    Worked example:
 
@@ -242,5 +249,8 @@ lives, and step-by-step recipes for adding more throwing methods.
 
    - [[file:../issues/fixed/198.org][#198]] -- the original throw/catch port (shipped).
    - [[file:../issues/open/201.org][#201]] -- more built-in error types and safe_* methods.
-   - [[file:../issues/open/225.org][#225]] -- subscript assignment ~a[b] = c -> a.set(b, own c)!~,
-     blocked on ~Vec.set~ throwing.
+   - [[file:../issues/open/225.org][#225]] -- subscript assignment ~a[b] = c -> a.set(b, own c)!~.
+     ~Vec.set~ throws ~OutOfBounds~ and ~vec[i] = x~ ships; ~Array.set~
+     is still pending (its throwing form needs the variadic-argument
+     codegen decoupled from ~Array.set~ first -- the typer emits inline
+     ~Array.set~ calls to collect ~..args~).

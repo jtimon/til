@@ -55,7 +55,7 @@ test_vec_set := test() {
     v.push(own 30)
 
     // set middle element
-    v.set(1, own 99)
+    v.set(1, own 99)!
     ref a : I64 = v[0]
     ref b : I64 = v[1]
     ref c : I64 = v[2]
@@ -64,7 +64,7 @@ test_vec_set := test() {
     assert_eq(__LOC__, I64, c, 30)
 
     // set first element
-    v.set(0, own 42)
+    v.set(0, own 42)!
     ref d : I64 = v[0]
     assert_eq(__LOC__, I64, d, 42)
 }
@@ -74,11 +74,62 @@ test_vec_set_str := test() {
     v.push(own "aaa")
     v.push(own "bbb")
 
-    v.set(0, own "xxx")
+    v.set(0, own "xxx")!
     ref a : Str = v[0]
     ref b : Str = v[1]
     assert_eq(__LOC__, Str, a, "xxx")
     assert_eq(__LOC__, Str, b, "bbb")
+}
+
+// Issue #225: subscript assignment `v[i] = x` desugars to
+// `v.set(i, own x)!` (mirror of the read-side `v[i] -> v.get(i)!`).
+// Covers literal and computed indices, I64 and Str elements; the
+// round-trip is asserted under both interp and compile.
+test_vec_subscript_assign := test() {
+    v := Vec(I64).new()
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+
+    v[0] = 100            // literal index
+    i : USize = 1
+    v[i.add(1)] = 300     // computed index
+
+    ref a : I64 = v[0]
+    ref b : I64 = v[1]
+    ref c : I64 = v[2]
+    assert_eq(__LOC__, I64, a, 100)
+    assert_eq(__LOC__, I64, b, 20)
+    assert_eq(__LOC__, I64, c, 300)
+}
+
+test_vec_subscript_assign_str := test() {
+    v := Vec(Str).new()
+    v.push(own "aaa")
+    v.push(own "bbb")
+    v[0] = "zzz"
+    ref a : Str = v[0]
+    ref b : Str = v[1]
+    assert_eq(__LOC__, Str, a, "zzz")
+    assert_eq(__LOC__, Str, b, "bbb")
+}
+
+// Out-of-bounds set throws OutOfBounds. The bang form (`v[i] = x`)
+// panics; the explicit `v.set(i, own x)?` form lets a catch handle it.
+// Uses a Str element so the owned value's throw-path cleanup is
+// exercised under make_asan.
+test_vec_subscript_assign_oob := test() {
+    v := Vec(Str).new()
+    v.push(own "a")
+    mut caught := false
+    mut emsg := ""
+    v.set(5, own "unstored")?
+    catch (err: OutOfBounds) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("Vec.set"))
 }
 
 test_vec_size := test() {

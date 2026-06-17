@@ -1836,7 +1836,7 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
                 // Substitute through the parent slot: Vec.set deep-deletes
                 // the old Ident (issue #272; replaces Expr.replace_with).
                 ref repl : Expr = subs[nm]
-                e.children.set(i, own repl.clone())
+                e.children[i] = repl.clone()
                 replaced = true
             }
         case:
@@ -1906,7 +1906,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     } else {
         lazy_substitute_idents(cloned, subs)
     }
-    parent.children.set(call_idx, own cloned)
+    parent.children[call_idx] = cloned
     return true
 }
 
