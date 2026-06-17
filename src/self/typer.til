@@ -10313,15 +10313,107 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
     return va_decl
 }
 
+// Issue #225: name of an err-slot for build_variadic_array_set's throwing
+// `set`. Forced to a leading underscore so the typer's unused-variable check
+// (which exempts `_`-prefixed compiler temps, see infer pass) skips it: the
+// slot's only uses are the post-inference set-call Idents, which never flip
+// `binding.used`. The temp Array names already start with `_`; a user-named
+// array (e.g. `xs := array(...)`) does not, hence the explicit prefix.
+priv variadic_err_slot_name := func(va_name: Str, suffix: Str) returns Str {
+    if va_name.starts_with("_") { return va_name.concat(suffix) }
+    return "_".concat(va_name).concat(suffix)
+}
+
+// Build a fully-resolved zero-arg struct constructor `<name>()` for a
+// struct all of whose fields have defaults. build_variadic_err_slots uses
+// it to initialize the OutOfBounds err slot inside a post-inference desugar,
+// where infer_struct_constructor_fcall (a proc) is unreachable from this
+// func chain (a func cannot call a proc). Reads the struct's fields from
+// scope and fills each with its already-typed default (struct field
+// defaults are inferred during type_def typing), so it tracks field
+// changes. Panics if a field has no default or is owned -- either would
+// need a real value / own-arg handling the desugar does not synthesize.
+priv build_resolved_struct_default := func(name: Str, scope: TypeScope, line: U32, col: U32) returns Expr {
+    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    call.set_expr_til_type(Type.Struct(name.clone()))
+    mut callee := Expr.new(ident_node(name), line, col)
+    callee.set_expr_til_type(Type.Struct(name.clone()))
+    call.add_child(own callee)
+    ref sdef : Expr = scope.get_struct(name)
+    expect(sdef.is_null().not(), "build_resolved_struct_default: struct not registered")
+    switch sdef.node_type {
+    case NodeType.StructDef(sdd):
+        for fd : Declaration in sdd.fields {
+            if fd.own_type.is(OwnType.Own) {
+                panic("build_resolved_struct_default: field '", fd.name, "' of '", name, "' is owned")
+            }
+            if fd.default_value.is_null().or(fd.default_value.node_type.is(NodeType.NoDefaultArg)) {
+                panic("build_resolved_struct_default: field '", fd.name, "' of '", name, "' has no default")
+            }
+            call.add_child(own fd.default_value.clone())
+        }
+    case:
+        UNREACHABLE()
+    }
+    return call
+}
+
+// Issue #225: declare the per-Array error out-arg slots that
+// build_variadic_array_set passes to the throwing `set` as its
+// `_err_kind` / `_err_OutOfBounds` out-args. Named `<va>_ek` / `<va>_eo`
+// and scoped next to the temp Array. The fill is always in bounds, so the
+// set never actually throws -- the slots just satisfy its signature.
+//
+// Built fully resolved (til_type + resolved init) because this desugar
+// runs inside infer_body: nodes emitted here are NOT re-inferred, so an
+// un-typed decl falls back to I64 in the builder and an un-resolved
+// `OutOfBounds()` init emits a bogus C call. Mirrors build_variadic_array_decl,
+// which likewise hand-resolves its `Array.new(...)` init.
+priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context, line: U32, col: U32) {
+    // _ek : I64 = 0  -- receives the throwing set's `_err_kind` out-arg
+    // (a value out-param, so the builder passes it as `&<va>_ek`).
+    mut ek := Expr.new(NodeType.Decl(Declaration()), line, col)
+    switch ek.node_type {
+    case NodeType.Decl(ek_dd):
+        ek_dd.name = variadic_err_slot_name(va_name, "_ek")
+        ek_dd.is_mut = true
+    case:
+        UNREACHABLE()
+    }
+    ek.set_expr_til_type(Type.Primitive(Primitive.I64))
+    mut ek_init := Expr.new(literal_num_node("0"), line, col)
+    ek_init.set_expr_til_type(Type.Primitive(Primitive.I64))
+    ek.add_child(own ek_init)
+    scope.set(variadic_err_slot_name(va_name, "_ek"), Type.Primitive(Primitive.I64), true, ctx.path, line, col, false, OwnType.Shallow)
+    new_ch.push(own ek)
+
+    // _eo : own OutOfBounds = OutOfBounds()  -- receives the `_err_OutOfBounds`
+    // out-arg. Owned, so the builder stores it as a heap pointer and passes it
+    // to set directly (matching the throw-lowering slot shape).
+    mut eo := Expr.new(NodeType.Decl(Declaration()), line, col)
+    switch eo.node_type {
+    case NodeType.Decl(eo_dd):
+        eo_dd.name = variadic_err_slot_name(va_name, "_eo")
+        eo_dd.own_type = OwnType.Own
+        eo_dd.is_mut = true
+    case:
+        UNREACHABLE()
+    }
+    eo.set_expr_til_type(Type.Struct("OutOfBounds"))
+    eo.add_child(own build_resolved_struct_default("OutOfBounds", scope, line, col))
+    scope.set(variadic_err_slot_name(va_name, "_eo"), Type.Struct("OutOfBounds"), true, ctx.path, line, col, false, OwnType.Own)
+    new_ch.push(own eo)
+}
+
 priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: U32, ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
-    // Issue #225: use the non-throwing `set_init`, not `set`. `set` is
-    // about to throw OutOfBounds (so `arr[i] = v` can desugar to a bang
-    // call), and this lowering runs after throws-lowering -- a throwing
-    // `set` here would emit a call missing its err-args. The slot is
-    // freshly allocated and `j` is in bounds, so set_init's panic-on-OOB
-    // is unreachable.
-    mut set_call := make_ns_call(array_type, "set_init", Type.None, fcall)
+    // Issue #225: the variadic-arg collector fills its temp Array with the
+    // throwing `set`. This desugar runs after throws-lowering, so the call
+    // is not lowered automatically -- wire its error out-args by hand here:
+    // pass the per-array `<va>_ek` / `<va>_eo` slots (declared next to the
+    // Array, see build_variadic_err_slots) as the `_err_kind` /
+    // `_err_<OutOfBounds>` args. `j` is always in bounds, so it never throws.
+    mut set_call := make_ns_call(array_type, "set", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(va_name), fcall.line, fcall.col)
     self_id.set_expr_til_type(Type.Struct(array_type.clone()))
@@ -10350,6 +10442,14 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     case:
     }
     set_call.add_child(own val)
+
+    // Manually attach the throwing-set error out-args (see comment above).
+    mut ek_id := Expr.new(ident_node(variadic_err_slot_name(va_name, "_ek")), fcall.line, fcall.col)
+    ek_id.set_expr_til_type(Type.Primitive(Primitive.I64))
+    set_call.add_child(own ek_id)
+    mut eo_id := Expr.new(ident_node(variadic_err_slot_name(va_name, "_eo")), fcall.line, fcall.col)
+    eo_id.set_expr_til_type(til_type_from_explicit_type("OutOfBounds"))
+    set_call.add_child(own eo_id)
 
     sync_own_args_from_callee(set_call, scope)
     return set_call
@@ -10445,6 +10545,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
                 mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
                 scope.set(arr_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                 new_ch.push(own arr_decl)
+                build_variadic_err_slots(arr_name, new_ch, scope, ctx, fcall.line, fcall.col)
                 for j in 0..count {
                     mut setter := build_variadic_array_set(fcall, scope, elem_type, arr_name, 2, j, ctx)
                     new_ch.push(own setter)
@@ -10516,6 +10617,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
                 arr_decl.set_expr_til_type(Type.Struct(array_type.clone()))
                 scope.set(var_name, Type.Struct(array_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
                 new_ch.push(own arr_decl)
+                build_variadic_err_slots(var_name, new_ch, scope, ctx, rhs.line, rhs.col)
                 for j in 0..count {
                     mut setter := build_variadic_array_set(rhs, scope, elem_type, var_name, 2, j, ctx)
                     new_ch.push(own setter)
@@ -10767,6 +10869,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
                         mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
                         scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, line, col, false, OwnType.Own)
                         new_ch.push(own va_decl)
+                        build_variadic_err_slots(va_name, new_ch, scope, ctx, line, col)
                         for j in 0..vc {
                             mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi, j, ctx)
                             new_ch.push(own setter)

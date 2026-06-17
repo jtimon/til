@@ -3021,6 +3021,9 @@ void priv___src_self_typer_til__sync_own_args_from_callee(Expr * call, TypeScope
 Expr * priv___src_self_typer_til__build_kwargs_map_decl(Expr * fcall, Str * kw_name);
 Expr * priv___src_self_typer_til__build_kwargs_map_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg, Context * ctx);
 Expr * priv___src_self_typer_til__build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, U32 vc, Context * ctx);
+Str * priv___src_self_typer_til__variadic_err_slot_name(Str * va_name, Str * suffix);
+Expr * priv___src_self_typer_til__build_resolved_struct_default(Str * name, TypeScope * scope, U32 line, U32 col);
+void priv___src_self_typer_til__build_variadic_err_slots(Str * va_name, Vec__Expr * new_ch, TypeScope * scope, Context * ctx, U32 line, U32 col);
 Expr * priv___src_self_typer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, I32 vi, U32 j, Context * ctx);
 Expr * priv___src_self_typer_til__build_builtin_vec_decl(Expr * fcall, Str * elem_type, Str * vec_name);
 Expr * priv___src_self_typer_til__build_builtin_vec_push(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, U32 j, Context * ctx);
