@@ -55,6 +55,40 @@ lives, and step-by-step recipes for adding more throwing methods.
    }
    #+end_src
 
+** Throwing calls in conditionally-evaluated positions
+
+   A throwing call (~v[i]~, ~f()?~, ~f()!~) is lowered to run *only
+   when control actually reaches it*, so it short-circuits exactly like
+   the surrounding construct:
+
+   - *Short-circuit ~and~/~or~* ([[file:../issues/open/262.org][#262]]). ~cond.and(v[i])~ desugars
+     to a ~match~ whose taken arm holds ~v[i]~. The throwing call is
+     lowered INTO that arm, so when ~cond~ is false ~v[i]~ never runs --
+     a guarded subscript never goes out of bounds.
+   - *~match~ arms.* Same mechanism: a throwing call in an arm value
+     runs only when that arm is selected.
+   - *~switch~ / ~match~ case guards* ([[file:../issues/fixed/282.org][#282]]). In
+     ~case P if v[i].cond(): ...~ the guard runs only after the pattern
+     ~P~ matches. The bang in the guard is hoisted into the
+     pattern-gated case body (before the guard test), not out in front
+     of the whole ~switch~, so ~v[i]~ never runs -- and never panics --
+     when ~P~ does not match.
+
+   #+begin_src til
+   v := Vec(I64).new()        // empty
+   switch v.len() {           // 0
+   case 1 if v[0].gt(0): ...  // pattern 1 != 0, so v[0] is never read
+   case: ...                  // taken; no OutOfBounds panic
+   }
+   #+end_src
+
+   The guard lowering happens at infer time (the guard's conditional
+   position only exists after the ~#199~ flag-based desugar builds
+   ~if _sw_matched.not().and(P) { ...; if <guard> { body } }~); the
+   pre-infer throw pass discovers the guard's throw types so the
+   function-level ~_err_kind~/~_err_<T>~ slots are still declared. See
+   ~lower_guard_bang_calls~ / ~register_bang_guard_throws~ in the typer.
+
 ** Implementation map
 
    *** Parser ([[file:../src/self/parser.til][src/self/parser.til]])
@@ -73,10 +107,12 @@ lives, and step-by-step recipes for adding more throwing methods.
    runs *before* ~infer_body~ so downstream stages (constfolder, asap,
    interpreter, builder) never see ~Throw~ or ~Catch~ nodes.
 
-   - ~throws_names_global~ / ~throw_type_registry~ on ~Context~:
-     accumulated lists of error type names. Per-type tags are stable
-     across functions, so the same ~T~ gets the same numeric tag in
-     every function that throws or catches it.
+   - ~throws_global~ / ~throw_type_registry~ on ~Context~:
+     ~throws_global~ maps a callee key (~"Type.method"~, or a bare name
+     for a free function) to its declared throw-type list;
+     ~throw_type_registry~ is the accumulated list of error type names.
+     Per-type tags are stable across functions, so the same ~T~ gets the
+     same numeric tag in every function that throws or catches it.
    - ~extend_throwing_func_sigs~: rewrites every ~throws T1, T2, ...~
      function signature to add synthetic out-params
      ~mut _err_kind: I64~ and one ~mut _err_<T>: T~ per declared
@@ -97,11 +133,12 @@ lives, and step-by-step recipes for adding more throwing methods.
      ~ctx.lowering_param_types~ first (params + switch-case bindings,
      see below), then ~guess_local_type~ on the function body, then
      ~scope.get_binding~ for the FCall-return-type case.
-   - ~registry_exact_idx~: O(N) scan of ~throws_names_global~ for an
-     exact ~"Type.method"~ key. On miss with a ~?~ or ~!~ marked
-     call, falls back to suffix-matching ~".method"~ -- a one-shot
-     match wins; an ambiguous match is a typer error pointing at the
-     ambiguous candidates.
+   - ~registry_exact_key~: lookup of ~throws_global~ for an exact
+     ~"Type.method"~ key (~find_callee_throws_key~ first resolves the
+     receiver's owning type via ~callee_owning_type~). On miss with a
+     ~?~ or ~!~ marked call, ~registry_suffix_key~ falls back to
+     suffix-matching ~".method"~ -- the first registered ~".method"~
+     wins (see the suffix-matching pitfall below).
 
    *** Tag layout
 
@@ -234,17 +271,15 @@ lives, and step-by-step recipes for adding more throwing methods.
    type before ~process_throw_catch_in_func_body~ runs, these two
    call sites are the place to extend.
 
-   *** Throws-registry suffix matching
-
-   ~registry_exact_idx~ is keyed on ~"Type.method"~. When the typer
+   ~registry_exact_key~ is keyed on ~"Type.method"~. When the typer
    can't resolve the receiver's owning type for a ~?~ or ~!~ call,
-   it falls back to suffix-matching ~".method"~ against the
-   registry. If multiple registered types declare ~.get~ that
-   throws (e.g. ~Vec.get : OutOfBounds~ and ~Map.get : KeyNotFound~)
-   and the typer can't tell which one applies, the fallback picks
-   one nondeterministically. The fix is to make ~resolve_value_type~
-   resolve the receiver (see previous pitfall), not to special-case
-   the suffix table.
+   ~registry_suffix_key~ falls back to suffix-matching ~".method"~
+   against the registry. If multiple registered types declare ~.get~
+   that throws (e.g. ~Vec.get : OutOfBounds~ and ~Map.get :
+   KeyNotFound~) and the typer can't tell which one applies, the
+   fallback picks one nondeterministically. The fix is to make
+   ~resolve_value_type~ resolve the receiver (see previous pitfall),
+   not to special-case the suffix table.
 
 ** Related issues
 

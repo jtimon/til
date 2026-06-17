@@ -7951,7 +7951,8 @@ priv hoist_nested_bangs_consolidated := proc(
 //   8. wrap stmt in `if I64.eq(_err_kind, 0)` when a previous stmt
 //      could have set _err_kind
 // A throwing call in a `match` arm value -- a subscript `v[i]` (= `get(i)!`),
-// an `f()?` (may throw; propagates to the caller's throws clause), or an
+// an `f()?` (may throw; the error is caught by a later `catch` in this
+// function, or propagated to the caller's throws clause when uncaught), or an
 // `f()!` (panics if it throws, so it needs no catch/rethrow) -- lives in a Body
 // node that neither step 1 (hoist_walk returns on Body) nor step 2 (which
 // descends into if/while/for/switch/catch bodies, but a `match` here is an
@@ -7963,10 +7964,11 @@ priv hoist_nested_bangs_consolidated := proc(
 // Walk the statement's expression tree for nested Match nodes and run the
 // throw/catch lowering on each arm Body exactly like a switch case body. That
 // lowering handles both forms correctly -- it appends a panic guard for `!`
-// and propagates for `?` -- and hoists the call INTO the arm, so it only runs
-// when that arm is taken (short-circuit preserved) and gets its
-// _err_kind/_err_<T> out-args; the throw type lands in types_to_declare so the
-// function-level slot decls are prepended as usual.
+// and, for `?`, leaves the error to a local `catch` or the caller -- and
+// hoists the call INTO the arm, so it only runs when that arm is taken
+// (short-circuit preserved) and gets its _err_kind/_err_<T> out-args; the
+// throw type lands in types_to_declare so the function-level slot decls are
+// prepended as usual.
 
 // #282: a throwing (bang) call in a switch/match case GUARD is lowered at
 // infer time (infer_switch_stmt), where the guard's pattern-gated position
