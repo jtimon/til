@@ -1,0 +1,79 @@
+# priority: medium
+# category: bugs
+** OPEN #282 Throwing call in a switch/match case guard runs unconditionally
+
+   A throwing call in a case *guard* is evaluated even when the case's
+   pattern does not match, so it can panic on a value the guard was never
+   meant to see. Minimal repro (panics ~OutOfBounds~ in both interp and
+   compiled, despite the guard's pattern never matching):
+
+   : t := test() {
+   :     v := Vec(I64).new()       # empty
+   :     mut r := 0
+   :     switch v.len() {          # 0
+   :     case 1 if v[0].gt(0): r = 1   # pattern 1 != 0; guard v[0] must NOT run
+   :     case: r = 2
+   :     }
+   :     expect(__LOC__, r.eq(2), "guard not evaluated when pattern misses")
+   : }
+
+   It compiles cleanly; at run time ~v[0]~ (a throwing ~get(0)!~) is
+   evaluated unconditionally and the empty ~v~ panics. A non-throwing guard
+   is fine; this only bites when the guard contains a throwing call
+   (subscript, ~f()?~, ~f()!~).
+
+*** Root cause
+
+    A guard is the middle child of a 3-child ~Case~ ~[pattern, guard,
+    body]~ -- a bare expression. The throw/bang lowering pass
+    (~process_throw_catch_in_body~ -> ~hoist_walk_consolidated~) recurses
+    into it (it is not a ~Body~) and hoists the guard's throwing call out
+    to a temp *before* the whole switch statement, so it runs once,
+    unconditionally. The case body is fine -- step 2 of the pass recurses
+    into switch case ~Body~ nodes -- but the guard is not.
+
+*** Why it is not a one-liner (the infer-timing wall)
+
+    The guard's conditional position only exists *after* inference:
+    ~infer_switch_stmt~'s flag-based desugar (#199) lowers a guarded case to
+    ~if _sw_matched.not().and(pattern) { bindings; if <guard> { body;
+    _sw_matched = true } }~. The throw/bang pass runs *before* inference, so:
+
+    - Just skipping ~Case~ in ~hoist_walk~ (stop the premature hoist) leaves
+      the guard's call unlowered; inference then fails with "missing
+      argument for parameter '_err_kind'".
+    - Running the throw pass on the case body *during* inference (after the
+      inner ~if <guard>~ is built) fails because the throws-resolver
+      (~find_callee_throws_key~ -> ~callee_owning_type~ -> ~resolve_value_type~)
+      determines a method's throw set by scanning the body AST for the
+      receiver's declaration -- the case body does not contain it, and the
+      receiver is not inferred yet at that point either. Attempting this
+      produces "function does not throw, remove the '!'" / "may throw
+      'OutOfBounds' but it is not in the throws clause".
+
+    The #262 match-arm fix (~process_match_arms_in~) sidestepped exactly
+    this by processing un-lowered ~match~ arm ~Body~ nodes *during* the
+    pre-infer throw pass, where the enclosing function body (and so the
+    receiver's decl) is in scope. A guard's inner ~if~ does not exist
+    pre-infer, so it cannot use the same trick.
+
+*** Fix direction
+
+    Give the throw machinery a way to lower throwing calls in
+    conditionally-evaluated positions that are *created during inference*:
+
+    - Make throws-resolution consult the typer scope / the receiver's
+      inferred ~til_type~ instead of only scanning the body AST, so it can
+      run after inference; OR thread the enclosing function body plus an
+      explicit ~root_body~ argument into the guard lowering so the existing
+      pass resolves against the function body, not the case body. Then hoist
+      the guard's throwing call to the top of the (pattern-gated) case body
+      with local ~_err_kind~/~_err_<T>~ slots, so it runs only on a pattern
+      hit -- short-circuit preserved.
+
+    This is the same root cause as #262 (throwing calls in
+    conditionally-evaluated positions lowered during inference); a unified
+    infer-time lowering would cover both match arms and case guards.
+
+   Cross-refs: [[./262.org][#262]] (throwing calls in ~match~ arms -- the
+   sibling case, fixed), #199 (switch guards / flag-based desugar).
