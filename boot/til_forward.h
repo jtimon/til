@@ -113,7 +113,8 @@ typedef enum {
     NodeType_TAG_Throw,
     NodeType_TAG_Catch,
     NodeType_TAG_RestPattern,
-    NodeType_TAG_CaptureBlock
+    NodeType_TAG_CaptureBlock,
+    NodeType_TAG_CallerLoc
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -2822,6 +2823,7 @@ Bool priv___src_self_typer_til__is_clone_fcall(Expr * e);
 void priv___src_self_typer_til__validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall_impl(TypeScope * scope, Expr * sdef, Expr * e, Str * name, I32 in_func, Context * ctx);
+Expr * priv___src_self_typer_til__resolve_default_value(Expr * default_value, Expr * call_expr, Context * ctx);
 void priv___src_self_typer_til__desugar_user_func_fcall_args(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_typer_til__redundant_literal_conversion(Expr * e, Type * expected);
 void priv___src_self_typer_til__redundant_conversion_error(Expr * at, Type * expected, Context * ctx);

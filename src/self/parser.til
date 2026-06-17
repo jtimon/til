@@ -1453,6 +1453,14 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         if name.eq("__LOC__") {
             e = Expr.new(NodeType.Literal(Literal.Str(format(p.path, ":", t_line.to_str(), ":", t_col.to_str()))), t_line, t_col)
             e_set = true
+        } else if name.eq("__CALLER_LOC__") {
+            // Issue #281: unlike __LOC__, this is NOT expanded here. It must
+            // survive parsing as a sentinel so the typer can fill it with the
+            // CALL SITE's location when a defaulted param/field is materialized
+            // (resolve_default_value). Expanding it now would bake in this
+            // definition site, defeating the whole point.
+            e = Expr.new(NodeType.CallerLoc, t_line, t_col)
+            e_set = true
         } else if name.eq("__FILE__") {
             e = Expr.new(NodeType.Literal(Literal.Str(p.path.clone())), t_line, t_col)
             e_set = true

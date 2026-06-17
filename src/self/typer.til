@@ -1166,7 +1166,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                     e.type_error(format("missing required field '", fld_d.name, "' in '", name, "(...)'"), ctx)
                     missing_required = true
                 } else {
-                    field_vals[i] = CtorArg.Filled(fld_d.default_value.clone())
+                    field_vals[i] = CtorArg.Filled(resolve_default_value(fld_d.default_value, e, ctx))
                 }
             }
         }
@@ -1210,6 +1210,20 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         UNREACHABLE(__LOC__)
         return false
     }
+}
+
+// Issue #281: materialize one parameter/field default value for a call/ctor
+// fill site. If the default is the __CALLER_LOC__ sentinel, resolve it to a
+// Str literal holding the CALL SITE's location (the call/ctor Expr's coords +
+// the file currently being typed, ctx.path -- the caller's file); otherwise
+// clone the default as before. Keyed on the default VALUE, never on the
+// callee's name, so any user func/proc/struct field gets the behavior.
+priv resolve_default_value := func(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr {
+    if default_value.node_type.is(NodeType.CallerLoc) {
+        loc_str := format(ctx.path, ":", call_expr.line.to_str(), ":", call_expr.col.to_str())
+        return Expr.new(NodeType.Literal(Literal.Str(loc_str)), call_expr.line, call_expr.col)
+    }
+    return default_value.clone()
 }
 
 priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {
@@ -1283,7 +1297,7 @@ priv desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: S
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params[i]
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args[i] = param.default_value.clone()
+                    new_args[i] = resolve_default_value(param.default_value, e, ctx)
                 } else {
                     e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 }
@@ -2159,7 +2173,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             if slot_arg.is(CtorArg.Filled).not() {
                 ref param : Declaration = ns_fdef.params[i]
                 if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args[i] = CtorArg.Filled(param.default_value.clone())
+                    new_args[i] = CtorArg.Filled(resolve_default_value(param.default_value, e, ctx))
                 } else {
                     e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 }

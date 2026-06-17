@@ -602,6 +602,14 @@ NodeType := enum {
     // body's visible outer locals to the captured names; downstream
     // stages treat it as the inline block it wraps.
     CaptureBlock: CaptureBlockData,
+    // Issue #281: post-parse sentinel for `__CALLER_LOC__`. Unlike __LOC__
+    // (expanded to a Str at parse time from the token's own position), this
+    // survives parsing so the typer can resolve it to the CALL SITE when a
+    // defaulted parameter/field is filled in (resolve_default_value). It
+    // never reaches the interpreter or C backend -- the default-fill rewrite
+    // replaces it with a Literal.Str before either runs. Appended at the end
+    // of the enum so existing variant tags stay stable for bootstrapping.
+    CallerLoc,
 namespace:
     // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
     // cannot tell the literal kinds apart -- it matches any Literal. These
@@ -766,6 +774,9 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Match(md):   return md.til_type.clone()
     case NodeType.Case:        return Type.None
     case NodeType.NoDefaultArg:return Type.Unknown
+    // Issue #281: the __CALLER_LOC__ sentinel stands in for a Str location
+    // literal until the default-fill resolves it, so it types as Str.
+    case NodeType.CallerLoc:   return Type.Struct("Str")
     case NodeType.Throw:
         if e.children.len().eq(0) { return Type.None }
         return e.children[0].expr_til_type()
@@ -864,6 +875,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.Match:          return "Match"
     case NodeType.Case:           return "Case"
     case NodeType.NoDefaultArg:   return "NoDefaultArg"
+    case NodeType.CallerLoc:      return "CallerLoc"
     case NodeType.Throw:          return "Throw"
     case NodeType.Catch:          return "Catch"
     case NodeType.CaptureBlock:   return "CaptureBlock"
@@ -921,6 +933,7 @@ node_name := func(data: NodeType) returns Str {
     case NodeType.Switch:      return "switch"
     case NodeType.Match:       return "match"
     case NodeType.Case:        return "case"
+    case NodeType.CallerLoc:   return "caller_loc"
     case NodeType.Throw:       return "throw"
     case NodeType.Catch:       return "catch"
     case NodeType.CaptureBlock: return "capture_block"
