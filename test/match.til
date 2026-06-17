@@ -58,6 +58,26 @@ test_match_guard := test() {
     assert_eq(__LOC__, Str, s, "yes")
 }
 
+# --- #282: a throwing (subscript) call in a match guard runs ONLY on a
+#     pattern hit. The empty-Vec subscript here must not OOB-panic when the
+#     pattern misses; on a hit the guard is evaluated normally. ---
+test_match_guard_throwing_call := test() {
+    empty := Vec(I64).new()
+    miss := match empty.len() {       # 0; pattern 1 misses, guard must not run
+    case 1 if empty[0].gt(0): 1
+    case: 2
+    }
+    assert_eq(__LOC__, I64, miss, 2)
+
+    mut v := Vec(I64).new()
+    v.push(own 9)
+    hit := match v.len() {            # 1; pattern hits, guard true -> 1
+    case 1 if v[0].gt(0): 1
+    case: 2
+    }
+    assert_eq(__LOC__, I64, hit, 1)
+}
+
 # --- default `case:` on a non-enum subject ---
 test_match_default := test() {
     n := 7

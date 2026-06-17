@@ -5807,6 +5807,50 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     stmt.set_expr_til_type(Type.None)
 }
 
+// #282: seed the throws resolver with the in-scope type of every Ident in
+// `e` (the live typer scope is the authoritative source at infer time).
+// resolve_value_type checks ctx.lowering_param_types before scanning a body
+// AST, so this lets find_callee_throws_key resolve a guard bang's receiver
+// (a local or param) without a function-body scan. Entries are correct local
+// types; they are harmless to leave (re-seeded fresh before each guard hoist).
+priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, scope: TypeScope) {
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        nm := idn.ident_name()
+        if nm.len().gt(0).and(ctx.lowering_param_types.has(nm).not()) {
+            ref b : TypeBinding = scope.get_binding(nm)
+            if b.is_null().not() {
+                tn := til_type_name(b.type)
+                if tn.len().gt(0) { ctx.lowering_param_types.set(nm, own tn) }
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        seed_guard_receiver_types(ctx, c, scope)
+    }
+}
+
+// #282: lower throwing (bang) calls in a case guard. The guard is
+// guard_if.children[0]; hoist_walk_consolidated pulls each bang FCall out into
+// a `_bang_ret_<n> := <call>?` temp (with injected _err_kind/_err_<T> args)
+// plus a panic-on-throw check, replacing the bang with the temp Ident. Those
+// pre-stmts are appended to `dest` (the pattern-gated case body) BEFORE the
+// guard `if`, so the call runs only when the pattern matches. The function
+// already owns the _err_kind/_err_<T> slots (declared pre-infer via the guard
+// discovery walk), so the throwaway types_to_declare/seen here are discarded.
+priv lower_guard_bang_calls := proc(scope: TypeScope, mut guard_if: Expr, mut dest: Vec(Expr), resolve_body: Expr, mut ctx: Context) {
+    seed_guard_receiver_types(ctx, guard_if.children[0], scope)
+    mut pre := Vec(Expr).new()
+    mut tmp_types := Vec(Str).new()
+    mut tmp_seen := Vec(Str).new()
+    hoist_walk_consolidated(ctx, guard_if, 0, resolve_body, pre, tmp_types, tmp_seen)
+    npre := pre.len()
+    for pi in 0..npre {
+        dest.push_take(pre, pi)
+    }
+}
+
 priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut sw_expr : Expr = stmt.children[0]
@@ -5986,6 +6030,15 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
                 mut guard_if := Expr.new(NodeType.If, case_node.line, case_node.col)
                 guard_if.add_child(own guard_expr.clone())
                 guard_if.add_child(own user_stmts)
+                // #282: the pre-infer throw pass deliberately left a throwing
+                // (bang) call in the guard un-hoisted. Lower it now into
+                // new_body, before the guard `if`. new_body is the body of the
+                // pattern gate (`if _sw_matched.not().and(pattern) { ... }`),
+                // so the call -- and its panic-on-throw check -- run only when
+                // the pattern matches; short-circuit preserved.
+                if subtree_has_bang(guard_if.children[0]) {
+                    lower_guard_bang_calls(scope, guard_if, new_body, body, ctx)
+                }
                 new_body.push(own guard_if)
             } else {
                 for us_i in 0..user_stmts.children.len() {
@@ -7735,6 +7788,20 @@ priv validate_and_inject_expr_consolidated := proc(
     if e.node_type.is(NodeType.Body) { return }
     validate_one_fcall_consolidated(ctx, e, body, pending, seen, types_to_declare, path)
     inject_err_args_on_one_fcall_consolidated(ctx, e, body)
+    if e.node_type.is(NodeType.Case) {
+        // #282: a bang call in a case guard is lowered at infer time into the
+        // pattern-gated case body, not here. Skip the guard child (index 1 of
+        // a 3-child [pattern, guard, body] Case) so validate_one_fcall doesn't
+        // flag the surviving '!' as "function does not throw". The body is a
+        // Body (handled elsewhere); the pattern carries no calls.
+        guard_bang := e.children.len().eq(3).and(subtree_has_bang(e.children[1]))
+        for sci in 0..e.children.len() {
+            if guard_bang.and(sci.eq(1)) { continue }
+            ref mut sub : Expr = e.children[sci]
+            validate_and_inject_expr_consolidated(ctx, sub, body, pending, seen, types_to_declare, path)
+        }
+        return
+    }
     for mut sub : Expr in e.children {
         validate_and_inject_expr_consolidated(ctx, sub, body, pending, seen, types_to_declare, path)
     }
@@ -7785,6 +7852,14 @@ priv hoist_walk_consolidated := proc(
         .or(child.node_type.is(NodeType.StructDef))
         .or(child.node_type.is(NodeType.EnumDef)) { return }
     if child.node_type.is(NodeType.Body) { return }
+    // #282: a switch/match `Case` is [pattern, (guard,) body]. Its body is a
+    // Body (skipped above; lowered by the step-2 case-body recursion) and its
+    // guard is evaluated only on a pattern hit. A throwing (bang) call in the
+    // guard must therefore NOT be hoisted out here -- that would run it
+    // unconditionally before the whole switch. infer_switch_stmt lowers guard
+    // bangs into the pattern-gated case body instead. Patterns carry no calls,
+    // so stopping at the whole Case is safe.
+    if child.node_type.is(NodeType.Case) { return }
     for gi in 0..child.children.len() {
         hoist_walk_consolidated(ctx, child, gi, body, pre_stmts, types_to_declare, seen)
     }
@@ -7892,6 +7967,44 @@ priv hoist_nested_bangs_consolidated := proc(
 // when that arm is taken (short-circuit preserved) and gets its
 // _err_kind/_err_<T> out-args; the throw type lands in types_to_declare so the
 // function-level slot decls are prepended as usual.
+
+// #282: a throwing (bang) call in a switch/match case GUARD is lowered at
+// infer time (infer_switch_stmt), where the guard's pattern-gated position
+// finally exists. The pre-infer pass cannot place it, but it must still
+// DISCOVER the guard's throw types so the function-level _err_kind / _err_<T>
+// slots get declared (process_throw_catch_in_func_body prepends them from
+// types_to_declare). Walk the guard for bang FCalls, resolve each callee's
+// throws against the function body, and register them -- without hoisting.
+priv register_bang_guard_throws := proc(
+    mut ctx: Context,
+    guard: Expr,
+    root_body: Expr,
+    mut types_to_declare: Vec(Str),
+    mut seen: Vec(Str)
+) {
+    if guard.node_type.is(NodeType.FCall) {
+        mut is_b := false
+        switch guard.node_type {
+        case NodeType.FCall(fcd_g): is_b = fcd_g.is_bang
+        case:
+        }
+        if is_b.and(guard.children.len().gt(0)) {
+            key := find_callee_throws_key(ctx, guard, root_body)
+            if key.len().gt(0) {
+                ref tts : Vec(Str) = ctx.throws_global[key]
+                for tn : Str in tts {
+                    register_throw_type(ctx, tn)
+                    vec_str_push_uniq(types_to_declare, tn)
+                    vec_str_push_uniq(seen, tn)
+                }
+            }
+        }
+    }
+    for c : Expr in guard.children {
+        register_bang_guard_throws(ctx, c, root_body, types_to_declare, seen)
+    }
+}
+
 priv process_match_arms_in := proc(
     mut ctx: Context,
     mut e: Expr,
@@ -7918,6 +8031,12 @@ priv process_match_arms_in := proc(
     if e.node_type.is(NodeType.Match) {
         for mut child : Expr in e.children {
             if child.node_type.is(NodeType.Case) {
+                // #282: discover a bang guard's throw types so the
+                // function-level err slots get declared (the actual hoist
+                // runs at infer time).
+                if child.children.len().eq(3) {
+                    register_bang_guard_throws(ctx, child.children[1], root_body, types_to_declare, seen)
+                }
                 // Case = [pattern, (guard,) body]; process its Body arm(s).
                 for mut ccn : Expr in child.children {
                     if ccn.node_type.is(NodeType.Body) {
@@ -8019,6 +8138,12 @@ priv process_throw_catch_in_body := proc(
             for ci in 1..stmt.children.len() {
                 ref mut cn : Expr = stmt.children[ci]
                 if cn.node_type.is(NodeType.Case) {
+                    // #282: discover a bang guard's throw types so the
+                    // function-level err slots get declared (the actual hoist
+                    // runs at infer time).
+                    if cn.children.len().eq(3) {
+                        register_bang_guard_throws(ctx, cn.children[1], root_body, types_to_declare, seen)
+                    }
                     for mut ccn : Expr in cn.children {
                         if ccn.node_type.is(NodeType.Body) {
                             process_throw_catch_in_body(ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
@@ -8104,7 +8229,13 @@ priv process_throw_catch_in_body := proc(
             for ci in 1..stmt.children.len() {
                 ref mut cn : Expr = stmt.children[ci]
                 if cn.node_type.is(NodeType.Case) {
-                    for mut ccn : Expr in cn.children {
+                    // #282: a bang call in a case guard is lowered at infer
+                    // time, not here -- skip the guard child so validate
+                    // doesn't flag the surviving '!'.
+                    guard_bang := cn.children.len().eq(3).and(subtree_has_bang(cn.children[1]))
+                    for cci in 0..cn.children.len() {
+                        if guard_bang.and(cci.eq(1)) { continue }
+                        ref mut ccn : Expr = cn.children[cci]
                         if ccn.node_type.is(NodeType.Body).not() {
                             validate_and_inject_expr_consolidated(ctx, ccn, root_body, pending, seen, types_to_declare, path)
                         }

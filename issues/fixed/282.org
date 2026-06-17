@@ -1,6 +1,50 @@
 # priority: medium
 # category: bugs
-** OPEN #282 Throwing call in a switch/match case guard runs unconditionally
+** FIXED #282 Throwing call in a switch/match case guard runs unconditionally
+
+*** Post-mortem
+
+    Root cause: the pre-infer throw/bang pass hoisted a guard's throwing
+    (bang) call out to a temp *before* the whole switch -- because
+    ~hoist_walk_consolidated~ recursed into a ~Case~ node's guard child (a
+    bare expression, not a ~Body~). So the call ran once, unconditionally,
+    and an empty ~v[0]~ panicked ~OutOfBounds~ even when the pattern never
+    matched. (~match~ guards have the identical ~Case~ shape and bug.) The
+    conditional position that should gate the guard only exists *after*
+    inference, where ~infer_switch_stmt~'s #199 flag desugar lowers a
+    guarded case to ~if _sw_matched.not().and(pattern) { bindings; if
+    <guard> { body; _sw_matched = true } }~. ~?~-guards were already fine:
+    a ~?~ call is never hoisted by ~hoist_walk_consolidated~ (it only
+    handles bangs), so it stayed inside the guard and rode the desugar's
+    pattern gate.
+
+    Fix (all in src/self/typer.til):
+    - ~hoist_walk_consolidated~ now returns on a ~Case~ node, so a guard's
+      bang is no longer hoisted before the switch (case bodies are still
+      lowered via the step-2 recursion; patterns hold no calls).
+    - A new ~register_bang_guard_throws~ walk runs in the pre-infer pass
+      (from the ~Switch~ step-2 handler and ~process_match_arms_in~). It
+      discovers each guard bang's throw types and registers them into
+      ~types_to_declare~/~seen~ (and ~throw_type_registry~) so the
+      function-level ~_err_kind~/~_err_<T>~ slots are still declared --
+      without hoisting.
+    - The validate+inject step skips a bang guard (in both the ~Switch~
+      step-4 handler and ~validate_and_inject_expr_consolidated~'s ~Case~
+      recursion) so the surviving ~!~ isn't flagged "function does not
+      throw".
+    - ~infer_switch_stmt~ now lowers the guard's bang at infer time:
+      ~lower_guard_bang_calls~ seeds the bang callee's receiver type from
+      the live typer scope (~seed_guard_receiver_types~ into
+      ~lowering_param_types~), then reuses ~hoist_walk_consolidated~ to
+      hoist the bang into the pattern-gated case body, before the inner
+      guard ~if~. The throwing call (and its panic-on-throw check) now run
+      only on a pattern hit -- short-circuit preserved.
+
+    Regression tests: test/enums.til
+    (~test_guard_throwing_call_short_circuits~,
+    ~test_guard_throwing_call_runs_on_hit~,
+    ~test_guard_throwing_call_false_guard_falls_through~) and test/match.til
+    (~test_match_guard_throwing_call~). Verified in interp and compiled.
 
    A throwing call in a case *guard* is evaluated even when the case's
    pattern does not match, so it can panic on a value the guard was never

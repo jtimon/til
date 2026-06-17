@@ -611,6 +611,41 @@ test_guard_bare_variant_false := test() {
     assert_eq(__LOC__, Str, r, "no")
 }
 
+# --- #282: a throwing (bang/subscript) call in a guard runs ONLY on a
+#     pattern hit. With an eager pre-switch hoist the empty-Vec subscript
+#     below would OOB-panic even though the pattern never matches. ---
+test_guard_throwing_call_short_circuits := test() {
+    v := Vec(I64).new()       # empty
+    mut r := 0
+    switch v.len() {          # 0
+    case 1 if v[0].gt(0): r = 1   # pattern 1 != 0; guard v[0] must NOT run
+    case: r = 2
+    }
+    assert_eq(__LOC__, I64, r, 2)
+}
+
+test_guard_throwing_call_runs_on_hit := test() {
+    mut v := Vec(I64).new()
+    v.push(own 5)             # len 1, v[0] == 5
+    mut r := 0
+    switch v.len() {          # 1
+    case 1 if v[0].gt(0): r = 1   # pattern hits, guard true -> r = 1
+    case: r = 2
+    }
+    assert_eq(__LOC__, I64, r, 1)
+}
+
+test_guard_throwing_call_false_guard_falls_through := test() {
+    mut v := Vec(I64).new()
+    v.push(own -5)            # len 1, v[0] == -5 (not > 0)
+    mut r := 0
+    switch v.len() {          # 1
+    case 1 if v[0].gt(0): r = 1   # pattern hits, guard false -> default runs
+    case: r = 2
+    }
+    assert_eq(__LOC__, I64, r, 2)
+}
+
 // #211: payload bindings inherit the matched value's mutability. A mut
 // enum exposes a ref-mut payload binding in case patterns, so `n = 99`
 // type-checks AND propagates into the enum's payload memory -- the

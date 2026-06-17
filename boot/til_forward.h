@@ -2904,6 +2904,8 @@ Bool priv___src_self_typer_til__switch_is_clike(TypeScope * scope, Expr * stmt, 
 Str * priv___src_self_typer_til__lvalue_root_name(Expr * e);
 void priv___src_self_typer_til__prepend_clike_payload_binding(TypeScope * scope, Expr * sw_expr, Expr * case_node, Str * sw_sname);
 void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+void priv___src_self_typer_til__seed_guard_receiver_types(Context * ctx, Expr * e, TypeScope * scope);
+void priv___src_self_typer_til__lower_guard_bang_calls(TypeScope * scope, Expr * guard_if, Vec__Expr * dest, Expr * resolve_body, Context * ctx);
 Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
 Expr * priv___src_self_typer_til__make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
@@ -2954,6 +2956,7 @@ void priv___src_self_typer_til__validate_and_inject_expr_consolidated(Context * 
 Expr * priv___src_self_typer_til__build_bang_lowered(Context * ctx, Str * error_type, U32 line, U32 col);
 void priv___src_self_typer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, U32 child_idx, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
 void priv___src_self_typer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
+void priv___src_self_typer_til__register_bang_guard_throws(Context * ctx, Expr * guard, Expr * root_body, Vec__Str * types_to_declare, Vec__Str * seen);
 void priv___src_self_typer_til__process_match_arms_in(Context * ctx, Expr * e, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void priv___src_self_typer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void priv___src_self_typer_til__process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec__Str * fdef_throws, Str * return_type, OwnType * return_own_type);
