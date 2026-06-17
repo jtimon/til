@@ -12,7 +12,7 @@ ca_new_grid := func(cols: I64, rows: I64) returns Array(I64) {
 ca_clear_grid := func(mut grid: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
-        grid.set(i.to_usize(), own 0)
+        grid[i.to_usize()] = 0
         i++
     }
 }
@@ -65,15 +65,15 @@ ca_step := func(mut grid: Array(I64), mut next: Array(I64), cols: I64, rows: I64
         ref cur : I64 = grid[i.to_usize()]
         if cur.eq(1) {
             if ca_in_set(survive, survive_len, neighbors) {
-                next.set(i.to_usize(), own 1)
+                next[i.to_usize()] = 1
             } else {
-                next.set(i.to_usize(), own 0)
+                next[i.to_usize()] = 0
             }
         } else {
             if ca_in_set(born, born_len, neighbors) {
-                next.set(i.to_usize(), own 1)
+                next[i.to_usize()] = 1
             } else {
-                next.set(i.to_usize(), own 0)
+                next[i.to_usize()] = 0
             }
         }
         i++
@@ -85,7 +85,7 @@ ca_swap := func(mut grid: Array(I64), mut next: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         ref nval : I64 = next[i.to_usize()]
-        grid.set(i.to_usize(), own nval.clone())
+        grid[i.to_usize()] = nval.clone()
         i++
     }
 }

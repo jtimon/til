@@ -1,29 +1,50 @@
 # priority: low
 # category: features
-** WIP #225 Subscript assignment a[b] = c -> a.set(b, own c)!
+** FIXED #225 Subscript assignment a[b] = c -> a.set(b, own c)!
 
-   *** Progress
+   *** Post-mortem
 
-   - Parser desugar + statement-level method ~?~/~!~ -- shipped (two
-     bootstrap-prep commits: ~a[b] = c~ now parses into
-     ~a.set(b, own c)!~, generic over any throwing ~set~).
-   - Variadic ~Array~ collection in the builder decoupled from
-     ~Array.set~ (writes via ~memcpy~) -- shipped (bootstrap prep).
-   - ~Vec.set~ throws ~OutOfBounds~ and ~vec[i] = x~ ships, with all
-     ~Vec.set~ call sites migrated (src/self + src/std to the subscript
-     form, test/ kept in the explicit ~vec.set(i, own x)!~ form).
-     Regression: ~test_vec_subscript_assign~ (+ ~_str~, ~_oob~) in
-     ~test/arrays~'s sibling ~test/vecs.til~.
-   - REMAINING: ~Array.set~ throwing + ~arr[i] = x~. Blocked on one
-     more bootstrap prep -- the typer emits inline ~Array.set~ calls to
-     collect every variadic call's ~..args~ (~build_variadic_array_set~,
-     run after throws-lowering so it is not auto-handled). That inline
-     ~Array.set~ must be decoupled (route variadic construction through
-     the ~memcpy~ ~array_of_~ helper, or an internal non-throwing
-     setter) before ~Array.set~ can throw. Once that lands, mirror the
-     ~Vec~ work: ~Array.set~ throws, migrate the two ~done.set~ sites in
-     ~builder.til~, add ~test_array_subscript_assign~ in
-     ~test/arrays.til~.
+   Shipped the write-side mirror of the read-side ~a[b] -> a.get(b)!~
+   desugar. ~a[b] = c~ now desugars to ~a.set(b, own c)!~ generically,
+   so any type whose ~set~ throws is subscript-assignable. ~Vec.set~
+   and ~Array.set~ throw ~OutOfBounds~; ~vec[i] = x~ and ~arr[i] = x~
+   work. ~Map.set~ inserts-or-overwrites (never fails) so it stays
+   non-throwing and ~map[k] = v~ does not compile -- the same
+   asymmetry as a ~str[i]~ write.
+
+   The bulk of the work was bootstrap sequencing: ~til_boot~ (the prior
+   master compiler) compiles the migrated sources, so each piece of new
+   syntax / changed codegen had to land in ~boot/~ before the next
+   could use it. ~two_pass~ does not help -- pass 1 fails to parse or
+   to compile the emitted C. Hence three preparation commits before the
+   feature:
+
+   1. Parser: ~a[b] = c~ desugar (~parse_subscript_assign~) + statement-
+      level method ~?~/~!~ (the lowered ~a.set(..)!~ is a statement-
+      position throwing method call, which the statement parser did not
+      previously accept).
+   2. Builder: the variadic-argument codegen collected ~..args~ into an
+      ~Array~ via ~Array_set~ in two string-write sites (main()'s entry
+      wrapper and the ~array_of_<T>~ helper); rewrote both to ~memcpy~,
+      decoupling them from ~Array.set~'s arity.
+   3. Typer: the variadic lowering ALSO emits an inline ~Array.set~ per
+      arg (~build_variadic_array_set~), and it runs after throws-
+      lowering so the call never gets its err-args. Added a non-throwing
+      ~Array.set_init~ (panic-on-OOB) and pointed the variadic codegen
+      at it.
+
+   Feature commits: ~Vec.set~ throws + migrate ~Vec.set~ call sites
+   (~src/self~, ~src/std~ HashMap internals -> subscript; ~test/~ kept
+   in the explicit ~vec.set(i, own x)!~ form); then ~Array.set~ throws +
+   migrate the two ~done.set~ sites in ~builder.til~ -> subscript and
+   the ~slots.set~ sites in ~src/tests.til~.
+
+   Regression tests: ~test_vec_subscript_assign~ / ~_str~ / ~_oob~ in
+   ~test/vecs.til~ and ~test_array_subscript_assign~ / ~_str~ / ~_oob~
+   in ~test/arrays.til~ -- literal and computed indices, I64 and Str
+   elements, round-trip under interp and compile, and the OOB-throws-
+   via-~catch~ path (Str element, so the owned value's throw-path
+   cleanup is exercised under the suite's ASAN).
 
    Mirror of the shipped read-side desugaring: the parser now turns
    ~a[b]~ into ~a.get(b)!~ (generic over any struct/enum whose

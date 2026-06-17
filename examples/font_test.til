@@ -36,7 +36,7 @@ main := proc() {
     for i in 0..NUM_FONTS {
         ref path : Str = FONTS[i]
         f := LoadFontEx(path.c_str, 48, NULL, 0)
-        fonts.set(i, own f)
+        fonts[i] = f
     }
 
     BG_DARK := Color(r = 20, g = 20, b = 30, a = 255)

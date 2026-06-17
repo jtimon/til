@@ -72,9 +72,9 @@ main := proc() {
                 next_dx = 1
                 next_dy = 0
                 snake_len = 3
-                body.set(0, own (p1y * COLS + center_x))
-                body.set(1, own (p1y * COLS + center_x - 1))
-                body.set(2, own (p1y * COLS + center_x - 2))
+                body[0] = (p1y * COLS + center_x)
+                body[1] = (p1y * COLS + center_x - 1)
+                body[2] = (p1y * COLS + center_x - 2)
                 // P2: lower third, going left
                 p2y : I32 = ROWS * 2 / 3
                 dx2 = -1
@@ -82,18 +82,18 @@ main := proc() {
                 next_dx2 = -1
                 next_dy2 = 0
                 snake_len2 = 3
-                body2.set(0, own (p2y * COLS + center_x))
-                body2.set(1, own (p2y * COLS + center_x + 1))
-                body2.set(2, own (p2y * COLS + center_x + 2))
+                body2[0] = (p2y * COLS + center_x)
+                body2[1] = (p2y * COLS + center_x + 1)
+                body2[2] = (p2y * COLS + center_x + 2)
             } else {
                 dx = 1
                 dy = 0
                 next_dx = 1
                 next_dy = 0
                 snake_len = 3
-                body.set(0, own (center_y * COLS + center_x))
-                body.set(1, own (center_y * COLS + center_x - 1))
-                body.set(2, own (center_y * COLS + center_x - 2))
+                body[0] = (center_y * COLS + center_x)
+                body[1] = (center_y * COLS + center_x - 1)
+                body[2] = (center_y * COLS + center_x - 2)
             }
             food_x = GetRandomValue(0, COLS - 1)
             food_y = GetRandomValue(0, ROWS - 1)
@@ -255,26 +255,26 @@ main := proc() {
                         while j > 0 {
                             ref prev_ref : I32 = body[j - 1]
                             prev_val := prev_ref
-                            body.set(j, own prev_val)
+                            body[j] = prev_val
                             j--
                         }
-                        body.set(0, own new_pos)
+                        body[0] = new_pos
 
                         // Shift P2 body
                         mut j2 : USize = snake_len2 - 1
                         while j2 > 0 {
                             ref prev_ref2 : I32 = body2[j2 - 1]
                             prev_val2 := prev_ref2
-                            body2.set(j2, own prev_val2)
+                            body2[j2] = prev_val2
                             j2--
                         }
-                        body2.set(0, own new_pos2)
+                        body2[0] = new_pos2
 
                          // Food collision P1
                          if new_x == food_x && new_y == food_y {
                             ref tail_ref : I32 = body[snake_len - 1]
                             tail_val := tail_ref
-                            body.set(snake_len, own tail_val)
+                            body[snake_len] = tail_val
                             snake_len = snake_len + 1
                             score = score + 10
                             food_x = GetRandomValue(0, COLS - 1)
@@ -284,7 +284,7 @@ main := proc() {
                          if new_x2 == food_x && new_y2 == food_y {
                             ref tail_ref2 : I32 = body2[snake_len2 - 1]
                             tail_val2 := tail_ref2
-                            body2.set(snake_len2, own tail_val2)
+                            body2[snake_len2] = tail_val2
                             snake_len2 = snake_len2 + 1
                             score = score + 10
                             food_x = GetRandomValue(0, COLS - 1)
@@ -312,15 +312,15 @@ main := proc() {
                         while j > 0 {
                             ref prev_ref : I32 = body[j - 1]
                             prev_val := prev_ref
-                            body.set(j, own prev_val)
+                            body[j] = prev_val
                             j--
                         }
-                        body.set(0, own new_pos)
+                        body[0] = new_pos
 
                          if new_x == food_x && new_y == food_y {
                             ref tail_ref : I32 = body[snake_len - 1]
                             tail_val := tail_ref
-                            body.set(snake_len, own tail_val)
+                            body[snake_len] = tail_val
                             snake_len = snake_len + 1
                             score = score + 10
 

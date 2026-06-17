@@ -44,9 +44,9 @@ main := proc() {
             mut ri : I32 = 0
             while ri < TOTAL {
                 ri_u : USize = ri.to_usize()
-                mines.set(ri_u, own 0)
-                counts.set(ri_u, own 0)
-                state.set(ri_u, own 0)
+                mines[ri_u] = 0
+                counts[ri_u] = 0
+                state[ri_u] = 0
                 ri++
             }
             game_over = false
@@ -82,7 +82,7 @@ main := proc() {
                                     mut diff_y := py - my
                                     if diff_y < 0 { diff_y = -diff_y }
                                     if diff_x > 1 || diff_y > 1 {
-                                        mines.set(pos_u, own 1)
+                                        mines[pos_u] = 1
                                         placed = placed + 1
                                     }
                                 }
@@ -112,7 +112,7 @@ main := proc() {
                                         }
                                         ny++
                                     }
-                                    counts.set(ci_u, own cnt)
+                                    counts[ci_u] = cnt
                                 }
                                 ci++
                             }
@@ -128,7 +128,7 @@ main := proc() {
                                 ri2_u : USize = ri2.to_usize()
                                 ref rm : I32 = mines[ri2_u]
                                 if rm == 1 {
-                                    state.set(ri2_u, own 1)
+                                    state[ri2_u] = 1
                                 }
                                 ri2++
                             }
@@ -144,7 +144,7 @@ main := proc() {
                                 cur_u : USize = cur.to_usize()
                                 ref cur_st : I32 = state[cur_u]
                                 if cur_st == 0 {
-                                    state.set(cur_u, own 1)
+                                    state[cur_u] = 1
                                     ref cur_cnt : I32 = counts[cur_u]
                                     if cur_cnt == 0 {
                                         // Push all neighbors
@@ -194,11 +194,11 @@ main := proc() {
                     idx_u : USize = idx.to_usize()
                     ref st : I32 = state[idx_u]
                     if st == 0 {
-                        state.set(idx_u, own 2)
+                        state[idx_u] = 2
                         flags = flags + 1
                     } else {
                         if st == 2 {
-                            state.set(idx_u, own 0)
+                            state[idx_u] = 0
                             flags = flags - 1
                         }
                     }

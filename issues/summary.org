@@ -59,7 +59,6 @@
 *** [[./open/159.org][#159]] Show the til logo as a single character in the REPL prompt
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
 *** [[./open/212.org][#212]] Add a `cast(e, T)` builtin (UFCS-callable as `e.cast(T)`) to replace the integer `.to_*` conversion matrix
-*** [[./open/225.org][#225]] Subscript assignment a[b] = c -> a.set(b, own c)!
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros

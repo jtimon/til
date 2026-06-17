@@ -66,8 +66,8 @@ main := proc() {
     mut key_down := Array(I32).new(NUM_KEYS)
     mut prev_down := Array(I32).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
-        key_down.set(i, own 0)
-        prev_down.set(i, own 0)
+        key_down[i] = 0
+        prev_down[i] = 0
     }
 
     // Note events (circular buffer)
@@ -75,9 +75,9 @@ main := proc() {
     mut ev_start := Array(I64).new(MAX_NOTES)
     mut ev_end := Array(I64).new(MAX_NOTES)
     for i in 0..MAX_NOTES {
-        ev_note.set(i, own 0)
-        ev_start.set(i, own 0)
-        ev_end.set(i, own 0)
+        ev_note[i] = 0
+        ev_start[i] = 0
+        ev_end[i] = 0
     }
     mut ev_count : I64 = 0
     mut ev_head : I64 = 0
@@ -87,7 +87,7 @@ main := proc() {
     for i in 0..NUM_KEYS {
         ref freq : I64 = FREQS[i]
         s := make_tone(freq, 10000, 1.to_f32().div(10))
-        sounds.set(i, own s)
+        sounds[i] = s
     }
 
     mut timer : I64 = 0
@@ -112,9 +112,9 @@ main := proc() {
         for i in 0..NUM_KEYS {
             ref kc : I32 = KEYCODES[i]
             if IsKeyDown(kc) {
-                key_down.set(i, own 1)
+                key_down[i] = 1
             } else {
-                key_down.set(i, own 0)
+                key_down[i] = 0
             }
         }
 
@@ -148,7 +148,7 @@ main := proc() {
                     }
                 }
                  if mouse_note >= 0 && mouse_note.to_usize() < NUM_KEYS {
-                    key_down.set(mouse_note.to_usize(), own 1)
+                    key_down[mouse_note.to_usize()] = 1
                 }
             }
         }
@@ -162,10 +162,10 @@ main := proc() {
                 ref s : Sound = sounds[i]
                 PlaySound(s)
                 // Add note event
-                ev_note.set(ev_head.to_usize(), own i.cast(I32))
+                ev_note[ev_head.to_usize()] = i.cast(I32)
                 t_val := timer
-                ev_start.set(ev_head.to_usize(), own t_val)
-                ev_end.set(ev_head.to_usize(), own -1)
+                ev_start[ev_head.to_usize()] = t_val
+                ev_end[ev_head.to_usize()] = -1
                 ev_head = (ev_head + 1) % MAX_NOTES.to_i64()
                 if ev_count < MAX_NOTES.to_i64() {
                     ev_count = ev_count + 1
@@ -182,7 +182,7 @@ main := proc() {
                     ref ee : I64 = ev_end[idx.to_usize()]
                     if en == i.cast(I32) && ee == -1 {
                         t_val := timer
-                        ev_end.set(idx.to_usize(), own t_val)
+                        ev_end[idx.to_usize()] = t_val
                         break
                     }
                 }
@@ -193,7 +193,7 @@ main := proc() {
         for i in 0..NUM_KEYS {
             ref kd : I32 = key_down[i]
             kd_val := kd
-            prev_down.set(i, own kd_val)
+            prev_down[i] = kd_val
         }
 
         // -- Draw --

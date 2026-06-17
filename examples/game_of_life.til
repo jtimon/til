@@ -58,9 +58,9 @@ main := proc() {
                 idx_u : USize = idx.to_usize()
                 ref val : I64 = grid[idx_u]
                 if val == 0 {
-                    grid.set(idx_u, own 1)
+                    grid[idx_u] = 1
                 } else {
-                    grid.set(idx_u, own 0)
+                    grid[idx_u] = 0
                 }
             }
         }

@@ -190,15 +190,15 @@ shootil_setup := proc() {
     // Build AABBs for collision detection.
     mut bi : USize = 0
     for pos : Vector3 in cube_positions {
-        aabbs.set(bi, own crate_bb(pos, cube_size))
+        aabbs[bi] = crate_bb(pos, cube_size)
         bi++
     }
     for pos : Vector3 in tall_positions {
-        aabbs.set(bi, own crate_bb(pos, tall_size))
+        aabbs[bi] = crate_bb(pos, tall_size)
         bi++
     }
     for pos : Vector3 in small_positions {
-        aabbs.set(bi, own crate_bb(pos, small_size))
+        aabbs[bi] = crate_bb(pos, small_size)
         bi++
     }
 

@@ -2,9 +2,9 @@ mode test
 
 test_array_new_get_set := test() {
     a := Array(I64).new(3)
-    a.set(0, own 10)
-    a.set(1, own 20)
-    a.set(2, own 30)
+    a.set(0, own 10)!
+    a.set(1, own 20)!
+    a.set(2, own 30)!
 
     ref x : I64 = a.get(0)!
     ref y : I64 = a.get(1)!
@@ -20,9 +20,9 @@ test_array_new_get_set := test() {
 // whose get throws), so subscript and explicit get(i)! agree.
 test_array_subscript := test() {
     a := Array(I64).new(3)
-    a.set(0, own 10)
-    a.set(1, own 20)
-    a.set(2, own 30)
+    a.set(0, own 10)!
+    a.set(1, own 20)!
+    a.set(2, own 30)!
 
     ref x : I64 = a[0]
     ref y : I64 = a[1]
@@ -38,10 +38,59 @@ test_array_subscript := test() {
     assert_eq(__LOC__, I64, w, 30)
 }
 
+// Issue #225: subscript assignment `a[i] = x` desugars to
+// `a.set(i, own x)!`, the write-side mirror of `a[i] -> a.get(i)!`.
+// Literal and computed indices, round-trip asserted under interp and
+// compile.
+test_array_subscript_assign := test() {
+    a := Array(I64).new(3)
+    a[0] = 10
+    a[1] = 20
+    a[2] = 30
+
+    a[0] = 100            // literal index
+    idx : USize = 1
+    a[idx.add(1)] = 300   // computed index
+
+    ref x : I64 = a[0]
+    ref y : I64 = a[1]
+    ref z : I64 = a[2]
+    assert_eq(__LOC__, I64, x, 100)
+    assert_eq(__LOC__, I64, y, 20)
+    assert_eq(__LOC__, I64, z, 300)
+}
+
+test_array_subscript_assign_str := test() {
+    a := Array(Str).new(2)
+    a[0] = "hello"
+    a[1] = "world"
+    a[0] = "zzz"
+    ref s0 : Str = a[0]
+    ref s1 : Str = a[1]
+    assert_eq(__LOC__, Str, s0, "zzz")
+    assert_eq(__LOC__, Str, s1, "world")
+}
+
+// Out-of-bounds set throws OutOfBounds. The bang form (`a[i] = x`)
+// panics; the explicit `a.set(i, own x)?` form lets a catch handle it.
+// Str element so the owned value's throw-path cleanup runs under ASAN.
+test_array_subscript_assign_oob := test() {
+    a := Array(Str).new(2)
+    mut caught := false
+    mut emsg := ""
+    a.set(5, own "unstored")?
+    catch (err: OutOfBounds) {
+        caught = true
+        emsg = err.msg
+    }
+    assert(__LOC__, caught)
+    assert(__LOC__, emsg.contains("Array.set"))
+}
+
 test_array_strings := test() {
     a := Array(Str).new(2)
-    a.set(0, own "hello")
-    a.set(1, own "world")
+    a.set(0, own "hello")!
+    a.set(1, own "world")!
 
     ref s0 : Str = a.get(0)!
     ref s1 : Str = a.get(1)!
@@ -52,9 +101,9 @@ test_array_strings := test() {
 
 test_array_overwrite := test() {
     a := Array(I64).new(2)
-    a.set(0, own 1)
-    a.set(1, own 2)
-    a.set(0, own 99)
+    a.set(0, own 1)!
+    a.set(1, own 2)!
+    a.set(0, own 99)!
 
     ref v : I64 = a.get(0)!
     assert_eq(__LOC__, I64, v, 99)

@@ -219,7 +219,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
     slots := Array(Slot).new(j)
     mut si : USize = 0
     while si.lt(j) {
-        slots.set(si, own Slot())
+        slots[si] = Slot()
         si++
     }
 
@@ -230,7 +230,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
         cmd := format(t.cmd, " > ", t.outfile, " 2>&1")
         start := clock_ms()
         pid := spawn_cmd(cmd)
-        slots.set(si, own Slot(test_idx = next, pid = pid, start_ms = start))
+        slots[si] = Slot(test_idx = next, pid = pid, start_ms = start)
         active++
         next++
         si++
@@ -300,7 +300,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                         cmd := format(nt.cmd, " > ", nt.outfile, " 2>&1")
                         start := clock_ms()
                         pid := spawn_cmd(cmd)
-                        slots.set(i, own Slot(test_idx = next, pid = pid, start_ms = start))
+                        slots[i] = Slot(test_idx = next, pid = pid, start_ms = start)
                         active++
                         next++
                     }

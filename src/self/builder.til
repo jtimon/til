@@ -3831,7 +3831,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     mut done := Array(Bool).new(items.len())
     for di in 0..items.len() {
         mut f_val := false
-        done.set(di, own f_val)
+        done[di] = f_val
     }
 
     while remaining.gt(0) {
@@ -3878,7 +3878,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                 }
                 emitted.add(own sdecl.name.clone())
                 mut t_val := true
-                done.set(ei, own t_val)
+                done[ei] = t_val
                 remaining--
                 progress = true
             case:

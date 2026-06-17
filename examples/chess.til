@@ -81,7 +81,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = src[i.to_u32()]
-        dst.set(i.to_u32(), own v.clone())
+        dst[i.to_u32()] = v.clone()
         i++
     }
 }
@@ -227,8 +227,8 @@ move_leaves_in_check := func(mut board: Array(I64), mut tmp: Array(I64), from: I
     ref p : I64 = tmp[from.to_u32()]
     pv := p.clone()
     pt := piece_type(pv)
-    tmp.set(to.to_u32(), own pv)
-    tmp.set(from.to_u32(), own 0)
+    tmp[to.to_u32()] = pv
+    tmp[from.to_u32()] = 0
 
     // Handle en passant capture on temp board
     if pt.eq(1) {
@@ -238,7 +238,7 @@ move_leaves_in_check := func(mut board: Array(I64), mut tmp: Array(I64), from: I
         if dest.eq(0).and(from_c.neq(to_c)) {
             // En passant: remove captured pawn
             cap_r := from.div(8)
-            tmp.set(cap_r.mul(8).add(to_c).to_u32(), own 0)
+            tmp[cap_r.mul(8).add(to_c).to_u32()] = 0
         }
     }
 
@@ -271,7 +271,7 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
             ref fp : I64 = board[nr.mul(8).add(c).to_u32()]
             if fp.eq(0) {
                 if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(c), side) {
-                    moves.set(count.to_u32(), own nr.mul(8).add(c))
+                    moves[count.to_u32()] = nr.mul(8).add(c)
                     count++
                 }
                 // Forward two from start
@@ -280,7 +280,7 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                     ref fp2 : I64 = board[nr2.mul(8).add(c).to_u32()]
                     if fp2.eq(0) {
                         if !move_leaves_in_check(board, tmp, idx, nr2.mul(8).add(c), side) {
-                            moves.set(count.to_u32(), own nr2.mul(8).add(c))
+                            moves[count.to_u32()] = nr2.mul(8).add(c)
                             count++
                         }
                     }
@@ -314,15 +314,15 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                                 copy_board(tmp, board)
                                 ref pv : I64 = tmp[idx.to_u32()]
                                 pvv := pv.clone()
-                                tmp.set(nr.mul(8).add(nc).to_u32(), own pvv)
-                                tmp.set(idx.to_u32(), own 0)
-                                tmp.set(r.mul(8).add(nc).to_u32(), own 0)
+                                tmp[nr.mul(8).add(nc).to_u32()] = pvv
+                                tmp[idx.to_u32()] = 0
+                                tmp[r.mul(8).add(nc).to_u32()] = 0
                                 if in_check(tmp, side) {
                                     ok = false
                                 }
                             }
                             if ok {
-                                moves.set(count.to_u32(), own nr.mul(8).add(nc))
+                                moves[count.to_u32()] = nr.mul(8).add(nc)
                                 count++
                             }
                         }
@@ -347,7 +347,7 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                 ref dp : I64 = board[nr.mul(8).add(nc).to_u32()]
                 if !is_side(dp, side) {
                     if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
-                        moves.set(count.to_u32(), own nr.mul(8).add(nc))
+                        moves[count.to_u32()] = nr.mul(8).add(nc)
                         count++
                     }
                 }
@@ -370,13 +370,13 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                 ref sp : I64 = board[sr.mul(8).add(sc).to_u32()]
                 if sp.eq(0) {
                     if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
-                        moves.set(count.to_u32(), own sr.mul(8).add(sc))
+                        moves[count.to_u32()] = sr.mul(8).add(sc)
                         count++
                     }
                 } else {
                     if !is_side(sp, side) {
                         if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
-                            moves.set(count.to_u32(), own sr.mul(8).add(sc))
+                            moves[count.to_u32()] = sr.mul(8).add(sc)
                             count++
                         }
                     }
@@ -407,13 +407,13 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                 ref sp : I64 = board[sr.mul(8).add(sc).to_u32()]
                 if sp.eq(0) {
                     if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
-                        moves.set(count.to_u32(), own sr.mul(8).add(sc))
+                        moves[count.to_u32()] = sr.mul(8).add(sc)
                         count++
                     }
                 } else {
                     if !is_side(sp, side) {
                         if !move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side) {
-                            moves.set(count.to_u32(), own sr.mul(8).add(sc))
+                            moves[count.to_u32()] = sr.mul(8).add(sc)
                             count++
                         }
                     }
@@ -442,7 +442,7 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                         ref dp : I64 = board[nr.mul(8).add(nc).to_u32()]
                         if !is_side(dp, side) {
                             if !move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side) {
-                                moves.set(count.to_u32(), own nr.mul(8).add(nc))
+                                moves[count.to_u32()] = nr.mul(8).add(nc)
                                 count++
                             }
                         }
@@ -477,7 +477,7 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                         rook_piece := side.mul(6).add(4)
                         if sq5.eq(0).and(sq6.eq(0)).and(sq7.eq(rook_piece)) {
                             if (!is_attacked(board, r, 5, opp)).and(!is_attacked(board, r, 6, opp)) {
-                                moves.set(count.to_u32(), own r.mul(8).add(6))
+                                moves[count.to_u32()] = r.mul(8).add(6)
                                 count++
                             }
                         }
@@ -492,7 +492,7 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
                         rook_piece := side.mul(6).add(4)
                         if sq3.eq(0).and(sq2.eq(0)).and(sq1.eq(0)).and(sq0.eq(rook_piece)) {
                             if (!is_attacked(board, r, 3, opp)).and(!is_attacked(board, r, 2, opp)) {
-                                moves.set(count.to_u32(), own r.mul(8).add(2))
+                                moves[count.to_u32()] = r.mul(8).add(2)
                                 count++
                             }
                         }
@@ -535,27 +535,27 @@ execute_move := func(mut board: Array(I64), from: I64, to: I64, side: I64,
 
     cf_off := side.mul(3)
     if mpt.eq(6) {
-        castle_flags.set(cf_off.to_u32(), own 1)
+        castle_flags[cf_off.to_u32()] = 1
         if from_c.eq(4).and(to_c.eq(6)) {
             ref rp : I64 = board[from_r.mul(8).add(7).to_u32()]
             rpv := rp.clone()
-            board.set(from_r.mul(8).add(5).to_u32(), own rpv)
-            board.set(from_r.mul(8).add(7).to_u32(), own 0)
+            board[from_r.mul(8).add(5).to_u32()] = rpv
+            board[from_r.mul(8).add(7).to_u32()] = 0
         }
         if from_c.eq(4).and(to_c.eq(2)) {
             ref rp : I64 = board[from_r.mul(8).to_u32()]
             rpv := rp.clone()
-            board.set(from_r.mul(8).add(3).to_u32(), own rpv)
-            board.set(from_r.mul(8).to_u32(), own 0)
+            board[from_r.mul(8).add(3).to_u32()] = rpv
+            board[from_r.mul(8).to_u32()] = 0
         }
     }
     if mpt.eq(4) {
         if side.eq(0) {
-            if from.eq(56) { castle_flags.set(1, own 1) }
-            if from.eq(63) { castle_flags.set(2, own 1) }
+            if from.eq(56) { castle_flags[1] = 1 }
+            if from.eq(63) { castle_flags[2] = 1 }
         } else {
-            if from.eq(0) { castle_flags.set(4, own 1) }
-            if from.eq(7) { castle_flags.set(5, own 1) }
+            if from.eq(0) { castle_flags[4] = 1 }
+            if from.eq(7) { castle_flags[5] = 1 }
         }
     }
 
@@ -563,20 +563,20 @@ execute_move := func(mut board: Array(I64), from: I64, to: I64, side: I64,
     if mpt.eq(1).and(from_c.neq(to_c)) {
         ref dest_p : I64 = board[to.to_u32()]
         if dest_p.eq(0) {
-            board.set(from_r.mul(8).add(to_c).to_u32(), own 0)
+            board[from_r.mul(8).add(to_c).to_u32()] = 0
         }
     }
 
-    board.set(to.to_u32(), own mpv)
-    board.set(from.to_u32(), own 0)
+    board[to.to_u32()] = mpv
+    board[from.to_u32()] = 0
 
     // Pawn promotion (auto-queen)
     if mpt.eq(1) {
         if side.eq(0).and(to_r.eq(0)) {
-            board.set(to.to_u32(), own 5)
+            board[to.to_u32()] = 5
         }
         if side.eq(1).and(to_r.eq(7)) {
-            board.set(to.to_u32(), own 11)
+            board[to.to_u32()] = 11
         }
     }
 
@@ -592,7 +592,7 @@ copy_cf := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(6) {
         ref v : I64 = src[i.to_u32()]
-        dst.set(i.to_u32(), own v.clone())
+        dst[i.to_u32()] = v.clone()
         i++
     }
 }
@@ -642,7 +642,7 @@ chess_unpack_cf := func(b: Board) returns Array(I64) {
     mut cf := Array(I64).new(6)
     mut i := 0
     while i.lt(6) {
-        cf.set(i.to_u32(), own board_get_i64(b, CHESS_IDX_CF.add(i)).clone())
+        cf[i.to_u32()] = board_get_i64(b, CHESS_IDX_CF.add(i)).clone()
         i++
     }
     return cf
@@ -677,7 +677,7 @@ chess_next_boards : NextBoardsFn = (b) {
     mut cells := Array(I64).new(64)
     mut ci := 0
     while ci.lt(64) {
-        cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
+        cells[ci.to_u32()] = board_get_i64(cb, ci).clone()
         ci++
     }
     side := chess_unpack_side(cb)
@@ -752,12 +752,12 @@ main := proc() {
     mut i := 0
     while i.lt(64) {
         ref init_p : I64 = INIT_BOARD[i.to_u32()]
-        board.set(i.to_u32(), own init_p.clone())
+        board[i.to_u32()] = init_p.clone()
         i++
     }
     i = 0
     while i.lt(6) {
-        castle_flags.set(i.to_u32(), own 0)
+        castle_flags[i.to_u32()] = 0
         i++
     }
 
@@ -776,12 +776,12 @@ main := proc() {
                     mut ri := 0
                     while ri < 64 {
                         ref init_p : I64 = INIT_BOARD[ri.to_u32()]
-                        board.set(ri.to_u32(), own init_p.clone())
+                        board[ri.to_u32()] = init_p.clone()
                         ri = ri + 1
                     }
                     ri = 0
                     while ri < 6 {
-                        castle_flags.set(ri.to_u32(), own 0)
+                        castle_flags[ri.to_u32()] = 0
                         ri = ri + 1
                     }
                     turn = 0
@@ -827,8 +827,8 @@ main := proc() {
                         mut mj := 0
                         while mj.lt(mc) {
                             ref md : I64 = ai_moves[mj.to_u32()]
-                            ai_pieces.set(ai_total.to_u32(), own sq.clone())
-                            ai_dests.set(ai_total.to_u32(), own md.clone())
+                            ai_pieces[ai_total.to_u32()] = sq.clone()
+                            ai_dests[ai_total.to_u32()] = md.clone()
                             ai_total++
                             mj++
                         }
@@ -934,28 +934,28 @@ main := proc() {
                                 // Update castle flags
                                 mut cf_off := turn.mul(3)
                                 if mpt.eq(6) {
-                                    castle_flags.set(cf_off.to_u32(), own 1)
+                                    castle_flags[cf_off.to_u32()] = 1
                                     // Castling move
                                     if from_c.eq(4).and(to_c.eq(6)) {
                                         ref rp : I64 = board[from_r.mul(8).add(7).to_u32()]
                                         rpv := rp.clone()
-                                        board.set(from_r.mul(8).add(5).to_u32(), own rpv)
-                                        board.set(from_r.mul(8).add(7).to_u32(), own 0)
+                                        board[from_r.mul(8).add(5).to_u32()] = rpv
+                                        board[from_r.mul(8).add(7).to_u32()] = 0
                                     }
                                     if from_c.eq(4).and(to_c.eq(2)) {
                                         ref rp : I64 = board[from_r.mul(8).to_u32()]
                                         rpv := rp.clone()
-                                        board.set(from_r.mul(8).add(3).to_u32(), own rpv)
-                                        board.set(from_r.mul(8).to_u32(), own 0)
+                                        board[from_r.mul(8).add(3).to_u32()] = rpv
+                                        board[from_r.mul(8).to_u32()] = 0
                                     }
                                 }
                                 if mpt.eq(4) {
                                     if turn.eq(0) {
-                                        if selected.eq(56) { castle_flags.set(1, own 1) }
-                                        if selected.eq(63) { castle_flags.set(2, own 1) }
+                                        if selected.eq(56) { castle_flags[1] = 1 }
+                                        if selected.eq(63) { castle_flags[2] = 1 }
                                     } else {
-                                        if selected.eq(0) { castle_flags.set(4, own 1) }
-                                        if selected.eq(7) { castle_flags.set(5, own 1) }
+                                        if selected.eq(0) { castle_flags[4] = 1 }
+                                        if selected.eq(7) { castle_flags[5] = 1 }
                                     }
                                 }
 
@@ -963,21 +963,21 @@ main := proc() {
                                 if mpt.eq(1).and(from_c.neq(to_c)) {
                                     ref dest_p : I64 = board[click_idx.to_u32()]
                                     if dest_p.eq(0) {
-                                        board.set(from_r.mul(8).add(to_c).to_u32(), own 0)
+                                        board[from_r.mul(8).add(to_c).to_u32()] = 0
                                     }
                                 }
 
                                 // Move piece
-                                board.set(click_idx.to_u32(), own mpv)
-                                board.set(selected.to_u32(), own 0)
+                                board[click_idx.to_u32()] = mpv
+                                board[selected.to_u32()] = 0
 
                                 // Pawn promotion (auto-queen)
                                 if mpt.eq(1) {
                                     if turn.eq(0).and(to_r.eq(0)) {
-                                        board.set(click_idx.to_u32(), own 5)
+                                        board[click_idx.to_u32()] = 5
                                     }
                                     if turn.eq(1).and(to_r.eq(7)) {
-                                        board.set(click_idx.to_u32(), own 11)
+                                        board[click_idx.to_u32()] = 11
                                     }
                                 }
 

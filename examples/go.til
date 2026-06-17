@@ -46,7 +46,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
         ref v : I64 = src[i.to_u32()]
-        dst.set(i.to_u32(), own v.clone())
+        dst[i.to_u32()] = v.clone()
         i++
     }
 }
@@ -67,7 +67,7 @@ boards_equal := func(mut a: Array(I64), mut b: Array(I64), total: I64) returns B
 clear_arr := func(mut arr: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
-        arr.set(i.to_u32(), own 0)
+        arr[i.to_u32()] = 0
         i++
     }
 }
@@ -79,7 +79,7 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
                          mut stk: Vec(I64), idx: I64, size: I64, color: I64) returns I64 {
     mut libs := 0
     stk.push(own idx.clone())
-    visited.set(idx.to_u32(), own 1)
+    visited[idx.to_u32()] = 1
 
     while stk.len().gt(0) {
         ref top_ref : I64 = stk[stk.len().sub(1)]
@@ -96,13 +96,13 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
-                            lib_seen.set(ni.to_u32(), own 1)
+                            lib_seen[ni.to_u32()] = 1
                             libs++
                         }
                     }
@@ -116,13 +116,13 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
-                            lib_seen.set(ni.to_u32(), own 1)
+                            lib_seen[ni.to_u32()] = 1
                             libs++
                         }
                     }
@@ -136,13 +136,13 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
-                            lib_seen.set(ni.to_u32(), own 1)
+                            lib_seen[ni.to_u32()] = 1
                             libs++
                         }
                     }
@@ -156,13 +156,13 @@ count_liberties := func(mut board: Array(I64), mut visited: Array(I64), mut lib_
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 } else {
                     if np.eq(0) {
                         ref ls : I64 = lib_seen[ni.to_u32()]
                         if ls.eq(0) {
-                            lib_seen.set(ni.to_u32(), own 1)
+                            lib_seen[ni.to_u32()] = 1
                             libs++
                         }
                     }
@@ -180,14 +180,14 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
                       idx: I64, size: I64, color: I64) returns I64 {
     mut removed := 0
     stk.push(own idx.clone())
-    visited.set(idx.to_u32(), own 1)
+    visited[idx.to_u32()] = 1
 
     while stk.len().gt(0) {
         ref top_ref : I64 = stk[stk.len().sub(1)]
         cur := top_ref
         stk.count = stk.count.sub(1)
 
-        board.set(cur.to_u32(), own 0)
+        board[cur.to_u32()] = 0
         removed++
 
         cr := cur.div(size)
@@ -200,7 +200,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 }
             }
@@ -212,7 +212,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 }
             }
@@ -224,7 +224,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 }
             }
@@ -236,7 +236,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
             if nv.eq(0) {
                 ref np : I64 = board[ni.to_u32()]
                 if np.eq(color) {
-                    visited.set(ni.to_u32(), own 1)
+                    visited[ni.to_u32()] = 1
                     stk.push(own ni)
                 }
             }
@@ -259,7 +259,7 @@ try_place := func(mut tmp: Array(I64), mut visited: Array(I64), mut lib_seen: Ar
     if cur.neq(0) { return -1 }
 
     // Place stone
-    tmp.set(idx.to_u32(), own color.clone())
+    tmp[idx.to_u32()] = color.clone()
 
     opp := 3.sub(color)
     r := idx.div(size)
@@ -422,8 +422,8 @@ go_next_boards : NextBoardsFn = (b) {
     mut ko_cells := Array(I64).new(total.to_u32())
     mut ci := 0
     while ci.lt(total) {
-        cells.set(ci.to_u32(), own board_get_i64(gb, ci).clone())
-        ko_cells.set(ci.to_u32(), own board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).cast(I64)).clone())
+        cells[ci.to_u32()] = board_get_i64(gb, ci).clone()
+        ko_cells[ci.to_u32()] = board_get_i64(gb, (GO_IDX_KO + ci.to_i32()).cast(I64)).clone()
         ci++
     }
     result := Vec(Board).new()
@@ -479,7 +479,7 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
             mut touches_white := false
 
             stk.push(own i.clone())
-            visited.set(i.to_u32(), own 1)
+            visited[i.to_u32()] = 1
 
             while stk.len().gt(0) {
                 ref top_ref : I64 = stk[stk.len().sub(1)]
@@ -497,10 +497,10 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
                     if nv.eq(0) {
                         ref np : I64 = board[ni.to_u32()]
                         if np.eq(0) {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             stk.push(own ni)
                         } else {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             if np.eq(1) { touches_black = true }
                             if np.eq(2) { touches_white = true }
                         }
@@ -513,10 +513,10 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
                     if nv.eq(0) {
                         ref np : I64 = board[ni.to_u32()]
                         if np.eq(0) {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             stk.push(own ni)
                         } else {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             if np.eq(1) { touches_black = true }
                             if np.eq(2) { touches_white = true }
                         }
@@ -529,10 +529,10 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
                     if nv.eq(0) {
                         ref np : I64 = board[ni.to_u32()]
                         if np.eq(0) {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             stk.push(own ni)
                         } else {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             if np.eq(1) { touches_black = true }
                             if np.eq(2) { touches_white = true }
                         }
@@ -545,10 +545,10 @@ score_game := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Vec(
                     if nv.eq(0) {
                         ref np : I64 = board[ni.to_u32()]
                         if np.eq(0) {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             stk.push(own ni)
                         } else {
-                            visited.set(ni.to_u32(), own 1)
+                            visited[ni.to_u32()] = 1
                             if np.eq(1) { touches_black = true }
                             if np.eq(2) { touches_white = true }
                         }

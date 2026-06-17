@@ -207,22 +207,22 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
     for k : USize in 0..8 {
         chrom_mod := chrom_total % 12
         chrom_oct := chrom_total / 12
-        sc_chrom.set(k, own chrom_mod.clone())
-        sc_diat.set(k, own diat_pos.clone())
-        sc_oct.set(k, own diat_oct.clone())
+        sc_chrom[k] = chrom_mod.clone()
+        sc_diat[k] = diat_pos.clone()
+        sc_oct[k] = diat_oct.clone()
 
         // Compute accidental
         ref nat_ref : I32 = NATURALS[diat_pos.to_usize()]
         mut acc := chrom_mod - nat_ref
         if acc.gt(6) { acc = acc - 12 }
         if acc.lt(-6) { acc = acc + 12 }
-        sc_acc.set(k, own acc)
+        sc_acc[k] = acc
 
         // Frequency
         ref f : I64 = FREQS[chrom_mod.to_usize()]
         mut freq := f
         if chrom_oct.gt(0) { freq = freq * 2 }
-        sc_freq.set(k, own freq)
+        sc_freq[k] = freq
 
         // Next note
         if k.lt(7) {
@@ -238,7 +238,7 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
 
     // Compute triads for each degree
     for ti : USize in 0..7 {
-        sc_triad.set(ti, own triad_type(sc_chrom, ti))
+        sc_triad[ti] = triad_type(sc_chrom, ti)
     }
 }
 

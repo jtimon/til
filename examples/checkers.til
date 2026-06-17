@@ -79,7 +79,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(64) {
         ref v : I64 = src[i.to_u32()]
-        dst.set(i.to_u32(), own v.clone())
+        dst[i.to_u32()] = v.clone()
         i++
     }
 }
@@ -125,8 +125,8 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
                 ref mid_p : I64 = board[mid_idx.to_u32()]
                 ref land_p : I64 = board[land_idx.to_u32()]
                 if is_opp(mid_p, side).and(land_p.eq(0)) {
-                    moves.set(count.to_u32(), own land_idx.clone())
-                    jumped.set(count.to_u32(), own mid_idx.clone())
+                    moves[count.to_u32()] = land_idx.clone()
+                    jumped[count.to_u32()] = mid_idx.clone()
                     count++
                 }
             }
@@ -169,7 +169,7 @@ gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
                 dest := nr.mul(8).add(nc)
                 ref dp : I64 = board[dest.to_u32()]
                 if dp.eq(0) {
-                    moves.set(count.to_u32(), own dest.clone())
+                    moves[count.to_u32()] = dest.clone()
                     count++
                 }
             }
@@ -217,10 +217,10 @@ has_legal_moves := func(mut board: Array(I64), side: I64,
 execute_move := func(mut board: Array(I64), from: I64, to: I64, jumped_idx: I64) returns I64 {
     ref p : I64 = board[from.to_u32()]
     mut pv := p.clone()
-    board.set(from.to_u32(), own 0)
+    board[from.to_u32()] = 0
 
     if jumped_idx.gte(0) {
-        board.set(jumped_idx.to_u32(), own 0)
+        board[jumped_idx.to_u32()] = 0
     }
 
     // King promotion
@@ -232,7 +232,7 @@ execute_move := func(mut board: Array(I64), from: I64, to: I64, jumped_idx: I64)
         pv = 4
     }
 
-    board.set(to.to_u32(), own pv.clone())
+    board[to.to_u32()] = pv.clone()
     return pv
 }
 
@@ -319,7 +319,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     mut cells := Array(I64).new(64)
     mut ci := 0
     while ci.lt(64) {
-        cells.set(ci.to_u32(), own board_get_i64(cb, ci).clone())
+        cells[ci.to_u32()] = board_get_i64(cb, ci).clone()
         ci++
     }
     side := checkers_unpack_side(cb)
@@ -392,7 +392,7 @@ main := proc() {
     mut init_i := 0
     while init_i.lt(64) {
         ref init_p : I64 = INIT_BOARD[init_i.to_u32()]
-        board.set(init_i.to_u32(), own init_p.clone())
+        board[init_i.to_u32()] = init_p.clone()
         init_i++
     }
 
@@ -415,7 +415,7 @@ main := proc() {
                     mut ri := 0
                     while ri < 64 {
                         ref init_p : I64 = INIT_BOARD[ri.to_u32()]
-                        board.set(ri.to_u32(), own init_p.clone())
+                        board[ri.to_u32()] = init_p.clone()
                         ri = ri + 1
                     }
                     turn = 1
@@ -536,9 +536,9 @@ main := proc() {
                                 while mj.lt(mc) {
                                     ref md : I64 = tmp_moves[mj.to_u32()]
                                     ref jd : I64 = tmp_jumped[mj.to_u32()]
-                                    ai_pieces.set(ai_total.to_u32(), own sq.clone())
-                                    ai_dests.set(ai_total.to_u32(), own md.clone())
-                                    ai_jumps.set(ai_total.to_u32(), own jd.clone())
+                                    ai_pieces[ai_total.to_u32()] = sq.clone()
+                                    ai_dests[ai_total.to_u32()] = md.clone()
+                                    ai_jumps[ai_total.to_u32()] = jd.clone()
                                     ai_total++
                                     mj++
                                 }
@@ -547,9 +547,9 @@ main := proc() {
                                 mut mj := 0
                                 while mj.lt(mc) {
                                     ref md : I64 = tmp_moves[mj.to_u32()]
-                                    ai_pieces.set(ai_total.to_u32(), own sq.clone())
-                                    ai_dests.set(ai_total.to_u32(), own md.clone())
-                                    ai_jumps.set(ai_total.to_u32(), own -1)
+                                    ai_pieces[ai_total.to_u32()] = sq.clone()
+                                    ai_dests[ai_total.to_u32()] = md.clone()
+                                    ai_jumps[ai_total.to_u32()] = -1
                                     ai_total++
                                     mj++
                                 }
