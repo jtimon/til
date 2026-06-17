@@ -282,6 +282,12 @@ namespace:
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
+                } else if self.ctx.is_null().not() {
+                    // Issue #275: free nested Str-field heap that clone/write_field
+                    // deep-copied -- the shallow delete leaked it. struct_deep_free
+                    // reads struct_def, so this assumes the AST is live (true at a
+                    // value's last-use delete during execution).
+                    struct_deep_free(self.struct_name, self.struct_def, self.data, self.ctx)
                 }
                 free(own self.data)
             }
