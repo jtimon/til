@@ -106,11 +106,11 @@ Required := struct {
 
 test_required_field := test() {
     r := Required(b = "x")
-    assert_eq(__LOC__, I64, r.a.to_i64(), 0)
+    assert_eq(__LOC__, U16, r.a, 0)
     assert_eq(__LOC__, Str, r.b, "x")
     assert_eq(__LOC__, I64, r.c, -1)
     r2 := Required(a = 7, b = "y", c = 9)
-    assert_eq(__LOC__, I64, r2.a.to_i64(), 7)
+    assert_eq(__LOC__, U16, r2.a, 7)
     assert_eq(__LOC__, Str, r2.b, "y")
     assert_eq(__LOC__, I64, r2.c, 9)
 }
@@ -337,7 +337,7 @@ test_vec_in_struct := test() {
     c.items.push(own 10)
     c.items.push(own 20)
     c.items.push(own 30)
-    assert_eq(__LOC__, I64, c.items.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, c.items.len(), 3)
     ref e0 : I64 = c.items[0]
     ref e1 : I64 = c.items[1]
     ref e2 : I64 = c.items[2]
@@ -362,8 +362,8 @@ test_field_access_copy := test() {
     c.items.push(own 2)
     copy := c.items
     c.items.push(own 3)
-    assert_eq(__LOC__, I64, c.items.len().to_i64(), 3)
-    assert_eq(__LOC__, I64, copy.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, c.items.len(), 3)
+    assert_eq(__LOC__, USize, copy.len(), 2)
 }
 
 test_field_reassign := test() {
@@ -421,8 +421,8 @@ AnonPair := ext_struct {
 
 test_ext_struct_anon := test() {
     p := AnonPair(a = 3, b = 7)
-    assert_eq(__LOC__, I64, p.a.cast(I64), 3)
-    assert_eq(__LOC__, I64, p.b.cast(I64), 7)
+    assert_eq(__LOC__, I32, p.a, 3)
+    assert_eq(__LOC__, I32, p.b, 7)
 }
 
 // Custom tag ext_struct (like libffi's _ffi_type -> ffi_type)

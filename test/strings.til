@@ -22,10 +22,10 @@ test_clone := test() {
 }
 
 test_len := test() {
-    assert_eq(__LOC__, I64, "hello".len().to_i64(), 5)
-    assert_eq(__LOC__, I64, "".len().to_i64(), 0)
-    assert_eq(__LOC__, I64, "a".len().to_i64(), 1)
-    assert_eq(__LOC__, I64, "hello world".len().to_i64(), 11)
+    assert_eq(__LOC__, USize, "hello".len(), 5)
+    assert_eq(__LOC__, USize, "".len(), 0)
+    assert_eq(__LOC__, USize, "a".len(), 1)
+    assert_eq(__LOC__, USize, "hello world".len(), 11)
 }
 
 test_substr := test() {
@@ -161,7 +161,7 @@ test_to_f32 := test() {
 
 test_split := test() {
     parts := "a,b,c".split(",")
-    assert_eq(__LOC__, I64, parts.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, parts.len(), 3)
     ref p0 : Str = parts[0]
     ref p1 : Str = parts[1]
     ref p2 : Str = parts[2]
@@ -170,19 +170,19 @@ test_split := test() {
     assert_eq(__LOC__, Str, p2, "c")
 
     parts2 := "hello".split(",")
-    assert_eq(__LOC__, I64, parts2.len().to_i64(), 1)
+    assert_eq(__LOC__, USize, parts2.len(), 1)
     ref q0 : Str = parts2[0]
     assert_eq(__LOC__, Str, q0, "hello")
 
     parts3 := "a::b".split("::")
-    assert_eq(__LOC__, I64, parts3.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, parts3.len(), 2)
     ref r0 : Str = parts3[0]
     ref r1 : Str = parts3[1]
     assert_eq(__LOC__, Str, r0, "a")
     assert_eq(__LOC__, Str, r1, "b")
 
     parts4 := ",a,".split(",")
-    assert_eq(__LOC__, I64, parts4.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, parts4.len(), 3)
     ref s0 : Str = parts4[0]
     ref s1 : Str = parts4[1]
     ref s2 : Str = parts4[2]
@@ -238,7 +238,7 @@ test_join := test() {
     lines.push(own "bbb")
     lines.push(own "ccc")
     result := join(lines, "\n")
-    assert_eq(__LOC__, I64, result.len().to_i64(), 11)
+    assert_eq(__LOC__, USize, result.len(), 11)
     assert_eq(__LOC__, Str, result, "aaa\nbbb\nccc")
 }
 

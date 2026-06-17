@@ -48,7 +48,7 @@ test_vec_payload_clone := test() {
             ref s2 : Str = bag2.items[0]
             assert_eq(__LOC__, Str, s1, "x")
             assert_eq(__LOC__, Str, s2, "a")
-            assert_eq(__LOC__, I64, bag2.items.len().to_i64(), 2)
+            assert_eq(__LOC__, USize, bag2.items.len(), 2)
         case:
             UNREACHABLE(__LOC__)
         }

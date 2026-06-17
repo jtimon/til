@@ -13,7 +13,7 @@ check_tok := proc(tokens: Vec, i: USize, expected_type: TokenType, expected_text
 
 test_empty := proc() {
     tokens := tokenize("", "test")
-    assert_eq(__LOC__, I64, tokens.len().to_i64(), 1)
+    assert_eq(__LOC__, USize, tokens.len(), 1)
     check_tok(tokens, 0, TokenType.Eof, "")
 }
 

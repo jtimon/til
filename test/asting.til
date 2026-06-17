@@ -23,9 +23,9 @@ test_til_type := test() {
 }
 
 test_expr_new := test() {
-    mut e := Expr.new(NodeType.Body, 1, 5)
-    assert_eq(__LOC__, I64, e.line.to_i64(), 1)
-    assert_eq(__LOC__, I64, e.col.to_i64(), 5)
+    e := Expr.new(NodeType.Body, 1, 5)
+    assert_eq(__LOC__, U32, e.line, 1)
+    assert_eq(__LOC__, U32, e.col, 5)
 }
 
 test_expr_children := test() {
@@ -34,5 +34,5 @@ test_expr_children := test() {
     child2 := Expr.new(NodeType.Body, 3, 1)
     Expr.add_child(parent, own child1)
     Expr.add_child(parent, own child2)
-    assert_eq(__LOC__, I64, parent.children.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, parent.children.len(), 2)
 }

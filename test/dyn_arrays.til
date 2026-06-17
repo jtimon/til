@@ -15,7 +15,7 @@ test_dyn_array_new_get_set := test() {
     assert_eq(__LOC__, I64, x, 10)
     assert_eq(__LOC__, I64, y, 20)
     assert_eq(__LOC__, I64, z, 30)
-    assert_eq(__LOC__, I64, a.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, a.len(), 3)
 }
 
 test_dyn_array_subscript := test() {

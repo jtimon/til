@@ -207,7 +207,7 @@ test_primitive_alias_in_func := test() {
 test_primitive_alias_with_container := test() {
     mut v := make_vec_usize(I64.size())
     v.push(own 42)
-    assert_eq(__LOC__, I64, v.len().to_i64(), 1)
+    assert_eq(__LOC__, USize, v.len(), 1)
 }
 
 # === Type aliases: function signatures ===

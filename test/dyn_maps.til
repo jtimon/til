@@ -7,7 +7,7 @@ test_i64_map := test() {
     m.set(3, own 30)
     m.set(1, own 10)
     m.set(2, own 20)
-    assert_eq(__LOC__, I64, m.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, m.len(), 3)
     assert(__LOC__, m.has(1))
     assert(__LOC__, m.has(2))
     assert(__LOC__, m.has(3))
@@ -22,7 +22,7 @@ test_i64_map := test() {
 
     // overwrite existing key
     m.set(2, own 99)
-    assert_eq(__LOC__, I64, m.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, m.len(), 3)
     ref v2b : I64 = m[2]
     assert_eq(__LOC__, I64, v2b, 99)
 }
@@ -32,7 +32,7 @@ test_str_map := test() {
     sm.set("banana", own 2)
     sm.set("apple", own 1)
     sm.set("cherry", own 3)
-    assert_eq(__LOC__, I64, sm.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, sm.len(), 3)
     assert(__LOC__, sm.has("apple"))
     assert(__LOC__, sm.has("banana"))
     assert(__LOC__, sm.has("cherry"))

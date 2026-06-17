@@ -145,5 +145,5 @@ ref226_param_rhs := func(len: USize) returns U32 {
 
 test_ref_mut_primitive_assign := test() {
     got := ref226_param_rhs(42)
-    assert_eq(__LOC__, I64, got.to_i64(), 42)
+    assert_eq(__LOC__, U32, got, 42)
 }

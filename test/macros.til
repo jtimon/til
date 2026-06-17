@@ -84,5 +84,5 @@ test_func_str := test() {
 # in dyn.til; before the fix, the builder's size() override emitted
 # sizeof(Dynamic) = 1 (Dynamic is `struct { char _; }` in C).
 test_func_ns_method_size := test() {
-    assert_eq(__LOC__, I64, Dynamic.size().to_i64(), 8)
+    assert_eq(__LOC__, USize, Dynamic.size(), 8)
 }

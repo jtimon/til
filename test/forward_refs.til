@@ -72,7 +72,7 @@ test_alias_top_of_file := test() {
     h.inc()
     h.inc()
     h.inc()
-    assert_eq(__LOC__, I64, h.count.to_i64(), 3)
+    assert_eq(__LOC__, USize, h.count, 3)
 }
 
 // #165: type alias declared *after* a struct that uses it as a field type.

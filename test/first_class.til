@@ -144,14 +144,14 @@ test_dyn_type_to_str_funcsig := test() {
 
 test_vec_funcsig_create := test() {
     ops := DynVec.new(BinaryOp)
-    assert_eq(__LOC__, I64, ops.len().to_i64(), 0)
+    assert_eq(__LOC__, USize, ops.len(), 0)
 }
 
 test_vec_funcsig_push_len := test() {
     mut ops := DynVec.new(BinaryOp)
     ops.push(own fn_add)
     ops.push(own fn_mul)
-    assert_eq(__LOC__, I64, ops.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, ops.len(), 2)
 }
 
 // Round-trip: push fn_add / fn_mul into a DynVec.new(BinaryOp), pull each
@@ -235,7 +235,7 @@ test_vec_of_struct_instances := test() {
     mut points := Vec(Point56).new()
     points.push(own Point56(x=10, y=20))
     points.push(own Point56(x=30, y=40))
-    assert_eq(__LOC__, I64, points.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, points.len(), 2)
 }
 
 // --- Anonymous struct instantiation (issue #56) ---
@@ -403,14 +403,14 @@ test_anon_struct_as_value := test() {
     defs.push(own struct {
         a: I64 = 0
     })
-    assert_eq(__LOC__, I64, defs.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, defs.len(), 2)
 }
 
 test_anon_enum_as_value := test() {
     mut enums := Vec(EnumDef).new()
     enums.push(own enum { Red, Green, Blue })
     enums.push(own enum { On, Off })
-    assert_eq(__LOC__, I64, enums.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, enums.len(), 2)
 }
 
 // --- Anonymous defs as introspection-func args (issue #57/#58) ---
@@ -688,9 +688,9 @@ test_cond_macro_struct_else_if := test() {
     a := TaggedI64(value = 1)
     b := TaggedI32(value = 2)
     c := TaggedF32(value = 3)
-    assert_eq(__LOC__, I64, a.tag.cast(I64), 1)
-    assert_eq(__LOC__, I64, b.tag.cast(I64), 2)
-    assert_eq(__LOC__, I64, c.tag.cast(I64), 3)
+    assert_eq(__LOC__, I32, a.tag, 1)
+    assert_eq(__LOC__, I32, b.tag, 2)
+    assert_eq(__LOC__, I32, c.tag, 3)
 }
 
 make_default_fn := macro(T: Type) returns FuncDef {
@@ -751,7 +751,7 @@ test_struct_field_primitives := test() {
 
 test_struct_def_of := test() {
     def := struct_def_of("Point56")
-    assert_eq(__LOC__, I64, def.fields.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, def.fields.len(), 2)
     ref f0 : Declaration = def.fields[0.to_usize()]
     assert_eq(__LOC__, Str, "x", f0.name)
     assert_eq(__LOC__, Str, "I64", f0.explicit_type)
@@ -792,7 +792,7 @@ test_enum_variant_primitives := test() {
 
 test_enum_def_of := test() {
     def := enum_def_of("Shape56")
-    assert_eq(__LOC__, I64, def.variants.len().to_i64(), 3)
+    assert_eq(__LOC__, USize, def.variants.len(), 3)
     ref v0 : Str = def.variants[0.to_usize()]
     assert_eq(__LOC__, Str, "Circle", v0)
     ref v1 : Str = def.variants[1.to_usize()]
@@ -834,13 +834,13 @@ test_func_sig_primitives := test() {
 test_func_sig_of := test() {
     assert_eq(__LOC__, I64, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
     sig := func_sig_of("BinaryOp")
-    assert_eq(__LOC__, I64, sig.params.len().to_i64(), 2)
+    assert_eq(__LOC__, USize, sig.params.len(), 2)
     ref p0 : Declaration = sig.params[0.to_usize()]
     assert_eq(__LOC__, Str, "I64", p0.explicit_type)
     ref p1 : Declaration = sig.params[1.to_usize()]
     assert_eq(__LOC__, Str, "I64", p1.explicit_type)
     assert_eq(__LOC__, Str, "I64", sig.return_type)
-    assert_eq(__LOC__, I64, sig.throw_types.len().to_i64(), 0)
+    assert_eq(__LOC__, USize, sig.throw_types.len(), 0)
 }
 
 // --- Direct generic functions: func(T: Type, ...) (issue #58 "Phase now") ---
@@ -906,9 +906,9 @@ test_generic_func_own_arg := test() {
     mut vec := Vec(GItem58).new()
     a := GItem58(n = 5)
     gstore58(vec, own a)
-    assert_eq(__LOC__, I64, vec.len().to_i64(), 1)
+    assert_eq(__LOC__, USize, vec.len(), 1)
     ref got : GItem58 = vec[0.to_usize()]
-    assert_eq(__LOC__, I64, got.n.to_i64(), 5)
+    assert_eq(__LOC__, USize, got.n, 5)
 }
 
 // Canonical swap (issue #58 example): mut value-args through a generic.
