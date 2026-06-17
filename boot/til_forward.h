@@ -286,7 +286,6 @@ typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
-typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
@@ -851,12 +850,6 @@ typedef struct Vec__LocalInfo {
     U32 count;
     U32 cap;
 } Vec__LocalInfo;
-
-
-typedef struct Map__Str_Bool {
-    Vec__Str keys;
-    Vec__Bool values;
-} Map__Str_Bool;
 
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -1771,6 +1764,8 @@ typedef struct Context {
     Bool has_break;
     Bool has_continue;
     Value return_value;
+    Bool constfold_active;
+    Bool constfold_aborted;
     Map__Str_Value ns_fields;
     Vec__Dynamic ns_keys;
     Bool ns_inited;
@@ -3122,9 +3117,6 @@ void constfolder_reset_state(Context * ctx);
 void priv___src_self_constfolder_til__collect_assign_targets(Expr * e, Set__Str * names);
 Bool priv___src_self_constfolder_til__constfolder_has_macro(Context * ctx, Str * name);
 Bool priv___src_self_constfolder_til__constfolder_has_func(Context * ctx, Str * name);
-Map__Str_Bool * priv___src_self_constfolder_til__make_side_effecting_names(void);
-Bool priv___src_self_constfolder_til__is_side_effecting_name(Str * name);
-Bool priv___src_self_constfolder_til__is_fold_abort_name(Str * name);
 U8 priv___src_self_constfolder_til__hex_digit_value(I8 b);
 Str * priv___src_self_constfolder_til__from_source_form(Str * s);
 Bool priv___src_self_constfolder_til__needs_source_escape(Str * s);
@@ -3132,9 +3124,10 @@ Str * priv___src_self_constfolder_til__str_to_source_form(Str * s);
 Expr * priv___src_self_constfolder_til__value_to_expr(Value val, Expr * src, Context * ctx);
 Value priv___src_self_constfolder_til__expr_to_value(Expr * e, Context * ctx);
 Bool priv___src_self_constfolder_til__is_known(Context * ctx, Expr * e, Value * out);
+Bool priv___src_self_constfolder_til__func_sig_has_dynamic(Expr * fdef);
 Bool priv___src_self_constfolder_til__is_known_check(Context * ctx, Expr * e);
 Bool priv___src_self_constfolder_til__body_has_local(Expr * body, Str * name);
-Bool priv___src_self_constfolder_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * constfolder_scope, Expr * body_root, Bool lenient, Bool top_level, Set__Str * visiting, Context * ctx);
+Bool priv___src_self_constfolder_til__func_uses_unknown_globals(Expr * e, Expr * func_def, Scope * constfolder_scope, Expr * body_root, Bool lenient, Set__Str * visiting, Context * ctx);
 Expr * priv___src_self_constfolder_til__extract_trivial_literal_return(Expr * fdef);
 void * priv___src_self_constfolder_til__ns_lookup_flat(Str * name, Context * ctx);
 Str * priv___src_self_constfolder_til__fa_recv_type_name(Expr * callee, Context * ctx);
@@ -3149,15 +3142,6 @@ void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void constfolder_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
 void constfolder_register_core_constants(Scope * global);
-Map__Str_Bool * Map__Str_Bool_new(void);
-Str * Map__Str_Bool_key_ptr(Map__Str_Bool * self, U32 * i);
-Bool * Map__Str_Bool_val_ptr(Map__Str_Bool * self, U32 * i);
-Bool Map__Str_Bool_has(Map__Str_Bool * self, Str * key);
-void Map__Str_Bool_set(Map__Str_Bool * self, Str * key, Bool * val);
-void Map__Str_Bool_delete(Map__Str_Bool * self, Bool call_free);
-Map__Str_Bool * Map__Str_Bool_clone(Map__Str_Bool * self);
-U64 Map__Str_Bool_hash(Map__Str_Bool * self, HashFn hasher);
-U32 Map__Str_Bool_size(void);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
 void vec_push_str(Vec__Str * v, Str * s);
@@ -3462,6 +3446,7 @@ void priv___src_self_builder_til__print_translate_success(priv___src_self_builde
 I32 priv___src_self_builder_til__compile_ast(LoadedProgram * lp, priv___src_self_builder_til__BuildPaths * paths, Target * target, Str * cc_override, Bool asan, Bool prof);
 I32 cmd_translate(LoadedProgram * lp, Str * custom_c, Target * target);
 I32 cmd_build(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override, Bool asan, Bool prof);
+Str * priv___src_self_builder_til__default_install_prefix(void);
 I32 priv___src_self_builder_til__check_install_rc(I32 rc, Str * what);
 Str * priv___src_self_builder_til__builder_compiler_root(LoadedProgram * lp);
 Str * priv___src_self_builder_til__support_root(Str * prefix);
@@ -3695,7 +3680,7 @@ Bool priv___src_self_interpreter_til__h_F32_from_i64(Scope * s, Expr * e, Value 
 Bool priv___src_self_interpreter_til__h_U32_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cast(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_print_single(Scope * s, Expr * e, Value * r, Context * ctx);
-Bool priv___src_self_interpreter_til__h_print_flush(Scope * _s, Expr * _e, Value * r, Context * _ctx);
+Bool priv___src_self_interpreter_til__h_print_flush(Scope * _s, Expr * _e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_exit(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_readfile(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_writefile(Scope * s, Expr * e, Value * r, Context * ctx);
@@ -4208,7 +4193,6 @@ extern Str U64Name;
 extern Str F32Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
-extern Map__Str_Bool side_effecting_names;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
 extern I64 FFI_TYPE_VOID;

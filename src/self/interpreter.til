@@ -7,7 +7,7 @@ import("../std/sys")
 import("../../vendor/bindings/libffi")
 link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
 
-system_cmd := ext_func(cmd: Str) returns shallow I32 {}
+system_cmd := ext_proc(cmd: Str) returns shallow I32 {}
 
 priv interp_error_path := func(ctx: Context) returns Str {
     return ctx.path.clone()
@@ -1269,6 +1269,9 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     ref mut c : Context = ctx
     while true {
         if c.has_return { break }
+        // A const-folder abort inside the loop body stops iteration (the
+        // body's eval_body already bailed); don't re-evaluate the condition.
+        if c.constfold_aborted { break }
         cond := eval_expr(scope, stmt.children[0], ctx)
         mut cv := false
         switch cond {
@@ -1293,6 +1296,9 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         if c.has_return { return }
         if c.has_break { return }
         if c.has_continue { return }
+        // A const-folder abort unwinds every enclosing body like an early
+        // return until try_eval_call observes it.
+        if c.constfold_aborted { return }
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -3518,7 +3524,7 @@ ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_last_error := ext_func() returns Str {}
 stderr_print := ext_func(msg: Str) returns shallow I32 {}
 unlink_path := ext_proc(path: Str) {}
-process_id := ext_func() returns shallow I32 {}
+process_id := ext_proc() returns shallow I32 {}
 
 priv ffi_dlsym := func(name: Str) returns ref U8 {
     ref fn : U8 = ffi_user_symbol(name)
@@ -3554,7 +3560,7 @@ priv ffi_init_link_libs := func(link_flags: Str) {
     }
 }
 
-priv ffi_init_user_so := func(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
+priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
     expect(user_c_path.is_null().not(), "user_c_path is null")
     if user_c_path.len().eq(0) { return 0 }
@@ -3881,19 +3887,34 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 
 priv h_print_single := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     arg := eval_expr(s, e.children[1], ctx)
-    print_single(str_view(arg))
+    // A const-fold eval is speculative and must emit no program output: if a
+    // fold candidate reaches a print (e.g. through panic's message on a
+    // failure branch the comptime inputs hit), swallow it. The fold itself is
+    // abandoned via the abort in h_exit and the call is left for runtime.
+    if ctx.constfold_active.not() { print_single(str_view(arg)) }
     r = val_none()
     return true
 }
 
-priv h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, _ctx: Context) returns Bool {
-    print_flush()
+priv h_print_flush := proc(_s: Scope, _e: Expr, mut r: Value, ctx: Context) returns Bool {
+    if ctx.constfold_active.not() { print_flush() }
     r = val_none()
     return true
 }
 
 priv h_exit := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     a := eval_expr(s, e.children[1], ctx)
+    // exit is the single primitive that terminates the process, so it is the
+    // single interception point for the const-folder. When a fold eval reaches
+    // it (panic/TODO/UNREACHABLE all route here, as does a bare exit), don't
+    // kill the build: set constfold_aborted and unwind like an early return
+    // (propagated through eval_body/eval_while). try_eval_call then leaves the
+    // call for runtime, or reports it for a macro. No name list required.
+    if ctx.constfold_active {
+        ctx.constfold_aborted = true
+        r = val_none()
+        return true
+    }
     switch a {
     case Value.Int(code):
         exit(code)
@@ -4480,12 +4501,12 @@ priv h_str_parse_f32 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) retu
     return true
 }
 
-priv h_clock_ms := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
+priv h_clock_ms := proc(_s: Scope, _e: Expr, mut r: Value) returns Bool {
     r = Value.Int(clock_ms())
     return true
 }
 
-priv h_get_thread_count := func(_s: Scope, _e: Expr, mut r: Value) returns Bool {
+priv h_get_thread_count := proc(_s: Scope, _e: Expr, mut r: Value) returns Bool {
     r = Value.Int(get_thread_count())
     return true
 }

@@ -5,7 +5,7 @@ import("loader")
 import("targets")
 import("../std/sys")
 
-system_cmd := ext_func(cmd: Str) returns shallow I32 {}
+system_cmd := ext_proc(cmd: Str) returns shallow I32 {}
 
 priv CollectionInfo := struct {
     ref type_name : Str = NULL
@@ -7179,7 +7179,7 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     return paths
 }
 
-priv make_build_dirs := func(paths: BuildPaths) {
+priv make_build_dirs := proc(paths: BuildPaths) {
     if paths.do_lib {
         if mkdir_p("gen/til").neq(0) { panic("failed to create gen/til") }
         if mkdir_p("gen/lib").neq(0) { panic("failed to create gen/lib") }
@@ -7256,7 +7256,7 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Tar
     return result
 }
 
-priv default_install_prefix := func() returns Str {
+priv default_install_prefix := proc() returns Str {
     if host_os().eq("windows") {
         return "C:/Program Files/til"
     }
@@ -7507,7 +7507,7 @@ priv til_doc_out_path := func(unit_path: Str) returns Str {
 }
 
 // Ensure the parent directory of `path` exists (mkdir -p).
-priv ensure_parent_dir := func(path: Str) {
+priv ensure_parent_dir := proc(path: Str) {
     last_slash := path.rfind("/")
     if last_slash.lt(0) { return }
     last_slash_u : USize = last_slash.to_usize()

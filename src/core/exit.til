@@ -26,11 +26,13 @@ UNREACHABLE := func(loc: Str = __CALLER_LOC__) {
     panic("unreachable", loc = loc)
 }
 
-assert := func(cond: Bool, loc: Str = __CALLER_LOC__) returns Bool {
+// assert returns nothing (unlike its former vestigial, unused `Bool`
+// return): a value-returning func called purely as a statement would
+// const-fold to a bare literal the interpreter rejects.
+assert := func(cond: Bool, loc: Str = __CALLER_LOC__) {
     if cond.not() {
         panic("assert failed", loc = loc)
     }
-    return true
 }
 
 expect := func(cond: Bool, parts: ..Str, loc: Str = __CALLER_LOC__) {

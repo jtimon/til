@@ -50,7 +50,7 @@ File := struct {
     is_update := false
 
 namespace:
-    readfile := ext_func(path: Str) returns Str {}
+    readfile := ext_proc(path: Str) returns Str {}
     writefile := ext_proc(path: Str, content: Str) {}
 
     /// Open a file at `path` for reading or writing.

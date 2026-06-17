@@ -338,6 +338,14 @@ Context := struct {
     has_break := false
     has_continue := false
     return_value := Value.None
+    // Set while the const-folder is evaluating a candidate call through the
+    // interpreter (try_eval_call). When active, a `panic`/`exit`/`TODO`/
+    // `UNREACHABLE` reached at fold time does NOT print+exit the build;
+    // instead it sets constfold_aborted and unwinds like an early return, so
+    // the const-folder can leave the call for runtime (or, for a macro,
+    // report it). This is til's analogue of rstil's catchable throw result.
+    constfold_active := false
+    constfold_aborted := false
     ns_fields := Map(Str, Value).new()
     ns_keys := Vec(Dynamic).new()
     ns_inited := false
