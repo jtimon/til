@@ -36,15 +36,22 @@ namespace:
         return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
     }
 
-    /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
-    set := func(self: DynArray, i: USize, own val: Dynamic) {
+    /// Overwrite the element at index `i`. Drops the old value. `val` is
+    /// owned. Throws OutOfBounds if `i` is past the end; call as
+    /// `dynarr[i] = val` (or `dynarr.set(i, own val)!`) to panic on a bad index.
+    set := func(self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds {
         if i.gte(self.cap) {
-            panic("DynArray.set: index ", i.to_str(),
-                  " out of bounds (len ", self.cap.to_str(), ")")
+            // val is not stored on the error path: drop its content and box.
+            // (if/else so the owned `val` is consumed on exactly one path.)
+            self.elem_delete(val, false)
+            free(own val)
+            throw OutOfBounds(msg = format(__LOC__, ":DynArray.set: index ", i.to_str(),
+                  " out of bounds (len ", self.cap.to_str(), ")"))
+        } else {
+            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+            memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
+            free(own val)
         }
-        self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
-        memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
-        free(own val)
     }
 
     delete := func(own self: DynArray, call_free: Bool = true) {

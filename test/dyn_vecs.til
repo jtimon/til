@@ -57,7 +57,7 @@ test_dyn_vec_set := test() {
     v.push(own 30)
 
     // set middle element
-    v.set(1, own 99)
+    v.set(1, own 99)!
     ref a : I64 = v[0]
     ref b : I64 = v[1]
     ref c : I64 = v[2]
@@ -66,7 +66,7 @@ test_dyn_vec_set := test() {
     assert_eq(I64, c, 30)
 
     // set first element
-    v.set(0, own 42)
+    v.set(0, own 42)!
     ref d : I64 = v[0]
     assert_eq(I64, d, 42)
 }
@@ -76,11 +76,42 @@ test_dyn_vec_set_str := test() {
     v.push(own "aaa")
     v.push(own "bbb")
 
-    v.set(0, own "xxx")
+    v.set(0, own "xxx")!
     ref a : Str = v[0]
     ref b : Str = v[1]
     assert_eq(Str, a, "xxx")
     assert_eq(Str, b, "bbb")
+}
+
+// Issue #225 (Dyn* follow-up): subscript assignment now works on
+// DynVec too -- `v[i] = x` -> `v.set(i, own x)!`.
+test_dyn_vec_subscript_assign := test() {
+    v := DynVec.new(I64)
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+    v[0] = 100
+    idx : USize = 1
+    v[idx.add(1)] = 300
+    ref a : I64 = v[0]
+    ref b : I64 = v[1]
+    ref c : I64 = v[2]
+    assert_eq(I64, a, 100)
+    assert_eq(I64, b, 20)
+    assert_eq(I64, c, 300)
+}
+
+// OOB set throws; the bang form panics, the `?` form catches. Str
+// element so the owned value's throw-path cleanup runs under ASAN.
+test_dyn_vec_subscript_assign_oob := test() {
+    v := DynVec.new(Str)
+    v.push(own "a")
+    mut caught := false
+    v.set(5, own "unstored")?
+    catch (err: OutOfBounds) {
+        caught = true
+    }
+    assert(caught)
 }
 
 test_dyn_vec_size := test() {

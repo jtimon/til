@@ -119,7 +119,7 @@ namespace:
             }
             self.keys.push(own cloned_key)
             self.values.push(own val)
-            self.buckets.set(bi, own new_idx)
+            self.buckets[bi] = new_idx
             if self.keys.count.mul(4).gt(self.buckets.count.mul(3)) {
                 self.rehash()
             }
@@ -129,7 +129,7 @@ namespace:
     rehash := func(mut self: DynHashMap) {
         new_count : USize = self.buckets.count.mul(2)
         for i in 0..self.buckets.count {
-            self.buckets.set(i, own -1)
+            self.buckets[i] = -1
         }
         while self.buckets.count.lt(new_count) {
             self.buckets.push(own -1)
@@ -139,8 +139,8 @@ namespace:
             bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
             ref head : I64 = self.buckets[bi]
             head_val : I64 = head.clone()
-            self.nexts.set(i, own head_val)
-            self.buckets.set(bi, own i.to_i64())
+            self.nexts[i] = head_val
+            self.buckets[bi] = i.to_i64()
         }
     }
 
@@ -183,9 +183,9 @@ namespace:
         ref nxt_of_idx : I64 = self.nexts[idx_u]
         nxt_val : I64 = nxt_of_idx.clone()
         if prev.lt(0) {
-            self.buckets.set(bi, own nxt_val)
+            self.buckets[bi] = nxt_val
         } else {
-            self.nexts.set(prev.to_usize(), own nxt_val)
+            self.nexts[prev.to_usize()] = nxt_val
         }
 
         last_idx : I64 = self.keys.count.to_i64().sub(1)
@@ -195,14 +195,14 @@ namespace:
             last_bi := bucket(self.hash_key(last_key), self.buckets.count)
             ref last_head : I64 = self.buckets[last_bi]
             if last_head.eq(last_idx) {
-                self.buckets.set(last_bi, own entry.clone())
+                self.buckets[last_bi] = entry.clone()
             } else {
                 mut walker : I64 = last_head.clone()
                 while walker.gte(0) {
                     walker_u : USize = walker.to_usize()
                     ref walker_nxt : I64 = self.nexts[walker_u]
                     if walker_nxt.eq(last_idx) {
-                        self.nexts.set(walker_u, own entry.clone())
+                        self.nexts[walker_u] = entry.clone()
                         break
                     }
                     walker = walker_nxt.clone()
@@ -216,7 +216,7 @@ namespace:
             memcpy(ptr_add(self.values.data, values_off.cast(U64)),
                    ptr_add(self.values.data, last_values_off.cast(U64)), self.values.elem_size.cast(U64))
             ref last_nxt : I64 = self.nexts[last_u]
-            self.nexts.set(idx_u, own last_nxt.clone())
+            self.nexts[idx_u] = last_nxt.clone()
         }
 
         self.keys.count = self.keys.count.sub(1)

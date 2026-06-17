@@ -4,9 +4,9 @@ import("../src/std/dyn_array")
 
 test_dyn_array_new_get_set := test() {
     a := DynArray.new(I64, 3)
-    a.set(0, own 10)
-    a.set(1, own 20)
-    a.set(2, own 30)
+    a.set(0, own 10)!
+    a.set(1, own 20)!
+    a.set(2, own 30)!
 
     ref x : I64 = a.get(0)!
     ref y : I64 = a.get(1)!
@@ -20,9 +20,9 @@ test_dyn_array_new_get_set := test() {
 
 test_dyn_array_subscript := test() {
     a := DynArray.new(I64, 3)
-    a.set(0, own 10)
-    a.set(1, own 20)
-    a.set(2, own 30)
+    a.set(0, own 10)!
+    a.set(1, own 20)!
+    a.set(2, own 30)!
 
     ref x : I64 = a[0]
     ref y : I64 = a[1]
@@ -37,10 +37,40 @@ test_dyn_array_subscript := test() {
     assert_eq(I64, w, 30)
 }
 
+// Issue #225 (Dyn* follow-up): subscript assignment now works on
+// DynArray too -- `a[i] = x` -> `a.set(i, own x)!`.
+test_dyn_array_subscript_assign := test() {
+    a := DynArray.new(I64, 3)
+    a[0] = 10
+    a[1] = 20
+    a[2] = 30
+    a[0] = 100
+    idx : USize = 1
+    a[idx.add(1)] = 300
+    ref x : I64 = a[0]
+    ref y : I64 = a[1]
+    ref z : I64 = a[2]
+    assert_eq(I64, x, 100)
+    assert_eq(I64, y, 20)
+    assert_eq(I64, z, 300)
+}
+
+// OOB set throws; Str element so the owned value's throw-path cleanup
+// runs under ASAN.
+test_dyn_array_subscript_assign_oob := test() {
+    a := DynArray.new(Str, 2)
+    mut caught := false
+    a.set(5, own "unstored")?
+    catch (err: OutOfBounds) {
+        caught = true
+    }
+    assert(caught)
+}
+
 test_dyn_array_strings := test() {
     a := DynArray.new(Str, 2)
-    a.set(0, own "hello")
-    a.set(1, own "world")
+    a.set(0, own "hello")!
+    a.set(1, own "world")!
 
     ref s0 : Str = a.get(0)!
     ref s1 : Str = a.get(1)!
@@ -51,9 +81,9 @@ test_dyn_array_strings := test() {
 
 test_dyn_array_overwrite := test() {
     a := DynArray.new(I64, 2)
-    a.set(0, own 1)
-    a.set(1, own 2)
-    a.set(0, own 99)
+    a.set(0, own 1)!
+    a.set(1, own 2)!
+    a.set(0, own 99)!
 
     ref v : I64 = a.get(0)!
     assert_eq(I64, v, 99)

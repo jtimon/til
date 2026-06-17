@@ -177,17 +177,27 @@ namespace:
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    set := func(mut self: DynVec, i: USize, own val: Dynamic) {
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `dynvec[i] = val`
+    /// (or `dynvec.set(i, own val)!`) to panic on a bad index.
+    set := func(mut self: DynVec, i: USize, own val: Dynamic) throws OutOfBounds {
         if i.gte(self.count) {
-            panic("DynVec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            // val is not stored on the error path: drop its element
+            // content (if boxed) and free the box so it does not leak.
+            // (if/else so the owned `val` is consumed on exactly one path.)
+            if self.elem_kind.eq(ELEM_BOXED) {
+                self.elem_delete(val, false)
+            }
+            free(own val)
+            throw OutOfBounds(msg = format(__LOC__, ":DynVec.set: index ", i.to_str(),
+                  " out of bounds (len ", self.count.to_str(), ")"))
+        } else {
+            if self.elem_kind.eq(ELEM_BOXED) {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+            }
+            memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
+            free(own val)
         }
-        if self.elem_kind.eq(ELEM_BOXED) {
-            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
-        }
-        memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
-        free(own val)
     }
 
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
