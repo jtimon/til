@@ -4,7 +4,7 @@ UnaryOp := func(I64) returns I64
 
 make_multiplier := func(factor: I64) returns UnaryOp {
     local_factor := factor
-    return func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
+    return func(x: I64) returns I64 [own local_factor] { return x.mul(local_factor) }
 }
 
 test_closure_return_captures_local := test() {

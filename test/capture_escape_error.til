@@ -1,0 +1,13 @@
+mode script
+
+UnaryOp := func(I64) returns I64
+
+make_multiplier := func(factor: I64) returns UnaryOp {
+    local_factor := factor
+    return func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
+}
+
+main := proc() {
+    triple := make_multiplier(3)
+    println(triple(6).to_str())
+}

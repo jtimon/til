@@ -2507,14 +2507,20 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
         f.write("({ ").write(env_type).write(" *til_env = malloc(sizeof(").write(env_type).write(")); ")
         for cap : Declaration in fd.captures {
             ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), _ctx)
-            if cap.is_mut {
-                f.write("til_env->").write(cap.name).write(" = &").write(cap.name).write("; ")
-            } else {
+            mut cap_expr := Expr.new(ident_node(cap.name), e.line, e.col)
+            cap_expr.set_expr_til_type(cap.til_type.clone())
+            if cap.own_type.is(OwnType.Ref) {
+                f.write("til_env->").write(cap.name).write(" = ")
+                emit_as_ptr(f, cap_expr, _depth, false, _ctx)
+                f.write("; ")
+            } else if cap.own_type.is(OwnType.Shallow) {
                 f.write("til_env->").write(cap.name).write(" = malloc(sizeof(").write(ctype).write(")); ")
                 f.write("*til_env->").write(cap.name).write(" = ")
-                mut cap_expr := Expr.new(ident_node(cap.name), e.line, e.col)
-                cap_expr.set_expr_til_type(cap.til_type.clone())
                 emit_deref(f, cap_expr, _depth, _ctx)
+                f.write("; ")
+            } else {
+                f.write("til_env->").write(cap.name).write(" = ")
+                emit_as_ptr(f, cap_expr, _depth, true, _ctx)
                 f.write("; ")
             }
         }
@@ -3226,6 +3232,10 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     }
     switch e.node_type {
     case NodeType.Ident(ident):
+        if ctx.closure_emit_captures.has(ident.ident_name()) {
+            f.write(ctx.closure_emit_env).write("->").write(ident.ident_name())
+            return f
+        }
         if is_shallow_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
             if is_own {
                 ref existing : Str = get_stack_local_ctype(ident.ident_name(), ctx)
@@ -3527,8 +3537,13 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         f.write("static void ").write(fd.closure_name).write("_drop(void *til_env_raw) {\n")
         f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
         for drop_cap : Declaration in fd.captures {
-            if drop_cap.is_mut.not() {
-                f.write("    free(til_env->").write(drop_cap.name).write(");\n")
+            if drop_cap.own_type.is(OwnType.Ref).not() {
+                drop_type := til_type_name_c(drop_cap.til_type)
+                if is_primitive_type(drop_type) {
+                    f.write("    free(til_env->").write(drop_cap.name).write(");\n")
+                } else {
+                    f.write("    ").write(drop_type).write("_delete(til_env->").write(drop_cap.name).write(", ").write(delete_call_free_lit(drop_type, true, lp.ctx)).write(");\n")
+                }
             }
         }
         f.write("    free(til_env);\n")

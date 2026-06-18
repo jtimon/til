@@ -562,6 +562,9 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag, " test/closures_interp.til"))
     add_single(tests, "closures_compile_escape", "closures", 0, "",
         format(til_bin, " run", asan_flag, " test/closures_compile_escape.til"))
+    add_count(tests, "capture_escape_error", "typer",
+        "returned closure borrows captured local", 1,
+        format(til_bin, " interpret test/capture_escape_error.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
         "locals cannot use", 1,
         format(til_bin, " interpret test/qualifier_shallow_local_error.til"))

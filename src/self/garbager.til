@@ -322,6 +322,27 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
                 dd_is_ref = dd.own_type.is(OwnType.Ref)
             case:
             }
+            if stmt.children.len().gt(0) {
+                switch stmt.children[0].node_type {
+                case NodeType.FuncDef(fd):
+                    mut closure_last : I32 = i.cast(I32)
+                    for local : LocalInfo in locals {
+                        if local.name.eq(dd_name).and(local.last_use.gt(closure_last)) {
+                            closure_last = local.last_use
+                        }
+                    }
+                    for cap : Declaration in fd.captures {
+                        if cap.own_type.is(OwnType.Ref).not() { continue }
+                        for local2 : LocalInfo in locals {
+                            if local2.name.eq(cap.name).and(local2.last_use.lt(closure_last)) {
+                                local2.last_use = closure_last
+                                ref_changed = true
+                            }
+                        }
+                    }
+                case:
+                }
+            }
             if dd_is_ref.not() { continue }
             ref mut rhs : Expr = stmt.children[0]
 

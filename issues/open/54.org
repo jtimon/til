@@ -41,12 +41,13 @@
     - [ ] Escaping closure lifetimes for stored/returned closures. C closure
        environments currently borrow captured locals, so a closure called
        after its defining stack scope exits can dangle.
-      Progress: non-mut value captures now get closure-owned heap slots and
-      returned closures clean them up through the closure drop hook. Test:
+      Progress: borrowed captures use parameter-like ref semantics, returned
+      borrowed closures are rejected, and explicit ~own~ returned captures run
+      through the closure drop hook. Tests:
+      test/capture_escape_error.til and
       test/closures_compile_escape.til::test_closure_return_captures_local.
-      Remaining: escaping mut captures and aggregate ownership/deep-copy
-      semantics.
-   - [ ] copy/own capture modifiers (snapshot/move) for funcs and blocks.
+      Remaining: escaping mut captures and aggregate ownership semantics.
+   - [ ] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]
   :DEPENDENCIES_OF: [[./12.org][#12]] [[./13.org][#13]]
@@ -91,7 +92,7 @@
    |----------------+-------------------------------+--------------------|
    | ~[x]~          | Const by reference (default)  | ~x: T~             |
    | ~[mut x]~      | Mutable reference             | ~mut x: T~         |
-   | ~[copy x]~     | Deep copy (snapshot)          | ~copy x: T~        |
+   | ~[shallow x]~  | Value copy                    | ~shallow x: T~     |
    | ~[own x]~      | Ownership transfer (moved in) | ~own x: T~         |
 
    #+begin_src til
@@ -101,8 +102,8 @@
    // mut capture: closure can modify total
    data.for_each(func(x: I64) [mut total] { total = total.add(x) })
 
-   // copy capture: closure gets a snapshot, original unchanged
-   data.map(func(x: I64) returns I64 [copy total] { return x.add(total) })
+   // shallow capture: closure gets a value copy, original unchanged
+   data.map(func(x: I64) returns I64 [shallow total] { return x.add(total) })
 
    // own capture: moves data into the closure, caller can't use it after
    consume := proc() [own data] { data.clear() }

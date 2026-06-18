@@ -2880,6 +2880,10 @@ Bool priv___src_self_typer_til__is_shallow_struct(Str * type_name, TypeScope * s
 Bool priv___src_self_typer_til__is_auto_shallow_type(Type * t, Str * type_name, TypeScope * scope, Context * ctx);
 void priv___src_self_typer_til__infer_func_sig_expr(TypeScope * scope, Expr * expr);
 void priv___src_self_typer_til__check_ref_function_returns(TypeScope * func_scope, Expr * expr, Context * ctx);
+Str * priv___src_self_typer_til__first_borrowed_capture_name(Expr * e);
+Str * priv___src_self_typer_til__returned_closure_borrowed_capture_name(Expr * e, TypeScope * scope);
+void priv___src_self_typer_til__check_returned_borrowed_closure_captures_in(Expr * e, TypeScope * func_scope, Context * ctx);
+void priv___src_self_typer_til__check_returned_borrowed_closure_captures(TypeScope * func_scope, Expr * expr, Context * ctx);
 Str * priv___src_self_typer_til__lookup_variant_payload_type(TypeScope * scope, Str * enum_name, Str * variant_name);
 void priv___src_self_typer_til__collect_switch_case_bindings(Context * ctx, Expr * e);
 void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);

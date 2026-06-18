@@ -3534,6 +3534,60 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: 
     }
 }
 
+priv first_borrowed_capture_name := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        for cap : Declaration in fd.captures {
+            if cap.own_type.is(OwnType.Ref) { return cap.name.clone() }
+        }
+    case:
+    }
+    return ""
+}
+
+priv returned_closure_borrowed_capture_name := func(e: Expr, scope: TypeScope) returns Str {
+    switch e.node_type {
+    case NodeType.FuncDef:
+        return first_borrowed_capture_name(e)
+    case NodeType.Ident(id):
+        ref fdef : Expr = scope.lookup_func(id.ident_name())
+        if fdef.is_null() { return "" }
+        return first_borrowed_capture_name(fdef)
+    case:
+    }
+    return ""
+}
+
+priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, ctx: Context) {
+    switch e.node_type {
+    case NodeType.Return:
+        if e.children.len().eq(0) { return }
+        cap_name := returned_closure_borrowed_capture_name(e.children[0], func_scope)
+        if cap_name.len().gt(0) {
+            e.type_error(format("returned closure borrows captured local '", cap_name,
+                "'; capture it as 'own ", cap_name, "' or 'shallow ", cap_name,
+                "' if the closure escapes"), ctx)
+        }
+        return
+    case NodeType.FuncDef:
+        return
+    case:
+    }
+    for c : Expr in e.children {
+        check_returned_borrowed_closure_captures_in(c, func_scope, ctx)
+    }
+}
+
+priv check_returned_borrowed_closure_captures := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
+    switch expr.node_type {
+    case NodeType.FuncDef:
+        if expr.children.len().eq(0) { return }
+        check_returned_borrowed_closure_captures_in(expr.children[0], func_scope, ctx)
+    case:
+        UNREACHABLE()
+    }
+}
+
 // Look up the payload type for a variant of a named enum, by enum
 // name and variant name. Returns "" if either is unknown. Used by
 // collect_switch_case_bindings to translate a `case E.V(x):` pattern
@@ -3866,6 +3920,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         }
         if macro_is_template.not() {
             check_ref_function_returns(func_scope, expr, ctx)
+            check_returned_borrowed_closure_captures(func_scope, expr, ctx)
             check_unused_params(func_scope, expr, ctx)
             check_unused_mut_params(func_scope, expr, ctx.path, ctx)
             check_unused_locals(func_scope, ctx.path, ctx)
@@ -12017,7 +12072,14 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
 }
 
 expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FuncDef) { return false }
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        for cap : Declaration in fd.captures {
+            if cap.name.eq(var_name).and(cap.own_type.is(OwnType.Own)) { return true }
+        }
+        return false
+    case:
+    }
     if fcall_has_own_arg(e, var_name, scope) { return true }
     // FieldAssign is a transfer only when the receiving field is Own --
     // Ref fields take a borrow (caller keeps ownership), Shallow fields
