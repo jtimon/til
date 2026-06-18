@@ -8275,6 +8275,31 @@ priv process_throw_catch_in_body := proc(
         stmt_col := stmt.col
         seed_prior_local_types(ctx, old_snapshot, j)
 
+        // Once a prior statement may have set _err_kind, the rest of the
+        // body runs only on the no-error path. Group ALL remaining
+        // statements into ONE `if _err_kind == 0` guard, then recurse to
+        // lower any throws/bangs inside it. Wrapping each statement in its
+        // own guard -- the old behavior -- put every post-throw local in a
+        // separate block scope, so a local declared after a guarded throw
+        // was undefined in the following statement. A `catch` is exempt: it
+        // runs ON the error (`_err_kind != 0`) and is lowered by step 6, so
+        // grouping it under `_err_kind == 0` would wrongly skip it.
+        if seen_throwing.and(stmt.node_type.is(NodeType.Catch).not()) {
+            mut rest := Expr.new(NodeType.Body, stmt_line, stmt_col)
+            for k in j..old.len() {
+                rest.add_child(own old[k].clone())
+            }
+            process_throw_catch_in_body(ctx, rest, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
+            mut kind_id := Expr.new(ident_node("_err_kind"), stmt_line, stmt_col)
+            mut guard_cond := make_method_call_fcall(own kind_id, "eq", stmt_line, stmt_col)
+            guard_cond.add_child(own make_int_lit(0, stmt_line, stmt_col))
+            mut guard := Expr.new(NodeType.If, stmt_line, stmt_col)
+            guard.add_child(own guard_cond)
+            guard.add_child(own rest)
+            new_ch.push(own guard)
+            break
+        }
+
         // Skip nested Decls whose RHS is a FuncDef/StructDef/EnumDef.
         // Those bodies get processed when the typer visits them.
         mut is_nested_def := false
