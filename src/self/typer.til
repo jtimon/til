@@ -1007,6 +1007,12 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
                 if get_own_arg(e, ci).not() {
                     arg.type_error("argument for 'own' parameter '".concat(pp2.name).concat("' must be marked 'own'"), ctx)
                 }
+                cap_name := closure_borrowed_capture_name(arg, scope)
+                if cap_name.len().gt(0) {
+                    arg.type_error(format("own argument closure borrows captured local '", cap_name,
+                        "'; capture it as 'own ", cap_name, "' or 'shallow ", cap_name,
+                        "' if the closure escapes"), ctx)
+                }
             } else if get_own_arg(e, ci) {
                 arg.type_error("'own' on argument but parameter '".concat(pp2.name).concat("' is not 'own'"), ctx)
             }
@@ -2306,6 +2312,12 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                     if get_own_arg(e, i).not() {
                         arg.type_error(format("argument for 'own' parameter '", pp.name, "' must be marked 'own'"), ctx)
                     }
+                    cap_name := closure_borrowed_capture_name(arg, scope)
+                    if cap_name.len().gt(0) {
+                        arg.type_error(format("own argument closure borrows captured local '", cap_name,
+                            "'; capture it as 'own ", cap_name, "' or 'shallow ", cap_name,
+                            "' if the closure escapes"), ctx)
+                    }
                 } else if get_own_arg(e, i) {
                     arg.type_error(format("'own' on argument but parameter '", pp.name, "' is not 'own'"), ctx)
                 }
@@ -3545,7 +3557,7 @@ priv first_borrowed_capture_name := func(e: Expr) returns Str {
     return ""
 }
 
-priv returned_closure_borrowed_capture_name := func(e: Expr, scope: TypeScope) returns Str {
+priv closure_borrowed_capture_name := func(e: Expr, scope: TypeScope) returns Str {
     switch e.node_type {
     case NodeType.FuncDef:
         return first_borrowed_capture_name(e)
@@ -3562,7 +3574,7 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
     switch e.node_type {
     case NodeType.Return:
         if e.children.len().eq(0) { return }
-        cap_name := returned_closure_borrowed_capture_name(e.children[0], func_scope)
+        cap_name := closure_borrowed_capture_name(e.children[0], func_scope)
         if cap_name.len().gt(0) {
             e.type_error(format("returned closure borrows captured local '", cap_name,
                 "'; capture it as 'own ", cap_name, "' or 'shallow ", cap_name,

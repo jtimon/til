@@ -565,6 +565,9 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_escape_error", "typer",
         "returned closure borrows captured local", 1,
         format(til_bin, " interpret test/capture_escape_error.til"))
+    add_count(tests, "capture_own_arg_escape_error", "typer",
+        "own argument closure borrows captured local", 1,
+        format(til_bin, " interpret test/capture_own_arg_escape_error.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
         "locals cannot use", 1,
         format(til_bin, " interpret test/qualifier_shallow_local_error.til"))

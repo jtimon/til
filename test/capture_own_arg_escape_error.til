@@ -1,0 +1,12 @@
+mode test
+
+import("../src/std/dyn_vec")
+
+UnaryOp := func(I64) returns I64
+
+test_own_arg_borrowed_closure_error := test() {
+    factor := 3
+    op := func(x: I64) returns I64 [factor] { return x.mul(factor) }
+    mut ops := DynVec.new(UnaryOp)
+    ops.push(own op)
+}
