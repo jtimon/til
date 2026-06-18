@@ -221,8 +221,6 @@ typedef struct Vec__TokenType Vec__TokenType;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
 typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
-typedef struct Map__Str_Type Map__Str_Type;
-typedef struct Vec__Type Vec__Type;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
     ScopeFind_TAG_NotFound,
@@ -672,13 +670,6 @@ typedef struct Map__Str_Str {
     Vec__Str keys;
     Vec__Str values;
 } Map__Str_Str;
-
-
-typedef struct Vec__Type {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} Vec__Type;
 
 
 typedef struct TypeBinding {
@@ -1604,12 +1595,6 @@ typedef struct priv___src_self_parser_til__Parser {
 } priv___src_self_parser_til__Parser;
 
 
-typedef struct Map__Str_Type {
-    Vec__Str keys;
-    Vec__Type values;
-} Map__Str_Type;
-
-
 typedef struct ImportUnit {
     Str mode_str;
     Mode mode;
@@ -2328,7 +2313,8 @@ Token * priv___src_self_parser_til__expect_token(priv___src_self_parser_til__Par
 Str * priv___src_self_parser_til__expect_text(priv___src_self_parser_til__Parser * p, TokenType * type);
 U32 priv___src_self_parser_til__peek_line(priv___src_self_parser_til__Parser * p);
 U32 priv___src_self_parser_til__peek_col(priv___src_self_parser_til__Parser * p);
-Map__Str_Type * priv___src_self_parser_til__make_builtin_type_table(void);
+Bool builtin_primitive_from_name(Str * name, Primitive * out);
+void builtin_primitive_size_align(Primitive * prim, U32 * sz, U32 * al);
 Bool builtin_type_from_name(Str * name, Type * out);
 Type * til_type_from_explicit_type(Str * name);
 Declaration * decl_typed(Str * explicit_type, Str * name, Str * doc, Bool is_mut, Bool redundant_mut, Bool is_priv, Bool used, OwnType * own_type);
@@ -2393,20 +2379,6 @@ void Map__Str_Str_delete(Map__Str_Str * self, Bool call_free);
 Map__Str_Str * Map__Str_Str_clone(Map__Str_Str * self);
 U64 Map__Str_Str_hash(Map__Str_Str * self, HashFn hasher);
 U32 Map__Str_Str_size(void);
-Map__Str_Type * Map__Str_Type_new(void);
-Str * Map__Str_Type_key_ptr(Map__Str_Type * self, U32 * i);
-Type * Map__Str_Type_val_ptr(Map__Str_Type * self, U32 * i);
-Type * Map__Str_Type_get(Map__Str_Type * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
-void Map__Str_Type_set(Map__Str_Type * self, Str * key, Type * val);
-void Map__Str_Type_delete(Map__Str_Type * self, Bool call_free);
-Map__Str_Type * Map__Str_Type_clone(Map__Str_Type * self);
-U64 Map__Str_Type_hash(Map__Str_Type * self, HashFn hasher);
-U32 Map__Str_Type_size(void);
-Vec__Type * Vec__Type_new(void);
-void Vec__Type_clear(Vec__Type * self);
-void Vec__Type_delete(Vec__Type * self, Bool call_free);
-Vec__Type * Vec__Type_clone(Vec__Type * self);
-U32 Vec__Type_size(void);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U64 TypeBinding_hash(TypeBinding * self, HashFn hasher);
@@ -4212,7 +4184,6 @@ extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
-extern Map__Str_Type builtin_type_table;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;

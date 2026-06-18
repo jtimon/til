@@ -8,21 +8,16 @@ priv is_dynamic_type := func(name: Str) returns Bool {
 }
 
 priv primitive_type_info := func(name: Str, scope: TypeScope, mut prim: Primitive, mut sz: USize, mut al: USize, mut is_builtin: Bool) returns Bool {
-    if name.eq("I64") { prim = Primitive.I64; sz = 8; al = 8; is_builtin = true; return true }
-    if name.eq("U8") { prim = Primitive.U8; sz = 1; al = 1; is_builtin = true; return true }
-    if name.eq("I8") { prim = Primitive.I8; sz = 1; al = 1; is_builtin = true; return true }
-    if name.eq("I16") { prim = Primitive.I16; sz = 2; al = 2; is_builtin = true; return true }
-    if name.eq("U16") { prim = Primitive.U16; sz = 2; al = 2; is_builtin = true; return true }
-    if name.eq("I32") { prim = Primitive.I32; sz = 4; al = 4; is_builtin = true; return true }
-    if name.eq("U32") { prim = Primitive.U32; sz = 4; al = 4; is_builtin = true; return true }
-    if name.eq("U64") { prim = Primitive.U64; sz = 8; al = 8; is_builtin = true; return true }
+    if builtin_primitive_from_name(name, prim) {
+        builtin_primitive_size_align(prim, sz, al)
+        is_builtin = true
+        return true
+    }
     // #192: USize/UPtr are target-dependent -- recurse on the per-target
     // primitive name so their Primitive tag AND size/align match the width
     // the resolvers use, keeping struct layout consistent with field types.
     if name.eq("USize") { return primitive_type_info(scope_target_usize_pname(scope), scope, prim, sz, al, is_builtin) }
     if name.eq("UPtr") { return primitive_type_info(scope_target_uptr_pname(scope), scope, prim, sz, al, is_builtin) }
-    if name.eq("Bool") { prim = Primitive.Bool; sz = 1; al = 1; is_builtin = true; return true }
-    if name.eq("F32") { prim = Primitive.F32; sz = 4; al = 4; is_builtin = true; return true }
     if name.eq("Dynamic") { sz = 8; al = 8; is_builtin = true; return true }
     return false
 }

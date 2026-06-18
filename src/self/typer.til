@@ -4657,21 +4657,18 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         }
         mut builtin_type := Type.Struct(sname.clone())
         mut is_builtin := false
-        if is_enum { builtin_type = Type.Enum(sname.clone()) }
-        if sname.eq("I64") { builtin_type = Type.Primitive(Primitive.I64); is_builtin = true }
-        else if sname.eq("U8") { builtin_type = Type.Primitive(Primitive.U8); is_builtin = true }
-        else if sname.eq("I8") { builtin_type = Type.Primitive(Primitive.I8); is_builtin = true }
-        else if sname.eq("I16") { builtin_type = Type.Primitive(Primitive.I16); is_builtin = true }
-        else if sname.eq("U16") { builtin_type = Type.Primitive(Primitive.U16); is_builtin = true }
-        else if sname.eq("I32") { builtin_type = Type.Primitive(Primitive.I32); is_builtin = true }
-        else if sname.eq("U32") { builtin_type = Type.Primitive(Primitive.U32); is_builtin = true }
-        else if sname.eq("U64") { builtin_type = Type.Primitive(Primitive.U64); is_builtin = true }
-        else if sname.eq("F32") { builtin_type = Type.Primitive(Primitive.F32); is_builtin = true }
-        else if sname.eq("Str") { is_builtin = false }
-        else if sname.eq("Bool") { builtin_type = Type.Primitive(Primitive.Bool); is_builtin = true }
-        else if sname.eq("StructDef") { is_builtin = false }
-        else if sname.eq("FunctionDef") { is_builtin = false }
-        else if sname.eq("Dynamic") { builtin_type = Type.Dynamic; is_builtin = true }
+        if is_enum {
+            builtin_type = Type.Enum(sname.clone())
+        } else {
+            mut prim : Primitive = Primitive.I64
+            if builtin_primitive_from_name(sname, prim) {
+                builtin_type = Type.Primitive(prim)
+                is_builtin = true
+            } else if sname.eq("Dynamic") {
+                builtin_type = Type.Dynamic
+                is_builtin = true
+            }
+        }
         scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         scope.set_struct_def(sname, stmt.children[0])
         ref mut b : TypeBinding = scope.get_binding(sname)

@@ -92,41 +92,50 @@ priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
 // (Str, user-defined structs/enums) becomes Custom(name) so the typer can
 // later refine it into Struct(name) or Enum(name) via scope lookup while
 // keeping the name already provided by the user.
-// Builtin (target-independent) type-name -> Type table, shared by every
-// type-name resolver (parser/context/typer). A Map gives an O(log n)
-// lookup instead of the linear if-chain that used to be duplicated in
-// three places. Target-dependent names (USize/UPtr) and scope-resolved
-// user types are handled by each caller, not here.
-priv make_builtin_type_table := func() returns Map(Str, Type) {
-    mut table := Map(Str, Type).new()
-    table.set("I64", own Type.Primitive(Primitive.I64))
-    table.set("U8", own Type.Primitive(Primitive.U8))
-    table.set("I8", own Type.Primitive(Primitive.I8))
-    table.set("I16", own Type.Primitive(Primitive.I16))
-    table.set("U16", own Type.Primitive(Primitive.U16))
-    table.set("I32", own Type.Primitive(Primitive.I32))
-    table.set("U32", own Type.Primitive(Primitive.U32))
-    table.set("U64", own Type.Primitive(Primitive.U64))
-    table.set("F32", own Type.Primitive(Primitive.F32))
-    table.set("Bool", own Type.Primitive(Primitive.Bool))
-    table.set("Str", own Type.Struct("Str"))
-    table.set("StructDef", own Type.Struct("StructDef"))
-    table.set("EnumDef", own Type.Struct("EnumDef"))
-    table.set("Fn", own Type.FuncPtr)
-    table.set("Dynamic", own Type.Dynamic)
-    return table
+// Builtin target-independent primitive names. Target-dependent names
+// (USize/UPtr) and scope-resolved user types are handled by each caller.
+builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool {
+    if name.eq("I64")  { out = Primitive.I64; return true }
+    if name.eq("U8")   { out = Primitive.U8; return true }
+    if name.eq("I8")   { out = Primitive.I8; return true }
+    if name.eq("I16")  { out = Primitive.I16; return true }
+    if name.eq("U16")  { out = Primitive.U16; return true }
+    if name.eq("I32")  { out = Primitive.I32; return true }
+    if name.eq("U32")  { out = Primitive.U32; return true }
+    if name.eq("U64")  { out = Primitive.U64; return true }
+    if name.eq("F32")  { out = Primitive.F32; return true }
+    if name.eq("Bool") { out = Primitive.Bool; return true }
+    return false
 }
 
-mut builtin_type_table := make_builtin_type_table()
+builtin_primitive_size_align := func(prim: Primitive, mut sz: USize, mut al: USize) {
+    if prim.is(Primitive.I64) { sz = 8; al = 8; return }
+    if prim.is(Primitive.U8) { sz = 1; al = 1; return }
+    if prim.is(Primitive.I8) { sz = 1; al = 1; return }
+    if prim.is(Primitive.I16) { sz = 2; al = 2; return }
+    if prim.is(Primitive.U16) { sz = 2; al = 2; return }
+    if prim.is(Primitive.I32) { sz = 4; al = 4; return }
+    if prim.is(Primitive.U32) { sz = 4; al = 4; return }
+    if prim.is(Primitive.U64) { sz = 8; al = 8; return }
+    if prim.is(Primitive.F32) { sz = 4; al = 4; return }
+    if prim.is(Primitive.Bool) { sz = 1; al = 1; return }
+    UNREACHABLE()
+}
 
 // Look up a builtin type name. Returns true and writes `out` when `name`
 // is a builtin; false (leaving `out` untouched) otherwise.
 builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
-    ref tbl : Map(Str, Type) = builtin_type_table
-    ref t : Type = tbl.get(name)?
-    catch (e: KeyNotFound) { return false }
-    out = t.clone()
-    return true
+    mut prim : Primitive = Primitive.I64
+    if builtin_primitive_from_name(name, prim) {
+        out = Type.Primitive(prim)
+        return true
+    }
+    if name.eq("Str") { out = Type.Struct("Str"); return true }
+    if name.eq("StructDef") { out = Type.Struct("StructDef"); return true }
+    if name.eq("EnumDef") { out = Type.Struct("EnumDef"); return true }
+    if name.eq("Fn") { out = Type.FuncPtr; return true }
+    if name.eq("Dynamic") { out = Type.Dynamic; return true }
+    return false
 }
 
 til_type_from_explicit_type := func(name: Str) returns Type {
