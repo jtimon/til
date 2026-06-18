@@ -4245,8 +4245,24 @@ priv box_return_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ct
     }
 }
 
-priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
-    if stmt.children.len().gt(0) {
+// #282 follow-up: true when `e` is an FCall carrying an injected `_err_kind`
+// out-arg -- i.e. the pre-infer throw pass lowered it as a throwing (`?`/`!`)
+// call. Used to limit the ref-returning-return check to throwing calls (whose
+// result is null on the throw path), so a plain non-throwing ref-returning
+// call returned by value is left alone.
+priv fcall_has_injected_err_arg := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    for c : Expr in e.children {
+        switch c.node_type {
+        case NodeType.Ident(idn):
+            if idn.ident_name().eq("_err_kind") { return true }
+        case:
+        }
+    }
+    return false
+}
+
+priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {    if stmt.children.len().gt(0) {
         // #251 follow-up: a conforming concrete RETURNED where an interface is
         // declared coerces to an OWNED box (box_return_value). Done in a
         // helper because it must snapshot the raw value BEFORE inference
@@ -4260,6 +4276,22 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
         }
         stmt.set_expr_til_type(stmt.children[0].expr_til_type())
         if returns_ref.eq(0) {
+            // #282 follow-up: a by-value `return v.get(i)?` (ref-returning,
+            // THROWING call) compiled, then DEREF'd a null ref on the throw
+            // path ("panic: null deref"). The Decl form (`x := v.get(i)?`) and
+            // the bang form (`return v.get(i)!`, via its hoisted temp Decl)
+            // already reject this with "cannot own result of ref-returning
+            // function"; the `?` return slipped past. Reject it the same way.
+            // Gate on the injected `_err_kind` out-arg so this fires ONLY for a
+            // lowered throwing call -- a plain non-throwing ref-returning call
+            // (`return deref(p)`) always yields a valid ref and is fine to
+            // return by value. Use `returns ref T` or `.clone()` instead.
+            ref ret_val : Expr = stmt.children[0]
+            if ret_val.node_type.is(NodeType.FCall)
+                .and(fcall_returns_ref(ret_val, scope).neq(0))
+                .and(fcall_has_injected_err_arg(ret_val)) {
+                stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
+            }
             switch stmt.children[0].node_type {
             case NodeType.Ident(rn):
                 sf := scope.find(rn.ident_name())
