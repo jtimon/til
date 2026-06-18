@@ -26,6 +26,7 @@ priv Parser := struct {
     // the program root by `parse`, like fn_sig_decls.
     anon_decls := Vec(Expr).new()
     anon_cache := Map(Str, Str).new()
+    anon_type_counter : I64 = 0
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     pending_doc := ""
@@ -128,26 +129,6 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
     return true
 }
 
-// #192: the per-target primitive NAME ("U32"/"U64") that USize and UPtr
-// map to. The loader sets these from target_usize_name / target_uptr_name
-// before any init/typer resolution, and every USize/UPtr resolver routes
-// through them (type_from_name, type_from_name_init, resolve_type_alias),
-// so EVERY position (struct fields, layouts, signatures, locals, exprs,
-// and the name-form FFI lookups) agrees on the per-target width. Without
-// this, some positions reached the source-level alias (src/core/usize.til)
-// while others reached the loader-retargeted binding, and the two
-// disagreed once the target width and the source width differ (the
-// U32 -> U64 flip). NOT registered as a builtin type, because that makes
-// codegen/alias handling treat USize as a primitive and shifts unrelated
-// behavior; this stays a name indirection only.
-mut g_usize_pname := "U32"
-mut g_uptr_pname := "U64"
-
-register_target_int_alias_types := func(usize_name: Str, uptr_name: Str) {
-    g_usize_pname = usize_name.clone()
-    g_uptr_pname = uptr_name.clone()
-}
-
 til_type_from_explicit_type := func(name: Str) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
@@ -187,12 +168,6 @@ priv set_decl_type := func(mut d: Declaration, name: Str) {
 }
 
 // --- Parsing functions ---
-
-// Issue #56/#57: monotonic counter for generated anon type names. Module
-// global (not a Parser field) so names stay unique across files in one
-// compilation -- two files each lifting an anon literal get distinct names
-// (AnonStruct0, AnonStruct1) rather than colliding on AnonStruct0.
-mut anon_struct_counter : I64 = 0
 
 // Canonical structural signature for a StructDef/EnumDef literal. Two
 // literals produce the same key iff they would generate the same type, so
@@ -256,8 +231,8 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
         ref hit : Str = p.anon_cache[key]
         return hit.clone()
     }
-    name := kind.concat(anon_struct_counter.to_str())
-    anon_struct_counter++
+    name := kind.concat(p.anon_type_counter.to_str())
+    p.anon_type_counter++
     p.anon_cache.set(key, own name.clone())
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
     decl.add_child(own def)
@@ -2374,8 +2349,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
 }
 
 // parse: entry point
-parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str) returns Expr {
-    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()))
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64) returns Expr {
+    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter)
 
     // Parse optional mode declaration
     if check(p, TokenType.Ident).and(tok_text(p, peek(p)).eq("mode")) {
@@ -2411,6 +2386,7 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str) ret
     for ad : Expr in p.anon_decls {
         root.add_child(own ad.clone())
     }
+    anon_type_counter = p.anon_type_counter
     // Anonymous lambdas (`func(...){...}` literals in expression positions)
     // used to be lifted here too, but they now move to top level in the
     // typer (src/self/typer.til:typer_lift_lambdas, called from

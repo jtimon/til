@@ -1329,6 +1329,16 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
     }
 }
 
+priv builder_reset_func_scratch := func(mut ctx: Context) {
+    ctx.stack_locals = Set(Str).new()
+    ctx.stack_local_types = Map(Str, Str).new()
+    ctx.unsafe_to_hoist = Set(Str).new()
+    ctx.ref_locals = Set(Str).new()
+    ctx.ref_dyn_locals = Set(Str).new()
+    ctx.ptr_locals = Set(Str).new()
+    ctx.local_fn_sigs = Map(Str, Dynamic).new()
+}
+
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
     expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
@@ -3461,13 +3471,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 }
             }
         }
-        lp.ctx.stack_locals = Set(Str).new()
-        lp.ctx.stack_local_types = Map(Str, Str).new()
-        lp.ctx.unsafe_to_hoist = Set(Str).new()
-        lp.ctx.ref_locals = Set(Str).new()
-        lp.ctx.ref_dyn_locals = Set(Str).new()
-        lp.ctx.ptr_locals = Set(Str).new()
-        lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
+        builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         lp.ctx.in_main_func = true
         emit_body(f, body, 1, lp.ctx)
@@ -3496,13 +3500,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         own body_refs.delete(true)
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
-        lp.ctx.stack_locals = Set(Str).new()
-        lp.ctx.stack_local_types = Map(Str, Str).new()
-        lp.ctx.unsafe_to_hoist = Set(Str).new()
-        lp.ctx.ref_locals = Set(Str).new()
-        lp.ctx.ref_dyn_locals = Set(Str).new()
-        lp.ctx.ptr_locals = Set(Str).new()
-        lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
+        builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.in_func_def = false
@@ -3559,13 +3557,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own cap2.name.clone()) }
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = closure_expr
-        lp.ctx.stack_locals = Set(Str).new()
-        lp.ctx.stack_local_types = Map(Str, Str).new()
-        lp.ctx.unsafe_to_hoist = Set(Str).new()
-        lp.ctx.ref_locals = Set(Str).new()
-        lp.ctx.ref_dyn_locals = Set(Str).new()
-        lp.ctx.ptr_locals = Set(Str).new()
-        lp.ctx.local_fn_sigs = Map(Str, Dynamic).new()
+        builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env

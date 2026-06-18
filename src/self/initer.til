@@ -7,7 +7,7 @@ priv is_dynamic_type := func(name: Str) returns Bool {
     return name.eq("Dynamic")
 }
 
-priv primitive_type_info := func(name: Str, mut prim: Primitive, mut sz: USize, mut al: USize, mut is_builtin: Bool) returns Bool {
+priv primitive_type_info := func(name: Str, scope: TypeScope, mut prim: Primitive, mut sz: USize, mut al: USize, mut is_builtin: Bool) returns Bool {
     if name.eq("I64") { prim = Primitive.I64; sz = 8; al = 8; is_builtin = true; return true }
     if name.eq("U8") { prim = Primitive.U8; sz = 1; al = 1; is_builtin = true; return true }
     if name.eq("I8") { prim = Primitive.I8; sz = 1; al = 1; is_builtin = true; return true }
@@ -19,8 +19,8 @@ priv primitive_type_info := func(name: Str, mut prim: Primitive, mut sz: USize, 
     // #192: USize/UPtr are target-dependent -- recurse on the per-target
     // primitive name so their Primitive tag AND size/align match the width
     // the resolvers use, keeping struct layout consistent with field types.
-    if name.eq("USize") { return primitive_type_info(g_usize_pname, prim, sz, al, is_builtin) }
-    if name.eq("UPtr") { return primitive_type_info(g_uptr_pname, prim, sz, al, is_builtin) }
+    if name.eq("USize") { return primitive_type_info(scope_target_usize_pname(scope), scope, prim, sz, al, is_builtin) }
+    if name.eq("UPtr") { return primitive_type_info(scope_target_uptr_pname(scope), scope, prim, sz, al, is_builtin) }
     if name.eq("Bool") { prim = Primitive.Bool; sz = 1; al = 1; is_builtin = true; return true }
     if name.eq("F32") { prim = Primitive.F32; sz = 4; al = 4; is_builtin = true; return true }
     if name.eq("Dynamic") { sz = 8; al = 8; is_builtin = true; return true }
@@ -57,7 +57,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         mut sz : USize = 0
         mut al : USize = 0
         mut prim_builtin : Bool = false
-        if primitive_type_info(sname, prim, sz, al, prim_builtin) {
+        if primitive_type_info(sname, scope, prim, sz, al, prim_builtin) {
             builtin_type = Type.Primitive(prim)
             is_builtin = prim_builtin
         } else if sname.eq("Str") {
@@ -1174,12 +1174,12 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
     case NodeType.Decl(sdecl):
         if scope.find(sdecl.name).is(ScopeFind.Found) { return }
         // #192: USize/UPtr are target-dependent. Bind them to the per-target
-        // primitive (g_usize_pname/g_uptr_pname) at creation, not the
+        // primitive registered on the root TypeScope at creation, not the
         // source-alias RHS, so code that reads the binding directly
         // (binding.type / alias_target, e.g. before the loader retargets it)
         // is authoritative and agrees with the type/name resolvers.
-        if sdecl.name.eq("USize") { target_name = g_usize_pname }
-        if sdecl.name.eq("UPtr") { target_name = g_uptr_pname }
+        if sdecl.name.eq("USize") { target_name = scope_target_usize_pname(scope).clone() }
+        if sdecl.name.eq("UPtr") { target_name = scope_target_uptr_pname(scope).clone() }
         find := scope.find(target_name)
         switch find {
         case ScopeFind.Found(target):
@@ -1201,9 +1201,9 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
             ab.is_builtin = target.is_builtin
             ab.is_type_alias = true
             if target.alias_target.is_empty() {
-                ab.alias_target = target_name
+                ab.alias_target = target_name.clone()
             } else {
-                ab.alias_target = target.alias_target
+                ab.alias_target = target.alias_target.clone()
             }
         case:
             // Target not in scope yet. Only register when the target name
@@ -1860,7 +1860,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     mut psz : USize = 0
                     mut pal : USize = 0
                     mut pbuiltin : Bool = false
-                    is_prim : Bool = primitive_type_info(ftype, prim, psz, pal, pbuiltin)
+                    is_prim : Bool = primitive_type_info(ftype, scope, prim, psz, pal, pbuiltin)
                     if is_prim {
                         fsz = psz
                         falign = pal
@@ -1911,7 +1911,7 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
     mut psz : USize = 0
     mut pal : USize = 0
     mut pbuiltin : Bool = false
-    if primitive_type_info(ftype, prim, psz, pal, pbuiltin) {
+    if primitive_type_info(ftype, scope, prim, psz, pal, pbuiltin) {
         sz = psz
         al = pal
         return

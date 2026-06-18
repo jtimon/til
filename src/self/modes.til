@@ -23,17 +23,13 @@ context_enter_file := func(mut ctx: Context, path: Str) {
     context_set_mode_from_path(ctx, path)
 }
 
-// Dynamic mode registry — user-defined modes (#63) will add to this via -M/--extra-modes flag
-priv make_mode_registry := func() returns Map(Str, Mode) {
-    mut registry := Map(Str, Mode).new()
-    registry.set("mode", own Mode(decls_only = true, auto_import = "src/std/mode_type"))
-    return registry
+context_init_mode_registry := func(mut ctx: Context) {
+    ctx.mode_registry = Map(Str, Mode).new()
+    ctx.mode_registry.set("mode", own Mode(decls_only = true, auto_import = "src/std/mode_type"))
 }
 
-mut mode_registry := make_mode_registry()
-
-mode_resolve := func(name: Str) returns ref Mode {
-    ref mr : Map(Str, Mode) = mode_registry
+mode_resolve := func(ctx: Context, name: Str) returns ref Mode {
+    ref mr : Map(Str, Mode) = ctx.mode_registry
     ref m : Mode = mr.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return m

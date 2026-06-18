@@ -74,6 +74,8 @@ priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref E
 
 TypeScope := struct {
     bindings := Map(Str, TypeBinding).new()
+    target_usize_pname := "U32"
+    target_uptr_pname := "U64"
     // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
     // by scope.set_func_def at every binding write site that used to
@@ -266,6 +268,10 @@ Context := struct {
     mode := Mode()
     path := ""
     path_modes := Map(Str, Mode).new()
+    mode_registry := Map(Str, Mode).new()
+    target_usize_pname := "U32"
+    target_uptr_pname := "U64"
+    anon_type_counter : I64 = 0
     // Issue #54: true when the program is headed for the C backend
     // (build/run/translate/install/test) rather than the interpreter.
     // Capturing closures currently run only under the interpreter, so the
@@ -539,6 +545,29 @@ Context := struct {
 
 // --- Helpers moved from initer.til ---
 
+context_register_target_int_alias_types := func(mut ctx: Context, usize_name: Str, uptr_name: Str) {
+    ctx.target_usize_pname = usize_name.clone()
+    ctx.target_uptr_pname = uptr_name.clone()
+    ctx.scope.target_usize_pname = usize_name.clone()
+    ctx.scope.target_uptr_pname = uptr_name.clone()
+}
+
+context_reset_type_scope := func(mut ctx: Context) {
+    ctx.scope = TypeScope()
+    ctx.scope.target_usize_pname = ctx.target_usize_pname.clone()
+    ctx.scope.target_uptr_pname = ctx.target_uptr_pname.clone()
+}
+
+scope_target_usize_pname := func(scope: TypeScope) returns ref Str {
+    if scope.parent.is_null().not() { return scope_target_usize_pname(scope.parent) }
+    return scope.target_usize_pname
+}
+
+scope_target_uptr_pname := func(scope: TypeScope) returns ref Str {
+    if scope.parent.is_null().not() { return scope_target_uptr_pname(scope.parent) }
+    return scope.target_uptr_pname
+}
+
 priv_c_name := func(path: Str, name: Str) returns Str {
     mut buf := Str.with_capacity(path.len().add(name.len()).add(16))
     buf.push_str("priv__")
@@ -707,11 +736,10 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
     // #192: USize/UPtr resolve to the loader-stamped per-target primitive
-    // name (g_usize_pname/g_uptr_pname), the same authority the typer's
-    // type_from_name and resolve_type_alias use, so the init phase agrees
-    // with the typer regardless of the source-alias width.
-    if name.eq("USize") { return type_from_name_init(g_usize_pname, scope) }
-    if name.eq("UPtr") { return type_from_name_init(g_uptr_pname, scope) }
+    // names stored on the root TypeScope, so init agrees with the typer
+    // regardless of the source-alias width.
+    if name.eq("USize") { return type_from_name_init(scope_target_usize_pname(scope), scope) }
+    if name.eq("UPtr") { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
     if scope.is_null().not() {
         ref b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {

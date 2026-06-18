@@ -182,6 +182,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     system_cmd("mkdir -p tmp")
     tmp_path := "tmp/repl_".concat(process_id().to_str()).concat(".til")
     out_path := "tmp/repl_".concat(process_id().to_str()).concat(".out")
+    mut repl_anon_type_counter : I64 = 0
 
     while true {
         block := repl_read_line(mode_str)
@@ -197,7 +198,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         ref kept : Str = source_keep[source_keep.len().sub(1)]
         peek_tokens := tokenize(kept, "<repl>")
         mut peek_mode_out := ""
-        peek_ast := parse(peek_tokens, kept, "<repl>", peek_mode_out)
+        peek_ast := parse(peek_tokens, kept, "<repl>", peek_mode_out, repl_anon_type_counter)
         if peek_mode_out.len().gt(0) {
             next_mode_out = peek_mode_out.clone()
             return

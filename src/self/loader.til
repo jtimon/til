@@ -37,8 +37,8 @@ priv display_path := func(p: Str, cwd: Str) returns Str {
     return "./".concat(rel)
 }
 
-priv require_mode := func(path: Str, mode_name: Str) returns ref Mode {
-    ref resolved : Mode = mode_resolve(mode_name)
+priv require_mode := func(ctx: Context, path: Str, mode_name: Str) returns ref Mode {
+    ref resolved : Mode = mode_resolve(ctx, mode_name)
     if resolved.is_null() {
         panic(": unknown mode '", mode_name, "'", loc = path)
     }
@@ -189,9 +189,9 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             source := File.readfile(abs)
             tokens := tokenize(source, disp)
             mut sub_mode := ""
-            sub_ast := parse(tokens, source, disp, sub_mode)
+            sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter)
             sub_mode = normalize_mode_name(sub_mode)
-            ref sub_mode_def : Mode = require_mode(disp, sub_mode)
+            ref sub_mode_def : Mode = require_mode(ctx, disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
             sub_imports := extract_imports(sub_ast, disp)
 
@@ -796,7 +796,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     source := File.readfile(abs_path)
     tokens := tokenize(source, disp)
     mut mode_str := ""
-    ast := parse(tokens, source, disp, mode_str)
+    ast := parse(tokens, source, disp, mode_str, lp.ctx.anon_type_counter)
     mode_str = normalize_mode_name(mode_str)
     if mode_str.eq("mode").not() {
         panic("file '", disp, "' is not a 'mode mode' file")
@@ -839,7 +839,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                         panic(": Mode arguments must be named (e.g. needs_main = true)", loc = disp)
                                     }
                                 }
-                                mode_registry.set(decl.name, own m.clone())
+                                lp.ctx.mode_registry.set(decl.name, own m.clone())
                             }
                         case:
                         }
@@ -855,7 +855,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     }
 
     // Store in lp.ctx.imported so it can be typechecked.
-    ref mode_mode_def : Mode = mode_resolve(mode_str)
+    ref mode_mode_def : Mode = mode_resolve(lp.ctx, mode_str)
     if mode_mode_def.is_null() {
         panic("unknown mode '", mode_str, "' for mode file")
     }
@@ -871,6 +871,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 // LoadedProgram with the merged ASTs and link info populated.
 load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str)) returns LoadedProgram {
     mut lp := LoadedProgram()
+    context_init_mode_registry(lp.ctx)
     lp.path = path.clone()
     lp.ext_c_path = ext_c_path.clone()
     lp.target = detect_current_target()
@@ -908,9 +909,9 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                     source_auto := File.readfile(abs_auto)
                     tokens_auto := tokenize(source_auto, disp_auto)
                     mut mode_auto := ""
-                    ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto)
+                    ast_auto := parse(tokens_auto, source_auto, disp_auto, mode_auto, lp.ctx.anon_type_counter)
                     mode_auto = normalize_mode_name(mode_auto)
-                    ref mode_auto_def : Mode = require_mode(disp_auto, mode_auto)
+                    ref mode_auto_def : Mode = require_mode(lp.ctx, disp_auto, mode_auto)
                     context_register_path_mode(lp.ctx, disp_auto, mode_auto_def)
 
                     mut iu_auto := ImportUnit(mode_str = mode_auto.clone())
@@ -952,8 +953,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     core_source := File.readfile(core_path)
     core_tokens := tokenize(core_source, core_disp)
     mut core_mode_str := ""
-    core_ast := parse(core_tokens, core_source, core_disp, core_mode_str)
-    ref core_mode : Mode = require_mode(core_disp, core_mode_str)
+    core_ast := parse(core_tokens, core_source, core_disp, core_mode_str, lp.ctx.anon_type_counter)
+    ref core_mode : Mode = require_mode(lp.ctx, core_disp, core_mode_str)
     context_register_path_mode(lp.ctx, core_disp, core_mode)
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
@@ -982,10 +983,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    user_ast := parse(tokens, source, path, mode_str)
+    user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter)
     imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
-    ref mut cur_mode : Mode = require_mode(path, mode_str)
+    ref mut cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
     context_register_path_mode(lp.ctx, path, cur_mode)
     lp.ctx.mode = cur_mode.clone()
 
@@ -1031,9 +1032,9 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         mode_source := File.readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_disp)
         mut mode_mode := ""
-        mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode)
+        mode_ast := parse(mode_tokens, mode_source, mode_disp, mode_mode, lp.ctx.anon_type_counter)
         mode_mode = normalize_mode_name(mode_mode)
-        ref mode_mode_def : Mode = require_mode(mode_disp, mode_mode)
+        ref mode_mode_def : Mode = require_mode(lp.ctx, mode_disp, mode_mode)
         context_register_path_mode(lp.ctx, mode_disp, mode_mode_def)
 
         // Resolve the auto-import file's own imports (mirrors core.til).
@@ -1963,11 +1964,11 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
 init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
-    // #192: register the target-dependent USize/UPtr widths in the builtin
-    // type table before any init/typer resolution, so every position
-    // resolves them uniformly to the per-target primitive. lp.target is
-    // final here (after any --target override).
-    register_target_int_alias_types(target_usize_name(lp.target), target_uptr_name(lp.target))
+    // #192: register target-dependent USize/UPtr widths before any
+    // init/typer resolution, so every position resolves them uniformly
+    // to the per-target primitive. lp.target is final here (after any
+    // --target override).
+    context_register_target_int_alias_types(lp.ctx, target_usize_name(lp.target), target_uptr_name(lp.target))
 
     // Desugar namespace and selective imports BEFORE init_file runs,
     // so the initer sees the generated Decls and populates the scope.
@@ -1988,7 +1989,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     constfolder_reset_state(lp.ctx)
 
     // Init phase (rstil-style): recursive imports per file.
-    lp.ctx.scope = TypeScope()
+    context_reset_type_scope(lp.ctx)
     if lp.skip_core.not() {
         ref core_root : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
         init_file(core_root.path, lp.ctx)
