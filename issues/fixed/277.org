@@ -34,6 +34,39 @@ Regression test: ~test_variadic_fold~ in ~test/constfold.til~ (folds
 string literals; the helpers are eliminated from the checked-in
 ~test/constfold.c~ snapshot).
 
+*** Follow-up: folding a DIRECT variadic call (route B)
+
+The wrapper fix above only covered folding a wrapper *call*
+(~concat("x","y")~), because a wrapper presents a non-variadic call
+boundary whose body the interpreter handles internally. A DIRECT
+~format("a","b","c")~ at the use site is different: the typer lowers it
+*before* const-fold into a build region --
+~_va_Array_N := Array.new(Str, cap)~, ~<va>_ek~/~<va>_eo~ err-slot decls,
+a throwing ~Array.set(va, j, <elem>, &_ek, _eo)~ per element, then a
+consumer ~format(_va_Array_N)~ -- so the const-folder no longer sees a
+single foldable call, just a runtime-built array fed to ~format~.
+
+Fix (all in ~src/self/constfolder.til~): when ~fold_subtree~ finishes a
+body, for each ~_va_Array_~ decl whose every element is comptime-known
+(~va_elements_known~), ~materialize_va~ interprets ONLY that array's own
+build statements (its decl, ~_ek~/~_eo~ decls, and ~Array.set~ calls --
+not unrelated sibling hoists, which would make ~eval_expr~ resolve a
+runtime var) into the fold scope; ~fold_va_calls~ then evals the consumer
+(after binding its other comptime-known args -- e.g. a positional arg's
+~hoisted__I64 := 100~ -- into the scope) and bakes the literal; finally
+~va_build_dce~ drops the whole machinery all-or-nothing (decl, err-slots,
+sets, cleanup deletes), aborting for a given array if any live use of
+~va~/~_ek~/~_eo~ remains, so a partial removal can never dangle a
+reference. Consumers are only folded when every arg is the materialised
+~va~ or comptime-known (~va_consumer_args_ok~), mirroring the normal
+~all_comptime~ gate, so ~expect(runtime_cond, "msg")~ and proc consumers
+(~println~) are left alone.
+
+Regression test: ~test_variadic_direct_fold~ in ~test/constfold.til~
+(direct ~format("x","-","y","-","z")~ / ~format("a","b","c")~ and a
+positional+variadic ~dsum(100,1,2,3)~ all bake to literals; no
+~_va_Array_~ build remains in the ~test/constfold.c~ snapshot).
+
 The compile-time constant folder (~src/self/constfolder.til~, formerly
 ~precomp.til~) never folds a call that routes through a variadic
 (~..T~) function, even when every argument is a compile-time constant.

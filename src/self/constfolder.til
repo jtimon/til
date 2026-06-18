@@ -1058,6 +1058,271 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     }
 }
 
+// ---- Issue #277: fold a DIRECT variadic call like format("a","b","c") ----
+// The typer lowers such a call (before const-folding) to a build region:
+//   _va_Array_N := Array.new(Str, <cap>)
+//   _va_Array_N_ek := 0 ; _va_Array_N_eo := OutOfBounds(...)
+//   ...hoisted__ element/count temps...
+//   Array.set(_va_Array_N, j, <val>, &_ek, _eo)   (one per element)
+//   OutOfBounds.delete(_va_Array_N_eo)
+//   <consumer using _va_Array_N once, e.g. r := format(_va_Array_N)>
+// So by const-fold time the call's only arg is a runtime-built array. We
+// materialise the array by interpreting its build region into the fold scope
+// (with abort-recovery, so a non-comptime element just bails), eval the
+// consuming variadic call directly, bake the literal, and drop the dead build.
+
+priv is_va_array_decl := func(stmt: Expr) returns Bool {
+    switch stmt.node_type {
+    case NodeType.Decl(dd):
+        if dd.is_mut { return false }
+        if dd.name.starts_with("_va_Array_").not() { return false }
+        if stmt.children.len().eq(0) { return false }
+        return stmt.children[0].node_type.is(NodeType.FCall)
+    case:
+        return false
+    }
+}
+
+// True if `stmt` is `Array.set(va, ...)` -- one of va's build statements.
+priv is_va_set := func(stmt: Expr, va: Str) returns Bool {
+    if stmt.node_type.is(NodeType.FCall).not() { return false }
+    if stmt.children.len().lt(2) { return false }
+    switch stmt.children[0].node_type {
+    case NodeType.FieldAccess(m):
+        if m.field_access_name().eq("set").not() { return false }
+    case:
+        return false
+    }
+    switch stmt.children[1].node_type {
+    case NodeType.Ident(id):
+        return id.ident_name().eq(va)
+    case:
+        return false
+    }
+}
+
+priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
+    for k in 0..names.len() {
+        if names[k].eq(name) { return true }
+    }
+    return false
+}
+
+// Comptime gate: true only if every element fed into the variadic array `va`
+// (the value arg of each Array.set in its build region) is a comptime-known
+// literal/ident. Without this, materialize_va would eval a build region whose
+// elements reference runtime values (e.g. a generated `Mode.to_str` doing
+// format(self.field, ...)), and eval_expr would raise "undefined variable
+// 'self'". This mirrors the all_comptime gate the wrapper-form fold uses.
+priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
+    mut k := decl_idx.add(1)
+    while k.lt(body.children.len()) {
+        ref s : Expr = body.children[k]
+        // Stop at the consumer: first use of va that is not a build stmt.
+        if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va).not()).and(is_va_array_decl(s).not()) {
+            break
+        }
+        if is_va_set(s, va) {
+            if s.children.len().lt(4) { return false }
+            if is_known_check(ctx, s.children[3]).not() { return false }
+        }
+        k = k.add(1)
+    }
+    return true
+}
+
+// Bind every comptime-known ident (the typer's hoisted__ element/count temps)
+// referenced in `e` into the fold scope -- a fresh clone, not aliased to the
+// known map -- so eval_expr can resolve them. Types / other idents are left.
+priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
+    switch e.node_type {
+    case NodeType.Ident(id):
+        if ctx.constfolder_known.has(id.ident_name()) {
+            ref kv : Value = ctx.constfolder_known[id.ident_name()]
+            mut cv := kv.clone()
+            scope_set_owned(scope, id.ident_name(), cv)
+        }
+    case:
+    }
+    for c : Expr in e.children { bind_known_idents_in(scope, c, ctx) }
+}
+
+// Interpret one of `va`'s OWN build statements into the fold scope: bind the
+// va / `<va>_ek` / `<va>_eo` decls and run an Array.set on va. Every other
+// statement (unrelated hoisted temps for sibling args, OutOfBounds.delete,
+// etc.) is SKIPPED -- evaluating e.g. `hoisted__Bool_N := c.eq(x)` would make
+// eval_expr resolve the runtime `c` and raise "undefined variable 'c'".
+priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, eo: Str, ctx: Context) {
+    switch stmt.node_type {
+    case NodeType.Decl(dd):
+        if dd.name.eq(va).or(dd.name.eq(ek)).or(dd.name.eq(eo)) {
+            if stmt.children.len().gt(0) {
+                bind_known_idents_in(scope, stmt.children[0], ctx)
+                mut v := eval_expr(scope, stmt.children[0], ctx).clone()
+                scope_set_owned(scope, dd.name, v)
+            }
+        }
+    case NodeType.FCall:
+        if is_va_set(stmt, va) {
+            bind_known_idents_in(scope, stmt, ctx)
+            _ := eval_expr(scope, stmt, ctx)
+        }
+    case:
+    }
+}
+
+// Materialise the variadic array `va` (its Array.new decl is body.children
+// [decl_idx]) into the fold scope by interpreting its build region. Returns
+// true on success; false if interpreting it aborts (non-comptime element).
+priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
+    ek := va.concat("_ek")
+    eo := va.concat("_eo")
+    ctx.constfold_active = true
+    ctx.constfold_aborted = false
+    mut k := decl_idx
+    while k.lt(body.children.len()) {
+        ref s : Expr = body.children[k]
+        // Stop at the consumer: a statement using `va` that is not one of its
+        // build statements (its Array.new decl or an Array.set on it).
+        if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va).not()).and(is_va_array_decl(s).not()) {
+            break
+        }
+        interp_va_build_stmt(scope, s, va, ek, eo, ctx)
+        if ctx.constfold_aborted { break }
+        k = k.add(1)
+    }
+    ctx.constfold_active = false
+    if ctx.constfold_aborted {
+        ctx.constfold_aborted = false
+        return false
+    }
+    return true
+}
+
+// True if every arg of `call` is either the materialised array `va` itself or
+// a comptime-known literal/ident. Without this gate fold_va_calls would eval a
+// consumer whose OTHER args are runtime values -- e.g. expect(c.eq(x), va) or
+// greet("X", va_opts, _kw15) -- and eval_expr would hit the unbound runtime
+// var (`c`, `_kw15`). Mirrors the all_comptime gate fold_subtree uses; the va
+// arg is exempt because materialize_va already bound it in `scope`.
+priv va_consumer_args_ok := func(call: Expr, va: Str, ctx: Context) returns Bool {
+    for ai in 1..call.children.len() {
+        ref a : Expr = call.children[ai]
+        if is_known_check(ctx, a) { continue }
+        switch a.node_type {
+        case NodeType.Ident(id):
+            if id.ident_name().eq(va) { continue }
+        case:
+        }
+        return false
+    }
+    return true
+}
+
+// Recursively fold a foldable variadic call consuming the materialised array
+// `va` (e.g. format(va)) into a baked literal.
+priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
+    for i in 0..e.children.len() {
+        fold_va_calls(scope, e.children[i], va, ctx)
+        ref child : Expr = e.children[i]
+        if child.node_type.is(NodeType.FCall).and(is_func_call(child, ctx)).and(expr_uses_var_p(child, va, ctx)).and(va_consumer_args_ok(child, va, ctx)) {
+            // Bind the consumer's other comptime-known args (e.g. a positional
+            // arg's hoist like `hoisted__I64 := 100` in prefix_sum(100, va))
+            // into the fold scope; only `va` was bound by materialize_va, so
+            // without this eval_expr hits the unbound hoist -> "undefined var".
+            bind_known_idents_in(scope, child, ctx)
+            ctx.constfold_active = true
+            ctx.constfold_aborted = false
+            result := eval_expr(scope, child, ctx)
+            ctx.constfold_active = false
+            mut aborted := ctx.constfold_aborted
+            ctx.constfold_aborted = false
+            if aborted.not() {
+                mut lit : Expr = value_to_expr(result, child, ctx)
+                if lit.is_null().not() {
+                    lit.set_expr_til_type(child.expr_til_type())
+                    e.children[i] = lit
+                }
+            }
+        }
+    }
+}
+
+// True if `s` is a standalone cleanup call `T.delete(name, ...)` -- the shape
+// make_delete_call emits: FCall[ FieldAccess("delete")[Ident(T)], Ident(name),
+// ... ]. So children[0] is a FieldAccess "delete" and children[1] is Ident(name).
+priv is_delete_call_on := func(s: Expr, name: Str) returns Bool {
+    if s.node_type.is(NodeType.FCall).not() { return false }
+    if s.children.len().lt(2) { return false }
+    switch s.children[0].node_type {
+    case NodeType.FieldAccess(m):
+        if m.field_access_name().eq("delete").not() { return false }
+    case:
+        return false
+    }
+    switch s.children[1].node_type {
+    case NodeType.Ident(id):
+        return id.ident_name().eq(name)
+    case:
+        return false
+    }
+}
+
+// Classify a statement w.r.t. one variadic array's machinery (its `va` decl,
+// `<va>_ek`/`<va>_eo` err-slot decls, the Array.set builders, and the trailing
+// delete-calls on any of the three):
+//   1  -> machinery, removable
+//   0  -> no reference to va/ek/eo
+//  -1  -> a LIVE use (e.g. an unfolded consumer) -- DCE must abort for this va.
+priv va_stmt_class := func(s: Expr, va: Str, ek: Str, eo: Str, ctx: Context) returns I32 {
+    switch s.node_type {
+    case NodeType.Decl(dd):
+        if dd.name.eq(va).or(dd.name.eq(ek)).or(dd.name.eq(eo)) { return 1 }
+    case:
+    }
+    if is_va_set(s, va) { return 1 }
+    if is_delete_call_on(s, va).or(is_delete_call_on(s, ek)).or(is_delete_call_on(s, eo)) { return 1 }
+    if expr_uses_var_p(s, va, ctx).or(expr_uses_var_p(s, ek, ctx)).or(expr_uses_var_p(s, eo, ctx)) {
+        return -1
+    }
+    return 0
+}
+
+// All-or-nothing DCE: for each materialised array whose consumer folded, drop
+// its full machinery (decl, err-slots, sets, cleanup deletes) ONLY when every
+// statement touching va/ek/eo is machinery. If any live use remains (consumer
+// did not fold), leave everything -- the build is dead but valid, never a
+// dangling reference. Orphaned hoisted__ temps are reclaimed by process_body's
+// hoisted__ DCE.
+priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
+    mut dead := Vec(Str).new()
+    for di in 0..va_done.len() {
+        ref va : Str = va_done[di]
+        ek := va.concat("_ek")
+        eo := va.concat("_eo")
+        mut safe := true
+        for r in 0..body.children.len() {
+            if va_stmt_class(body.children[r], va, ek, eo, ctx).eq(-1) { safe = false; break }
+        }
+        if safe { dead.push(own va.clone()) }
+    }
+    if dead.len().gt(0) {
+        mut keep := Vec(Expr).new()
+        for r in 0..body.children.len() {
+            mut drop := false
+            for di in 0..dead.len() {
+                ref va : Str = dead[di]
+                ek := va.concat("_ek")
+                eo := va.concat("_eo")
+                if va_stmt_class(body.children[r], va, ek, eo, ctx).eq(1) { drop = true; break }
+            }
+            if drop.not() { keep.push_take(body.children, r) }
+        }
+        body.children.move_from(keep)
+    }
+    own dead.delete(true)
+}
+
 // Uniform fold: walk the subtree rooted at `e` and replace every FCall
 // child whose callee is a known macro or pure func with its folded
 // literal. Issue #191: macros are always folded (typer already rejected
@@ -1142,6 +1407,30 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         case:
         }
     }
+    // Issue #277: now that hoisted__ element temps are tracked, materialise
+    // each direct variadic-splat array in this body and fold its consumer.
+    mut va_done := Vec(Str).new()
+    for m in 0..e.children.len() {
+        if is_va_array_decl(e.children[m]) {
+            mut vn := ""
+            switch e.children[m].node_type {
+            case NodeType.Decl(dd): vn = dd.name.clone()
+            case:
+            }
+            if vn.is_empty().not().and(va_name_in(va_done, vn).not()).and(va_elements_known(e, m, vn, ctx)) {
+                if materialize_va(scope, e, m, vn, ctx) {
+                    for k in 0..e.children.len() {
+                        fold_va_calls(scope, e.children[k], vn, ctx)
+                    }
+                    va_done.push(own vn.clone())
+                }
+            }
+        }
+    }
+    if va_done.len().gt(0) {
+        va_build_dce(e, va_done, ctx)
+    }
+    own va_done.delete(true)
 }
 
 process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {

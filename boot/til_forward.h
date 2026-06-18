@@ -3137,6 +3137,18 @@ void priv___src_self_constfolder_til__track_literal(Scope * scope, Str * name, E
 void priv___src_self_constfolder_til__track_literal_known_only(Str * name, Expr * rhs, Context * ctx);
 Bool is_macro_call(Expr * e, Context * ctx);
 Bool priv___src_self_constfolder_til__is_func_call(Expr * e, Context * ctx);
+Bool priv___src_self_constfolder_til__is_va_array_decl(Expr * stmt);
+Bool priv___src_self_constfolder_til__is_va_set(Expr * stmt, Str * va);
+Bool priv___src_self_constfolder_til__va_name_in(Vec__Str * names, Str * name);
+Bool priv___src_self_constfolder_til__va_elements_known(Expr * body, U32 decl_idx, Str * va, Context * ctx);
+void priv___src_self_constfolder_til__bind_known_idents_in(Scope * scope, Expr * e, Context * ctx);
+void priv___src_self_constfolder_til__interp_va_build_stmt(Scope * scope, Expr * stmt, Str * va, Str * ek, Str * eo, Context * ctx);
+Bool priv___src_self_constfolder_til__materialize_va(Scope * scope, Expr * body, U32 decl_idx, Str * va, Context * ctx);
+Bool priv___src_self_constfolder_til__va_consumer_args_ok(Expr * call, Str * va, Context * ctx);
+void priv___src_self_constfolder_til__fold_va_calls(Scope * scope, Expr * e, Str * va, Context * ctx);
+Bool priv___src_self_constfolder_til__is_delete_call_on(Expr * s, Str * name);
+I32 priv___src_self_constfolder_til__va_stmt_class(Expr * s, Str * va, Str * ek, Str * eo, Context * ctx);
+void priv___src_self_constfolder_til__va_build_dce(Expr * body, Vec__Str * va_done, Context * ctx);
 void priv___src_self_constfolder_til__fold_subtree(Scope * scope, Expr * e, Context * ctx);
 void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);

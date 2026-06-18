@@ -51,6 +51,31 @@ test_variadic_fold := test() {
     assert_eq(Str, r2, "a-b-c")
 }
 
+// Test 4c: DIRECT variadic folding (issue #277, route B). A direct
+// `format(...)` / positional+variadic call with all-comptime args folds at
+// the call site WITHOUT a wrapper. The typer lowers it (before const-fold)
+// to a build region -- `_va_Array_N := Array.new(..)`, throwing `Array.set`
+// per element, a consumer `format(_va_Array_N)`; the const-folder
+// materialises that array by interpreting the build region, bakes the
+// consumer to a literal, and DCEs the now-dead build. Inspect
+// test/constfold.c: no `_va_Array_` build should remain for d/d2/d3, baked
+// as "x-y-z" / "abc" / 106. dsum also exercises a positional arg (whose
+// hoist must be bound into the fold scope before the consumer evals).
+dsum := func(prefix: I64, nums: ..I64) returns I64 {
+    mut total := prefix
+    for n : I64 in nums { total = total.add(n) }
+    return total
+}
+
+test_variadic_direct_fold := test() {
+    d := format("x", "-", "y", "-", "z")
+    assert_eq(Str, d, "x-y-z")
+    d2 := format("a", "b", "c")
+    assert_eq(Str, d2, "abc")
+    d3 := dsum(100, 1, 2, 3)
+    assert_eq(I64, d3, 106)
+}
+
 // Test 5: lolalalo -- recursive vs iterative. Generates the 4-syllable
 // permutation poem at compile time. Inspired by rstil/src/examples/lolalalo.til.
 // Top-level `poem` so the recursion doesn't need first-class nested funcs.
