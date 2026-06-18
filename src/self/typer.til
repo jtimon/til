@@ -6443,6 +6443,11 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     mut get_returns_ref := false
     mut get_throws := false
     mut get_throw_types := Vec(Str).new()
+    // Issue #281: a get() may carry trailing defaulted params (e.g.
+    // `loc: Str = __LOC__`). The for-in hand-builds the get call below, so it
+    // must fill those itself; capture their default expressions here while
+    // get_def is in scope. Empty (no-op) for the common get(self, i) shape.
+    mut get_trailing_defaults := Vec(Expr).new()
     switch get_func.node_type {
     case NodeType.FuncDef(get_def):
         // A throwing get gets its signature extended in place with
@@ -6484,6 +6489,14 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
             if already_extended.not() {
                 append_err_out_params(get_def.params, get_def.throw_types)
             }
+        }
+        // Issue #281: capture any params beyond self + idx (+ the err out-args
+        // for a throwing get) -- the trailing defaulted params (e.g. a
+        // `loc: Str = __LOC__`) the hand-built call below must fill itself.
+        mut forin_filled : USize = 1
+        if get_throws { forin_filled = forin_filled.add(1).add(get_throw_types.len()) }
+        for tp_i in forin_filled.add(1)..get_def.params.len() {
+            get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
         }
     case:
         UNREACHABLE()
@@ -6580,6 +6593,13 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
             slot_arg.set_expr_til_type(til_type_from_explicit_type(gtn))
             get_call.add_child(own slot_arg)
         }
+    }
+    // Issue #281: fill get's trailing defaulted params (e.g. `loc: Str =
+    // __LOC__`). resolve_default_value stamps a __LOC__ default with the for-in
+    // loop's location (get_call's coords) -- the loop is the caller. No-op when
+    // get_trailing_defaults is empty (the common get(self, i) shape).
+    for td : Expr in get_trailing_defaults {
+        get_call.add_child(own resolve_default_value(td, get_call, ctx))
     }
     elem_decl.add_child(own get_call)
     wbody.add_child(own elem_decl)
