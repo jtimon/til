@@ -76,11 +76,13 @@
      decl would fall back to I64 and an un-resolved ~OutOfBounds()~ init would
      emit a bogus C call. Slot names are forced to a leading underscore
      (~variadic_err_slot_name~) so the unused-variable check skips them, the
-     same exemption the ~_array_N~ temps already get. This is a staged
-     migration: this commit keeps ~Array.set_init~ (the prior ~til_boot~ still
-     emits ~set_init~ calls for its own variadics until the new typer is baked
-     into ~boot/~); the immediate follow-up commit deletes ~set_init~ from
-     ~src/core/array.til~ once master's ~til_boot~ generates the throwing form.
+     same exemption the ~_array_N~ temps already get. Staged across two
+     commits: the first kept ~Array.set_init~ (the prior ~til_boot~ still
+     emitted ~set_init~ calls for its own variadics until the new typer was
+     baked into ~boot/~); this commit, now that master's ~til_boot~ generates
+     the throwing form, deletes ~set_init~ from ~src/core/array.til~. The
+     workaround is gone -- the read and write desugars share the one throwing
+     ~set~.
 
    Mirror of the shipped read-side desugaring: the parser now turns
    ~a[b]~ into ~a.get(b)!~ (generic over any struct/enum whose

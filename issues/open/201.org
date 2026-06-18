@@ -36,6 +36,21 @@
      existing ~OutOfBounds~ for consistency.
    - Optional: ~Str.parse_i64~ throwing ~ParseError~ for the
      fallible-parse pattern.
+   - Migrate the methods that still ~panic~ on a bad index / empty
+     receiver / missing key to THROW the existing error types instead
+     -- no new type, the same panic->throw move #225 did for ~get~ /
+     ~set~. Callers that don't catch keep today's behavior with ~!~;
+     the gain is catchability.
+     - ~OutOfBounds~: ~Tuple.get~; ~Vec.pop~ (empty) / ~take_prefix~ /
+       ~push_take~; ~DynVec.pop~ / ~take_prefix~ / ~push_take~.
+     - ~KeyNotFound~: ~HashMap.get~ and ~DynHashMap.get~ (~Map.get~
+       already throws it).
+     ~Str.get~'s byte-index OOB is the ~Str.get_byte_safe~ item above
+     -- decide there between making ~Str.get~ itself throw vs adding
+     the safe_ variant. Stays ~panic~ (programmer error, not OOB): the
+     ~new()~ precondition checks (key_type required, must implement
+     hash / cmp). ~Str.to_i64~ on empty / invalid input is the
+     ~ParseError~ item, not OOB.
 
    For each new built-in error type, add a corresponding regression
    in ~test/errors.til~ that exercises a successful return and
