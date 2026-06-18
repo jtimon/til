@@ -8,7 +8,7 @@ ext_proc spawn_cmd(cmd: Str) returns I64
 
 * check_cmd_status
 #+begin_src til
-ext_func check_cmd_status(shallow pid: I64) returns shallow I64
+ext_proc check_cmd_status(shallow pid: I64) returns shallow I64
 #+end_src
 
 * sleep_ms
@@ -18,47 +18,47 @@ ext_proc sleep_ms(shallow ms: I64)
 
 * file_mtime
 #+begin_src til
-ext_func file_mtime(path: Str) returns shallow I64
+ext_proc file_mtime(path: Str) returns shallow I64
 #+end_src
 
 * clock_ms
 #+begin_src til
-ext_func clock_ms() returns shallow I64
+ext_proc clock_ms() returns shallow I64
 #+end_src
 
 * get_thread_count
 #+begin_src til
-ext_func get_thread_count() returns shallow I64
+ext_proc get_thread_count() returns shallow I64
 #+end_src
 
 * peak_rss_bytes
 #+begin_src til
-ext_func peak_rss_bytes() returns shallow U64
+ext_proc peak_rss_bytes() returns shallow U64
 #+end_src
 
 * current_rss_bytes
 #+begin_src til
-ext_func current_rss_bytes(shallow pid: I64) returns shallow U64
+ext_proc current_rss_bytes(shallow pid: I64) returns shallow U64
 #+end_src
 
 * host_os
 #+begin_src til
-ext_func host_os() returns Str
+ext_proc host_os() returns Str
 #+end_src
 
 * mkdir_p
 #+begin_src til
-ext_func mkdir_p(path: Str) returns shallow I32
+ext_proc mkdir_p(path: Str) returns shallow I32
 #+end_src
 
 * copy_file
 #+begin_src til
-ext_func copy_file(src: Str, dst: Str) returns shallow I32
+ext_proc copy_file(src: Str, dst: Str) returns shallow I32
 #+end_src
 
 * copy_tree
 #+begin_src til
-ext_func copy_tree(src: Str, dst: Str) returns shallow I32
+ext_proc copy_tree(src: Str, dst: Str) returns shallow I32
 #+end_src
 
 * wait_cmd

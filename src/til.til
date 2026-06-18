@@ -160,21 +160,14 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     cwd := get_cwd_str()
     ext_c_path := bin_dir.format("/src/c/ext.c")
     til_bin := bin_dir.format("/bin/til")
+    escaped_core_info := File.readfile(bin_dir.format("/", REPL_CORE_INFO_CACHE))
+    escaped_core_docs := File.readfile(bin_dir.format("/", REPL_CORE_DOCS_CACHE))
 
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
     // Full output produced by the last successful run. Used to compute the
     // delta so we only show new output each turn.
     mut prev_out := ""
-
-    // Cached core info/docs blobs. The core stdlib doesn't change between
-    // REPL turns, so we walk it once on the first successful typecheck and
-    // reuse the resulting packed blobs forever after. This avoids walking
-    // ~400 core ns_decls and rebuilding qualified Type.method entries on
-    // every input -- the dominant cost of the per-turn doc init.
-    mut cached_core_info := ""
-    mut cached_core_docs := ""
-    mut have_core_cache := false
 
     // Keep block Strs alive so parsed AST views don't dangle.
     source_keep := Vec(Str).new()
@@ -222,22 +215,6 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 
         mut block_eff := block.clone()
         if typer_errs.eq(0) {
-            // Cache the core packed blobs on the first successful turn.
-            // Core decls don't change between turns, so we walk once.
-            if have_core_cache.not().and(typed_lp.skip_core.not()) {
-                mut core_merged := Expr.new(NodeType.Body, 0, 0)
-                for u : ProgramUnit in typed_lp.core_units {
-                    ref iu : ImportUnit = typed_lp.ctx.imported[u.path]
-                    for stmt : Expr in iu.ast.children { core_merged.add_child(own stmt.clone()) }
-                }
-                mut tmp_core_info := Str.with_capacity(262144)
-                mut tmp_core_docs := Str.with_capacity(262144)
-                collect_decl_packed(core_merged, typed_lp.ctx.scope, tmp_core_info, tmp_core_docs)
-                cached_core_info = tmp_core_info.clone()
-                cached_core_docs = tmp_core_docs.clone()
-            }
-            have_core_cache = true
-
             // Build user-only packed blobs every turn (cheap -- only the
             // user's accumulated decls).
             mut user_merged := Expr.new(NodeType.Body, 0, 0)
@@ -249,13 +226,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut user_docs := Str.with_capacity(65536)
             collect_decl_packed(user_merged, typed_lp.ctx.scope, user_info, user_docs)
 
-            // Concatenate cached core + this turn's user. Core comes first
-            // so a user redefining a core name shadows nothing (matches the
-            // pre-cache behaviour where the unified walk emitted core then
-            // user, and __doc_lookup__ returns the first hit).
-            full_info := cached_core_info.format(user_info)
-            full_docs := cached_core_docs.format(user_docs)
-            doc_line := build_doc_init_line(full_info, full_docs)
+            // Core cache comes first to match the previous unified walk order.
+            doc_line := build_doc_init_line_cached(escaped_core_info, escaped_core_docs, user_info, user_docs)
 
             // Rebuild combined source with REPL doc registry init.
             combined = ""
@@ -339,6 +311,7 @@ usage := proc() {
     println("  run        Compile and run a .til file")
     println("  test       Run test() functions interpreted, then compiled")
     println("  doc        Emit org-mode docs under doc/gen/")
+    println("  doc-cache  Emit escaped REPL core help() cache under doc/")
     println("  ast        Print the parsed AST as a Lisp-like S-expression")
     println("  bindings   Generate a `mode lib` .til binding from a C header")
     println("  help       Print this message")
@@ -428,6 +401,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         .and(cli.command.eq("run").not())
         .and(cli.command.eq("test").not())
         .and(cli.command.eq("doc").not())
+        .and(cli.command.eq("doc-cache").not())
         .and(cli.command.eq("ast").not())
         .and(cli.command.eq("bindings").not())
         .and(cli.command.eq("help").not())
@@ -573,6 +547,13 @@ main := proc(args: ..Str) {
     if cli.command.eq("doc") {
         init_and_type_program(lp, false)
         result := cmd_doc(lp)
+        if result.neq(0) { exit(result.cast(I64)) }
+        return
+    }
+
+    if cli.command.eq("doc-cache") {
+        init_and_type_program(lp, false)
+        result := cmd_doc_cache(lp)
         if result.neq(0) { exit(result.cast(I64)) }
         return
     }

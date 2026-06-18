@@ -94,7 +94,7 @@ struct File {
     mut is_write : Bool
     mut is_update : Bool
 namespace:
-    ext_func readfile(path: Str) returns Str
+    ext_proc readfile(path: Str) returns Str
     ext_proc writefile(path: Str, content: Str)
     /// Open a file at `path` for reading or writing.
     func new(path: Str, shallow is_write: Bool) returns File

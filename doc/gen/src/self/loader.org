@@ -6,6 +6,16 @@
 ext_func realpath_str(path: Str) returns Str
 #+end_src
 
+* REPL_CORE_INFO_CACHE
+#+begin_src til
+REPL_CORE_INFO_CACHE is a Str
+#+end_src
+
+* REPL_CORE_DOCS_CACHE
+#+begin_src til
+REPL_CORE_DOCS_CACHE is a Str
+#+end_src
+
 * forward_header_path
 #+begin_src til
 func forward_header_path(path: Str) returns Str
@@ -117,6 +127,31 @@ func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: 
 func build_doc_init_line(packed_info: Str, packed_docs: Str) returns Str
 #+end_src
 
+* build_doc_init_line_cached
+#+begin_src til
+func build_doc_init_line_cached(escaped_core_info: Str, escaped_core_docs: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
+#+end_src
+
+* ReplCoreDocCache
+#+begin_src til
+struct ReplCoreDocCache {
+    mut escaped_info : Str
+    mut escaped_docs : Str
+namespace:
+    func clone(self: ReplCoreDocCache) returns ReplCoreDocCache
+    func delete(own self: ReplCoreDocCache, shallow call_free: Bool)
+    func hash(self: ReplCoreDocCache, hasher: HashFn) returns shallow U64
+    func eq(self: ReplCoreDocCache, other: ReplCoreDocCache) returns shallow Bool
+    func to_str(self: ReplCoreDocCache) returns Str
+    func size() returns shallow U32
+}
+#+end_src
+
+* build_repl_core_doc_cache
+#+begin_src til
+func build_repl_core_doc_cache(lp: LoadedProgram) returns ReplCoreDocCache
+#+end_src
+
 * init_and_type_program
 #+begin_src til
 proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
@@ -204,9 +239,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ProgramUnit, shallow n: U32) returns Vec__ProgramUnit
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__ProgramUnit, shallow i: U32, own val: ProgramUnit)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__ProgramUnit, shallow i: U32, own val: ProgramUnit, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -257,9 +293,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DeclRef, shallow n: U32) returns Vec__DeclRef
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__DeclRef, shallow i: U32, own val: priv___src_self_loader_til__DeclRef)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__DeclRef, shallow i: U32, own val: priv___src_self_loader_til__DeclRef, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

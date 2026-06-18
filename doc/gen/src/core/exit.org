@@ -8,36 +8,26 @@ ext_func exit(shallow code: I64)
 
 * panic
 #+begin_src til
-func panic(loc_str: Str, parts: ..Str)
+func panic(parts: ..Str, loc: Str)
 #+end_src
 
 * TODO
 #+begin_src til
-func TODO(loc_str: Str, parts: ..Str)
+func TODO(parts: ..Str, loc: Str)
 #+end_src
 
 * UNREACHABLE
 #+begin_src til
-func UNREACHABLE(loc_str: Str)
+func UNREACHABLE(loc: Str)
 #+end_src
 
 * assert
 #+begin_src til
-func assert(loc_str: Str, shallow cond: Bool) returns shallow Bool
+func assert(shallow cond: Bool, loc: Str)
 #+end_src
 
 * expect
 #+begin_src til
-func expect(loc_str: Str, shallow cond: Bool, parts: ..Str)
-#+end_src
-
-* assert_eq
-#+begin_src til
-func assert_eq(loc_str: Str, shallow a: I64, shallow b: I64)
-#+end_src
-
-* assert_eq_str
-#+begin_src til
-func assert_eq_str(loc_str: Str, a: Str, b: Str)
+func expect(shallow cond: Bool, parts: ..Str, loc: Str)
 #+end_src
 

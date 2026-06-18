@@ -208,9 +208,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CoverageNode, shallow n: U32) returns Vec__CoverageNode
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -261,9 +262,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CtorArg, shallow n: U32) returns Vec__CtorArg
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

@@ -3,7 +3,7 @@
 
 * system_cmd
 #+begin_src til
-ext_func system_cmd(cmd: Str) returns shallow I32
+ext_proc system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
 * closure_call_name
@@ -106,6 +106,11 @@ proc cmd_test_build_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, targe
 proc cmd_doc(lp: LoadedProgram) returns shallow I32
 #+end_src
 
+* cmd_doc_cache
+#+begin_src til
+proc cmd_doc_cache(lp: LoadedProgram) returns shallow I32
+#+end_src
+
 * Array__Bool
 #+begin_src til
 struct Array__Bool {
@@ -118,8 +123,20 @@ namespace:
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
     func get(self: Array__Bool, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Bool
-    /// Overwrite the element at index `i`. Drops the old value. `val` is owned.
-    func set(self: Array__Bool, shallow i: U32, own val: Bool)
+    /// Overwrite the element at index `i`. Drops the old value. `val` is
+    /// owned. Throws OutOfBounds if `i` is past the end; call as
+    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+    /// (Codegen that fills a fresh in-bounds slot uses set_init, below.)
+    func set(self: Array__Bool, shallow i: U32, own val: Bool, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    /// Non-throwing in-place set used by the variadic-argument codegen
+    /// (build_variadic_array_set fills a freshly-allocated, in-bounds slot
+    /// for every variadic call). Once `set` starts throwing OutOfBounds --
+    /// so `arr[i] = v` can desugar to `arr.set(i, own v)!` -- the variadic
+    /// codegen must not call the throwing `set` (the typer emits these
+    /// after throws-lowering, so they would never get the err-args). This
+    /// variant panics on a bad index instead of throwing, keeping the
+    /// codegen decoupled from `set`'s signature.
+    func set_init(self: Array__Bool, shallow i: U32, own val: Bool)
     func delete(own self: Array__Bool, shallow call_free: Bool)
     func clone(self: Array__Bool) returns Array__Bool
     func size() returns shallow U32
@@ -198,9 +215,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynCallInfo, shallow n: U32) returns Vec__DynCallInfo
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__DynCallInfo, shallow i: U32, own val: priv___src_self_builder_til__DynCallInfo)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__DynCallInfo, shallow i: U32, own val: priv___src_self_builder_til__DynCallInfo, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -251,9 +269,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CollectionInfo, shallow n: U32) returns Vec__CollectionInfo
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__CollectionInfo, shallow i: U32, own val: priv___src_self_builder_til__CollectionInfo)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CollectionInfo, shallow i: U32, own val: priv___src_self_builder_til__CollectionInfo, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

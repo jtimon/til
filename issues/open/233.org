@@ -3,32 +3,34 @@
 ** WIP #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 
 *   Current state:
-    - /// doc comments: plain text, no markup, no metadata.
-    - Packed blobs for runtime help() (linear lookup).
-    - `til doc` -> bare org-mode output, mirroring source tree, no nav, no search, internals leaking (e.g. `priv___...`).
-    - No HTML, no cross-links, no grouping.
+    - /// doc comments support org-style metadata lines: ~#+doc: false~, ~#+group:~, ~#+since:~, and ~#+deprecated:~.
+    - Packed blobs for runtime ~help()~ (linear lookup).
+    - ~til doc~ -> org-mode output under ~doc/gen/~, mirroring source tree, no nav or search yet.
+    - No HTML, cross-links, doctests, or grouping pages yet.
 
 *   Proposed vision (Python/Elixir-inspired):
-    - Adopt explicit doc contract attributes (similar to `@doc`, `@moduledoc`).
-    - Markdown markup in docs (backticks, lists, headings).
-    - Rich metadata: `@since`, `@deprecated`, `@group`.
-    - Internals hiding (`@doc false`).
-    - Doctests (`>>>` or `iex>` style) verified by `make test`.
-    - Structured introspection via `inspect`-like tools.
+    - Adopt explicit org-mode doc contract metadata in comments.
+    - Org markup in docs (verbatim, lists, headings, links).
+    - Rich metadata: ~#+since:~, ~#+deprecated:~, ~#+group:~.
+    - Internals hiding (~#+doc: false~).
+    - Doctests verified by ~make test~.
+    - Structured introspection via ~inspect~-like tools.
     - Generate searchable HTML with nav sidebar + grouping + versioning.
+
+*   Progress:
+    - First slice landed org-style doc metadata parsing/rendering and runtime filtering.
+    - Current slice pre-generates escaped core ~help()~ blobs under ~doc/~ so ~til repl~ no longer walks and escapes core docs on the first successful turn.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:
-      `shallow` on ext functions is part of the C ABI contract, not
+      ~shallow~ on ext functions is part of the C ABI contract, not
       redundant noise.  See issues/fixed/223.org for concrete examples
       (U32_clone crash, spawn_cmd heap pointer).
 
 *   Architectural Learnings (from Python/Sphinx and Elixir/ExDoc):
-    - **Cross-Referencing**: Deterministic object IDs based on qualified names (e.g., `domain:module.class.func`) eliminate the need for manual link mapping. Sphinx domains and ExDoc nodes heavily utilize this.
-    - **Docstring Parsing**: Docstrings are treated as markup (reST/Markdown) and parsed dynamically. ExDoc compiles an intermediate HTML AST (`ExDoc.DocAST`) in memory before writing to disk, allowing metadata injection (anchors, cross-refs).
-    - **Build Integration**:
-      - *Python/Sphinx*: Imports modules at build time (`autodoc`), uses `inspect` to read `__doc__`, parses as reST.
-      - *Elixir/ExDoc*: Embeds docs in the compiled `.beam` files as EEP-48 `"Docs"` chunks during module compilation. At runtime, `Code.fetch_docs/1` loads them.
-    - **Output Formatting**: Separation of concerns. Sphinx uses Jinja2 templates; ExDoc uses EEx templates. Both walk a format-agnostic internal AST.
-    - **Search/Navigation**: ExDoc dumps an inverted index of all documentation into a JSON blob embedded in Javascript for instant client-side search. Navigation sidebars are data-driven from module groupings.
-    - **Doctests**: Elixir dynamically extracts docs (via `Code.fetch_docs`), parses lines starting with `iex>`, executes them, and asserts the output matches the following lines. Handled by the test runner (`ExUnit.DocTest`), not the doc generator itself.
+    - *Cross-Referencing*: Deterministic object IDs based on qualified names (for example, ~domain:module.class.func~) eliminate the need for manual link mapping. Sphinx domains and ExDoc nodes heavily utilize this.
+    - *Docstring Parsing*: Docstrings are treated as markup and parsed dynamically. ExDoc compiles an intermediate HTML AST (~ExDoc.DocAST~) in memory before writing to disk, allowing metadata injection (anchors, cross-refs).
+    - *Build Integration*: Python/Sphinx imports modules at build time (~autodoc~), uses ~inspect~ to read ~__doc__~, and parses as reST. Elixir/ExDoc embeds docs in compiled ~.beam~ files as EEP-48 ~Docs~ chunks; at runtime, ~Code.fetch_docs/1~ loads them.
+    - *Output Formatting*: Separation of concerns. Sphinx uses Jinja2 templates; ExDoc uses EEx templates. Both walk a format-agnostic internal AST.
+    - *Search/Navigation*: ExDoc dumps an inverted index of all documentation into a JSON blob embedded in Javascript for instant client-side search. Navigation sidebars are data-driven from module groupings.
+    - *Doctests*: Elixir dynamically extracts docs via ~Code.fetch_docs/1~, parses lines starting with ~iex>~, executes them, and asserts the output matches the following lines. Handled by the test runner (~ExUnit.DocTest~), not the doc generator itself.

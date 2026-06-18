@@ -290,6 +290,7 @@ typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
 typedef struct DocMeta DocMeta;
+typedef struct ReplCoreDocCache ReplCoreDocCache;
 typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__DeclRef Vec__DeclRef;
@@ -865,6 +866,12 @@ typedef struct DocMeta {
     Str deprecated;
     Bool hidden;
 } DocMeta;
+
+
+typedef struct ReplCoreDocCache {
+    Str escaped_info;
+    Str escaped_docs;
+} ReplCoreDocCache;
 
 
 typedef struct Vec__ProgramUnit {
@@ -3236,7 +3243,12 @@ void priv___src_self_loader_til__collect_member_method_packed(Str * type_name, D
 void priv___src_self_loader_til__collect_struct_members_packed(Str * type_name, StructDef * sdef, Str * info, Str * docs);
 void priv___src_self_loader_til__collect_enum_members_packed(Str * type_name, EnumDef * edef, Str * info, Str * docs);
 void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs);
-Str * build_doc_init_line(Str * packed_info, Str * packed_docs);
+Str * build_doc_init_line_cached(Str * escaped_core_info, Str * escaped_core_docs, Str * packed_user_info, Str * packed_user_docs);
+ReplCoreDocCache * ReplCoreDocCache_clone(ReplCoreDocCache * self);
+void ReplCoreDocCache_delete(ReplCoreDocCache * self, Bool call_free);
+U64 ReplCoreDocCache_hash(ReplCoreDocCache * self, HashFn hasher);
+U32 ReplCoreDocCache_size(void);
+ReplCoreDocCache * build_repl_core_doc_cache(LoadedProgram * lp);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec__Expr * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
@@ -3481,6 +3493,7 @@ Str * priv___src_self_builder_til__til_doc_out_path(Str * unit_path);
 void priv___src_self_builder_til__ensure_parent_dir(Str * path);
 void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, Context * ctx);
 I32 cmd_doc(LoadedProgram * lp);
+I32 cmd_doc_cache(LoadedProgram * lp);
 Array__Bool * Array__Bool_new(U32 cap);
 Bool * Array__Bool_get(Array__Bool * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
 void Array__Bool_set(Array__Bool * self, U32 i, Bool * val, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
@@ -4208,6 +4221,8 @@ extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
+extern Str REPL_CORE_INFO_CACHE;
+extern Str REPL_CORE_DOCS_CACHE;
 extern I64 FFI_TYPE_VOID;
 extern I64 FFI_TYPE_INT;
 extern I64 FFI_TYPE_FLOAT;

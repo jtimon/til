@@ -184,6 +184,7 @@
 *** Catch
 *** RestPattern
 *** CaptureBlock:CaptureBlockData
+*** CallerLoc
 ** Expr: StructDef
 *** node_type := NodeType.Body
 *** children := Vec(Expr).new()
@@ -247,24 +248,24 @@
 *** imports_init_done := Set(Str).new()
 *** imports_typer_decls_done := Set(Str).new()
 *** imports_typer_bodies_done := Set(Str).new()
-*** imports_constfolder_done := Set(Str).new()
-*** imports_eval_done := Set(Str).new()
 *** type_gen_synths := Set(Str).new()
+*** generic_funcs := Map(Str, Expr).new()
+*** generic_func_synths := Set(Str).new()
 *** scope := TypeScope()
 *** is_repl := false
 *** struct_layouts := Map(Str, StructLayout).new()
-*** constfolder_macros := Set(Str).new()
-*** constfolder_funcs := Set(Str).new()
+*** constfolder_foldables := Map(Str, FuncType).new()
 *** constfolder_known := Map(Str, Value).new()
 *** constfolder_assigned := Set(Str).new()
 *** has_return := false
 *** has_break := false
 *** has_continue := false
 *** return_value := Value.None
+*** constfold_active := false
+*** constfold_aborted := false
 *** ns_fields := Map(Str, Value).new()
 *** ns_keys := Vec(Dynamic).new()
-*** ns_inited := false
-*** ... (54 more)
+*** ... (55 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -311,6 +312,9 @@
 *** since := ""
 *** deprecated := ""
 *** hidden := false
+** ReplCoreDocCache: StructDef
+*** escaped_info := ""
+*** escaped_docs := ""
 * typer
 ** CtorArg: EnumDef
 *** Unfilled

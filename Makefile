@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_wasm doc summary help install tmp two_pass profile
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_wasm doc doc_cache summary help install tmp two_pass profile
 
 all: bin/til
 
@@ -212,17 +212,20 @@ test_asan_full: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
 
-# --- Doc generator (regenerates doc/gen/ and UML docs) ---
+# --- Doc generator (regenerates doc/gen/, REPL doc cache, and UML docs) ---
 #
 # Run on demand, not from `make test` -- doc gen on src/til.til runs the
 # full init+typer pipeline and adds ~1 minute of wall time. Includes
 # examples/uml.til, which is expensive enough to keep out of `make test`.
-# Commit the refreshed doc/gen/ tree and UML outputs alongside notable
-# doc-affecting changes.
-doc: bin/til
+# Commit the refreshed doc/gen/ tree, REPL doc cache, and UML outputs alongside
+# notable doc-affecting changes.
+doc: bin/til doc_cache
 	rm -rf doc/gen
 	bin/til doc src/til.til
 	bin/til run examples/uml.til
+
+doc_cache: bin/til
+	bin/til doc-cache src/til.til
 
 # --- Issue summary generator (regenerates issues/summary.org) ---
 #
@@ -337,7 +340,8 @@ help:
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make build_wasm     Build browser WASM examples"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
-	echo "make doc            Regenerate doc/gen/ and UML docs"
+	echo "make doc            Regenerate doc/gen/, REPL doc cache, and UML docs"
+	echo "make doc_cache      Regenerate REPL doc cache"
 	echo "make summary        Regenerate issues/summary.org from issues/open/"
 	echo "make profile        Time the self-host build + record/flag regressions (doc/profiling.org)"
 	echo "make install        Install til under PREFIX (default /usr/local)"

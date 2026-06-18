@@ -586,6 +586,7 @@ enum NodeType {
     Catch
     RestPattern
     CaptureBlock: CaptureBlockData
+    CallerLoc
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -620,6 +621,7 @@ namespace:
     ext_func Catch() returns NodeType
     ext_func RestPattern() returns NodeType
     ext_func CaptureBlock(own val: CaptureBlockData) returns NodeType
+    ext_func CallerLoc() returns NodeType
     func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
@@ -810,9 +812,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Bool, shallow n: U32) returns Vec__Bool
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__Bool, shallow i: U32, own val: Bool)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Bool, shallow i: U32, own val: Bool, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -863,9 +866,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FieldLayout, shallow n: U32) returns Vec__FieldLayout
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__FieldLayout, shallow i: U32, own val: FieldLayout)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__FieldLayout, shallow i: U32, own val: FieldLayout, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -916,9 +920,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Declaration, shallow n: U32) returns Vec__Declaration
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__Declaration, shallow i: U32, own val: Declaration)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Declaration, shallow i: U32, own val: Declaration, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -969,9 +974,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Expr, shallow n: U32) returns Vec__Expr
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__Expr, shallow i: U32, own val: Expr)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Expr, shallow i: U32, own val: Expr, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1022,9 +1028,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__I64, shallow i: U32, own val: I64)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__I64, shallow i: U32, own val: I64, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

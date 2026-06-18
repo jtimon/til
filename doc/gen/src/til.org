@@ -18,12 +18,12 @@ VERSION is a Str
 
 * get_bin_dir
 #+begin_src til
-ext_func get_bin_dir() returns Str
+ext_proc get_bin_dir() returns Str
 #+end_src
 
 * get_cwd_str
 #+begin_src til
-ext_func get_cwd_str() returns Str
+ext_proc get_cwd_str() returns Str
 #+end_src
 
 * repl_read_line

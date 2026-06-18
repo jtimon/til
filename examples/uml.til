@@ -102,8 +102,8 @@ sort_paths := func(mut v: Vec(Str)) {
             tmp_i := ai.clone()
             ref am : Str = v.get(min_idx)!
             tmp_m := am.clone()
-            v.set(i, own tmp_m)
-            v.set(min_idx, own tmp_i)
+            v.set(i, own tmp_m)!
+            v.set(min_idx, own tmp_i)!
         }
         i++
     }

@@ -3,7 +3,7 @@
 
 * system_cmd
 #+begin_src til
-ext_func system_cmd(cmd: Str) returns shallow I32
+ext_proc system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
 * StructInstance
@@ -298,7 +298,7 @@ ext_proc unlink_path(path: Str)
 
 * process_id
 #+begin_src til
-ext_func process_id() returns shallow I32
+ext_proc process_id() returns shallow I32
 #+end_src
 
 * ffi_init_struct_defs_append
@@ -388,9 +388,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynPtrBox, shallow n: U32) returns Vec__DynPtrBox
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__DynPtrBox, shallow i: U32, own val: priv___src_self_interpreter_til__DynPtrBox)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__DynPtrBox, shallow i: U32, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -441,9 +442,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Binding, shallow n: U32) returns Vec__Binding
-    /// Overwrite the element at index `i`. `val` is owned. Panics if `i`
-    /// is out of bounds.
-    func set(mut self: Vec__Binding, shallow i: U32, own val: Binding)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Binding, shallow i: U32, own val: Binding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
