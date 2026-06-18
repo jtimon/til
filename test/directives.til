@@ -42,34 +42,42 @@ test_directives_in_func := test() {
            "__FILE__ in func resolves to source file")
 }
 
-// Issue #281: __CALLER_LOC__ as a defaulted parameter resolves to the CALL
-// SITE, not this definition. Generic: an ordinary user func gets it, proving
-// nothing about the mechanism is hardcoded to the core diagnostic helpers.
-caller_loc_of := func(loc: Str = __CALLER_LOC__) returns Str { return loc }
+// Issue #281: __LOC__ as a defaulted parameter resolves to the CALL SITE, not
+// this definition (the C++ source_location::current() model). Generic: an
+// ordinary user func gets it, proving nothing is hardcoded to the core helpers.
+caller_loc_of := func(loc: Str = __LOC__) returns Str { return loc }
 
 test_caller_loc_reports_call_site := test() {
     // The default fills in THIS line (captured by __LINE__ on the same line),
     // not caller_loc_of's definition line above.
     here := caller_loc_of(); ln := __LINE__
-    expect(here.find("directives.til").neq(-1), "__CALLER_LOC__ has caller filename")
+    expect(here.find("directives.til").neq(-1), "defaulted __LOC__ has caller filename")
     expect(here.find(format(":", ln.to_str(), ":")).neq(-1),
-           "__CALLER_LOC__ points at the call line, not the definition")
+           "defaulted __LOC__ points at the call line, not the definition")
 }
 
 test_caller_loc_explicit_overrides := test() {
-    // An explicit location still wins over the __CALLER_LOC__ default.
+    // An explicit location still wins over the defaulted __LOC__.
     assert_eq(Str, caller_loc_of(loc = "fixed:1:2"), "fixed:1:2")
 }
 
-// Issue #281: a struct FIELD default of __CALLER_LOC__ resolves at the
-// constructor call site (the ctor-field fill path).
-CallerLocField := struct {
-    loc : Str = __CALLER_LOC__
+// A DIRECT __LOC__ use still resolves to its own site (here), unchanged from
+// the old parse-time behavior -- same token, "here" when used directly.
+test_loc_direct_use_is_here := test() {
+    direct := __LOC__; dln := __LINE__
+    expect(direct.find(format(":", dln.to_str(), ":")).neq(-1),
+           "direct __LOC__ resolves to its own line")
+}
+
+// Issue #281: a struct FIELD default of __LOC__ resolves at the constructor
+// call site (the ctor-field fill path).
+LocField := struct {
+    loc : Str = __LOC__
 }
 
 test_caller_loc_struct_field := test() {
-    h := CallerLocField(); hln := __LINE__
-    expect(h.loc.find("directives.til").neq(-1), "field __CALLER_LOC__ has filename")
+    h := LocField(); hln := __LINE__
+    expect(h.loc.find("directives.til").neq(-1), "field __LOC__ default has filename")
     expect(h.loc.find(format(":", hln.to_str(), ":")).neq(-1),
-           "field __CALLER_LOC__ points at the constructor call line")
+           "field __LOC__ default points at the constructor call line")
 }

@@ -1451,15 +1451,13 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         name := tok_text(p, t).clone()
         // Compile-time directives
         if name.eq("__LOC__") {
-            e = Expr.new(NodeType.Literal(Literal.Str(format(p.path, ":", t_line.to_str(), ":", t_col.to_str()))), t_line, t_col)
-            e_set = true
-        } else if name.eq("__CALLER_LOC__") {
-            // Issue #281: unlike __LOC__, this is NOT expanded here. It must
-            // survive parsing as a sentinel so the typer can fill it with the
-            // CALL SITE's location when a defaulted param/field is materialized
-            // (resolve_default_value). Expanding it now would bake in this
-            // definition site, defeating the whole point.
-            e = Expr.new(NodeType.CallerLoc, t_line, t_col)
+            // Issue #281: do NOT expand here. Emit a sentinel that survives to
+            // the typer (infer_expr resolves a direct use to this token's own
+            // line/col; the default-fill resolves a `loc: Str = __LOC__` param/
+            // field default to the CALL SITE instead). Expanding at parse time
+            // would bake in the definition site, so a defaulted __LOC__ could
+            // never report the caller.
+            e = Expr.new(NodeType.Loc, t_line, t_col)
             e_set = true
         } else if name.eq("__FILE__") {
             e = Expr.new(NodeType.Literal(Literal.Str(p.path.clone())), t_line, t_col)

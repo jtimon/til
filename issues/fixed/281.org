@@ -1,6 +1,71 @@
 # priority: medium
 # category: features
-** OPEN #281 Caller-location default args (__CALLER_LOC__): drop the __LOC__ boilerplate
+** FIXED #281 Caller-location default args: drop the __LOC__ boilerplate
+
+   POST-MORTEM (landed over several commits):
+
+   The feature is "a source-location default that resolves to the CALL SITE",
+   so a diagnostic/throwing helper can report its caller without every caller
+   threading ~__LOC__~ by hand. ~__LOC__~ was expanded at PARSE time from the
+   token's own position, so it could never serve as such a default (a default
+   written in exit.til would bake in exit.til's line). Arc:
+
+   1. Mechanism: added a post-parse sentinel node and a shared
+      ~resolve_default_value~ helper called at all three default-fill sites
+      (function-call args, struct-ctor fields, namespace/method args). If a
+      param/field default is the sentinel, it is resolved to
+      ~format(ctx.path, ":", call.line, ":", call.col)~ -- the CALL site (the
+      file being typed is the caller's file) -- otherwise cloned as before.
+      Keyed on the default VALUE, never the callee name, so it is generic.
+   2. Generic-funcs-with-defaults: ~init_generic_expand_call~ (initer) required
+      a call arg for EVERY param of a ~T: Type~ generic and bailed when a
+      trailing default was omitted, leaving the call un-monomorphized and
+      tripping desugar's UNREACHABLE. Fixed to only require args for the Type
+      params (~assert_eq~ is generic + trailing ~loc~).
+   3. Unification: rather than keep two intrinsics, ~__LOC__~ itself was moved
+      post-parse. The parser emits the ~NodeType.Loc~ sentinel for ~__LOC__~;
+      ~infer_expr~ resolves a DIRECT use to the node's own line/col (identical
+      to the old parse-time string), while a param/field DEFAULT is left for
+      ~resolve_default_value~ to stamp with the caller's coords. Same token,
+      "here" when used directly, "caller" when it is a default -- the C++
+      ~std::source_location::current()~ model. ~__CALLER_LOC__~ was dropped.
+      ~infer_type_def_expr~ skips inferring a ~Loc~ field default so it is not
+      prematurely resolved to the definition site. (Two-pass commit: this
+      changes where src/'s own omitted-loc panics resolve, so boot/til.c only
+      converges on pass 2.)
+   4. Throwing helpers: a throwing function gets synthetic ~_err_kind~ /
+      ~_err_<T>~ out-params appended to its signature, and the call site injects
+      the matching args positionally. A trailing ~loc: Str = __LOC__~ default
+      sat BETWEEN the real params and the err params, so the positional err
+      args mis-aligned (a Str default-slot got an I64 _err_kind, the last err
+      param went unfilled). Fixed with ~append_err_out_params~, which inserts
+      the err out-params BEFORE any trailing defaulted run, so the positional
+      err args still line up and the defaulted ~loc~ is left for the fill.
+
+   Net: ~panic("...")~, ~UNREACHABLE()~, ~assert(cond)~, ~assert_eq(T, a, b)~
+   read clean (loc moved to a trailing ~loc: Str = __LOC__~), an explicit
+   ~loc = ...~ still overrides, and a defaulted ~loc~ on a THROWING helper
+   reports the caller. All existing ~FUNC(__LOC__, ...)~ call sites were
+   migrated to drop the now-redundant leading ~__LOC__~ (output-preserving for
+   direct calls).
+
+   Regression tests:
+   - ~test/directives.til~: ~test_caller_loc_reports_call_site~ (user func,
+     defaulted ~__LOC__~ -> caller), ~test_caller_loc_explicit_overrides~,
+     ~test_loc_direct_use_is_here~ (direct ~__LOC__~ -> own site),
+     ~test_caller_loc_struct_field~ (struct field default -> ctor call site).
+   - ~test/errors.til~: ~test_throwing_helper_reports_caller~ (a throwing
+     helper's error message reports the caller's location, not its own line).
+
+   FOLLOW-UP (not required by acceptance, now unblocked): converting the core
+   ~src/~ throwing accessors (~Vec.get~ / ~Vec.set~ / ~Array.get~ / ~Map.get~ /
+   the integer ~safe_*~) to a defaulted ~loc: Str = __LOC__~ so THEIR errors
+   point at the caller. That is a STAGED change -- master's til_boot must carry
+   the err-out-param-ordering fix (this commit) before src/ can use a defaulted
+   loc on a throwing func, or the bootstrap build's old err-injection
+   mis-aligns. Do it as a separate commit once this lands.
+
+** FIXED #281 Caller-location default args (__CALLER_LOC__): drop the __LOC__ boilerplate
 
    Almost every diagnostic helper takes the source location as an explicit
    first argument the caller must spell as ~__LOC__~:

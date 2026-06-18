@@ -3323,7 +3323,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             // Only Type params need a corresponding type-arg to build the
             // substitution map and the mono name. A non-Type param may be
             // OMITTED at the call when it has a default (issue #281, e.g. a
-            // trailing `loc: Str = __CALLER_LOC__`); skip it here -- the typer
+            // trailing `loc: Str = __LOC__`); skip it here -- the typer
             // fills its default into the monomorphized call later. Bailing on
             // a missing value-arg (the old behaviour) left the generic call
             // un-monomorphized and tripped desugar's UNREACHABLE.

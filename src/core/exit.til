@@ -7,41 +7,42 @@ import("str")
 exit := ext_func(shallow code: I64) {}
 
 // Issue #281: the source location is an optional trailing parameter that
-// defaults to the CALL SITE (__CALLER_LOC__). The common case reads
-// panic("..."), UNREACHABLE(), assert(cond), assert_eq(T, a, b); an explicit
-// location still works as a trailing `loc = ...` argument and overrides the
-// default. Helpers that forward their own caller location to panic pass it
-// explicitly as `loc = loc`.
+// defaults to __LOC__. Because it is a DEFAULT, __LOC__ resolves to the CALL
+// SITE (not this file) -- the C++ source_location::current() model. The common
+// case reads panic("..."), UNREACHABLE(), assert(cond), assert_eq(T, a, b); an
+// explicit location still works as a trailing `loc = ...` argument and
+// overrides the default. Helpers that forward their own caller location to
+// panic pass it explicitly as `loc = loc`.
 
-panic := func(parts: ..Str, loc: Str = __CALLER_LOC__) {
+panic := func(parts: ..Str, loc: Str = __LOC__) {
     println(loc, ": panic: ", format(..parts))
     exit(1)
 }
 
-TODO := func(parts: ..Str, loc: Str = __CALLER_LOC__) {
+TODO := func(parts: ..Str, loc: Str = __LOC__) {
     panic("TODO: ", format(..parts), loc = loc)
 }
 
-UNREACHABLE := func(loc: Str = __CALLER_LOC__) {
+UNREACHABLE := func(loc: Str = __LOC__) {
     panic("unreachable", loc = loc)
 }
 
 // assert returns nothing (unlike its former vestigial, unused `Bool`
 // return): a value-returning func called purely as a statement would
 // const-fold to a bare literal the interpreter rejects.
-assert := func(cond: Bool, loc: Str = __CALLER_LOC__) {
+assert := func(cond: Bool, loc: Str = __LOC__) {
     if cond.not() {
         panic("assert failed", loc = loc)
     }
 }
 
-expect := func(cond: Bool, parts: ..Str, loc: Str = __CALLER_LOC__) {
+expect := func(cond: Bool, parts: ..Str, loc: Str = __LOC__) {
     if cond.not() {
         panic("assert failed: ", format(..parts), loc = loc)
     }
 }
 
-assert_eq := func(T: Type, a: T, b: T, loc: Str = __CALLER_LOC__) {
+assert_eq := func(T: Type, a: T, b: T, loc: Str = __LOC__) {
     if T.neq(a, b) {
         panic("assert_eq failed: expected '", T.to_str(a), "', found '", T.to_str(b), "'", loc = loc)
     }

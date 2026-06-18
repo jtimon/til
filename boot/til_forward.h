@@ -114,7 +114,7 @@ typedef enum {
     NodeType_TAG_Catch,
     NodeType_TAG_RestPattern,
     NodeType_TAG_CaptureBlock,
-    NodeType_TAG_CallerLoc
+    NodeType_TAG_Loc
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -2184,6 +2184,7 @@ void Vec__Declaration_clear(Vec__Declaration * self);
 void Vec__Declaration_push(Vec__Declaration * self, Declaration * val);
 void Vec__Declaration_move_from(Vec__Declaration * self, Vec__Declaration * other);
 Declaration * Vec__Declaration_get(Vec__Declaration * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);
+Declaration * Vec__Declaration_pop(Vec__Declaration * self);
 void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free);
 Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self);
 U32 Vec__Declaration_size(void);
@@ -2923,6 +2924,7 @@ Bool priv___src_self_typer_til__subtree_has_pending_throw(Expr * e);
 Bool priv___src_self_typer_til__subtree_has_bang(Expr * e);
 void priv___src_self_typer_til__annotate_throw_types_in(Expr * e, Expr * root_body);
 Str * priv___src_self_typer_til__err_slot_name(Str * t);
+void priv___src_self_typer_til__append_err_out_params(Vec__Declaration * params, Vec__Str * throw_types);
 Expr * priv___src_self_typer_til__make_int_lit(I64 n, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_typed_mut_decl(Str * name, Str * type_name, Expr * init, U32 line, U32 col);
 Expr * priv___src_self_typer_til__make_assign_stmt(Str * name, Expr * rhs, U32 line, U32 col);

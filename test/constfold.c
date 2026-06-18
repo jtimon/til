@@ -112,7 +112,7 @@ typedef enum {
     NodeType_TAG_Catch,
     NodeType_TAG_RestPattern,
     NodeType_TAG_CaptureBlock,
-    NodeType_TAG_CallerLoc
+    NodeType_TAG_Loc
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -948,7 +948,7 @@ NodeType *NodeType_Throw();
 NodeType *NodeType_Catch();
 NodeType *NodeType_RestPattern();
 NodeType *NodeType_CaptureBlock(CaptureBlockData *);
-NodeType *NodeType_CallerLoc();
+NodeType *NodeType_Loc();
 Bool Color_eq(Color *, Color *);
 Color *Color_Red();
 Color *Color_Green();
@@ -1659,7 +1659,7 @@ Str * Array__Str_get(Array__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * 
         (void)_va_Array_33_eo;
         U32 hoisted__U32_1265 = 0;
         (void)hoisted__U32_1265;
-        Str hoisted__Str_1266 = (Str){.c_str = (void *)"./src/core/array.til:28:44", .count = 26ULL, .cap = TIL_CAP_LIT};
+        Str hoisted__Str_1266 = (Str){.c_str = (void *)"./src/core/str.til:28:44", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1266;
         Array__Str_set(_va_Array_33, hoisted__U32_1265, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1266; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo);
         U32 hoisted__U32_1267 = 1;
@@ -1737,7 +1737,7 @@ void Array__Str_set(Array__Str * self, U32 i, Str * val, I64 * _err_kind, OutOfB
         (void)_va_Array_34_eo;
         U32 hoisted__U32_1289 = 0;
         (void)hoisted__U32_1289;
-        Str hoisted__Str_1290 = (Str){.c_str = (void *)"./src/core/array.til:40:44", .count = 26ULL, .cap = TIL_CAP_LIT};
+        Str hoisted__Str_1290 = (Str){.c_str = (void *)"./src/core/str.til:40:44", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1290;
         Array__Str_set(_va_Array_34, hoisted__U32_1289, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1290; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_34_ek, _va_Array_34_eo);
         U32 hoisted__U32_1291 = 1;
@@ -4119,9 +4119,9 @@ NodeType *NodeType_CaptureBlock(CaptureBlockData * val) {
     free(val);
     return r;
 }
-NodeType *NodeType_CallerLoc() {
+NodeType *NodeType_Loc() {
     NodeType *r = malloc(sizeof(NodeType));
-    r->tag = NodeType_TAG_CallerLoc;
+    r->tag = NodeType_TAG_Loc;
     return r;
 }
 void NodeType_delete(NodeType * self, Bool call_free) {
@@ -4525,7 +4525,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3283;
                 return _ret_val; }
     }
-    { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_CallerLoc;
+    { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Loc;
     return _r; }
 }
 
@@ -7462,11 +7462,11 @@ void *NodeType_CaptureBlock_dyn(void *til_env, void *_a0) {
     return (void *)NodeType_CaptureBlock(_a0);
 }
 static __attribute__((unused)) TilClosure NodeType_CaptureBlock_dyn__til_closure = { (void *)NodeType_CaptureBlock_dyn, NULL, NULL };
-void *NodeType_CallerLoc_dyn(void *til_env) {
+void *NodeType_Loc_dyn(void *til_env) {
     (void)til_env;
-    return (void *)NodeType_CallerLoc();
+    return (void *)NodeType_Loc();
 }
-static __attribute__((unused)) TilClosure NodeType_CallerLoc_dyn__til_closure = { (void *)NodeType_CallerLoc_dyn, NULL, NULL };
+static __attribute__((unused)) TilClosure NodeType_Loc_dyn__til_closure = { (void *)NodeType_Loc_dyn, NULL, NULL };
 void NodeType_delete_dyn(void *til_env, void *_a0, Bool _a1) {
     (void)til_env;
     NodeType_delete(_a0, _a1);
@@ -7982,7 +7982,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "Catch", 5ULL) == 0) return (void*)&NodeType_Catch_dyn__til_closure;
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "RestPattern", 11ULL) == 0) return (void*)&NodeType_RestPattern_dyn__til_closure;
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 12ULL && memcmp(method->c_str, "CaptureBlock", 12ULL) == 0) return (void*)&NodeType_CaptureBlock_dyn__til_closure;
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "CallerLoc", 9ULL) == 0) return (void*)&NodeType_CallerLoc_dyn__til_closure;
+    if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "Loc", 3ULL) == 0) return (void*)&NodeType_Loc_dyn__til_closure;
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&NodeType_delete_dyn__til_closure;
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&NodeType_clone_dyn__til_closure;
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&NodeType_size_dyn__til_closure;
@@ -8833,7 +8833,7 @@ Str *enum_variant_name(Str *type_name, I64 *index) {
         if (*index == 23LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Catch", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
         if (*index == 24LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"RestPattern", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
         if (*index == 25LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CaptureBlock", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 26LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CallerLoc", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 26LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Loc", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) {
         if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Red", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });

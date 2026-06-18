@@ -49,7 +49,6 @@
 ** Medium
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
-*** [[./open/281.org][#281]] Caller-location default args (__CALLER_LOC__): drop the __LOC__ boilerplate
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies

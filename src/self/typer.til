@@ -1213,13 +1213,14 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
 }
 
 // Issue #281: materialize one parameter/field default value for a call/ctor
-// fill site. If the default is the __CALLER_LOC__ sentinel, resolve it to a
-// Str literal holding the CALL SITE's location (the call/ctor Expr's coords +
-// the file currently being typed, ctx.path -- the caller's file); otherwise
-// clone the default as before. Keyed on the default VALUE, never on the
-// callee's name, so any user func/proc/struct field gets the behavior.
+// fill site. If the default is the __LOC__ sentinel, resolve it to a Str
+// literal holding the CALL SITE's location (the call/ctor Expr's coords + the
+// file currently being typed, ctx.path -- the caller's file); otherwise clone
+// the default as before. This is what makes a defaulted `loc: Str = __LOC__`
+// report the caller. Keyed on the default VALUE, never on the callee's name,
+// so any user func/proc/struct field gets the behavior.
 priv resolve_default_value := func(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr {
-    if default_value.node_type.is(NodeType.CallerLoc) {
+    if default_value.node_type.is(NodeType.Loc) {
         loc_str := format(ctx.path, ":", call_expr.line.to_str(), ":", call_expr.col.to_str())
         return Expr.new(NodeType.Literal(Literal.Str(loc_str)), call_expr.line, call_expr.col)
     }
@@ -2790,6 +2791,13 @@ priv infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Con
     switch expr.node_type {
     case NodeType.Literal(Literal.Num):  infer_literal_expr(expr)
     case NodeType.Literal(Literal.Null): infer_literal_expr(expr)
+    // Issue #281: a DIRECT __LOC__ use resolves to this token's own location
+    // (the same string the old parse-time expansion produced). A __LOC__ that
+    // is a parameter/field DEFAULT never reaches here -- it is left untouched
+    // on the Declaration and resolved by the default-fill (resolve_default_value)
+    // to the caller's location instead (infer_type_def_expr skips it for fields).
+    case NodeType.Loc:
+        expr.node_type = NodeType.Literal(Literal.Str(format(ctx.path, ":", expr.line.to_str(), ":", expr.col.to_str())))
     case NodeType.Ident:       infer_ident_expr(scope, expr, ctx)
     case NodeType.FuncDef:     infer_func_def_expr(scope, expr, ctx)
     case NodeType.StructDef:   infer_type_def_expr(scope, expr, ctx)
@@ -3188,7 +3196,13 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             if fd.redundant_mut {
                 fd.default_value.type_error("redundant 'mut' on struct field '".concat(fd.name).concat("': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
             }
-            if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
+            // Issue #281: a `loc: Str = __LOC__` field default must stay the
+            // Loc sentinel here -- inferring it now would resolve it to this
+            // definition site. It is resolved per-constructor-call by the
+            // default-fill (resolve_default_value) to the CALLER's location.
+            if fd.default_value.is_null().not()
+                .and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not())
+                .and(fd.default_value.node_type.is(NodeType.Loc).not()) {
                 infer_expr(inner, fd.default_value, 0, ctx)
                 check_ref_field_owned_default(fd, inner, ctx)
             }
@@ -6413,21 +6427,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
                 if p.name.eq("_err_kind") { already_extended = true }
             }
             if already_extended.not() {
-                mut kp := Declaration(name = "_err_kind",
-                    explicit_type = "I64",
-                    til_type = Type.Primitive(Primitive.I64),
-                    is_mut = true,
-                    own_type = OwnType.Ref,
-                    used = true)
-                get_def.params.push(own kp)
-                for gtn : Str in get_def.throw_types {
-                    mut tp := decl_typed(name = err_slot_name(gtn),
-                        explicit_type = gtn,
-                        is_mut = true,
-                        own_type = OwnType.Ref,
-                        used = true)
-                    get_def.params.push(own tp)
-                }
+                append_err_out_params(get_def.params, get_def.throw_types)
             }
         }
     case:
@@ -7070,6 +7070,39 @@ priv err_slot_name := func(t: Str) returns Str {
     return "_err_".concat(t)
 }
 
+// Issue #198 + #281: append the synthetic _err_kind + _err_<T> out-params a
+// throwing function needs. They go BEFORE any trailing defaulted params, so a
+// defaulted param (e.g. `loc: Str = __LOC__`) stays last: the call site injects
+// the err args positionally at the end, and they must line up with the err
+// params while the defaulted param is left for the default-fill. Funcs with no
+// trailing default get them appended at the end, exactly as before. Idempotent
+// callers must guard on an existing _err_kind param before calling this.
+priv append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str)) {
+    // Locate where the trailing run of defaulted params begins.
+    mut split : USize = params.len()
+    while split.gt(0) {
+        ref pp : Declaration = params[split.sub(1)]
+        if pp.default_value.is_null() { break }
+        if pp.default_value.node_type.is(NodeType.NoDefaultArg) { break }
+        split = split.sub(1)
+    }
+    // Pop the trailing defaults off (this reverses their order).
+    mut tail := Vec(Declaration).new()
+    while params.len().gt(split) {
+        tail.push(own params.pop())
+    }
+    params.push(own Declaration(name = "_err_kind", explicit_type = "I64",
+        til_type = Type.Primitive(Primitive.I64), is_mut = true, own_type = OwnType.Ref, used = true))
+    for tn : Str in throw_types {
+        params.push(own decl_typed(name = err_slot_name(tn), explicit_type = tn,
+            is_mut = true, own_type = OwnType.Ref, used = true))
+    }
+    // Restore the trailing defaults (popping again undoes the reversal).
+    while tail.len().gt(0) {
+        params.push(own tail.pop())
+    }
+}
+
 priv make_int_lit := func(n: I64, line: U32, col: U32) returns Expr {
     return Expr.new(literal_num_node(n.to_str()), line, col)
 }
@@ -7274,21 +7307,7 @@ priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                     if p.name.eq("_err_kind") { already = true }
                 }
                 if already.not() {
-                    mut kp := Declaration(name = "_err_kind",
-                        explicit_type = "I64",
-                        til_type = Type.Primitive(Primitive.I64),
-                        is_mut = true,
-                        own_type = OwnType.Ref,
-                        used = true)
-                    efd.params.push(own kp)
-                    for tn : Str in efd.throw_types {
-                        mut tp := decl_typed(name = err_slot_name(tn),
-                            explicit_type = tn,
-                            is_mut = true,
-                            own_type = OwnType.Ref,
-                            used = true)
-                        efd.params.push(own tp)
-                    }
+                    append_err_out_params(efd.params, efd.throw_types)
                 }
             }
         case:

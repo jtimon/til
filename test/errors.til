@@ -709,3 +709,38 @@ test_stmt_method_question_ok := test() {
     assert(caught.not())
     assert_eq(I64, t.n, 2)
 }
+
+// Issue #281: a THROWING helper with a defaulted `loc: Str = __LOC__` reports
+// the CALLER's location in its thrown error, not the helper's own definition
+// line. This is the issue's primary payoff (cf. Vec.get's OutOfBounds), proven
+// on a user helper: a defaulted param now works on a throwing function -- its
+// synthetic _err_* out-params are injected before the trailing default so they
+// still line up positionally (append_err_out_params).
+LocCheckErr := struct { msg := "" }
+
+guard_nonneg := func(x: I64, loc: Str = __LOC__) returns I64 throws LocCheckErr {
+    if x.lt(0) {
+        throw LocCheckErr(msg = format(loc, ": negative input"))
+    }
+    return x
+}
+
+test_throwing_helper_reports_caller := test() {
+    mut caught := ""
+    cl := __LINE__
+    guard_nonneg(-5)?
+    catch (e: LocCheckErr) {
+        caught = e.msg.clone()
+    }
+    // The throwing call is the line right after cl's capture.
+    call_line := cl.add(1)
+    expect(caught.find("errors.til").neq(-1),
+           "throwing helper error names the CALLER file, not its own")
+    expect(caught.find(format(":", call_line.to_str(), ":")).neq(-1),
+           "throwing helper error points at the CALL line, not guard_nonneg's def")
+    expect(caught.find("negative input").neq(-1), "carries the formatted message")
+
+    // Success path returns normally (no throw); '!' handles the throws clause.
+    ok := guard_nonneg(7)!
+    assert_eq(I64, ok, 7)
+}
