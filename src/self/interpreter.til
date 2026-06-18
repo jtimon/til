@@ -1763,6 +1763,70 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             exit(1)
         }
         ref body_ns : Expr = func_def.children[0]
+        // Issue #275: bypass an auto-generated struct delete's body and run the
+        // deep Value teardown directly. The generated body is
+        // `self.field.delete(false)` per field + `free(own self)`; in the
+        // interpreter the field-deletes dispatch onto a BORROWED view (Str.delete
+        // reads self.c_str as a Ref -> no-op) and `free(own self)` is a shallow
+        // box-only release, so a plain struct's nested Str-field c_strs leaked at
+        // its delete -- the dominant constfolder Str_clone leak (folding clones
+        // such values then deletes them). free_temp_arg_value reclaims them
+        // (is_str c_str / struct_deep_free + the buffer). Scoped to the top-level
+        // garbager delete `p.delete()` (call_free defaulted, so exactly the
+        // receiver Ident arg); explicit-arg / non-Ident (borrowed-view nested)
+        // calls fall through to the normal body. Custom deletes (Tuple/Vec/Map)
+        // are not auto_generated and are unaffected.
+        mut del_method := false
+        switch callee_expr.node_type {
+        case NodeType.FieldAccess(del_fn):
+            if del_fn.field_access_name().eq("delete") { del_method = true }
+        case:
+        }
+        if del_method {
+            switch e.children[1].node_type {
+            case NodeType.Ident(recv_id):
+                // Only the top-level call_free=true delete frees the buffer (what
+                // free_temp_arg_value does); a call_free=false call must keep it.
+                mut call_free := true
+                if e.children.len().gt(2) {
+                    cf_v := eval_expr(scope, e.children[2], ctx)
+                    switch cf_v {
+                    case Value.Boolean(cfb): call_free = cfb
+                    case:
+                    }
+                }
+                if call_free {
+                    ref recv_cell : Cell = scope_get(scope, recv_id.ident_name())
+                    if recv_cell.is_null().not() {
+                        // Intercept iff the deep teardown is equivalent to the
+                        // method body: an auto-generated struct delete (no-op
+                        // field deletes + shallow free(own self)), or Str.delete
+                        // (free c_str + buffer == free_temp_arg_value's is_str
+                        // path). The Str case is what leaked for `x := f()`
+                        // returning an owned Str then `x.delete()`: free(own
+                        // self.c_str) read self as a borrowed Ref -> no-op. Custom
+                        // deletes (Tuple/Vec/Map) have real bodies -> fall through.
+                        mut do_intercept := false
+                        switch func_def.node_type {
+                        case NodeType.FuncDef(fd_ag):
+                            if fd_ag.auto_generated { do_intercept = true }
+                        case:
+                        }
+                        switch recv_cell.val {
+                        case Value.Struct(rsi):
+                            if rsi.struct_name.eq("Str") { do_intercept = true }
+                        case:
+                        }
+                        if do_intercept {
+                            free_temp_arg_value(recv_cell.val)
+                            memcpy(recv_cell.val, val_none(), Value.size().cast(U64))
+                            return val_none()
+                        }
+                    }
+                }
+            case:
+            }
+        }
         // Issue #218: when the callee is a function-pointer field
         // (e.g. Vec.elem_delete dispatching to I64.delete), the
         // resolved function may declare its first parameter `own`
@@ -4604,6 +4668,47 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         ref cell : Cell = scope_get(s, ident.ident_name())
         free_value_full(cell.val)
         memcpy(cell.val, val_none(), Value.size().cast(U64))
+    case NodeType.FieldAccess(fa):
+        // Issue #275: `free(own self.c_str)` in Str.delete on an OWNED Str.
+        // read_field yields a Value.Ref(c_str) for the Str's own c_str field;
+        // free_value_full has no Ref case, so this leaked whenever an interpreted
+        // Str.delete ran on an owned Str -- e.g. `x := f()` returning an owned
+        // Str, then `x.delete()` (the dominant constfolder Str_clone leak: folds
+        // clone Str return values). Gated on a NON-borrowed Str receiver: a
+        // borrowed view (the field read inside an auto-gen delete, or a Vec/Map
+        // element view) does NOT own its c_str, and Str.delete reaches the free
+        // only when the Str owns the buffer (cap < CAP_VIEW guard) -- so this is
+        // single-owner-correct. Null the c_str slot (Str's first field) so a
+        // later teardown of the same Str sees NULL and cannot double-free.
+        base := eval_expr(s, e.children[1].children[0], ctx)
+        mut free_owned_cstr := false
+        switch base {
+        case Value.Struct(bsi):
+            if bsi.struct_name.eq("Str").and(bsi.borrowed.not()).and(fa.field_access_name().eq("c_str")) {
+                free_owned_cstr = true
+            }
+        case:
+        }
+        val := eval_expr(s, e.children[1], ctx)
+        if free_owned_cstr {
+            switch val {
+            case Value.Ref(rp):
+                if rp.is_null().not() {
+                    mut owned_ptr : Dynamic = rp
+                    free(own owned_ptr)
+                    switch base {
+                    case Value.Struct(bsi2):
+                        if bsi2.data.is_null().not() { write_ptr(bsi2.data, NULL) }
+                    case:
+                    }
+                }
+            case:
+                free_value_full(val)
+            }
+        } else {
+            free_value_full(val)
+        }
+        memcpy(val, val_none(), Value.size().cast(U64))
     case:
         val := eval_expr(s, e.children[1], ctx)
         free_value_full(val)
