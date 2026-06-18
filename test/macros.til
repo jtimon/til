@@ -16,7 +16,7 @@ test_macro_const_arg := test() {
 
 # macro returning Str
 macro_greet := macro(name: Str) returns Str {
-    return "hello ".concat(name)
+    return format("hello ", name)
 }
 
 test_macro_str := test() {
@@ -73,7 +73,7 @@ test_func_const_arg := test() {
 }
 
 greet := func(name: Str) returns Str {
-    return "hi ".concat(name)
+    return format("hi ", name)
 }
 
 test_func_str := test() {

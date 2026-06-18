@@ -269,7 +269,7 @@ namespace:
     is_empty := func(self: IdentData) returns Bool { return self.name.is_empty() }
     starts_with := func(self: IdentData, prefix: Str) returns Bool { return self.name.starts_with(prefix) }
     ends_with := func(self: IdentData, suffix: Str) returns Bool { return self.name.ends_with(suffix) }
-    concat := func(self: IdentData, tail: Str) returns Str { return self.name.concat(tail) }
+    concat := func(self: IdentData, tail: Str) returns Str { return format(self.name, tail) }
     replace := func(self: IdentData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
     strip_suffix := func(self: IdentData, suffix: Str) returns Str { return self.name.strip_suffix(suffix) }
     byte_at := func(self: IdentData, i: U32) returns ref I8 { return self.name.byte_at(i) }
@@ -285,7 +285,7 @@ namespace:
     len := func(self: FieldAccessData) returns U32 { return self.name.len() }
     is_empty := func(self: FieldAccessData) returns Bool { return self.name.is_empty() }
     starts_with := func(self: FieldAccessData, prefix: Str) returns Bool { return self.name.starts_with(prefix) }
-    concat := func(self: FieldAccessData, tail: Str) returns Str { return self.name.concat(tail) }
+    concat := func(self: FieldAccessData, tail: Str) returns Str { return format(self.name, tail) }
     replace := func(self: FieldAccessData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
 }
 
@@ -894,17 +894,17 @@ node_head_str := func(data: NodeType) returns Str {
 expr_to_str_indent := func(self: Expr, indent: U32) returns Str {
     mut out := ""
     for _ in 0..indent.cast(U64) {
-        out = out.concat("  ")
+        out = format(out, "  ")
     }
     head := node_head_str(self.node_type)
     if self.children.len().eq(0) {
-        return out.concat("(").concat(head).concat(")")
+        return format(out, "(", head, ")")
     }
-    out = out.concat("((").concat(head).concat(")")
+    out = format(out, "((", head, ")")
     for c : Expr in self.children {
-        out = out.concat("\n").concat(expr_to_str_indent(c, indent.add(1)))
+        out = format(out, "\n", expr_to_str_indent(c, indent.add(1)))
     }
-    return out.concat(")")
+    return format(out, ")")
 }
 
 // --- node_name ---

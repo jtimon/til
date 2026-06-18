@@ -41,7 +41,7 @@ ms_to_str := func(ms: I64) returns Str {
 pad_right := func(s: Str, width: USize) returns Str {
     mut result := s.clone()
     while result.len().lt(width) {
-        result = result.concat(" ")
+        result = format(result, " ")
     }
     return result
 }

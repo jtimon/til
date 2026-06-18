@@ -8,10 +8,10 @@ test_eq := test() {
 }
 
 test_concat := test() {
-    assert_eq(Str, "hello".concat(" world"), "hello world")
-    assert_eq(Str, "".concat("abc"), "abc")
-    assert_eq(Str, "abc".concat(""), "abc")
-    assert_eq(Str, "".concat(""), "")
+    assert_eq(Str, format("hello", " world"), "hello world")
+    assert_eq(Str, format("", "abc"), "abc")
+    assert_eq(Str, format("abc", ""), "abc")
+    assert_eq(Str, format("", ""), "")
 }
 
 test_clone := test() {
@@ -205,7 +205,7 @@ test_substr_view := test() {
     assert(view.eq("world"))
 
     // views work with concat
-    assert_eq(Str, "say ".concat(view), "say world")
+    assert_eq(Str, format("say ", view), "say world")
 
     // get_char returns a 1-byte view
     assert_eq(Str, "abc".get_char(1), "b")
@@ -244,7 +244,7 @@ test_join := test() {
 
 // mut param concat — reproduces use-after-free bug
 greet := func(mut out: Str) {
-    out = out.concat(" world")
+    out = format(out, " world")
 }
 
 test_mut_param_concat := test() {

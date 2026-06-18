@@ -7,7 +7,7 @@ double_il := func(x: I64) returns I64 { return x.mul(2) }
 add := func(a: I64, b: I64) returns I64 { return a.add(b) }
 sub := func(a: I64, b: I64) returns I64 { return a.sub(b) }
 mul := func(a: I64, b: I64) returns I64 { return a.mul(b) }
-concat := func(a: Str, b: Str) returns Str { return a.concat(b) }
+concat := func(a: Str, b: Str) returns Str { return format(a, b) }
 
 // Test 1: Simple arithmetic
 test_simple_add := test() {
@@ -83,13 +83,13 @@ test_variadic_direct_fold := test() {
 
 poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
     if depth.eq(4) {
-        return current.concat("\n")
+        return format(current, "\n")
     }
     mut result := ""
-    result = result.concat(poem(depth.add(1), current.concat(s1), s1, s2))
-    result = result.concat(poem(depth.add(1), current.concat(s2), s1, s2))
+    result = format(result, poem(depth.add(1), format(current, s1), s1, s2))
+    result = format(result, poem(depth.add(1), format(current, s2), s1, s2))
     if depth.eq(2) {
-        result = result.concat(poem(depth.add(1), current.concat("lei"), s1, s2))
+        result = format(result, poem(depth.add(1), format(current, "lei"), s1, s2))
     }
     return result
 }
@@ -113,7 +113,7 @@ make_poem_it := func(s1: Str, s2: Str) returns Str {
                     if i2.eq(2) { s2v = "lei" }
                     mut s3 := s1
                     if i3.neq(0) { s3 = s2 }
-                    result = result.concat(s0.concat(s1v).concat(s2v).concat(s3).concat("\n"))
+                    result = format(result, s0, s1v, s2v, s3, "\n")
                 }
             }
         }

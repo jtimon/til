@@ -78,7 +78,7 @@ test_typed_literal_coercion := test() {
 }
 
 test_format := test() {
-    assert_eq(Str, "hello".concat(" world"), "hello world")
+    assert_eq(Str, format("hello", " world"), "hello world")
     assert_eq(Str, format("a", "b", "c"), "abc")
 }
 

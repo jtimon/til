@@ -449,7 +449,7 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
             if prefix.len().eq(0) {
                 current = vn.clone()
             } else {
-                current = prefix.concat(".").concat(vn)
+                current = format(prefix, ".", vn)
             }
             if sub.fully_covered { continue }
             mut recursed := false
@@ -842,7 +842,7 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Contex
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FCall).not() { return }
         if fcall_returns_own(rhs, scope).not() { return }
-        stmt.type_error("ref binding '".concat(sdecl.name).concat("' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"), ctx)
+        stmt.type_error(format("ref binding '", sdecl.name, "' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"), ctx)
     case:
     }
 }
@@ -858,7 +858,7 @@ priv check_ref_field_owned_default := proc(fd: Declaration, scope: TypeScope, ct
     if fd.default_value.node_type.is_literal_null() { return }
     if fd.default_value.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(fd.default_value, scope).not() { return }
-    fd.default_value.type_error("ref field '".concat(fd.name).concat("' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"), ctx)
+    fd.default_value.type_error(format("ref field '", fd.name, "' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"), ctx)
 }
 
 // #168 step 4: assignments to ref-typed lvalues follow the same
@@ -869,7 +869,7 @@ priv check_ref_field_owned_default := proc(fd: Declaration, scope: TypeScope, ct
 priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr, scope: TypeScope, ctx: Context) {
     if rhs.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(rhs, scope).not() { return }
-    stmt.type_error("ref target '".concat(target_name).concat("' cannot be assigned an owned value (.clone() / constructor / function returning own) -- borrow the source directly, or change the target to 'own'/'mut'")
+    stmt.type_error(format("ref target '", target_name, "' cannot be assigned an owned value (.clone() / constructor / function returning own) -- borrow the source directly, or change the target to 'own'/'mut'")
     , ctx)
 }
 
@@ -893,7 +893,7 @@ priv check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is_literal_null().not() { return }
-        stmt.type_error("ref binding '".concat(sdecl.name).concat("' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"), ctx)
+        stmt.type_error(format("ref binding '", sdecl.name, "' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"), ctx)
     case:
     }
 }
@@ -918,7 +918,7 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
             switch sig.node_type {
             case NodeType.FuncDef(sig_fdef):
                 if nargs.neq(sig_fdef.params.len()) {
-                    e.type_error("function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
+                    e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
                 }
                 mut ai : U32 = 0
                 while ai.lt(nargs) {
@@ -1000,12 +1000,12 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
             // consume the clone; ref-mut params may mutate the copy.)
             if pp2.own_type.is(OwnType.Ref).and(pp2.is_mut.not()) {
                 if arg.is_clone_fcall() {
-                    arg.type_error("redundant '.clone()': parameter '".concat(pp2.name).concat("' is a ref (borrow); pass the value directly"), ctx)
+                    arg.type_error(format("redundant '.clone()': parameter '", pp2.name, "' is a ref (borrow); pass the value directly"), ctx)
                 }
             }
             if pown {
                 if get_own_arg(e, ci).not() {
-                    arg.type_error("argument for 'own' parameter '".concat(pp2.name).concat("' must be marked 'own'"), ctx)
+                    arg.type_error(format("argument for 'own' parameter '", pp2.name, "' must be marked 'own'"), ctx)
                 }
                 cap_name := closure_borrowed_capture_name(arg, scope)
                 if cap_name.len().gt(0) {
@@ -1014,7 +1014,7 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
                         "' if the closure escapes"), ctx)
                 }
             } else if get_own_arg(e, ci) {
-                arg.type_error("'own' on argument but parameter '".concat(pp2.name).concat("' is not 'own'"), ctx)
+                arg.type_error(format("'own' on argument but parameter '", pp2.name, "' is not 'own'"), ctx)
             }
             if pown {
                 switch arg.node_type {
@@ -1075,7 +1075,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
     switch sf_sb {
     case ScopeFind.Found(sb):
         if sb.is_builtin {
-            e.type_error("cannot instantiate builtin type '".concat(name).concat("'"), ctx)
+            e.type_error(format("cannot instantiate builtin type '", name, "'"), ctx)
             e.set_expr_til_type(Type.Unknown)
             return true
         }
@@ -1094,7 +1094,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
             }
         }
         if has_new {
-            e.type_error("struct '".concat(name).concat("' has a new() constructor; use ").concat(name).concat(".new(...) instead"), ctx)
+            e.type_error(format("struct '", name, "' has a new() constructor; use ", name, ".new(...) instead"), ctx)
             e.set_expr_til_type(Type.Struct(name.clone()))
             return true
         }
@@ -1423,8 +1423,8 @@ priv redundant_literal_conversion := func(e: Expr, expected: Type) returns Bool 
 }
 
 priv redundant_conversion_error := proc(at: Expr, expected: Type, ctx: Context) {
-    at.type_error("redundant conversion: numeric literal already narrows to "
-        .concat(type_to_name(expected)).concat(" in this context; drop the .to_* / .cast(T) conversion"), ctx)
+    at.type_error(format("redundant conversion: numeric literal already narrows to "
+        , type_to_name(expected), " in this context; drop the .to_* / .cast(T) conversion"), ctx)
 }
 
 // #269: is `name` an interface type (a StructDef flagged is_interface)?
@@ -1474,7 +1474,7 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(ptype) {
             if literal_in_range(lit_str.literal_num_text(), ptype).not() {
-                arg.type_error("integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(ptype)), ctx)
+                arg.type_error(format("integer literal ", lit_str.literal_num_text(), " out of range for ", type_to_name(ptype)), ctx)
             }
             arg.set_expr_til_type(ptype)
             return
@@ -1505,12 +1505,12 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
         type_matches = true
     }
     if type_matches.not() {
-        arg.type_error("argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
+        arg.type_error(format("argument type mismatch for '", param_name, "': expected ", ptype_name, ", got ", type_to_name(arg.expr_til_type())), ctx)
     } else if is_aggregate(ptype) {
         arg_sname := til_type_name(arg.expr_til_type())
         if arg_sname.len().gt(0) {
             if ptype_name.eq(arg_sname).not() {
-                arg.type_error("argument type mismatch for '".concat(param_name).concat("': expected ").concat(ptype_name).concat(", got ").concat(arg_sname), ctx)
+                arg.type_error(format("argument type mismatch for '", param_name, "': expected ", ptype_name, ", got ", arg_sname), ctx)
             }
         }
     }
@@ -1719,7 +1719,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
     }
     mut fn_type := scope.get_type(name)
     if fn_type.is(Type.Unknown) {
-        e.type_error("undefined function '".concat(name).concat("'"), ctx)
+        e.type_error(format("undefined function '", name, "'"), ctx)
     }
     if fn_type.is_funcptr() {
         if callee_bind.is_null().not() {
@@ -1752,7 +1752,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                         mut nargs : U32 = e.children.len()
                         nargs--
                         if nargs.neq(sig_fdef.params.len()) {
-                            e.type_error("function pointer '".concat(name).concat("' expects ").concat(sig_fdef.params.len().to_str()).concat(" args, got ").concat(nargs.to_str()), ctx)
+                            e.type_error(format("function pointer '", name, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
                         }
                         mut ai : U32 = 0
                         while ai.lt(nargs) {
@@ -1774,7 +1774,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                                 continue
                             }
                             if arg.expr_til_type().is(expected).not() {
-                                e.type_error("function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.expr_til_type())), ctx)
+                                e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.expr_til_type())), ctx)
                             }
                             ai++
                         }
@@ -1812,7 +1812,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
             if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)) {
                 ctx.proc_calls_count = ctx.proc_calls_count.add(1)
                 if debug_exempt.not() {
-                    e.type_error("func cannot call proc '".concat(name).concat("'"), ctx)
+                    e.type_error(format("func cannot call proc '", name, "'"), ctx)
                 }
             }
         } else if ctx.proc_def_depth.gt(0) {
@@ -1823,7 +1823,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
         }
     }
     if scope.get_func_type(name).is(FuncType.Test) {
-        e.type_error("test functions cannot be called ('".concat(name).concat("')"), ctx)
+        e.type_error(format("test functions cannot be called ('", name, "')"), ctx)
     }
 }
 
@@ -2407,8 +2407,7 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding, ctx: 
         if b.orig_name.len().gt(0).and(b.name.starts_with("priv__")) {
             display_name = b.orig_name
         }
-        e.type_error("'".concat(display_name).concat("' is private to '").concat(b.path)
-            .concat("'; remove 'priv' to expose it"), ctx)
+        e.type_error(format("'", display_name, "' is private to '", b.path, "'; remove 'priv' to expose it"), ctx)
         return
     }
     if b.orig_name.len().eq(0) { return }
@@ -2428,13 +2427,12 @@ priv check_priv_access := proc(mut e: Expr, name: Str, mut b: TypeBinding, ctx: 
     //     current_type_name).
     parent_len := b.name.len().sub(b.orig_name.len()).sub(1)
     parent_name := b.name.substr(0, parent_len)
-    parent_underscore := parent_name.concat("_")
+    parent_underscore := format(parent_name, "_")
     if ctx.current_top_func_name.eq(parent_name) { return }
     if ctx.current_top_func_name.starts_with(parent_underscore) { return }
     if ctx.current_type_name.eq(parent_name) { return }
     if ctx.current_type_name.starts_with(parent_underscore) { return }
-    e.type_error("'".concat(b.orig_name).concat("' is a local def of '")
-        .concat(parent_name).concat("' and cannot be referenced from outside it"), ctx)
+    e.type_error(format("'", b.orig_name, "' is a local def of '", parent_name, "' and cannot be referenced from outside it"), ctx)
 }
 
 // Issue #179 + follow-up: cross-file priv check for type names that
@@ -2461,8 +2459,7 @@ priv check_priv_type_name := proc(mut e: Expr, name: Str, scope: TypeScope, ctx:
 priv check_member_priv := proc(mut e: Expr, owner_name: Str, member_name: Str, member_is_priv: Bool, ctx: Context) {
     if member_is_priv.not() { return }
     if ctx.current_type_name.eq(owner_name) { return }
-    e.type_error("'".concat(owner_name).concat(".").concat(member_name)
-        .concat("' is private to its struct; remove 'priv' to expose it"), ctx)
+    e.type_error(format("'", owner_name, ".", member_name, "' is private to its struct; remove 'priv' to expose it"), ctx)
 }
 
 // Forbid `free(own X)` when X is an aggregate local whose type has a
@@ -2855,7 +2852,7 @@ priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ct
             result_t = arm_t
             has_t = true
         } else if reported.not().and(arm_t.is(Type.Unknown).not()).and(result_t.is(Type.Unknown).not()).and(arm_t.eq(result_t).not()) {
-            expr.children[ci].type_error("match arms have incompatible types: '".concat(type_to_name(result_t)).concat("' vs '").concat(type_to_name(arm_t)).concat("'; all arms must yield the same type"), ctx)
+            expr.children[ci].type_error(format("match arms have incompatible types: '", type_to_name(result_t), "' vs '", type_to_name(arm_t), "'; all arms must yield the same type"), ctx)
             reported = true
         }
     }
@@ -2983,7 +2980,7 @@ priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, i
     col := match_node.col
     result_t := match_node.expr_til_type()
     tname := type_to_name(result_t)
-    mname := "_m_".concat(type_prefix(result_t)).concat("_").concat(ctx.hoist_counter.to_str())
+    mname := format("_m_", type_prefix(result_t), "_", ctx.hoist_counter.to_str())
     ctx.hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, explicit_type = tname.clone(), til_type = result_t.clone())), line, col)
@@ -3026,7 +3023,7 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     case NodeType.Ident(id_name):
         type := scope.get_type(id_name.ident_name())
         if type.is(Type.Unknown) {
-            expr.type_error("undefined symbol '".concat(id_name.ident_name()).concat("'"), ctx)
+            expr.type_error(format("undefined symbol '", id_name.ident_name(), "'"), ctx)
         }
         expr.set_expr_til_type(type)
         ref mut ib : TypeBinding = scope.get_binding(id_name.ident_name())
@@ -3137,12 +3134,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ct
                     if fd.own_type.is(OwnType.Own).not() { continue }
                     if expr_uses_self_field(cdbody, fd.name).not() {
                         cdnd.default_value.type_error(
-                            "delete on '".concat(struct_name)
-                                .concat("' never references 'own' field 'self.")
-                                .concat(fd.name)
-                                .concat("' -- declaring the field 'own' announces a heap allocation; the destructor must free it (e.g. `free(own self.")
-                                .concat(fd.name)
-                                .concat(")`) or transfer its ownership."), ctx)
+                            format("delete on '", struct_name, "' never references 'own' field 'self.", fd.name, "' -- declaring the field 'own' announces a heap allocation; the destructor must free it (e.g. `free(own self.", fd.name, ")`) or transfer its ownership."), ctx)
                     }
                 }
             case:
@@ -3206,7 +3198,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     case NodeType.StructDef(tc_sdd):
         for fd : Declaration in tc_sdd.fields {
             if fd.redundant_mut {
-                fd.default_value.type_error("redundant 'mut' on struct field '".concat(fd.name).concat("': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
+                fd.default_value.type_error(format("redundant 'mut' on struct field '", fd.name, "': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
             }
             // Issue #281: a `loc: Str = __LOC__` field default must stay the
             // Loc sentinel here -- inferring it now would resolve it to this
@@ -3234,7 +3226,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                 if fd.default_value.node_type.is(NodeType.NoDefaultArg) {
                     // #242: no default means there is no expression to infer
                     // the field type from, so an explicit `: Type` is required.
-                    fd.default_value.type_error("field '".concat(fd.name).concat("' has no default value, so it needs an explicit type: '").concat(fd.name).concat(" : Type'"), ctx)
+                    fd.default_value.type_error(format("field '", fd.name, "' has no default value, so it needs an explicit type: '", fd.name, " : Type'"), ctx)
                 } else if fd.default_value.is_null().not() {
                     fd.til_type =fd.default_value.expr_til_type()
                 }
@@ -3304,10 +3296,10 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     ok_kind := ift.is(FuncType.Func).or(ift.is(FuncType.Proc))
                         .or(ift.is(FuncType.ExtFunc)).or(ift.is(FuncType.ExtProc))
                     if ok_kind.not() {
-                        if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
+                        if_nd.default_value.type_error(format("interface member '", if_nd.name, "' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
                     }
                 case:
-                    if_nd.default_value.type_error("interface member '".concat(if_nd.name).concat("' must be a method: an interface cannot have fields"), ctx)
+                    if_nd.default_value.type_error(format("interface member '", if_nd.name, "' must be a method: an interface cannot have fields"), ctx)
                 }
             }
         }
@@ -3339,7 +3331,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             }
         }
         if is_iface.not() {
-            expr.type_error("'".concat(impl_self_name).concat("' implements '").concat(impl_iface_name).concat("', which is not an interface"), ctx)
+            expr.type_error(format("'", impl_self_name, "' implements '", impl_iface_name, "', which is not an interface"), ctx)
         } else {
             ref iface_members : Vec(Declaration) = def_ns_decls(iface_def)
             for am : Declaration in iface_members {
@@ -3352,9 +3344,9 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     if am_fd.func_type.is(FuncType.ExtFunc).or(am_fd.func_type.is(FuncType.ExtProc)).not() { continue }
                     ref impl_m : Declaration = find_ns_decl(expr, am.name)
                     if impl_m.is_null() {
-                        expr.type_error("'".concat(impl_self_name).concat("' does not implement abstract method '").concat(am.name).concat("' required by interface '").concat(impl_iface_name).concat("'"), ctx)
+                        expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am.name, "' required by interface '", impl_iface_name, "'"), ctx)
                     } else if interface_method_conforms(impl_iface_name, impl_self_name, am.default_value, impl_m.default_value).not() {
-                        impl_m.default_value.type_error("'".concat(impl_self_name).concat(".").concat(am.name).concat("' does not match the signature of '").concat(impl_iface_name).concat(".").concat(am.name).concat("' declared in the interface"), ctx)
+                        impl_m.default_value.type_error(format("'", impl_self_name, ".", am.name, "' does not match the signature of '", impl_iface_name, ".", am.name, "' declared in the interface"), ctx)
                     }
                 case:
                 }
@@ -3781,7 +3773,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // macros -- a param like `T` is a stand-in resolved at
             // expansion time, not a real type.
             if pt.is(Type.Unknown).and(macro_is_template.not()) {
-                expr.type_error("undefined type '".concat(ptn).concat("'"), ctx)
+                expr.type_error(format("undefined type '", ptn, "'"), ctx)
             }
             pmut := param.is_mut
             pown := param.own_type.is(OwnType.Own)
@@ -3789,7 +3781,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             if pshallow {
                 is_scalar := is_primitive(pt)
                 if is_scalar.not().and(pt.is(Type.Struct).not()).and(pt.is(Type.Enum).not()) {
-                    expr.type_error("shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"), ctx)
+                    expr.type_error(format("shallow parameter '", param.name, "' must be a scalar or struct type"), ctx)
                 }
                 if pown {
                     expr.type_error("parameter cannot be both 'shallow' and 'own'", ctx)
@@ -3798,7 +3790,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 // parameter is redundant where auto-shallow applies (ordinary
                 // func/proc not returning ref). Reject it.
                 if is_scalar.and(auto_shallow_ok).and(fdef.return_own_type.is(OwnType.Ref).not()) {
-                    expr.type_error("redundant 'shallow' on primitive parameter '".concat(param.name).concat("': primitives are passed by value automatically (issue #223); drop it"), ctx)
+                    expr.type_error(format("redundant 'shallow' on primitive parameter '", param.name, "': primitives are passed by value automatically (issue #223); drop it"), ctx)
                 }
             }
             if i.cast(I32).eq(fdef.variadic_index) {
@@ -3956,7 +3948,7 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
             ref pb : TypeBinding = func_scope.get_binding(param.name)
             if pb.is_null() { continue }
             if pb.used.not() {
-                expr.type_error("unused parameter '".concat(param.name).concat("'"), ctx)
+                expr.type_error(format("unused parameter '", param.name, "'"), ctx)
             }
         }
     case:
@@ -3988,7 +3980,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
             if pb.is_null() { continue }
             if pb.written { continue }
             type_error_at(path, pb.line, pb.col,
-                "redundant 'mut' on parameter '".concat(param.name).concat("': never written through; drop the 'mut'"), ctx)
+                format("redundant 'mut' on parameter '", param.name, "': never written through; drop the 'mut'"), ctx)
         }
     case:
         UNREACHABLE()
@@ -4013,7 +4005,7 @@ priv check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if b.name.starts_with("hoisted__") { continue }
         if ctx.throw_used_local_names.has(b.name) { continue }
         if b.used { continue }
-        type_error_at(path, b.line, b.col, "unused variable '".concat(b.name).concat("'"), ctx)
+        type_error_at(path, b.line, b.col, format("unused variable '", b.name, "'"), ctx)
     }
 }
 
@@ -4044,7 +4036,7 @@ priv check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) 
         if b.mut_explicit.not() { continue }
         if b.written { continue }
         type_error_at(path, b.line, b.col,
-            "redundant 'mut' on local '".concat(b.name).concat("': never written through; drop the 'mut'"), ctx)
+            format("redundant 'mut' on local '", b.name, "': never written through; drop the 'mut'"), ctx)
     }
 }
 
@@ -4079,8 +4071,7 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
         //     local in source terms.
         if b.name.starts_with("priv__").and(b.orig_name.len().gt(0)) {
             type_error_at(b.path, b.line, b.col,
-                "unused priv ".concat(kind).concat(" '").concat(b.orig_name)
-                    .concat("'; remove 'priv' to expose it"), ctx)
+                format("unused priv ", kind, " '", b.orig_name, "'; remove 'priv' to expose it"), ctx)
             found++
             continue
         }
@@ -4090,15 +4081,12 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
             parent_len := mangled_len.sub(orig_len).sub(1)
             parent_name := b.name.substr(0, parent_len)
             type_error_at(b.path, b.line, b.col,
-                "unused local ".concat(kind).concat(" '").concat(b.orig_name)
-                    .concat("' in '").concat(parent_name)
-                    .concat("'; remove it or move it to file scope"), ctx)
+                format("unused local ", kind, " '", b.orig_name, "' in '", parent_name, "'; remove it or move it to file scope"), ctx)
             found++
             continue
         }
         type_error_at(b.path, b.line, b.col,
-            "unused priv ".concat(kind).concat(" '").concat(b.name)
-                .concat("'; remove 'priv' to expose it"), ctx)
+            format("unused priv ", kind, " '", b.name, "'; remove 'priv' to expose it"), ctx)
         found++
     }
     return found
@@ -4146,8 +4134,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
                     fl_col = fld.default_value.col
                 }
                 type_error_at(path, fl_line, fl_col,
-                    "unused priv field '".concat(owner_name).concat(".").concat(fld.name)
-                        .concat("'; remove 'priv' to expose it"), ctx)
+                    format("unused priv field '", owner_name, ".", fld.name, "'; remove 'priv' to expose it"), ctx)
                 found++
             }
         case:
@@ -4168,8 +4155,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
                 ns_col = nsd.default_value.col
             }
             type_error_at(path, ns_line, ns_col,
-                "unused priv ns member '".concat(owner_name).concat(".").concat(nsd.name)
-                    .concat("'; remove 'priv' to expose it"), ctx)
+                format("unused priv ns member '", owner_name, ".", nsd.name, "'; remove 'priv' to expose it"), ctx)
             found++
         }
     }
@@ -4190,7 +4176,7 @@ priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context)
     switch rv.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if literal_in_range(lit_str.literal_num_text(), rt).not() {
-            rv.type_error("integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(rt)), ctx)
+            rv.type_error(format("integer literal ", lit_str.literal_num_text(), " out of range for ", type_to_name(rt)), ctx)
         }
         rv.set_expr_til_type(rt)
     case:
@@ -4423,7 +4409,7 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             if found.not() {
                 mut kind := "struct"
                 if sdef.node_type.is(NodeType.EnumDef) { kind = "enum" }
-                expr.type_error(kind.concat(" '").concat(obj_sname).concat("' has no field '").concat(fname).concat("'"), ctx)
+                expr.type_error(format(kind, " '", obj_sname, "' has no field '", fname, "'"), ctx)
                 expr.set_expr_til_type(Type.Unknown)
             }
         }
@@ -4479,7 +4465,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         check_member_priv(stmt, obj_sname, fname, fld.is_priv, ctx)
                         if ctx.auto_gen_depth.eq(0) { fld.used = true }
                         if fld.is_mut.not() {
-                            stmt.type_error("cannot assign to const field '".concat(fname).concat("'; remove the 'const' keyword from its declaration to make it mutable"), ctx)
+                            stmt.type_error(format("cannot assign to const field '", fname, "'; remove the 'const' keyword from its declaration to make it mutable"), ctx)
                         }
                         if fld.own_type.is(OwnType.Ref) {
                             check_ref_assign_owned_rhs(stmt, fname, rhs, scope, ctx)
@@ -4489,7 +4475,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         case NodeType.Literal(Literal.Num(lit_str)):
                             if is_numeric_type(fld.til_type) {
                                 if literal_in_range(lit_str.literal_num_text(), fld.til_type).not() {
-                                    rhs.type_error("integer literal out of range for field '".concat(fname).concat("'"), ctx)
+                                    rhs.type_error(format("integer literal out of range for field '", fname, "'"), ctx)
                                 }
                                 rhs.set_expr_til_type(fld.til_type.clone())
                                 handled_lit = true
@@ -4503,7 +4489,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                             if rhs_type.is(fld.til_type).not().and(funcptr_eq(rhs_type, fld.til_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
-                                        stmt.type_error("field '".concat(fname).concat("' type mismatch"), ctx)
+                                        stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
                                     }
                                 }
                             }
@@ -4520,14 +4506,14 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                     if nsd.name.eq(fname) {
                         found = true
                         if nsd.is_mut.not() {
-                            stmt.type_error("cannot assign to immutable field '".concat(fname).concat("'"), ctx)
+                            stmt.type_error(format("cannot assign to immutable field '", fname, "'"), ctx)
                         }
                         mut handled_lit2 := false
                         switch rhs.node_type {
                         case NodeType.Literal(Literal.Num(lit_str)):
                             if is_numeric_type(nsd.til_type) {
                                 if literal_in_range(lit_str.literal_num_text(), nsd.til_type).not() {
-                                    rhs.type_error("integer literal out of range for field '".concat(fname).concat("'"), ctx)
+                                    rhs.type_error(format("integer literal out of range for field '", fname, "'"), ctx)
                                 }
                                 rhs.set_expr_til_type(nsd.til_type.clone())
                                 handled_lit2 = true
@@ -4539,7 +4525,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                             if rhs_type.is(nsd.til_type).not().and(funcptr_eq(rhs_type, nsd.til_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
-                                        stmt.type_error("field '".concat(fname).concat("' type mismatch"), ctx)
+                                        stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
                                     }
                                 }
                             }
@@ -4549,7 +4535,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                 }
             }
             if found.not() {
-                stmt.type_error("struct '".concat(obj_sname).concat("' has no field '").concat(fname).concat("'"), ctx)
+                stmt.type_error(format("struct '", obj_sname, "' has no field '", fname, "'"), ctx)
             }
         }
     } else {
@@ -4574,7 +4560,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
     infer_expr(scope, stmt.children[0], in_func, ctx)
     while_cond_t := stmt.children[0].expr_til_type()
     if type_is_primitive(while_cond_t, Primitive.Bool).not().and(while_cond_t.is(Type.Unknown).not()) {
-        stmt.type_error("while condition must be Bool, got ".concat(type_to_name(stmt.children[0].expr_til_type())), ctx)
+        stmt.type_error(format("while condition must be Bool, got ", type_to_name(stmt.children[0].expr_til_type())), ctx)
     }
     ref while_cond : Expr = stmt.children[0]
     if expr_contains_fcall(while_cond).or(stmt_contains_match(while_cond)) {
@@ -4582,7 +4568,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         line := cond.line
         col := cond.col
         ref body : Expr = stmt.children[1]
-        wname := "_wcond_Bool_".concat(ctx.hoist_counter.to_str())
+        wname := format("_wcond_Bool_", ctx.hoist_counter.to_str())
         ctx.hoist_counter++
 
         mut decl := Expr.new(NodeType.Decl(Declaration(name = wname.clone())), line, col)
@@ -4644,7 +4630,7 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
             if declared.eq(expected).not() {
                 mut value_type := "StructDef"
                 if is_enum { value_type = "EnumDef" }
-                stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is ").concat(value_type), ctx)
+                stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is ", value_type), ctx)
             }
         }
         stmt.set_expr_til_type(Type.None)
@@ -4661,8 +4647,7 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
                 ) {
                     mut kind := "struct"
                     if is_enum { kind = "enum" }
-                    stmt.type_error(kind.concat(" '").concat(sname).concat("' already declared at ")
-                        .concat(existing.path).concat(":").concat(existing.line.to_str()).concat(":").concat(existing.col.to_str()), ctx)
+                    stmt.type_error(format(kind, " '", sname, "' already declared at ", existing.path, ":", existing.line.to_str(), ":", existing.col.to_str()), ctx)
                     return true
                 }
             }
@@ -4719,7 +4704,7 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         // for a FuncDef value.
         annot_is_funcdef := sdecl.explicit_type.eq("FunctionDef").or(sdecl.explicit_type.eq("FuncDef"))
         if sdecl.explicit_type.len().gt(0).and(annot_is_funcdef.not()) {
-            stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"), ctx)
+            stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is FunctionDef"), ctx)
         }
         switch stmt.children[0].node_type {
         case NodeType.FuncDef(fdef):
@@ -4860,14 +4845,14 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
         case:
         }
         if declared.is(Type.Unknown) {
-            stmt.type_error("undefined type '".concat(sdecl.explicit_type).concat("'"), ctx)
+            stmt.type_error(format("undefined type '", sdecl.explicit_type, "'"), ctx)
         } else if val.redundant_literal_conversion(declared) {
             redundant_conversion_error(val, declared, ctx)
         } else if val.node_type.is_literal_num().and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
             switch val.node_type {
             case NodeType.Literal(Literal.Num(lit_str)):
                 if is_numeric_type(declared).and(literal_in_range(lit_str.literal_num_text(), declared).not()) {
-                    val.type_error("integer literal ".concat(lit_str.literal_num_text()).concat(" out of range for ").concat(type_to_name(declared)), ctx)
+                    val.type_error(format("integer literal ", lit_str.literal_num_text(), " out of range for ", type_to_name(declared)), ctx)
                 }
             case:
             }
@@ -4880,8 +4865,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
                 if vfd.captures.len().gt(0) {
                     val.set_expr_til_type(declared.clone())
                 } else {
-                    stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
-                        .concat(" but value is ").concat(type_to_name(val.expr_til_type())), ctx)
+                    stmt.type_error(format("'", sdecl.name, "' declared as ", type_to_name(declared), " but value is ", type_to_name(val.expr_til_type())), ctx)
                 }
             case:
             }
@@ -4891,13 +4875,11 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
         .and(funcptr_eq(val.expr_til_type(), declared).not())
         .and(val.expr_til_type().is(Type.Dynamic).not())
     .and(declared.is(Type.Dynamic).not()) {
-        stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared))
-            .concat(" but value is ").concat(type_to_name(val.expr_til_type())), ctx)
+        stmt.type_error(format("'", sdecl.name, "' declared as ", type_to_name(declared), " but value is ", type_to_name(val.expr_til_type())), ctx)
     } else if is_aggregate(declared) {
         val_sname := til_type_name(val.expr_til_type())
         if val_sname.len().gt(0).and(resolve_type_alias(scope, sdecl.explicit_type).eq(val_sname).not()) {
-            stmt.type_error("'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type)
-                .concat(" but value is ").concat(val_sname), ctx)
+            stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is ", val_sname), ctx)
         }
     }
     // Resolve type alias in declared til_type so that struct/enum names match
@@ -4942,14 +4924,14 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     case NodeType.Literal(Literal.SetLit):
         if rhs.children.len().gt(0) {
             elem_type := type_to_name(rhs.children[0].expr_til_type())
-            if elem_type.len().gt(0) { inferred = Type.Struct("Set__".concat(elem_type)) }
+            if elem_type.len().gt(0) { inferred = Type.Struct(format("Set__", elem_type)) }
         }
     case NodeType.Literal(Literal.MapLit):
         if rhs.children.len().gte(2) {
             key_type := type_to_name(rhs.children[0].expr_til_type())
             val_type := type_to_name(rhs.children[1].expr_til_type())
             if key_type.len().gt(0).and(val_type.len().gt(0)) {
-                inferred = Type.Struct("Map__".concat(key_type).concat("_").concat(val_type))
+                inferred = Type.Struct(format("Map__", key_type, "_", val_type))
             }
         }
     case:
@@ -4958,8 +4940,7 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     if stmt.expr_til_type().is(Type.Dynamic) {
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
-            stmt.type_error("cannot store Dynamic in '".concat(sdecl.name)
-                .concat("'; add a type annotation like '").concat(sdecl.name).concat(" : Type = ...' to specify the concrete type"), ctx)
+            stmt.type_error(format("cannot store Dynamic in '", sdecl.name, "'; add a type annotation like '", sdecl.name, " : Type = ...' to specify the concrete type"), ctx)
         case:
             UNREACHABLE()
         }
@@ -4972,9 +4953,9 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
         ref mut rhs : Expr = stmt.children[0]
         if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Own)) {
             if sdecl.is_mut {
-                stmt.type_error("no need for 'own' on mutable local '".concat(sdecl.name).concat("'; write 'mut ").concat(sdecl.name).concat(" := ...'"), ctx)
+                stmt.type_error(format("no need for 'own' on mutable local '", sdecl.name, "'; write 'mut ", sdecl.name, " := ...'"), ctx)
             } else {
-                stmt.type_error("no need for 'own' on local '".concat(sdecl.name).concat("'; locals are owned by default"), ctx)
+                stmt.type_error(format("no need for 'own' on local '", sdecl.name, "'; locals are owned by default"), ctx)
             }
         }
         scope.set(sdecl.name, stmt.expr_til_type(), sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -5643,7 +5624,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
                 }
             }
             if vsp_found.not() {
-                pattern.type_error("struct pattern '".concat(vsp_type_name).concat("' is missing field '").concat(vfld.name).concat("'; either bind it or add '..' to allow partial matching"), ctx)
+                pattern.type_error(format("struct pattern '", vsp_type_name, "' is missing field '", vfld.name, "'; either bind it or add '..' to allow partial matching"), ctx)
             }
         }
     case:
@@ -5913,13 +5894,13 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         collect_missing_paths(scope, coverage, edef2, "", missing, ctx)
         if has_default {
             if missing.len().eq(0) {
-                type_error_at(ctx.path, default_line, default_col, "unnecessary default `case:`; all variants of enum '".concat(sw_sname).concat("' are already covered"), ctx)
+                type_error_at(ctx.path, default_line, default_col, format("unnecessary default `case:`; all variants of enum '", sw_sname, "' are already covered"), ctx)
             }
         } else if missing.len().gt(0) {
-            mut msg := "non-exhaustive switch on enum '".concat(sw_sname).concat("'; missing cases:")
+            mut msg := format("non-exhaustive switch on enum '", sw_sname, "'; missing cases:")
             for mp : Str in missing {
-                if msg.ends_with(":").not() { msg = msg.concat(",") }
-                msg = msg.concat(" ").concat(mp)
+                if msg.ends_with(":").not() { msg = format(msg, ",") }
+                msg = format(msg, " ", mp)
             }
             stmt.type_error(msg, ctx)
         } else if has_last_case {
@@ -6067,7 +6048,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
         sw_ref = sw_expr.clone()
     } else {
         tp := type_prefix(sw_expr.expr_til_type())
-        sw_name := "_sw_".concat(tp).concat("_").concat(ctx.hoist_counter.to_str())
+        sw_name := format("_sw_", tp, "_", ctx.hoist_counter.to_str())
         ctx.hoist_counter++
         mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
         decl.add_child(own sw_expr.clone())
@@ -6104,7 +6085,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
 
     mut matched_name := ""
     if any_guard {
-        matched_name = "_sw_matched_".concat(ctx.hoist_counter.to_str())
+        matched_name = format("_sw_matched_", ctx.hoist_counter.to_str())
         ctx.hoist_counter++
         mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
         matched_decl.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
@@ -6269,13 +6250,13 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
         collect_missing_paths(scope, coverage, switch_enum_def, "", missing_paths, ctx)
         if has_default_case {
             if missing_paths.len().eq(0) {
-                type_error_at(ctx.path, default_line, default_col, "unnecessary default `case:`; all variants of enum '".concat(sw_expr_sname).concat("' are already covered"), ctx)
+                type_error_at(ctx.path, default_line, default_col, format("unnecessary default `case:`; all variants of enum '", sw_expr_sname, "' are already covered"), ctx)
             }
         } else if missing_paths.len().gt(0) {
-            mut msg := "non-exhaustive ".concat(kind_word).concat(" on enum '").concat(sw_expr_sname).concat("'; missing cases:")
+            mut msg := format("non-exhaustive ", kind_word, " on enum '", sw_expr_sname, "'; missing cases:")
             for mp : Str in missing_paths {
-                if msg.ends_with(":").not() { msg = msg.concat(",") }
-                msg = msg.concat(" ").concat(mp)
+                if msg.ends_with(":").not() { msg = format(msg, ",") }
+                msg = format(msg, " ", mp)
             }
             stmt.type_error(msg, ctx)
         } else if any_guard.not().and(has_first_if).and(has_last_case_body) {
@@ -6383,8 +6364,8 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     counter := ctx.hoist_counter
     ctx.hoist_counter++
 
-    end_name := "_re_".concat(elem_type).concat("_").concat(counter.to_str())
-    cur_name := "_rc_".concat(elem_type).concat("_").concat(counter.to_str())
+    end_name := format("_re_", elem_type, "_", counter.to_str())
+    cur_name := format("_rc_", elem_type, "_", counter.to_str())
 
     mut block := Expr.new(NodeType.Body, line, col)
 
@@ -6460,14 +6441,14 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     ref get_func : Expr = find_namespace_func(sdef, "get", scope)
 
     if len_func.is_null() {
-        stmt.type_error("type '".concat(type_name).concat("' has no 'len' method (required for for-in)"), ctx)
+        stmt.type_error(format("type '", type_name, "' has no 'len' method (required for for-in)"), ctx)
         return false
     }
     mut idx_type := ""
     switch len_func.node_type {
     case NodeType.FuncDef(len_def):
         if len_def.params.len().neq(1).or(len_def.return_type.len().eq(0)) {
-            stmt.type_error("type '".concat(type_name).concat("' len() must take 1 param and return a scalar for for-in"), ctx)
+            stmt.type_error(format("type '", type_name, "' len() must take 1 param and return a scalar for for-in"), ctx)
             return false
         }
         idx_type = len_def.return_type.clone()
@@ -6477,7 +6458,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     }
 
     if get_func.is_null() {
-        stmt.type_error("type '".concat(type_name).concat("' has no 'get' method (required for for-in)"), ctx)
+        stmt.type_error(format("type '", type_name, "' has no 'get' method (required for for-in)"), ctx)
         return false
     }
     mut elem_type := til_type_name(stmt.expr_til_type())
@@ -6498,17 +6479,17 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         // any subsequent for-in over the same type sees the extended
         // shape because we mutated its FuncDef.
         if get_def.params.len().lt(2) {
-            stmt.type_error("type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
+            stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
             return false
         }
         ref get_idx_param : Declaration = get_def.params[1]
         if get_idx_param.explicit_type.len().eq(0).or(get_idx_param.explicit_type.eq(idx_type).not()) {
-            stmt.type_error("type '".concat(type_name).concat("' get() second param must match len() return type for for-in"), ctx)
+            stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
             return false
         }
         if elem_type.len().eq(0) {
             if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
-                stmt.type_error("cannot infer element type for '".concat(type_name).concat("', use explicit type: for x : Type in ..."), ctx)
+                stmt.type_error(format("cannot infer element type for '", type_name, "', use explicit type: for x : Type in ..."), ctx)
                 return false
             }
             elem_type = get_def.return_type.clone()
@@ -6560,8 +6541,8 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
 
     counter := ctx.hoist_counter
     ctx.hoist_counter++
-    col_name := "_fc_".concat(type_name).concat("_").concat(counter.to_str())
-    idx_name := "_fi_USize_".concat(counter.to_str())
+    col_name := format("_fc_", type_name, "_", counter.to_str())
+    idx_name := format("_fi_USize_", counter.to_str())
 
     mut block := Expr.new(NodeType.Body, line, col)
 
@@ -6588,14 +6569,14 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     // followed by `if _kind != 0 { panic(...) }`, instead of routing
     // through the bang/throw-catch pipeline. Self-contained: no extra
     // pre-pass, no fdef-level slot prepend.
-    fk_name := "_forin_err_kind_".concat(counter.to_str())
+    fk_name := format("_forin_err_kind_", counter.to_str())
     if get_throws {
         mut kind_decl := Expr.new(NodeType.Decl(Declaration(name = fk_name.clone(),
             explicit_type = "I64", til_type = Type.Primitive(Primitive.I64), is_mut = true)), line, col)
         kind_decl.add_child(own make_int_lit(0, line, col))
         block.add_child(own kind_decl)
         for gtn : Str in get_throw_types {
-            slot_name := "_forin_".concat(gtn).concat("_").concat(counter.to_str())
+            slot_name := format("_forin_", gtn, "_", counter.to_str())
             mut slot_decl := Expr.new(NodeType.Decl(decl_typed(name = slot_name,
                 explicit_type = gtn,
                 is_mut = true)), line, col)
@@ -6629,7 +6610,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         kind_arg.set_expr_til_type(Type.Primitive(Primitive.I64))
         get_call.add_child(own kind_arg)
         for gtn : Str in get_throw_types {
-            slot_name := "_forin_".concat(gtn).concat("_").concat(counter.to_str())
+            slot_name := format("_forin_", gtn, "_", counter.to_str())
             mut slot_arg := Expr.new(ident_node(slot_name), line, col)
             slot_arg.set_expr_til_type(til_type_from_explicit_type(gtn))
             get_call.add_child(own slot_arg)
@@ -6747,7 +6728,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                                     ref elem_arg : Expr = rhs.children[1]
                                     switch elem_arg.node_type {
                                     case NodeType.Literal(Literal.Str(elem_type)):
-                                        return "Array__".concat(elem_type)
+                                        return format("Array__", elem_type)
                                     case:
                                     }
                                 }
@@ -6755,7 +6736,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                                     ref elem_arg2 : Expr = rhs.children[1]
                                     switch elem_arg2.node_type {
                                     case NodeType.Literal(Literal.Str(elem_type2)):
-                                        return "Vec__".concat(elem_type2)
+                                        return format("Vec__", elem_type2)
                                     case:
                                     }
                                 }
@@ -6777,7 +6758,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                             key_type := guess_expr_type_name(rhs.children[0])
                             val_type := guess_expr_type_name(rhs.children[1])
                             if key_type.len().gt(0).and(val_type.len().gt(0)) {
-                                return "Map__".concat(key_type).concat("_").concat(val_type)
+                                return format("Map__", key_type, "_", val_type)
                             }
                         }
                     case:
@@ -6833,14 +6814,14 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                                 ref elem_arg : Expr = rhs.children[1]
                                 switch elem_arg.node_type {
                                 case NodeType.Literal(Literal.Str(elem_type)):
-                                    tn = "Array__".concat(elem_type)
+                                    tn = format("Array__", elem_type)
                                 case:
                                 }
                             } else if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
                                 ref elem_arg2 : Expr = rhs.children[1]
                                 switch elem_arg2.node_type {
                                 case NodeType.Literal(Literal.Str(elem_type2)):
-                                    tn = "Vec__".concat(elem_type2)
+                                    tn = format("Vec__", elem_type2)
                                 case:
                                 }
                             } else {
@@ -6878,7 +6859,7 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                         key_type := guess_expr_type_name(rhs.children[0])
                         val_type := guess_expr_type_name(rhs.children[1])
                         if key_type.len().gt(0).and(val_type.len().gt(0)) {
-                            tn = "Map__".concat(key_type).concat("_").concat(val_type)
+                            tn = format("Map__", key_type, "_", val_type)
                         }
                     }
                 case:
@@ -7183,7 +7164,7 @@ priv collect_throw_types_in := proc(e: Expr, mut out: Vec(Str)) {
 
 
 priv err_slot_name := func(t: Str) returns Str {
-    return "_err_".concat(t)
+    return format("_err_", t)
 }
 
 // Issue #198 + #281: append the synthetic _err_kind + _err_<T> out-params a
@@ -7388,7 +7369,7 @@ priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
                             case NodeType.FuncDef(mfd):
-                                register_func_throws(ctx, dn.name.concat(".").concat(nd.name), mfd.throw_types)
+                                register_func_throws(ctx, format(dn.name, ".", nd.name), mfd.throw_types)
                             case:
                             }
                         }
@@ -7399,7 +7380,7 @@ priv extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
                             case NodeType.FuncDef(mfd):
-                                register_func_throws(ctx, dn.name.concat(".").concat(nd.name), mfd.throw_types)
+                                register_func_throws(ctx, format(dn.name, ".", nd.name), mfd.throw_types)
                             case:
                             }
                         }
@@ -7741,7 +7722,7 @@ priv registry_exact_key := func(ctx: Context, key: Str) returns Str {
 }
 
 priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, method: Str) returns Str {
-    key := owner.concat(".").concat(method)
+    key := format(owner, ".", method)
     if ctx.throws_global.has(key) { return key }
     ref sdef : Expr = ctx.scope.get_struct(owner)
     if sdef.is_null() { return "" }
@@ -7774,7 +7755,7 @@ priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, met
 // method-chain / literal receivers whose type we can't resolve here.
 priv registry_suffix_key := func(ctx: Context, method: Str) returns Str {
     if ctx.throws_global.has(method) { return method.clone() }
-    dotted := ".".concat(method)
+    dotted := format(".", method)
     for n : Str in ctx.throws_global.keys {
         if n.ends_with(dotted) { return n.clone() }
     }
@@ -7796,14 +7777,14 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
         method := fname.field_access_name()
         owner := callee_owning_type(ctx, fcall, body)
         if owner.len().gt(0) {
-            exact_key := registry_exact_key(ctx, owner.concat(".").concat(method))
+            exact_key := registry_exact_key(ctx, format(owner, ".", method))
             if exact_key.len().gt(0) { return exact_key }
             scoped_key := register_method_throws_from_scope(ctx, owner, method)
             if scoped_key.len().gt(0) { return scoped_key }
             marker := owner.find("__")
             if marker.gt(0) {
                 base_owner := owner.substr(0, marker.to_usize())
-                base_key := registry_exact_key(ctx, base_owner.concat(".").concat(method))
+                base_key := registry_exact_key(ctx, format(base_owner, ".", method))
                 if base_key.len().gt(0) { return base_key }
                 base_scoped_key := register_method_throws_from_scope(ctx, base_owner, method)
                 if base_scoped_key.len().gt(0) { return base_scoped_key }
@@ -7920,8 +7901,8 @@ priv validate_one_fcall_consolidated := proc(
             mut tlist := ""
             for jj in 0..tts2.len() {
                 ref tn2 : Str = tts2[jj]
-                if jj.gt(0) { tlist = tlist.concat(", ") }
-                tlist = tlist.concat(tn2)
+                if jj.gt(0) { tlist = format(tlist, ", ") }
+                tlist = format(tlist, tn2)
             }
             type_error_at(path, e.line, e.col, format("function throws ", tlist, ", missing '?' after the call"), ctx)
             switch e.node_type {
@@ -9604,11 +9585,11 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     }
     existing := scope.get_type(aname)
     if existing.is(Type.Unknown) {
-        stmt.type_error("undefined symbol '".concat(aname).concat("'"), ctx)
+        stmt.type_error(format("undefined symbol '", aname, "'"), ctx)
     } else if rhs.redundant_literal_conversion(existing) {
         redundant_conversion_error(rhs, existing, ctx)
     } else if scope.is_mut(aname).not() {
-        stmt.type_error("cannot assign to immutable variable '".concat(aname).concat("'"), ctx)
+        stmt.type_error(format("cannot assign to immutable variable '", aname, "'"), ctx)
         sf := scope.find(aname)
         switch sf {
         case ScopeFind.Found(b):
@@ -9623,7 +9604,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
         switch rhs.node_type {
         case NodeType.Literal(Literal.Num(lit_str)):
             if literal_in_range(lit_str.literal_num_text(), existing).not() {
-                stmt.type_error("integer literal out of range for assignment to '".concat(aname).concat("'"), ctx)
+                stmt.type_error(format("integer literal out of range for assignment to '", aname, "'"), ctx)
             }
         case:
         }
@@ -9636,7 +9617,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
         // arm-type mismatch was already reported cleanly by infer_match_expr,
         // so don't also surface the internal temp name here.
         if aname.starts_with("_m_").not() {
-            stmt.type_error("'".concat(aname).concat("' assignment type mismatch"), ctx)
+            stmt.type_error(format("'", aname, "' assignment type mismatch"), ctx)
         }
     }
     // #164: record that this binding was written through. Done before
@@ -10336,21 +10317,21 @@ priv make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: 
 
 priv variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Array").is_null().not() { return "Array" }
-    return "Array__".concat(elem_type)
+    return format("Array__", elem_type)
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Vec").is_null().not() { return "Vec" }
-    return "Vec__".concat(elem_type)
+    return format("Vec__", elem_type)
 }
 
 priv set_literal_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Set").is_null().not() { return "Set" }
-    return "Set__".concat(elem_type)
+    return format("Set__", elem_type)
 }
 
 priv map_literal_type_name := func(key_type: Str, val_type: Str) returns Str {
-    return "Map__".concat(key_type).concat("_").concat(val_type)
+    return format("Map__", key_type, "_", val_type)
 }
 
 // Set `call.own_args` to match the callee's params.own_type, for a
@@ -10491,8 +10472,8 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
 // `binding.used`. The temp Array names already start with `_`; a user-named
 // array (e.g. `xs := array(...)`) does not, hence the explicit prefix.
 priv variadic_err_slot_name := func(va_name: Str, suffix: Str) returns Str {
-    if va_name.starts_with("_") { return va_name.concat(suffix) }
-    return "_".concat(va_name).concat(suffix)
+    if va_name.starts_with("_") { return format(va_name, suffix) }
+    return format("_", va_name, suffix)
 }
 
 // Build a fully-resolved zero-arg struct constructor `<name>()` for a
@@ -10627,7 +10608,7 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
 }
 
 priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) returns Expr {
-    vec_type := "Vec__".concat(elem_type)
+    vec_type := format("Vec__", elem_type)
     mut new_call := make_ns_call(vec_type, "new", Type.Struct(vec_type.clone()), fcall)
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
@@ -10645,7 +10626,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
 }
 
 priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: U32, ctx: Context) returns Expr {
-    vec_type := "Vec__".concat(elem_type)
+    vec_type := format("Vec__", elem_type)
     mut push_call := make_ns_call(vec_type, "push", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(vec_name), fcall.line, fcall.col)
@@ -10697,10 +10678,10 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = fcall.children.len().sub(2)
                 if cn_str.eq("vec") {
-                    vec_name := "_vec_".concat(ctx.coll_counter.to_str())
+                    vec_name := format("_vec_", ctx.coll_counter.to_str())
                     ctx.coll_counter++
                     mut vec_decl := fcall.build_builtin_vec_decl(elem_type, vec_name)
-                    vec_type := "Vec__".concat(elem_type)
+                    vec_type := format("Vec__", elem_type)
                     scope.set(vec_name, Type.Struct(vec_type.clone()), true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
                     new_ch.push(own vec_decl)
                     for j in 0..count {
@@ -10710,7 +10691,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
                     rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct(vec_type))
                     return true
                 }
-                arr_name := "_array_".concat(ctx.coll_counter.to_str())
+                arr_name := format("_array_", ctx.coll_counter.to_str())
                 ctx.coll_counter++
                 array_type := variadic_array_type_name(scope, elem_type)
                 mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
@@ -10759,7 +10740,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             case NodeType.Literal(Literal.Str(elem_type)):
                 count : U32 = rhs.children.len().sub(2)
                 mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
-                vec_type := "Vec__".concat(elem_type)
+                vec_type := format("Vec__", elem_type)
                 vec_decl.set_expr_til_type(Type.Struct(vec_type.clone()))
                 switch vec_decl.node_type {
                 case NodeType.Decl(dd):
@@ -10829,7 +10810,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     if type_has_cmp(scope, elem_type).not() {
-        first.type_error("set literal: element type '".concat(elem_type).concat("' must implement cmp"), ctx)
+        first.type_error(format("set literal: element type '", elem_type, "' must implement cmp"), ctx)
     }
 
     for j in 1..set_lit.children.len() {
@@ -10913,7 +10894,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     if type_has_cmp(scope, key_type).not() {
-        first_key.type_error("map literal: key type '".concat(key_type).concat("' must implement cmp"), ctx)
+        first_key.type_error(format("map literal: key type '", key_type, "' must implement cmp"), ctx)
     }
 
     for j in 2..map_lit.children.len() {
@@ -11035,7 +11016,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
                     if desugar_pure_splat_variadic_call(e, array_type, vi, vc).not() {
                         line := e.line
                         col := e.col
-                        va_name := "_va_Array_".concat(ctx.va_counter.to_str())
+                        va_name := format("_va_Array_", ctx.va_counter.to_str())
                         ctx.va_counter++
                         mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
                         scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, line, col, false, OwnType.Own)
@@ -11054,7 +11035,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
             ki := fcall_kwargs_index_via_scope(e, scope)
             if ki.gte(0) {
                 kc := fcall_kwargs_count(e)
-                kw_name := "_kw".concat(ctx.kw_counter.to_str())
+                kw_name := format("_kw", ctx.kw_counter.to_str())
                 ctx.kw_counter++
                 kw_decl := build_kwargs_map_decl(e, kw_name)
                 scope.set(kw_name, Type.Struct("KwargsMap"), false, ctx.path, e.line, e.col, false, OwnType.Shallow)
@@ -12413,7 +12394,7 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     // temp survives DCE and goes unused, that's a DCE bug worth
     // surfacing (as a C -Werror=unused-but-set-variable) rather than
     // hiding behind a `(void)<name>;` guard.
-    tname := "hoisted__".concat(tp).concat("_").concat(ctx.hoist_counter.to_str())
+    tname := format("hoisted__", tp, "_", ctx.hoist_counter.to_str())
     ctx.hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)

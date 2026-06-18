@@ -199,30 +199,30 @@ priv anon_def_key := func(def: Expr) returns Str {
     case NodeType.StructDef(sdd):
         mut k := "struct{"
         for f : Declaration in sdd.fields {
-            k = k.concat(anon_decl_key(f))
+            k = format(k, anon_decl_key(f))
         }
-        k = k.concat("|ns:")
+        k = format(k, "|ns:")
         for n : Declaration in sdd.ns_decls {
-            k = k.concat(anon_decl_key(n))
+            k = format(k, anon_decl_key(n))
         }
-        return k.concat("}")
+        return format(k, "}")
     case NodeType.EnumDef(edd):
         mut k := "enum{"
         for j in 0..edd.variants.len() {
             ref vn : Str = edd.variants[j]
-            k = k.concat(vn)
+            k = format(k, vn)
             idx := j.to_i64()
             if edd.payload_types.has(idx) {
                 ref pt : Str = edd.payload_types[idx]
-                k = k.concat(":").concat(pt)
+                k = format(k, ":", pt)
             }
-            k = k.concat(";")
+            k = format(k, ";")
         }
-        k = k.concat("|ns:")
+        k = format(k, "|ns:")
         for n : Declaration in edd.ns_decls {
-            k = k.concat(anon_decl_key(n))
+            k = format(k, anon_decl_key(n))
         }
-        return k.concat("}")
+        return format(k, "}")
     case:
         return ""
     }
@@ -240,7 +240,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
         ref hit : Str = p.anon_cache[key]
         return hit.clone()
     }
-    name := kind.concat(p.anon_type_counter.to_str())
+    name := format(kind, p.anon_type_counter.to_str())
     p.anon_type_counter++
     p.anon_cache.set(key, own name.clone())
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
@@ -298,13 +298,13 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         return name
     }
     advance(p) // consume '('
-    mut mangled := name.concat("__")
+    mut mangled := format(name, "__")
     mut args := Vec(Str).new()
     mut argi := 0
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-        if argi.gt(0) { mangled = mangled.concat("_") }
+        if argi.gt(0) { mangled = format(mangled, "_") }
         argname := expect_text(p, TokenType.Ident)
-        mangled = mangled.concat(argname)
+        mangled = format(mangled, argname)
         args.push(own argname.clone())
         argi++
         if check(p, TokenType.Comma) { advance(p) }
@@ -359,15 +359,15 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     // Build synthetic name: _Fn_[mut_]T1_[mut_]T2_ret_R
     mut name := "_Fn"
     for i in 0..ptypes.len() {
-        name = name.concat("_")
+        name = format(name, "_")
         ref m : Bool = pmuts[i]
-        if m { name = name.concat("mut_") }
+        if m { name = format(name, "mut_") }
         ref t : Str = ptypes[i]
-        name = name.concat(t)
+        name = format(name, t)
     }
     if return_type.len().gt(0) {
-        name = name.concat("_ret_")
-        name = name.concat(return_type)
+        name = format(name, "_ret_")
+        name = format(name, return_type)
     }
 
     // Build synthetic func_def (bodyless — same as named FuncSig types)
@@ -1374,7 +1374,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             if next_tok.type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
-                e = Expr.new(literal_num_node("-".concat(tok_text(p, num_tok))), t_line, t_col)
+                e = Expr.new(literal_num_node(format("-", tok_text(p, num_tok))), t_line, t_col)
                 e_set = true
             } else {
                 advance(p) // consume '-'

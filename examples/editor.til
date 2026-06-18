@@ -187,9 +187,7 @@ main := proc(args: ..Str) {
         if IsKeyPressed(259) {
             if cursor_x > 0 {
                 ref cur_line : Str = lines[cursor_y.cast(U32)]
-                new_line := cur_line.substr(0, cursor_x.to_usize() - 1).concat(
-                    cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize())
-                )
+                new_line := format(cur_line.substr(0, cursor_x.to_usize() - 1), cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize()))
                 mut new_lines := Vec(Str).new()
                 mut i : USize = 0
                 while i < lines.len() {
@@ -210,7 +208,7 @@ main := proc(args: ..Str) {
                     ref prev_line : Str = lines[(cursor_y - 1).cast(U32)]
                     ref cur_line : Str = lines[cursor_y.cast(U32)]
                     new_x := prev_line.len().cast(I32)
-                    merged := prev_line.concat(cur_line)
+                    merged := format(prev_line, cur_line)
 
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0
@@ -239,9 +237,7 @@ main := proc(args: ..Str) {
             if cursor_x < cur_line.len().cast(I32) {
                 cursor_x_u := cursor_x.to_usize()
                 next_x_u := cursor_x_u + 1
-                new_line := cur_line.substr(0, cursor_x_u).concat(
-                    cur_line.substr(next_x_u, cur_line.len() - next_x_u)
-                )
+                new_line := format(cur_line.substr(0, cursor_x_u), cur_line.substr(next_x_u, cur_line.len() - next_x_u))
                 mut new_lines := Vec(Str).new()
                 mut i : USize = 0
                 while i < lines.len() {
@@ -259,7 +255,7 @@ main := proc(args: ..Str) {
                 if cursor_y < lines.len().cast(I32) - 1 {
                     // Merge with next line
                     ref next_line : Str = lines[(cursor_y + 1).cast(U32)]
-                    merged := cur_line.concat(next_line)
+                    merged := format(cur_line, next_line)
 
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0
@@ -288,9 +284,7 @@ main := proc(args: ..Str) {
                     // Insert character at cursor
                     ch_str := Str.from_byte(ch.cast(I64).to_u8())
                     ref cur_line : Str = lines[cursor_y.cast(U32)]
-                    new_line := cur_line.substr(0, cursor_x.to_usize()).concat(ch_str).concat(
-                        cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize())
-                    )
+                    new_line := format(cur_line.substr(0, cursor_x.to_usize()), ch_str, cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize()))
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0
                     while i < lines.len() {
@@ -362,7 +356,7 @@ main := proc(args: ..Str) {
         mut disp_name := filename
         if filename.len() == 0 { disp_name = "[new file]" }
         mut title := disp_name
-        if dirty { title = title.concat(" *") }
+        if dirty { title = format(title, " *") }
         DrawText(title.c_str, 8, sy + 4, font_size, Color(r = 220, g = 220, b = 220, a = 255))
 
         // Cursor position

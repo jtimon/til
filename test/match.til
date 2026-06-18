@@ -20,9 +20,9 @@ test_match_enum_to_str := test() {
 # --- every arm reached, value selected correctly ---
 test_match_each_arm := test() {
     mut out := ""
-    out = out.concat(match Color.Red   { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
-    out = out.concat(match Color.Green { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
-    out = out.concat(match Color.Blue  { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
+    out = format(out, match Color.Red   { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
+    out = format(out, match Color.Green { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
+    out = format(out, match Color.Blue  { case Color.Red: "r" case Color.Green: "g" case Color.Blue: "b" })
     assert_eq(Str, out, "rgb")
 }
 
@@ -109,7 +109,7 @@ test_match_assign := test() {
 
 # --- match as a function argument ---
 greet := func(s: Str) returns Str {
-    return "hi-".concat(s)
+    return format("hi-", s)
 }
 
 test_match_arg := test() {

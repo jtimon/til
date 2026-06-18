@@ -2246,7 +2246,7 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
         if init_is_lift_target(child).not() { continue }
         switch child.node_type {
         case NodeType.Decl(child_dd):
-            mangled := parent_prefix.concat("_").concat(child_dd.name)
+            mangled := format(parent_prefix, "_", child_dd.name)
             renamings.set(child_dd.name, own mangled.clone())
             child_dd.orig_name = child_dd.name.clone()
             child_dd.name = mangled.clone()
@@ -2384,20 +2384,20 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
     mut changed := false
     mut out := prefix.clone()
     for i in 0..args.len() {
-        if i.gt(0) { out = out.concat("_") }
+        if i.gt(0) { out = format(out, "_") }
         ref arg : Str = args[i]
         if subs.has(arg) {
             ref repl_arg : Expr = subs[arg]
             switch repl_arg.node_type {
             case NodeType.Ident(idn_arg):
-                out = out.concat(idn_arg.ident_name())
+                out = format(out, idn_arg.ident_name())
                 changed = true
             case:
-                out = out.concat(init_macro_inst_arg_name(repl_arg))
+                out = format(out, init_macro_inst_arg_name(repl_arg))
                 changed = true
             }
         } else {
-            out = out.concat(arg)
+            out = format(out, arg)
         }
     }
     if changed { return out }
@@ -2768,13 +2768,13 @@ priv init_macro_inst_name_byte := func(b: I8) returns Str {
     if b.gte('A').and(b.lte('Z')) { return Str.from_byte(b.cast(U8)) }
     if b.gte('0').and(b.lte('9')) { return Str.from_byte(b.cast(U8)) }
     if b.eq('_') { return Str.from_byte(b.cast(U8)) }
-    return "x".concat(b.cast(I64).to_str()).concat("x")
+    return format("x", b.cast(I64).to_str(), "x")
 }
 
 priv init_macro_inst_text_name := func(prefix: Str, text: Str) returns Str {
-    mut out := prefix.concat(text.len().to_str()).concat("_")
+    mut out := format(prefix, text.len().to_str(), "_")
     for i in 0..text.len() {
-        out = out.concat(init_macro_inst_name_byte(text.byte_at(i)))
+        out = format(out, init_macro_inst_name_byte(text.byte_at(i)))
     }
     return out
 }
@@ -2809,15 +2809,15 @@ priv init_macro_inst_arg_name := func(arg: Expr) returns Str {
         return "bfalse"
     case NodeType.Literal(Literal.Null): return "null"
     case NodeType.FieldAccess(fa):
-        mut out := "fa".concat(init_macro_inst_text_name("f", fa.field_access_name()))
+        mut out := format("fa", init_macro_inst_text_name("f", fa.field_access_name()))
         for c : Expr in arg.children {
-            out = out.concat("_").concat(init_macro_inst_arg_name(c))
+            out = format(out, "_", init_macro_inst_arg_name(c))
         }
         return out
     case NodeType.FCall:
         mut out := "call"
         for c : Expr in arg.children {
-            out = out.concat("_").concat(init_macro_inst_arg_name(c))
+            out = format(out, "_", init_macro_inst_arg_name(c))
         }
         return out
     case:
@@ -2832,13 +2832,13 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
     ref callee : Expr = e.children[0]
     mut out := ""
     switch callee.node_type {
-    case NodeType.Ident(cn): out = cn.ident_name().concat("__")
+    case NodeType.Ident(cn): out = format(cn.ident_name(), "__")
     case:
     }
     for k in 1..e.children.len() {
-        if k.gt(1) { out = out.concat("_") }
+        if k.gt(1) { out = format(out, "_") }
         ref arg : Expr = e.children[k]
-        out = out.concat(init_macro_inst_arg_name(arg))
+        out = format(out, init_macro_inst_arg_name(arg))
     }
     return out
 }
@@ -2847,11 +2847,11 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
     ref callee : Expr = e.children[0]
     mut out := ""
     switch callee.node_type {
-    case NodeType.Ident(cn): out = cn.ident_name().concat("__")
+    case NodeType.Ident(cn): out = format(cn.ident_name(), "__")
     case:
     }
     for k in 1..e.children.len() {
-        if k.gt(1) { out = out.concat("_") }
+        if k.gt(1) { out = format(out, "_") }
         ref arg : Expr = e.children[k]
         mut is_type_arg := false
         switch macro_fdef.node_type {
@@ -2864,9 +2864,9 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
         case:
         }
         if is_type_arg {
-            out = out.concat(init_macro_inst_type_arg_name(arg, scope))
+            out = format(out, init_macro_inst_type_arg_name(arg, scope))
         } else {
-            out = out.concat(init_macro_inst_arg_name(arg))
+            out = format(out, init_macro_inst_arg_name(arg))
         }
     }
     return out
@@ -2996,7 +2996,7 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
 }
 
 priv init_synth_array_inst_decl := func(elem_type: Str, line: U32, col: U32) returns Expr {
-    genname := "Array__".concat(elem_type)
+    genname := format("Array__", elem_type)
     mut array_id := Expr.new(ident_node("Array"), line, col)
     mut elem_id := Expr.new(ident_node(elem_type), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -3008,7 +3008,7 @@ priv init_synth_array_inst_decl := func(elem_type: Str, line: U32, col: U32) ret
 }
 
 priv init_synth_vec_inst_decl := func(elem_type: Str, line: U32, col: U32) returns Expr {
-    genname := "Vec__".concat(elem_type)
+    genname := format("Vec__", elem_type)
     mut vec_id := Expr.new(ident_node("Vec"), line, col)
     mut elem_id := Expr.new(ident_node(elem_type), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -3020,7 +3020,7 @@ priv init_synth_vec_inst_decl := func(elem_type: Str, line: U32, col: U32) retur
 }
 
 priv init_synth_set_inst_decl := func(elem_type: Str, line: U32, col: U32) returns Expr {
-    genname := "Set__".concat(elem_type)
+    genname := format("Set__", elem_type)
     mut set_id := Expr.new(ident_node("Set"), line, col)
     mut elem_id := Expr.new(ident_node(elem_type), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -3032,7 +3032,7 @@ priv init_synth_set_inst_decl := func(elem_type: Str, line: U32, col: U32) retur
 }
 
 priv init_synth_map_inst_decl := func(key_type: Str, val_type: Str, line: U32, col: U32) returns Expr {
-    genname := "Map__".concat(key_type).concat("_").concat(val_type)
+    genname := format("Map__", key_type, "_", val_type)
     mut map_id := Expr.new(ident_node("Map"), line, col)
     mut key_id := Expr.new(ident_node(key_type), line, col)
     mut val_id := Expr.new(ident_node(val_type), line, col)
@@ -3095,8 +3095,8 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
                         ref type_arg : Expr = e.children[1]
                         switch type_arg.node_type {
                         case NodeType.Literal(Literal.Str(elem_type)):
-                            mut genname := "Array__".concat(elem_type)
-                            if cn.ident_name().eq("vec") { genname = "Vec__".concat(elem_type) }
+                            mut genname := format("Array__", elem_type)
+                            if cn.ident_name().eq("vec") { genname = format("Vec__", elem_type) }
                             if seen.has(genname).not() {
                                 if cn.ident_name().eq("array") {
                                     synthesized.push(own init_synth_array_inst_decl(elem_type, e.line, e.col))
@@ -3116,7 +3116,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
         if synth_set {
             elem_type := init_set_literal_elem_type(e)
             if elem_type.len().gt(0) {
-                genname := "Set__".concat(elem_type)
+                genname := format("Set__", elem_type)
                 if seen.has(genname).not() {
                     synthesized.push(own init_synth_set_inst_decl(elem_type, e.line, e.col))
                     seen.set(genname, own "")
@@ -3128,7 +3128,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
             key_type := init_literal_child_type(e.children[0])
             val_type := init_literal_child_type(e.children[1])
             if key_type.len().gt(0).and(val_type.len().gt(0)) {
-                genname := "Map__".concat(key_type).concat("_").concat(val_type)
+                genname := format("Map__", key_type, "_", val_type)
                 if seen.has(genname).not() {
                     synthesized.push(own init_synth_map_inst_decl(key_type, val_type, e.line, e.col))
                     seen.set(genname, own "")
@@ -3138,7 +3138,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
     case NodeType.FuncDef(fd):
         if fd.variadic_index.gte(0) {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
-            genname := "Array__".concat(p.explicit_type)
+            genname := format("Array__", p.explicit_type)
             if seen.has(genname).not() {
                 synthesized.push(own init_synth_array_inst_decl(p.explicit_type, e.line, e.col))
                 seen.set(genname, own "")
@@ -3310,7 +3310,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
         // Build the type-param substitution map and the mono name from
         // the type-args at the Type-param positions.
         mut subs := Map(Str, Expr).new()
-        mut mono := gname.concat("__")
+        mut mono := format(gname, "__")
         mut first := true
         mut ok := true
         for i in 0..gfd.params.len() {
@@ -3331,8 +3331,8 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                 tn := an.ident_name()
                 mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
                 subs.set(p.name, own tid)
-                if first.not() { mono = mono.concat("_") }
-                mono = mono.concat(tn)
+                if first.not() { mono = format(mono, "_") }
+                mono = format(mono, tn)
                 first = false
             case:
                 ok = false

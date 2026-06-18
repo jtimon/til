@@ -444,7 +444,7 @@ priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), ct
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.children[local.last_use.to_usize()]
-            stmt.type_error("use of '".concat(local.name).concat("' after ownership transfer"), ctx)
+            stmt.type_error(format("use of '", local.name, "' after ownership transfer"), ctx)
             ref xfer : Expr = body.children[local.own_transfer.to_usize()]
             println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")

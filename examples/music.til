@@ -185,11 +185,11 @@ draw_note := proc(dni: USize, mut sc_diat: Array(I32), mut sc_oct: Array(I32), m
     // Note name with inline triad label
     ref nn_base : Str = note_name(nd.to_usize(), sel_notation)
     nn_acc := acc_text(na.cast(I64))
-    mut nn := nn_base.concat(nn_acc)
+    mut nn := format(nn_base, nn_acc)
     if dni.lt(7) {
         ref trt2 : USize = sc_triad[dni]
         ref tsuf : Str = TRIAD_SUFFIXES[trt2]
-        nn = nn.concat(tsuf)
+        nn = format(nn, tsuf)
     }
     DrawTextEx(fnt, nn.c_str, Vector2(x = (dnx - NOTE_R).to_f32(), y = LABEL_Y.to_f32()), FONT_SM.to_f32(), 1.to_f32(), LIGHT_GRAY)
 }
@@ -443,8 +443,8 @@ main := proc() {
                 // Label
                 ref ln : Str = note_name(col, sel_notation)
                 mut label := ln.clone()
-                if row.eq(0) { label = ln.concat("b") }
-                if row.eq(2) { label = ln.concat("#") }
+                if row.eq(0) { label = format(ln, "b") }
+                if row.eq(2) { label = format(ln, "#") }
                 DrawTextEx(fnt, label.c_str, Vector2(x = (bx + PAD_X).to_f32(), y = (by + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
             }
         }

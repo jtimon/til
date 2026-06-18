@@ -18,7 +18,7 @@ push_output := func(lines: Vec(Str), output: Str) {
 }
 
 run_shell_command := proc(lines: Vec(Str), cmd: Str) {
-    push_line(lines, "$ ".concat(cmd))
+    push_line(lines, format("$ ", cmd))
 
     if cmd == "help" {
         push_line(lines, "help: run any shell command")
@@ -86,7 +86,7 @@ main := proc(args: ..Str) {
         mut ch := GetCharPressed()
         while ch > 0 {
              if ch >= 32 && ch < 127 {
-                input = input.concat(Str.from_byte(ch.cast(I64).to_u8()))
+                input = format(input, Str.from_byte(ch.cast(I64).to_u8()))
             }
             ch = GetCharPressed()
         }
@@ -118,7 +118,7 @@ main := proc(args: ..Str) {
             i++
         }
 
-        prompt := "$ ".concat(input)
+        prompt := format("$ ", input)
         DrawText(prompt.c_str, pad_x, h - input_h + 10, 18, Color(r = 120, g = 255, b = 120, a = 255))
         DrawText("Enter=run  Esc=quit".c_str, w - 190, h - input_h + 12, 14, Color(r = 130, g = 130, b = 150, a = 255))
 

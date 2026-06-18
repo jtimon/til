@@ -33,7 +33,7 @@ test_variadic_proc := test() {
 variadic_concat := func(parts: ..Str) returns Str {
     mut result := ""
     for p : Str in parts {
-        result = result.concat(p)
+        result = format(result, p)
     }
     return result
 }
@@ -90,7 +90,7 @@ test_variadic_with_positional := test() {
 // raw args -- gcc rejected the call as "too many arguments".
 say_flags := func(bools: ..Bool) returns Str {
     mut out := ""
-    for b : Bool in bools { if b { out = out.concat("T") } else { out = out.concat("F") } }
+    for b : Bool in bools { if b { out = format(out, "T") } else { out = format(out, "F") } }
     return out
 }
 

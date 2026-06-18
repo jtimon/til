@@ -225,9 +225,9 @@ main := proc(args: ..Str) {
         // Join args after "--" as command
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
-            if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
+            if ci.gt(dd.add(1)) { cmd = format(cmd, " ") }
             ref carg : Str = args[ci]
-            cmd = cmd.concat(carg)
+            cmd = format(cmd, carg)
         }
 
         if cmd.is_empty() {
@@ -284,9 +284,9 @@ main := proc(args: ..Str) {
         // Join args after "--" as command
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
-            if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
+            if ci.gt(dd.add(1)) { cmd = format(cmd, " ") }
             ref carg : Str = args[ci]
-            cmd = cmd.concat(carg)
+            cmd = format(cmd, carg)
         }
 
         if cmd.is_empty() {

@@ -1123,7 +1123,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     case NodeType.Ident(rhs_ident):
         ref src : Cell = scope_get(scope, rhs_ident.ident_name())
         if src.is_null() {
-            interp_error(rhs, "undefined variable '".concat(rhs_ident.ident_name()).concat("'"), ctx)
+            interp_error(rhs, format("undefined variable '", rhs_ident.ident_name(), "'"), ctx)
             exit(1)
         }
         val = shallow_copy_value(src.val)
@@ -1187,7 +1187,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                     if head_id.ident_name().eq("get_payload") {
                         switch arg.node_type {
                         case NodeType.Ident(enum_id):
-                            enc := enum_id.ident_name().concat("|").concat(dd.explicit_type)
+                            enc := format(enum_id.ident_name(), "|", dd.explicit_type)
                             scope.payload_aliases.set(dd.name, own enc.clone())
                         case:
                         }
@@ -1307,7 +1307,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             ref rhs : Expr = stmt.children[0]
             ref cell : Cell = scope_get(scope, ad.name)
             if cell.is_null() {
-                interp_error(stmt, "undefined variable '".concat(ad.name).concat("'"), ctx)
+                interp_error(stmt, format("undefined variable '", ad.name, "'"), ctx)
                 exit(1)
             }
             if stmt.expr_til_type().is(Type.Dynamic) {
@@ -1848,7 +1848,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 case NodeType.Ident(arg_ident):
                     ref arg_cell : Cell = scope_get(scope, arg_ident.ident_name())
                     if arg_cell.is_null() {
-                        interp_error(arg_expr, "undefined variable '".concat(arg_ident.ident_name()).concat("'"), ctx)
+                        interp_error(arg_expr, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
                         exit(1)
                     }
                     if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
@@ -1934,7 +1934,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     // User-defined function or struct instantiation
     ref fn_cell : Cell = scope_get(scope, name.ident_name())
     if fn_cell.is_null() {
-        interp_error(e, name.ident_name().concat(" is undefined"), ctx)
+        interp_error(e, format(name.ident_name(), " is undefined"), ctx)
         exit(1)
     }
 
@@ -1993,7 +1993,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                         case NodeType.Ident(arg_ident):
                             ref src : Cell = scope_get(scope, arg_ident.ident_name())
                             if src.is_null() {
-                                interp_error(arg, "undefined variable '".concat(arg_ident.ident_name()).concat("'"), ctx)
+                                interp_error(arg, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
                                 exit(1)
                             }
                             // Null the source only when THIS arg (cur_idx) is
@@ -2035,7 +2035,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     }
 
     if fn_cell.val.is(Value.Func).not() {
-        interp_error(e, name.clone().concat(" is not a function"), ctx)
+        interp_error(e, format(ident_name(name), " is not a function"), ctx)
         exit(1)
     }
 
@@ -2083,7 +2083,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 case NodeType.Ident(arg_ident):
                     ref arg_cell : Cell = scope_get(scope, arg_ident.ident_name())
                     if arg_cell.is_null() {
-                        interp_error(arg_expr, "undefined variable '".concat(arg_ident.ident_name()).concat("'"), ctx)
+                        interp_error(arg_expr, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
                         exit(1)
                     }
                     if needs_widen(arg_cell.val, param.explicit_type) {
@@ -2777,7 +2777,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
         v := parse_cli_arg(s, elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz.cast(U64))), v, elem_type)
     }
-    array_name := "Array__".concat(elem_type)
+    array_name := format("Array__", elem_type)
     ref array_binding : TypeBinding = ctx.scope.get_binding(array_name)
     if array_binding.is_null() { panic("missing Array type '", array_name, "'") }
     ref array_canon_name : Str = array_binding.name
@@ -4103,19 +4103,19 @@ priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
 priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if tc.is_null() {
-        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
+        interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
     switch tc.val {
     case Value.Func(fptr):
         ref node : Expr = deref(fptr)
         if node.node_type.is(NodeType.StructDef).not() {
-            interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"), ctx)
+            interp_error(e, format(who, ": '", type_name, "' is not a struct"), ctx)
             exit(1)
         }
         return node
     case:
-        interp_error(e, who.concat(": '").concat(type_name).concat("' is not a struct"), ctx)
+        interp_error(e, format(who, ": '", type_name, "' is not a struct"), ctx)
         exit(1)
         return NULL
     }
@@ -4201,19 +4201,19 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
 priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if tc.is_null() {
-        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
+        interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
     switch tc.val {
     case Value.Func(fptr):
         ref node : Expr = deref(fptr)
         if node.node_type.is(NodeType.EnumDef).not() {
-            interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"), ctx)
+            interp_error(e, format(who, ": '", type_name, "' is not an enum"), ctx)
             exit(1)
         }
         return node
     case:
-        interp_error(e, who.concat(": '").concat(type_name).concat("' is not an enum"), ctx)
+        interp_error(e, format(who, ": '", type_name, "' is not an enum"), ctx)
         exit(1)
         return NULL
     }
@@ -4299,19 +4299,19 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: C
 priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
     ref tc : Cell = scope_get(s, type_name)
     if tc.is_null() {
-        interp_error(e, who.concat(": type '").concat(type_name).concat("' not found"), ctx)
+        interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
     switch tc.val {
     case Value.Func(fptr):
         ref node : Expr = deref(fptr)
         if node.node_type.is(NodeType.FuncDef).not() {
-            interp_error(e, who.concat(": '").concat(type_name).concat("' is not a function signature"), ctx)
+            interp_error(e, format(who, ": '", type_name, "' is not a function signature"), ctx)
             exit(1)
         }
         return node
     case:
-        interp_error(e, who.concat(": '").concat(type_name).concat("' is not a function signature"), ctx)
+        interp_error(e, format(who, ": '", type_name, "' is not a function signature"), ctx)
         exit(1)
         return NULL
     }
@@ -4930,7 +4930,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
 priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) returns USize {
     ref size_fn : Value = ns_get(type_name, "size", ctx)
     if size_fn.is_null() {
-        interp_error(src, type_name.concat(" has no size() method"), ctx)
+        interp_error(src, format(type_name, " has no size() method"), ctx)
         exit(1)
     }
     // Build fake call: Type.size()

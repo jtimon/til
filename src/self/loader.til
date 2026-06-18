@@ -29,7 +29,7 @@ priv normalize_mode_name := func(mode_name: Str) returns Str {
 // Strip CWD prefix so embedded file:line:col strings are repo-relative,
 // not absolute. Prepend "./" so emacs recognizes the path as relative.
 priv display_path := func(p: Str, cwd: Str) returns Str {
-    prefix := cwd.concat("/")
+    prefix := format(cwd, "/")
     rel := p.strip_prefix(prefix)
     if rel.starts_with("/") {
         return rel
@@ -37,7 +37,7 @@ priv display_path := func(p: Str, cwd: Str) returns Str {
     if rel.starts_with("./") {
         return rel
     }
-    return "./".concat(rel)
+    return format("./", rel)
 }
 
 priv require_mode := func(ctx: Context, path: Str, mode_name: Str) returns ref Mode {
@@ -52,9 +52,9 @@ forward_header_path := func(path: Str) returns Str {
     slash := path.rfind("/")
     dot := path.rfind(".")
     if dot.gt(slash) {
-        return path.substr(0, dot.to_u32()).concat("_forward.h")
+        return format(path.substr(0, dot.to_u32()), "_forward.h")
     }
-    return path.concat("_forward.h")
+    return format(path, "_forward.h")
 }
 
 // Directory part of an absolute path (no trailing slash).
@@ -124,7 +124,7 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(St
                         panic("import path must not end in '.til' (got \"", p,
                             "\"); use import(\"", bare, "\") instead", loc = loc)
                     }
-                    paths.push(own p.concat(".til"))
+                    paths.push(own format(p, ".til"))
                 case:
                 }
             }
@@ -776,9 +776,9 @@ priv extract_link_info := func(mut lp: LoadedProgram) {
                         } else if fname.ident_name().eq("link_c") {
                             keep = false
                             if lp.link_c_paths.len().gt(0) {
-                                lp.link_c_paths = lp.link_c_paths.concat(" ")
+                                lp.link_c_paths = format(lp.link_c_paths, " ")
                             }
-                            lp.link_c_paths = lp.link_c_paths.concat(resolve_link_path(base_dir, root_dir, arg))
+                            lp.link_c_paths = format(lp.link_c_paths, resolve_link_path(base_dir, root_dir, arg))
                         }
                     case:
                     }
@@ -879,10 +879,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     lp.ext_c_path = ext_c_path.clone()
     lp.target = detect_current_target()
 
-    core_path := bin_dir.concat("/src/core/core.til")
+    core_path := format(bin_dir, "/src/core/core.til")
     core_disp := display_path(core_path, cwd)
 
-    load_mode_file(lp, bin_dir.concat("/src/core/modes.til"), cwd)
+    load_mode_file(lp, format(bin_dir, "/src/core/modes.til"), cwd)
     for extra_mode : Str in extra_modes {
         load_mode_file(lp, extra_mode, cwd)
     }
@@ -973,7 +973,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Resolve core imports
     core_imports := extract_imports(core_ast, core_disp)
     if core_imports.len().gt(0).and(skip_core.not()) {
-        core_dir := bin_dir.concat("/src/core")
+        core_dir := format(bin_dir, "/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
             core_units, "", lp.ctx, "lib", cwd)
         if err.gt(0) {
@@ -998,7 +998,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
     units := Vec(ProgramUnit).new()
-    lib_dir := bin_dir.concat("/lib")
+    lib_dir := format(bin_dir, "/lib")
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
     if imports.len().gt(0) {
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
@@ -1011,7 +1011,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Core entrypoint import unit.
     mut core_iu := ImportUnit(mode = core_mode.clone())
     core_iu.ast.take_children(core_ast)
-    core_iu.imports = resolve_import_disps(core_imports, bin_dir.concat("/src/core"), "", cwd)
+    core_iu.imports = resolve_import_disps(core_imports, format(bin_dir, "/src/core"), "", cwd)
     lp.ctx.imported.set(core_disp, own core_iu)
 
     // Core entrypoint unit (after its imports).
@@ -1116,15 +1116,15 @@ priv escape_doc_for_literal_str := func(raw: Str) returns Str {
     mut out := ""
     for c : I8 in raw {
         if c.eq('\\') {
-            out = out.concat("\\\\")
+            out = format(out, "\\\\")
         } else if c.eq('"') {
-            out = out.concat("\\\"")
+            out = format(out, "\\\"")
         } else if c.eq(10) {
-            out = out.concat("\\n")
+            out = format(out, "\\n")
         } else if c.eq(9) {
-            out = out.concat("\\t")
+            out = format(out, "\\t")
         } else {
-            out = out.concat(Str.from_byte(c.cast(U8)))
+            out = format(out, Str.from_byte(c.cast(U8)))
         }
     }
     return out
@@ -1363,7 +1363,7 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) retur
         return name.format(" is a ", type_str)
     }
     if dd.explicit_type.len().gt(0) {
-        return name.concat(" is a ").concat(dd.explicit_type)
+        return format(name, " is a ", dd.explicit_type)
     }
     return name
 }
@@ -1659,7 +1659,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                     mut path := ""
                     switch imp_stmt.children[1].node_type {
                     case NodeType.Literal(Literal.Str(p)):
-                        path = p.concat(".til")
+                        path = format(p, ".til")
                     case:
                     }
 
@@ -2134,9 +2134,9 @@ prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
 // --- Commands ---
 
 cmd_ast := proc(lp: LoadedProgram) {
-    println("mode: ".concat(lp.mode_str))
+    println(format("mode: ", lp.mode_str))
     for u : ProgramUnit in lp.units {
-        println("file: ".concat(u.path))
+        println(format("file: ", u.path))
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         println(iu.ast.to_str())
     }

@@ -120,7 +120,7 @@ discover_self_files := proc() returns Vec(Str) {
     while i.lt(names.len()) {
         ref name : Str = names.get(i)!
         if name.ends_with(".til") {
-            out.push(own "src/self/".concat(name))
+            out.push(own format("src/self/", name))
         }
         i++
     }
@@ -234,9 +234,9 @@ join_lines := func(lines: Vec(Str)) returns Str {
     while i.lt(lines.len()) {
         ref line : Str = lines.get(i)!
         if i.gt(0) {
-            out = out.concat(" ")
+            out = format(out, " ")
         }
-        out = out.concat(line)
+        out = format(out, line)
         i++
     }
     return out
@@ -249,10 +249,10 @@ append_token_text := func(mut out: Str, tok: Token, src: Str) returns Str {
         ref prev : I8 = out.byte_at(out.len().sub(1))
         no_space_after_prev := prev.eq('(').or(prev.eq(':'))
         if (!no_space_before).and(!no_space_after_prev) {
-            out = out.concat(" ")
+            out = format(out, " ")
         }
     }
-    return out.concat(src.substr(tok.start, tok.len))
+    return format(out, src.substr(tok.start, tok.len))
 }
 
 trim_trailing_comma := func(s: Str) returns Str {
@@ -456,15 +456,15 @@ xml_escape := func(s: Str) returns Str {
     mut out := ""
     for c : I8 in s {
         if c.eq('&') {
-            out = out.concat("&amp;")
+            out = format(out, "&amp;")
         } else if c.eq('<') {
-            out = out.concat("&lt;")
+            out = format(out, "&lt;")
         } else if c.eq('>') {
-            out = out.concat("&gt;")
+            out = format(out, "&gt;")
         } else if c.eq(Q.byte_at(0)) {
-            out = out.concat("&quot;")
+            out = format(out, "&quot;")
         } else {
-            out = out.concat(Str.from_byte(c.cast(I64).band(255).to_u8()))
+            out = format(out, Str.from_byte(c.cast(I64).band(255).to_u8()))
         }
     }
     return out

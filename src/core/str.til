@@ -63,14 +63,6 @@ namespace:
         return a.count.cmp(b.count)
     }
 
-    /// Return a new Str with the contents of `a` followed by `b`.
-    concat := func(a: Str, b: Str) returns Str {
-        mut out := Str.with_capacity(a.count.add(b.count))
-        out.push_str(a)
-        out.push_str(b)
-        return out
-    }
-
     /// Create an empty Str pre-allocated for up to `n` bytes.
     with_capacity := func(n: USize) returns Str {
         buf : Dynamic = malloc(n.add(1))

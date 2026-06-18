@@ -6,7 +6,7 @@ get_version := macro() returns shallow Str {
     mut hash : Str = ""
     run_cmd(hash, "git", "rev-parse", "--short", "HEAD")
     hash = hash.replace("\n", "")
-    return BASE_VERSION.concat(hash)
+    return format(BASE_VERSION, hash)
 }
 
 VERSION := get_version()
@@ -173,8 +173,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     source_keep := Vec(Str).new()
 
     system_cmd("mkdir -p tmp")
-    tmp_path := "tmp/repl_".concat(process_id().to_str()).concat(".til")
-    out_path := "tmp/repl_".concat(process_id().to_str()).concat(".out")
+    tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
+    out_path := format("tmp/repl_", process_id().to_str(), ".out")
     mut repl_anon_type_counter : I64 = 0
 
     while true {

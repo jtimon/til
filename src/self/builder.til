@@ -19,11 +19,11 @@ priv DynCallInfo := struct {
 }
 
 closure_call_name := func(name: Str) returns Str {
-    return func_to_c(name).concat("__til_closure_call")
+    return format(func_to_c(name), "__til_closure_call")
 }
 
 closure_value_name := func(name: Str) returns Str {
-    return func_to_c(name).concat("__til_closure")
+    return format(func_to_c(name), "__til_closure")
 }
 
 // in_func_def / in_main_func / ctor_seq previously lived here as
@@ -784,7 +784,7 @@ priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
 }
 
 priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    concrete := "Array__".concat(elem_type)
+    concrete := format("Array__", elem_type)
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref array_func : Expr = ctx.scope.lookup_func("Array")
     if builder_is_type_gen_macro_def(array_func) { return concrete }
@@ -793,7 +793,7 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
 }
 
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    concrete := "Vec__".concat(elem_type)
+    concrete := format("Vec__", elem_type)
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref vec_func : Expr = ctx.scope.lookup_func("Vec")
     if builder_is_type_gen_macro_def(vec_func) { return concrete }
@@ -813,7 +813,7 @@ priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Contex
     if fcall.children.len().neq(2) { return false }
     ename := til_type_name(fcall.expr_til_type())
     if ename.len().eq(0) { return false }
-    prefix := ename.concat("_")
+    prefix := format(ename, "_")
     if callee_name.starts_with(prefix).not() { return false }
     ref def : Expr = ctx.scope.get_struct(ename)
     if def.is_null() { return false }
@@ -1226,7 +1226,7 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
         switch arg2.node_type {
         case NodeType.FuncDef(fd2):
             if fd2.captures.len().gt(0) {
-                emit_til_closure_cleanup(f, "til_closure_arg_".concat(i2.to_str()))
+                emit_til_closure_cleanup(f, format("til_closure_arg_", i2.to_str()))
                 f.write(" ")
             }
         case:
@@ -2430,7 +2430,7 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
                 e_sname := til_type_name(e.expr_til_type())
                 if e_sname.len().gt(0) { ret_c = e_sname }
             }
-            if ret_shallow.not() { ret_c = ret_c.concat(" *") }
+            if ret_shallow.not() { ret_c = format(ret_c, " *") }
         }
         f.write("((")
         f.write(ret_c)
@@ -2451,7 +2451,7 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
                     arg_sname := til_type_name(arg.expr_til_type())
                     if arg_sname.len().gt(0) { arg_c = arg_sname }
                 }
-                if arg_shallow.not() { arg_c = arg_c.concat(" *") }
+                if arg_shallow.not() { arg_c = format(arg_c, " *") }
             }
             f.write(arg_c)
         }
@@ -2503,7 +2503,7 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ct
 emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Context) returns ref File {
     switch e.node_type {
     case NodeType.FuncDef(fd):
-        env_type := fd.closure_name.concat("_env")
+        env_type := format(fd.closure_name, "_env")
         f.write("({ ").write(env_type).write(" *til_env = malloc(sizeof(").write(env_type).write(")); ")
         for cap : Declaration in fd.captures {
             ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), _ctx)
@@ -2578,14 +2578,14 @@ priv num_lit_to_c := func(text: Str) returns Str {
         ref p1 : I8 = body.byte_at(1)
         if p1.eq('b').or(p1.eq('B')).or(p1.eq('o')).or(p1.eq('O')) {
             v := body.to_i64().to_str()
-            if neg { return "-".concat(v) }
+            if neg { return format("-", v) }
             return v.clone()
         }
     }
     // Hex / decimal / float: drop '_' separators (the rest is valid C).
     mut out := body.clone()
     if body.contains("_") { out = body.replace("_", "") }
-    if neg { return "-".concat(out) }
+    if neg { return format("-", out) }
     return out
 }
 
@@ -2812,7 +2812,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(" = malloc(sizeof(")
                 f.write(ctype)
                 f.write(")); ")
-                tmp := "_sc".concat(id.to_str())
+                tmp := format("_sc", id.to_str())
                 emit_ctor_fields(f, tmp, e, depth, ctx)
                 f.write(" _sc")
                 emit_i32(f, id)
@@ -2969,7 +2969,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                             ct := c_type_name(arg.expr_til_type(), arg_sname, ctx)
                             ctx.ctor_seq = ctx.ctor_seq.add(1)
                             id := ctx.ctor_seq
-                            tmp := "_cs".concat(id.to_str())
+                            tmp := format("_cs", id.to_str())
                             f.write(ct)
                             f.write(" *")
                             f.write(tmp)
@@ -3025,7 +3025,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                         ct := c_type_name(arg.expr_til_type(), arg_sname2, ctx)
                         ctx.ctor_seq = ctx.ctor_seq.add(1)
                         id := ctx.ctor_seq
-                        tmp := "_cs".concat(id.to_str())
+                        tmp := format("_cs", id.to_str())
                         f.write(ct)
                         f.write(" *")
                         f.write(tmp)
@@ -3273,7 +3273,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     f.write(" = malloc(sizeof(")
                     f.write(ctype)
                     f.write(")); ")
-                    tmp := "_sc".concat(id.to_str())
+                    tmp := format("_sc", id.to_str())
                     emit_ctor_fields(f, tmp, e, depth, ctx)
                     f.write(" _sc")
                     emit_i32(f, id)
@@ -3527,7 +3527,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         if fd.captures.len().eq(0).or(fd.closure_name.len().eq(0)) { return }
         if emitted.has(fd.closure_name) { return }
         emitted.add(own fd.closure_name.clone())
-        env_type := fd.closure_name.concat("_env")
+        env_type := format(fd.closure_name, "_env")
         f.write("typedef struct ").write(env_type).write(" {\n")
         for cap : Declaration in fd.captures {
             ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), lp.ctx)
@@ -7283,7 +7283,7 @@ priv builder_compiler_root := func(lp: LoadedProgram) returns Str {
 }
 
 priv support_root := func(prefix: Str) returns Str {
-    return prefix.concat("/lib/til")
+    return format(prefix, "/lib/til")
 }
 
 priv install_file := proc(src: Str, dst: Str, what: Str) returns I32 {
@@ -7303,17 +7303,17 @@ priv is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns B
 priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I32 {
     root := builder_compiler_root(lp)
     dst_root := support_root(prefix)
-    mut rc := install_tree(root.concat("/src/core"), dst_root.concat("/src/core"), "install compiler core sources")
+    mut rc := install_tree(format(root, "/src/core"), format(dst_root, "/src/core"), "install compiler core sources")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/lib"), dst_root.concat("/lib"), "install compiler library sources")
+    rc = install_tree(format(root, "/lib"), format(dst_root, "/lib"), "install compiler library sources")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/src/modes"), dst_root.concat("/src/modes"), "install compiler mode sources")
+    rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/src/c"), dst_root.concat("/src/c"), "install compiler C sources")
+    rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/boot"), dst_root.concat("/boot"), "install compiler boot files")
+    rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc.neq(0) { return rc }
-    rc = install_tree(root.concat("/lib"), dst_root.concat("/lib"), "install bundled dependency tree")
+    rc = install_tree(format(root, "/lib"), format(dst_root, "/lib"), "install bundled dependency tree")
     if rc.neq(0) { return rc }
     rc = install_file(root.format("/", REPL_CORE_INFO_CACHE), dst_root.format("/", REPL_CORE_INFO_CACHE), "install REPL doc info cache")
     if rc.neq(0) { return rc }
@@ -7394,7 +7394,7 @@ cmd_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Ve
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0) {
-        mut cmd := asan_child_prefix(asan).concat(paths.bin_path)
+        mut cmd := format(asan_child_prefix(asan), paths.bin_path)
         for uarg : Str in user_argv {
             cmd = cmd.format(" '", uarg, "'")
         }
@@ -7412,7 +7412,7 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths)
     if result.eq(0) { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
-    if result.eq(0) { result = system_cmd(asan_child_prefix(asan).concat(paths.bin_path)) }
+    if result.eq(0) { result = system_cmd(format(asan_child_prefix(asan), paths.bin_path)) }
     return result
 }
 

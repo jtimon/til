@@ -183,7 +183,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                                     vec_push_str(refs, dyn_tname)
                                     push_qn(refs, dyn_tname, dyn_mname)
                                 case:
-                                    vec_push_str(refs, "*.".concat(dyn_mname))
+                                    vec_push_str(refs, format("*.", dyn_mname))
                                 }
                             case:
                             }
