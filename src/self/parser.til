@@ -40,8 +40,7 @@ priv Parser := struct {
 }
 
 priv peek := func(p: Parser) returns ref Token {
-    ref t : Token = p.tokens[p.pos]
-    return t
+    return p.tokens[p.pos]
 }
 
 // Materialise a token's text as a transient view into the parser's owned
@@ -237,8 +236,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     if def.node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
     key := anon_def_key(def)
     if p.anon_cache.has(key) {
-        ref hit : Str = p.anon_cache[key]
-        return hit.clone()
+        return p.anon_cache[key].clone()
     }
     name := format(kind, p.anon_type_counter.to_str())
     p.anon_type_counter++
@@ -266,8 +264,7 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), mangled: St
 
 priv parser_has_active_type_param := func(p: Parser, name: Str) returns Bool {
     for i in 0..p.active_type_params.len() {
-        ref param : Str = p.active_type_params[i]
-        if param.eq(name) { return true }
+        if p.active_type_params[i].eq(name) { return true }
     }
     return false
 }
@@ -379,9 +376,7 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     fd.variadic_index = -1
     fd.kwargs_index = -1
     for i in 0..ptypes.len() {
-        ref t : Str = ptypes[i]
-        ref m : Bool = pmuts[i]
-        fd.params.push(own decl_typed(explicit_type = t, is_mut = m, own_type = OwnType.Ref))
+        fd.params.push(own decl_typed(explicit_type = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
     }
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
 
@@ -1176,8 +1171,7 @@ priv set_fcall_splat := func(mut fcall: Expr) {
 priv parse_named_arg := proc(mut p: Parser, mut call: Expr) returns Bool {
     if check(p, TokenType.Ident).not() { return false }
     if p.pos.add(1).lt(p.tokens.len()).not() { return false }
-    ref next_tok : Token = p.tokens[p.pos.add(1)]
-    if next_tok.type.is(TokenType.Eq).not() { return false }
+    if p.tokens[p.pos.add(1)].type.is(TokenType.Eq).not() { return false }
     na_line := peek_line(p)
     na_col := peek_col(p)
     aname := expect_text(p, TokenType.Ident)
@@ -1370,8 +1364,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // returns); -expr desugars to expr.neg(). A trailing '-' with no
         // following token leaves e_set false and hits the panic below.
         if p.pos.add(1).lt(p.tokens.len()) {
-            ref next_tok : Token = p.tokens[p.pos.add(1)]
-            if next_tok.type.is(TokenType.Number) {
+            if p.tokens[p.pos.add(1)].type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
                 e = Expr.new(literal_num_node(format("-", tok_text(p, num_tok))), t_line, t_col)
@@ -1606,8 +1599,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // statement (`[a, b] { ... }`), not a postfix index on the
             // previous expression. Only treat '[' as an index when it sits
             // on the same line as the operand it would index.
-            ref prev_tok : Token = p.tokens[p.pos.sub(1)]
-            if peek_line(p).neq(prev_tok.line) { break }
+            if peek_line(p).neq(p.tokens[p.pos.sub(1)].line) { break }
             b_line := peek_line(p)
             b_col := peek_col(p)
             advance(p) // consume '['

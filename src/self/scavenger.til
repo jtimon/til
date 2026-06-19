@@ -311,8 +311,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
                 scv_nm2 : Dynamic = malloc(scv_nn2.cast(U64))
                 memset(scv_nm2, 0, scv_nn2.cast(U64))
                 for j in 0..scv_nn2 {
-                    ref nsd : Declaration = scv_ns2[j]
-                    scv_qn2 := qualified_name(sdecl.name, nsd.name)
+                    scv_qn2 := qualified_name(sdecl.name, scv_ns2[j].name)
                     if visited.has(scv_qn2).not() {
                         memset(ptr_add(scv_nm2, j.cast(U64)), 1, 1)
                     }
@@ -471,8 +470,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
             memset(marks, 0, n.cast(U64))
             mut any := false
             for i in 0..n {
-                ref stmt : Expr = e.children[i]
-                target := match_trivial_delete(stmt)
+                target := match_trivial_delete(e.children[i])
                 if target.len().eq(0) { continue }
                 if dropped.has(target).not() { continue }
                 memset(ptr_add(marks, i.cast(U64)), 1, 1)
@@ -577,8 +575,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     }
     if any {
         for j in 0..n {
-            ref stmt : Expr = body.children[j]
-            target := match_trivial_delete(stmt)
+            target := match_trivial_delete(body.children[j])
             if target.len().eq(0) { continue }
             if dropped.has(target).not() { continue }
             memset(ptr_add(marks, j.cast(U64)), MARK_DELETE.to_i32(), 1)
@@ -593,9 +590,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             ref mark : U8 = ptr_add(marks, k.cast(U64))
             if mark.eq(MARK_DELETE) { continue }
             if mark.eq(MARK_REPLACE_RHS) {
-                ref decl_stmt : Expr = old[k]
                 mut decl_children := Vec(Expr).new()
-                decl_children.move_from(decl_stmt.children)
+                decl_children.move_from(old[k].children)
                 new_ch.push_take(decl_children, 0)
                 continue
             }
@@ -664,12 +660,11 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
             if dd.own_type.is(OwnType.Own).not() { continue }
             ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is_literal_str().not() { continue }
-            ref target : Str = dd.name
             dd.own_type = OwnType.Shallow
             mut j : USize = i.add(1)
             while j.lt(n) {
                 ref del : Expr = body.children[j]
-                if match_named_delete(del, target) {
+                if match_named_delete(del, dd.name) {
                     ref bool_arg : Expr = del.children[2]
                     bool_arg.node_type = NodeType.Literal(Literal.Bool(false))
                     break

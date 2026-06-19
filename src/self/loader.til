@@ -150,11 +150,9 @@ priv extract_imports := func(body: Expr, path: Str) returns Vec(Str) {
 
         if is_imp {
             if is_decl_rhs {
-                ref imp_stmt : Expr = stmt.children[0]
-                extract_one_import(imp_stmt, path, paths)
+                extract_one_import(stmt.children[0], path, paths)
             } else {
-                ref imp_stmt : Expr = stmt
-                extract_one_import(imp_stmt, path, paths)
+                extract_one_import(stmt, path, paths)
             }
         }
     }
@@ -290,13 +288,11 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // c_str buffer leaks at scope_free(own global) below.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            populate_cached_aggregate_defs(lp.ctx, iu.ast)
+            populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        populate_cached_aggregate_defs(lp.ctx, iu.ast)
+        populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
     }
     // Issue #158: one walk per unit builds the runtime fold scope
     // (struct/enum/func defs + literal global constants). Name
@@ -325,13 +321,11 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
 
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
-                ref iu : ImportUnit = lp.ctx.imported[u.path]
-                interpreter_init_ns(lp.ctx, global, iu.ast)
+                interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u.path].ast)
             }
         }
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            interpreter_init_ns(lp.ctx, global, iu.ast)
+            interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u.path].ast)
         }
 
         // 2b) Init FFI for the interpreter used by constfolder.
@@ -359,15 +353,13 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         // (ctx.constfolder_known); constfolder_reset_state below clears it.
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
-                ref iu : ImportUnit = lp.ctx.imported[u.path]
                 context_enter_file(lp.ctx, u.path)
-                process_body(global, iu.ast, lp.ctx, true)
+                process_body(global, lp.ctx.imported[u.path].ast, lp.ctx, true)
             }
         }
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
             context_enter_file(lp.ctx, u.path)
-            process_body(global, iu.ast, lp.ctx, true)
+            process_body(global, lp.ctx.imported[u.path].ast, lp.ctx, true)
         }
     }
 
@@ -470,8 +462,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         push_qn(worklist, "I64", "to_i16")
         push_qn(worklist, "I64", "to_u16")
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
+            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
                     if is_def(stmt) { continue }
                 }
@@ -480,8 +471,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         }
     } else if lp.run_tests {
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
+            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
                     if stmt.children.len().gt(0) {
                         switch stmt.children[0].node_type {
@@ -532,8 +522,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         }
     } else {
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
+            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
                     if is_def(stmt) { continue }
                 }
@@ -546,8 +535,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut visited := Set(Str).new()
     mut cursor : U32 = 0
     while cursor.lt(worklist.len()) {
-        ref worklist_slot : Str = worklist[cursor]
-        name := Str.clone(worklist_slot)
+        name := Str.clone(worklist[cursor])
         cursor++
         if visited.has(name) { continue }
         visited.add(own name.clone())
@@ -575,8 +563,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             ref iu : ImportUnit = lp.ctx.imported[dr.path]
             ref decl : Expr = iu.ast.children[dr.idx]
             if is_struct_or_enum(decl) {
-                ref bfs_tdef : Expr = decl.children[0]
-                switch bfs_tdef.node_type {
+                switch decl.children[0].node_type {
                 case NodeType.StructDef(bfs_sdd):
                     for bfs_fd : Declaration in bfs_sdd.fields {
                         if bfs_fd.default_value.is_null().not() {
@@ -590,8 +577,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     for j in 0..bfs_edd.variants.len() {
                         idx_e := j.to_i64()
                         if bfs_edd.payload_types.has(idx_e) {
-                            ref pt_e : Str = bfs_edd.payload_types[idx_e]
-                            vec_push_str(worklist, pt_e)
+                            vec_push_str(worklist, bfs_edd.payload_types[idx_e])
                         }
                     }
                 case:
@@ -611,8 +597,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             ref iu : ImportUnit = lp.ctx.imported[dr.path]
             ref decl : Expr = iu.ast.children[dr.idx]
             if is_struct_or_enum(decl) {
-                ref bfs_tdef2 : Expr = decl.children[0]
-                switch bfs_tdef2.node_type {
+                switch decl.children[0].node_type {
                 case NodeType.StructDef(bfs_sdd2):
                     for bfs_fd2 : Declaration in bfs_sdd2.fields {
                         if bfs_fd2.default_value.is_null().not() {
@@ -626,8 +611,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     for j in 0..bfs_edd2.variants.len() {
                         idx_e2 := j.to_i64()
                         if bfs_edd2.payload_types.has(idx_e2) {
-                            ref pt_e2 : Str = bfs_edd2.payload_types[idx_e2]
-                            vec_push_str(worklist, pt_e2)
+                            vec_push_str(worklist, bfs_edd2.payload_types[idx_e2])
                         }
                     }
                 case:
@@ -676,8 +660,7 @@ priv validate_cli_main := func(lp: LoadedProgram) {
     if lp.cur_mode.needs_main.not() { return }
     if lp.run_tests { return }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len().eq(0) { continue }
             mut is_main_decl := false
@@ -711,13 +694,11 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            scavenge_filter(iu.ast, visited)
+            scavenge_filter(lp.ctx.imported[u.path].ast, visited)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        scavenge_filter(iu.ast, visited)
+        scavenge_filter(lp.ctx.imported[u.path].ast, visited)
     }
 
     // Body-level DCE: drop unreferenced hoisted temps left behind by
@@ -725,13 +706,11 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
     // included) so the codegen no longer needs `(void)<name>;` guards.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            dce_program_bodies(iu.ast)
+            dce_program_bodies(lp.ctx.imported[u.path].ast)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        dce_program_bodies(iu.ast)
+        dce_program_bodies(lp.ctx.imported[u.path].ast)
     }
 }
 
@@ -823,8 +802,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                     ref arg : Expr = val.children[i]
                                     switch arg.node_type {
                                     case NodeType.NamedArg(arg_name):
-                                        ref arg_val : Expr = arg.children[0]
-                                        switch arg_val.node_type {
+                                        switch arg.children[0].node_type {
                                         case NodeType.Literal(Literal.Bool(b)):
                                             if arg_name.eq("needs_main") { m.needs_main = b }
                                             else if arg_name.eq("decls_only") { m.decls_only = b }
@@ -940,8 +918,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
             miu.imports = resolve_import_disps(mode_imports, mode_dir, "", cwd)
         }
         if auto_disp.len().gt(0) {
-            ref miu : ImportUnit = lp.ctx.imported[mode_file]
-            miu.imports.push(own auto_disp)
+            lp.ctx.imported[mode_file].imports.push(own auto_disp)
         }
     }
 
@@ -1017,8 +994,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
     // Core entrypoint unit (after its imports).
     mut core_unit := ProgramUnit(path = core_disp.clone(), mode = core_mode.clone())
-    ref ciu : ImportUnit = lp.ctx.imported[core_disp]
-    core_unit.imports = ciu.imports.clone()
+    core_unit.imports = lp.ctx.imported[core_disp].imports.clone()
     core_units.push(own core_unit)
 
     // Mode auto-import is represented as the first unit (if present),
@@ -1060,8 +1036,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
         // Mode auto-import unit.
         mut mode_unit := ProgramUnit(path = mode_disp.clone(), mode = mode_mode_def.clone())
-        ref miu : ImportUnit = lp.ctx.imported[mode_disp]
-        mode_unit.imports = miu.imports.clone()
+        mode_unit.imports = lp.ctx.imported[mode_disp].imports.clone()
         units.push(own mode_unit)
 
     }
@@ -1444,13 +1419,11 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     out.push_str(name)
     out.push_str(" {")
     for i in 0..edef.variants.len() {
-        ref v : Str = edef.variants[i]
         out.push_str("\n    ")
-        out.push_str(v)
+        out.push_str(edef.variants[i])
         if edef.payload_types.has(i.to_i64()) {
-            ref pt : Str = edef.payload_types[i.to_i64()]
             out.push_str(": ")
-            out.push_str(pt)
+            out.push_str(edef.payload_types[i.to_i64()])
         }
     }
     if edef.ns_decls.len().gt(0) {
@@ -1559,15 +1532,13 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
 // "Type.method" entries for each namespace method.
 priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
     for i in 0..edef.variants.len() {
-        ref v : Str = edef.variants[i]
-        qual := type_name.format(".", v)
+        qual := type_name.format(".", edef.variants[i])
         mut variant_info := Str.with_capacity(qual.len().add(64))
         variant_info.push_str("variant ")
         variant_info.push_str(qual)
         if edef.payload_types.has(i.to_i64()) {
-            ref pt : Str = edef.payload_types[i.to_i64()]
             variant_info.push_str(": ")
-            variant_info.push_str(pt)
+            variant_info.push_str(edef.payload_types[i.to_i64()])
         }
         append_packed_entry(info, qual, variant_info)
     }
@@ -1594,8 +1565,7 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
                 }
             }
             if stmt.children.len().gt(0) {
-                ref rhs : Expr = stmt.children[0]
-                switch rhs.node_type {
+                switch stmt.children[0].node_type {
                 case NodeType.StructDef(sdef):
                     collect_struct_members_packed(dd.name, sdef, info, docs)
                 case NodeType.EnumDef(edef):
@@ -1813,16 +1783,13 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
             if is_valid_import {
                 mut resolved := ""
                 if imp_idx.lt(iu.imports.len()) {
-                    ref s : Str = iu.imports[imp_idx]
-                    resolved = s.clone()
+                    resolved = iu.imports[imp_idx].clone()
                 }
                 imp_idx++
                 if is_decl_rhs {
-                    ref imp_stmt_ref2 : Expr = stmt.children[0]
-                    handled = desugar_one_import(imp_stmt_ref2, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
+                    handled = desugar_one_import(stmt.children[0], new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
                 } else {
-                    ref imp_stmt_ref2 : Expr = stmt
-                    handled = desugar_one_import(imp_stmt_ref2, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
+                    handled = desugar_one_import(stmt, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
                 }
             }
         }
@@ -1930,8 +1897,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     case:
     }
     if root_name.len().gt(0).and(subs.has(root_name)) {
-        ref root_repl : Expr = subs[root_name]
-        cloned = root_repl.clone()
+        cloned = subs[root_name].clone()
     } else {
         lazy_substitute_idents(cloned, subs)
     }
@@ -1946,9 +1912,8 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
         ref mut c : Expr = e.children[i]
         mut inlined := false
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
-            ref callee : Expr = c.children[0]
             mut lname := ""
-            switch callee.node_type {
+            switch c.children[0].node_type {
             case NodeType.Ident(idn): lname = idn.ident_name()
             case NodeType.FieldAccess(fa): lname = fa.field_access_name()
             case:
@@ -1975,17 +1940,14 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
 priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            ref ciu : ImportUnit = lp.ctx.imported[cu.path]
-            expand_lazy_in_expr(ciu.ast, lp.ctx.scope, 0)
+            expand_lazy_in_expr(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0)
         }
     }
     for uu : ProgramUnit in lp.units {
-        ref uiu : ImportUnit = lp.ctx.imported[uu.path]
-        expand_lazy_in_expr(uiu.ast, lp.ctx.scope, 0)
+        expand_lazy_in_expr(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0)
     }
     for mf : Str in lp.mode_files {
-        ref miu : ImportUnit = lp.ctx.imported[mf]
-        expand_lazy_in_expr(miu.ast, lp.ctx.scope, 0)
+        expand_lazy_in_expr(lp.ctx.imported[mf].ast, lp.ctx.scope, 0)
     }
 }
 
@@ -2002,13 +1964,11 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // so the initer sees the generated Decls and populates the scope.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            desugar_namespace_imports(iu, lp.ctx)
+            desugar_namespace_imports(lp.ctx.imported[u.path], lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        desugar_namespace_imports(iu, lp.ctx)
+        desugar_namespace_imports(lp.ctx.imported[u.path], lp.ctx)
     }
 
     // Issue #158: the typer populates the foldable-name sets during its
@@ -2019,8 +1979,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // Init phase (rstil-style): recursive imports per file.
     context_reset_type_scope(lp.ctx)
     if lp.skip_core.not() {
-        ref core_root : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
-        init_file(core_root.path, lp.ctx)
+        init_file(lp.core_units[lp.core_units.len().sub(1)].path, lp.ctx)
     }
     ref user_root : ProgramUnit = lp.units[lp.units.len().sub(1)]
     init_file(user_root.path, lp.ctx)
@@ -2050,8 +2009,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
 
     // Ensure ctx.path is set to the user entrypoint by default.
     if lp.units.len().gt(0) {
-        ref last : ProgramUnit = lp.units[lp.units.len().sub(1)]
-        context_enter_file(lp.ctx, last.path)
+        context_enter_file(lp.ctx, lp.units[lp.units.len().sub(1)].path)
     }
 
     // #165 step 1: resolve any Type.Custom(name) bindings (written by
@@ -2067,8 +2025,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // Type checking (rstil-style): recursive imports per file.
     mut type_errors : I32 = 0
     if lp.skip_core.not() {
-        ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
-        type_errors = type_errors.add(type_file(core_root2.path, lp.ctx))
+        type_errors = type_errors.add(type_file(lp.core_units[lp.core_units.len().sub(1)].path, lp.ctx))
     }
     type_errors = type_errors.add(type_file(user_root.path, lp.ctx))
     // Issue #187 step 1: priv top-level decls that nothing in the
@@ -2079,13 +2036,11 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // every loaded unit's AST.
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            ref ciu : ImportUnit = lp.ctx.imported[cu.path]
-            type_errors = type_errors.add(check_unused_priv_members_in_program(ciu.ast, cu.path, lp.ctx))
+            type_errors = type_errors.add(check_unused_priv_members_in_program(lp.ctx.imported[cu.path].ast, cu.path, lp.ctx))
         }
     }
     for uu : ProgramUnit in lp.units {
-        ref uiu : ImportUnit = lp.ctx.imported[uu.path]
-        type_errors = type_errors.add(check_unused_priv_members_in_program(uiu.ast, uu.path, lp.ctx))
+        type_errors = type_errors.add(check_unused_priv_members_in_program(lp.ctx.imported[uu.path].ast, uu.path, lp.ctx))
     }
     for mode_file : Str in lp.mode_files {
         type_errors = type_errors.add(type_file(mode_file, lp.ctx))
@@ -2121,13 +2076,11 @@ prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
         // behind by constant folding don't bloat the emitted C.
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
-                ref iu : ImportUnit = lp.ctx.imported[u.path]
-                dce_program_bodies(iu.ast)
+                dce_program_bodies(lp.ctx.imported[u.path].ast)
             }
         }
         for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            dce_program_bodies(iu.ast)
+            dce_program_bodies(lp.ctx.imported[u.path].ast)
         }
     }
 }

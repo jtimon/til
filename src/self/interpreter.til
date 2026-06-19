@@ -51,8 +51,7 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
     for dd : Declaration in sdef_data.fields {
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
-        ref ftype : Str = dd.explicit_type
-        if ftype.eq("Str") { return false }
+        if dd.explicit_type.eq("Str") { return false }
         ref fsd : Expr = field_nested_def(dd, ctx)
         if fsd.is_null().not() {
             switch fsd.node_type {
@@ -138,8 +137,7 @@ namespace:
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
-        ref src_sdef : Expr = self.struct_def
-        switch src_sdef.node_type {
+        switch self.struct_def.node_type {
         case NodeType.StructDef(sdef_data):
             sz := ctx_total_size(self.struct_name, self.ctx)
             dst_data : Dynamic = malloc(sz.cast(U64))
@@ -489,8 +487,7 @@ Scope := struct {
 // reaches it through codegen_lp(), which interpret_units installs
 // before any eval runs.
 lookup_interp_type_def := func(name: Str, ctx: Context) returns ref Expr {
-    ref m : Map(Str, Dynamic) = ctx.interp_type_defs
-    ref slot : Dynamic = m.get(name)?
+    ref slot : Dynamic = ctx.interp_type_defs.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
@@ -531,8 +528,7 @@ priv enum_variant_is_str := func(enum_name: Str, etag: I32, ctx: Context) return
     switch edef.node_type {
     case NodeType.EnumDef(edd):
         if edd.payload_types.has(etag.cast(I64)) {
-            ref pt : Str = edd.payload_types[etag.cast(I64)]
-            return pt.eq("Str")
+            return edd.payload_types[etag.cast(I64)].eq("Str")
         }
     case:
     }
@@ -794,8 +790,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             exit(1)
         }
         if is_value_ptr(obj) {
-            ref obj_expr : Expr = e.children[0]
-            obj_t := obj_expr.expr_til_type()
+            obj_t := e.children[0].expr_til_type()
             switch obj_t {
             case Type.Struct(obj_sname):
                 resolve_ptr_to_struct(obj, scope, obj_sname, ctx)
@@ -937,8 +932,7 @@ priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) { return false }
-        ref p0 : Declaration = fd.params[0]
-        if p0.own_type.is(OwnType.Own).not() { return false }
+        if fd.params[0].own_type.is(OwnType.Own).not() { return false }
         if e.children.len().lte(1) { return false }
         switch e.children[1].node_type {
         case NodeType.Ident(arg_ident):
@@ -1096,9 +1090,8 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         }
     }
     if has_default {
-        ref dn : Expr = stmt.children[default_idx]
         def_scope := scope_new(scope)
-        eval_body(def_scope, dn.children[0], ctx)
+        eval_body(def_scope, stmt.children[default_idx].children[0], ctx)
         if c.has_return { c.return_value = c.return_value.clone() }
         scope_free(own def_scope)
     }
@@ -1180,12 +1173,10 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         switch rhs.node_type {
         case NodeType.FCall:
             if rhs.children.len().eq(2) {
-                ref head : Expr = rhs.children[0]
-                ref arg  : Expr = rhs.children[1]
-                switch head.node_type {
+                switch rhs.children[0].node_type {
                 case NodeType.Ident(head_id):
                     if head_id.ident_name().eq("get_payload") {
-                        switch arg.node_type {
+                        switch rhs.children[1].node_type {
                         case NodeType.Ident(enum_id):
                             enc := format(enum_id.ident_name(), "|", dd.explicit_type)
                             scope.payload_aliases.set(dd.name, own enc.clone())
@@ -1911,9 +1902,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     mut ext_result := val_none()
     if ext_function_dispatch(name.ident_name(), scope, e, ext_result, ctx) {
         for oi in 1..e.children.len() {
-            ref oa : Expr = e.children[oi]
             if get_own_arg(e, oi) {
-                switch oa.node_type {
+                switch e.children[oi].node_type {
                 case NodeType.Ident(oa_ident):
                     ref oc : Cell = scope_get(scope, oa_ident.ident_name())
                     if oc.is_null().not() {
@@ -2048,10 +2038,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         switch func_def2.node_type {
         case NodeType.FuncDef(fdef2):
             if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
-                ref first_param : Declaration = fdef2.params[0]
-                if first_param.own_type.is(OwnType.Own) {
-                    ref first_arg : Expr = e.children[1]
-                    switch first_arg.node_type {
+                if fdef2.params[0].own_type.is(OwnType.Own) {
+                    switch e.children[1].node_type {
                     case NodeType.Ident(fa_ident):
                         ref fc : Cell = scope_get(scope, fa_ident.ident_name())
                         if fc.is_null().not() {
@@ -2260,8 +2248,7 @@ priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def
         for pi in 0..fdef.params.len() {
             ref param : Declaration = fdef.params[pi]
             if param.own_type.is(OwnType.Own) { continue }
-            ref arg_expr : Expr = call_expr.children[pi.add(1)]
-            if arg_expr.node_type.is(NodeType.Ident) { continue }
+            if call_expr.children[pi.add(1)].node_type.is(NodeType.Ident) { continue }
             ref cell : Cell = scope_get(call_scope, param.name)
             if cell.is_null().not() {
                 free_temp_arg_value(cell.val)
@@ -2469,8 +2456,7 @@ scope_get := func(mut s: Scope, name: Str) returns ref Cell {
     while true {
         if cur.is_null() { return NULL }
         if cur.bindings.has(name) {
-            ref b : Binding = cur.bindings[name]
-            return b.cell
+            return cur.bindings[name].cell
         }
         cur = cur.parent
     }
@@ -2490,8 +2476,7 @@ priv scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
     while true {
         if cur.is_null() { return "" }
         if cur.payload_aliases.has(name) {
-            ref v : Str = cur.payload_aliases[name]
-            return v.clone()
+            return cur.payload_aliases[name].clone()
         }
         cur = cur.parent
     }
@@ -2773,8 +2758,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
     if alloc_count.eq(0) { alloc_count = 1 }
     data : Dynamic = calloc(alloc_count.cast(U64), esz.cast(U64))
     for i in 0..count {
-        ref s : Str = argv[offset.add(i)]
-        v := parse_cli_arg(s, elem_type, ctx)
+        v := parse_cli_arg(argv[offset.add(i)], elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64).mul(esz.cast(U64))), v, elem_type)
     }
     array_name := format("Array__", elem_type)
@@ -2804,8 +2788,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if stmt.children.len().eq(0) { continue }
-            ref sdef : Expr = stmt.children[0]
-            if sdef.node_type.is(NodeType.StructDef).not() { continue }
+            if stmt.children[0].node_type.is(NodeType.StructDef).not() { continue }
             if dd.name.eq("Str")   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
             if dd.name.eq("Array") { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
             if dd.name.eq("Vec")   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
@@ -2870,8 +2853,7 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns ref Value {
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
     if c.ns_fields.has(qn).not() { return NULL }
-    ref v : Value = c.ns_fields[qn]
-    return v
+    return c.ns_fields[qn]
 }
 
 
@@ -3188,8 +3170,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
         else if stmt.expr_til_type().is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
-            ref rhs : Expr = stmt.children[0]
-            switch rhs.node_type {
+            switch stmt.children[0].node_type {
             case NodeType.Ident(rhs_ident):
                 ref src : Cell = scope_get(global, rhs_ident.ident_name())
                 if src.is_null().not() {
@@ -3221,8 +3202,7 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
         else if stmt.expr_til_type().is(Type.None).not() { }
         else if stmt.children.len().eq(0) { }
         else {
-            ref rhs : Expr = stmt.children[0]
-            switch rhs.node_type {
+            switch stmt.children[0].node_type {
             case NodeType.Ident(rhs_ident):
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
@@ -3472,13 +3452,11 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         ref param : Declaration = fd.params[pi]
                         if pi.to_i64().eq(vi.cast(I64)) {
                             va_count := user_argc.sub(fixed)
-                            ref va_param : Declaration = fd.params[vi.to_usize()]
-                            arr := build_argv_array(user_argv, argi.cast(U32), va_count, va_param.explicit_type, lp.ctx)
+                            arr := build_argv_array(user_argv, argi.cast(U32), va_count, fd.params[vi.to_usize()].explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
                             argi = argi.add(va_count.cast(I32))
                         } else {
-                            ref arg_s : Str = user_argv[argi.to_usize()]
-                            v := parse_cli_arg(arg_s, param.explicit_type, lp.ctx)
+                            v := parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, v)
                             argi++
                         }

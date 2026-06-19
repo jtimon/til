@@ -161,8 +161,7 @@ priv keyword_map := func() returns Map(Str, TokenType) {
 tok_name := func(type: TokenType) returns Str {
     kw := keyword_map()
     for k : Str in kw.keys {
-        ref tt : TokenType = kw[k]
-        if tt.is(type) { return k.clone() }
+        if kw[k].is(type) { return k.clone() }
     }
     switch type {
     case TokenType.Eof: return "eof"
@@ -268,8 +267,7 @@ priv lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
 
 priv lookup_keyword := func(word: Str, kw: Map(Str, TokenType)) returns TokenType {
     if kw.has(word) {
-        ref tt : TokenType = kw[word]
-        return tt.clone()
+        return kw[word].clone()
     }
     return TokenType.Ident
 }

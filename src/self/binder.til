@@ -570,8 +570,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
         return close.add(1)
     }
     out.push_str(" := ext_struct(\"")
-    ref tag_line : Str = lines[tag_line_idx]
-    out.push_str(tag_line.substr(t_start, tag_len))
+    out.push_str(lines[tag_line_idx].substr(t_start, tag_len))
     if body_ok {
         out.push_str("\") {\n")
         out.push_str(body_buf)
@@ -657,11 +656,9 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
                     ref_len := v_end.sub(p)
                     mut k : USize = 0
                     while k.lt(prev_line.len()) {
-                        ref ki : USize = prev_line[k]
                         ref ks : USize = prev_start[k]
-                        ref ke : USize = prev_end[k]
-                        if ke.sub(ks).eq(ref_len) {
-                            ref klin : Str = lines[ki]
+                        if prev_end[k].sub(ks).eq(ref_len) {
+                            ref klin : Str = lines[prev_line[k]]
                             mut m : USize = 0
                             mut eq := true
                             while m.lt(ref_len) {
@@ -672,8 +669,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
                                 m++
                             }
                             if eq {
-                                ref kv : I64 = prev_val[k]
-                                val = kv.clone()
+                                val = prev_val[k].clone()
                                 break
                             }
                         }

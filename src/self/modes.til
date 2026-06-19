@@ -13,8 +13,7 @@ context_set_mode_from_path := func(mut ctx: Context, path: Str) {
     if ctx.path_modes.has(path).not() {
         panic("missing mode for path '", path, "'")
     }
-    ref path_mode : Mode = ctx.path_modes[path]
-    ctx.mode = path_mode.clone()
+    ctx.mode = ctx.path_modes[path].clone()
 }
 
 // Set ctx.path and ctx.mode for work in a file.

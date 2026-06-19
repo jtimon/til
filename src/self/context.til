@@ -617,8 +617,7 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
         case NodeType.Decl(sdd):
             for d_j : Declaration in sdd_data.ns_decls {
                 ref fdd : Declaration = d_j
-                ref fdef : Expr = fdd.default_value
-                switch fdef.node_type {
+                switch fdd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
                     qname := sdd.name.format("_", fdd.name)
                     if ffd.func_type.is(FuncType.Macro) {
@@ -797,8 +796,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     case NodeType.Literal(Literal.Str):  return "Str"
     case NodeType.FCall:
         if def_val.children.len().eq(0) { return "" }
-        ref callee : Expr = def_val.children[0]
-        switch callee.node_type {
+        switch def_val.children[0].node_type {
         case NodeType.Ident(cn): return cn.ident_name()
         case:
         }
@@ -892,8 +890,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
-            ref vn : Str = edd.variants[i]
-            if vn.eq(variant_name) { return i.cast(I32) }
+            if edd.variants[i].eq(variant_name) { return i.cast(I32) }
         }
     case:
         UNREACHABLE()
@@ -906,8 +903,7 @@ enum_variant_type := func(enum_def: Expr, tag: I32) returns Str {
     case NodeType.EnumDef(edd):
         idx := tag.cast(I64)
         if edd.payload_types.has(idx) {
-            ref pt : Str = edd.payload_types[idx]
-            return pt.clone()
+            return edd.payload_types[idx].clone()
         }
     case:
         UNREACHABLE()
@@ -920,8 +916,7 @@ enum_variant_payload_const := func(enum_def: Expr, tag: I32) returns Bool {
     case NodeType.EnumDef(edd):
         tag_u := tag.cast(U32)
         if tag_u.lt(edd.payload_consts.len()) {
-            ref pc : Bool = edd.payload_consts[tag_u]
-            if pc { return true }
+            if edd.payload_consts[tag_u] { return true }
         }
     case:
         UNREACHABLE()

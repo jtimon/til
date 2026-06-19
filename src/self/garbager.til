@@ -792,8 +792,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
         for local : LocalInfo in locals {
             if local.name.eq(vname).not() { continue }
             if is_aggregate(local.type) {
-                ref rhs : Expr = stmt.children[0]
-                if rhs_depends_on_var(rhs, vname, new_ch) {
+                if rhs_depends_on_var(stmt.children[0], vname, new_ch) {
                     ad.save_old_delete = true
                     stmt.set_expr_til_type(local.type.clone())
                 } else {
