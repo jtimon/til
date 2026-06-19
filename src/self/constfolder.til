@@ -1418,12 +1418,18 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             case:
             }
             if vn.is_empty().not().and(va_name_in(va_done, vn).not()).and(va_elements_known(e, m, vn, ctx)) {
-                if materialize_va(scope, e, m, vn, ctx) {
+                // The materialized array and hoisted element bindings are
+                // temporary inputs to this fold, not globals. Keep them in a
+                // child scope so scope_free reclaims them immediately after
+                // the consumer is folded.
+                va_scope := scope_new(scope)
+                if materialize_va(va_scope, e, m, vn, ctx) {
                     for k in 0..e.children.len() {
-                        fold_va_calls(scope, e.children[k], vn, ctx)
+                        fold_va_calls(va_scope, e.children[k], vn, ctx)
                     }
                     va_done.push(own vn.clone())
                 }
+                scope_free(own va_scope)
             }
         }
     }
