@@ -44,10 +44,10 @@ namespace:
 
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U16.add for the wrapping variant.
-    safe_add := func(a: U16, b: U16) returns U16 throws IntegerOverflow {
+    safe_add := func(a: U16, b: U16, loc: Str = __LOC__) returns U16 throws IntegerOverflow {
         result := a.add(b)
         if result.lt(a) {
-            throw IntegerOverflow(msg = format(__LOC__, ":U16.safe_add: ",
+            throw IntegerOverflow(msg = format(loc, ":U16.safe_add: ",
                 a.to_str(), " + ", b.to_str(), " overflows"))
         }
         return result
@@ -55,9 +55,9 @@ namespace:
 
     /// Subtraction that throws IntegerOverflow when a < b (underflow
     /// wraps unsigned). Use U16.sub for the wrapping variant.
-    safe_sub := func(a: U16, b: U16) returns U16 throws IntegerOverflow {
+    safe_sub := func(a: U16, b: U16, loc: Str = __LOC__) returns U16 throws IntegerOverflow {
         if a.lt(b) {
-            throw IntegerOverflow(msg = format(__LOC__, ":U16.safe_sub: ",
+            throw IntegerOverflow(msg = format(loc, ":U16.safe_sub: ",
                 a.to_str(), " - ", b.to_str(), " underflows"))
         }
         return a.sub(b)
@@ -65,11 +65,11 @@ namespace:
 
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U16.mul for the wrapping variant.
-    safe_mul := func(a: U16, b: U16) returns U16 throws IntegerOverflow {
+    safe_mul := func(a: U16, b: U16, loc: Str = __LOC__) returns U16 throws IntegerOverflow {
         result := a.mul(b)
         if a.eq(0).not() {
             if result.div(a).eq(b).not() {
-                throw IntegerOverflow(msg = format(__LOC__, ":U16.safe_mul: ",
+                throw IntegerOverflow(msg = format(loc, ":U16.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))
             }
         }

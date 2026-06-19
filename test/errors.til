@@ -646,6 +646,27 @@ test_array_get_bang_ok := test() {
     assert(v.eq(7))
 }
 
+// Issue #281 follow-up: Vec.get now carries a defaulted `loc: Str = __LOC__`,
+// so its OutOfBounds names the CALL site, not vec.til's throw line. This is the
+// motivating example from the issue, proven on the real core accessor.
+test_vec_get_oob_reports_caller := test() {
+    mut v := vec("I64")
+    v.push(own 10)
+    v.push(own 20)
+    mut caught := ""
+    cl := __LINE__
+    ref _x : I64 = v.get(99)?
+    catch (e: OutOfBounds) {
+        caught = e.msg.clone()
+    }
+    call_line := cl.add(1)
+    expect(caught.find("errors.til").neq(-1),
+           "Vec.get OOB names the CALLER file, not vec.til")
+    expect(caught.find(format(":", call_line.to_str(), ":")).neq(-1),
+           "Vec.get OOB points at the CALL line, not vec.til's throw")
+    expect(caught.find("Vec.get").neq(-1), "carries the Vec.get message")
+}
+
 // ==========================================================
 // Issue #225 prep: statement-level `?`/`!` on method calls.
 //
