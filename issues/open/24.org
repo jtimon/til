@@ -1,37 +1,49 @@
 # priority: low
 # category: examples
-** OPEN #24 Music scale viewer: ongoing improvements
+** OPEN #24 Music theory examples: ongoing improvements
 
-GUI music theory learning tool (examples/music.til). Uses mode gui
-  (raylib). Click note + mode buttons to see/hear scales on pentagram.
-  Click individual notes on staff to play them.
+Permanent umbrella issue for GUI music theory learning examples.
 
-  Known bug: mode buttons not rendering after from_i64 cleanup ([[./44.org][#44]]).
-  Pre-existing issue — was crashing before, now runs but mode buttons
-  are missing. Needs investigation.
+Current examples:
 
-  Features: 7x3 note buttons (with b/#), 7 Greek mode buttons,
-  graphical pentagram with notes, inline triad labels (Do-M, Re-m,
-  Mib-dim), reference labels on both sides of staff, click-to-play
-  individual notes, audio playback via play_tone (til-native sine
-  wave), language radio (PT/ES/EN), notation radio (solfege/american,
-  translated per language), resolution-independent layout with fixed
-  staff positioning (precalculated from note range), 2-octave piano
-  roll visualization with key highlighting, DejaVuSans custom font
-  (bundled in img/), Makita teal color scheme for UI elements.
+- `examples/7modes.til`: renamed from `examples/music.til` after the
+  shared helper module became `lib/music.til`. Shows note/mode controls,
+  a pentagram, scale playback, note click playback, triad labels, PT/ES/EN
+  mode-name labels, and a compact playable piano.
+- `examples/piano.til`: standalone 3-octave QWERTY piano with scrolling
+  piano-roll visualization.
 
-  Code is organized with extracted helper functions: triad_type,
-  note_name, acc_text, staff_y, lang_str, start_scale, play_note,
-  draw_note, recompute_scale, draw_piano. Data-driven: note names,
-  mode names, language strings, notation labels, triad suffixes stored
-  in constant arrays (LANGS array-of-arrays pattern). Uses for..in
-  range loops throughout.
+Recent progress:
 
-  Octave calculation uses separate diatonic octave (for staff position)
-  and chromatic octave (for frequency), correctly handling scales that
-  cross the C boundary (e.g. F Locrian where Cb is B4 not B5).
+- Extracted common piano/music data into `lib/music.til`: QWERTY keycodes,
+  key labels, C3-B5 piano frequencies, natural/black-key layout tables,
+  solfege names, and letter pitch names.
+- Updated `examples/piano.til` and `examples/7modes.til` to share the same
+  key/frequency mapping, so a keyboard key means the same pitch in both.
+- Added QWERTY labels to the compact piano in `examples/7modes.til`.
+- Added keyboard and mouse/touch input for the compact piano in
+  `examples/7modes.til`.
+- Made pentagram notes and piano keys highlight each other in both
+  directions when the played key is part of the displayed scale.
+- Removed the stale solfege/letter notation radio button. Individual note
+  labels now use solfege (`Do`, `Re`, `Mi`), while triad labels use
+  letter-based chord symbols (`C`, `Dm`, `Bdim`).
+- Kept the piano-roll labels in `examples/piano.til` as letter pitch names,
+  because piano-roll rows represent absolute pitches, not chord symbols.
+
+Notes:
+
+- The old mode-button rendering note from [[./44.org][#44]] is stale; manual
+  testing of the current `examples/7modes.til` showed the mode controls and
+  removed radio row behaving correctly.
+- `examples/7modes.til` still calculates scale spelling separately from
+  pitch frequency so staff position, accidentals, and audio stay aligned.
+
+*** TODO `examples/5modes.til`
+Needs human details before implementation. Capture which five modes to show,
+how they differ pedagogically from `examples/7modes.til`, and what UI/audio
+behavior should change.
 
 *** TODO Richer audio (sustain, chords, drone note under scale)
 *** TODO Chord progressions
 *** TODO Key signatures on staff
-
