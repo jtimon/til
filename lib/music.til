@@ -20,7 +20,7 @@ PIANO_KEY_LABELS := array("Str",
 )
 
 // Frequencies for 36 chromatic notes C3-B5.
-PIANO_FREQS := array("I64",
+FREQS := array("I64",
     131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
     262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
     523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988
@@ -34,6 +34,100 @@ NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
 BLACK_CHROMS := array("I32", 1, 3, 6, 8, 10)
 BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
 IS_BLACK := array("I32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
+
+// Experimental 5-name / 8-semitone layout helpers.
+FIVE_CYCLE : USize = 8
+FIVE_NATURAL_COUNT : USize = 5
+FIVE_SCALE_NOTES : USize = 6
+FIVE_BASE_SIXTAVE : I32 = 4
+FIVE_NAMES := array("Str", "ba", "#ba", "ce", "di", "#di", "fo", "#fo", "gu")
+FIVE_NATURAL_NAMES := array("Str", "ba", "ce", "di", "fo", "gu")
+FIVE_NATURALS := array("I32", 0, 2, 3, 5, 7)
+FIVE_BLACKS := array("I32", 1, 4, 6)
+FIVE_BLACK_KEY_POS := array("I32", 0, 2, 3)
+FIVE_IS_BLACK := array("I32", 0, 1, 0, 0, 1, 0, 1, 0)
+FIVE_DIATONIC_BY_CHROM := array("I32", 0, 0, 1, 2, 2, 3, 3, 4)
+FIVE_ACC_BY_CHROM := array("I32", 0, 1, 0, 0, 1, 0, 1, 0)
+
+/// 5-name modes, brightest to darkest. Europe is the no-accidental baseline.
+///
+/// Happy Birthday as movable-do Ionian degrees beside basic Europe/ba degrees:
+///
+///   do notation: sol sol la  sol do' si
+///   ba notation: gu  gu  ba' gu  ba' gu'
+///
+///   do notation: sol sol la  sol re' do'
+///   ba notation: gu  gu  ba' gu  ce' ba'
+///
+///   do notation: sol sol sol' mi' do' si  la
+///   ba notation: gu  gu  gu'  di' ba' gu' ba'
+///
+///   do notation: fa' fa' mi' do' re' do'
+///   ba notation: fo' fo' di' ba' ce' ba'
+///
+/// This maps scale-degree names directly; it is not a 7-note-to-5-note
+/// pitch-preserving transcription.
+FIVE_MODE_INTERVALS := array("I32",
+    2, 2, 1, 2, 1,
+    2, 1, 2, 2, 1,
+    2, 1, 2, 1, 2,
+    1, 2, 2, 1, 2,
+    1, 2, 1, 2, 2
+)
+FIVE_MODE_NAMES := array("Str", "America", "Europe", "Africa", "Asia", "Oceania")
+
+five_acc_text := func(acc: I64) returns Str {
+    if acc.eq(1) { return "#" }
+    if acc.eq(-1) { return "b" }
+    if acc.eq(2) { return "##" }
+    if acc.eq(-2) { return "bb" }
+    return ""
+}
+
+five_full_note_name := func(name_idx: I32, acc: I32, sixtave: I32) returns Str {
+    ref nn : Str = FIVE_NATURAL_NAMES[name_idx.to_usize()]
+    acc_label := five_acc_text(acc.cast(I64))
+    sixtave_label := (sixtave + FIVE_BASE_SIXTAVE).to_str()
+    return format(acc_label, nn, sixtave_label)
+}
+
+five_staff_pos := func(name_idx: I32, sixtave: I32) returns I32 {
+    return name_idx - 2 + sixtave * FIVE_NATURAL_COUNT.cast(I32)
+}
+
+five_recompute_scale := func(sel_root: USize, sel_mode: USize,
+                             mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_sixtave: Array(I32),
+                             mut sc_acc: Array(I32), mut sc_freq: Array(I64)) {
+    mut chrom_total := sel_root.cast(I32)
+    root_mod := chrom_total % FIVE_CYCLE.cast(I32)
+    ref root_diat : I32 = FIVE_DIATONIC_BY_CHROM[root_mod.to_usize()]
+
+    for k : USize in 0..FIVE_SCALE_NOTES {
+        diat_total := root_diat + k.cast(I32)
+        diat_pos := diat_total % FIVE_NATURAL_COUNT.cast(I32)
+        sixtave := diat_total / FIVE_NATURAL_COUNT.cast(I32)
+
+        sc_chrom[k] = chrom_total.clone()
+        sc_diat[k] = diat_pos.clone()
+        sc_sixtave[k] = sixtave.clone()
+
+        chrom_mod := chrom_total % FIVE_CYCLE.cast(I32)
+        ref nat_ref : I32 = FIVE_NATURALS[diat_pos.to_usize()]
+        mut acc := chrom_mod - nat_ref
+        if acc.gt(4) { acc = acc - FIVE_CYCLE.cast(I32) }
+        if acc.lt(-4) { acc = acc + FIVE_CYCLE.cast(I32) }
+        sc_acc[k] = acc
+
+        ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + chrom_total.to_usize()]
+        freq_val := freq
+        sc_freq[k] = freq_val
+
+        if k.lt(FIVE_NATURAL_COUNT) {
+            ref step : I32 = FIVE_MODE_INTERVALS[sel_mode * FIVE_NATURAL_COUNT + k]
+            chrom_total = chrom_total + step
+        }
+    }
+}
 
 SOLFEGE_NOTE_NAMES := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
 LETTER_DIATONIC_NOTE_NAMES := array("Str", "C", "D", "E", "F", "G", "A", "B")

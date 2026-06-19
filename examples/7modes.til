@@ -202,7 +202,7 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
         sc_acc[k] = acc
 
         // Frequency: use the same rounded pitches as the shared piano mapping.
-        ref freq : I64 = PIANO_FREQS[PIANO_C4_KEY_OFFSET + chrom_total.to_usize()]
+        ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + chrom_total.to_usize()]
         freq_val := freq
         sc_freq[k] = freq_val
 
@@ -424,7 +424,7 @@ main := proc() {
                     ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
                     piano_key_idx = oct * 12 + nat
                 }
-                ref freq : I64 = PIANO_FREQS[PIANO_C4_KEY_OFFSET + piano_key_idx.to_usize()]
+                ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + piano_key_idx.to_usize()]
                 play_tone(freq, 250)
                 highlight_scale_for_key(piano_key_idx, sc_chrom, sc_freq, clicked_note, clicked_timer)
                 piano_active_idx = piano_key_idx
@@ -436,7 +436,7 @@ main := proc() {
         for ki : USize in 0..PIANO_C4_KEY_COUNT {
             ref kc : I32 = PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]
             if IsKeyPressed(kc) {
-                ref freq : I64 = PIANO_FREQS[PIANO_C4_KEY_OFFSET + ki]
+                ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + ki]
                 play_tone(freq, 250)
                 highlight_scale_for_key(ki.cast(I32), sc_chrom, sc_freq, clicked_note, clicked_timer)
                 piano_active_idx = ki.cast(I32)

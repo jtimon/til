@@ -52,7 +52,7 @@ main := proc() {
     // Pre-generate all 36 sounds for polyphony
     mut sounds := Array(Sound).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
-        ref freq : I64 = PIANO_FREQS[i]
+        ref freq : I64 = FREQS[i]
         s := make_tone(freq, 10000, 1.to_f32().div(10))
         sounds[i] = s
     }

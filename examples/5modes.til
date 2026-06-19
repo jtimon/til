@@ -1,0 +1,421 @@
+mode gui
+
+import("../lib/music")
+
+// 5-continent mode viewer for the experimental 5-name / 8-semitone layout.
+// Root defaults to C4, labelled ba4 in this notation.
+
+// -- Layout --
+WINDOW_WIDTH : I32 = 1920
+WINDOW_HEIGHT : I32 = 1080
+FPS : I32 = 320
+
+FIVE_DRAW_CYCLES : USize = 3
+FIVE_WHITE_KEYS : USize = 15
+
+// -- Derived metrics --
+MARGIN : I32 = WINDOW_WIDTH / 48
+ROOT_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / FIVE_CYCLE.cast(I32)
+MODE_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / FIVE_NATURAL_COUNT.cast(I32)
+BTN_H : I32 = WINDOW_HEIGHT / 22
+GAP : I32 = WINDOW_HEIGHT / 60
+FONT : I32 = WINDOW_HEIGHT / 38
+FONT_SM : I32 = WINDOW_HEIGHT / 45
+PAD_X : I32 = ROOT_BTN_W / 25
+PAD_Y : I32 = BTN_H / 4
+
+// Row Y positions
+NOTE_ROW_Y : I32 = GAP
+MODE_ROW_Y : I32 = NOTE_ROW_Y + BTN_H + GAP
+
+// Staff/pentagram
+BUTTONS_END_Y : I32 = MODE_ROW_Y + BTN_H
+STAFF_SP : I32 = WINDOW_HEIGHT / 30
+NOTE_R : I32 = WINDOW_HEIGHT / 68
+STAFF_BASE_Y : I32 = BUTTONS_END_Y + GAP + NOTE_R + STAFF_SP * 11
+STAFF_X : I32 = MARGIN * 3
+STAFF_W : I32 = WINDOW_WIDTH - STAFF_X * 2
+NOTE_X0 : I32 = WINDOW_WIDTH / 8
+NOTE_DX : I32 = (WINDOW_WIDTH - NOTE_X0 * 2) / FIVE_NATURAL_COUNT.cast(I32)
+LABEL_Y : I32 = STAFF_BASE_Y + STAFF_SP * 2 + NOTE_R + GAP
+
+// Piano roll
+PIANO_Y : I32 = LABEL_Y + WINDOW_HEIGHT / 45 + GAP
+WHITE_W : I32 = STAFF_W / FIVE_WHITE_KEYS.cast(I32)
+WHITE_H : I32 = WINDOW_HEIGHT / 8
+BLACK_W : I32 = WHITE_W / 2
+BLACK_H : I32 = WHITE_H * 2 / 3
+HINT_Y : I32 = PIANO_Y + WHITE_H + GAP
+
+// -- Helper functions --
+
+note_name := func(name_idx: USize) returns ref Str {
+    ref s : Str = FIVE_NATURAL_NAMES[name_idx]
+    return s
+}
+
+staff_y := func(name_idx: I32, sixtave: I32) returns I32 {
+    return STAFF_BASE_Y - five_staff_pos(name_idx, sixtave) * STAFF_SP
+}
+
+start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64) {
+    playing = true
+    play_idx = 0
+    play_timer = 300
+}
+
+draw_note := proc(dni: USize, mut sc_diat: Array(I32), mut sc_sixtave: Array(I32), mut sc_acc: Array(I32),
+                    playing: Bool, play_idx: USize, clicked_note: I32, fnt: Font) {
+    dnx := NOTE_X0 + dni.cast(I32) * NOTE_DX
+    ref nd : I32 = sc_diat[dni]
+    ref ns : I32 = sc_sixtave[dni]
+    staff_pos := five_staff_pos(nd, ns)
+    dny := staff_y(nd, ns)
+
+    GRAY := Color(r = 100, g = 100, b = 100, a = 255)
+    YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
+    CYAN := Color(r = 0, g = 200, b = 210, a = 255)
+    WHITE := Color(r = 255, g = 255, b = 255, a = 255)
+    LIGHT_GRAY := Color(r = 180, g = 180, b = 180, a = 255)
+
+    // Ledger lines
+    if staff_pos.lt(0) {
+        mut lp : I32 = -2
+        while lp.gte(staff_pos) {
+            lly := STAFF_BASE_Y - lp * STAFF_SP
+            DrawRectangle(dnx - NOTE_R * 2, lly, NOTE_R * 4, 2, GRAY)
+            lp = lp - 2
+        }
+    }
+    if staff_pos.gt(8) {
+        mut lp : I32 = 10
+        while lp.lte(staff_pos) {
+            lly := STAFF_BASE_Y - lp * STAFF_SP
+            DrawRectangle(dnx - NOTE_R * 2, lly, NOTE_R * 4, 2, GRAY)
+            lp = lp + 2
+        }
+    }
+
+    // Note color
+    mut note_color := YELLOW
+    if playing.and(play_idx.gt(dni)) {
+        note_color = Color(r = 100, g = 100, b = 0, a = 255)
+    }
+    if clicked_note.eq(dni.cast(I32)) {
+        note_color = CYAN
+    }
+
+    DrawCircle(dnx, dny, NOTE_R.to_f32(), note_color)
+
+    // Accidental text
+    ref na : I32 = sc_acc[dni]
+    if !na.eq(0) {
+        at := five_acc_text(na.cast(I64))
+        DrawTextEx(fnt, at.c_str, Vector2(x = (dnx - FONT * 2).to_f32(), y = (dny - FONT / 2).to_f32()), FONT.to_f32(), 1.to_f32(), WHITE)
+    }
+
+    nn := five_full_note_name(nd, na, ns)
+    DrawTextEx(fnt, nn.c_str, Vector2(x = (dnx - NOTE_R).to_f32(), y = LABEL_Y.to_f32()), FONT_SM.to_f32(), 1.to_f32(), LIGHT_GRAY)
+}
+
+play_note := proc(freq: I64, mut clicked_note: I32, mut clicked_timer: I32, note_idx: I32) {
+    if freq.gt(0) {
+        play_tone(freq, 250)
+        clicked_note = note_idx
+        clicked_timer = 300
+    }
+}
+
+highlight_scale_for_key := func(key_idx: I32, mut sc_chrom: Array(I32), mut clicked_note: I32, mut clicked_timer: I32) {
+    for ci : USize in 0..FIVE_SCALE_NOTES {
+        ref chrom : I32 = sc_chrom[ci]
+        if chrom.eq(key_idx) {
+            clicked_note = ci.cast(I32)
+            clicked_timer = 300
+            break
+        }
+    }
+}
+
+draw_piano := proc(active_key_idx: I32, fnt: Font) {
+    KEY_WHITE_PRESSED := Color(r = 0, g = 200, b = 210, a = 255)
+    KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
+    KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
+    KEY_BLACK_PRESSED := Color(r = 0, g = 150, b = 155, a = 255)
+    KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
+    KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
+
+    // C4-B5 in the same 5-name keyboard layout as piano5.
+    for i : USize in 0..FIVE_WHITE_KEYS {
+        kx := STAFF_X + i.cast(I32) * WHITE_W
+        cycle := i / FIVE_NATURAL_COUNT
+        ref nat : I32 = FIVE_NATURALS[i.mod(FIVE_NATURAL_COUNT)]
+        key_idx := cycle.cast(I32) * FIVE_CYCLE.cast(I32) + nat
+        mut k_color := KEY_WHITE
+        if key_idx.eq(active_key_idx) {
+            k_color = KEY_WHITE_PRESSED
+        }
+        DrawRectangle(kx, PIANO_Y, WHITE_W - 2, WHITE_H, k_color)
+        ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
+        DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+    }
+
+    // Black keys in 1 + 2 groups per five-name cycle.
+    for cycle : USize in 0..FIVE_DRAW_CYCLES {
+        for j : USize in 0..3 {
+            ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
+            ref bchrom : I32 = FIVE_BLACKS[j]
+            key_idx := cycle.cast(I32) * FIVE_CYCLE.cast(I32) + bchrom
+            bx := STAFF_X + (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * WHITE_W - BLACK_W / 2
+            mut kb_color := KEY_BLACK
+            if key_idx.eq(active_key_idx) {
+                kb_color = KEY_BLACK_PRESSED
+            }
+            DrawRectangle(bx, PIANO_Y, BLACK_W, BLACK_H, kb_color)
+            ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
+            DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+        }
+    }
+}
+
+main := proc() {
+    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "5 modes")
+    SetTargetFPS(FPS)
+    InitAudioDevice()
+
+    fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, NULL, 0)
+
+    // Scale result arrays (6 notes: 5 degrees + sixtave repeat)
+    mut sc_chrom := Array(I32).new(FIVE_SCALE_NOTES)
+    mut sc_diat := Array(I32).new(FIVE_SCALE_NOTES)
+    mut sc_sixtave := Array(I32).new(FIVE_SCALE_NOTES)
+    mut sc_acc := Array(I32).new(FIVE_SCALE_NOTES)
+    mut sc_freq := Array(I64).new(FIVE_SCALE_NOTES)
+
+    // State
+    mut sel_root : USize = 0
+    mut sel_mode : USize = 1
+    mut need_recompute := true
+    mut playing := false
+    mut play_idx : USize = 0
+    mut play_timer : I64 = 0
+    mut clicked_note : I32 = -1
+    mut clicked_timer : I32 = 0
+    mut piano_active_idx : I32 = -1
+    mut piano_active_timer : I32 = 0
+
+    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
+    GRAY := Color(r = 100, g = 100, b = 100, a = 255)
+    TICK_GRAY := Color(r = 60, g = 60, b = 60, a = 255)
+
+    BTN_ACTIVE := Color(r = 0, g = 150, b = 155, a = 255)
+    BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
+    BUTTON_LABEL := Color(r = 220, g = 220, b = 220, a = 255)
+    TICK_LABEL := Color(r = 80, g = 80, b = 80, a = 255)
+
+    while !WindowShouldClose() {
+        dt : I32 = (GetFrameTime() * 1000.to_f32()).to_i64().to_i32()
+
+        // Keep scale arrays current before keyboard/piano input maps back to them.
+        if need_recompute {
+            need_recompute = false
+            five_recompute_scale(sel_root, sel_mode, sc_chrom, sc_diat, sc_sixtave, sc_acc, sc_freq)
+        }
+
+        // Input: mouse clicks
+        if IsMouseButtonPressed(0) {
+            mx := GetMouseX()
+            my := GetMouseY()
+
+            // Root buttons: one row for the 8 semitones in the ba-cycle.
+            if my.gte(NOTE_ROW_Y).and(my.lt(NOTE_ROW_Y + BTN_H)) {
+                col : USize = (mx - MARGIN).div(ROOT_BTN_W).to_usize()
+                if col.lt(FIVE_CYCLE).and(mx.gte(MARGIN)) {
+                    sel_root = col
+                    need_recompute = true
+                    start_scale(playing, play_idx, play_timer)
+                }
+            }
+
+            // Mode buttons: 5 cols x 1 row
+            if my.gte(MODE_ROW_Y).and(my.lt(MODE_ROW_Y + BTN_H)) {
+                col : USize = (mx - MARGIN).div(MODE_BTN_W).to_usize()
+                if col.lt(FIVE_NATURAL_COUNT).and(mx.gte(MARGIN)) {
+                    sel_mode = col
+                    need_recompute = true
+                    start_scale(playing, play_idx, play_timer)
+                }
+            }
+
+            // Click on pentagram notes
+            for ci : USize in 0..FIVE_SCALE_NOTES {
+                ref cd : I32 = sc_diat[ci]
+                ref co : I32 = sc_sixtave[ci]
+                cnx := NOTE_X0 + ci.cast(I32) * NOTE_DX
+                cny := staff_y(cd, co)
+                hit := NOTE_R * 3
+                if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
+                    ref cf : I64 = sc_freq[ci]
+                    play_note(cf, clicked_note, clicked_timer, ci.cast(I32))
+                    ref cc : I32 = sc_chrom[ci]
+                    piano_active_idx = cc
+                    piano_active_timer = 300
+                }
+            }
+
+            // Click on piano keys. Black keys are checked first because they are drawn on top.
+            if my.gte(PIANO_Y).and(my.lt(PIANO_Y + WHITE_H)).and(mx.gte(STAFF_X)).and(mx.lt(STAFF_X + WHITE_W * FIVE_WHITE_KEYS.cast(I32))) {
+                mut piano_key_idx : I32 = -1
+                if my.lt(PIANO_Y + BLACK_H) {
+                    for cycle : USize in 0..FIVE_DRAW_CYCLES {
+                        for j : USize in 0..3 {
+                            ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
+                            ref bchrom : I32 = FIVE_BLACKS[j]
+                            bx := STAFF_X + (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * WHITE_W - BLACK_W / 2
+                            if mx.gte(bx).and(mx.lt(bx + BLACK_W)) {
+                                piano_key_idx = cycle.cast(I32) * FIVE_CYCLE.cast(I32) + bchrom
+                            }
+                        }
+                    }
+                }
+                if piano_key_idx.lt(0) {
+                    wk := (mx - STAFF_X) / WHITE_W
+                    cycle := wk / FIVE_NATURAL_COUNT.cast(I32)
+                    ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.cast(I32)).to_usize()]
+                    piano_key_idx = cycle * FIVE_CYCLE.cast(I32) + nat
+                }
+                ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + piano_key_idx.to_usize()]
+                play_tone(freq, 250)
+                highlight_scale_for_key(piano_key_idx, sc_chrom, clicked_note, clicked_timer)
+                piano_active_idx = piano_key_idx
+                piano_active_timer = 300
+            }
+        }
+
+        // Input: keyboard piano keys matching examples/piano5.til from C4/ba4 to B5.
+        for ki : USize in 0..PIANO_C4_KEY_COUNT {
+            ref kc : I32 = PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]
+            if IsKeyPressed(kc) {
+                ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + ki]
+                play_tone(freq, 250)
+                highlight_scale_for_key(ki.cast(I32), sc_chrom, clicked_note, clicked_timer)
+                piano_active_idx = ki.cast(I32)
+                piano_active_timer = 300
+            }
+        }
+
+        // Recompute scale
+        if need_recompute {
+            need_recompute = false
+            five_recompute_scale(sel_root, sel_mode, sc_chrom, sc_diat, sc_sixtave, sc_acc, sc_freq)
+        }
+
+        // Clicked note highlight timer
+        if clicked_note.gte(0) {
+            clicked_timer = clicked_timer - dt
+            if clicked_timer.lte(0) {
+                clicked_note = -1
+            }
+        }
+        if piano_active_idx.gte(0) {
+            piano_active_timer = piano_active_timer - dt
+            if piano_active_timer.lte(0) {
+                piano_active_idx = -1
+            }
+        }
+
+        // Playback
+        if playing {
+            play_timer = play_timer + dt.cast(I64)
+            if play_timer.gte(300) {
+                play_timer = 0
+                if play_idx.lt(FIVE_SCALE_NOTES) {
+                    ref pf : I64 = sc_freq[play_idx]
+                    play_note(pf, clicked_note, clicked_timer, play_idx.cast(I32))
+                    ref pc : I32 = sc_chrom[play_idx]
+                    piano_active_idx = pc
+                    piano_active_timer = 300
+                    play_idx = play_idx + 1
+                } else {
+                    playing = false
+                }
+            }
+        }
+
+        // Draw
+        BeginDrawing()
+        ClearBackground(BLACK)
+
+        // -- Root buttons --
+        for col : USize in 0..FIVE_CYCLE {
+            bx := MARGIN + col.cast(I32) * ROOT_BTN_W
+            by := NOTE_ROW_Y
+
+            mut b_color := BTN_INACTIVE
+            if col.eq(sel_root) {
+                b_color = BTN_ACTIVE
+            }
+            DrawRectangle(bx, by, ROOT_BTN_W - 2, BTN_H - 2, b_color)
+
+            ref label : Str = FIVE_NAMES[col]
+            DrawTextEx(fnt, label.c_str, Vector2(x = (bx + PAD_X).to_f32(), y = (by + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+        }
+
+        // -- Mode buttons --
+        for mi : USize in 0..FIVE_NATURAL_COUNT {
+            mbx := MARGIN + mi.cast(I32) * MODE_BTN_W
+            mby := MODE_ROW_Y
+
+            mut mb_color := BTN_INACTIVE
+            if mi.eq(sel_mode) {
+                mb_color = BTN_ACTIVE
+            }
+            DrawRectangle(mbx, mby, MODE_BTN_W - 2, BTN_H - 2, mb_color)
+
+            ref mlabel : Str = FIVE_MODE_NAMES[mi]
+            DrawTextEx(fnt, mlabel.c_str, Vector2(x = (mbx + PAD_X).to_f32(), y = (mby + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+        }
+
+        // -- Pentagram --
+        // Draw 5 staff lines
+        for sli : USize in 0..5 {
+            line_pos := sli.cast(I32) * 2
+            ly := STAFF_BASE_Y - line_pos * STAFF_SP
+            DrawRectangle(STAFF_X, ly, STAFF_W, 2, GRAY)
+        }
+
+        // Reference labels on both sides of staff (lines + spaces)
+        for ri : USize in 0..9 {
+            ry := STAFF_BASE_Y - ri.cast(I32) * STAFF_SP
+            rd := (ri + 2) % FIVE_NATURAL_COUNT
+            ref rn : Str = note_name(rd)
+            // Left side label
+            DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X - MARGIN * 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1.to_f32(), TICK_LABEL)
+            // Right side label
+            DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X + STAFF_W + MARGIN / 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1.to_f32(), TICK_LABEL)
+            // Tick marks for spaces (odd positions)
+            if ri.mod(2).eq(1) {
+                DrawRectangle(STAFF_X - NOTE_R * 2, ry, NOTE_R * 2, 1, TICK_GRAY)
+                DrawRectangle(STAFF_X + STAFF_W, ry, NOTE_R * 2, 1, TICK_GRAY)
+            }
+        }
+
+        // Draw notes
+        for dni : USize in 0..FIVE_SCALE_NOTES {
+            draw_note(dni, sc_diat, sc_sixtave, sc_acc,
+                      playing, play_idx, clicked_note, fnt)
+        }
+
+        // Piano roll
+        draw_piano(piano_active_idx, fnt)
+
+        // Hint
+        DrawTextEx(fnt, "click root + mode to play scale; E starts C4/ba4, piano keys match piano5".c_str, Vector2(x = (WINDOW_WIDTH / 4).to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1.to_f32(), TICK_LABEL)
+
+        EndDrawing()
+    }
+
+    UnloadFont(fnt)
+    CloseAudioDevice()
+    CloseWindow()
+}
