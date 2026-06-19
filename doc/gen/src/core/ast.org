@@ -586,7 +586,7 @@ enum NodeType {
     Catch
     RestPattern
     CaptureBlock: CaptureBlockData
-    CallerLoc
+    Loc
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -621,7 +621,7 @@ namespace:
     ext_func Catch() returns NodeType
     ext_func RestPattern() returns NodeType
     ext_func CaptureBlock(own val: CaptureBlockData) returns NodeType
-    ext_func CallerLoc() returns NodeType
+    ext_func Loc() returns NodeType
     func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)

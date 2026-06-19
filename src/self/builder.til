@@ -7418,6 +7418,27 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 
 // --- til doc <path> -- documentation generator ---
 
+DocIndexEntry := struct {
+    name := ""
+    group := ""
+    page := ""
+    info := ""
+    since := ""
+    deprecated := ""
+}
+
+priv doc_decl_hidden := func(dd: Declaration, meta: DocMeta) returns Bool {
+    return dd.name.starts_with("hoisted__")
+        .or(dd.name.starts_with("priv___"))
+        .or(dd.is_priv)
+        .or(meta.hidden)
+}
+
+priv doc_index_link_path := func(out_path: Str) returns Str {
+    if out_path.starts_with("doc/gen/") { return out_path.strip_prefix("doc/gen/").clone() }
+    return out_path.clone()
+}
+
 // Walk a single source file's typed AST and render it as an org-mode page.
 // One headline per top-level Decl, with the /// doc text and a kind/signature
 // info block (reusing format_decl_info for the rich rendering).
@@ -7445,11 +7466,8 @@ priv format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) re
                 // `priv` keyword. None of them are public API and all
                 // three were leaking into the bare org-mode output
                 // before -- see issue #233's "Current state" notes.
-                mut doc_hide := dd.name.starts_with("hoisted__")
-                    .or(dd.name.starts_with("priv___"))
-                    .or(dd.is_priv)
                 meta := parse_doc_meta(dd.doc)
-                doc_hide = doc_hide.or(meta.hidden)
+                doc_hide := doc_decl_hidden(dd, meta)
                 if doc_hide.not() {
                     info := format_decl_info(stmt, scope)
                     chunk_cap : USize = dd.name.len()
@@ -7503,6 +7521,119 @@ priv format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) re
     return buf
 }
 
+priv doc_index_has_group := func(groups: Vec(Str), group: Str) returns Bool {
+    for existing : Str in groups {
+        if existing.eq(group) { return true }
+    }
+    return false
+}
+
+priv collect_unit_doc_index := func(u: ProgramUnit, ctx: Context, mut entries: Vec(DocIndexEntry)) {
+    ref iu : ImportUnit = ctx.imported[u.path]
+    page := doc_index_link_path(til_doc_out_path(u.path))
+    for stmt : Expr in iu.ast.children {
+        if stmt.node_type.is(NodeType.Decl) {
+            switch stmt.node_type {
+            case NodeType.Decl(dd):
+                meta := parse_doc_meta(dd.doc)
+                if doc_decl_hidden(dd, meta).not() {
+                    info := format_decl_info(stmt, ctx.scope)
+                    entries.push(own DocIndexEntry(
+                        name = dd.name.clone(),
+                        group = meta.group.clone(),
+                        page = page.clone(),
+                        info = info.clone(),
+                        since = meta.since.clone(),
+                        deprecated = meta.deprecated.clone()))
+                }
+            case:
+                UNREACHABLE()
+            }
+        }
+    }
+}
+
+priv append_doc_index_entry := func(mut out: Str, e: DocIndexEntry) {
+    out.push_str("** [[file:")
+    out.push_str(e.page)
+    out.push_str("::*")
+    out.push_str(e.name)
+    out.push_str("][")
+    out.push_str(e.name)
+    out.push_str("]]\n")
+    if e.since.is_empty().not().or(e.deprecated.is_empty().not()) {
+        out.push_str(":PROPERTIES:\n")
+        if e.since.is_empty().not() {
+            out.push_str(":since: "); out.push_str(e.since); out.push_str("\n")
+        }
+        if e.deprecated.is_empty().not() {
+            out.push_str(":deprecated: "); out.push_str(e.deprecated); out.push_str("\n")
+        }
+        out.push_str(":END:\n")
+    }
+    if e.info.is_empty().not() {
+        out.push_str("#+begin_src til\n")
+        out.push_str(e.info)
+        if e.info.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str("#+end_src\n")
+    }
+    out.push_str("\n")
+}
+
+priv doc_index_entry_capacity := func(e: DocIndexEntry) returns USize {
+    return e.name.len().mul(2)
+        .add(e.page.len())
+        .add(e.info.len())
+        .add(e.since.len())
+        .add(e.deprecated.len())
+        .add(160)
+}
+
+priv format_doc_index_org := func(entries: Vec(DocIndexEntry)) returns Str {
+    groups := Vec(Str).new()
+    mut has_ungrouped := false
+    mut total : USize = 128
+    for e : DocIndexEntry in entries {
+        total = total.add(doc_index_entry_capacity(e))
+        if e.group.is_empty() {
+            has_ungrouped = true
+        } else if doc_index_has_group(groups, e.group).not() {
+            total = total.add(e.group.len()).add(8)
+            groups.push(own e.group.clone())
+        }
+    }
+    if has_ungrouped { total = total.add(16) }
+
+    mut out := Str.with_capacity(total)
+    out.push_str("#+TITLE: til documentation index\n#+OPTIONS: toc:t\n\n")
+
+    for group : Str in groups {
+        out.push_str("* ")
+        out.push_str(group)
+        out.push_str("\n\n")
+        for e : DocIndexEntry in entries {
+            if e.group.eq(group) { append_doc_index_entry(out, e) }
+        }
+    }
+
+    if has_ungrouped {
+        out.push_str("* Ungrouped\n\n")
+        for e : DocIndexEntry in entries {
+            if e.group.is_empty() { append_doc_index_entry(out, e) }
+        }
+    }
+    if out.ends_with("\n\n") { out = out.strip_suffix("\n").clone() }
+    return out
+}
+
+priv emit_doc_index := proc(entries: Vec(DocIndexEntry)) {
+    out := "doc/gen/index.org"
+    ensure_parent_dir(out)
+    page := format_doc_index_org(entries)
+    File.writefile(out, page)
+    println(format("Generated: ", out))
+}
+
 // "src/core/vec.til" -> "doc/gen/src/core/vec.org"
 priv til_doc_out_path := func(unit_path: Str) returns Str {
     // Trim a leading "./" and a trailing ".til" via self-reassigns from
@@ -7536,10 +7667,18 @@ priv emit_unit_doc := proc(u: ProgramUnit, ctx: Context) {
 }
 
 cmd_doc := proc(lp: LoadedProgram) returns I32 {
+    entries := Vec(DocIndexEntry).new()
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units { emit_unit_doc(u, lp.ctx) }
+        for u : ProgramUnit in lp.core_units {
+            emit_unit_doc(u, lp.ctx)
+            collect_unit_doc_index(u, lp.ctx, entries)
+        }
     }
-    for u : ProgramUnit in lp.units { emit_unit_doc(u, lp.ctx) }
+    for u : ProgramUnit in lp.units {
+        emit_unit_doc(u, lp.ctx)
+        collect_unit_doc_index(u, lp.ctx, entries)
+    }
+    emit_doc_index(entries)
     return 0
 }
 

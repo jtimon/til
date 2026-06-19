@@ -184,7 +184,7 @@
 *** Catch
 *** RestPattern
 *** CaptureBlock:CaptureBlockData
-*** CallerLoc
+*** Loc
 ** Expr: StructDef
 *** node_type := NodeType.Body
 *** children := Vec(Expr).new()
@@ -201,6 +201,7 @@
 *** active_type_params := Vec(Str).new()
 *** anon_decls := Vec(Expr).new()
 *** anon_cache := Map(Str, Str).new()
+*** anon_type_counter : I64 = 0
 *** pending_doc := ""
 *** source := ""
 * context
@@ -229,6 +230,8 @@
 *** Found:TypeBinding }
 ** TypeScope: StructDef
 *** bindings := Map(Str, TypeBinding).new()
+*** target_usize_pname := "U32"
+*** target_uptr_pname := "U64"
 *** func_defs := Map(Str, Dynamic).new()
 *** struct_defs := Map(Str, Dynamic).new()
 *** ref parent : TypeScope = NULL
@@ -241,6 +244,10 @@
 *** mode := Mode()
 *** path := ""
 *** path_modes := Map(Str, Mode).new()
+*** mode_registry := Map(Str, Mode).new()
+*** target_usize_pname := "U32"
+*** target_uptr_pname := "U64"
+*** anon_type_counter : I64 = 0
 *** compile_mode := false
 *** imported := Map(Str, ImportUnit).new()
 *** imports_init_seed_done := Set(Str).new()
@@ -261,11 +268,7 @@
 *** has_break := false
 *** has_continue := false
 *** return_value := Value.None
-*** constfold_active := false
-*** constfold_aborted := false
-*** ns_fields := Map(Str, Value).new()
-*** ns_keys := Vec(Dynamic).new()
-*** ... (55 more)
+*** ... (59 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -349,6 +352,13 @@
 *** til_path := ""
 *** py_path := ""
 *** do_lib := false
+** DocIndexEntry: StructDef
+*** name := ""
+*** group := ""
+*** page := ""
+*** info := ""
+*** since := ""
+*** deprecated := ""
 * interpreter
 ** StructInstance: StructDef
 *** ref struct_name : Str = NULL

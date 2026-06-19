@@ -11,21 +11,6 @@ builtin_type_table is a Map__Str_Type
 func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
 #+end_src
 
-* g_usize_pname
-#+begin_src til
-g_usize_pname is a Str
-#+end_src
-
-* g_uptr_pname
-#+begin_src til
-g_uptr_pname is a Str
-#+end_src
-
-* register_target_int_alias_types
-#+begin_src til
-func register_target_int_alias_types(usize_name: Str, uptr_name: Str)
-#+end_src
-
 * til_type_from_explicit_type
 #+begin_src til
 func til_type_from_explicit_type(name: Str) returns Type
@@ -36,14 +21,9 @@ func til_type_from_explicit_type(name: Str) returns Type
 func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
 #+end_src
 
-* anon_struct_counter
-#+begin_src til
-anon_struct_counter is a I64
-#+end_src
-
 * parse
 #+begin_src til
-proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str) returns Expr
+proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64) returns Expr
 #+end_src
 
 * Set__Str

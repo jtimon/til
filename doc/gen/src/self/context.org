@@ -54,6 +54,8 @@ namespace:
 #+begin_src til
 struct TypeScope {
     mut bindings : Map__Str_TypeBinding
+    mut target_usize_pname : Str
+    mut target_uptr_pname : Str
     mut func_defs : Map__Str_Dynamic
     mut struct_defs : Map__Str_Dynamic
     ref mut parent : TypeScope
@@ -105,6 +107,10 @@ struct Context {
     mut mode : Mode
     mut path : Str
     mut path_modes : Map__Str_Mode
+    mut mode_registry : Map__Str_Mode
+    mut target_usize_pname : Str
+    mut target_uptr_pname : Str
+    mut anon_type_counter : I64
     mut compile_mode : Bool
     mut imported : Map__Str_ImportUnit
     mut imports_init_seed_done : Set__Str
@@ -189,6 +195,26 @@ namespace:
     func delete(own self: Context, shallow call_free: Bool)
     func size() returns shallow U32
 }
+#+end_src
+
+* context_register_target_int_alias_types
+#+begin_src til
+func context_register_target_int_alias_types(mut ctx: Context, usize_name: Str, uptr_name: Str)
+#+end_src
+
+* context_reset_type_scope
+#+begin_src til
+func context_reset_type_scope(mut ctx: Context)
+#+end_src
+
+* scope_target_usize_pname
+#+begin_src til
+func scope_target_usize_pname(scope: TypeScope) returns ref Str
+#+end_src
+
+* scope_target_uptr_pname
+#+begin_src til
+func scope_target_uptr_pname(scope: TypeScope) returns ref Str
 #+end_src
 
 * priv_c_name

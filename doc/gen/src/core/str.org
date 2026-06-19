@@ -205,17 +205,7 @@ namespace:
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    /// (Codegen that fills a fresh in-bounds slot uses set_init, below.)
     func set(self: Array__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
-    /// Non-throwing in-place set used by the variadic-argument codegen
-    /// (build_variadic_array_set fills a freshly-allocated, in-bounds slot
-    /// for every variadic call). Once `set` starts throwing OutOfBounds --
-    /// so `arr[i] = v` can desugar to `arr.set(i, own v)!` -- the variadic
-    /// codegen must not call the throwing `set` (the typer emits these
-    /// after throws-lowering, so they would never get the err-args). This
-    /// variant panics on a bad index instead of throwing, keeping the
-    /// codegen decoupled from `set`'s signature.
-    func set_init(self: Array__Str, shallow i: U32, own val: Str)
     func delete(own self: Array__Str, shallow call_free: Bool)
     func clone(self: Array__Str) returns Array__Str
     func size() returns shallow U32

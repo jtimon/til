@@ -221,16 +221,16 @@
   <text x="376" y="3674" class="line">Catch</text>
   <text x="376" y="3692" class="line">RestPattern</text>
   <text x="376" y="3710" class="line">CaptureBlock:CaptureBlockData</text>
-  <text x="376" y="3728" class="line">CallerLoc</text>
+  <text x="376" y="3728" class="line">Loc</text>
   <rect x="362" y="3754" width="244" height="118" rx="10" ry="10" class="box"/>
   <text x="376" y="3792" class="title">Expr: StructDef</text>
   <text x="376" y="3810" class="line">node_type := NodeType.Body</text>
   <text x="376" y="3828" class="line">children := Vec(Expr).new()</text>
   <text x="376" y="3846" class="line">line : U32 = 0</text>
   <text x="376" y="3864" class="line">col : U32 = 0</text>
-  <rect x="956" y="24" width="356" height="326" rx="14" ry="14" class="panel"/>
+  <rect x="956" y="24" width="356" height="344" rx="14" ry="14" class="panel"/>
   <text x="976" y="62" class="panel-label">parser</text>
-  <rect x="976" y="88" width="316" height="244" rx="10" ry="10" class="box"/>
+  <rect x="976" y="88" width="316" height="262" rx="10" ry="10" class="box"/>
   <text x="990" y="126" class="title">Parser: StructDef</text>
   <text x="990" y="144" class="line">tokens := Vec(Token).new()</text>
   <text x="990" y="162" class="line">pos : USize = 0</text>
@@ -241,9 +241,10 @@
   <text x="990" y="252" class="line">active_type_params := Vec(Str).new()</text>
   <text x="990" y="270" class="line">anon_decls := Vec(Expr).new()</text>
   <text x="990" y="288" class="line">anon_cache := Map(Str, Str).new()</text>
-  <text x="990" y="306" class="line">pending_doc := &quot;&quot;</text>
-  <text x="990" y="324" class="line">source := &quot;&quot;</text>
-  <rect x="1346" y="24" width="460" height="1410" rx="14" ry="14" class="panel"/>
+  <text x="990" y="306" class="line">anon_type_counter : I64 = 0</text>
+  <text x="990" y="324" class="line">pending_doc := &quot;&quot;</text>
+  <text x="990" y="342" class="line">source := &quot;&quot;</text>
+  <rect x="1346" y="24" width="460" height="1446" rx="14" ry="14" class="panel"/>
   <text x="1366" y="62" class="panel-label">context</text>
   <rect x="1366" y="88" width="244" height="388" rx="10" ry="10" class="box"/>
   <text x="1380" y="126" class="title">TypeBinding: StructDef</text>
@@ -270,48 +271,50 @@
   <text x="1380" y="532" class="title">ScopeFind: EnumDef</text>
   <text x="1380" y="550" class="line">NotFound</text>
   <text x="1380" y="568" class="line">Found:TypeBinding }</text>
-  <rect x="1366" y="594" width="340" height="118" rx="10" ry="10" class="box"/>
+  <rect x="1366" y="594" width="340" height="154" rx="10" ry="10" class="box"/>
   <text x="1380" y="632" class="title">TypeScope: StructDef</text>
   <text x="1380" y="650" class="line">bindings := Map(Str, TypeBinding).new()</text>
-  <text x="1380" y="668" class="line">func_defs := Map(Str, Dynamic).new()</text>
-  <text x="1380" y="686" class="line">struct_defs := Map(Str, Dynamic).new()</text>
-  <text x="1380" y="704" class="line">ref parent : TypeScope = NULL</text>
-  <rect x="1366" y="730" width="348" height="118" rx="10" ry="10" class="box"/>
-  <text x="1380" y="768" class="title">ImportUnit: StructDef</text>
-  <text x="1380" y="786" class="line">mode_str := &quot;&quot;</text>
-  <text x="1380" y="804" class="line">mode := Mode()</text>
-  <text x="1380" y="822" class="line">own ast := Expr.new(NodeType.Body, 0, 0)</text>
-  <text x="1380" y="840" class="line">imports := Vec(Str).new()</text>
-  <rect x="1366" y="866" width="420" height="550" rx="10" ry="10" class="box"/>
-  <text x="1380" y="904" class="title">Context: StructDef</text>
-  <text x="1380" y="922" class="line">mode := Mode()</text>
-  <text x="1380" y="940" class="line">path := &quot;&quot;</text>
-  <text x="1380" y="958" class="line">path_modes := Map(Str, Mode).new()</text>
-  <text x="1380" y="976" class="line">compile_mode := false</text>
-  <text x="1380" y="994" class="line">imported := Map(Str, ImportUnit).new()</text>
-  <text x="1380" y="1012" class="line">imports_init_seed_done := Set(Str).new()</text>
-  <text x="1380" y="1030" class="line">imports_init_active := Set(Str).new()</text>
-  <text x="1380" y="1048" class="line">imports_init_done := Set(Str).new()</text>
-  <text x="1380" y="1066" class="line">imports_typer_decls_done := Set(Str).new()</text>
-  <text x="1380" y="1084" class="line">imports_typer_bodies_done := Set(Str).new()</text>
-  <text x="1380" y="1102" class="line">type_gen_synths := Set(Str).new()</text>
-  <text x="1380" y="1120" class="line">generic_funcs := Map(Str, Expr).new()</text>
-  <text x="1380" y="1138" class="line">generic_func_synths := Set(Str).new()</text>
-  <text x="1380" y="1156" class="line">scope := TypeScope()</text>
-  <text x="1380" y="1174" class="line">is_repl := false</text>
-  <text x="1380" y="1192" class="line">struct_layouts := Map(Str, StructLayout).new()</text>
-  <text x="1380" y="1210" class="line">constfolder_foldables := Map(Str, FuncType).new()</text>
-  <text x="1380" y="1228" class="line">constfolder_known := Map(Str, Value).new()</text>
-  <text x="1380" y="1246" class="line">constfolder_assigned := Set(Str).new()</text>
-  <text x="1380" y="1264" class="line">has_return := false</text>
-  <text x="1380" y="1282" class="line">has_break := false</text>
-  <text x="1380" y="1300" class="line">has_continue := false</text>
-  <text x="1380" y="1318" class="line">return_value := Value.None</text>
-  <text x="1380" y="1336" class="line">constfold_active := false</text>
-  <text x="1380" y="1354" class="line">constfold_aborted := false</text>
-  <text x="1380" y="1372" class="line">ns_fields := Map(Str, Value).new()</text>
-  <text x="1380" y="1390" class="line">ns_keys := Vec(Dynamic).new()</text>
-  <text x="1380" y="1408" class="line">... (55 more)</text>
+  <text x="1380" y="668" class="line">target_usize_pname := &quot;U32&quot;</text>
+  <text x="1380" y="686" class="line">target_uptr_pname := &quot;U64&quot;</text>
+  <text x="1380" y="704" class="line">func_defs := Map(Str, Dynamic).new()</text>
+  <text x="1380" y="722" class="line">struct_defs := Map(Str, Dynamic).new()</text>
+  <text x="1380" y="740" class="line">ref parent : TypeScope = NULL</text>
+  <rect x="1366" y="766" width="348" height="118" rx="10" ry="10" class="box"/>
+  <text x="1380" y="804" class="title">ImportUnit: StructDef</text>
+  <text x="1380" y="822" class="line">mode_str := &quot;&quot;</text>
+  <text x="1380" y="840" class="line">mode := Mode()</text>
+  <text x="1380" y="858" class="line">own ast := Expr.new(NodeType.Body, 0, 0)</text>
+  <text x="1380" y="876" class="line">imports := Vec(Str).new()</text>
+  <rect x="1366" y="902" width="420" height="550" rx="10" ry="10" class="box"/>
+  <text x="1380" y="940" class="title">Context: StructDef</text>
+  <text x="1380" y="958" class="line">mode := Mode()</text>
+  <text x="1380" y="976" class="line">path := &quot;&quot;</text>
+  <text x="1380" y="994" class="line">path_modes := Map(Str, Mode).new()</text>
+  <text x="1380" y="1012" class="line">mode_registry := Map(Str, Mode).new()</text>
+  <text x="1380" y="1030" class="line">target_usize_pname := &quot;U32&quot;</text>
+  <text x="1380" y="1048" class="line">target_uptr_pname := &quot;U64&quot;</text>
+  <text x="1380" y="1066" class="line">anon_type_counter : I64 = 0</text>
+  <text x="1380" y="1084" class="line">compile_mode := false</text>
+  <text x="1380" y="1102" class="line">imported := Map(Str, ImportUnit).new()</text>
+  <text x="1380" y="1120" class="line">imports_init_seed_done := Set(Str).new()</text>
+  <text x="1380" y="1138" class="line">imports_init_active := Set(Str).new()</text>
+  <text x="1380" y="1156" class="line">imports_init_done := Set(Str).new()</text>
+  <text x="1380" y="1174" class="line">imports_typer_decls_done := Set(Str).new()</text>
+  <text x="1380" y="1192" class="line">imports_typer_bodies_done := Set(Str).new()</text>
+  <text x="1380" y="1210" class="line">type_gen_synths := Set(Str).new()</text>
+  <text x="1380" y="1228" class="line">generic_funcs := Map(Str, Expr).new()</text>
+  <text x="1380" y="1246" class="line">generic_func_synths := Set(Str).new()</text>
+  <text x="1380" y="1264" class="line">scope := TypeScope()</text>
+  <text x="1380" y="1282" class="line">is_repl := false</text>
+  <text x="1380" y="1300" class="line">struct_layouts := Map(Str, StructLayout).new()</text>
+  <text x="1380" y="1318" class="line">constfolder_foldables := Map(Str, FuncType).new()</text>
+  <text x="1380" y="1336" class="line">constfolder_known := Map(Str, Value).new()</text>
+  <text x="1380" y="1354" class="line">constfolder_assigned := Set(Str).new()</text>
+  <text x="1380" y="1372" class="line">has_return := false</text>
+  <text x="1380" y="1390" class="line">has_break := false</text>
+  <text x="1380" y="1408" class="line">has_continue := false</text>
+  <text x="1380" y="1426" class="line">return_value := Value.None</text>
+  <text x="1380" y="1444" class="line">... (59 more)</text>
   <rect x="1840" y="24" width="188" height="444" rx="14" ry="14" class="panel"/>
   <text x="1860" y="62" class="panel-label">targets</text>
   <rect x="1860" y="88" width="132" height="100" rx="10" ry="10" class="box"/>
@@ -392,7 +395,7 @@
   <text x="2908" y="216" class="line">own_transfer : I32 = -1</text>
   <text x="2908" y="234" class="line">skip_scope_delete := false</text>
   <text x="2908" y="252" class="line">is_heap := false</text>
-  <rect x="3184" y="24" width="276" height="490" rx="14" ry="14" class="panel"/>
+  <rect x="3184" y="24" width="276" height="662" rx="14" ry="14" class="panel"/>
   <text x="3204" y="62" class="panel-label">builder</text>
   <rect x="3204" y="88" width="236" height="82" rx="10" ry="10" class="box"/>
   <text x="3218" y="126" class="title">CollectionInfo: StructDef</text>
@@ -413,6 +416,14 @@
   <text x="3218" y="452" class="line">til_path := &quot;&quot;</text>
   <text x="3218" y="470" class="line">py_path := &quot;&quot;</text>
   <text x="3218" y="488" class="line">do_lib := false</text>
+  <rect x="3204" y="514" width="220" height="154" rx="10" ry="10" class="box"/>
+  <text x="3218" y="552" class="title">DocIndexEntry: StructDef</text>
+  <text x="3218" y="570" class="line">name := &quot;&quot;</text>
+  <text x="3218" y="588" class="line">group := &quot;&quot;</text>
+  <text x="3218" y="606" class="line">page := &quot;&quot;</text>
+  <text x="3218" y="624" class="line">info := &quot;&quot;</text>
+  <text x="3218" y="642" class="line">since := &quot;&quot;</text>
+  <text x="3218" y="660" class="line">deprecated := &quot;&quot;</text>
   <rect x="3494" y="24" width="428" height="1668" rx="14" ry="14" class="panel"/>
   <text x="3514" y="62" class="panel-label">interpreter</text>
   <rect x="3514" y="88" width="252" height="154" rx="10" ry="10" class="box"/>

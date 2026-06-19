@@ -307,7 +307,8 @@ parse_file := proc(path: Str) returns Expr {
     source := File.readfile(path)
     tokens := tokenize(source, path)
     mut mode_str := ""
-    return parse(tokens, source, path, mode_str)
+    mut anon_type_counter : I64 = 0
+    return parse(tokens, source, path, mode_str, anon_type_counter)
 }
 
 // Collapse oversized boxes: keep the first MAX_BOX_LINES-1 lines and append

@@ -16,13 +16,13 @@ func context_set_mode_from_path(mut ctx: Context, path: Str)
 func context_enter_file(mut ctx: Context, path: Str)
 #+end_src
 
-* mode_registry
+* context_init_mode_registry
 #+begin_src til
-mode_registry is a Map__Str_Mode
+func context_init_mode_registry(mut ctx: Context)
 #+end_src
 
 * mode_resolve
 #+begin_src til
-func mode_resolve(name: Str) returns ref Mode
+func mode_resolve(ctx: Context, name: Str) returns ref Mode
 #+end_src
 

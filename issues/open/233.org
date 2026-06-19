@@ -5,8 +5,8 @@
 *   Current state:
     - /// doc comments support org-style metadata lines: ~#+doc: false~, ~#+group:~, ~#+since:~, and ~#+deprecated:~.
     - Packed blobs for runtime ~help()~ (linear lookup).
-    - ~til doc~ -> org-mode output under ~doc/gen/~, mirroring source tree, no nav or search yet.
-    - No HTML, cross-links, doctests, or grouping pages yet.
+    - ~til doc~ -> org-mode output under ~doc/gen/~, mirroring source tree, with a generated ~doc/gen/index.org~ grouped by ~#+group:~.
+    - No HTML, search, cross-links beyond index links, or doctests yet.
 
 *   Proposed vision (Python/Elixir-inspired):
     - Adopt explicit org-mode doc contract metadata in comments.
@@ -19,7 +19,8 @@
 
 *   Progress:
     - First slice landed org-style doc metadata parsing/rendering and runtime filtering.
-    - Current slice pre-generates escaped core ~help()~ blobs under ~doc/~ so ~til repl~ no longer walks and escapes core docs on the first successful turn.
+    - Second slice pre-generates escaped core ~help()~ blobs under ~doc/~ so ~til repl~ no longer walks and escapes core docs on the first successful turn.
+    - Current slice generates ~doc/gen/index.org~ as the first navigation layer over public docs, grouped by ~#+group:~.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:
