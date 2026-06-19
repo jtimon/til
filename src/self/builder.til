@@ -2577,7 +2577,7 @@ priv num_lit_to_c := func(text: Str) returns Str {
     if body.len().gte(2).and(body.byte_at(0).eq('0')) {
         ref p1 : I8 = body.byte_at(1)
         if p1.eq('b').or(p1.eq('B')).or(p1.eq('o')).or(p1.eq('O')) {
-            v := body.to_i64().to_str()
+            v := body.to_i64()!.to_str()
             if neg { return format("-", v) }
             return v.clone()
         }
@@ -3352,11 +3352,18 @@ priv cli_box_expr := func(ttype: Str, arg: Str) returns Str {
     if ttype.eq("Str") {
         return "Str_clone(&(Str){.c_str = (void *)".format(arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
     }
-    if ttype.eq("I64") { return cli_view_box("I64", "Str_to_i64(_cv)", arg) }
+    // Str.to_i64 throws ParseError (#201), so the raw C call needs the err
+    // out-params wired in; a malformed CLI arg bails via exit(1), matching the
+    // Bool validation below. The narrower signed/unsigned widths wrap this same
+    // checked I64 parse (I64_to_i8 etc.), as the old code did -- using
+    // I64_to_* keeps the emitted-symbol set unchanged (Str_to_i8/i16/u16 are
+    // not force-emitted for a user CLI program).
+    i64c := "({ I64 _ek = 0; ParseError _eo = {0}; I64 _r = Str_to_i64(_cv, &_ek, &_eo); if (_ek != 0) { fprintf(stderr, \"error: cannot parse '%s' as integer\\n\", ".format(arg, "); exit(1); } _r; })")
+    if ttype.eq("I64") { return cli_view_box("I64", i64c, arg) }
     if ttype.eq("U8") { return cli_view_box("U8", "Str_to_u8(_cv)", arg) }
-    if ttype.eq("I8") { return cli_view_box("I8", "I64_to_i8(Str_to_i64(_cv))", arg) }
-    if ttype.eq("I16") { return cli_view_box("I16", "I64_to_i16(Str_to_i64(_cv))", arg) }
-    if ttype.eq("U16") { return cli_view_box("U16", "I64_to_u16(Str_to_i64(_cv))", arg) }
+    if ttype.eq("I8") { return cli_view_box("I8", "I64_to_i8(".format(i64c, ")"), arg) }
+    if ttype.eq("I16") { return cli_view_box("I16", "I64_to_i16(".format(i64c, ")"), arg) }
+    if ttype.eq("U16") { return cli_view_box("U16", "I64_to_u16(".format(i64c, ")"), arg) }
     if ttype.eq("I32") { return cli_view_box("I32", "Str_to_i32(_cv)", arg) }
     if ttype.eq("U32") { return cli_view_box("U32", "Str_to_u32(_cv)", arg) }
     if ttype.eq("U64") { return cli_view_box("U64", "Str_to_u64(_cv)", arg) }

@@ -772,3 +772,29 @@ test_throw_post_guard_locals := test() {
     catch (e: OutOfBounds) { caught = true }
     assert(caught)
 }
+
+// Issue #201: Str.to_i64 throws a catchable ParseError on malformed input
+// instead of panicking; call as `s.to_i64()!` to keep the panic behavior.
+test_str_to_i64_throws := test() {
+    // Success path covers decimal, sign, and a base prefix.
+    assert_eq(I64, "42".to_i64()!, 42)
+    assert_eq(I64, "-17".to_i64()!, 0.sub(17))
+    assert_eq(I64, "0xff".to_i64()!, 255)
+
+    // An invalid digit throws ParseError, with the message carrying the method.
+    mut caught := false
+    mut emsg := ""
+    "12x".to_i64()?
+    catch (e: ParseError) {
+        caught = true
+        emsg = e.msg
+    }
+    assert(caught)
+    assert(emsg.contains("to_i64"))
+
+    // The empty string also throws.
+    mut caught_empty := false
+    "".to_i64()?
+    catch (e: ParseError) { caught_empty = true }
+    assert(caught_empty)
+}

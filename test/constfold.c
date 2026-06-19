@@ -1567,79 +1567,79 @@ U64 Str_hash(Str * self, HashFn hasher) {
 }
 
 U32 Str_size(void) {
-    U32 hoisted__U32_1075 = 16;
-    (void)hoisted__U32_1075;
-    return hoisted__U32_1075;
+    U32 hoisted__U32_1127 = 16;
+    (void)hoisted__U32_1127;
+    return hoisted__U32_1127;
 }
 
 Bool Str_eq(Str * a, Str * b) {
-    I64 hoisted__I64_1076 = Str_cmp(a, b);
-    (void)hoisted__I64_1076;
-    I64 hoisted__I64_1077 = 0;
-    (void)hoisted__I64_1077;
-    Bool hoisted__Bool_1078 = I64_eq(hoisted__I64_1076, hoisted__I64_1077);
-    (void)hoisted__Bool_1078;
-    return hoisted__Bool_1078;
+    I64 hoisted__I64_1128 = Str_cmp(a, b);
+    (void)hoisted__I64_1128;
+    I64 hoisted__I64_1129 = 0;
+    (void)hoisted__I64_1129;
+    Bool hoisted__Bool_1130 = I64_eq(hoisted__I64_1128, hoisted__I64_1129);
+    (void)hoisted__Bool_1130;
+    return hoisted__Bool_1130;
 }
 
 Bool Str_neq(Str * a, Str * b) {
-    Bool hoisted__Bool_1087 = Str_eq(a, b);
-    (void)hoisted__Bool_1087;
-    Bool hoisted__Bool_1088 = not(hoisted__Bool_1087);
-    (void)hoisted__Bool_1088;
-    return hoisted__Bool_1088;
+    Bool hoisted__Bool_1139 = Str_eq(a, b);
+    (void)hoisted__Bool_1139;
+    Bool hoisted__Bool_1140 = not(hoisted__Bool_1139);
+    (void)hoisted__Bool_1140;
+    return hoisted__Bool_1140;
 }
 
 OutOfBounds * OutOfBounds_clone(OutOfBounds * self) {
-    OutOfBounds *hoisted__OutOfBounds_1183 = malloc(sizeof(OutOfBounds));
-    { Str *_ca = Str_clone(&self->msg); hoisted__OutOfBounds_1183->msg = *_ca; free(_ca); }
-    (void)hoisted__OutOfBounds_1183;
-    return hoisted__OutOfBounds_1183;
+    OutOfBounds *hoisted__OutOfBounds_1235 = malloc(sizeof(OutOfBounds));
+    { Str *_ca = Str_clone(&self->msg); hoisted__OutOfBounds_1235->msg = *_ca; free(_ca); }
+    (void)hoisted__OutOfBounds_1235;
+    return hoisted__OutOfBounds_1235;
 }
 
 void OutOfBounds_delete(OutOfBounds * self, Bool call_free) {
-    Bool hoisted__Bool_1184 = 0;
-    (void)hoisted__Bool_1184;
-    Str_delete(&self->msg, hoisted__Bool_1184);
+    Bool hoisted__Bool_1236 = 0;
+    (void)hoisted__Bool_1236;
+    Str_delete(&self->msg, hoisted__Bool_1236);
     if (call_free) {
         free(self);
     }
 }
 
 U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher) {
-    U32 hoisted__U32_1185 = 0;
-    (void)hoisted__U32_1185;
-    U64 hoisted__U64_1186 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, OutOfBounds *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_1185); });
-    (void)hoisted__U64_1186;
-    return hoisted__U64_1186;
+    U32 hoisted__U32_1237 = 0;
+    (void)hoisted__U32_1237;
+    U64 hoisted__U64_1238 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, OutOfBounds *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_1237); });
+    (void)hoisted__U64_1238;
+    return hoisted__U64_1238;
 }
 
 U32 OutOfBounds_size(void) {
-    U32 hoisted__U32_1201 = 16;
-    (void)hoisted__U32_1201;
-    return hoisted__U32_1201;
+    U32 hoisted__U32_1253 = 16;
+    (void)hoisted__U32_1253;
+    return hoisted__U32_1253;
 }
 
 Array__Str * Array__Str_new(U32 cap) {
-    Type *hoisted__Type_1221 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_1221;
-    U32 hoisted__U32_1222 = 16;
-    (void)hoisted__U32_1222;
-    Type *hoisted__Type_1223 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_1223;
-    U64 hoisted__U64_1224 = (U64)(cap);
-    (void)hoisted__U64_1224;
-    Type_delete(hoisted__Type_1221, 1);
-    U64 hoisted__U64_1225 = (U64)(hoisted__U32_1222);
-    (void)hoisted__U64_1225;
-    Type_delete(hoisted__Type_1223, 1);
-    void * hoisted__v_1226 = calloc(hoisted__U64_1224, hoisted__U64_1225);
-    (void)hoisted__v_1226;
-    Array__Str *hoisted__Array__Str_1227 = malloc(sizeof(Array__Str));
-    hoisted__Array__Str_1227->data = hoisted__v_1226;
-    hoisted__Array__Str_1227->cap = cap;
-    (void)hoisted__Array__Str_1227;
-    return hoisted__Array__Str_1227;
+    Type *hoisted__Type_1292 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_1292;
+    U32 hoisted__U32_1293 = 16;
+    (void)hoisted__U32_1293;
+    Type *hoisted__Type_1294 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_1294;
+    U64 hoisted__U64_1295 = (U64)(cap);
+    (void)hoisted__U64_1295;
+    Type_delete(hoisted__Type_1292, 1);
+    U64 hoisted__U64_1296 = (U64)(hoisted__U32_1293);
+    (void)hoisted__U64_1296;
+    Type_delete(hoisted__Type_1294, 1);
+    void * hoisted__v_1297 = calloc(hoisted__U64_1295, hoisted__U64_1296);
+    (void)hoisted__v_1297;
+    Array__Str *hoisted__Array__Str_1298 = malloc(sizeof(Array__Str));
+    hoisted__Array__Str_1298->data = hoisted__v_1297;
+    hoisted__Array__Str_1298->cap = cap;
+    (void)hoisted__Array__Str_1298;
+    return hoisted__Array__Str_1298;
 }
 
 U32 Array__Str_len(Array__Str * self) {
@@ -1647,251 +1647,251 @@ U32 Array__Str_len(Array__Str * self) {
 }
 
 Str * Array__Str_get(Array__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds) {
-    Bool hoisted__Bool_1249 = U32_gte(DEREF(i), self->cap);
-    (void)hoisted__Bool_1249;
-    if (hoisted__Bool_1249) {
-        U32 hoisted__U32_1228 = 6;
-        (void)hoisted__U32_1228;
-        Array__Str *_va_Array_32 = Array__Str_new(hoisted__U32_1228);
-        (void)_va_Array_32;
-        I64 _va_Array_32_ek = 0;
-        (void)_va_Array_32_ek;
-        OutOfBounds *_va_Array_32_eo = malloc(sizeof(OutOfBounds));
-        _va_Array_32_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_va_Array_32_eo;
-        U32 hoisted__U32_1229 = 0;
-        (void)hoisted__U32_1229;
-        Str hoisted__Str_1230 = (Str){.c_str = (void *)"./src/core/str.til:28:44", .count = 24ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1230;
-        Array__Str_set(_va_Array_32, hoisted__U32_1229, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1230; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo);
-        U32 hoisted__U32_1231 = 1;
-        (void)hoisted__U32_1231;
-        Str hoisted__Str_1232 = (Str){.c_str = (void *)":Array.get: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1232;
-        Array__Str_set(_va_Array_32, hoisted__U32_1231, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1232; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo);
-        U32 hoisted__U32_1233 = 2;
-        (void)hoisted__U32_1233;
-        Str *hoisted__Str_1234 = U32_to_str(DEREF(i));
-        (void)hoisted__Str_1234;
-        Array__Str_set(_va_Array_32, hoisted__U32_1233, hoisted__Str_1234, &_va_Array_32_ek, _va_Array_32_eo);
-        U32 hoisted__U32_1235 = 3;
-        (void)hoisted__U32_1235;
-        Str hoisted__Str_1236 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1236;
-        Array__Str_set(_va_Array_32, hoisted__U32_1235, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1236; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo);
-        U32 hoisted__U32_1237 = 4;
-        (void)hoisted__U32_1237;
-        Str *hoisted__Str_1238 = U32_to_str(self->cap);
-        (void)hoisted__Str_1238;
-        Array__Str_set(_va_Array_32, hoisted__U32_1237, hoisted__Str_1238, &_va_Array_32_ek, _va_Array_32_eo);
-        U32 hoisted__U32_1239 = 5;
-        (void)hoisted__U32_1239;
-        Str hoisted__Str_1240 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1240;
-        Array__Str_set(_va_Array_32, hoisted__U32_1239, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1240; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo);
-        OutOfBounds_delete(_va_Array_32_eo, 1);
-        OutOfBounds *hoisted__OutOfBounds_1241 = malloc(sizeof(OutOfBounds));
-        { Str *_ca = format(_va_Array_32); hoisted__OutOfBounds_1241->msg = *_ca; free(_ca); }
-        (void)hoisted__OutOfBounds_1241;
-        U32 hoisted__U32_1242 = 16;
-        (void)hoisted__U32_1242;
-        swap(_err_OutOfBounds, hoisted__OutOfBounds_1241, hoisted__U32_1242);
-        OutOfBounds_delete(hoisted__OutOfBounds_1241, 1);
-        I64 hoisted__I64_1243 = 3;
-        (void)hoisted__I64_1243;
-        *_err_kind = hoisted__I64_1243;
+    Bool hoisted__Bool_1320 = U32_gte(DEREF(i), self->cap);
+    (void)hoisted__Bool_1320;
+    if (hoisted__Bool_1320) {
+        U32 hoisted__U32_1299 = 6;
+        (void)hoisted__U32_1299;
+        Array__Str *_va_Array_36 = Array__Str_new(hoisted__U32_1299);
+        (void)_va_Array_36;
+        I64 _va_Array_36_ek = 0;
+        (void)_va_Array_36_ek;
+        OutOfBounds *_va_Array_36_eo = malloc(sizeof(OutOfBounds));
+        _va_Array_36_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+        (void)_va_Array_36_eo;
+        U32 hoisted__U32_1300 = 0;
+        (void)hoisted__U32_1300;
+        Str hoisted__Str_1301 = (Str){.c_str = (void *)"./src/core/str.til:28:44", .count = 24ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1301;
+        Array__Str_set(_va_Array_36, hoisted__U32_1300, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1301; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_36_ek, _va_Array_36_eo);
+        U32 hoisted__U32_1302 = 1;
+        (void)hoisted__U32_1302;
+        Str hoisted__Str_1303 = (Str){.c_str = (void *)":Array.get: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1303;
+        Array__Str_set(_va_Array_36, hoisted__U32_1302, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1303; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_36_ek, _va_Array_36_eo);
+        U32 hoisted__U32_1304 = 2;
+        (void)hoisted__U32_1304;
+        Str *hoisted__Str_1305 = U32_to_str(DEREF(i));
+        (void)hoisted__Str_1305;
+        Array__Str_set(_va_Array_36, hoisted__U32_1304, hoisted__Str_1305, &_va_Array_36_ek, _va_Array_36_eo);
+        U32 hoisted__U32_1306 = 3;
+        (void)hoisted__U32_1306;
+        Str hoisted__Str_1307 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1307;
+        Array__Str_set(_va_Array_36, hoisted__U32_1306, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1307; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_36_ek, _va_Array_36_eo);
+        U32 hoisted__U32_1308 = 4;
+        (void)hoisted__U32_1308;
+        Str *hoisted__Str_1309 = U32_to_str(self->cap);
+        (void)hoisted__Str_1309;
+        Array__Str_set(_va_Array_36, hoisted__U32_1308, hoisted__Str_1309, &_va_Array_36_ek, _va_Array_36_eo);
+        U32 hoisted__U32_1310 = 5;
+        (void)hoisted__U32_1310;
+        Str hoisted__Str_1311 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1311;
+        Array__Str_set(_va_Array_36, hoisted__U32_1310, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1311; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_36_ek, _va_Array_36_eo);
+        OutOfBounds_delete(_va_Array_36_eo, 1);
+        OutOfBounds *hoisted__OutOfBounds_1312 = malloc(sizeof(OutOfBounds));
+        { Str *_ca = format(_va_Array_36); hoisted__OutOfBounds_1312->msg = *_ca; free(_ca); }
+        (void)hoisted__OutOfBounds_1312;
+        U32 hoisted__U32_1313 = 16;
+        (void)hoisted__U32_1313;
+        swap(_err_OutOfBounds, hoisted__OutOfBounds_1312, hoisted__U32_1313);
+        OutOfBounds_delete(hoisted__OutOfBounds_1312, 1);
+        I64 hoisted__I64_1314 = 3;
+        (void)hoisted__I64_1314;
+        *_err_kind = hoisted__I64_1314;
     }
-    I64 hoisted__I64_1250 = 0;
-    (void)hoisted__I64_1250;
-    Bool hoisted__Bool_1251 = I64_eq(DEREF(_err_kind), hoisted__I64_1250);
-    (void)hoisted__Bool_1251;
-    if (hoisted__Bool_1251) {
-        U32 hoisted__U32_1244 = 16;
-        (void)hoisted__U32_1244;
-        U32 hoisted__U32_1245 = U32_mul(DEREF(i), hoisted__U32_1244);
-        (void)hoisted__U32_1245;
-        Type *hoisted__Type_1246 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-        (void)hoisted__Type_1246;
-        U64 hoisted__U64_1247 = (U64)(hoisted__U32_1245);
-        (void)hoisted__U64_1247;
-        Type_delete(hoisted__Type_1246, 1);
-        void *hoisted__v_1248 = ptr_add(self->data, hoisted__U64_1247);
-        (void)hoisted__v_1248;
-        (void)hoisted__v_1248;
-        { Str * _ret_val = hoisted__v_1248;
+    I64 hoisted__I64_1321 = 0;
+    (void)hoisted__I64_1321;
+    Bool hoisted__Bool_1322 = I64_eq(DEREF(_err_kind), hoisted__I64_1321);
+    (void)hoisted__Bool_1322;
+    if (hoisted__Bool_1322) {
+        U32 hoisted__U32_1315 = 16;
+        (void)hoisted__U32_1315;
+        U32 hoisted__U32_1316 = U32_mul(DEREF(i), hoisted__U32_1315);
+        (void)hoisted__U32_1316;
+        Type *hoisted__Type_1317 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+        (void)hoisted__Type_1317;
+        U64 hoisted__U64_1318 = (U64)(hoisted__U32_1316);
+        (void)hoisted__U64_1318;
+        Type_delete(hoisted__Type_1317, 1);
+        void *hoisted__v_1319 = ptr_add(self->data, hoisted__U64_1318);
+        (void)hoisted__v_1319;
+        (void)hoisted__v_1319;
+        { Str * _ret_val = hoisted__v_1319;
                 return _ret_val; }
     }
     return NULL;
 }
 
 void Array__Str_set(Array__Str * self, U32 i, Str * val, I64 * _err_kind, OutOfBounds * _err_OutOfBounds) {
-    Bool hoisted__Bool_1286 = U32_gte(i, self->cap);
-    (void)hoisted__Bool_1286;
-    if (hoisted__Bool_1286) {
-        U32 hoisted__U32_1252 = 6;
-        (void)hoisted__U32_1252;
-        Array__Str *_va_Array_33 = Array__Str_new(hoisted__U32_1252);
-        (void)_va_Array_33;
-        I64 _va_Array_33_ek = 0;
-        (void)_va_Array_33_ek;
-        OutOfBounds *_va_Array_33_eo = malloc(sizeof(OutOfBounds));
-        _va_Array_33_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_va_Array_33_eo;
-        U32 hoisted__U32_1253 = 0;
-        (void)hoisted__U32_1253;
-        Str hoisted__Str_1254 = (Str){.c_str = (void *)"./src/core/str.til:39:44", .count = 24ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1254;
-        Array__Str_set(_va_Array_33, hoisted__U32_1253, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1254; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo);
-        U32 hoisted__U32_1255 = 1;
-        (void)hoisted__U32_1255;
-        Str hoisted__Str_1256 = (Str){.c_str = (void *)":Array.set: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1256;
-        Array__Str_set(_va_Array_33, hoisted__U32_1255, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1256; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo);
-        U32 hoisted__U32_1257 = 2;
-        (void)hoisted__U32_1257;
-        Str *hoisted__Str_1258 = U32_to_str(i);
-        (void)hoisted__Str_1258;
-        Array__Str_set(_va_Array_33, hoisted__U32_1257, hoisted__Str_1258, &_va_Array_33_ek, _va_Array_33_eo);
-        U32 hoisted__U32_1259 = 3;
-        (void)hoisted__U32_1259;
-        Str hoisted__Str_1260 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1260;
-        Array__Str_set(_va_Array_33, hoisted__U32_1259, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1260; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo);
-        U32 hoisted__U32_1261 = 4;
-        (void)hoisted__U32_1261;
-        Str *hoisted__Str_1262 = U32_to_str(self->cap);
-        (void)hoisted__Str_1262;
-        Array__Str_set(_va_Array_33, hoisted__U32_1261, hoisted__Str_1262, &_va_Array_33_ek, _va_Array_33_eo);
-        U32 hoisted__U32_1263 = 5;
-        (void)hoisted__U32_1263;
-        Str hoisted__Str_1264 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_1264;
-        Array__Str_set(_va_Array_33, hoisted__U32_1263, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1264; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo);
-        OutOfBounds_delete(_va_Array_33_eo, 1);
-        OutOfBounds *hoisted__OutOfBounds_1265 = malloc(sizeof(OutOfBounds));
-        { Str *_ca = format(_va_Array_33); hoisted__OutOfBounds_1265->msg = *_ca; free(_ca); }
-        (void)hoisted__OutOfBounds_1265;
-        U32 hoisted__U32_1266 = 16;
-        (void)hoisted__U32_1266;
-        swap(_err_OutOfBounds, hoisted__OutOfBounds_1265, hoisted__U32_1266);
-        OutOfBounds_delete(hoisted__OutOfBounds_1265, 1);
-        I64 hoisted__I64_1267 = 3;
-        (void)hoisted__I64_1267;
-        *_err_kind = hoisted__I64_1267;
+    Bool hoisted__Bool_1357 = U32_gte(i, self->cap);
+    (void)hoisted__Bool_1357;
+    if (hoisted__Bool_1357) {
+        U32 hoisted__U32_1323 = 6;
+        (void)hoisted__U32_1323;
+        Array__Str *_va_Array_37 = Array__Str_new(hoisted__U32_1323);
+        (void)_va_Array_37;
+        I64 _va_Array_37_ek = 0;
+        (void)_va_Array_37_ek;
+        OutOfBounds *_va_Array_37_eo = malloc(sizeof(OutOfBounds));
+        _va_Array_37_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+        (void)_va_Array_37_eo;
+        U32 hoisted__U32_1324 = 0;
+        (void)hoisted__U32_1324;
+        Str hoisted__Str_1325 = (Str){.c_str = (void *)"./src/core/str.til:39:44", .count = 24ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1325;
+        Array__Str_set(_va_Array_37, hoisted__U32_1324, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1325; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_37_ek, _va_Array_37_eo);
+        U32 hoisted__U32_1326 = 1;
+        (void)hoisted__U32_1326;
+        Str hoisted__Str_1327 = (Str){.c_str = (void *)":Array.set: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1327;
+        Array__Str_set(_va_Array_37, hoisted__U32_1326, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1327; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_37_ek, _va_Array_37_eo);
+        U32 hoisted__U32_1328 = 2;
+        (void)hoisted__U32_1328;
+        Str *hoisted__Str_1329 = U32_to_str(i);
+        (void)hoisted__Str_1329;
+        Array__Str_set(_va_Array_37, hoisted__U32_1328, hoisted__Str_1329, &_va_Array_37_ek, _va_Array_37_eo);
+        U32 hoisted__U32_1330 = 3;
+        (void)hoisted__U32_1330;
+        Str hoisted__Str_1331 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1331;
+        Array__Str_set(_va_Array_37, hoisted__U32_1330, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1331; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_37_ek, _va_Array_37_eo);
+        U32 hoisted__U32_1332 = 4;
+        (void)hoisted__U32_1332;
+        Str *hoisted__Str_1333 = U32_to_str(self->cap);
+        (void)hoisted__Str_1333;
+        Array__Str_set(_va_Array_37, hoisted__U32_1332, hoisted__Str_1333, &_va_Array_37_ek, _va_Array_37_eo);
+        U32 hoisted__U32_1334 = 5;
+        (void)hoisted__U32_1334;
+        Str hoisted__Str_1335 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_1335;
+        Array__Str_set(_va_Array_37, hoisted__U32_1334, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1335; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_37_ek, _va_Array_37_eo);
+        OutOfBounds_delete(_va_Array_37_eo, 1);
+        OutOfBounds *hoisted__OutOfBounds_1336 = malloc(sizeof(OutOfBounds));
+        { Str *_ca = format(_va_Array_37); hoisted__OutOfBounds_1336->msg = *_ca; free(_ca); }
+        (void)hoisted__OutOfBounds_1336;
+        U32 hoisted__U32_1337 = 16;
+        (void)hoisted__U32_1337;
+        swap(_err_OutOfBounds, hoisted__OutOfBounds_1336, hoisted__U32_1337);
+        OutOfBounds_delete(hoisted__OutOfBounds_1336, 1);
+        I64 hoisted__I64_1338 = 3;
+        (void)hoisted__I64_1338;
+        *_err_kind = hoisted__I64_1338;
     }
-    I64 hoisted__I64_1287 = 0;
-    (void)hoisted__I64_1287;
-    Bool hoisted__Bool_1288 = I64_eq(DEREF(_err_kind), hoisted__I64_1287);
-    (void)hoisted__Bool_1288;
-    if (hoisted__Bool_1288) {
-        U32 hoisted__U32_1268 = 16;
-        (void)hoisted__U32_1268;
-        U32 hoisted__U32_1269 = U32_mul(i, hoisted__U32_1268);
-        (void)hoisted__U32_1269;
-        Type *hoisted__Type_1270 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-        (void)hoisted__Type_1270;
-        U64 hoisted__U64_1271 = (U64)(hoisted__U32_1269);
-        (void)hoisted__U64_1271;
-        Type_delete(hoisted__Type_1270, 1);
-        Str *hoisted__Str_1272 = ptr_add(self->data, hoisted__U64_1271);
-        (void)hoisted__Str_1272;
-        (void)hoisted__Str_1272;
-        Bool hoisted__Bool_1273 = 0;
-        (void)hoisted__Bool_1273;
-        Str_delete(hoisted__Str_1272, hoisted__Bool_1273);
-        U32 hoisted__U32_1274 = 16;
-        (void)hoisted__U32_1274;
-        U32 hoisted__U32_1275 = U32_mul(i, hoisted__U32_1274);
-        (void)hoisted__U32_1275;
-        Type *hoisted__Type_1276 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-        (void)hoisted__Type_1276;
-        U64 hoisted__U64_1277 = (U64)(hoisted__U32_1275);
-        (void)hoisted__U64_1277;
-        Type_delete(hoisted__Type_1276, 1);
-        U32 hoisted__U32_1278 = 16;
-        (void)hoisted__U32_1278;
-        Type *hoisted__Type_1279 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-        (void)hoisted__Type_1279;
-        void *hoisted__v_1280 = ptr_add(self->data, hoisted__U64_1277);
-        (void)hoisted__v_1280;
-        (void)hoisted__v_1280;
-        U64 hoisted__U64_1281 = (U64)(hoisted__U32_1278);
-        (void)hoisted__U64_1281;
-        Type_delete(hoisted__Type_1279, 1);
-        memcpy(hoisted__v_1280, val, hoisted__U64_1281);
-        U32 hoisted__U32_1282 = 16;
-        (void)hoisted__U32_1282;
-        Type *hoisted__Type_1283 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-        (void)hoisted__Type_1283;
-        I32 hoisted__I32_1284 = 0;
-        (void)hoisted__I32_1284;
-        U64 hoisted__U64_1285 = (U64)(hoisted__U32_1282);
-        (void)hoisted__U64_1285;
-        Type_delete(hoisted__Type_1283, 1);
-        memset(val, hoisted__I32_1284, hoisted__U64_1285);
+    I64 hoisted__I64_1358 = 0;
+    (void)hoisted__I64_1358;
+    Bool hoisted__Bool_1359 = I64_eq(DEREF(_err_kind), hoisted__I64_1358);
+    (void)hoisted__Bool_1359;
+    if (hoisted__Bool_1359) {
+        U32 hoisted__U32_1339 = 16;
+        (void)hoisted__U32_1339;
+        U32 hoisted__U32_1340 = U32_mul(i, hoisted__U32_1339);
+        (void)hoisted__U32_1340;
+        Type *hoisted__Type_1341 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+        (void)hoisted__Type_1341;
+        U64 hoisted__U64_1342 = (U64)(hoisted__U32_1340);
+        (void)hoisted__U64_1342;
+        Type_delete(hoisted__Type_1341, 1);
+        Str *hoisted__Str_1343 = ptr_add(self->data, hoisted__U64_1342);
+        (void)hoisted__Str_1343;
+        (void)hoisted__Str_1343;
+        Bool hoisted__Bool_1344 = 0;
+        (void)hoisted__Bool_1344;
+        Str_delete(hoisted__Str_1343, hoisted__Bool_1344);
+        U32 hoisted__U32_1345 = 16;
+        (void)hoisted__U32_1345;
+        U32 hoisted__U32_1346 = U32_mul(i, hoisted__U32_1345);
+        (void)hoisted__U32_1346;
+        Type *hoisted__Type_1347 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+        (void)hoisted__Type_1347;
+        U64 hoisted__U64_1348 = (U64)(hoisted__U32_1346);
+        (void)hoisted__U64_1348;
+        Type_delete(hoisted__Type_1347, 1);
+        U32 hoisted__U32_1349 = 16;
+        (void)hoisted__U32_1349;
+        Type *hoisted__Type_1350 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+        (void)hoisted__Type_1350;
+        void *hoisted__v_1351 = ptr_add(self->data, hoisted__U64_1348);
+        (void)hoisted__v_1351;
+        (void)hoisted__v_1351;
+        U64 hoisted__U64_1352 = (U64)(hoisted__U32_1349);
+        (void)hoisted__U64_1352;
+        Type_delete(hoisted__Type_1350, 1);
+        memcpy(hoisted__v_1351, val, hoisted__U64_1352);
+        U32 hoisted__U32_1353 = 16;
+        (void)hoisted__U32_1353;
+        Type *hoisted__Type_1354 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+        (void)hoisted__Type_1354;
+        I32 hoisted__I32_1355 = 0;
+        (void)hoisted__I32_1355;
+        U64 hoisted__U64_1356 = (U64)(hoisted__U32_1353);
+        (void)hoisted__U64_1356;
+        Type_delete(hoisted__Type_1354, 1);
+        memset(val, hoisted__I32_1355, hoisted__U64_1356);
     }
     Str_delete(val, 1);
 }
 
 void Array__Str_delete(Array__Str * self, Bool call_free) {
     {
-        U32 _re_U32_1289 = self->cap;
-        (void)_re_U32_1289;
-        U32 _rc_U32_1289 = 0;
-        (void)_rc_U32_1289;
-        Bool hoisted__Bool_1304 = U32_lte(_rc_U32_1289, _re_U32_1289);
-        (void)hoisted__Bool_1304;
-        if (hoisted__Bool_1304) {
+        U32 _re_U32_1360 = self->cap;
+        (void)_re_U32_1360;
+        U32 _rc_U32_1360 = 0;
+        (void)_rc_U32_1360;
+        Bool hoisted__Bool_1375 = U32_lte(_rc_U32_1360, _re_U32_1360);
+        (void)hoisted__Bool_1375;
+        if (hoisted__Bool_1375) {
             while (1) {
-                Bool _wcond_Bool_1290 = U32_lt(_rc_U32_1289, _re_U32_1289);
-                (void)_wcond_Bool_1290;
-                if (_wcond_Bool_1290) {
+                Bool _wcond_Bool_1361 = U32_lt(_rc_U32_1360, _re_U32_1360);
+                (void)_wcond_Bool_1361;
+                if (_wcond_Bool_1361) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1289);
-                U32_inc(&_rc_U32_1289);
-                U32 hoisted__U32_1291 = 16;
-                (void)hoisted__U32_1291;
-                U32 hoisted__U32_1292 = U32_mul(i, hoisted__U32_1291);
-                (void)hoisted__U32_1292;
-                Type *hoisted__Type_1293 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1293;
-                U64 hoisted__U64_1294 = (U64)(hoisted__U32_1292);
-                (void)hoisted__U64_1294;
-                Type_delete(hoisted__Type_1293, 1);
-                Str *hoisted__Str_1295 = ptr_add(self->data, hoisted__U64_1294);
-                (void)hoisted__Str_1295;
-                (void)hoisted__Str_1295;
-                Bool hoisted__Bool_1296 = 0;
-                (void)hoisted__Bool_1296;
-                Str_delete(hoisted__Str_1295, hoisted__Bool_1296);
+                U32 i = U32_clone(&_rc_U32_1360);
+                U32_inc(&_rc_U32_1360);
+                U32 hoisted__U32_1362 = 16;
+                (void)hoisted__U32_1362;
+                U32 hoisted__U32_1363 = U32_mul(i, hoisted__U32_1362);
+                (void)hoisted__U32_1363;
+                Type *hoisted__Type_1364 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1364;
+                U64 hoisted__U64_1365 = (U64)(hoisted__U32_1363);
+                (void)hoisted__U64_1365;
+                Type_delete(hoisted__Type_1364, 1);
+                Str *hoisted__Str_1366 = ptr_add(self->data, hoisted__U64_1365);
+                (void)hoisted__Str_1366;
+                (void)hoisted__Str_1366;
+                Bool hoisted__Bool_1367 = 0;
+                (void)hoisted__Bool_1367;
+                Str_delete(hoisted__Str_1366, hoisted__Bool_1367);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_1297 = U32_gt(_rc_U32_1289, _re_U32_1289);
-                (void)_wcond_Bool_1297;
-                if (_wcond_Bool_1297) {
+                Bool _wcond_Bool_1368 = U32_gt(_rc_U32_1360, _re_U32_1360);
+                (void)_wcond_Bool_1368;
+                if (_wcond_Bool_1368) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1289);
-                U32_dec(&_rc_U32_1289);
-                U32 hoisted__U32_1298 = 16;
-                (void)hoisted__U32_1298;
-                U32 hoisted__U32_1299 = U32_mul(i, hoisted__U32_1298);
-                (void)hoisted__U32_1299;
-                Type *hoisted__Type_1300 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1300;
-                U64 hoisted__U64_1301 = (U64)(hoisted__U32_1299);
-                (void)hoisted__U64_1301;
-                Type_delete(hoisted__Type_1300, 1);
-                Str *hoisted__Str_1302 = ptr_add(self->data, hoisted__U64_1301);
-                (void)hoisted__Str_1302;
-                (void)hoisted__Str_1302;
-                Bool hoisted__Bool_1303 = 0;
-                (void)hoisted__Bool_1303;
-                Str_delete(hoisted__Str_1302, hoisted__Bool_1303);
+                U32 i = U32_clone(&_rc_U32_1360);
+                U32_dec(&_rc_U32_1360);
+                U32 hoisted__U32_1369 = 16;
+                (void)hoisted__U32_1369;
+                U32 hoisted__U32_1370 = U32_mul(i, hoisted__U32_1369);
+                (void)hoisted__U32_1370;
+                Type *hoisted__Type_1371 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1371;
+                U64 hoisted__U64_1372 = (U64)(hoisted__U32_1370);
+                (void)hoisted__U64_1372;
+                Type_delete(hoisted__Type_1371, 1);
+                Str *hoisted__Str_1373 = ptr_add(self->data, hoisted__U64_1372);
+                (void)hoisted__Str_1373;
+                (void)hoisted__Str_1373;
+                Bool hoisted__Bool_1374 = 0;
+                (void)hoisted__Bool_1374;
+                Str_delete(hoisted__Str_1373, hoisted__Bool_1374);
             }
         }
     }
@@ -1902,231 +1902,231 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
 }
 
 Array__Str * Array__Str_clone(Array__Str * self) {
-    U32 hoisted__U32_1341 = 16;
-    (void)hoisted__U32_1341;
-    U32 hoisted__U32_1342 = U32_mul(self->cap, hoisted__U32_1341);
-    (void)hoisted__U32_1342;
-    Type *hoisted__Type_1343 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_1343;
-    U64 hoisted__U64_1344 = (U64)(hoisted__U32_1342);
-    (void)hoisted__U64_1344;
-    Type_delete(hoisted__Type_1343, 1);
-    void * new_data = malloc(hoisted__U64_1344);
+    U32 hoisted__U32_1412 = 16;
+    (void)hoisted__U32_1412;
+    U32 hoisted__U32_1413 = U32_mul(self->cap, hoisted__U32_1412);
+    (void)hoisted__U32_1413;
+    Type *hoisted__Type_1414 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_1414;
+    U64 hoisted__U64_1415 = (U64)(hoisted__U32_1413);
+    (void)hoisted__U64_1415;
+    Type_delete(hoisted__Type_1414, 1);
+    void * new_data = malloc(hoisted__U64_1415);
     {
-        U32 _re_U32_1305 = self->cap;
-        (void)_re_U32_1305;
-        U32 _rc_U32_1305 = 0;
-        (void)_rc_U32_1305;
-        Bool hoisted__Bool_1340 = U32_lte(_rc_U32_1305, _re_U32_1305);
-        (void)hoisted__Bool_1340;
-        if (hoisted__Bool_1340) {
+        U32 _re_U32_1376 = self->cap;
+        (void)_re_U32_1376;
+        U32 _rc_U32_1376 = 0;
+        (void)_rc_U32_1376;
+        Bool hoisted__Bool_1411 = U32_lte(_rc_U32_1376, _re_U32_1376);
+        (void)hoisted__Bool_1411;
+        if (hoisted__Bool_1411) {
             while (1) {
-                Bool _wcond_Bool_1306 = U32_lt(_rc_U32_1305, _re_U32_1305);
-                (void)_wcond_Bool_1306;
-                if (_wcond_Bool_1306) {
+                Bool _wcond_Bool_1377 = U32_lt(_rc_U32_1376, _re_U32_1376);
+                (void)_wcond_Bool_1377;
+                if (_wcond_Bool_1377) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1305);
-                U32_inc(&_rc_U32_1305);
-                U32 hoisted__U32_1307 = 16;
-                (void)hoisted__U32_1307;
-                U32 hoisted__U32_1308 = U32_mul(i, hoisted__U32_1307);
-                (void)hoisted__U32_1308;
-                Type *hoisted__Type_1309 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1309;
-                U64 hoisted__U64_1310 = (U64)(hoisted__U32_1308);
-                (void)hoisted__U64_1310;
-                Type_delete(hoisted__Type_1309, 1);
-                Str *src = ptr_add(self->data, hoisted__U64_1310);
+                U32 i = U32_clone(&_rc_U32_1376);
+                U32_inc(&_rc_U32_1376);
+                U32 hoisted__U32_1378 = 16;
+                (void)hoisted__U32_1378;
+                U32 hoisted__U32_1379 = U32_mul(i, hoisted__U32_1378);
+                (void)hoisted__U32_1379;
+                Type *hoisted__Type_1380 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1380;
+                U64 hoisted__U64_1381 = (U64)(hoisted__U32_1379);
+                (void)hoisted__U64_1381;
+                Type_delete(hoisted__Type_1380, 1);
+                Str *src = ptr_add(self->data, hoisted__U64_1381);
                 Str *cloned = Str_clone(src);
-                U32 hoisted__U32_1311 = 16;
-                (void)hoisted__U32_1311;
-                U32 hoisted__U32_1312 = U32_mul(i, hoisted__U32_1311);
-                (void)hoisted__U32_1312;
-                Type *hoisted__Type_1313 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1313;
-                U64 hoisted__U64_1314 = (U64)(hoisted__U32_1312);
-                (void)hoisted__U64_1314;
-                Type_delete(hoisted__Type_1313, 1);
-                U32 hoisted__U32_1315 = 16;
-                (void)hoisted__U32_1315;
-                Type *hoisted__Type_1316 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1316;
-                void *hoisted__v_1317 = ptr_add(new_data, hoisted__U64_1314);
-                (void)hoisted__v_1317;
-                (void)hoisted__v_1317;
-                U64 hoisted__U64_1318 = (U64)(hoisted__U32_1315);
-                (void)hoisted__U64_1318;
-                Type_delete(hoisted__Type_1316, 1);
-                memcpy(hoisted__v_1317, cloned, hoisted__U64_1318);
-                U32 hoisted__U32_1319 = 16;
-                (void)hoisted__U32_1319;
-                Type *hoisted__Type_1320 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1320;
-                I32 hoisted__I32_1321 = 0;
-                (void)hoisted__I32_1321;
-                U64 hoisted__U64_1322 = (U64)(hoisted__U32_1319);
-                (void)hoisted__U64_1322;
-                Type_delete(hoisted__Type_1320, 1);
-                memset(cloned, hoisted__I32_1321, hoisted__U64_1322);
+                U32 hoisted__U32_1382 = 16;
+                (void)hoisted__U32_1382;
+                U32 hoisted__U32_1383 = U32_mul(i, hoisted__U32_1382);
+                (void)hoisted__U32_1383;
+                Type *hoisted__Type_1384 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1384;
+                U64 hoisted__U64_1385 = (U64)(hoisted__U32_1383);
+                (void)hoisted__U64_1385;
+                Type_delete(hoisted__Type_1384, 1);
+                U32 hoisted__U32_1386 = 16;
+                (void)hoisted__U32_1386;
+                Type *hoisted__Type_1387 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1387;
+                void *hoisted__v_1388 = ptr_add(new_data, hoisted__U64_1385);
+                (void)hoisted__v_1388;
+                (void)hoisted__v_1388;
+                U64 hoisted__U64_1389 = (U64)(hoisted__U32_1386);
+                (void)hoisted__U64_1389;
+                Type_delete(hoisted__Type_1387, 1);
+                memcpy(hoisted__v_1388, cloned, hoisted__U64_1389);
+                U32 hoisted__U32_1390 = 16;
+                (void)hoisted__U32_1390;
+                Type *hoisted__Type_1391 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1391;
+                I32 hoisted__I32_1392 = 0;
+                (void)hoisted__I32_1392;
+                U64 hoisted__U64_1393 = (U64)(hoisted__U32_1390);
+                (void)hoisted__U64_1393;
+                Type_delete(hoisted__Type_1391, 1);
+                memset(cloned, hoisted__I32_1392, hoisted__U64_1393);
                 Str_delete(cloned, 1);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_1323 = U32_gt(_rc_U32_1305, _re_U32_1305);
-                (void)_wcond_Bool_1323;
-                if (_wcond_Bool_1323) {
+                Bool _wcond_Bool_1394 = U32_gt(_rc_U32_1376, _re_U32_1376);
+                (void)_wcond_Bool_1394;
+                if (_wcond_Bool_1394) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1305);
-                U32_dec(&_rc_U32_1305);
-                U32 hoisted__U32_1324 = 16;
-                (void)hoisted__U32_1324;
-                U32 hoisted__U32_1325 = U32_mul(i, hoisted__U32_1324);
-                (void)hoisted__U32_1325;
-                Type *hoisted__Type_1326 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1326;
-                U64 hoisted__U64_1327 = (U64)(hoisted__U32_1325);
-                (void)hoisted__U64_1327;
-                Type_delete(hoisted__Type_1326, 1);
-                Str *src = ptr_add(self->data, hoisted__U64_1327);
+                U32 i = U32_clone(&_rc_U32_1376);
+                U32_dec(&_rc_U32_1376);
+                U32 hoisted__U32_1395 = 16;
+                (void)hoisted__U32_1395;
+                U32 hoisted__U32_1396 = U32_mul(i, hoisted__U32_1395);
+                (void)hoisted__U32_1396;
+                Type *hoisted__Type_1397 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1397;
+                U64 hoisted__U64_1398 = (U64)(hoisted__U32_1396);
+                (void)hoisted__U64_1398;
+                Type_delete(hoisted__Type_1397, 1);
+                Str *src = ptr_add(self->data, hoisted__U64_1398);
                 Str *cloned = Str_clone(src);
-                U32 hoisted__U32_1328 = 16;
-                (void)hoisted__U32_1328;
-                U32 hoisted__U32_1329 = U32_mul(i, hoisted__U32_1328);
-                (void)hoisted__U32_1329;
-                Type *hoisted__Type_1330 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1330;
-                U64 hoisted__U64_1331 = (U64)(hoisted__U32_1329);
-                (void)hoisted__U64_1331;
-                Type_delete(hoisted__Type_1330, 1);
-                U32 hoisted__U32_1332 = 16;
-                (void)hoisted__U32_1332;
-                Type *hoisted__Type_1333 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1333;
-                void *hoisted__v_1334 = ptr_add(new_data, hoisted__U64_1331);
-                (void)hoisted__v_1334;
-                (void)hoisted__v_1334;
-                U64 hoisted__U64_1335 = (U64)(hoisted__U32_1332);
-                (void)hoisted__U64_1335;
-                Type_delete(hoisted__Type_1333, 1);
-                memcpy(hoisted__v_1334, cloned, hoisted__U64_1335);
-                U32 hoisted__U32_1336 = 16;
-                (void)hoisted__U32_1336;
-                Type *hoisted__Type_1337 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1337;
-                I32 hoisted__I32_1338 = 0;
-                (void)hoisted__I32_1338;
-                U64 hoisted__U64_1339 = (U64)(hoisted__U32_1336);
-                (void)hoisted__U64_1339;
-                Type_delete(hoisted__Type_1337, 1);
-                memset(cloned, hoisted__I32_1338, hoisted__U64_1339);
+                U32 hoisted__U32_1399 = 16;
+                (void)hoisted__U32_1399;
+                U32 hoisted__U32_1400 = U32_mul(i, hoisted__U32_1399);
+                (void)hoisted__U32_1400;
+                Type *hoisted__Type_1401 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1401;
+                U64 hoisted__U64_1402 = (U64)(hoisted__U32_1400);
+                (void)hoisted__U64_1402;
+                Type_delete(hoisted__Type_1401, 1);
+                U32 hoisted__U32_1403 = 16;
+                (void)hoisted__U32_1403;
+                Type *hoisted__Type_1404 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1404;
+                void *hoisted__v_1405 = ptr_add(new_data, hoisted__U64_1402);
+                (void)hoisted__v_1405;
+                (void)hoisted__v_1405;
+                U64 hoisted__U64_1406 = (U64)(hoisted__U32_1403);
+                (void)hoisted__U64_1406;
+                Type_delete(hoisted__Type_1404, 1);
+                memcpy(hoisted__v_1405, cloned, hoisted__U64_1406);
+                U32 hoisted__U32_1407 = 16;
+                (void)hoisted__U32_1407;
+                Type *hoisted__Type_1408 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1408;
+                I32 hoisted__I32_1409 = 0;
+                (void)hoisted__I32_1409;
+                U64 hoisted__U64_1410 = (U64)(hoisted__U32_1407);
+                (void)hoisted__U64_1410;
+                Type_delete(hoisted__Type_1408, 1);
+                memset(cloned, hoisted__I32_1409, hoisted__U64_1410);
                 Str_delete(cloned, 1);
             }
         }
     }
-    Array__Str *hoisted__Array__Str_1345 = malloc(sizeof(Array__Str));
-    hoisted__Array__Str_1345->data = new_data;
-    hoisted__Array__Str_1345->cap = self->cap;
-    (void)hoisted__Array__Str_1345;
-    return hoisted__Array__Str_1345;
+    Array__Str *hoisted__Array__Str_1416 = malloc(sizeof(Array__Str));
+    hoisted__Array__Str_1416->data = new_data;
+    hoisted__Array__Str_1416->cap = self->cap;
+    (void)hoisted__Array__Str_1416;
+    return hoisted__Array__Str_1416;
 }
 
 U32 Array__Str_size(void) {
-    U32 hoisted__U32_1346 = 16;
-    (void)hoisted__U32_1346;
-    return hoisted__U32_1346;
+    U32 hoisted__U32_1417 = 16;
+    (void)hoisted__U32_1417;
+    return hoisted__U32_1417;
 }
 
 Vec__Str * Vec__Str_new(void) {
-    U32 hoisted__U32_1347 = 16;
-    (void)hoisted__U32_1347;
-    Type *hoisted__Type_1348 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_1348;
-    U64 hoisted__U64_1349 = (U64)(hoisted__U32_1347);
-    (void)hoisted__U64_1349;
-    Type_delete(hoisted__Type_1348, 1);
-    void * hoisted__v_1350 = malloc(hoisted__U64_1349);
-    (void)hoisted__v_1350;
-    U32 hoisted__U32_1351 = 0;
-    (void)hoisted__U32_1351;
-    I64 hoisted__I64_1352 = 1;
-    (void)hoisted__I64_1352;
-    Vec__Str *hoisted__Vec__Str_1353 = malloc(sizeof(Vec__Str));
-    hoisted__Vec__Str_1353->data = hoisted__v_1350;
-    hoisted__Vec__Str_1353->count = hoisted__U32_1351;
-    hoisted__Vec__Str_1353->cap = hoisted__I64_1352;
-    (void)hoisted__Vec__Str_1353;
-    return hoisted__Vec__Str_1353;
+    U32 hoisted__U32_1418 = 16;
+    (void)hoisted__U32_1418;
+    Type *hoisted__Type_1419 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_1419;
+    U64 hoisted__U64_1420 = (U64)(hoisted__U32_1418);
+    (void)hoisted__U64_1420;
+    Type_delete(hoisted__Type_1419, 1);
+    void * hoisted__v_1421 = malloc(hoisted__U64_1420);
+    (void)hoisted__v_1421;
+    U32 hoisted__U32_1422 = 0;
+    (void)hoisted__U32_1422;
+    I64 hoisted__I64_1423 = 1;
+    (void)hoisted__I64_1423;
+    Vec__Str *hoisted__Vec__Str_1424 = malloc(sizeof(Vec__Str));
+    hoisted__Vec__Str_1424->data = hoisted__v_1421;
+    hoisted__Vec__Str_1424->count = hoisted__U32_1422;
+    hoisted__Vec__Str_1424->cap = hoisted__I64_1423;
+    (void)hoisted__Vec__Str_1424;
+    return hoisted__Vec__Str_1424;
 }
 
 void Vec__Str_clear(Vec__Str * self) {
     {
-        U32 _re_U32_1354 = self->count;
-        (void)_re_U32_1354;
-        U32 _rc_U32_1354 = 0;
-        (void)_rc_U32_1354;
-        Bool hoisted__Bool_1369 = U32_lte(_rc_U32_1354, _re_U32_1354);
-        (void)hoisted__Bool_1369;
-        if (hoisted__Bool_1369) {
+        U32 _re_U32_1425 = self->count;
+        (void)_re_U32_1425;
+        U32 _rc_U32_1425 = 0;
+        (void)_rc_U32_1425;
+        Bool hoisted__Bool_1440 = U32_lte(_rc_U32_1425, _re_U32_1425);
+        (void)hoisted__Bool_1440;
+        if (hoisted__Bool_1440) {
             while (1) {
-                Bool _wcond_Bool_1355 = U32_lt(_rc_U32_1354, _re_U32_1354);
-                (void)_wcond_Bool_1355;
-                if (_wcond_Bool_1355) {
+                Bool _wcond_Bool_1426 = U32_lt(_rc_U32_1425, _re_U32_1425);
+                (void)_wcond_Bool_1426;
+                if (_wcond_Bool_1426) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1354);
-                U32_inc(&_rc_U32_1354);
-                U32 hoisted__U32_1356 = 16;
-                (void)hoisted__U32_1356;
-                U32 hoisted__U32_1357 = U32_mul(i, hoisted__U32_1356);
-                (void)hoisted__U32_1357;
-                Type *hoisted__Type_1358 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1358;
-                U64 hoisted__U64_1359 = (U64)(hoisted__U32_1357);
-                (void)hoisted__U64_1359;
-                Type_delete(hoisted__Type_1358, 1);
-                Str *hoisted__Str_1360 = ptr_add(self->data, hoisted__U64_1359);
-                (void)hoisted__Str_1360;
-                (void)hoisted__Str_1360;
-                Bool hoisted__Bool_1361 = 0;
-                (void)hoisted__Bool_1361;
-                Str_delete(hoisted__Str_1360, hoisted__Bool_1361);
+                U32 i = U32_clone(&_rc_U32_1425);
+                U32_inc(&_rc_U32_1425);
+                U32 hoisted__U32_1427 = 16;
+                (void)hoisted__U32_1427;
+                U32 hoisted__U32_1428 = U32_mul(i, hoisted__U32_1427);
+                (void)hoisted__U32_1428;
+                Type *hoisted__Type_1429 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1429;
+                U64 hoisted__U64_1430 = (U64)(hoisted__U32_1428);
+                (void)hoisted__U64_1430;
+                Type_delete(hoisted__Type_1429, 1);
+                Str *hoisted__Str_1431 = ptr_add(self->data, hoisted__U64_1430);
+                (void)hoisted__Str_1431;
+                (void)hoisted__Str_1431;
+                Bool hoisted__Bool_1432 = 0;
+                (void)hoisted__Bool_1432;
+                Str_delete(hoisted__Str_1431, hoisted__Bool_1432);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_1362 = U32_gt(_rc_U32_1354, _re_U32_1354);
-                (void)_wcond_Bool_1362;
-                if (_wcond_Bool_1362) {
+                Bool _wcond_Bool_1433 = U32_gt(_rc_U32_1425, _re_U32_1425);
+                (void)_wcond_Bool_1433;
+                if (_wcond_Bool_1433) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1354);
-                U32_dec(&_rc_U32_1354);
-                U32 hoisted__U32_1363 = 16;
-                (void)hoisted__U32_1363;
-                U32 hoisted__U32_1364 = U32_mul(i, hoisted__U32_1363);
-                (void)hoisted__U32_1364;
-                Type *hoisted__Type_1365 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1365;
-                U64 hoisted__U64_1366 = (U64)(hoisted__U32_1364);
-                (void)hoisted__U64_1366;
-                Type_delete(hoisted__Type_1365, 1);
-                Str *hoisted__Str_1367 = ptr_add(self->data, hoisted__U64_1366);
-                (void)hoisted__Str_1367;
-                (void)hoisted__Str_1367;
-                Bool hoisted__Bool_1368 = 0;
-                (void)hoisted__Bool_1368;
-                Str_delete(hoisted__Str_1367, hoisted__Bool_1368);
+                U32 i = U32_clone(&_rc_U32_1425);
+                U32_dec(&_rc_U32_1425);
+                U32 hoisted__U32_1434 = 16;
+                (void)hoisted__U32_1434;
+                U32 hoisted__U32_1435 = U32_mul(i, hoisted__U32_1434);
+                (void)hoisted__U32_1435;
+                Type *hoisted__Type_1436 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1436;
+                U64 hoisted__U64_1437 = (U64)(hoisted__U32_1435);
+                (void)hoisted__U64_1437;
+                Type_delete(hoisted__Type_1436, 1);
+                Str *hoisted__Str_1438 = ptr_add(self->data, hoisted__U64_1437);
+                (void)hoisted__Str_1438;
+                (void)hoisted__Str_1438;
+                Bool hoisted__Bool_1439 = 0;
+                (void)hoisted__Bool_1439;
+                Str_delete(hoisted__Str_1438, hoisted__Bool_1439);
             }
         }
     }
-    U32 hoisted__U32_1370 = 0;
-    (void)hoisted__U32_1370;
-    self->count = hoisted__U32_1370;
+    U32 hoisted__U32_1441 = 0;
+    (void)hoisted__U32_1441;
+    self->count = hoisted__U32_1441;
 }
 
 void Vec__Str_delete(Vec__Str * self, Bool call_free) {
@@ -2138,149 +2138,149 @@ void Vec__Str_delete(Vec__Str * self, Bool call_free) {
 }
 
 Vec__Str * Vec__Str_clone(Vec__Str * self) {
-    U32 hoisted__U32_1663 = 16;
-    (void)hoisted__U32_1663;
-    U32 hoisted__U32_1664 = U32_mul(self->cap, hoisted__U32_1663);
-    (void)hoisted__U32_1664;
-    Type *hoisted__Type_1665 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_1665;
-    U64 hoisted__U64_1666 = (U64)(hoisted__U32_1664);
-    (void)hoisted__U64_1666;
-    Type_delete(hoisted__Type_1665, 1);
-    void * new_data = malloc(hoisted__U64_1666);
+    U32 hoisted__U32_1734 = 16;
+    (void)hoisted__U32_1734;
+    U32 hoisted__U32_1735 = U32_mul(self->cap, hoisted__U32_1734);
+    (void)hoisted__U32_1735;
+    Type *hoisted__Type_1736 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_1736;
+    U64 hoisted__U64_1737 = (U64)(hoisted__U32_1735);
+    (void)hoisted__U64_1737;
+    Type_delete(hoisted__Type_1736, 1);
+    void * new_data = malloc(hoisted__U64_1737);
     {
-        U32 _re_U32_1627 = self->count;
-        (void)_re_U32_1627;
-        U32 _rc_U32_1627 = 0;
-        (void)_rc_U32_1627;
-        Bool hoisted__Bool_1662 = U32_lte(_rc_U32_1627, _re_U32_1627);
-        (void)hoisted__Bool_1662;
-        if (hoisted__Bool_1662) {
+        U32 _re_U32_1698 = self->count;
+        (void)_re_U32_1698;
+        U32 _rc_U32_1698 = 0;
+        (void)_rc_U32_1698;
+        Bool hoisted__Bool_1733 = U32_lte(_rc_U32_1698, _re_U32_1698);
+        (void)hoisted__Bool_1733;
+        if (hoisted__Bool_1733) {
             while (1) {
-                Bool _wcond_Bool_1628 = U32_lt(_rc_U32_1627, _re_U32_1627);
-                (void)_wcond_Bool_1628;
-                if (_wcond_Bool_1628) {
+                Bool _wcond_Bool_1699 = U32_lt(_rc_U32_1698, _re_U32_1698);
+                (void)_wcond_Bool_1699;
+                if (_wcond_Bool_1699) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1627);
-                U32_inc(&_rc_U32_1627);
-                U32 hoisted__U32_1629 = 16;
-                (void)hoisted__U32_1629;
-                U32 hoisted__U32_1630 = U32_mul(i, hoisted__U32_1629);
-                (void)hoisted__U32_1630;
-                Type *hoisted__Type_1631 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1631;
-                U64 hoisted__U64_1632 = (U64)(hoisted__U32_1630);
-                (void)hoisted__U64_1632;
-                Type_delete(hoisted__Type_1631, 1);
-                Str *src = ptr_add(self->data, hoisted__U64_1632);
+                U32 i = U32_clone(&_rc_U32_1698);
+                U32_inc(&_rc_U32_1698);
+                U32 hoisted__U32_1700 = 16;
+                (void)hoisted__U32_1700;
+                U32 hoisted__U32_1701 = U32_mul(i, hoisted__U32_1700);
+                (void)hoisted__U32_1701;
+                Type *hoisted__Type_1702 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1702;
+                U64 hoisted__U64_1703 = (U64)(hoisted__U32_1701);
+                (void)hoisted__U64_1703;
+                Type_delete(hoisted__Type_1702, 1);
+                Str *src = ptr_add(self->data, hoisted__U64_1703);
                 Str *cloned = Str_clone(src);
-                U32 hoisted__U32_1633 = 16;
-                (void)hoisted__U32_1633;
-                U32 hoisted__U32_1634 = U32_mul(i, hoisted__U32_1633);
-                (void)hoisted__U32_1634;
-                Type *hoisted__Type_1635 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1635;
-                U64 hoisted__U64_1636 = (U64)(hoisted__U32_1634);
-                (void)hoisted__U64_1636;
-                Type_delete(hoisted__Type_1635, 1);
-                U32 hoisted__U32_1637 = 16;
-                (void)hoisted__U32_1637;
-                Type *hoisted__Type_1638 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1638;
-                void *hoisted__v_1639 = ptr_add(new_data, hoisted__U64_1636);
-                (void)hoisted__v_1639;
-                (void)hoisted__v_1639;
-                U64 hoisted__U64_1640 = (U64)(hoisted__U32_1637);
-                (void)hoisted__U64_1640;
-                Type_delete(hoisted__Type_1638, 1);
-                memcpy(hoisted__v_1639, cloned, hoisted__U64_1640);
-                U32 hoisted__U32_1641 = 16;
-                (void)hoisted__U32_1641;
-                Type *hoisted__Type_1642 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1642;
-                I32 hoisted__I32_1643 = 0;
-                (void)hoisted__I32_1643;
-                U64 hoisted__U64_1644 = (U64)(hoisted__U32_1641);
-                (void)hoisted__U64_1644;
-                Type_delete(hoisted__Type_1642, 1);
-                memset(cloned, hoisted__I32_1643, hoisted__U64_1644);
+                U32 hoisted__U32_1704 = 16;
+                (void)hoisted__U32_1704;
+                U32 hoisted__U32_1705 = U32_mul(i, hoisted__U32_1704);
+                (void)hoisted__U32_1705;
+                Type *hoisted__Type_1706 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1706;
+                U64 hoisted__U64_1707 = (U64)(hoisted__U32_1705);
+                (void)hoisted__U64_1707;
+                Type_delete(hoisted__Type_1706, 1);
+                U32 hoisted__U32_1708 = 16;
+                (void)hoisted__U32_1708;
+                Type *hoisted__Type_1709 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1709;
+                void *hoisted__v_1710 = ptr_add(new_data, hoisted__U64_1707);
+                (void)hoisted__v_1710;
+                (void)hoisted__v_1710;
+                U64 hoisted__U64_1711 = (U64)(hoisted__U32_1708);
+                (void)hoisted__U64_1711;
+                Type_delete(hoisted__Type_1709, 1);
+                memcpy(hoisted__v_1710, cloned, hoisted__U64_1711);
+                U32 hoisted__U32_1712 = 16;
+                (void)hoisted__U32_1712;
+                Type *hoisted__Type_1713 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1713;
+                I32 hoisted__I32_1714 = 0;
+                (void)hoisted__I32_1714;
+                U64 hoisted__U64_1715 = (U64)(hoisted__U32_1712);
+                (void)hoisted__U64_1715;
+                Type_delete(hoisted__Type_1713, 1);
+                memset(cloned, hoisted__I32_1714, hoisted__U64_1715);
                 Str_delete(cloned, 1);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_1645 = U32_gt(_rc_U32_1627, _re_U32_1627);
-                (void)_wcond_Bool_1645;
-                if (_wcond_Bool_1645) {
+                Bool _wcond_Bool_1716 = U32_gt(_rc_U32_1698, _re_U32_1698);
+                (void)_wcond_Bool_1716;
+                if (_wcond_Bool_1716) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1627);
-                U32_dec(&_rc_U32_1627);
-                U32 hoisted__U32_1646 = 16;
-                (void)hoisted__U32_1646;
-                U32 hoisted__U32_1647 = U32_mul(i, hoisted__U32_1646);
-                (void)hoisted__U32_1647;
-                Type *hoisted__Type_1648 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1648;
-                U64 hoisted__U64_1649 = (U64)(hoisted__U32_1647);
-                (void)hoisted__U64_1649;
-                Type_delete(hoisted__Type_1648, 1);
-                Str *src = ptr_add(self->data, hoisted__U64_1649);
+                U32 i = U32_clone(&_rc_U32_1698);
+                U32_dec(&_rc_U32_1698);
+                U32 hoisted__U32_1717 = 16;
+                (void)hoisted__U32_1717;
+                U32 hoisted__U32_1718 = U32_mul(i, hoisted__U32_1717);
+                (void)hoisted__U32_1718;
+                Type *hoisted__Type_1719 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1719;
+                U64 hoisted__U64_1720 = (U64)(hoisted__U32_1718);
+                (void)hoisted__U64_1720;
+                Type_delete(hoisted__Type_1719, 1);
+                Str *src = ptr_add(self->data, hoisted__U64_1720);
                 Str *cloned = Str_clone(src);
-                U32 hoisted__U32_1650 = 16;
-                (void)hoisted__U32_1650;
-                U32 hoisted__U32_1651 = U32_mul(i, hoisted__U32_1650);
-                (void)hoisted__U32_1651;
-                Type *hoisted__Type_1652 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1652;
-                U64 hoisted__U64_1653 = (U64)(hoisted__U32_1651);
-                (void)hoisted__U64_1653;
-                Type_delete(hoisted__Type_1652, 1);
-                U32 hoisted__U32_1654 = 16;
-                (void)hoisted__U32_1654;
-                Type *hoisted__Type_1655 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1655;
-                void *hoisted__v_1656 = ptr_add(new_data, hoisted__U64_1653);
-                (void)hoisted__v_1656;
-                (void)hoisted__v_1656;
-                U64 hoisted__U64_1657 = (U64)(hoisted__U32_1654);
-                (void)hoisted__U64_1657;
-                Type_delete(hoisted__Type_1655, 1);
-                memcpy(hoisted__v_1656, cloned, hoisted__U64_1657);
-                U32 hoisted__U32_1658 = 16;
-                (void)hoisted__U32_1658;
-                Type *hoisted__Type_1659 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_1659;
-                I32 hoisted__I32_1660 = 0;
-                (void)hoisted__I32_1660;
-                U64 hoisted__U64_1661 = (U64)(hoisted__U32_1658);
-                (void)hoisted__U64_1661;
-                Type_delete(hoisted__Type_1659, 1);
-                memset(cloned, hoisted__I32_1660, hoisted__U64_1661);
+                U32 hoisted__U32_1721 = 16;
+                (void)hoisted__U32_1721;
+                U32 hoisted__U32_1722 = U32_mul(i, hoisted__U32_1721);
+                (void)hoisted__U32_1722;
+                Type *hoisted__Type_1723 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1723;
+                U64 hoisted__U64_1724 = (U64)(hoisted__U32_1722);
+                (void)hoisted__U64_1724;
+                Type_delete(hoisted__Type_1723, 1);
+                U32 hoisted__U32_1725 = 16;
+                (void)hoisted__U32_1725;
+                Type *hoisted__Type_1726 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1726;
+                void *hoisted__v_1727 = ptr_add(new_data, hoisted__U64_1724);
+                (void)hoisted__v_1727;
+                (void)hoisted__v_1727;
+                U64 hoisted__U64_1728 = (U64)(hoisted__U32_1725);
+                (void)hoisted__U64_1728;
+                Type_delete(hoisted__Type_1726, 1);
+                memcpy(hoisted__v_1727, cloned, hoisted__U64_1728);
+                U32 hoisted__U32_1729 = 16;
+                (void)hoisted__U32_1729;
+                Type *hoisted__Type_1730 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_1730;
+                I32 hoisted__I32_1731 = 0;
+                (void)hoisted__I32_1731;
+                U64 hoisted__U64_1732 = (U64)(hoisted__U32_1729);
+                (void)hoisted__U64_1732;
+                Type_delete(hoisted__Type_1730, 1);
+                memset(cloned, hoisted__I32_1731, hoisted__U64_1732);
                 Str_delete(cloned, 1);
             }
         }
     }
-    Vec__Str *hoisted__Vec__Str_1667 = malloc(sizeof(Vec__Str));
-    hoisted__Vec__Str_1667->data = new_data;
-    hoisted__Vec__Str_1667->count = self->count;
-    hoisted__Vec__Str_1667->cap = self->cap;
-    (void)hoisted__Vec__Str_1667;
-    return hoisted__Vec__Str_1667;
+    Vec__Str *hoisted__Vec__Str_1738 = malloc(sizeof(Vec__Str));
+    hoisted__Vec__Str_1738->data = new_data;
+    hoisted__Vec__Str_1738->count = self->count;
+    hoisted__Vec__Str_1738->cap = self->cap;
+    (void)hoisted__Vec__Str_1738;
+    return hoisted__Vec__Str_1738;
 }
 
 U32 Vec__Str_size(void) {
-    U32 hoisted__U32_1668 = 16;
-    (void)hoisted__U32_1668;
-    return hoisted__U32_1668;
+    U32 hoisted__U32_1739 = 16;
+    (void)hoisted__U32_1739;
+    return hoisted__U32_1739;
 }
 
 U32 Dynamic_size(void) {
-    U32 hoisted__U32_1671 = 8;
-    (void)hoisted__U32_1671;
-    return hoisted__U32_1671;
+    U32 hoisted__U32_1742 = 8;
+    (void)hoisted__U32_1742;
+    return hoisted__U32_1742;
 }
 
 void * Dynamic_clone(void * self) {
@@ -2294,140 +2294,140 @@ void Dynamic_delete(void * self, Bool call_free) {
 }
 
 Str * I64_to_str(I64 val) {
-    I64 hoisted__I64_1860 = 0;
-    (void)hoisted__I64_1860;
-    Bool hoisted__Bool_1861 = I64_eq(val, hoisted__I64_1860);
-    (void)hoisted__Bool_1861;
-    if (hoisted__Bool_1861) {
-        U64 hoisted__U64_1830 = 2ULL;
-        (void)hoisted__U64_1830;
-        void * buf = malloc(hoisted__U64_1830);
-        I64 hoisted__I64_1831 = 48;
-        (void)hoisted__I64_1831;
-        U64 hoisted__U64_1832 = 1ULL;
-        (void)hoisted__U64_1832;
-        memcpy(buf, &hoisted__I64_1831, hoisted__U64_1832);
-        U64 hoisted__U64_1833 = 1ULL;
-        (void)hoisted__U64_1833;
-        void *hoisted__v_1834 = ptr_add(buf, hoisted__U64_1833);
-        (void)hoisted__v_1834;
-        (void)hoisted__v_1834;
-        I32 hoisted__I32_1835 = 0;
-        (void)hoisted__I32_1835;
-        U64 hoisted__U64_1836 = 1ULL;
-        (void)hoisted__U64_1836;
-        memset(hoisted__v_1834, hoisted__I32_1835, hoisted__U64_1836);
-        I64 hoisted__I64_1837 = 1;
-        (void)hoisted__I64_1837;
-        I64 hoisted__I64_1838 = 1;
-        (void)hoisted__I64_1838;
-        Str *hoisted__Str_1839 = malloc(sizeof(Str));
-        hoisted__Str_1839->c_str = buf;
-        hoisted__Str_1839->count = hoisted__I64_1837;
-        hoisted__Str_1839->cap = hoisted__I64_1838;
-        (void)hoisted__Str_1839;
-        { Str * _ret_val = hoisted__Str_1839;
+    I64 hoisted__I64_1931 = 0;
+    (void)hoisted__I64_1931;
+    Bool hoisted__Bool_1932 = I64_eq(val, hoisted__I64_1931);
+    (void)hoisted__Bool_1932;
+    if (hoisted__Bool_1932) {
+        U64 hoisted__U64_1901 = 2ULL;
+        (void)hoisted__U64_1901;
+        void * buf = malloc(hoisted__U64_1901);
+        I64 hoisted__I64_1902 = 48;
+        (void)hoisted__I64_1902;
+        U64 hoisted__U64_1903 = 1ULL;
+        (void)hoisted__U64_1903;
+        memcpy(buf, &hoisted__I64_1902, hoisted__U64_1903);
+        U64 hoisted__U64_1904 = 1ULL;
+        (void)hoisted__U64_1904;
+        void *hoisted__v_1905 = ptr_add(buf, hoisted__U64_1904);
+        (void)hoisted__v_1905;
+        (void)hoisted__v_1905;
+        I32 hoisted__I32_1906 = 0;
+        (void)hoisted__I32_1906;
+        U64 hoisted__U64_1907 = 1ULL;
+        (void)hoisted__U64_1907;
+        memset(hoisted__v_1905, hoisted__I32_1906, hoisted__U64_1907);
+        I64 hoisted__I64_1908 = 1;
+        (void)hoisted__I64_1908;
+        I64 hoisted__I64_1909 = 1;
+        (void)hoisted__I64_1909;
+        Str *hoisted__Str_1910 = malloc(sizeof(Str));
+        hoisted__Str_1910->c_str = buf;
+        hoisted__Str_1910->count = hoisted__I64_1908;
+        hoisted__Str_1910->cap = hoisted__I64_1909;
+        (void)hoisted__Str_1910;
+        { Str * _ret_val = hoisted__Str_1910;
                 return _ret_val; }
     }
     Bool is_neg = 0;
     I64 v = I64_clone(&val);
-    I64 hoisted__I64_1862 = 0;
-    (void)hoisted__I64_1862;
-    Bool hoisted__Bool_1863 = I64_lt(val, hoisted__I64_1862);
-    (void)hoisted__Bool_1863;
-    if (hoisted__Bool_1863) {
-        Bool hoisted__Bool_1840 = 1;
-        (void)hoisted__Bool_1840;
-        is_neg = hoisted__Bool_1840;
-        I64 hoisted__I64_1841 = 0;
-        (void)hoisted__I64_1841;
-        I64 hoisted__I64_1842 = I64_sub(hoisted__I64_1841, val);
-        (void)hoisted__I64_1842;
-        v = hoisted__I64_1842;
+    I64 hoisted__I64_1933 = 0;
+    (void)hoisted__I64_1933;
+    Bool hoisted__Bool_1934 = I64_lt(val, hoisted__I64_1933);
+    (void)hoisted__Bool_1934;
+    if (hoisted__Bool_1934) {
+        Bool hoisted__Bool_1911 = 1;
+        (void)hoisted__Bool_1911;
+        is_neg = hoisted__Bool_1911;
+        I64 hoisted__I64_1912 = 0;
+        (void)hoisted__I64_1912;
+        I64 hoisted__I64_1913 = I64_sub(hoisted__I64_1912, val);
+        (void)hoisted__I64_1913;
+        v = hoisted__I64_1913;
     }
     U64 ndigits = 0ULL;
     I64 tmp = I64_clone(&v);
     while (1) {
-        I64 hoisted__I64_1844 = 0;
-        (void)hoisted__I64_1844;
-        Bool _wcond_Bool_1843 = I64_gt(tmp, hoisted__I64_1844);
-        (void)_wcond_Bool_1843;
-        if (_wcond_Bool_1843) {
+        I64 hoisted__I64_1915 = 0;
+        (void)hoisted__I64_1915;
+        Bool _wcond_Bool_1914 = I64_gt(tmp, hoisted__I64_1915);
+        (void)_wcond_Bool_1914;
+        if (_wcond_Bool_1914) {
         } else {
             break;
         }
         U64_inc(&ndigits);
-        I64 hoisted__I64_1845 = 10;
-        (void)hoisted__I64_1845;
-        I64 hoisted__I64_1846 = I64_div(tmp, hoisted__I64_1845);
-        (void)hoisted__I64_1846;
-        tmp = hoisted__I64_1846;
+        I64 hoisted__I64_1916 = 10;
+        (void)hoisted__I64_1916;
+        I64 hoisted__I64_1917 = I64_div(tmp, hoisted__I64_1916);
+        (void)hoisted__I64_1917;
+        tmp = hoisted__I64_1917;
     }
     U64 total = U64_clone(&ndigits);
     if (is_neg) {
         U64_inc(&total);
     }
-    U64 hoisted__U64_1864 = 1ULL;
-    (void)hoisted__U64_1864;
-    U64 hoisted__U64_1865 = U64_add(total, hoisted__U64_1864);
-    (void)hoisted__U64_1865;
-    void * buf = malloc(hoisted__U64_1865);
+    U64 hoisted__U64_1935 = 1ULL;
+    (void)hoisted__U64_1935;
+    U64 hoisted__U64_1936 = U64_add(total, hoisted__U64_1935);
+    (void)hoisted__U64_1936;
+    void * buf = malloc(hoisted__U64_1936);
     if (is_neg) {
-        I64 hoisted__I64_1847 = 45;
-        (void)hoisted__I64_1847;
-        U64 hoisted__U64_1848 = 1ULL;
-        (void)hoisted__U64_1848;
-        memcpy(buf, &hoisted__I64_1847, hoisted__U64_1848);
+        I64 hoisted__I64_1918 = 45;
+        (void)hoisted__I64_1918;
+        U64 hoisted__U64_1919 = 1ULL;
+        (void)hoisted__U64_1919;
+        memcpy(buf, &hoisted__I64_1918, hoisted__U64_1919);
     }
-    U64 hoisted__U64_1866 = 1ULL;
-    (void)hoisted__U64_1866;
-    U64 i = U64_sub(total, hoisted__U64_1866);
+    U64 hoisted__U64_1937 = 1ULL;
+    (void)hoisted__U64_1937;
+    U64 i = U64_sub(total, hoisted__U64_1937);
     while (1) {
-        I64 hoisted__I64_1850 = 0;
-        (void)hoisted__I64_1850;
-        Bool _wcond_Bool_1849 = I64_gt(v, hoisted__I64_1850);
-        (void)_wcond_Bool_1849;
-        if (_wcond_Bool_1849) {
+        I64 hoisted__I64_1921 = 0;
+        (void)hoisted__I64_1921;
+        Bool _wcond_Bool_1920 = I64_gt(v, hoisted__I64_1921);
+        (void)_wcond_Bool_1920;
+        if (_wcond_Bool_1920) {
         } else {
             break;
         }
-        I64 hoisted__I64_1851 = 10;
-        (void)hoisted__I64_1851;
-        I64 hoisted__I64_1852 = I64_mod(v, hoisted__I64_1851);
-        (void)hoisted__I64_1852;
-        I64 hoisted__I64_1853 = 48;
-        (void)hoisted__I64_1853;
-        I64 hoisted__I64_1854 = I64_add(hoisted__I64_1852, hoisted__I64_1853);
-        (void)hoisted__I64_1854;
-        void *hoisted__v_1855 = ptr_add(buf, i);
-        (void)hoisted__v_1855;
-        (void)hoisted__v_1855;
-        U8 hoisted__U8_1856 = I64_to_u8(hoisted__I64_1854);
-        (void)hoisted__U8_1856;
-        U64 hoisted__U64_1857 = 1ULL;
-        (void)hoisted__U64_1857;
-        memcpy(hoisted__v_1855, &hoisted__U8_1856, hoisted__U64_1857);
-        I64 hoisted__I64_1858 = 10;
-        (void)hoisted__I64_1858;
-        I64 hoisted__I64_1859 = I64_div(v, hoisted__I64_1858);
-        (void)hoisted__I64_1859;
-        v = hoisted__I64_1859;
+        I64 hoisted__I64_1922 = 10;
+        (void)hoisted__I64_1922;
+        I64 hoisted__I64_1923 = I64_mod(v, hoisted__I64_1922);
+        (void)hoisted__I64_1923;
+        I64 hoisted__I64_1924 = 48;
+        (void)hoisted__I64_1924;
+        I64 hoisted__I64_1925 = I64_add(hoisted__I64_1923, hoisted__I64_1924);
+        (void)hoisted__I64_1925;
+        void *hoisted__v_1926 = ptr_add(buf, i);
+        (void)hoisted__v_1926;
+        (void)hoisted__v_1926;
+        U8 hoisted__U8_1927 = I64_to_u8(hoisted__I64_1925);
+        (void)hoisted__U8_1927;
+        U64 hoisted__U64_1928 = 1ULL;
+        (void)hoisted__U64_1928;
+        memcpy(hoisted__v_1926, &hoisted__U8_1927, hoisted__U64_1928);
+        I64 hoisted__I64_1929 = 10;
+        (void)hoisted__I64_1929;
+        I64 hoisted__I64_1930 = I64_div(v, hoisted__I64_1929);
+        (void)hoisted__I64_1930;
+        v = hoisted__I64_1930;
         U64_dec(&i);
     }
-    void *hoisted__v_1867 = ptr_add(buf, total);
-    (void)hoisted__v_1867;
-    (void)hoisted__v_1867;
-    I32 hoisted__I32_1868 = 0;
-    (void)hoisted__I32_1868;
-    U64 hoisted__U64_1869 = 1ULL;
-    (void)hoisted__U64_1869;
-    memset(hoisted__v_1867, hoisted__I32_1868, hoisted__U64_1869);
-    Str *hoisted__Str_1870 = malloc(sizeof(Str));
-    hoisted__Str_1870->c_str = buf;
-    hoisted__Str_1870->count = total;
-    hoisted__Str_1870->cap = total;
-    (void)hoisted__Str_1870;
-    return hoisted__Str_1870;
+    void *hoisted__v_1938 = ptr_add(buf, total);
+    (void)hoisted__v_1938;
+    (void)hoisted__v_1938;
+    I32 hoisted__I32_1939 = 0;
+    (void)hoisted__I32_1939;
+    U64 hoisted__U64_1940 = 1ULL;
+    (void)hoisted__U64_1940;
+    memset(hoisted__v_1938, hoisted__I32_1939, hoisted__U64_1940);
+    Str *hoisted__Str_1941 = malloc(sizeof(Str));
+    hoisted__Str_1941->c_str = buf;
+    hoisted__Str_1941->count = total;
+    hoisted__Str_1941->cap = total;
+    (void)hoisted__Str_1941;
+    return hoisted__Str_1941;
 }
 
 void I64_delete(I64 * self, Bool call_free) {
@@ -2437,85 +2437,85 @@ void I64_delete(I64 * self, Bool call_free) {
 }
 
 U32 I64_size(void) {
-    U32 hoisted__U32_1890 = 8;
-    (void)hoisted__U32_1890;
-    return hoisted__U32_1890;
+    U32 hoisted__U32_1961 = 8;
+    (void)hoisted__U32_1961;
+    return hoisted__U32_1961;
 }
 
 U64 I64_hash(I64 self, HashFn hasher) {
-    U32 hoisted__U32_2011 = 0;
-    (void)hoisted__U32_2011;
-    U64 hoisted__U64_2012 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I64 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_2011); });
-    (void)hoisted__U64_2012;
-    return hoisted__U64_2012;
+    U32 hoisted__U32_2082 = 0;
+    (void)hoisted__U32_2082;
+    U64 hoisted__U64_2083 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I64 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_2082); });
+    (void)hoisted__U64_2083;
+    return hoisted__U64_2083;
 }
 
 Bool I64_lt(I64 a, I64 b) {
-    I64 hoisted__I64_2015 = I64_cmp(a, b);
-    (void)hoisted__I64_2015;
-    I64 hoisted__I64_2016 = -1;
-    (void)hoisted__I64_2016;
-    Bool hoisted__Bool_2017 = I64_eq(hoisted__I64_2015, hoisted__I64_2016);
-    (void)hoisted__Bool_2017;
-    return hoisted__Bool_2017;
+    I64 hoisted__I64_2086 = I64_cmp(a, b);
+    (void)hoisted__I64_2086;
+    I64 hoisted__I64_2087 = -1;
+    (void)hoisted__I64_2087;
+    Bool hoisted__Bool_2088 = I64_eq(hoisted__I64_2086, hoisted__I64_2087);
+    (void)hoisted__Bool_2088;
+    return hoisted__Bool_2088;
 }
 
 Bool I64_gt(I64 a, I64 b) {
-    I64 hoisted__I64_2018 = I64_cmp(a, b);
-    (void)hoisted__I64_2018;
-    I64 hoisted__I64_2019 = 1;
-    (void)hoisted__I64_2019;
-    Bool hoisted__Bool_2020 = I64_eq(hoisted__I64_2018, hoisted__I64_2019);
-    (void)hoisted__Bool_2020;
-    return hoisted__Bool_2020;
+    I64 hoisted__I64_2089 = I64_cmp(a, b);
+    (void)hoisted__I64_2089;
+    I64 hoisted__I64_2090 = 1;
+    (void)hoisted__I64_2090;
+    Bool hoisted__Bool_2091 = I64_eq(hoisted__I64_2089, hoisted__I64_2090);
+    (void)hoisted__Bool_2091;
+    return hoisted__Bool_2091;
 }
 
 Bool I64_neq(I64 a, I64 b) {
-    Bool hoisted__Bool_2021 = I64_eq(a, b);
-    (void)hoisted__Bool_2021;
-    Bool hoisted__Bool_2022 = not(hoisted__Bool_2021);
-    (void)hoisted__Bool_2022;
-    return hoisted__Bool_2022;
+    Bool hoisted__Bool_2092 = I64_eq(a, b);
+    (void)hoisted__Bool_2092;
+    Bool hoisted__Bool_2093 = not(hoisted__Bool_2092);
+    (void)hoisted__Bool_2093;
+    return hoisted__Bool_2093;
 }
 
 Bool and(Bool a, Bool b) {
-    Bool _m_Bool_2057 = 0;
-    (void)_m_Bool_2057;
+    Bool _m_Bool_2128 = 0;
+    (void)_m_Bool_2128;
     {
-        Bool hoisted__Bool_2060 = 1;
-        (void)hoisted__Bool_2060;
-        Bool hoisted__Bool_2061 = Bool_eq(a, hoisted__Bool_2060);
-        (void)hoisted__Bool_2061;
-        if (hoisted__Bool_2061) {
-            Bool hoisted__Bool_2058 = Bool_clone(&b);
-            (void)hoisted__Bool_2058;
-            _m_Bool_2057 = hoisted__Bool_2058;
+        Bool hoisted__Bool_2131 = 1;
+        (void)hoisted__Bool_2131;
+        Bool hoisted__Bool_2132 = Bool_eq(a, hoisted__Bool_2131);
+        (void)hoisted__Bool_2132;
+        if (hoisted__Bool_2132) {
+            Bool hoisted__Bool_2129 = Bool_clone(&b);
+            (void)hoisted__Bool_2129;
+            _m_Bool_2128 = hoisted__Bool_2129;
         } else {
-            Bool hoisted__Bool_2059 = 0;
-            (void)hoisted__Bool_2059;
-            _m_Bool_2057 = hoisted__Bool_2059;
+            Bool hoisted__Bool_2130 = 0;
+            (void)hoisted__Bool_2130;
+            _m_Bool_2128 = hoisted__Bool_2130;
         }
     }
-    return _m_Bool_2057;
+    return _m_Bool_2128;
 }
 
 I64 Bool_cmp(Bool a, Bool b) {
-    Bool hoisted__Bool_2071 = Bool_eq(a, b);
-    (void)hoisted__Bool_2071;
-    if (hoisted__Bool_2071) {
-        I64 hoisted__I64_2069 = 0;
-        (void)hoisted__I64_2069;
-        { I64 _ret_val = hoisted__I64_2069;
+    Bool hoisted__Bool_2142 = Bool_eq(a, b);
+    (void)hoisted__Bool_2142;
+    if (hoisted__Bool_2142) {
+        I64 hoisted__I64_2140 = 0;
+        (void)hoisted__I64_2140;
+        { I64 _ret_val = hoisted__I64_2140;
                 return _ret_val; }
     }
     if (b) {
-        I64 hoisted__I64_2070 = -1;
-        (void)hoisted__I64_2070;
-        return hoisted__I64_2070;
+        I64 hoisted__I64_2141 = -1;
+        (void)hoisted__I64_2141;
+        return hoisted__I64_2141;
     }
-    I64 hoisted__I64_2072 = 1;
-    (void)hoisted__I64_2072;
-    return hoisted__I64_2072;
+    I64 hoisted__I64_2143 = 1;
+    (void)hoisted__I64_2143;
+    return hoisted__I64_2143;
 }
 
 void Bool_delete(Bool * self, Bool call_free) {
@@ -2525,17 +2525,17 @@ void Bool_delete(Bool * self, Bool call_free) {
 }
 
 U32 Bool_size(void) {
-    U32 hoisted__U32_2073 = 1;
-    (void)hoisted__U32_2073;
-    return hoisted__U32_2073;
+    U32 hoisted__U32_2144 = 1;
+    (void)hoisted__U32_2144;
+    return hoisted__U32_2144;
 }
 
 U64 Bool_hash(Bool self, HashFn hasher) {
-    U32 hoisted__U32_2074 = 0;
-    (void)hoisted__U32_2074;
-    U64 hoisted__U64_2075 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Bool *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_2074); });
-    (void)hoisted__U64_2075;
-    return hoisted__U64_2075;
+    U32 hoisted__U32_2145 = 0;
+    (void)hoisted__U32_2145;
+    U64 hoisted__U64_2146 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Bool *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_2145); });
+    (void)hoisted__U64_2146;
+    return hoisted__U64_2146;
 }
 
 Primitive *Primitive_I16() {
@@ -2589,89 +2589,89 @@ Primitive *Primitive_Bool() {
     return r;
 }
 Bool Primitive_eq(Primitive * self, Primitive * other) {
-    Bool hoisted__Bool_2101 = is(self, &(Primitive){.tag = Primitive_TAG_I16});
-    (void)hoisted__Bool_2101;
-    if (hoisted__Bool_2101) {
-        Bool hoisted__Bool_2091 = is(other, &(Primitive){.tag = Primitive_TAG_I16});
-        (void)hoisted__Bool_2091;
-        { Bool _ret_val = hoisted__Bool_2091;
+    Bool hoisted__Bool_2172 = is(self, &(Primitive){.tag = Primitive_TAG_I16});
+    (void)hoisted__Bool_2172;
+    if (hoisted__Bool_2172) {
+        Bool hoisted__Bool_2162 = is(other, &(Primitive){.tag = Primitive_TAG_I16});
+        (void)hoisted__Bool_2162;
+        { Bool _ret_val = hoisted__Bool_2162;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2102 = is(self, &(Primitive){.tag = Primitive_TAG_U16});
-    (void)hoisted__Bool_2102;
-    if (hoisted__Bool_2102) {
-        Bool hoisted__Bool_2092 = is(other, &(Primitive){.tag = Primitive_TAG_U16});
-        (void)hoisted__Bool_2092;
-        { Bool _ret_val = hoisted__Bool_2092;
+    Bool hoisted__Bool_2173 = is(self, &(Primitive){.tag = Primitive_TAG_U16});
+    (void)hoisted__Bool_2173;
+    if (hoisted__Bool_2173) {
+        Bool hoisted__Bool_2163 = is(other, &(Primitive){.tag = Primitive_TAG_U16});
+        (void)hoisted__Bool_2163;
+        { Bool _ret_val = hoisted__Bool_2163;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2103 = is(self, &(Primitive){.tag = Primitive_TAG_I8});
-    (void)hoisted__Bool_2103;
-    if (hoisted__Bool_2103) {
-        Bool hoisted__Bool_2093 = is(other, &(Primitive){.tag = Primitive_TAG_I8});
-        (void)hoisted__Bool_2093;
-        { Bool _ret_val = hoisted__Bool_2093;
+    Bool hoisted__Bool_2174 = is(self, &(Primitive){.tag = Primitive_TAG_I8});
+    (void)hoisted__Bool_2174;
+    if (hoisted__Bool_2174) {
+        Bool hoisted__Bool_2164 = is(other, &(Primitive){.tag = Primitive_TAG_I8});
+        (void)hoisted__Bool_2164;
+        { Bool _ret_val = hoisted__Bool_2164;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2104 = is(self, &(Primitive){.tag = Primitive_TAG_U8});
-    (void)hoisted__Bool_2104;
-    if (hoisted__Bool_2104) {
-        Bool hoisted__Bool_2094 = is(other, &(Primitive){.tag = Primitive_TAG_U8});
-        (void)hoisted__Bool_2094;
-        { Bool _ret_val = hoisted__Bool_2094;
+    Bool hoisted__Bool_2175 = is(self, &(Primitive){.tag = Primitive_TAG_U8});
+    (void)hoisted__Bool_2175;
+    if (hoisted__Bool_2175) {
+        Bool hoisted__Bool_2165 = is(other, &(Primitive){.tag = Primitive_TAG_U8});
+        (void)hoisted__Bool_2165;
+        { Bool _ret_val = hoisted__Bool_2165;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2105 = is(self, &(Primitive){.tag = Primitive_TAG_U32});
-    (void)hoisted__Bool_2105;
-    if (hoisted__Bool_2105) {
-        Bool hoisted__Bool_2095 = is(other, &(Primitive){.tag = Primitive_TAG_U32});
-        (void)hoisted__Bool_2095;
-        { Bool _ret_val = hoisted__Bool_2095;
+    Bool hoisted__Bool_2176 = is(self, &(Primitive){.tag = Primitive_TAG_U32});
+    (void)hoisted__Bool_2176;
+    if (hoisted__Bool_2176) {
+        Bool hoisted__Bool_2166 = is(other, &(Primitive){.tag = Primitive_TAG_U32});
+        (void)hoisted__Bool_2166;
+        { Bool _ret_val = hoisted__Bool_2166;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2106 = is(self, &(Primitive){.tag = Primitive_TAG_I32});
-    (void)hoisted__Bool_2106;
-    if (hoisted__Bool_2106) {
-        Bool hoisted__Bool_2096 = is(other, &(Primitive){.tag = Primitive_TAG_I32});
-        (void)hoisted__Bool_2096;
-        { Bool _ret_val = hoisted__Bool_2096;
+    Bool hoisted__Bool_2177 = is(self, &(Primitive){.tag = Primitive_TAG_I32});
+    (void)hoisted__Bool_2177;
+    if (hoisted__Bool_2177) {
+        Bool hoisted__Bool_2167 = is(other, &(Primitive){.tag = Primitive_TAG_I32});
+        (void)hoisted__Bool_2167;
+        { Bool _ret_val = hoisted__Bool_2167;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2107 = is(self, &(Primitive){.tag = Primitive_TAG_U64});
-    (void)hoisted__Bool_2107;
-    if (hoisted__Bool_2107) {
-        Bool hoisted__Bool_2097 = is(other, &(Primitive){.tag = Primitive_TAG_U64});
-        (void)hoisted__Bool_2097;
-        { Bool _ret_val = hoisted__Bool_2097;
+    Bool hoisted__Bool_2178 = is(self, &(Primitive){.tag = Primitive_TAG_U64});
+    (void)hoisted__Bool_2178;
+    if (hoisted__Bool_2178) {
+        Bool hoisted__Bool_2168 = is(other, &(Primitive){.tag = Primitive_TAG_U64});
+        (void)hoisted__Bool_2168;
+        { Bool _ret_val = hoisted__Bool_2168;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2108 = is(self, &(Primitive){.tag = Primitive_TAG_I64});
-    (void)hoisted__Bool_2108;
-    if (hoisted__Bool_2108) {
-        Bool hoisted__Bool_2098 = is(other, &(Primitive){.tag = Primitive_TAG_I64});
-        (void)hoisted__Bool_2098;
-        { Bool _ret_val = hoisted__Bool_2098;
+    Bool hoisted__Bool_2179 = is(self, &(Primitive){.tag = Primitive_TAG_I64});
+    (void)hoisted__Bool_2179;
+    if (hoisted__Bool_2179) {
+        Bool hoisted__Bool_2169 = is(other, &(Primitive){.tag = Primitive_TAG_I64});
+        (void)hoisted__Bool_2169;
+        { Bool _ret_val = hoisted__Bool_2169;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2109 = is(self, &(Primitive){.tag = Primitive_TAG_F32});
-    (void)hoisted__Bool_2109;
-    if (hoisted__Bool_2109) {
-        Bool hoisted__Bool_2099 = is(other, &(Primitive){.tag = Primitive_TAG_F32});
-        (void)hoisted__Bool_2099;
-        { Bool _ret_val = hoisted__Bool_2099;
+    Bool hoisted__Bool_2180 = is(self, &(Primitive){.tag = Primitive_TAG_F32});
+    (void)hoisted__Bool_2180;
+    if (hoisted__Bool_2180) {
+        Bool hoisted__Bool_2170 = is(other, &(Primitive){.tag = Primitive_TAG_F32});
+        (void)hoisted__Bool_2170;
+        { Bool _ret_val = hoisted__Bool_2170;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2110 = is(self, &(Primitive){.tag = Primitive_TAG_Bool});
-    (void)hoisted__Bool_2110;
-    if (hoisted__Bool_2110) {
-        Bool hoisted__Bool_2100 = is(other, &(Primitive){.tag = Primitive_TAG_Bool});
-        (void)hoisted__Bool_2100;
-        { Bool _ret_val = hoisted__Bool_2100;
+    Bool hoisted__Bool_2181 = is(self, &(Primitive){.tag = Primitive_TAG_Bool});
+    (void)hoisted__Bool_2181;
+    if (hoisted__Bool_2181) {
+        Bool hoisted__Bool_2171 = is(other, &(Primitive){.tag = Primitive_TAG_Bool});
+        (void)hoisted__Bool_2171;
+        { Bool _ret_val = hoisted__Bool_2171;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2111 = 0;
-    (void)hoisted__Bool_2111;
-    return hoisted__Bool_2111;
+    Bool hoisted__Bool_2182 = 0;
+    (void)hoisted__Bool_2182;
+    return hoisted__Bool_2182;
 }
 
 void Primitive_delete(Primitive * self, Bool call_free) {
@@ -2681,78 +2681,78 @@ void Primitive_delete(Primitive * self, Bool call_free) {
 }
 
 Primitive * Primitive_clone(Primitive * self) {
-    Bool hoisted__Bool_2133 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I16});
-    (void)hoisted__Bool_2133;
-    if (hoisted__Bool_2133) {
+    Bool hoisted__Bool_2204 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I16});
+    (void)hoisted__Bool_2204;
+    if (hoisted__Bool_2204) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I16;
                 return _r; }
     }
-    Bool hoisted__Bool_2134 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U16});
-    (void)hoisted__Bool_2134;
-    if (hoisted__Bool_2134) {
+    Bool hoisted__Bool_2205 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U16});
+    (void)hoisted__Bool_2205;
+    if (hoisted__Bool_2205) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U16;
                 return _r; }
     }
-    Bool hoisted__Bool_2135 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I8});
-    (void)hoisted__Bool_2135;
-    if (hoisted__Bool_2135) {
+    Bool hoisted__Bool_2206 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I8});
+    (void)hoisted__Bool_2206;
+    if (hoisted__Bool_2206) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I8;
                 return _r; }
     }
-    Bool hoisted__Bool_2136 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U8});
-    (void)hoisted__Bool_2136;
-    if (hoisted__Bool_2136) {
+    Bool hoisted__Bool_2207 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U8});
+    (void)hoisted__Bool_2207;
+    if (hoisted__Bool_2207) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U8;
                 return _r; }
     }
-    Bool hoisted__Bool_2137 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U32});
-    (void)hoisted__Bool_2137;
-    if (hoisted__Bool_2137) {
+    Bool hoisted__Bool_2208 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U32});
+    (void)hoisted__Bool_2208;
+    if (hoisted__Bool_2208) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U32;
                 return _r; }
     }
-    Bool hoisted__Bool_2138 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I32});
-    (void)hoisted__Bool_2138;
-    if (hoisted__Bool_2138) {
+    Bool hoisted__Bool_2209 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I32});
+    (void)hoisted__Bool_2209;
+    if (hoisted__Bool_2209) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I32;
                 return _r; }
     }
-    Bool hoisted__Bool_2139 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U64});
-    (void)hoisted__Bool_2139;
-    if (hoisted__Bool_2139) {
+    Bool hoisted__Bool_2210 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U64});
+    (void)hoisted__Bool_2210;
+    if (hoisted__Bool_2210) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U64;
                 return _r; }
     }
-    Bool hoisted__Bool_2140 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I64});
-    (void)hoisted__Bool_2140;
-    if (hoisted__Bool_2140) {
+    Bool hoisted__Bool_2211 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I64});
+    (void)hoisted__Bool_2211;
+    if (hoisted__Bool_2211) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I64;
                 return _r; }
     }
-    Bool hoisted__Bool_2141 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_F32});
-    (void)hoisted__Bool_2141;
-    if (hoisted__Bool_2141) {
+    Bool hoisted__Bool_2212 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_F32});
+    (void)hoisted__Bool_2212;
+    if (hoisted__Bool_2212) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_F32;
                 return _r; }
     }
-    Bool hoisted__Bool_2142 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_Bool});
-    (void)hoisted__Bool_2142;
-    if (hoisted__Bool_2142) {
+    Bool hoisted__Bool_2213 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_Bool});
+    (void)hoisted__Bool_2213;
+    if (hoisted__Bool_2213) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_Bool;
                 return _r; }
     }
-    Str hoisted__Str_2143 = (Str){.c_str = (void *)"Primitive.clone:20:1", .count = 20ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_2143;
-    UNREACHABLE(&hoisted__Str_2143);
-    Str_delete(&hoisted__Str_2143, (Bool){0});
+    Str hoisted__Str_2214 = (Str){.c_str = (void *)"Primitive.clone:20:1", .count = 20ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_2214;
+    UNREACHABLE(&hoisted__Str_2214);
+    Str_delete(&hoisted__Str_2214, (Bool){0});
     { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I16;
     return _r; }
 }
 
 U32 Primitive_size(void) {
-    U32 hoisted__U32_2144 = 4;
-    (void)hoisted__U32_2144;
-    return hoisted__U32_2144;
+    U32 hoisted__U32_2215 = 4;
+    (void)hoisted__U32_2215;
+    return hoisted__U32_2215;
 }
 
 
@@ -2827,55 +2827,55 @@ Type *Type_FuncPtrSig(Str * val) {
     return r;
 }
 void Type_delete(Type * self, Bool call_free) {
-    Bool hoisted__Bool_2196 = is(self, &(Type){.tag = Type_TAG_Struct});
-    (void)hoisted__Bool_2196;
-    if (hoisted__Bool_2196) {
-        Str *hoisted__Str_2186 = get_payload(self);
-        (void)hoisted__Str_2186;
-        (void)hoisted__Str_2186;
-        Bool hoisted__Bool_2187 = 0;
-        (void)hoisted__Bool_2187;
-        Str_delete(hoisted__Str_2186, hoisted__Bool_2187);
+    Bool hoisted__Bool_2267 = is(self, &(Type){.tag = Type_TAG_Struct});
+    (void)hoisted__Bool_2267;
+    if (hoisted__Bool_2267) {
+        Str *hoisted__Str_2257 = get_payload(self);
+        (void)hoisted__Str_2257;
+        (void)hoisted__Str_2257;
+        Bool hoisted__Bool_2258 = 0;
+        (void)hoisted__Bool_2258;
+        Str_delete(hoisted__Str_2257, hoisted__Bool_2258);
     }
-    Bool hoisted__Bool_2197 = is(self, &(Type){.tag = Type_TAG_Enum});
-    (void)hoisted__Bool_2197;
-    if (hoisted__Bool_2197) {
-        Str *hoisted__Str_2188 = get_payload(self);
-        (void)hoisted__Str_2188;
-        (void)hoisted__Str_2188;
-        Bool hoisted__Bool_2189 = 0;
-        (void)hoisted__Bool_2189;
-        Str_delete(hoisted__Str_2188, hoisted__Bool_2189);
+    Bool hoisted__Bool_2268 = is(self, &(Type){.tag = Type_TAG_Enum});
+    (void)hoisted__Bool_2268;
+    if (hoisted__Bool_2268) {
+        Str *hoisted__Str_2259 = get_payload(self);
+        (void)hoisted__Str_2259;
+        (void)hoisted__Str_2259;
+        Bool hoisted__Bool_2260 = 0;
+        (void)hoisted__Bool_2260;
+        Str_delete(hoisted__Str_2259, hoisted__Bool_2260);
     }
-    Bool hoisted__Bool_2198 = is(self, &(Type){.tag = Type_TAG_Custom});
-    (void)hoisted__Bool_2198;
-    if (hoisted__Bool_2198) {
-        Str *hoisted__Str_2190 = get_payload(self);
-        (void)hoisted__Str_2190;
-        (void)hoisted__Str_2190;
-        Bool hoisted__Bool_2191 = 0;
-        (void)hoisted__Bool_2191;
-        Str_delete(hoisted__Str_2190, hoisted__Bool_2191);
+    Bool hoisted__Bool_2269 = is(self, &(Type){.tag = Type_TAG_Custom});
+    (void)hoisted__Bool_2269;
+    if (hoisted__Bool_2269) {
+        Str *hoisted__Str_2261 = get_payload(self);
+        (void)hoisted__Str_2261;
+        (void)hoisted__Str_2261;
+        Bool hoisted__Bool_2262 = 0;
+        (void)hoisted__Bool_2262;
+        Str_delete(hoisted__Str_2261, hoisted__Bool_2262);
     }
-    Bool hoisted__Bool_2199 = is(self, &(Type){.tag = Type_TAG_Primitive});
-    (void)hoisted__Bool_2199;
-    if (hoisted__Bool_2199) {
-        Primitive *hoisted__Primitive_2192 = get_payload(self);
-        (void)hoisted__Primitive_2192;
-        (void)hoisted__Primitive_2192;
-        Bool hoisted__Bool_2193 = 0;
-        (void)hoisted__Bool_2193;
-        Primitive_delete(hoisted__Primitive_2192, hoisted__Bool_2193);
+    Bool hoisted__Bool_2270 = is(self, &(Type){.tag = Type_TAG_Primitive});
+    (void)hoisted__Bool_2270;
+    if (hoisted__Bool_2270) {
+        Primitive *hoisted__Primitive_2263 = get_payload(self);
+        (void)hoisted__Primitive_2263;
+        (void)hoisted__Primitive_2263;
+        Bool hoisted__Bool_2264 = 0;
+        (void)hoisted__Bool_2264;
+        Primitive_delete(hoisted__Primitive_2263, hoisted__Bool_2264);
     }
-    Bool hoisted__Bool_2200 = is(self, &(Type){.tag = Type_TAG_FuncPtrSig});
-    (void)hoisted__Bool_2200;
-    if (hoisted__Bool_2200) {
-        Str *hoisted__Str_2194 = get_payload(self);
-        (void)hoisted__Str_2194;
-        (void)hoisted__Str_2194;
-        Bool hoisted__Bool_2195 = 0;
-        (void)hoisted__Bool_2195;
-        Str_delete(hoisted__Str_2194, hoisted__Bool_2195);
+    Bool hoisted__Bool_2271 = is(self, &(Type){.tag = Type_TAG_FuncPtrSig});
+    (void)hoisted__Bool_2271;
+    if (hoisted__Bool_2271) {
+        Str *hoisted__Str_2265 = get_payload(self);
+        (void)hoisted__Str_2265;
+        (void)hoisted__Str_2265;
+        Bool hoisted__Bool_2266 = 0;
+        (void)hoisted__Bool_2266;
+        Str_delete(hoisted__Str_2265, hoisted__Bool_2266);
     }
     if (call_free) {
         free(self);
@@ -2883,114 +2883,114 @@ void Type_delete(Type * self, Bool call_free) {
 }
 
 Type * Type_clone(Type * self) {
-    Bool hoisted__Bool_2269 = is(self, &(Type){.tag = Type_TAG_Unknown});
-    (void)hoisted__Bool_2269;
-    if (hoisted__Bool_2269) {
+    Bool hoisted__Bool_2340 = is(self, &(Type){.tag = Type_TAG_Unknown});
+    (void)hoisted__Bool_2340;
+    if (hoisted__Bool_2340) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Unknown;
                 return _r; }
     }
-    Bool hoisted__Bool_2270 = is(self, &(Type){.tag = Type_TAG_None});
-    (void)hoisted__Bool_2270;
-    if (hoisted__Bool_2270) {
+    Bool hoisted__Bool_2341 = is(self, &(Type){.tag = Type_TAG_None});
+    (void)hoisted__Bool_2341;
+    if (hoisted__Bool_2341) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_None;
                 return _r; }
     }
-    Bool hoisted__Bool_2271 = is(self, &(Type){.tag = Type_TAG_Struct});
-    (void)hoisted__Bool_2271;
-    if (hoisted__Bool_2271) {
+    Bool hoisted__Bool_2342 = is(self, &(Type){.tag = Type_TAG_Struct});
+    (void)hoisted__Bool_2342;
+    if (hoisted__Bool_2342) {
         Str *_clone_payload_Struct_2 = get_payload(self);
         (void)_clone_payload_Struct_2;
         (void)_clone_payload_Struct_2;
-        Str *hoisted__Str_2261 = Str_clone(_clone_payload_Struct_2);
-        (void)hoisted__Str_2261;
-        Type *hoisted__Type_2262 = Type_Struct(hoisted__Str_2261);
-        (void)hoisted__Type_2262;
-        { Type * _ret_val = hoisted__Type_2262;
+        Str *hoisted__Str_2332 = Str_clone(_clone_payload_Struct_2);
+        (void)hoisted__Str_2332;
+        Type *hoisted__Type_2333 = Type_Struct(hoisted__Str_2332);
+        (void)hoisted__Type_2333;
+        { Type * _ret_val = hoisted__Type_2333;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2272 = is(self, &(Type){.tag = Type_TAG_StructDef});
-    (void)hoisted__Bool_2272;
-    if (hoisted__Bool_2272) {
+    Bool hoisted__Bool_2343 = is(self, &(Type){.tag = Type_TAG_StructDef});
+    (void)hoisted__Bool_2343;
+    if (hoisted__Bool_2343) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_StructDef;
                 return _r; }
     }
-    Bool hoisted__Bool_2273 = is(self, &(Type){.tag = Type_TAG_Enum});
-    (void)hoisted__Bool_2273;
-    if (hoisted__Bool_2273) {
+    Bool hoisted__Bool_2344 = is(self, &(Type){.tag = Type_TAG_Enum});
+    (void)hoisted__Bool_2344;
+    if (hoisted__Bool_2344) {
         Str *_clone_payload_Enum_4 = get_payload(self);
         (void)_clone_payload_Enum_4;
         (void)_clone_payload_Enum_4;
-        Str *hoisted__Str_2263 = Str_clone(_clone_payload_Enum_4);
-        (void)hoisted__Str_2263;
-        Type *hoisted__Type_2264 = Type_Enum(hoisted__Str_2263);
-        (void)hoisted__Type_2264;
-        { Type * _ret_val = hoisted__Type_2264;
+        Str *hoisted__Str_2334 = Str_clone(_clone_payload_Enum_4);
+        (void)hoisted__Str_2334;
+        Type *hoisted__Type_2335 = Type_Enum(hoisted__Str_2334);
+        (void)hoisted__Type_2335;
+        { Type * _ret_val = hoisted__Type_2335;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2274 = is(self, &(Type){.tag = Type_TAG_EnumDef});
-    (void)hoisted__Bool_2274;
-    if (hoisted__Bool_2274) {
+    Bool hoisted__Bool_2345 = is(self, &(Type){.tag = Type_TAG_EnumDef});
+    (void)hoisted__Bool_2345;
+    if (hoisted__Bool_2345) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_EnumDef;
                 return _r; }
     }
-    Bool hoisted__Bool_2275 = is(self, &(Type){.tag = Type_TAG_FuncDef});
-    (void)hoisted__Bool_2275;
-    if (hoisted__Bool_2275) {
+    Bool hoisted__Bool_2346 = is(self, &(Type){.tag = Type_TAG_FuncDef});
+    (void)hoisted__Bool_2346;
+    if (hoisted__Bool_2346) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncDef;
                 return _r; }
     }
-    Bool hoisted__Bool_2276 = is(self, &(Type){.tag = Type_TAG_FuncPtr});
-    (void)hoisted__Bool_2276;
-    if (hoisted__Bool_2276) {
+    Bool hoisted__Bool_2347 = is(self, &(Type){.tag = Type_TAG_FuncPtr});
+    (void)hoisted__Bool_2347;
+    if (hoisted__Bool_2347) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncPtr;
                 return _r; }
     }
-    Bool hoisted__Bool_2277 = is(self, &(Type){.tag = Type_TAG_Dynamic});
-    (void)hoisted__Bool_2277;
-    if (hoisted__Bool_2277) {
+    Bool hoisted__Bool_2348 = is(self, &(Type){.tag = Type_TAG_Dynamic});
+    (void)hoisted__Bool_2348;
+    if (hoisted__Bool_2348) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Dynamic;
                 return _r; }
     }
-    Bool hoisted__Bool_2278 = is(self, &(Type){.tag = Type_TAG_Custom});
-    (void)hoisted__Bool_2278;
-    if (hoisted__Bool_2278) {
+    Bool hoisted__Bool_2349 = is(self, &(Type){.tag = Type_TAG_Custom});
+    (void)hoisted__Bool_2349;
+    if (hoisted__Bool_2349) {
         Str *_clone_payload_Custom_9 = get_payload(self);
         (void)_clone_payload_Custom_9;
         (void)_clone_payload_Custom_9;
-        Str *hoisted__Str_2265 = Str_clone(_clone_payload_Custom_9);
-        (void)hoisted__Str_2265;
-        Type *hoisted__Type_2266 = Type_Custom(hoisted__Str_2265);
-        (void)hoisted__Type_2266;
-        { Type * _ret_val = hoisted__Type_2266;
+        Str *hoisted__Str_2336 = Str_clone(_clone_payload_Custom_9);
+        (void)hoisted__Str_2336;
+        Type *hoisted__Type_2337 = Type_Custom(hoisted__Str_2336);
+        (void)hoisted__Type_2337;
+        { Type * _ret_val = hoisted__Type_2337;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2279 = is(self, &(Type){.tag = Type_TAG_Primitive});
-    (void)hoisted__Bool_2279;
-    if (hoisted__Bool_2279) {
+    Bool hoisted__Bool_2350 = is(self, &(Type){.tag = Type_TAG_Primitive});
+    (void)hoisted__Bool_2350;
+    if (hoisted__Bool_2350) {
         Primitive *_clone_payload_Primitive_10 = get_payload(self);
         (void)_clone_payload_Primitive_10;
         (void)_clone_payload_Primitive_10;
-        Primitive hoisted__Primitive_2267 = DEREF(_clone_payload_Primitive_10);
-        (void)hoisted__Primitive_2267;
-        Type *hoisted__Type_2268 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = hoisted__Primitive_2267; _oa; }));
-        (void)hoisted__Type_2268;
-        { Type * _ret_val = hoisted__Type_2268;
+        Primitive hoisted__Primitive_2338 = DEREF(_clone_payload_Primitive_10);
+        (void)hoisted__Primitive_2338;
+        Type *hoisted__Type_2339 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = hoisted__Primitive_2338; _oa; }));
+        (void)hoisted__Type_2339;
+        { Type * _ret_val = hoisted__Type_2339;
                 return _ret_val; }
     }
     Str *_clone_payload_FuncPtrSig_11 = get_payload(self);
     (void)_clone_payload_FuncPtrSig_11;
     (void)_clone_payload_FuncPtrSig_11;
-    Str *hoisted__Str_2280 = Str_clone(_clone_payload_FuncPtrSig_11);
-    (void)hoisted__Str_2280;
-    Type *hoisted__Type_2281 = Type_FuncPtrSig(hoisted__Str_2280);
-    (void)hoisted__Type_2281;
-    return hoisted__Type_2281;
+    Str *hoisted__Str_2351 = Str_clone(_clone_payload_FuncPtrSig_11);
+    (void)hoisted__Str_2351;
+    Type *hoisted__Type_2352 = Type_FuncPtrSig(hoisted__Str_2351);
+    (void)hoisted__Type_2352;
+    return hoisted__Type_2352;
 }
 
 U32 Type_size(void) {
-    U32 hoisted__U32_2282 = 24;
-    (void)hoisted__U32_2282;
-    return hoisted__U32_2282;
+    U32 hoisted__U32_2353 = 24;
+    (void)hoisted__U32_2353;
+    return hoisted__U32_2353;
 }
 
 
@@ -3035,73 +3035,73 @@ FuncType *FuncType_LazyProc() {
     return r;
 }
 Bool FuncType_eq(FuncType * self, FuncType * other) {
-    Bool hoisted__Bool_2383 = is(self, &(FuncType){.tag = FuncType_TAG_Func});
-    (void)hoisted__Bool_2383;
-    if (hoisted__Bool_2383) {
-        Bool hoisted__Bool_2375 = is(other, &(FuncType){.tag = FuncType_TAG_Func});
-        (void)hoisted__Bool_2375;
-        { Bool _ret_val = hoisted__Bool_2375;
+    Bool hoisted__Bool_2454 = is(self, &(FuncType){.tag = FuncType_TAG_Func});
+    (void)hoisted__Bool_2454;
+    if (hoisted__Bool_2454) {
+        Bool hoisted__Bool_2446 = is(other, &(FuncType){.tag = FuncType_TAG_Func});
+        (void)hoisted__Bool_2446;
+        { Bool _ret_val = hoisted__Bool_2446;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2384 = is(self, &(FuncType){.tag = FuncType_TAG_Proc});
-    (void)hoisted__Bool_2384;
-    if (hoisted__Bool_2384) {
-        Bool hoisted__Bool_2376 = is(other, &(FuncType){.tag = FuncType_TAG_Proc});
-        (void)hoisted__Bool_2376;
-        { Bool _ret_val = hoisted__Bool_2376;
+    Bool hoisted__Bool_2455 = is(self, &(FuncType){.tag = FuncType_TAG_Proc});
+    (void)hoisted__Bool_2455;
+    if (hoisted__Bool_2455) {
+        Bool hoisted__Bool_2447 = is(other, &(FuncType){.tag = FuncType_TAG_Proc});
+        (void)hoisted__Bool_2447;
+        { Bool _ret_val = hoisted__Bool_2447;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2385 = is(self, &(FuncType){.tag = FuncType_TAG_Test});
-    (void)hoisted__Bool_2385;
-    if (hoisted__Bool_2385) {
-        Bool hoisted__Bool_2377 = is(other, &(FuncType){.tag = FuncType_TAG_Test});
-        (void)hoisted__Bool_2377;
-        { Bool _ret_val = hoisted__Bool_2377;
+    Bool hoisted__Bool_2456 = is(self, &(FuncType){.tag = FuncType_TAG_Test});
+    (void)hoisted__Bool_2456;
+    if (hoisted__Bool_2456) {
+        Bool hoisted__Bool_2448 = is(other, &(FuncType){.tag = FuncType_TAG_Test});
+        (void)hoisted__Bool_2448;
+        { Bool _ret_val = hoisted__Bool_2448;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2386 = is(self, &(FuncType){.tag = FuncType_TAG_Macro});
-    (void)hoisted__Bool_2386;
-    if (hoisted__Bool_2386) {
-        Bool hoisted__Bool_2378 = is(other, &(FuncType){.tag = FuncType_TAG_Macro});
-        (void)hoisted__Bool_2378;
-        { Bool _ret_val = hoisted__Bool_2378;
+    Bool hoisted__Bool_2457 = is(self, &(FuncType){.tag = FuncType_TAG_Macro});
+    (void)hoisted__Bool_2457;
+    if (hoisted__Bool_2457) {
+        Bool hoisted__Bool_2449 = is(other, &(FuncType){.tag = FuncType_TAG_Macro});
+        (void)hoisted__Bool_2449;
+        { Bool _ret_val = hoisted__Bool_2449;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2387 = is(self, &(FuncType){.tag = FuncType_TAG_ExtFunc});
-    (void)hoisted__Bool_2387;
-    if (hoisted__Bool_2387) {
-        Bool hoisted__Bool_2379 = is(other, &(FuncType){.tag = FuncType_TAG_ExtFunc});
-        (void)hoisted__Bool_2379;
-        { Bool _ret_val = hoisted__Bool_2379;
+    Bool hoisted__Bool_2458 = is(self, &(FuncType){.tag = FuncType_TAG_ExtFunc});
+    (void)hoisted__Bool_2458;
+    if (hoisted__Bool_2458) {
+        Bool hoisted__Bool_2450 = is(other, &(FuncType){.tag = FuncType_TAG_ExtFunc});
+        (void)hoisted__Bool_2450;
+        { Bool _ret_val = hoisted__Bool_2450;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2388 = is(self, &(FuncType){.tag = FuncType_TAG_ExtProc});
-    (void)hoisted__Bool_2388;
-    if (hoisted__Bool_2388) {
-        Bool hoisted__Bool_2380 = is(other, &(FuncType){.tag = FuncType_TAG_ExtProc});
-        (void)hoisted__Bool_2380;
-        { Bool _ret_val = hoisted__Bool_2380;
+    Bool hoisted__Bool_2459 = is(self, &(FuncType){.tag = FuncType_TAG_ExtProc});
+    (void)hoisted__Bool_2459;
+    if (hoisted__Bool_2459) {
+        Bool hoisted__Bool_2451 = is(other, &(FuncType){.tag = FuncType_TAG_ExtProc});
+        (void)hoisted__Bool_2451;
+        { Bool _ret_val = hoisted__Bool_2451;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2389 = is(self, &(FuncType){.tag = FuncType_TAG_LazyFunc});
-    (void)hoisted__Bool_2389;
-    if (hoisted__Bool_2389) {
-        Bool hoisted__Bool_2381 = is(other, &(FuncType){.tag = FuncType_TAG_LazyFunc});
-        (void)hoisted__Bool_2381;
-        { Bool _ret_val = hoisted__Bool_2381;
+    Bool hoisted__Bool_2460 = is(self, &(FuncType){.tag = FuncType_TAG_LazyFunc});
+    (void)hoisted__Bool_2460;
+    if (hoisted__Bool_2460) {
+        Bool hoisted__Bool_2452 = is(other, &(FuncType){.tag = FuncType_TAG_LazyFunc});
+        (void)hoisted__Bool_2452;
+        { Bool _ret_val = hoisted__Bool_2452;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2390 = is(self, &(FuncType){.tag = FuncType_TAG_LazyProc});
-    (void)hoisted__Bool_2390;
-    if (hoisted__Bool_2390) {
-        Bool hoisted__Bool_2382 = is(other, &(FuncType){.tag = FuncType_TAG_LazyProc});
-        (void)hoisted__Bool_2382;
-        { Bool _ret_val = hoisted__Bool_2382;
+    Bool hoisted__Bool_2461 = is(self, &(FuncType){.tag = FuncType_TAG_LazyProc});
+    (void)hoisted__Bool_2461;
+    if (hoisted__Bool_2461) {
+        Bool hoisted__Bool_2453 = is(other, &(FuncType){.tag = FuncType_TAG_LazyProc});
+        (void)hoisted__Bool_2453;
+        { Bool _ret_val = hoisted__Bool_2453;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2391 = 0;
-    (void)hoisted__Bool_2391;
-    return hoisted__Bool_2391;
+    Bool hoisted__Bool_2462 = 0;
+    (void)hoisted__Bool_2462;
+    return hoisted__Bool_2462;
 }
 
 void FuncType_delete(FuncType * self, Bool call_free) {
@@ -3111,66 +3111,66 @@ void FuncType_delete(FuncType * self, Bool call_free) {
 }
 
 FuncType * FuncType_clone(FuncType * self) {
-    Bool hoisted__Bool_2409 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Func});
-    (void)hoisted__Bool_2409;
-    if (hoisted__Bool_2409) {
+    Bool hoisted__Bool_2480 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Func});
+    (void)hoisted__Bool_2480;
+    if (hoisted__Bool_2480) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_Func;
                 return _r; }
     }
-    Bool hoisted__Bool_2410 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Proc});
-    (void)hoisted__Bool_2410;
-    if (hoisted__Bool_2410) {
+    Bool hoisted__Bool_2481 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Proc});
+    (void)hoisted__Bool_2481;
+    if (hoisted__Bool_2481) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_Proc;
                 return _r; }
     }
-    Bool hoisted__Bool_2411 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Test});
-    (void)hoisted__Bool_2411;
-    if (hoisted__Bool_2411) {
+    Bool hoisted__Bool_2482 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Test});
+    (void)hoisted__Bool_2482;
+    if (hoisted__Bool_2482) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_Test;
                 return _r; }
     }
-    Bool hoisted__Bool_2412 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Macro});
-    (void)hoisted__Bool_2412;
-    if (hoisted__Bool_2412) {
+    Bool hoisted__Bool_2483 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_Macro});
+    (void)hoisted__Bool_2483;
+    if (hoisted__Bool_2483) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_Macro;
                 return _r; }
     }
-    Bool hoisted__Bool_2413 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_ExtFunc});
-    (void)hoisted__Bool_2413;
-    if (hoisted__Bool_2413) {
+    Bool hoisted__Bool_2484 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_ExtFunc});
+    (void)hoisted__Bool_2484;
+    if (hoisted__Bool_2484) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_ExtFunc;
                 return _r; }
     }
-    Bool hoisted__Bool_2414 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_ExtProc});
-    (void)hoisted__Bool_2414;
-    if (hoisted__Bool_2414) {
+    Bool hoisted__Bool_2485 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_ExtProc});
+    (void)hoisted__Bool_2485;
+    if (hoisted__Bool_2485) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_ExtProc;
                 return _r; }
     }
-    Bool hoisted__Bool_2415 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_LazyFunc});
-    (void)hoisted__Bool_2415;
-    if (hoisted__Bool_2415) {
+    Bool hoisted__Bool_2486 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_LazyFunc});
+    (void)hoisted__Bool_2486;
+    if (hoisted__Bool_2486) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_LazyFunc;
                 return _r; }
     }
-    Bool hoisted__Bool_2416 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_LazyProc});
-    (void)hoisted__Bool_2416;
-    if (hoisted__Bool_2416) {
+    Bool hoisted__Bool_2487 = FuncType_eq(self, &(FuncType){.tag = FuncType_TAG_LazyProc});
+    (void)hoisted__Bool_2487;
+    if (hoisted__Bool_2487) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_LazyProc;
                 return _r; }
     }
-    Str hoisted__Str_2417 = (Str){.c_str = (void *)"FuncType.clone:129:1", .count = 20ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_2417;
-    UNREACHABLE(&hoisted__Str_2417);
-    Str_delete(&hoisted__Str_2417, (Bool){0});
+    Str hoisted__Str_2488 = (Str){.c_str = (void *)"FuncType.clone:129:1", .count = 20ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_2488;
+    UNREACHABLE(&hoisted__Str_2488);
+    Str_delete(&hoisted__Str_2488, (Bool){0});
     { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_Func;
     return _r; }
 }
 
 U32 FuncType_size(void) {
-    U32 hoisted__U32_2418 = 4;
-    (void)hoisted__U32_2418;
-    return hoisted__U32_2418;
+    U32 hoisted__U32_2489 = 4;
+    (void)hoisted__U32_2489;
+    return hoisted__U32_2489;
 }
 
 
@@ -3190,33 +3190,33 @@ OwnType *OwnType_Shallow() {
     return r;
 }
 Bool OwnType_eq(OwnType * self, OwnType * other) {
-    Bool hoisted__Bool_2423 = is(self, &(OwnType){.tag = OwnType_TAG_Own});
-    (void)hoisted__Bool_2423;
-    if (hoisted__Bool_2423) {
-        Bool hoisted__Bool_2420 = is(other, &(OwnType){.tag = OwnType_TAG_Own});
-        (void)hoisted__Bool_2420;
-        { Bool _ret_val = hoisted__Bool_2420;
+    Bool hoisted__Bool_2494 = is(self, &(OwnType){.tag = OwnType_TAG_Own});
+    (void)hoisted__Bool_2494;
+    if (hoisted__Bool_2494) {
+        Bool hoisted__Bool_2491 = is(other, &(OwnType){.tag = OwnType_TAG_Own});
+        (void)hoisted__Bool_2491;
+        { Bool _ret_val = hoisted__Bool_2491;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2424 = is(self, &(OwnType){.tag = OwnType_TAG_Ref});
-    (void)hoisted__Bool_2424;
-    if (hoisted__Bool_2424) {
-        Bool hoisted__Bool_2421 = is(other, &(OwnType){.tag = OwnType_TAG_Ref});
-        (void)hoisted__Bool_2421;
-        { Bool _ret_val = hoisted__Bool_2421;
+    Bool hoisted__Bool_2495 = is(self, &(OwnType){.tag = OwnType_TAG_Ref});
+    (void)hoisted__Bool_2495;
+    if (hoisted__Bool_2495) {
+        Bool hoisted__Bool_2492 = is(other, &(OwnType){.tag = OwnType_TAG_Ref});
+        (void)hoisted__Bool_2492;
+        { Bool _ret_val = hoisted__Bool_2492;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2425 = is(self, &(OwnType){.tag = OwnType_TAG_Shallow});
-    (void)hoisted__Bool_2425;
-    if (hoisted__Bool_2425) {
-        Bool hoisted__Bool_2422 = is(other, &(OwnType){.tag = OwnType_TAG_Shallow});
-        (void)hoisted__Bool_2422;
-        { Bool _ret_val = hoisted__Bool_2422;
+    Bool hoisted__Bool_2496 = is(self, &(OwnType){.tag = OwnType_TAG_Shallow});
+    (void)hoisted__Bool_2496;
+    if (hoisted__Bool_2496) {
+        Bool hoisted__Bool_2493 = is(other, &(OwnType){.tag = OwnType_TAG_Shallow});
+        (void)hoisted__Bool_2493;
+        { Bool _ret_val = hoisted__Bool_2493;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2426 = 0;
-    (void)hoisted__Bool_2426;
-    return hoisted__Bool_2426;
+    Bool hoisted__Bool_2497 = 0;
+    (void)hoisted__Bool_2497;
+    return hoisted__Bool_2497;
 }
 
 void OwnType_delete(OwnType * self, Bool call_free) {
@@ -3226,533 +3226,533 @@ void OwnType_delete(OwnType * self, Bool call_free) {
 }
 
 OwnType * OwnType_clone(OwnType * self) {
-    Bool hoisted__Bool_2434 = OwnType_eq(self, &(OwnType){.tag = OwnType_TAG_Own});
-    (void)hoisted__Bool_2434;
-    if (hoisted__Bool_2434) {
+    Bool hoisted__Bool_2505 = OwnType_eq(self, &(OwnType){.tag = OwnType_TAG_Own});
+    (void)hoisted__Bool_2505;
+    if (hoisted__Bool_2505) {
         { OwnType *_r = malloc(sizeof(OwnType)); _r->tag = OwnType_TAG_Own;
                 return _r; }
     }
-    Bool hoisted__Bool_2435 = OwnType_eq(self, &(OwnType){.tag = OwnType_TAG_Ref});
-    (void)hoisted__Bool_2435;
-    if (hoisted__Bool_2435) {
+    Bool hoisted__Bool_2506 = OwnType_eq(self, &(OwnType){.tag = OwnType_TAG_Ref});
+    (void)hoisted__Bool_2506;
+    if (hoisted__Bool_2506) {
         { OwnType *_r = malloc(sizeof(OwnType)); _r->tag = OwnType_TAG_Ref;
                 return _r; }
     }
-    Bool hoisted__Bool_2436 = OwnType_eq(self, &(OwnType){.tag = OwnType_TAG_Shallow});
-    (void)hoisted__Bool_2436;
-    if (hoisted__Bool_2436) {
+    Bool hoisted__Bool_2507 = OwnType_eq(self, &(OwnType){.tag = OwnType_TAG_Shallow});
+    (void)hoisted__Bool_2507;
+    if (hoisted__Bool_2507) {
         { OwnType *_r = malloc(sizeof(OwnType)); _r->tag = OwnType_TAG_Shallow;
                 return _r; }
     }
-    Str hoisted__Str_2437 = (Str){.c_str = (void *)"OwnType.clone:134:1", .count = 19ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_2437;
-    UNREACHABLE(&hoisted__Str_2437);
-    Str_delete(&hoisted__Str_2437, (Bool){0});
+    Str hoisted__Str_2508 = (Str){.c_str = (void *)"OwnType.clone:134:1", .count = 19ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_2508;
+    UNREACHABLE(&hoisted__Str_2508);
+    Str_delete(&hoisted__Str_2508, (Bool){0});
     { OwnType *_r = malloc(sizeof(OwnType)); _r->tag = OwnType_TAG_Own;
     return _r; }
 }
 
 U32 OwnType_size(void) {
-    U32 hoisted__U32_2438 = 4;
-    (void)hoisted__U32_2438;
-    return hoisted__U32_2438;
+    U32 hoisted__U32_2509 = 4;
+    (void)hoisted__U32_2509;
+    return hoisted__U32_2509;
 }
 
 
 Declaration * Declaration_clone(Declaration * self) {
-    Expr *hoisted__Expr_2440 = Expr_clone(self->default_value);
-    (void)hoisted__Expr_2440;
-    Declaration *hoisted__Declaration_2441 = malloc(sizeof(Declaration));
-    { Str *_ca = Str_clone(&self->name); hoisted__Declaration_2441->name = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->doc); hoisted__Declaration_2441->doc = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->explicit_type); hoisted__Declaration_2441->explicit_type = *_ca; free(_ca); }
-    hoisted__Declaration_2441->is_mut = self->is_mut;
-    hoisted__Declaration_2441->redundant_mut = self->redundant_mut;
-    hoisted__Declaration_2441->is_priv = self->is_priv;
-    hoisted__Declaration_2441->used = self->used;
-    { OwnType *_ca = OwnType_clone(&self->own_type); hoisted__Declaration_2441->own_type = *_ca; free(_ca); }
-    { Type *_ca = Type_clone(&self->til_type); hoisted__Declaration_2441->til_type = *_ca; free(_ca); }
-    hoisted__Declaration_2441->default_value = hoisted__Expr_2440;
-    { Str *_ca = Str_clone(&self->orig_name); hoisted__Declaration_2441->orig_name = *_ca; free(_ca); }
-    (void)hoisted__Declaration_2441;
-    return hoisted__Declaration_2441;
+    Expr *hoisted__Expr_2511 = Expr_clone(self->default_value);
+    (void)hoisted__Expr_2511;
+    Declaration *hoisted__Declaration_2512 = malloc(sizeof(Declaration));
+    { Str *_ca = Str_clone(&self->name); hoisted__Declaration_2512->name = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->doc); hoisted__Declaration_2512->doc = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->explicit_type); hoisted__Declaration_2512->explicit_type = *_ca; free(_ca); }
+    hoisted__Declaration_2512->is_mut = self->is_mut;
+    hoisted__Declaration_2512->redundant_mut = self->redundant_mut;
+    hoisted__Declaration_2512->is_priv = self->is_priv;
+    hoisted__Declaration_2512->used = self->used;
+    { OwnType *_ca = OwnType_clone(&self->own_type); hoisted__Declaration_2512->own_type = *_ca; free(_ca); }
+    { Type *_ca = Type_clone(&self->til_type); hoisted__Declaration_2512->til_type = *_ca; free(_ca); }
+    hoisted__Declaration_2512->default_value = hoisted__Expr_2511;
+    { Str *_ca = Str_clone(&self->orig_name); hoisted__Declaration_2512->orig_name = *_ca; free(_ca); }
+    (void)hoisted__Declaration_2512;
+    return hoisted__Declaration_2512;
 }
 
 void Declaration_delete(Declaration * self, Bool call_free) {
-    Bool hoisted__Bool_2442 = 0;
-    (void)hoisted__Bool_2442;
-    Str_delete(&self->name, hoisted__Bool_2442);
-    Bool hoisted__Bool_2443 = 0;
-    (void)hoisted__Bool_2443;
-    Str_delete(&self->doc, hoisted__Bool_2443);
-    Bool hoisted__Bool_2444 = 0;
-    (void)hoisted__Bool_2444;
-    Str_delete(&self->explicit_type, hoisted__Bool_2444);
-    Bool hoisted__Bool_2445 = 0;
-    (void)hoisted__Bool_2445;
-    Bool_delete(&self->is_mut, hoisted__Bool_2445);
-    Bool hoisted__Bool_2446 = 0;
-    (void)hoisted__Bool_2446;
-    Bool_delete(&self->redundant_mut, hoisted__Bool_2446);
-    Bool hoisted__Bool_2447 = 0;
-    (void)hoisted__Bool_2447;
-    Bool_delete(&self->is_priv, hoisted__Bool_2447);
-    Bool hoisted__Bool_2448 = 0;
-    (void)hoisted__Bool_2448;
-    Bool_delete(&self->used, hoisted__Bool_2448);
-    Bool hoisted__Bool_2449 = 0;
-    (void)hoisted__Bool_2449;
-    OwnType_delete(&self->own_type, hoisted__Bool_2449);
-    Bool hoisted__Bool_2450 = 0;
-    (void)hoisted__Bool_2450;
-    Type_delete(&self->til_type, hoisted__Bool_2450);
-    Bool hoisted__Bool_2451 = 1;
-    (void)hoisted__Bool_2451;
-    Expr_delete(self->default_value, hoisted__Bool_2451);
-    Bool hoisted__Bool_2452 = 0;
-    (void)hoisted__Bool_2452;
-    Str_delete(&self->orig_name, hoisted__Bool_2452);
+    Bool hoisted__Bool_2513 = 0;
+    (void)hoisted__Bool_2513;
+    Str_delete(&self->name, hoisted__Bool_2513);
+    Bool hoisted__Bool_2514 = 0;
+    (void)hoisted__Bool_2514;
+    Str_delete(&self->doc, hoisted__Bool_2514);
+    Bool hoisted__Bool_2515 = 0;
+    (void)hoisted__Bool_2515;
+    Str_delete(&self->explicit_type, hoisted__Bool_2515);
+    Bool hoisted__Bool_2516 = 0;
+    (void)hoisted__Bool_2516;
+    Bool_delete(&self->is_mut, hoisted__Bool_2516);
+    Bool hoisted__Bool_2517 = 0;
+    (void)hoisted__Bool_2517;
+    Bool_delete(&self->redundant_mut, hoisted__Bool_2517);
+    Bool hoisted__Bool_2518 = 0;
+    (void)hoisted__Bool_2518;
+    Bool_delete(&self->is_priv, hoisted__Bool_2518);
+    Bool hoisted__Bool_2519 = 0;
+    (void)hoisted__Bool_2519;
+    Bool_delete(&self->used, hoisted__Bool_2519);
+    Bool hoisted__Bool_2520 = 0;
+    (void)hoisted__Bool_2520;
+    OwnType_delete(&self->own_type, hoisted__Bool_2520);
+    Bool hoisted__Bool_2521 = 0;
+    (void)hoisted__Bool_2521;
+    Type_delete(&self->til_type, hoisted__Bool_2521);
+    Bool hoisted__Bool_2522 = 1;
+    (void)hoisted__Bool_2522;
+    Expr_delete(self->default_value, hoisted__Bool_2522);
+    Bool hoisted__Bool_2523 = 0;
+    (void)hoisted__Bool_2523;
+    Str_delete(&self->orig_name, hoisted__Bool_2523);
     if (call_free) {
         free(self);
     }
 }
 
 U32 Declaration_size(void) {
-    U32 hoisted__U32_2453 = 104;
-    (void)hoisted__U32_2453;
-    return hoisted__U32_2453;
+    U32 hoisted__U32_2524 = 104;
+    (void)hoisted__U32_2524;
+    return hoisted__U32_2524;
 }
 
 FunctionDef * FunctionDef_clone(FunctionDef * self) {
-    FunctionDef *hoisted__FunctionDef_2455 = malloc(sizeof(FunctionDef));
-    { FuncType *_ca = FuncType_clone(&self->func_type); hoisted__FunctionDef_2455->func_type = *_ca; free(_ca); }
-    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->params); hoisted__FunctionDef_2455->params = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->return_type); hoisted__FunctionDef_2455->return_type = *_ca; free(_ca); }
-    { Vec__Str *_ca = Vec__Str_clone(&self->throw_types); hoisted__FunctionDef_2455->throw_types = *_ca; free(_ca); }
-    hoisted__FunctionDef_2455->variadic_index = self->variadic_index;
-    hoisted__FunctionDef_2455->kwargs_index = self->kwargs_index;
-    { OwnType *_ca = OwnType_clone(&self->return_own_type); hoisted__FunctionDef_2455->return_own_type = *_ca; free(_ca); }
-    hoisted__FunctionDef_2455->auto_generated = self->auto_generated;
-    hoisted__FunctionDef_2455->is_enum_variant_ctor = self->is_enum_variant_ctor;
-    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->captures); hoisted__FunctionDef_2455->captures = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->closure_name); hoisted__FunctionDef_2455->closure_name = *_ca; free(_ca); }
-    (void)hoisted__FunctionDef_2455;
-    return hoisted__FunctionDef_2455;
+    FunctionDef *hoisted__FunctionDef_2526 = malloc(sizeof(FunctionDef));
+    { FuncType *_ca = FuncType_clone(&self->func_type); hoisted__FunctionDef_2526->func_type = *_ca; free(_ca); }
+    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->params); hoisted__FunctionDef_2526->params = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->return_type); hoisted__FunctionDef_2526->return_type = *_ca; free(_ca); }
+    { Vec__Str *_ca = Vec__Str_clone(&self->throw_types); hoisted__FunctionDef_2526->throw_types = *_ca; free(_ca); }
+    hoisted__FunctionDef_2526->variadic_index = self->variadic_index;
+    hoisted__FunctionDef_2526->kwargs_index = self->kwargs_index;
+    { OwnType *_ca = OwnType_clone(&self->return_own_type); hoisted__FunctionDef_2526->return_own_type = *_ca; free(_ca); }
+    hoisted__FunctionDef_2526->auto_generated = self->auto_generated;
+    hoisted__FunctionDef_2526->is_enum_variant_ctor = self->is_enum_variant_ctor;
+    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->captures); hoisted__FunctionDef_2526->captures = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->closure_name); hoisted__FunctionDef_2526->closure_name = *_ca; free(_ca); }
+    (void)hoisted__FunctionDef_2526;
+    return hoisted__FunctionDef_2526;
 }
 
 void FunctionDef_delete(FunctionDef * self, Bool call_free) {
-    Bool hoisted__Bool_2456 = 0;
-    (void)hoisted__Bool_2456;
-    FuncType_delete(&self->func_type, hoisted__Bool_2456);
-    Bool hoisted__Bool_2457 = 0;
-    (void)hoisted__Bool_2457;
-    Vec__Declaration_delete(&self->params, hoisted__Bool_2457);
-    Bool hoisted__Bool_2458 = 0;
-    (void)hoisted__Bool_2458;
-    Str_delete(&self->return_type, hoisted__Bool_2458);
-    Bool hoisted__Bool_2459 = 0;
-    (void)hoisted__Bool_2459;
-    Vec__Str_delete(&self->throw_types, hoisted__Bool_2459);
-    Bool hoisted__Bool_2460 = 0;
-    (void)hoisted__Bool_2460;
-    I32_delete(&self->variadic_index, hoisted__Bool_2460);
-    Bool hoisted__Bool_2461 = 0;
-    (void)hoisted__Bool_2461;
-    I32_delete(&self->kwargs_index, hoisted__Bool_2461);
-    Bool hoisted__Bool_2462 = 0;
-    (void)hoisted__Bool_2462;
-    OwnType_delete(&self->return_own_type, hoisted__Bool_2462);
-    Bool hoisted__Bool_2463 = 0;
-    (void)hoisted__Bool_2463;
-    Bool_delete(&self->auto_generated, hoisted__Bool_2463);
-    Bool hoisted__Bool_2464 = 0;
-    (void)hoisted__Bool_2464;
-    Bool_delete(&self->is_enum_variant_ctor, hoisted__Bool_2464);
-    Bool hoisted__Bool_2465 = 0;
-    (void)hoisted__Bool_2465;
-    Vec__Declaration_delete(&self->captures, hoisted__Bool_2465);
-    Bool hoisted__Bool_2466 = 0;
-    (void)hoisted__Bool_2466;
-    Str_delete(&self->closure_name, hoisted__Bool_2466);
+    Bool hoisted__Bool_2527 = 0;
+    (void)hoisted__Bool_2527;
+    FuncType_delete(&self->func_type, hoisted__Bool_2527);
+    Bool hoisted__Bool_2528 = 0;
+    (void)hoisted__Bool_2528;
+    Vec__Declaration_delete(&self->params, hoisted__Bool_2528);
+    Bool hoisted__Bool_2529 = 0;
+    (void)hoisted__Bool_2529;
+    Str_delete(&self->return_type, hoisted__Bool_2529);
+    Bool hoisted__Bool_2530 = 0;
+    (void)hoisted__Bool_2530;
+    Vec__Str_delete(&self->throw_types, hoisted__Bool_2530);
+    Bool hoisted__Bool_2531 = 0;
+    (void)hoisted__Bool_2531;
+    I32_delete(&self->variadic_index, hoisted__Bool_2531);
+    Bool hoisted__Bool_2532 = 0;
+    (void)hoisted__Bool_2532;
+    I32_delete(&self->kwargs_index, hoisted__Bool_2532);
+    Bool hoisted__Bool_2533 = 0;
+    (void)hoisted__Bool_2533;
+    OwnType_delete(&self->return_own_type, hoisted__Bool_2533);
+    Bool hoisted__Bool_2534 = 0;
+    (void)hoisted__Bool_2534;
+    Bool_delete(&self->auto_generated, hoisted__Bool_2534);
+    Bool hoisted__Bool_2535 = 0;
+    (void)hoisted__Bool_2535;
+    Bool_delete(&self->is_enum_variant_ctor, hoisted__Bool_2535);
+    Bool hoisted__Bool_2536 = 0;
+    (void)hoisted__Bool_2536;
+    Vec__Declaration_delete(&self->captures, hoisted__Bool_2536);
+    Bool hoisted__Bool_2537 = 0;
+    (void)hoisted__Bool_2537;
+    Str_delete(&self->closure_name, hoisted__Bool_2537);
     if (call_free) {
         free(self);
     }
 }
 
 U64 FunctionDef_hash(FunctionDef * self, HashFn hasher) {
-    U32 hoisted__U32_2467 = 0;
-    (void)hoisted__U32_2467;
-    U64 hoisted__U64_2468 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FunctionDef *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2467); });
-    (void)hoisted__U64_2468;
-    return hoisted__U64_2468;
+    U32 hoisted__U32_2538 = 0;
+    (void)hoisted__U32_2538;
+    U64 hoisted__U64_2539 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FunctionDef *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2538); });
+    (void)hoisted__U64_2539;
+    return hoisted__U64_2539;
 }
 
 U32 FunctionDef_size(void) {
-    U32 hoisted__U32_2469 = 104;
-    (void)hoisted__U32_2469;
-    return hoisted__U32_2469;
+    U32 hoisted__U32_2540 = 104;
+    (void)hoisted__U32_2540;
+    return hoisted__U32_2540;
 }
 
 FCallData * FCallData_clone(FCallData * self) {
-    FCallData *hoisted__FCallData_2472 = malloc(sizeof(FCallData));
-    hoisted__FCallData_2472->is_splat = self->is_splat;
-    hoisted__FCallData_2472->does_throw = self->does_throw;
-    hoisted__FCallData_2472->is_bang = self->is_bang;
-    hoisted__FCallData_2472->own_args = self->own_args;
-    hoisted__FCallData_2472->swap_replace = self->swap_replace;
-    { Type *_ca = Type_clone(&self->til_type); hoisted__FCallData_2472->til_type = *_ca; free(_ca); }
-    (void)hoisted__FCallData_2472;
-    return hoisted__FCallData_2472;
+    FCallData *hoisted__FCallData_2543 = malloc(sizeof(FCallData));
+    hoisted__FCallData_2543->is_splat = self->is_splat;
+    hoisted__FCallData_2543->does_throw = self->does_throw;
+    hoisted__FCallData_2543->is_bang = self->is_bang;
+    hoisted__FCallData_2543->own_args = self->own_args;
+    hoisted__FCallData_2543->swap_replace = self->swap_replace;
+    { Type *_ca = Type_clone(&self->til_type); hoisted__FCallData_2543->til_type = *_ca; free(_ca); }
+    (void)hoisted__FCallData_2543;
+    return hoisted__FCallData_2543;
 }
 
 void FCallData_delete(FCallData * self, Bool call_free) {
-    Bool hoisted__Bool_2473 = 0;
-    (void)hoisted__Bool_2473;
-    Bool_delete(&self->is_splat, hoisted__Bool_2473);
-    Bool hoisted__Bool_2474 = 0;
-    (void)hoisted__Bool_2474;
-    Bool_delete(&self->does_throw, hoisted__Bool_2474);
-    Bool hoisted__Bool_2475 = 0;
-    (void)hoisted__Bool_2475;
-    Bool_delete(&self->is_bang, hoisted__Bool_2475);
-    Bool hoisted__Bool_2476 = 0;
-    (void)hoisted__Bool_2476;
-    U64_delete(&self->own_args, hoisted__Bool_2476);
-    Bool hoisted__Bool_2477 = 0;
-    (void)hoisted__Bool_2477;
-    Bool_delete(&self->swap_replace, hoisted__Bool_2477);
-    Bool hoisted__Bool_2478 = 0;
-    (void)hoisted__Bool_2478;
-    Type_delete(&self->til_type, hoisted__Bool_2478);
+    Bool hoisted__Bool_2544 = 0;
+    (void)hoisted__Bool_2544;
+    Bool_delete(&self->is_splat, hoisted__Bool_2544);
+    Bool hoisted__Bool_2545 = 0;
+    (void)hoisted__Bool_2545;
+    Bool_delete(&self->does_throw, hoisted__Bool_2545);
+    Bool hoisted__Bool_2546 = 0;
+    (void)hoisted__Bool_2546;
+    Bool_delete(&self->is_bang, hoisted__Bool_2546);
+    Bool hoisted__Bool_2547 = 0;
+    (void)hoisted__Bool_2547;
+    U64_delete(&self->own_args, hoisted__Bool_2547);
+    Bool hoisted__Bool_2548 = 0;
+    (void)hoisted__Bool_2548;
+    Bool_delete(&self->swap_replace, hoisted__Bool_2548);
+    Bool hoisted__Bool_2549 = 0;
+    (void)hoisted__Bool_2549;
+    Type_delete(&self->til_type, hoisted__Bool_2549);
     if (call_free) {
         free(self);
     }
 }
 
 U64 FCallData_hash(FCallData * self, HashFn hasher) {
-    U32 hoisted__U32_2479 = 0;
-    (void)hoisted__U32_2479;
-    U64 hoisted__U64_2480 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FCallData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2479); });
-    (void)hoisted__U64_2480;
-    return hoisted__U64_2480;
+    U32 hoisted__U32_2550 = 0;
+    (void)hoisted__U32_2550;
+    U64 hoisted__U64_2551 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FCallData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2550); });
+    (void)hoisted__U64_2551;
+    return hoisted__U64_2551;
 }
 
 U32 FCallData_size(void) {
-    U32 hoisted__U32_2481 = 48;
-    (void)hoisted__U32_2481;
-    return hoisted__U32_2481;
+    U32 hoisted__U32_2552 = 48;
+    (void)hoisted__U32_2552;
+    return hoisted__U32_2552;
 }
 
 LiteralNumData * LiteralNumData_clone(LiteralNumData * self) {
-    LiteralNumData *hoisted__LiteralNumData_2493 = malloc(sizeof(LiteralNumData));
-    { Str *_ca = Str_clone(&self->text); hoisted__LiteralNumData_2493->text = *_ca; free(_ca); }
-    { Type *_ca = Type_clone(&self->til_type); hoisted__LiteralNumData_2493->til_type = *_ca; free(_ca); }
-    (void)hoisted__LiteralNumData_2493;
-    return hoisted__LiteralNumData_2493;
+    LiteralNumData *hoisted__LiteralNumData_2572 = malloc(sizeof(LiteralNumData));
+    { Str *_ca = Str_clone(&self->text); hoisted__LiteralNumData_2572->text = *_ca; free(_ca); }
+    { Type *_ca = Type_clone(&self->til_type); hoisted__LiteralNumData_2572->til_type = *_ca; free(_ca); }
+    (void)hoisted__LiteralNumData_2572;
+    return hoisted__LiteralNumData_2572;
 }
 
 void LiteralNumData_delete(LiteralNumData * self, Bool call_free) {
-    Bool hoisted__Bool_2494 = 0;
-    (void)hoisted__Bool_2494;
-    Str_delete(&self->text, hoisted__Bool_2494);
-    Bool hoisted__Bool_2495 = 0;
-    (void)hoisted__Bool_2495;
-    Type_delete(&self->til_type, hoisted__Bool_2495);
+    Bool hoisted__Bool_2573 = 0;
+    (void)hoisted__Bool_2573;
+    Str_delete(&self->text, hoisted__Bool_2573);
+    Bool hoisted__Bool_2574 = 0;
+    (void)hoisted__Bool_2574;
+    Type_delete(&self->til_type, hoisted__Bool_2574);
     if (call_free) {
         free(self);
     }
 }
 
 U64 LiteralNumData_hash(LiteralNumData * self, HashFn hasher) {
-    U32 hoisted__U32_2496 = 0;
-    (void)hoisted__U32_2496;
-    U64 hoisted__U64_2497 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, LiteralNumData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2496); });
-    (void)hoisted__U64_2497;
-    return hoisted__U64_2497;
+    U32 hoisted__U32_2575 = 0;
+    (void)hoisted__U32_2575;
+    U64 hoisted__U64_2576 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, LiteralNumData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2575); });
+    (void)hoisted__U64_2576;
+    return hoisted__U64_2576;
 }
 
 U32 LiteralNumData_size(void) {
-    U32 hoisted__U32_2498 = 40;
-    (void)hoisted__U32_2498;
-    return hoisted__U32_2498;
+    U32 hoisted__U32_2577 = 40;
+    (void)hoisted__U32_2577;
+    return hoisted__U32_2577;
 }
 
 IdentData * IdentData_clone(IdentData * self) {
-    IdentData *hoisted__IdentData_2514 = malloc(sizeof(IdentData));
-    { Str *_ca = Str_clone(&self->name); hoisted__IdentData_2514->name = *_ca; free(_ca); }
-    { Type *_ca = Type_clone(&self->til_type); hoisted__IdentData_2514->til_type = *_ca; free(_ca); }
-    (void)hoisted__IdentData_2514;
-    return hoisted__IdentData_2514;
+    IdentData *hoisted__IdentData_2593 = malloc(sizeof(IdentData));
+    { Str *_ca = Str_clone(&self->name); hoisted__IdentData_2593->name = *_ca; free(_ca); }
+    { Type *_ca = Type_clone(&self->til_type); hoisted__IdentData_2593->til_type = *_ca; free(_ca); }
+    (void)hoisted__IdentData_2593;
+    return hoisted__IdentData_2593;
 }
 
 void IdentData_delete(IdentData * self, Bool call_free) {
-    Bool hoisted__Bool_2515 = 0;
-    (void)hoisted__Bool_2515;
-    Str_delete(&self->name, hoisted__Bool_2515);
-    Bool hoisted__Bool_2516 = 0;
-    (void)hoisted__Bool_2516;
-    Type_delete(&self->til_type, hoisted__Bool_2516);
+    Bool hoisted__Bool_2594 = 0;
+    (void)hoisted__Bool_2594;
+    Str_delete(&self->name, hoisted__Bool_2594);
+    Bool hoisted__Bool_2595 = 0;
+    (void)hoisted__Bool_2595;
+    Type_delete(&self->til_type, hoisted__Bool_2595);
     if (call_free) {
         free(self);
     }
 }
 
 U64 IdentData_hash(IdentData * self, HashFn hasher) {
-    U32 hoisted__U32_2517 = 0;
-    (void)hoisted__U32_2517;
-    U64 hoisted__U64_2518 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, IdentData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2517); });
-    (void)hoisted__U64_2518;
-    return hoisted__U64_2518;
+    U32 hoisted__U32_2596 = 0;
+    (void)hoisted__U32_2596;
+    U64 hoisted__U64_2597 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, IdentData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2596); });
+    (void)hoisted__U64_2597;
+    return hoisted__U64_2597;
 }
 
 U32 IdentData_size(void) {
-    U32 hoisted__U32_2519 = 40;
-    (void)hoisted__U32_2519;
-    return hoisted__U32_2519;
+    U32 hoisted__U32_2598 = 40;
+    (void)hoisted__U32_2598;
+    return hoisted__U32_2598;
 }
 
 FieldAccessData * FieldAccessData_clone(FieldAccessData * self) {
-    FieldAccessData *hoisted__FieldAccessData_2531 = malloc(sizeof(FieldAccessData));
-    { Str *_ca = Str_clone(&self->name); hoisted__FieldAccessData_2531->name = *_ca; free(_ca); }
-    { Type *_ca = Type_clone(&self->til_type); hoisted__FieldAccessData_2531->til_type = *_ca; free(_ca); }
-    (void)hoisted__FieldAccessData_2531;
-    return hoisted__FieldAccessData_2531;
+    FieldAccessData *hoisted__FieldAccessData_2610 = malloc(sizeof(FieldAccessData));
+    { Str *_ca = Str_clone(&self->name); hoisted__FieldAccessData_2610->name = *_ca; free(_ca); }
+    { Type *_ca = Type_clone(&self->til_type); hoisted__FieldAccessData_2610->til_type = *_ca; free(_ca); }
+    (void)hoisted__FieldAccessData_2610;
+    return hoisted__FieldAccessData_2610;
 }
 
 void FieldAccessData_delete(FieldAccessData * self, Bool call_free) {
-    Bool hoisted__Bool_2532 = 0;
-    (void)hoisted__Bool_2532;
-    Str_delete(&self->name, hoisted__Bool_2532);
-    Bool hoisted__Bool_2533 = 0;
-    (void)hoisted__Bool_2533;
-    Type_delete(&self->til_type, hoisted__Bool_2533);
+    Bool hoisted__Bool_2611 = 0;
+    (void)hoisted__Bool_2611;
+    Str_delete(&self->name, hoisted__Bool_2611);
+    Bool hoisted__Bool_2612 = 0;
+    (void)hoisted__Bool_2612;
+    Type_delete(&self->til_type, hoisted__Bool_2612);
     if (call_free) {
         free(self);
     }
 }
 
 U64 FieldAccessData_hash(FieldAccessData * self, HashFn hasher) {
-    U32 hoisted__U32_2534 = 0;
-    (void)hoisted__U32_2534;
-    U64 hoisted__U64_2535 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FieldAccessData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2534); });
-    (void)hoisted__U64_2535;
-    return hoisted__U64_2535;
+    U32 hoisted__U32_2613 = 0;
+    (void)hoisted__U32_2613;
+    U64 hoisted__U64_2614 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FieldAccessData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2613); });
+    (void)hoisted__U64_2614;
+    return hoisted__U64_2614;
 }
 
 U32 FieldAccessData_size(void) {
-    U32 hoisted__U32_2536 = 40;
-    (void)hoisted__U32_2536;
-    return hoisted__U32_2536;
+    U32 hoisted__U32_2615 = 40;
+    (void)hoisted__U32_2615;
+    return hoisted__U32_2615;
 }
 
 StructDef * StructDef_clone(StructDef * self) {
-    StructDef *hoisted__StructDef_2611 = malloc(sizeof(StructDef));
-    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->fields); hoisted__StructDef_2611->fields = *_ca; free(_ca); }
-    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->ns_decls); hoisted__StructDef_2611->ns_decls = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->c_tag); hoisted__StructDef_2611->c_tag = *_ca; free(_ca); }
-    hoisted__StructDef_2611->is_interface = self->is_interface;
-    hoisted__StructDef_2611->interface_ns_marker = self->interface_ns_marker;
-    { Str *_ca = Str_clone(&self->implements_name); hoisted__StructDef_2611->implements_name = *_ca; free(_ca); }
-    (void)hoisted__StructDef_2611;
-    return hoisted__StructDef_2611;
+    StructDef *hoisted__StructDef_2690 = malloc(sizeof(StructDef));
+    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->fields); hoisted__StructDef_2690->fields = *_ca; free(_ca); }
+    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->ns_decls); hoisted__StructDef_2690->ns_decls = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->c_tag); hoisted__StructDef_2690->c_tag = *_ca; free(_ca); }
+    hoisted__StructDef_2690->is_interface = self->is_interface;
+    hoisted__StructDef_2690->interface_ns_marker = self->interface_ns_marker;
+    { Str *_ca = Str_clone(&self->implements_name); hoisted__StructDef_2690->implements_name = *_ca; free(_ca); }
+    (void)hoisted__StructDef_2690;
+    return hoisted__StructDef_2690;
 }
 
 void StructDef_delete(StructDef * self, Bool call_free) {
-    Bool hoisted__Bool_2612 = 0;
-    (void)hoisted__Bool_2612;
-    Vec__Declaration_delete(&self->fields, hoisted__Bool_2612);
-    Bool hoisted__Bool_2613 = 0;
-    (void)hoisted__Bool_2613;
-    Vec__Declaration_delete(&self->ns_decls, hoisted__Bool_2613);
-    Bool hoisted__Bool_2614 = 0;
-    (void)hoisted__Bool_2614;
-    Str_delete(&self->c_tag, hoisted__Bool_2614);
-    Bool hoisted__Bool_2615 = 0;
-    (void)hoisted__Bool_2615;
-    Bool_delete(&self->is_interface, hoisted__Bool_2615);
-    Bool hoisted__Bool_2616 = 0;
-    (void)hoisted__Bool_2616;
-    Bool_delete(&self->interface_ns_marker, hoisted__Bool_2616);
-    Bool hoisted__Bool_2617 = 0;
-    (void)hoisted__Bool_2617;
-    Str_delete(&self->implements_name, hoisted__Bool_2617);
+    Bool hoisted__Bool_2691 = 0;
+    (void)hoisted__Bool_2691;
+    Vec__Declaration_delete(&self->fields, hoisted__Bool_2691);
+    Bool hoisted__Bool_2692 = 0;
+    (void)hoisted__Bool_2692;
+    Vec__Declaration_delete(&self->ns_decls, hoisted__Bool_2692);
+    Bool hoisted__Bool_2693 = 0;
+    (void)hoisted__Bool_2693;
+    Str_delete(&self->c_tag, hoisted__Bool_2693);
+    Bool hoisted__Bool_2694 = 0;
+    (void)hoisted__Bool_2694;
+    Bool_delete(&self->is_interface, hoisted__Bool_2694);
+    Bool hoisted__Bool_2695 = 0;
+    (void)hoisted__Bool_2695;
+    Bool_delete(&self->interface_ns_marker, hoisted__Bool_2695);
+    Bool hoisted__Bool_2696 = 0;
+    (void)hoisted__Bool_2696;
+    Str_delete(&self->implements_name, hoisted__Bool_2696);
     if (call_free) {
         free(self);
     }
 }
 
 U64 StructDef_hash(StructDef * self, HashFn hasher) {
-    U32 hoisted__U32_2618 = 0;
-    (void)hoisted__U32_2618;
-    U64 hoisted__U64_2619 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, StructDef *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2618); });
-    (void)hoisted__U64_2619;
-    return hoisted__U64_2619;
+    U32 hoisted__U32_2697 = 0;
+    (void)hoisted__U32_2697;
+    U64 hoisted__U64_2698 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, StructDef *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2697); });
+    (void)hoisted__U64_2698;
+    return hoisted__U64_2698;
 }
 
 U32 StructDef_size(void) {
-    U32 hoisted__U32_2620 = 72;
-    (void)hoisted__U32_2620;
-    return hoisted__U32_2620;
+    U32 hoisted__U32_2699 = 72;
+    (void)hoisted__U32_2699;
+    return hoisted__U32_2699;
 }
 
 EnumDef * EnumDef_clone(EnumDef * self) {
-    EnumDef *hoisted__EnumDef_2625 = malloc(sizeof(EnumDef));
-    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->ns_decls); hoisted__EnumDef_2625->ns_decls = *_ca; free(_ca); }
-    { Vec__Str *_ca = Vec__Str_clone(&self->variants); hoisted__EnumDef_2625->variants = *_ca; free(_ca); }
-    { Map__I64_Str *_ca = Map__I64_Str_clone(&self->payload_types); hoisted__EnumDef_2625->payload_types = *_ca; free(_ca); }
-    { Vec__Bool *_ca = Vec__Bool_clone(&self->payload_consts); hoisted__EnumDef_2625->payload_consts = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->implements_name); hoisted__EnumDef_2625->implements_name = *_ca; free(_ca); }
-    (void)hoisted__EnumDef_2625;
-    return hoisted__EnumDef_2625;
+    EnumDef *hoisted__EnumDef_2704 = malloc(sizeof(EnumDef));
+    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->ns_decls); hoisted__EnumDef_2704->ns_decls = *_ca; free(_ca); }
+    { Vec__Str *_ca = Vec__Str_clone(&self->variants); hoisted__EnumDef_2704->variants = *_ca; free(_ca); }
+    { Map__I64_Str *_ca = Map__I64_Str_clone(&self->payload_types); hoisted__EnumDef_2704->payload_types = *_ca; free(_ca); }
+    { Vec__Bool *_ca = Vec__Bool_clone(&self->payload_consts); hoisted__EnumDef_2704->payload_consts = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->implements_name); hoisted__EnumDef_2704->implements_name = *_ca; free(_ca); }
+    (void)hoisted__EnumDef_2704;
+    return hoisted__EnumDef_2704;
 }
 
 void EnumDef_delete(EnumDef * self, Bool call_free) {
-    Bool hoisted__Bool_2626 = 0;
-    (void)hoisted__Bool_2626;
-    Vec__Declaration_delete(&self->ns_decls, hoisted__Bool_2626);
-    Bool hoisted__Bool_2627 = 0;
-    (void)hoisted__Bool_2627;
-    Vec__Str_delete(&self->variants, hoisted__Bool_2627);
-    Bool hoisted__Bool_2628 = 0;
-    (void)hoisted__Bool_2628;
-    Map__I64_Str_delete(&self->payload_types, hoisted__Bool_2628);
-    Bool hoisted__Bool_2629 = 0;
-    (void)hoisted__Bool_2629;
-    Vec__Bool_delete(&self->payload_consts, hoisted__Bool_2629);
-    Bool hoisted__Bool_2630 = 0;
-    (void)hoisted__Bool_2630;
-    Str_delete(&self->implements_name, hoisted__Bool_2630);
+    Bool hoisted__Bool_2705 = 0;
+    (void)hoisted__Bool_2705;
+    Vec__Declaration_delete(&self->ns_decls, hoisted__Bool_2705);
+    Bool hoisted__Bool_2706 = 0;
+    (void)hoisted__Bool_2706;
+    Vec__Str_delete(&self->variants, hoisted__Bool_2706);
+    Bool hoisted__Bool_2707 = 0;
+    (void)hoisted__Bool_2707;
+    Map__I64_Str_delete(&self->payload_types, hoisted__Bool_2707);
+    Bool hoisted__Bool_2708 = 0;
+    (void)hoisted__Bool_2708;
+    Vec__Bool_delete(&self->payload_consts, hoisted__Bool_2708);
+    Bool hoisted__Bool_2709 = 0;
+    (void)hoisted__Bool_2709;
+    Str_delete(&self->implements_name, hoisted__Bool_2709);
     if (call_free) {
         free(self);
     }
 }
 
 U64 EnumDef_hash(EnumDef * self, HashFn hasher) {
-    U32 hoisted__U32_2631 = 0;
-    (void)hoisted__U32_2631;
-    U64 hoisted__U64_2632 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, EnumDef *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2631); });
-    (void)hoisted__U64_2632;
-    return hoisted__U64_2632;
+    U32 hoisted__U32_2710 = 0;
+    (void)hoisted__U32_2710;
+    U64 hoisted__U64_2711 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, EnumDef *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2710); });
+    (void)hoisted__U64_2711;
+    return hoisted__U64_2711;
 }
 
 U32 EnumDef_size(void) {
-    U32 hoisted__U32_2633 = 96;
-    (void)hoisted__U32_2633;
-    return hoisted__U32_2633;
+    U32 hoisted__U32_2712 = 96;
+    (void)hoisted__U32_2712;
+    return hoisted__U32_2712;
 }
 
 AssignData * AssignData_clone(AssignData * self) {
-    AssignData *hoisted__AssignData_2729 = malloc(sizeof(AssignData));
-    { Str *_ca = Str_clone(&self->name); hoisted__AssignData_2729->name = *_ca; free(_ca); }
-    hoisted__AssignData_2729->save_old_delete = self->save_old_delete;
-    hoisted__AssignData_2729->is_payload_alias = self->is_payload_alias;
-    hoisted__AssignData_2729->swap_replace = self->swap_replace;
-    (void)hoisted__AssignData_2729;
-    return hoisted__AssignData_2729;
+    AssignData *hoisted__AssignData_2808 = malloc(sizeof(AssignData));
+    { Str *_ca = Str_clone(&self->name); hoisted__AssignData_2808->name = *_ca; free(_ca); }
+    hoisted__AssignData_2808->save_old_delete = self->save_old_delete;
+    hoisted__AssignData_2808->is_payload_alias = self->is_payload_alias;
+    hoisted__AssignData_2808->swap_replace = self->swap_replace;
+    (void)hoisted__AssignData_2808;
+    return hoisted__AssignData_2808;
 }
 
 void AssignData_delete(AssignData * self, Bool call_free) {
-    Bool hoisted__Bool_2730 = 0;
-    (void)hoisted__Bool_2730;
-    Str_delete(&self->name, hoisted__Bool_2730);
-    Bool hoisted__Bool_2731 = 0;
-    (void)hoisted__Bool_2731;
-    Bool_delete(&self->save_old_delete, hoisted__Bool_2731);
-    Bool hoisted__Bool_2732 = 0;
-    (void)hoisted__Bool_2732;
-    Bool_delete(&self->is_payload_alias, hoisted__Bool_2732);
-    Bool hoisted__Bool_2733 = 0;
-    (void)hoisted__Bool_2733;
-    Bool_delete(&self->swap_replace, hoisted__Bool_2733);
+    Bool hoisted__Bool_2809 = 0;
+    (void)hoisted__Bool_2809;
+    Str_delete(&self->name, hoisted__Bool_2809);
+    Bool hoisted__Bool_2810 = 0;
+    (void)hoisted__Bool_2810;
+    Bool_delete(&self->save_old_delete, hoisted__Bool_2810);
+    Bool hoisted__Bool_2811 = 0;
+    (void)hoisted__Bool_2811;
+    Bool_delete(&self->is_payload_alias, hoisted__Bool_2811);
+    Bool hoisted__Bool_2812 = 0;
+    (void)hoisted__Bool_2812;
+    Bool_delete(&self->swap_replace, hoisted__Bool_2812);
     if (call_free) {
         free(self);
     }
 }
 
 U64 AssignData_hash(AssignData * self, HashFn hasher) {
-    U32 hoisted__U32_2734 = 0;
-    (void)hoisted__U32_2734;
-    U64 hoisted__U64_2735 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, AssignData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2734); });
-    (void)hoisted__U64_2735;
-    return hoisted__U64_2735;
+    U32 hoisted__U32_2813 = 0;
+    (void)hoisted__U32_2813;
+    U64 hoisted__U64_2814 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, AssignData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2813); });
+    (void)hoisted__U64_2814;
+    return hoisted__U64_2814;
 }
 
 U32 AssignData_size(void) {
-    U32 hoisted__U32_2736 = 24;
-    (void)hoisted__U32_2736;
-    return hoisted__U32_2736;
+    U32 hoisted__U32_2815 = 24;
+    (void)hoisted__U32_2815;
+    return hoisted__U32_2815;
 }
 
 FieldAssignData * FieldAssignData_clone(FieldAssignData * self) {
-    FieldAssignData *hoisted__FieldAssignData_2738 = malloc(sizeof(FieldAssignData));
-    { Str *_ca = Str_clone(&self->name); hoisted__FieldAssignData_2738->name = *_ca; free(_ca); }
-    hoisted__FieldAssignData_2738->save_old_delete = self->save_old_delete;
-    (void)hoisted__FieldAssignData_2738;
-    return hoisted__FieldAssignData_2738;
+    FieldAssignData *hoisted__FieldAssignData_2817 = malloc(sizeof(FieldAssignData));
+    { Str *_ca = Str_clone(&self->name); hoisted__FieldAssignData_2817->name = *_ca; free(_ca); }
+    hoisted__FieldAssignData_2817->save_old_delete = self->save_old_delete;
+    (void)hoisted__FieldAssignData_2817;
+    return hoisted__FieldAssignData_2817;
 }
 
 void FieldAssignData_delete(FieldAssignData * self, Bool call_free) {
-    Bool hoisted__Bool_2739 = 0;
-    (void)hoisted__Bool_2739;
-    Str_delete(&self->name, hoisted__Bool_2739);
-    Bool hoisted__Bool_2740 = 0;
-    (void)hoisted__Bool_2740;
-    Bool_delete(&self->save_old_delete, hoisted__Bool_2740);
+    Bool hoisted__Bool_2818 = 0;
+    (void)hoisted__Bool_2818;
+    Str_delete(&self->name, hoisted__Bool_2818);
+    Bool hoisted__Bool_2819 = 0;
+    (void)hoisted__Bool_2819;
+    Bool_delete(&self->save_old_delete, hoisted__Bool_2819);
     if (call_free) {
         free(self);
     }
 }
 
 U64 FieldAssignData_hash(FieldAssignData * self, HashFn hasher) {
-    U32 hoisted__U32_2741 = 0;
-    (void)hoisted__U32_2741;
-    U64 hoisted__U64_2742 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FieldAssignData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2741); });
-    (void)hoisted__U64_2742;
-    return hoisted__U64_2742;
+    U32 hoisted__U32_2820 = 0;
+    (void)hoisted__U32_2820;
+    U64 hoisted__U64_2821 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FieldAssignData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2820); });
+    (void)hoisted__U64_2821;
+    return hoisted__U64_2821;
 }
 
 U32 FieldAssignData_size(void) {
-    U32 hoisted__U32_2743 = 24;
-    (void)hoisted__U32_2743;
-    return hoisted__U32_2743;
+    U32 hoisted__U32_2822 = 24;
+    (void)hoisted__U32_2822;
+    return hoisted__U32_2822;
 }
 
 ForInData * ForInData_clone(ForInData * self) {
-    ForInData *hoisted__ForInData_2745 = malloc(sizeof(ForInData));
-    { Str *_ca = Str_clone(&self->name); hoisted__ForInData_2745->name = *_ca; free(_ca); }
-    hoisted__ForInData_2745->is_mut = self->is_mut;
-    { Type *_ca = Type_clone(&self->til_type); hoisted__ForInData_2745->til_type = *_ca; free(_ca); }
-    (void)hoisted__ForInData_2745;
-    return hoisted__ForInData_2745;
+    ForInData *hoisted__ForInData_2824 = malloc(sizeof(ForInData));
+    { Str *_ca = Str_clone(&self->name); hoisted__ForInData_2824->name = *_ca; free(_ca); }
+    hoisted__ForInData_2824->is_mut = self->is_mut;
+    { Type *_ca = Type_clone(&self->til_type); hoisted__ForInData_2824->til_type = *_ca; free(_ca); }
+    (void)hoisted__ForInData_2824;
+    return hoisted__ForInData_2824;
 }
 
 void ForInData_delete(ForInData * self, Bool call_free) {
-    Bool hoisted__Bool_2746 = 0;
-    (void)hoisted__Bool_2746;
-    Str_delete(&self->name, hoisted__Bool_2746);
-    Bool hoisted__Bool_2747 = 0;
-    (void)hoisted__Bool_2747;
-    Bool_delete(&self->is_mut, hoisted__Bool_2747);
-    Bool hoisted__Bool_2748 = 0;
-    (void)hoisted__Bool_2748;
-    Type_delete(&self->til_type, hoisted__Bool_2748);
+    Bool hoisted__Bool_2825 = 0;
+    (void)hoisted__Bool_2825;
+    Str_delete(&self->name, hoisted__Bool_2825);
+    Bool hoisted__Bool_2826 = 0;
+    (void)hoisted__Bool_2826;
+    Bool_delete(&self->is_mut, hoisted__Bool_2826);
+    Bool hoisted__Bool_2827 = 0;
+    (void)hoisted__Bool_2827;
+    Type_delete(&self->til_type, hoisted__Bool_2827);
     if (call_free) {
         free(self);
     }
 }
 
 U64 ForInData_hash(ForInData * self, HashFn hasher) {
-    U32 hoisted__U32_2749 = 0;
-    (void)hoisted__U32_2749;
-    U64 hoisted__U64_2750 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, ForInData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2749); });
-    (void)hoisted__U64_2750;
-    return hoisted__U64_2750;
+    U32 hoisted__U32_2828 = 0;
+    (void)hoisted__U32_2828;
+    U64 hoisted__U64_2829 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, ForInData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2828); });
+    (void)hoisted__U64_2829;
+    return hoisted__U64_2829;
 }
 
 U32 ForInData_size(void) {
-    U32 hoisted__U32_2751 = 48;
-    (void)hoisted__U32_2751;
-    return hoisted__U32_2751;
+    U32 hoisted__U32_2830 = 48;
+    (void)hoisted__U32_2830;
+    return hoisted__U32_2830;
 }
 
 Literal *Literal_Str(Str * val) {
@@ -3791,35 +3791,35 @@ Literal *Literal_SetLit() {
     return r;
 }
 void Literal_delete(Literal * self, Bool call_free) {
-    Bool hoisted__Bool_2781 = is(self, &(Literal){.tag = Literal_TAG_Str});
-    (void)hoisted__Bool_2781;
-    if (hoisted__Bool_2781) {
-        Str *hoisted__Str_2775 = get_payload(self);
-        (void)hoisted__Str_2775;
-        (void)hoisted__Str_2775;
-        Bool hoisted__Bool_2776 = 0;
-        (void)hoisted__Bool_2776;
-        Str_delete(hoisted__Str_2775, hoisted__Bool_2776);
+    Bool hoisted__Bool_2860 = is(self, &(Literal){.tag = Literal_TAG_Str});
+    (void)hoisted__Bool_2860;
+    if (hoisted__Bool_2860) {
+        Str *hoisted__Str_2854 = get_payload(self);
+        (void)hoisted__Str_2854;
+        (void)hoisted__Str_2854;
+        Bool hoisted__Bool_2855 = 0;
+        (void)hoisted__Bool_2855;
+        Str_delete(hoisted__Str_2854, hoisted__Bool_2855);
     }
-    Bool hoisted__Bool_2782 = is(self, &(Literal){.tag = Literal_TAG_Num});
-    (void)hoisted__Bool_2782;
-    if (hoisted__Bool_2782) {
-        LiteralNumData *hoisted__LiteralNumData_2777 = get_payload(self);
-        (void)hoisted__LiteralNumData_2777;
-        (void)hoisted__LiteralNumData_2777;
-        Bool hoisted__Bool_2778 = 0;
-        (void)hoisted__Bool_2778;
-        LiteralNumData_delete(hoisted__LiteralNumData_2777, hoisted__Bool_2778);
+    Bool hoisted__Bool_2861 = is(self, &(Literal){.tag = Literal_TAG_Num});
+    (void)hoisted__Bool_2861;
+    if (hoisted__Bool_2861) {
+        LiteralNumData *hoisted__LiteralNumData_2856 = get_payload(self);
+        (void)hoisted__LiteralNumData_2856;
+        (void)hoisted__LiteralNumData_2856;
+        Bool hoisted__Bool_2857 = 0;
+        (void)hoisted__Bool_2857;
+        LiteralNumData_delete(hoisted__LiteralNumData_2856, hoisted__Bool_2857);
     }
-    Bool hoisted__Bool_2783 = is(self, &(Literal){.tag = Literal_TAG_Bool});
-    (void)hoisted__Bool_2783;
-    if (hoisted__Bool_2783) {
-        Bool *hoisted__Bool_2779 = get_payload(self);
-        (void)hoisted__Bool_2779;
-        (void)hoisted__Bool_2779;
-        Bool hoisted__Bool_2780 = 0;
-        (void)hoisted__Bool_2780;
-        Bool_delete(hoisted__Bool_2779, hoisted__Bool_2780);
+    Bool hoisted__Bool_2862 = is(self, &(Literal){.tag = Literal_TAG_Bool});
+    (void)hoisted__Bool_2862;
+    if (hoisted__Bool_2862) {
+        Bool *hoisted__Bool_2858 = get_payload(self);
+        (void)hoisted__Bool_2858;
+        (void)hoisted__Bool_2858;
+        Bool hoisted__Bool_2859 = 0;
+        (void)hoisted__Bool_2859;
+        Bool_delete(hoisted__Bool_2858, hoisted__Bool_2859);
     }
     if (call_free) {
         free(self);
@@ -3827,52 +3827,52 @@ void Literal_delete(Literal * self, Bool call_free) {
 }
 
 Literal * Literal_clone(Literal * self) {
-    Bool hoisted__Bool_2823 = is(self, &(Literal){.tag = Literal_TAG_Str});
-    (void)hoisted__Bool_2823;
-    if (hoisted__Bool_2823) {
+    Bool hoisted__Bool_2902 = is(self, &(Literal){.tag = Literal_TAG_Str});
+    (void)hoisted__Bool_2902;
+    if (hoisted__Bool_2902) {
         Str *_clone_payload_Str_0 = get_payload(self);
         (void)_clone_payload_Str_0;
         (void)_clone_payload_Str_0;
-        Str *hoisted__Str_2818 = Str_clone(_clone_payload_Str_0);
-        (void)hoisted__Str_2818;
-        Literal *hoisted__Literal_2819 = Literal_Str(hoisted__Str_2818);
-        (void)hoisted__Literal_2819;
-        { Literal * _ret_val = hoisted__Literal_2819;
+        Str *hoisted__Str_2897 = Str_clone(_clone_payload_Str_0);
+        (void)hoisted__Str_2897;
+        Literal *hoisted__Literal_2898 = Literal_Str(hoisted__Str_2897);
+        (void)hoisted__Literal_2898;
+        { Literal * _ret_val = hoisted__Literal_2898;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2824 = is(self, &(Literal){.tag = Literal_TAG_Num});
-    (void)hoisted__Bool_2824;
-    if (hoisted__Bool_2824) {
+    Bool hoisted__Bool_2903 = is(self, &(Literal){.tag = Literal_TAG_Num});
+    (void)hoisted__Bool_2903;
+    if (hoisted__Bool_2903) {
         LiteralNumData *_clone_payload_Num_1 = get_payload(self);
         (void)_clone_payload_Num_1;
         (void)_clone_payload_Num_1;
-        LiteralNumData *hoisted__LiteralNumData_2820 = LiteralNumData_clone(_clone_payload_Num_1);
-        (void)hoisted__LiteralNumData_2820;
-        Literal *hoisted__Literal_2821 = Literal_Num(hoisted__LiteralNumData_2820);
-        (void)hoisted__Literal_2821;
-        { Literal * _ret_val = hoisted__Literal_2821;
+        LiteralNumData *hoisted__LiteralNumData_2899 = LiteralNumData_clone(_clone_payload_Num_1);
+        (void)hoisted__LiteralNumData_2899;
+        Literal *hoisted__Literal_2900 = Literal_Num(hoisted__LiteralNumData_2899);
+        (void)hoisted__Literal_2900;
+        { Literal * _ret_val = hoisted__Literal_2900;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2825 = is(self, &(Literal){.tag = Literal_TAG_Bool});
-    (void)hoisted__Bool_2825;
-    if (hoisted__Bool_2825) {
+    Bool hoisted__Bool_2904 = is(self, &(Literal){.tag = Literal_TAG_Bool});
+    (void)hoisted__Bool_2904;
+    if (hoisted__Bool_2904) {
         Bool *_clone_payload_Bool_2 = get_payload(self);
         (void)_clone_payload_Bool_2;
         (void)_clone_payload_Bool_2;
-        Literal *hoisted__Literal_2822 = Literal_Bool(_clone_payload_Bool_2);
-        (void)hoisted__Literal_2822;
-        { Literal * _ret_val = hoisted__Literal_2822;
+        Literal *hoisted__Literal_2901 = Literal_Bool(_clone_payload_Bool_2);
+        (void)hoisted__Literal_2901;
+        { Literal * _ret_val = hoisted__Literal_2901;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2826 = is(self, &(Literal){.tag = Literal_TAG_Null});
-    (void)hoisted__Bool_2826;
-    if (hoisted__Bool_2826) {
+    Bool hoisted__Bool_2905 = is(self, &(Literal){.tag = Literal_TAG_Null});
+    (void)hoisted__Bool_2905;
+    if (hoisted__Bool_2905) {
         { Literal *_r = malloc(sizeof(Literal)); _r->tag = Literal_TAG_Null;
                 return _r; }
     }
-    Bool hoisted__Bool_2827 = is(self, &(Literal){.tag = Literal_TAG_MapLit});
-    (void)hoisted__Bool_2827;
-    if (hoisted__Bool_2827) {
+    Bool hoisted__Bool_2906 = is(self, &(Literal){.tag = Literal_TAG_MapLit});
+    (void)hoisted__Bool_2906;
+    if (hoisted__Bool_2906) {
         { Literal *_r = malloc(sizeof(Literal)); _r->tag = Literal_TAG_MapLit;
                 return _r; }
     }
@@ -3881,74 +3881,74 @@ Literal * Literal_clone(Literal * self) {
 }
 
 U32 Literal_size(void) {
-    U32 hoisted__U32_2828 = 48;
-    (void)hoisted__U32_2828;
-    return hoisted__U32_2828;
+    U32 hoisted__U32_2907 = 48;
+    (void)hoisted__U32_2907;
+    return hoisted__U32_2907;
 }
 
 
 MatchData * MatchData_clone(MatchData * self) {
-    MatchData *hoisted__MatchData_2831 = malloc(sizeof(MatchData));
-    { Type *_ca = Type_clone(&self->til_type); hoisted__MatchData_2831->til_type = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->result_temp); hoisted__MatchData_2831->result_temp = *_ca; free(_ca); }
-    (void)hoisted__MatchData_2831;
-    return hoisted__MatchData_2831;
+    MatchData *hoisted__MatchData_2910 = malloc(sizeof(MatchData));
+    { Type *_ca = Type_clone(&self->til_type); hoisted__MatchData_2910->til_type = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->result_temp); hoisted__MatchData_2910->result_temp = *_ca; free(_ca); }
+    (void)hoisted__MatchData_2910;
+    return hoisted__MatchData_2910;
 }
 
 void MatchData_delete(MatchData * self, Bool call_free) {
-    Bool hoisted__Bool_2832 = 0;
-    (void)hoisted__Bool_2832;
-    Type_delete(&self->til_type, hoisted__Bool_2832);
-    Bool hoisted__Bool_2833 = 0;
-    (void)hoisted__Bool_2833;
-    Str_delete(&self->result_temp, hoisted__Bool_2833);
+    Bool hoisted__Bool_2911 = 0;
+    (void)hoisted__Bool_2911;
+    Type_delete(&self->til_type, hoisted__Bool_2911);
+    Bool hoisted__Bool_2912 = 0;
+    (void)hoisted__Bool_2912;
+    Str_delete(&self->result_temp, hoisted__Bool_2912);
     if (call_free) {
         free(self);
     }
 }
 
 U64 MatchData_hash(MatchData * self, HashFn hasher) {
-    U32 hoisted__U32_2834 = 0;
-    (void)hoisted__U32_2834;
-    U64 hoisted__U64_2835 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, MatchData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2834); });
-    (void)hoisted__U64_2835;
-    return hoisted__U64_2835;
+    U32 hoisted__U32_2913 = 0;
+    (void)hoisted__U32_2913;
+    U64 hoisted__U64_2914 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, MatchData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2913); });
+    (void)hoisted__U64_2914;
+    return hoisted__U64_2914;
 }
 
 U32 MatchData_size(void) {
-    U32 hoisted__U32_2836 = 40;
-    (void)hoisted__U32_2836;
-    return hoisted__U32_2836;
+    U32 hoisted__U32_2915 = 40;
+    (void)hoisted__U32_2915;
+    return hoisted__U32_2915;
 }
 
 CaptureBlockData * CaptureBlockData_clone(CaptureBlockData * self) {
-    CaptureBlockData *hoisted__CaptureBlockData_2841 = malloc(sizeof(CaptureBlockData));
-    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->captures); hoisted__CaptureBlockData_2841->captures = *_ca; free(_ca); }
-    (void)hoisted__CaptureBlockData_2841;
-    return hoisted__CaptureBlockData_2841;
+    CaptureBlockData *hoisted__CaptureBlockData_2920 = malloc(sizeof(CaptureBlockData));
+    { Vec__Declaration *_ca = Vec__Declaration_clone(&self->captures); hoisted__CaptureBlockData_2920->captures = *_ca; free(_ca); }
+    (void)hoisted__CaptureBlockData_2920;
+    return hoisted__CaptureBlockData_2920;
 }
 
 void CaptureBlockData_delete(CaptureBlockData * self, Bool call_free) {
-    Bool hoisted__Bool_2842 = 0;
-    (void)hoisted__Bool_2842;
-    Vec__Declaration_delete(&self->captures, hoisted__Bool_2842);
+    Bool hoisted__Bool_2921 = 0;
+    (void)hoisted__Bool_2921;
+    Vec__Declaration_delete(&self->captures, hoisted__Bool_2921);
     if (call_free) {
         free(self);
     }
 }
 
 U64 CaptureBlockData_hash(CaptureBlockData * self, HashFn hasher) {
-    U32 hoisted__U32_2843 = 0;
-    (void)hoisted__U32_2843;
-    U64 hoisted__U64_2844 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CaptureBlockData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2843); });
-    (void)hoisted__U64_2844;
-    return hoisted__U64_2844;
+    U32 hoisted__U32_2922 = 0;
+    (void)hoisted__U32_2922;
+    U64 hoisted__U64_2923 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CaptureBlockData *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_2922); });
+    (void)hoisted__U64_2923;
+    return hoisted__U64_2923;
 }
 
 U32 CaptureBlockData_size(void) {
-    U32 hoisted__U32_2845 = 16;
-    (void)hoisted__U32_2845;
-    return hoisted__U32_2845;
+    U32 hoisted__U32_2924 = 16;
+    (void)hoisted__U32_2924;
+    return hoisted__U32_2924;
 }
 
 NodeType *NodeType_Body() {
@@ -4115,145 +4115,145 @@ NodeType *NodeType_Loc() {
     return r;
 }
 void NodeType_delete(NodeType * self, Bool call_free) {
-    Bool hoisted__Bool_3024 = is(self, &(NodeType){.tag = NodeType_TAG_Literal});
-    (void)hoisted__Bool_3024;
-    if (hoisted__Bool_3024) {
-        Literal *hoisted__Literal_2996 = get_payload(self);
-        (void)hoisted__Literal_2996;
-        (void)hoisted__Literal_2996;
-        Bool hoisted__Bool_2997 = 0;
-        (void)hoisted__Bool_2997;
-        Literal_delete(hoisted__Literal_2996, hoisted__Bool_2997);
+    Bool hoisted__Bool_3103 = is(self, &(NodeType){.tag = NodeType_TAG_Literal});
+    (void)hoisted__Bool_3103;
+    if (hoisted__Bool_3103) {
+        Literal *hoisted__Literal_3075 = get_payload(self);
+        (void)hoisted__Literal_3075;
+        (void)hoisted__Literal_3075;
+        Bool hoisted__Bool_3076 = 0;
+        (void)hoisted__Bool_3076;
+        Literal_delete(hoisted__Literal_3075, hoisted__Bool_3076);
     }
-    Bool hoisted__Bool_3025 = is(self, &(NodeType){.tag = NodeType_TAG_Ident});
-    (void)hoisted__Bool_3025;
-    if (hoisted__Bool_3025) {
-        IdentData *hoisted__IdentData_2998 = get_payload(self);
-        (void)hoisted__IdentData_2998;
-        (void)hoisted__IdentData_2998;
-        Bool hoisted__Bool_2999 = 0;
-        (void)hoisted__Bool_2999;
-        IdentData_delete(hoisted__IdentData_2998, hoisted__Bool_2999);
+    Bool hoisted__Bool_3104 = is(self, &(NodeType){.tag = NodeType_TAG_Ident});
+    (void)hoisted__Bool_3104;
+    if (hoisted__Bool_3104) {
+        IdentData *hoisted__IdentData_3077 = get_payload(self);
+        (void)hoisted__IdentData_3077;
+        (void)hoisted__IdentData_3077;
+        Bool hoisted__Bool_3078 = 0;
+        (void)hoisted__Bool_3078;
+        IdentData_delete(hoisted__IdentData_3077, hoisted__Bool_3078);
     }
-    Bool hoisted__Bool_3026 = is(self, &(NodeType){.tag = NodeType_TAG_Decl});
-    (void)hoisted__Bool_3026;
-    if (hoisted__Bool_3026) {
-        Declaration *hoisted__Declaration_3000 = get_payload(self);
-        (void)hoisted__Declaration_3000;
-        (void)hoisted__Declaration_3000;
-        Bool hoisted__Bool_3001 = 0;
-        (void)hoisted__Bool_3001;
-        Declaration_delete(hoisted__Declaration_3000, hoisted__Bool_3001);
+    Bool hoisted__Bool_3105 = is(self, &(NodeType){.tag = NodeType_TAG_Decl});
+    (void)hoisted__Bool_3105;
+    if (hoisted__Bool_3105) {
+        Declaration *hoisted__Declaration_3079 = get_payload(self);
+        (void)hoisted__Declaration_3079;
+        (void)hoisted__Declaration_3079;
+        Bool hoisted__Bool_3080 = 0;
+        (void)hoisted__Bool_3080;
+        Declaration_delete(hoisted__Declaration_3079, hoisted__Bool_3080);
     }
-    Bool hoisted__Bool_3027 = is(self, &(NodeType){.tag = NodeType_TAG_Assign});
-    (void)hoisted__Bool_3027;
-    if (hoisted__Bool_3027) {
-        AssignData *hoisted__AssignData_3002 = get_payload(self);
-        (void)hoisted__AssignData_3002;
-        (void)hoisted__AssignData_3002;
-        Bool hoisted__Bool_3003 = 0;
-        (void)hoisted__Bool_3003;
-        AssignData_delete(hoisted__AssignData_3002, hoisted__Bool_3003);
+    Bool hoisted__Bool_3106 = is(self, &(NodeType){.tag = NodeType_TAG_Assign});
+    (void)hoisted__Bool_3106;
+    if (hoisted__Bool_3106) {
+        AssignData *hoisted__AssignData_3081 = get_payload(self);
+        (void)hoisted__AssignData_3081;
+        (void)hoisted__AssignData_3081;
+        Bool hoisted__Bool_3082 = 0;
+        (void)hoisted__Bool_3082;
+        AssignData_delete(hoisted__AssignData_3081, hoisted__Bool_3082);
     }
-    Bool hoisted__Bool_3028 = is(self, &(NodeType){.tag = NodeType_TAG_FCall});
-    (void)hoisted__Bool_3028;
-    if (hoisted__Bool_3028) {
-        FCallData *hoisted__FCallData_3004 = get_payload(self);
-        (void)hoisted__FCallData_3004;
-        (void)hoisted__FCallData_3004;
-        Bool hoisted__Bool_3005 = 0;
-        (void)hoisted__Bool_3005;
-        FCallData_delete(hoisted__FCallData_3004, hoisted__Bool_3005);
+    Bool hoisted__Bool_3107 = is(self, &(NodeType){.tag = NodeType_TAG_FCall});
+    (void)hoisted__Bool_3107;
+    if (hoisted__Bool_3107) {
+        FCallData *hoisted__FCallData_3083 = get_payload(self);
+        (void)hoisted__FCallData_3083;
+        (void)hoisted__FCallData_3083;
+        Bool hoisted__Bool_3084 = 0;
+        (void)hoisted__Bool_3084;
+        FCallData_delete(hoisted__FCallData_3083, hoisted__Bool_3084);
     }
-    Bool hoisted__Bool_3029 = is(self, &(NodeType){.tag = NodeType_TAG_FuncDef});
-    (void)hoisted__Bool_3029;
-    if (hoisted__Bool_3029) {
-        FunctionDef *hoisted__FunctionDef_3006 = get_payload(self);
-        (void)hoisted__FunctionDef_3006;
-        (void)hoisted__FunctionDef_3006;
-        Bool hoisted__Bool_3007 = 0;
-        (void)hoisted__Bool_3007;
-        FunctionDef_delete(hoisted__FunctionDef_3006, hoisted__Bool_3007);
+    Bool hoisted__Bool_3108 = is(self, &(NodeType){.tag = NodeType_TAG_FuncDef});
+    (void)hoisted__Bool_3108;
+    if (hoisted__Bool_3108) {
+        FunctionDef *hoisted__FunctionDef_3085 = get_payload(self);
+        (void)hoisted__FunctionDef_3085;
+        (void)hoisted__FunctionDef_3085;
+        Bool hoisted__Bool_3086 = 0;
+        (void)hoisted__Bool_3086;
+        FunctionDef_delete(hoisted__FunctionDef_3085, hoisted__Bool_3086);
     }
-    Bool hoisted__Bool_3030 = is(self, &(NodeType){.tag = NodeType_TAG_StructDef});
-    (void)hoisted__Bool_3030;
-    if (hoisted__Bool_3030) {
-        StructDef *hoisted__StructDef_3008 = get_payload(self);
-        (void)hoisted__StructDef_3008;
-        (void)hoisted__StructDef_3008;
-        Bool hoisted__Bool_3009 = 0;
-        (void)hoisted__Bool_3009;
-        StructDef_delete(hoisted__StructDef_3008, hoisted__Bool_3009);
+    Bool hoisted__Bool_3109 = is(self, &(NodeType){.tag = NodeType_TAG_StructDef});
+    (void)hoisted__Bool_3109;
+    if (hoisted__Bool_3109) {
+        StructDef *hoisted__StructDef_3087 = get_payload(self);
+        (void)hoisted__StructDef_3087;
+        (void)hoisted__StructDef_3087;
+        Bool hoisted__Bool_3088 = 0;
+        (void)hoisted__Bool_3088;
+        StructDef_delete(hoisted__StructDef_3087, hoisted__Bool_3088);
     }
-    Bool hoisted__Bool_3031 = is(self, &(NodeType){.tag = NodeType_TAG_EnumDef});
-    (void)hoisted__Bool_3031;
-    if (hoisted__Bool_3031) {
-        EnumDef *hoisted__EnumDef_3010 = get_payload(self);
-        (void)hoisted__EnumDef_3010;
-        (void)hoisted__EnumDef_3010;
-        Bool hoisted__Bool_3011 = 0;
-        (void)hoisted__Bool_3011;
-        EnumDef_delete(hoisted__EnumDef_3010, hoisted__Bool_3011);
+    Bool hoisted__Bool_3110 = is(self, &(NodeType){.tag = NodeType_TAG_EnumDef});
+    (void)hoisted__Bool_3110;
+    if (hoisted__Bool_3110) {
+        EnumDef *hoisted__EnumDef_3089 = get_payload(self);
+        (void)hoisted__EnumDef_3089;
+        (void)hoisted__EnumDef_3089;
+        Bool hoisted__Bool_3090 = 0;
+        (void)hoisted__Bool_3090;
+        EnumDef_delete(hoisted__EnumDef_3089, hoisted__Bool_3090);
     }
-    Bool hoisted__Bool_3032 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAccess});
-    (void)hoisted__Bool_3032;
-    if (hoisted__Bool_3032) {
-        FieldAccessData *hoisted__FieldAccessData_3012 = get_payload(self);
-        (void)hoisted__FieldAccessData_3012;
-        (void)hoisted__FieldAccessData_3012;
-        Bool hoisted__Bool_3013 = 0;
-        (void)hoisted__Bool_3013;
-        FieldAccessData_delete(hoisted__FieldAccessData_3012, hoisted__Bool_3013);
+    Bool hoisted__Bool_3111 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAccess});
+    (void)hoisted__Bool_3111;
+    if (hoisted__Bool_3111) {
+        FieldAccessData *hoisted__FieldAccessData_3091 = get_payload(self);
+        (void)hoisted__FieldAccessData_3091;
+        (void)hoisted__FieldAccessData_3091;
+        Bool hoisted__Bool_3092 = 0;
+        (void)hoisted__Bool_3092;
+        FieldAccessData_delete(hoisted__FieldAccessData_3091, hoisted__Bool_3092);
     }
-    Bool hoisted__Bool_3033 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAssign});
-    (void)hoisted__Bool_3033;
-    if (hoisted__Bool_3033) {
-        FieldAssignData *hoisted__FieldAssignData_3014 = get_payload(self);
-        (void)hoisted__FieldAssignData_3014;
-        (void)hoisted__FieldAssignData_3014;
-        Bool hoisted__Bool_3015 = 0;
-        (void)hoisted__Bool_3015;
-        FieldAssignData_delete(hoisted__FieldAssignData_3014, hoisted__Bool_3015);
+    Bool hoisted__Bool_3112 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAssign});
+    (void)hoisted__Bool_3112;
+    if (hoisted__Bool_3112) {
+        FieldAssignData *hoisted__FieldAssignData_3093 = get_payload(self);
+        (void)hoisted__FieldAssignData_3093;
+        (void)hoisted__FieldAssignData_3093;
+        Bool hoisted__Bool_3094 = 0;
+        (void)hoisted__Bool_3094;
+        FieldAssignData_delete(hoisted__FieldAssignData_3093, hoisted__Bool_3094);
     }
-    Bool hoisted__Bool_3034 = is(self, &(NodeType){.tag = NodeType_TAG_ForIn});
-    (void)hoisted__Bool_3034;
-    if (hoisted__Bool_3034) {
-        ForInData *hoisted__ForInData_3016 = get_payload(self);
-        (void)hoisted__ForInData_3016;
-        (void)hoisted__ForInData_3016;
-        Bool hoisted__Bool_3017 = 0;
-        (void)hoisted__Bool_3017;
-        ForInData_delete(hoisted__ForInData_3016, hoisted__Bool_3017);
+    Bool hoisted__Bool_3113 = is(self, &(NodeType){.tag = NodeType_TAG_ForIn});
+    (void)hoisted__Bool_3113;
+    if (hoisted__Bool_3113) {
+        ForInData *hoisted__ForInData_3095 = get_payload(self);
+        (void)hoisted__ForInData_3095;
+        (void)hoisted__ForInData_3095;
+        Bool hoisted__Bool_3096 = 0;
+        (void)hoisted__Bool_3096;
+        ForInData_delete(hoisted__ForInData_3095, hoisted__Bool_3096);
     }
-    Bool hoisted__Bool_3035 = is(self, &(NodeType){.tag = NodeType_TAG_NamedArg});
-    (void)hoisted__Bool_3035;
-    if (hoisted__Bool_3035) {
-        Str *hoisted__Str_3018 = get_payload(self);
-        (void)hoisted__Str_3018;
-        (void)hoisted__Str_3018;
-        Bool hoisted__Bool_3019 = 0;
-        (void)hoisted__Bool_3019;
-        Str_delete(hoisted__Str_3018, hoisted__Bool_3019);
+    Bool hoisted__Bool_3114 = is(self, &(NodeType){.tag = NodeType_TAG_NamedArg});
+    (void)hoisted__Bool_3114;
+    if (hoisted__Bool_3114) {
+        Str *hoisted__Str_3097 = get_payload(self);
+        (void)hoisted__Str_3097;
+        (void)hoisted__Str_3097;
+        Bool hoisted__Bool_3098 = 0;
+        (void)hoisted__Bool_3098;
+        Str_delete(hoisted__Str_3097, hoisted__Bool_3098);
     }
-    Bool hoisted__Bool_3036 = is(self, &(NodeType){.tag = NodeType_TAG_Match});
-    (void)hoisted__Bool_3036;
-    if (hoisted__Bool_3036) {
-        MatchData *hoisted__MatchData_3020 = get_payload(self);
-        (void)hoisted__MatchData_3020;
-        (void)hoisted__MatchData_3020;
-        Bool hoisted__Bool_3021 = 0;
-        (void)hoisted__Bool_3021;
-        MatchData_delete(hoisted__MatchData_3020, hoisted__Bool_3021);
+    Bool hoisted__Bool_3115 = is(self, &(NodeType){.tag = NodeType_TAG_Match});
+    (void)hoisted__Bool_3115;
+    if (hoisted__Bool_3115) {
+        MatchData *hoisted__MatchData_3099 = get_payload(self);
+        (void)hoisted__MatchData_3099;
+        (void)hoisted__MatchData_3099;
+        Bool hoisted__Bool_3100 = 0;
+        (void)hoisted__Bool_3100;
+        MatchData_delete(hoisted__MatchData_3099, hoisted__Bool_3100);
     }
-    Bool hoisted__Bool_3037 = is(self, &(NodeType){.tag = NodeType_TAG_CaptureBlock});
-    (void)hoisted__Bool_3037;
-    if (hoisted__Bool_3037) {
-        CaptureBlockData *hoisted__CaptureBlockData_3022 = get_payload(self);
-        (void)hoisted__CaptureBlockData_3022;
-        (void)hoisted__CaptureBlockData_3022;
-        Bool hoisted__Bool_3023 = 0;
-        (void)hoisted__Bool_3023;
-        CaptureBlockData_delete(hoisted__CaptureBlockData_3022, hoisted__Bool_3023);
+    Bool hoisted__Bool_3116 = is(self, &(NodeType){.tag = NodeType_TAG_CaptureBlock});
+    (void)hoisted__Bool_3116;
+    if (hoisted__Bool_3116) {
+        CaptureBlockData *hoisted__CaptureBlockData_3101 = get_payload(self);
+        (void)hoisted__CaptureBlockData_3101;
+        (void)hoisted__CaptureBlockData_3101;
+        Bool hoisted__Bool_3102 = 0;
+        (void)hoisted__Bool_3102;
+        CaptureBlockData_delete(hoisted__CaptureBlockData_3101, hoisted__Bool_3102);
     }
     if (call_free) {
         free(self);
@@ -4261,258 +4261,258 @@ void NodeType_delete(NodeType * self, Bool call_free) {
 }
 
 NodeType * NodeType_clone(NodeType * self) {
-    Bool hoisted__Bool_3219 = is(self, &(NodeType){.tag = NodeType_TAG_Body});
-    (void)hoisted__Bool_3219;
-    if (hoisted__Bool_3219) {
+    Bool hoisted__Bool_3298 = is(self, &(NodeType){.tag = NodeType_TAG_Body});
+    (void)hoisted__Bool_3298;
+    if (hoisted__Bool_3298) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Body;
                 return _r; }
     }
-    Bool hoisted__Bool_3220 = is(self, &(NodeType){.tag = NodeType_TAG_Literal});
-    (void)hoisted__Bool_3220;
-    if (hoisted__Bool_3220) {
+    Bool hoisted__Bool_3299 = is(self, &(NodeType){.tag = NodeType_TAG_Literal});
+    (void)hoisted__Bool_3299;
+    if (hoisted__Bool_3299) {
         Literal *_clone_payload_Literal_1 = get_payload(self);
         (void)_clone_payload_Literal_1;
         (void)_clone_payload_Literal_1;
-        Literal *hoisted__Literal_3191 = Literal_clone(_clone_payload_Literal_1);
-        (void)hoisted__Literal_3191;
-        NodeType *hoisted__NodeType_3192 = NodeType_Literal(hoisted__Literal_3191);
-        (void)hoisted__NodeType_3192;
-        { NodeType * _ret_val = hoisted__NodeType_3192;
+        Literal *hoisted__Literal_3270 = Literal_clone(_clone_payload_Literal_1);
+        (void)hoisted__Literal_3270;
+        NodeType *hoisted__NodeType_3271 = NodeType_Literal(hoisted__Literal_3270);
+        (void)hoisted__NodeType_3271;
+        { NodeType * _ret_val = hoisted__NodeType_3271;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3221 = is(self, &(NodeType){.tag = NodeType_TAG_Ident});
-    (void)hoisted__Bool_3221;
-    if (hoisted__Bool_3221) {
+    Bool hoisted__Bool_3300 = is(self, &(NodeType){.tag = NodeType_TAG_Ident});
+    (void)hoisted__Bool_3300;
+    if (hoisted__Bool_3300) {
         IdentData *_clone_payload_Ident_2 = get_payload(self);
         (void)_clone_payload_Ident_2;
         (void)_clone_payload_Ident_2;
-        IdentData *hoisted__IdentData_3193 = IdentData_clone(_clone_payload_Ident_2);
-        (void)hoisted__IdentData_3193;
-        NodeType *hoisted__NodeType_3194 = NodeType_Ident(hoisted__IdentData_3193);
-        (void)hoisted__NodeType_3194;
-        { NodeType * _ret_val = hoisted__NodeType_3194;
+        IdentData *hoisted__IdentData_3272 = IdentData_clone(_clone_payload_Ident_2);
+        (void)hoisted__IdentData_3272;
+        NodeType *hoisted__NodeType_3273 = NodeType_Ident(hoisted__IdentData_3272);
+        (void)hoisted__NodeType_3273;
+        { NodeType * _ret_val = hoisted__NodeType_3273;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3222 = is(self, &(NodeType){.tag = NodeType_TAG_Decl});
-    (void)hoisted__Bool_3222;
-    if (hoisted__Bool_3222) {
+    Bool hoisted__Bool_3301 = is(self, &(NodeType){.tag = NodeType_TAG_Decl});
+    (void)hoisted__Bool_3301;
+    if (hoisted__Bool_3301) {
         Declaration *_clone_payload_Decl_3 = get_payload(self);
         (void)_clone_payload_Decl_3;
         (void)_clone_payload_Decl_3;
-        Declaration *hoisted__Declaration_3195 = Declaration_clone(_clone_payload_Decl_3);
-        (void)hoisted__Declaration_3195;
-        NodeType *hoisted__NodeType_3196 = NodeType_Decl(hoisted__Declaration_3195);
-        (void)hoisted__NodeType_3196;
-        { NodeType * _ret_val = hoisted__NodeType_3196;
+        Declaration *hoisted__Declaration_3274 = Declaration_clone(_clone_payload_Decl_3);
+        (void)hoisted__Declaration_3274;
+        NodeType *hoisted__NodeType_3275 = NodeType_Decl(hoisted__Declaration_3274);
+        (void)hoisted__NodeType_3275;
+        { NodeType * _ret_val = hoisted__NodeType_3275;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3223 = is(self, &(NodeType){.tag = NodeType_TAG_Assign});
-    (void)hoisted__Bool_3223;
-    if (hoisted__Bool_3223) {
+    Bool hoisted__Bool_3302 = is(self, &(NodeType){.tag = NodeType_TAG_Assign});
+    (void)hoisted__Bool_3302;
+    if (hoisted__Bool_3302) {
         AssignData *_clone_payload_Assign_4 = get_payload(self);
         (void)_clone_payload_Assign_4;
         (void)_clone_payload_Assign_4;
-        AssignData *hoisted__AssignData_3197 = AssignData_clone(_clone_payload_Assign_4);
-        (void)hoisted__AssignData_3197;
-        NodeType *hoisted__NodeType_3198 = NodeType_Assign(hoisted__AssignData_3197);
-        (void)hoisted__NodeType_3198;
-        { NodeType * _ret_val = hoisted__NodeType_3198;
+        AssignData *hoisted__AssignData_3276 = AssignData_clone(_clone_payload_Assign_4);
+        (void)hoisted__AssignData_3276;
+        NodeType *hoisted__NodeType_3277 = NodeType_Assign(hoisted__AssignData_3276);
+        (void)hoisted__NodeType_3277;
+        { NodeType * _ret_val = hoisted__NodeType_3277;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3224 = is(self, &(NodeType){.tag = NodeType_TAG_FCall});
-    (void)hoisted__Bool_3224;
-    if (hoisted__Bool_3224) {
+    Bool hoisted__Bool_3303 = is(self, &(NodeType){.tag = NodeType_TAG_FCall});
+    (void)hoisted__Bool_3303;
+    if (hoisted__Bool_3303) {
         FCallData *_clone_payload_FCall_5 = get_payload(self);
         (void)_clone_payload_FCall_5;
         (void)_clone_payload_FCall_5;
-        FCallData *hoisted__FCallData_3199 = FCallData_clone(_clone_payload_FCall_5);
-        (void)hoisted__FCallData_3199;
-        NodeType *hoisted__NodeType_3200 = NodeType_FCall(hoisted__FCallData_3199);
-        (void)hoisted__NodeType_3200;
-        { NodeType * _ret_val = hoisted__NodeType_3200;
+        FCallData *hoisted__FCallData_3278 = FCallData_clone(_clone_payload_FCall_5);
+        (void)hoisted__FCallData_3278;
+        NodeType *hoisted__NodeType_3279 = NodeType_FCall(hoisted__FCallData_3278);
+        (void)hoisted__NodeType_3279;
+        { NodeType * _ret_val = hoisted__NodeType_3279;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3225 = is(self, &(NodeType){.tag = NodeType_TAG_FuncDef});
-    (void)hoisted__Bool_3225;
-    if (hoisted__Bool_3225) {
+    Bool hoisted__Bool_3304 = is(self, &(NodeType){.tag = NodeType_TAG_FuncDef});
+    (void)hoisted__Bool_3304;
+    if (hoisted__Bool_3304) {
         FunctionDef *_clone_payload_FuncDef_6 = get_payload(self);
         (void)_clone_payload_FuncDef_6;
         (void)_clone_payload_FuncDef_6;
-        FunctionDef *hoisted__FunctionDef_3201 = FunctionDef_clone(_clone_payload_FuncDef_6);
-        (void)hoisted__FunctionDef_3201;
-        NodeType *hoisted__NodeType_3202 = NodeType_FuncDef(hoisted__FunctionDef_3201);
-        (void)hoisted__NodeType_3202;
-        { NodeType * _ret_val = hoisted__NodeType_3202;
+        FunctionDef *hoisted__FunctionDef_3280 = FunctionDef_clone(_clone_payload_FuncDef_6);
+        (void)hoisted__FunctionDef_3280;
+        NodeType *hoisted__NodeType_3281 = NodeType_FuncDef(hoisted__FunctionDef_3280);
+        (void)hoisted__NodeType_3281;
+        { NodeType * _ret_val = hoisted__NodeType_3281;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3226 = is(self, &(NodeType){.tag = NodeType_TAG_StructDef});
-    (void)hoisted__Bool_3226;
-    if (hoisted__Bool_3226) {
+    Bool hoisted__Bool_3305 = is(self, &(NodeType){.tag = NodeType_TAG_StructDef});
+    (void)hoisted__Bool_3305;
+    if (hoisted__Bool_3305) {
         StructDef *_clone_payload_StructDef_7 = get_payload(self);
         (void)_clone_payload_StructDef_7;
         (void)_clone_payload_StructDef_7;
-        StructDef *hoisted__StructDef_3203 = StructDef_clone(_clone_payload_StructDef_7);
-        (void)hoisted__StructDef_3203;
-        NodeType *hoisted__NodeType_3204 = NodeType_StructDef(hoisted__StructDef_3203);
-        (void)hoisted__NodeType_3204;
-        { NodeType * _ret_val = hoisted__NodeType_3204;
+        StructDef *hoisted__StructDef_3282 = StructDef_clone(_clone_payload_StructDef_7);
+        (void)hoisted__StructDef_3282;
+        NodeType *hoisted__NodeType_3283 = NodeType_StructDef(hoisted__StructDef_3282);
+        (void)hoisted__NodeType_3283;
+        { NodeType * _ret_val = hoisted__NodeType_3283;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3227 = is(self, &(NodeType){.tag = NodeType_TAG_EnumDef});
-    (void)hoisted__Bool_3227;
-    if (hoisted__Bool_3227) {
+    Bool hoisted__Bool_3306 = is(self, &(NodeType){.tag = NodeType_TAG_EnumDef});
+    (void)hoisted__Bool_3306;
+    if (hoisted__Bool_3306) {
         EnumDef *_clone_payload_EnumDef_8 = get_payload(self);
         (void)_clone_payload_EnumDef_8;
         (void)_clone_payload_EnumDef_8;
-        EnumDef *hoisted__EnumDef_3205 = EnumDef_clone(_clone_payload_EnumDef_8);
-        (void)hoisted__EnumDef_3205;
-        NodeType *hoisted__NodeType_3206 = NodeType_EnumDef(hoisted__EnumDef_3205);
-        (void)hoisted__NodeType_3206;
-        { NodeType * _ret_val = hoisted__NodeType_3206;
+        EnumDef *hoisted__EnumDef_3284 = EnumDef_clone(_clone_payload_EnumDef_8);
+        (void)hoisted__EnumDef_3284;
+        NodeType *hoisted__NodeType_3285 = NodeType_EnumDef(hoisted__EnumDef_3284);
+        (void)hoisted__NodeType_3285;
+        { NodeType * _ret_val = hoisted__NodeType_3285;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3228 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAccess});
-    (void)hoisted__Bool_3228;
-    if (hoisted__Bool_3228) {
+    Bool hoisted__Bool_3307 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAccess});
+    (void)hoisted__Bool_3307;
+    if (hoisted__Bool_3307) {
         FieldAccessData *_clone_payload_FieldAccess_9 = get_payload(self);
         (void)_clone_payload_FieldAccess_9;
         (void)_clone_payload_FieldAccess_9;
-        FieldAccessData *hoisted__FieldAccessData_3207 = FieldAccessData_clone(_clone_payload_FieldAccess_9);
-        (void)hoisted__FieldAccessData_3207;
-        NodeType *hoisted__NodeType_3208 = NodeType_FieldAccess(hoisted__FieldAccessData_3207);
-        (void)hoisted__NodeType_3208;
-        { NodeType * _ret_val = hoisted__NodeType_3208;
+        FieldAccessData *hoisted__FieldAccessData_3286 = FieldAccessData_clone(_clone_payload_FieldAccess_9);
+        (void)hoisted__FieldAccessData_3286;
+        NodeType *hoisted__NodeType_3287 = NodeType_FieldAccess(hoisted__FieldAccessData_3286);
+        (void)hoisted__NodeType_3287;
+        { NodeType * _ret_val = hoisted__NodeType_3287;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3229 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAssign});
-    (void)hoisted__Bool_3229;
-    if (hoisted__Bool_3229) {
+    Bool hoisted__Bool_3308 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAssign});
+    (void)hoisted__Bool_3308;
+    if (hoisted__Bool_3308) {
         FieldAssignData *_clone_payload_FieldAssign_10 = get_payload(self);
         (void)_clone_payload_FieldAssign_10;
         (void)_clone_payload_FieldAssign_10;
-        FieldAssignData *hoisted__FieldAssignData_3209 = FieldAssignData_clone(_clone_payload_FieldAssign_10);
-        (void)hoisted__FieldAssignData_3209;
-        NodeType *hoisted__NodeType_3210 = NodeType_FieldAssign(hoisted__FieldAssignData_3209);
-        (void)hoisted__NodeType_3210;
-        { NodeType * _ret_val = hoisted__NodeType_3210;
+        FieldAssignData *hoisted__FieldAssignData_3288 = FieldAssignData_clone(_clone_payload_FieldAssign_10);
+        (void)hoisted__FieldAssignData_3288;
+        NodeType *hoisted__NodeType_3289 = NodeType_FieldAssign(hoisted__FieldAssignData_3288);
+        (void)hoisted__NodeType_3289;
+        { NodeType * _ret_val = hoisted__NodeType_3289;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3230 = is(self, &(NodeType){.tag = NodeType_TAG_Return});
-    (void)hoisted__Bool_3230;
-    if (hoisted__Bool_3230) {
+    Bool hoisted__Bool_3309 = is(self, &(NodeType){.tag = NodeType_TAG_Return});
+    (void)hoisted__Bool_3309;
+    if (hoisted__Bool_3309) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Return;
                 return _r; }
     }
-    Bool hoisted__Bool_3231 = is(self, &(NodeType){.tag = NodeType_TAG_If});
-    (void)hoisted__Bool_3231;
-    if (hoisted__Bool_3231) {
+    Bool hoisted__Bool_3310 = is(self, &(NodeType){.tag = NodeType_TAG_If});
+    (void)hoisted__Bool_3310;
+    if (hoisted__Bool_3310) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_If;
                 return _r; }
     }
-    Bool hoisted__Bool_3232 = is(self, &(NodeType){.tag = NodeType_TAG_While});
-    (void)hoisted__Bool_3232;
-    if (hoisted__Bool_3232) {
+    Bool hoisted__Bool_3311 = is(self, &(NodeType){.tag = NodeType_TAG_While});
+    (void)hoisted__Bool_3311;
+    if (hoisted__Bool_3311) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_While;
                 return _r; }
     }
-    Bool hoisted__Bool_3233 = is(self, &(NodeType){.tag = NodeType_TAG_ForIn});
-    (void)hoisted__Bool_3233;
-    if (hoisted__Bool_3233) {
+    Bool hoisted__Bool_3312 = is(self, &(NodeType){.tag = NodeType_TAG_ForIn});
+    (void)hoisted__Bool_3312;
+    if (hoisted__Bool_3312) {
         ForInData *_clone_payload_ForIn_14 = get_payload(self);
         (void)_clone_payload_ForIn_14;
         (void)_clone_payload_ForIn_14;
-        ForInData *hoisted__ForInData_3211 = ForInData_clone(_clone_payload_ForIn_14);
-        (void)hoisted__ForInData_3211;
-        NodeType *hoisted__NodeType_3212 = NodeType_ForIn(hoisted__ForInData_3211);
-        (void)hoisted__NodeType_3212;
-        { NodeType * _ret_val = hoisted__NodeType_3212;
+        ForInData *hoisted__ForInData_3290 = ForInData_clone(_clone_payload_ForIn_14);
+        (void)hoisted__ForInData_3290;
+        NodeType *hoisted__NodeType_3291 = NodeType_ForIn(hoisted__ForInData_3290);
+        (void)hoisted__NodeType_3291;
+        { NodeType * _ret_val = hoisted__NodeType_3291;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3234 = is(self, &(NodeType){.tag = NodeType_TAG_NamedArg});
-    (void)hoisted__Bool_3234;
-    if (hoisted__Bool_3234) {
+    Bool hoisted__Bool_3313 = is(self, &(NodeType){.tag = NodeType_TAG_NamedArg});
+    (void)hoisted__Bool_3313;
+    if (hoisted__Bool_3313) {
         Str *_clone_payload_NamedArg_15 = get_payload(self);
         (void)_clone_payload_NamedArg_15;
         (void)_clone_payload_NamedArg_15;
-        Str *hoisted__Str_3213 = Str_clone(_clone_payload_NamedArg_15);
-        (void)hoisted__Str_3213;
-        NodeType *hoisted__NodeType_3214 = NodeType_NamedArg(hoisted__Str_3213);
-        (void)hoisted__NodeType_3214;
-        { NodeType * _ret_val = hoisted__NodeType_3214;
+        Str *hoisted__Str_3292 = Str_clone(_clone_payload_NamedArg_15);
+        (void)hoisted__Str_3292;
+        NodeType *hoisted__NodeType_3293 = NodeType_NamedArg(hoisted__Str_3292);
+        (void)hoisted__NodeType_3293;
+        { NodeType * _ret_val = hoisted__NodeType_3293;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3235 = is(self, &(NodeType){.tag = NodeType_TAG_Break});
-    (void)hoisted__Bool_3235;
-    if (hoisted__Bool_3235) {
+    Bool hoisted__Bool_3314 = is(self, &(NodeType){.tag = NodeType_TAG_Break});
+    (void)hoisted__Bool_3314;
+    if (hoisted__Bool_3314) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Break;
                 return _r; }
     }
-    Bool hoisted__Bool_3236 = is(self, &(NodeType){.tag = NodeType_TAG_Continue});
-    (void)hoisted__Bool_3236;
-    if (hoisted__Bool_3236) {
+    Bool hoisted__Bool_3315 = is(self, &(NodeType){.tag = NodeType_TAG_Continue});
+    (void)hoisted__Bool_3315;
+    if (hoisted__Bool_3315) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Continue;
                 return _r; }
     }
-    Bool hoisted__Bool_3237 = is(self, &(NodeType){.tag = NodeType_TAG_Switch});
-    (void)hoisted__Bool_3237;
-    if (hoisted__Bool_3237) {
+    Bool hoisted__Bool_3316 = is(self, &(NodeType){.tag = NodeType_TAG_Switch});
+    (void)hoisted__Bool_3316;
+    if (hoisted__Bool_3316) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Switch;
                 return _r; }
     }
-    Bool hoisted__Bool_3238 = is(self, &(NodeType){.tag = NodeType_TAG_Match});
-    (void)hoisted__Bool_3238;
-    if (hoisted__Bool_3238) {
+    Bool hoisted__Bool_3317 = is(self, &(NodeType){.tag = NodeType_TAG_Match});
+    (void)hoisted__Bool_3317;
+    if (hoisted__Bool_3317) {
         MatchData *_clone_payload_Match_19 = get_payload(self);
         (void)_clone_payload_Match_19;
         (void)_clone_payload_Match_19;
-        MatchData *hoisted__MatchData_3215 = MatchData_clone(_clone_payload_Match_19);
-        (void)hoisted__MatchData_3215;
-        NodeType *hoisted__NodeType_3216 = NodeType_Match(hoisted__MatchData_3215);
-        (void)hoisted__NodeType_3216;
-        { NodeType * _ret_val = hoisted__NodeType_3216;
+        MatchData *hoisted__MatchData_3294 = MatchData_clone(_clone_payload_Match_19);
+        (void)hoisted__MatchData_3294;
+        NodeType *hoisted__NodeType_3295 = NodeType_Match(hoisted__MatchData_3294);
+        (void)hoisted__NodeType_3295;
+        { NodeType * _ret_val = hoisted__NodeType_3295;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3239 = is(self, &(NodeType){.tag = NodeType_TAG_Case});
-    (void)hoisted__Bool_3239;
-    if (hoisted__Bool_3239) {
+    Bool hoisted__Bool_3318 = is(self, &(NodeType){.tag = NodeType_TAG_Case});
+    (void)hoisted__Bool_3318;
+    if (hoisted__Bool_3318) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Case;
                 return _r; }
     }
-    Bool hoisted__Bool_3240 = is(self, &(NodeType){.tag = NodeType_TAG_NoDefaultArg});
-    (void)hoisted__Bool_3240;
-    if (hoisted__Bool_3240) {
+    Bool hoisted__Bool_3319 = is(self, &(NodeType){.tag = NodeType_TAG_NoDefaultArg});
+    (void)hoisted__Bool_3319;
+    if (hoisted__Bool_3319) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_NoDefaultArg;
                 return _r; }
     }
-    Bool hoisted__Bool_3241 = is(self, &(NodeType){.tag = NodeType_TAG_Throw});
-    (void)hoisted__Bool_3241;
-    if (hoisted__Bool_3241) {
+    Bool hoisted__Bool_3320 = is(self, &(NodeType){.tag = NodeType_TAG_Throw});
+    (void)hoisted__Bool_3320;
+    if (hoisted__Bool_3320) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Throw;
                 return _r; }
     }
-    Bool hoisted__Bool_3242 = is(self, &(NodeType){.tag = NodeType_TAG_Catch});
-    (void)hoisted__Bool_3242;
-    if (hoisted__Bool_3242) {
+    Bool hoisted__Bool_3321 = is(self, &(NodeType){.tag = NodeType_TAG_Catch});
+    (void)hoisted__Bool_3321;
+    if (hoisted__Bool_3321) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Catch;
                 return _r; }
     }
-    Bool hoisted__Bool_3243 = is(self, &(NodeType){.tag = NodeType_TAG_RestPattern});
-    (void)hoisted__Bool_3243;
-    if (hoisted__Bool_3243) {
+    Bool hoisted__Bool_3322 = is(self, &(NodeType){.tag = NodeType_TAG_RestPattern});
+    (void)hoisted__Bool_3322;
+    if (hoisted__Bool_3322) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_RestPattern;
                 return _r; }
     }
-    Bool hoisted__Bool_3244 = is(self, &(NodeType){.tag = NodeType_TAG_CaptureBlock});
-    (void)hoisted__Bool_3244;
-    if (hoisted__Bool_3244) {
+    Bool hoisted__Bool_3323 = is(self, &(NodeType){.tag = NodeType_TAG_CaptureBlock});
+    (void)hoisted__Bool_3323;
+    if (hoisted__Bool_3323) {
         CaptureBlockData *_clone_payload_CaptureBlock_25 = get_payload(self);
         (void)_clone_payload_CaptureBlock_25;
         (void)_clone_payload_CaptureBlock_25;
-        CaptureBlockData *hoisted__CaptureBlockData_3217 = CaptureBlockData_clone(_clone_payload_CaptureBlock_25);
-        (void)hoisted__CaptureBlockData_3217;
-        NodeType *hoisted__NodeType_3218 = NodeType_CaptureBlock(hoisted__CaptureBlockData_3217);
-        (void)hoisted__NodeType_3218;
-        { NodeType * _ret_val = hoisted__NodeType_3218;
+        CaptureBlockData *hoisted__CaptureBlockData_3296 = CaptureBlockData_clone(_clone_payload_CaptureBlock_25);
+        (void)hoisted__CaptureBlockData_3296;
+        NodeType *hoisted__NodeType_3297 = NodeType_CaptureBlock(hoisted__CaptureBlockData_3296);
+        (void)hoisted__NodeType_3297;
+        { NodeType * _ret_val = hoisted__NodeType_3297;
                 return _ret_val; }
     }
     { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Loc;
@@ -4520,21 +4520,21 @@ NodeType * NodeType_clone(NodeType * self) {
 }
 
 U32 NodeType_size(void) {
-    U32 hoisted__U32_3245 = 112;
-    (void)hoisted__U32_3245;
-    return hoisted__U32_3245;
+    U32 hoisted__U32_3324 = 112;
+    (void)hoisted__U32_3324;
+    return hoisted__U32_3324;
 }
 
 
 void Expr_delete(Expr * self, Bool call_free) {
-    Bool hoisted__Bool_3246 = is_null(self);
-    (void)hoisted__Bool_3246;
-    if (hoisted__Bool_3246) {
+    Bool hoisted__Bool_3325 = is_null(self);
+    (void)hoisted__Bool_3325;
+    if (hoisted__Bool_3325) {
         return;
     }
-    Bool hoisted__Bool_3247 = 0;
-    (void)hoisted__Bool_3247;
-    NodeType_delete(&self->node_type, hoisted__Bool_3247);
+    Bool hoisted__Bool_3326 = 0;
+    (void)hoisted__Bool_3326;
+    NodeType_delete(&self->node_type, hoisted__Bool_3326);
     Vec__Expr_clear(&self->children);
     free(self->children.data);
     if (call_free) {
@@ -4543,168 +4543,168 @@ void Expr_delete(Expr * self, Bool call_free) {
 }
 
 Expr * Expr_new(NodeType * data, U32 line, U32 col) {
-    Expr *hoisted__Expr_3291 = malloc(sizeof(Expr));
-    { NodeType *_ca = NodeType_clone(data); hoisted__Expr_3291->node_type = *_ca; free(_ca); }
-    { Vec__Expr *_ca = Vec__Expr_new(); hoisted__Expr_3291->children = *_ca; free(_ca); }
-    hoisted__Expr_3291->line = line;
-    hoisted__Expr_3291->col = col;
-    (void)hoisted__Expr_3291;
-    return hoisted__Expr_3291;
+    Expr *hoisted__Expr_3370 = malloc(sizeof(Expr));
+    { NodeType *_ca = NodeType_clone(data); hoisted__Expr_3370->node_type = *_ca; free(_ca); }
+    { Vec__Expr *_ca = Vec__Expr_new(); hoisted__Expr_3370->children = *_ca; free(_ca); }
+    hoisted__Expr_3370->line = line;
+    hoisted__Expr_3370->col = col;
+    (void)hoisted__Expr_3370;
+    return hoisted__Expr_3370;
 }
 
 Expr * Expr_clone(Expr * self) {
-    Expr *hoisted__Expr_3299 = malloc(sizeof(Expr));
-    { NodeType *_ca = NodeType_clone(&self->node_type); hoisted__Expr_3299->node_type = *_ca; free(_ca); }
-    { Vec__Expr *_ca = Vec__Expr_clone(&self->children); hoisted__Expr_3299->children = *_ca; free(_ca); }
-    hoisted__Expr_3299->line = self->line;
-    hoisted__Expr_3299->col = self->col;
-    (void)hoisted__Expr_3299;
-    return hoisted__Expr_3299;
+    Expr *hoisted__Expr_3378 = malloc(sizeof(Expr));
+    { NodeType *_ca = NodeType_clone(&self->node_type); hoisted__Expr_3378->node_type = *_ca; free(_ca); }
+    { Vec__Expr *_ca = Vec__Expr_clone(&self->children); hoisted__Expr_3378->children = *_ca; free(_ca); }
+    hoisted__Expr_3378->line = self->line;
+    hoisted__Expr_3378->col = self->col;
+    (void)hoisted__Expr_3378;
+    return hoisted__Expr_3378;
 }
 
 U64 Expr_hash(Expr * self, HashFn hasher) {
-    U32 hoisted__U32_3300 = 0;
-    (void)hoisted__U32_3300;
-    U64 hoisted__U64_3301 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Expr *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_3300); });
-    (void)hoisted__U64_3301;
-    return hoisted__U64_3301;
+    U32 hoisted__U32_3379 = 0;
+    (void)hoisted__U32_3379;
+    U64 hoisted__U64_3380 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Expr *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_3379); });
+    (void)hoisted__U64_3380;
+    return hoisted__U64_3380;
 }
 
 U32 Expr_size(void) {
-    U32 hoisted__U32_3302 = 136;
-    (void)hoisted__U32_3302;
-    return hoisted__U32_3302;
+    U32 hoisted__U32_3381 = 136;
+    (void)hoisted__U32_3381;
+    return hoisted__U32_3381;
 }
 
 Map__I64_Str * Map__I64_Str_new(void) {
-    Map__I64_Str *hoisted__Map__I64_Str_3938 = malloc(sizeof(Map__I64_Str));
-    { Vec__I64 *_ca = Vec__I64_new(); hoisted__Map__I64_Str_3938->keys = *_ca; free(_ca); }
-    { Vec__Str *_ca = Vec__Str_new(); hoisted__Map__I64_Str_3938->values = *_ca; free(_ca); }
-    (void)hoisted__Map__I64_Str_3938;
-    return hoisted__Map__I64_Str_3938;
+    Map__I64_Str *hoisted__Map__I64_Str_4017 = malloc(sizeof(Map__I64_Str));
+    { Vec__I64 *_ca = Vec__I64_new(); hoisted__Map__I64_Str_4017->keys = *_ca; free(_ca); }
+    { Vec__Str *_ca = Vec__Str_new(); hoisted__Map__I64_Str_4017->values = *_ca; free(_ca); }
+    (void)hoisted__Map__I64_Str_4017;
+    return hoisted__Map__I64_Str_4017;
 }
 
 void Map__I64_Str_delete(Map__I64_Str * self, Bool call_free) {
-    Bool hoisted__Bool_4083 = 0;
-    (void)hoisted__Bool_4083;
-    Vec__I64_delete(&self->keys, hoisted__Bool_4083);
-    Bool hoisted__Bool_4084 = 0;
-    (void)hoisted__Bool_4084;
-    Vec__Str_delete(&self->values, hoisted__Bool_4084);
+    Bool hoisted__Bool_4162 = 0;
+    (void)hoisted__Bool_4162;
+    Vec__I64_delete(&self->keys, hoisted__Bool_4162);
+    Bool hoisted__Bool_4163 = 0;
+    (void)hoisted__Bool_4163;
+    Vec__Str_delete(&self->values, hoisted__Bool_4163);
     if (call_free) {
         free(self);
     }
 }
 
 Map__I64_Str * Map__I64_Str_clone(Map__I64_Str * self) {
-    Map__I64_Str *hoisted__Map__I64_Str_4085 = malloc(sizeof(Map__I64_Str));
-    { Vec__I64 *_ca = Vec__I64_clone(&self->keys); hoisted__Map__I64_Str_4085->keys = *_ca; free(_ca); }
-    { Vec__Str *_ca = Vec__Str_clone(&self->values); hoisted__Map__I64_Str_4085->values = *_ca; free(_ca); }
-    (void)hoisted__Map__I64_Str_4085;
-    return hoisted__Map__I64_Str_4085;
+    Map__I64_Str *hoisted__Map__I64_Str_4164 = malloc(sizeof(Map__I64_Str));
+    { Vec__I64 *_ca = Vec__I64_clone(&self->keys); hoisted__Map__I64_Str_4164->keys = *_ca; free(_ca); }
+    { Vec__Str *_ca = Vec__Str_clone(&self->values); hoisted__Map__I64_Str_4164->values = *_ca; free(_ca); }
+    (void)hoisted__Map__I64_Str_4164;
+    return hoisted__Map__I64_Str_4164;
 }
 
 U64 Map__I64_Str_hash(Map__I64_Str * self, HashFn hasher) {
-    U32 hoisted__U32_4086 = 0;
-    (void)hoisted__U32_4086;
-    U64 hoisted__U64_4087 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Map__I64_Str *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_4086); });
-    (void)hoisted__U64_4087;
-    return hoisted__U64_4087;
+    U32 hoisted__U32_4165 = 0;
+    (void)hoisted__U32_4165;
+    U64 hoisted__U64_4166 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Map__I64_Str *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_4165); });
+    (void)hoisted__U64_4166;
+    return hoisted__U64_4166;
 }
 
 U32 Map__I64_Str_size(void) {
-    U32 hoisted__U32_4088 = 32;
-    (void)hoisted__U32_4088;
-    return hoisted__U32_4088;
+    U32 hoisted__U32_4167 = 32;
+    (void)hoisted__U32_4167;
+    return hoisted__U32_4167;
 }
 
 Vec__Bool * Vec__Bool_new(void) {
-    U32 hoisted__U32_4089 = 1;
-    (void)hoisted__U32_4089;
-    Type *hoisted__Type_4090 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_4090;
-    U64 hoisted__U64_4091 = (U64)(hoisted__U32_4089);
-    (void)hoisted__U64_4091;
-    Type_delete(hoisted__Type_4090, 1);
-    void * hoisted__v_4092 = malloc(hoisted__U64_4091);
-    (void)hoisted__v_4092;
-    U32 hoisted__U32_4093 = 0;
-    (void)hoisted__U32_4093;
-    I64 hoisted__I64_4094 = 1;
-    (void)hoisted__I64_4094;
-    Vec__Bool *hoisted__Vec__Bool_4095 = malloc(sizeof(Vec__Bool));
-    hoisted__Vec__Bool_4095->data = hoisted__v_4092;
-    hoisted__Vec__Bool_4095->count = hoisted__U32_4093;
-    hoisted__Vec__Bool_4095->cap = hoisted__I64_4094;
-    (void)hoisted__Vec__Bool_4095;
-    return hoisted__Vec__Bool_4095;
+    U32 hoisted__U32_4168 = 1;
+    (void)hoisted__U32_4168;
+    Type *hoisted__Type_4169 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_4169;
+    U64 hoisted__U64_4170 = (U64)(hoisted__U32_4168);
+    (void)hoisted__U64_4170;
+    Type_delete(hoisted__Type_4169, 1);
+    void * hoisted__v_4171 = malloc(hoisted__U64_4170);
+    (void)hoisted__v_4171;
+    U32 hoisted__U32_4172 = 0;
+    (void)hoisted__U32_4172;
+    I64 hoisted__I64_4173 = 1;
+    (void)hoisted__I64_4173;
+    Vec__Bool *hoisted__Vec__Bool_4174 = malloc(sizeof(Vec__Bool));
+    hoisted__Vec__Bool_4174->data = hoisted__v_4171;
+    hoisted__Vec__Bool_4174->count = hoisted__U32_4172;
+    hoisted__Vec__Bool_4174->cap = hoisted__I64_4173;
+    (void)hoisted__Vec__Bool_4174;
+    return hoisted__Vec__Bool_4174;
 }
 
 void Vec__Bool_clear(Vec__Bool * self) {
     {
-        U32 _re_U32_4096 = self->count;
-        (void)_re_U32_4096;
-        U32 _rc_U32_4096 = 0;
-        (void)_rc_U32_4096;
-        Bool hoisted__Bool_4111 = U32_lte(_rc_U32_4096, _re_U32_4096);
-        (void)hoisted__Bool_4111;
-        if (hoisted__Bool_4111) {
+        U32 _re_U32_4175 = self->count;
+        (void)_re_U32_4175;
+        U32 _rc_U32_4175 = 0;
+        (void)_rc_U32_4175;
+        Bool hoisted__Bool_4190 = U32_lte(_rc_U32_4175, _re_U32_4175);
+        (void)hoisted__Bool_4190;
+        if (hoisted__Bool_4190) {
             while (1) {
-                Bool _wcond_Bool_4097 = U32_lt(_rc_U32_4096, _re_U32_4096);
-                (void)_wcond_Bool_4097;
-                if (_wcond_Bool_4097) {
+                Bool _wcond_Bool_4176 = U32_lt(_rc_U32_4175, _re_U32_4175);
+                (void)_wcond_Bool_4176;
+                if (_wcond_Bool_4176) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_4096);
-                U32_inc(&_rc_U32_4096);
-                U32 hoisted__U32_4098 = 1;
-                (void)hoisted__U32_4098;
-                U32 hoisted__U32_4099 = U32_mul(i, hoisted__U32_4098);
-                (void)hoisted__U32_4099;
-                Type *hoisted__Type_4100 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4100;
-                U64 hoisted__U64_4101 = (U64)(hoisted__U32_4099);
-                (void)hoisted__U64_4101;
-                Type_delete(hoisted__Type_4100, 1);
-                Bool *hoisted__Bool_4102 = ptr_add(self->data, hoisted__U64_4101);
-                (void)hoisted__Bool_4102;
-                (void)hoisted__Bool_4102;
-                Bool hoisted__Bool_4103 = 0;
-                (void)hoisted__Bool_4103;
-                Bool_delete(hoisted__Bool_4102, hoisted__Bool_4103);
+                U32 i = U32_clone(&_rc_U32_4175);
+                U32_inc(&_rc_U32_4175);
+                U32 hoisted__U32_4177 = 1;
+                (void)hoisted__U32_4177;
+                U32 hoisted__U32_4178 = U32_mul(i, hoisted__U32_4177);
+                (void)hoisted__U32_4178;
+                Type *hoisted__Type_4179 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4179;
+                U64 hoisted__U64_4180 = (U64)(hoisted__U32_4178);
+                (void)hoisted__U64_4180;
+                Type_delete(hoisted__Type_4179, 1);
+                Bool *hoisted__Bool_4181 = ptr_add(self->data, hoisted__U64_4180);
+                (void)hoisted__Bool_4181;
+                (void)hoisted__Bool_4181;
+                Bool hoisted__Bool_4182 = 0;
+                (void)hoisted__Bool_4182;
+                Bool_delete(hoisted__Bool_4181, hoisted__Bool_4182);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_4104 = U32_gt(_rc_U32_4096, _re_U32_4096);
-                (void)_wcond_Bool_4104;
-                if (_wcond_Bool_4104) {
+                Bool _wcond_Bool_4183 = U32_gt(_rc_U32_4175, _re_U32_4175);
+                (void)_wcond_Bool_4183;
+                if (_wcond_Bool_4183) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_4096);
-                U32_dec(&_rc_U32_4096);
-                U32 hoisted__U32_4105 = 1;
-                (void)hoisted__U32_4105;
-                U32 hoisted__U32_4106 = U32_mul(i, hoisted__U32_4105);
-                (void)hoisted__U32_4106;
-                Type *hoisted__Type_4107 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4107;
-                U64 hoisted__U64_4108 = (U64)(hoisted__U32_4106);
-                (void)hoisted__U64_4108;
-                Type_delete(hoisted__Type_4107, 1);
-                Bool *hoisted__Bool_4109 = ptr_add(self->data, hoisted__U64_4108);
-                (void)hoisted__Bool_4109;
-                (void)hoisted__Bool_4109;
-                Bool hoisted__Bool_4110 = 0;
-                (void)hoisted__Bool_4110;
-                Bool_delete(hoisted__Bool_4109, hoisted__Bool_4110);
+                U32 i = U32_clone(&_rc_U32_4175);
+                U32_dec(&_rc_U32_4175);
+                U32 hoisted__U32_4184 = 1;
+                (void)hoisted__U32_4184;
+                U32 hoisted__U32_4185 = U32_mul(i, hoisted__U32_4184);
+                (void)hoisted__U32_4185;
+                Type *hoisted__Type_4186 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4186;
+                U64 hoisted__U64_4187 = (U64)(hoisted__U32_4185);
+                (void)hoisted__U64_4187;
+                Type_delete(hoisted__Type_4186, 1);
+                Bool *hoisted__Bool_4188 = ptr_add(self->data, hoisted__U64_4187);
+                (void)hoisted__Bool_4188;
+                (void)hoisted__Bool_4188;
+                Bool hoisted__Bool_4189 = 0;
+                (void)hoisted__Bool_4189;
+                Bool_delete(hoisted__Bool_4188, hoisted__Bool_4189);
             }
         }
     }
-    U32 hoisted__U32_4112 = 0;
-    (void)hoisted__U32_4112;
-    self->count = hoisted__U32_4112;
+    U32 hoisted__U32_4191 = 0;
+    (void)hoisted__U32_4191;
+    self->count = hoisted__U32_4191;
 }
 
 void Vec__Bool_delete(Vec__Bool * self, Bool call_free) {
@@ -4716,230 +4716,230 @@ void Vec__Bool_delete(Vec__Bool * self, Bool call_free) {
 }
 
 Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
-    U32 hoisted__U32_4405 = 1;
-    (void)hoisted__U32_4405;
-    U32 hoisted__U32_4406 = U32_mul(self->cap, hoisted__U32_4405);
-    (void)hoisted__U32_4406;
-    Type *hoisted__Type_4407 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_4407;
-    U64 hoisted__U64_4408 = (U64)(hoisted__U32_4406);
-    (void)hoisted__U64_4408;
-    Type_delete(hoisted__Type_4407, 1);
-    void * new_data = malloc(hoisted__U64_4408);
+    U32 hoisted__U32_4484 = 1;
+    (void)hoisted__U32_4484;
+    U32 hoisted__U32_4485 = U32_mul(self->cap, hoisted__U32_4484);
+    (void)hoisted__U32_4485;
+    Type *hoisted__Type_4486 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_4486;
+    U64 hoisted__U64_4487 = (U64)(hoisted__U32_4485);
+    (void)hoisted__U64_4487;
+    Type_delete(hoisted__Type_4486, 1);
+    void * new_data = malloc(hoisted__U64_4487);
     {
-        U32 _re_U32_4369 = self->count;
-        (void)_re_U32_4369;
-        U32 _rc_U32_4369 = 0;
-        (void)_rc_U32_4369;
-        Bool hoisted__Bool_4404 = U32_lte(_rc_U32_4369, _re_U32_4369);
-        (void)hoisted__Bool_4404;
-        if (hoisted__Bool_4404) {
+        U32 _re_U32_4448 = self->count;
+        (void)_re_U32_4448;
+        U32 _rc_U32_4448 = 0;
+        (void)_rc_U32_4448;
+        Bool hoisted__Bool_4483 = U32_lte(_rc_U32_4448, _re_U32_4448);
+        (void)hoisted__Bool_4483;
+        if (hoisted__Bool_4483) {
             while (1) {
-                Bool _wcond_Bool_4370 = U32_lt(_rc_U32_4369, _re_U32_4369);
-                (void)_wcond_Bool_4370;
-                if (_wcond_Bool_4370) {
+                Bool _wcond_Bool_4449 = U32_lt(_rc_U32_4448, _re_U32_4448);
+                (void)_wcond_Bool_4449;
+                if (_wcond_Bool_4449) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_4369);
-                U32_inc(&_rc_U32_4369);
-                U32 hoisted__U32_4371 = 1;
-                (void)hoisted__U32_4371;
-                U32 hoisted__U32_4372 = U32_mul(i, hoisted__U32_4371);
-                (void)hoisted__U32_4372;
-                Type *hoisted__Type_4373 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4373;
-                U64 hoisted__U64_4374 = (U64)(hoisted__U32_4372);
-                (void)hoisted__U64_4374;
-                Type_delete(hoisted__Type_4373, 1);
-                Bool *src = ptr_add(self->data, hoisted__U64_4374);
+                U32 i = U32_clone(&_rc_U32_4448);
+                U32_inc(&_rc_U32_4448);
+                U32 hoisted__U32_4450 = 1;
+                (void)hoisted__U32_4450;
+                U32 hoisted__U32_4451 = U32_mul(i, hoisted__U32_4450);
+                (void)hoisted__U32_4451;
+                Type *hoisted__Type_4452 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4452;
+                U64 hoisted__U64_4453 = (U64)(hoisted__U32_4451);
+                (void)hoisted__U64_4453;
+                Type_delete(hoisted__Type_4452, 1);
+                Bool *src = ptr_add(self->data, hoisted__U64_4453);
                 Bool cloned = Bool_clone(src);
-                U32 hoisted__U32_4375 = 1;
-                (void)hoisted__U32_4375;
-                U32 hoisted__U32_4376 = U32_mul(i, hoisted__U32_4375);
-                (void)hoisted__U32_4376;
-                Type *hoisted__Type_4377 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4377;
-                U64 hoisted__U64_4378 = (U64)(hoisted__U32_4376);
-                (void)hoisted__U64_4378;
-                Type_delete(hoisted__Type_4377, 1);
-                U32 hoisted__U32_4379 = 1;
-                (void)hoisted__U32_4379;
-                Type *hoisted__Type_4380 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4380;
-                void *hoisted__v_4381 = ptr_add(new_data, hoisted__U64_4378);
-                (void)hoisted__v_4381;
-                (void)hoisted__v_4381;
-                U64 hoisted__U64_4382 = (U64)(hoisted__U32_4379);
-                (void)hoisted__U64_4382;
-                Type_delete(hoisted__Type_4380, 1);
-                memcpy(hoisted__v_4381, &cloned, hoisted__U64_4382);
-                U32 hoisted__U32_4383 = 1;
-                (void)hoisted__U32_4383;
-                Type *hoisted__Type_4384 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4384;
-                I32 hoisted__I32_4385 = 0;
-                (void)hoisted__I32_4385;
-                U64 hoisted__U64_4386 = (U64)(hoisted__U32_4383);
-                (void)hoisted__U64_4386;
-                Type_delete(hoisted__Type_4384, 1);
-                memset(&cloned, hoisted__I32_4385, hoisted__U64_4386);
+                U32 hoisted__U32_4454 = 1;
+                (void)hoisted__U32_4454;
+                U32 hoisted__U32_4455 = U32_mul(i, hoisted__U32_4454);
+                (void)hoisted__U32_4455;
+                Type *hoisted__Type_4456 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4456;
+                U64 hoisted__U64_4457 = (U64)(hoisted__U32_4455);
+                (void)hoisted__U64_4457;
+                Type_delete(hoisted__Type_4456, 1);
+                U32 hoisted__U32_4458 = 1;
+                (void)hoisted__U32_4458;
+                Type *hoisted__Type_4459 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4459;
+                void *hoisted__v_4460 = ptr_add(new_data, hoisted__U64_4457);
+                (void)hoisted__v_4460;
+                (void)hoisted__v_4460;
+                U64 hoisted__U64_4461 = (U64)(hoisted__U32_4458);
+                (void)hoisted__U64_4461;
+                Type_delete(hoisted__Type_4459, 1);
+                memcpy(hoisted__v_4460, &cloned, hoisted__U64_4461);
+                U32 hoisted__U32_4462 = 1;
+                (void)hoisted__U32_4462;
+                Type *hoisted__Type_4463 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4463;
+                I32 hoisted__I32_4464 = 0;
+                (void)hoisted__I32_4464;
+                U64 hoisted__U64_4465 = (U64)(hoisted__U32_4462);
+                (void)hoisted__U64_4465;
+                Type_delete(hoisted__Type_4463, 1);
+                memset(&cloned, hoisted__I32_4464, hoisted__U64_4465);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_4387 = U32_gt(_rc_U32_4369, _re_U32_4369);
-                (void)_wcond_Bool_4387;
-                if (_wcond_Bool_4387) {
+                Bool _wcond_Bool_4466 = U32_gt(_rc_U32_4448, _re_U32_4448);
+                (void)_wcond_Bool_4466;
+                if (_wcond_Bool_4466) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_4369);
-                U32_dec(&_rc_U32_4369);
-                U32 hoisted__U32_4388 = 1;
-                (void)hoisted__U32_4388;
-                U32 hoisted__U32_4389 = U32_mul(i, hoisted__U32_4388);
-                (void)hoisted__U32_4389;
-                Type *hoisted__Type_4390 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4390;
-                U64 hoisted__U64_4391 = (U64)(hoisted__U32_4389);
-                (void)hoisted__U64_4391;
-                Type_delete(hoisted__Type_4390, 1);
-                Bool *src = ptr_add(self->data, hoisted__U64_4391);
+                U32 i = U32_clone(&_rc_U32_4448);
+                U32_dec(&_rc_U32_4448);
+                U32 hoisted__U32_4467 = 1;
+                (void)hoisted__U32_4467;
+                U32 hoisted__U32_4468 = U32_mul(i, hoisted__U32_4467);
+                (void)hoisted__U32_4468;
+                Type *hoisted__Type_4469 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4469;
+                U64 hoisted__U64_4470 = (U64)(hoisted__U32_4468);
+                (void)hoisted__U64_4470;
+                Type_delete(hoisted__Type_4469, 1);
+                Bool *src = ptr_add(self->data, hoisted__U64_4470);
                 Bool cloned = Bool_clone(src);
-                U32 hoisted__U32_4392 = 1;
-                (void)hoisted__U32_4392;
-                U32 hoisted__U32_4393 = U32_mul(i, hoisted__U32_4392);
-                (void)hoisted__U32_4393;
-                Type *hoisted__Type_4394 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4394;
-                U64 hoisted__U64_4395 = (U64)(hoisted__U32_4393);
-                (void)hoisted__U64_4395;
-                Type_delete(hoisted__Type_4394, 1);
-                U32 hoisted__U32_4396 = 1;
-                (void)hoisted__U32_4396;
-                Type *hoisted__Type_4397 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4397;
-                void *hoisted__v_4398 = ptr_add(new_data, hoisted__U64_4395);
-                (void)hoisted__v_4398;
-                (void)hoisted__v_4398;
-                U64 hoisted__U64_4399 = (U64)(hoisted__U32_4396);
-                (void)hoisted__U64_4399;
-                Type_delete(hoisted__Type_4397, 1);
-                memcpy(hoisted__v_4398, &cloned, hoisted__U64_4399);
-                U32 hoisted__U32_4400 = 1;
-                (void)hoisted__U32_4400;
-                Type *hoisted__Type_4401 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4401;
-                I32 hoisted__I32_4402 = 0;
-                (void)hoisted__I32_4402;
-                U64 hoisted__U64_4403 = (U64)(hoisted__U32_4400);
-                (void)hoisted__U64_4403;
-                Type_delete(hoisted__Type_4401, 1);
-                memset(&cloned, hoisted__I32_4402, hoisted__U64_4403);
+                U32 hoisted__U32_4471 = 1;
+                (void)hoisted__U32_4471;
+                U32 hoisted__U32_4472 = U32_mul(i, hoisted__U32_4471);
+                (void)hoisted__U32_4472;
+                Type *hoisted__Type_4473 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4473;
+                U64 hoisted__U64_4474 = (U64)(hoisted__U32_4472);
+                (void)hoisted__U64_4474;
+                Type_delete(hoisted__Type_4473, 1);
+                U32 hoisted__U32_4475 = 1;
+                (void)hoisted__U32_4475;
+                Type *hoisted__Type_4476 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4476;
+                void *hoisted__v_4477 = ptr_add(new_data, hoisted__U64_4474);
+                (void)hoisted__v_4477;
+                (void)hoisted__v_4477;
+                U64 hoisted__U64_4478 = (U64)(hoisted__U32_4475);
+                (void)hoisted__U64_4478;
+                Type_delete(hoisted__Type_4476, 1);
+                memcpy(hoisted__v_4477, &cloned, hoisted__U64_4478);
+                U32 hoisted__U32_4479 = 1;
+                (void)hoisted__U32_4479;
+                Type *hoisted__Type_4480 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4480;
+                I32 hoisted__I32_4481 = 0;
+                (void)hoisted__I32_4481;
+                U64 hoisted__U64_4482 = (U64)(hoisted__U32_4479);
+                (void)hoisted__U64_4482;
+                Type_delete(hoisted__Type_4480, 1);
+                memset(&cloned, hoisted__I32_4481, hoisted__U64_4482);
             }
         }
     }
-    Vec__Bool *hoisted__Vec__Bool_4409 = malloc(sizeof(Vec__Bool));
-    hoisted__Vec__Bool_4409->data = new_data;
-    hoisted__Vec__Bool_4409->count = self->count;
-    hoisted__Vec__Bool_4409->cap = self->cap;
-    (void)hoisted__Vec__Bool_4409;
-    return hoisted__Vec__Bool_4409;
+    Vec__Bool *hoisted__Vec__Bool_4488 = malloc(sizeof(Vec__Bool));
+    hoisted__Vec__Bool_4488->data = new_data;
+    hoisted__Vec__Bool_4488->count = self->count;
+    hoisted__Vec__Bool_4488->cap = self->cap;
+    (void)hoisted__Vec__Bool_4488;
+    return hoisted__Vec__Bool_4488;
 }
 
 U32 Vec__Bool_size(void) {
-    U32 hoisted__U32_4410 = 16;
-    (void)hoisted__U32_4410;
-    return hoisted__U32_4410;
+    U32 hoisted__U32_4489 = 16;
+    (void)hoisted__U32_4489;
+    return hoisted__U32_4489;
 }
 
 Vec__Declaration * Vec__Declaration_new(void) {
-    U32 hoisted__U32_4733 = 104;
-    (void)hoisted__U32_4733;
-    Type *hoisted__Type_4734 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_4734;
-    U64 hoisted__U64_4735 = (U64)(hoisted__U32_4733);
-    (void)hoisted__U64_4735;
-    Type_delete(hoisted__Type_4734, 1);
-    void * hoisted__v_4736 = malloc(hoisted__U64_4735);
-    (void)hoisted__v_4736;
-    U32 hoisted__U32_4737 = 0;
-    (void)hoisted__U32_4737;
-    I64 hoisted__I64_4738 = 1;
-    (void)hoisted__I64_4738;
-    Vec__Declaration *hoisted__Vec__Declaration_4739 = malloc(sizeof(Vec__Declaration));
-    hoisted__Vec__Declaration_4739->data = hoisted__v_4736;
-    hoisted__Vec__Declaration_4739->count = hoisted__U32_4737;
-    hoisted__Vec__Declaration_4739->cap = hoisted__I64_4738;
-    (void)hoisted__Vec__Declaration_4739;
-    return hoisted__Vec__Declaration_4739;
+    U32 hoisted__U32_4812 = 104;
+    (void)hoisted__U32_4812;
+    Type *hoisted__Type_4813 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_4813;
+    U64 hoisted__U64_4814 = (U64)(hoisted__U32_4812);
+    (void)hoisted__U64_4814;
+    Type_delete(hoisted__Type_4813, 1);
+    void * hoisted__v_4815 = malloc(hoisted__U64_4814);
+    (void)hoisted__v_4815;
+    U32 hoisted__U32_4816 = 0;
+    (void)hoisted__U32_4816;
+    I64 hoisted__I64_4817 = 1;
+    (void)hoisted__I64_4817;
+    Vec__Declaration *hoisted__Vec__Declaration_4818 = malloc(sizeof(Vec__Declaration));
+    hoisted__Vec__Declaration_4818->data = hoisted__v_4815;
+    hoisted__Vec__Declaration_4818->count = hoisted__U32_4816;
+    hoisted__Vec__Declaration_4818->cap = hoisted__I64_4817;
+    (void)hoisted__Vec__Declaration_4818;
+    return hoisted__Vec__Declaration_4818;
 }
 
 void Vec__Declaration_clear(Vec__Declaration * self) {
     {
-        U32 _re_U32_4740 = self->count;
-        (void)_re_U32_4740;
-        U32 _rc_U32_4740 = 0;
-        (void)_rc_U32_4740;
-        Bool hoisted__Bool_4755 = U32_lte(_rc_U32_4740, _re_U32_4740);
-        (void)hoisted__Bool_4755;
-        if (hoisted__Bool_4755) {
+        U32 _re_U32_4819 = self->count;
+        (void)_re_U32_4819;
+        U32 _rc_U32_4819 = 0;
+        (void)_rc_U32_4819;
+        Bool hoisted__Bool_4834 = U32_lte(_rc_U32_4819, _re_U32_4819);
+        (void)hoisted__Bool_4834;
+        if (hoisted__Bool_4834) {
             while (1) {
-                Bool _wcond_Bool_4741 = U32_lt(_rc_U32_4740, _re_U32_4740);
-                (void)_wcond_Bool_4741;
-                if (_wcond_Bool_4741) {
+                Bool _wcond_Bool_4820 = U32_lt(_rc_U32_4819, _re_U32_4819);
+                (void)_wcond_Bool_4820;
+                if (_wcond_Bool_4820) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_4740);
-                U32_inc(&_rc_U32_4740);
-                U32 hoisted__U32_4742 = 104;
-                (void)hoisted__U32_4742;
-                U32 hoisted__U32_4743 = U32_mul(i, hoisted__U32_4742);
-                (void)hoisted__U32_4743;
-                Type *hoisted__Type_4744 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4744;
-                U64 hoisted__U64_4745 = (U64)(hoisted__U32_4743);
-                (void)hoisted__U64_4745;
-                Type_delete(hoisted__Type_4744, 1);
-                Declaration *hoisted__Declaration_4746 = ptr_add(self->data, hoisted__U64_4745);
-                (void)hoisted__Declaration_4746;
-                (void)hoisted__Declaration_4746;
-                Bool hoisted__Bool_4747 = 0;
-                (void)hoisted__Bool_4747;
-                Declaration_delete(hoisted__Declaration_4746, hoisted__Bool_4747);
+                U32 i = U32_clone(&_rc_U32_4819);
+                U32_inc(&_rc_U32_4819);
+                U32 hoisted__U32_4821 = 104;
+                (void)hoisted__U32_4821;
+                U32 hoisted__U32_4822 = U32_mul(i, hoisted__U32_4821);
+                (void)hoisted__U32_4822;
+                Type *hoisted__Type_4823 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4823;
+                U64 hoisted__U64_4824 = (U64)(hoisted__U32_4822);
+                (void)hoisted__U64_4824;
+                Type_delete(hoisted__Type_4823, 1);
+                Declaration *hoisted__Declaration_4825 = ptr_add(self->data, hoisted__U64_4824);
+                (void)hoisted__Declaration_4825;
+                (void)hoisted__Declaration_4825;
+                Bool hoisted__Bool_4826 = 0;
+                (void)hoisted__Bool_4826;
+                Declaration_delete(hoisted__Declaration_4825, hoisted__Bool_4826);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_4748 = U32_gt(_rc_U32_4740, _re_U32_4740);
-                (void)_wcond_Bool_4748;
-                if (_wcond_Bool_4748) {
+                Bool _wcond_Bool_4827 = U32_gt(_rc_U32_4819, _re_U32_4819);
+                (void)_wcond_Bool_4827;
+                if (_wcond_Bool_4827) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_4740);
-                U32_dec(&_rc_U32_4740);
-                U32 hoisted__U32_4749 = 104;
-                (void)hoisted__U32_4749;
-                U32 hoisted__U32_4750 = U32_mul(i, hoisted__U32_4749);
-                (void)hoisted__U32_4750;
-                Type *hoisted__Type_4751 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_4751;
-                U64 hoisted__U64_4752 = (U64)(hoisted__U32_4750);
-                (void)hoisted__U64_4752;
-                Type_delete(hoisted__Type_4751, 1);
-                Declaration *hoisted__Declaration_4753 = ptr_add(self->data, hoisted__U64_4752);
-                (void)hoisted__Declaration_4753;
-                (void)hoisted__Declaration_4753;
-                Bool hoisted__Bool_4754 = 0;
-                (void)hoisted__Bool_4754;
-                Declaration_delete(hoisted__Declaration_4753, hoisted__Bool_4754);
+                U32 i = U32_clone(&_rc_U32_4819);
+                U32_dec(&_rc_U32_4819);
+                U32 hoisted__U32_4828 = 104;
+                (void)hoisted__U32_4828;
+                U32 hoisted__U32_4829 = U32_mul(i, hoisted__U32_4828);
+                (void)hoisted__U32_4829;
+                Type *hoisted__Type_4830 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_4830;
+                U64 hoisted__U64_4831 = (U64)(hoisted__U32_4829);
+                (void)hoisted__U64_4831;
+                Type_delete(hoisted__Type_4830, 1);
+                Declaration *hoisted__Declaration_4832 = ptr_add(self->data, hoisted__U64_4831);
+                (void)hoisted__Declaration_4832;
+                (void)hoisted__Declaration_4832;
+                Bool hoisted__Bool_4833 = 0;
+                (void)hoisted__Bool_4833;
+                Declaration_delete(hoisted__Declaration_4832, hoisted__Bool_4833);
             }
         }
     }
-    U32 hoisted__U32_4756 = 0;
-    (void)hoisted__U32_4756;
-    self->count = hoisted__U32_4756;
+    U32 hoisted__U32_4835 = 0;
+    (void)hoisted__U32_4835;
+    self->count = hoisted__U32_4835;
 }
 
 void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free) {
@@ -4951,232 +4951,232 @@ void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free) {
 }
 
 Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
-    U32 hoisted__U32_5049 = 104;
-    (void)hoisted__U32_5049;
-    U32 hoisted__U32_5050 = U32_mul(self->cap, hoisted__U32_5049);
-    (void)hoisted__U32_5050;
-    Type *hoisted__Type_5051 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_5051;
-    U64 hoisted__U64_5052 = (U64)(hoisted__U32_5050);
-    (void)hoisted__U64_5052;
-    Type_delete(hoisted__Type_5051, 1);
-    void * new_data = malloc(hoisted__U64_5052);
+    U32 hoisted__U32_5128 = 104;
+    (void)hoisted__U32_5128;
+    U32 hoisted__U32_5129 = U32_mul(self->cap, hoisted__U32_5128);
+    (void)hoisted__U32_5129;
+    Type *hoisted__Type_5130 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_5130;
+    U64 hoisted__U64_5131 = (U64)(hoisted__U32_5129);
+    (void)hoisted__U64_5131;
+    Type_delete(hoisted__Type_5130, 1);
+    void * new_data = malloc(hoisted__U64_5131);
     {
-        U32 _re_U32_5013 = self->count;
-        (void)_re_U32_5013;
-        U32 _rc_U32_5013 = 0;
-        (void)_rc_U32_5013;
-        Bool hoisted__Bool_5048 = U32_lte(_rc_U32_5013, _re_U32_5013);
-        (void)hoisted__Bool_5048;
-        if (hoisted__Bool_5048) {
+        U32 _re_U32_5092 = self->count;
+        (void)_re_U32_5092;
+        U32 _rc_U32_5092 = 0;
+        (void)_rc_U32_5092;
+        Bool hoisted__Bool_5127 = U32_lte(_rc_U32_5092, _re_U32_5092);
+        (void)hoisted__Bool_5127;
+        if (hoisted__Bool_5127) {
             while (1) {
-                Bool _wcond_Bool_5014 = U32_lt(_rc_U32_5013, _re_U32_5013);
-                (void)_wcond_Bool_5014;
-                if (_wcond_Bool_5014) {
+                Bool _wcond_Bool_5093 = U32_lt(_rc_U32_5092, _re_U32_5092);
+                (void)_wcond_Bool_5093;
+                if (_wcond_Bool_5093) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5013);
-                U32_inc(&_rc_U32_5013);
-                U32 hoisted__U32_5015 = 104;
-                (void)hoisted__U32_5015;
-                U32 hoisted__U32_5016 = U32_mul(i, hoisted__U32_5015);
-                (void)hoisted__U32_5016;
-                Type *hoisted__Type_5017 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5017;
-                U64 hoisted__U64_5018 = (U64)(hoisted__U32_5016);
-                (void)hoisted__U64_5018;
-                Type_delete(hoisted__Type_5017, 1);
-                Declaration *src = ptr_add(self->data, hoisted__U64_5018);
+                U32 i = U32_clone(&_rc_U32_5092);
+                U32_inc(&_rc_U32_5092);
+                U32 hoisted__U32_5094 = 104;
+                (void)hoisted__U32_5094;
+                U32 hoisted__U32_5095 = U32_mul(i, hoisted__U32_5094);
+                (void)hoisted__U32_5095;
+                Type *hoisted__Type_5096 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5096;
+                U64 hoisted__U64_5097 = (U64)(hoisted__U32_5095);
+                (void)hoisted__U64_5097;
+                Type_delete(hoisted__Type_5096, 1);
+                Declaration *src = ptr_add(self->data, hoisted__U64_5097);
                 Declaration *cloned = Declaration_clone(src);
-                U32 hoisted__U32_5019 = 104;
-                (void)hoisted__U32_5019;
-                U32 hoisted__U32_5020 = U32_mul(i, hoisted__U32_5019);
-                (void)hoisted__U32_5020;
-                Type *hoisted__Type_5021 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5021;
-                U64 hoisted__U64_5022 = (U64)(hoisted__U32_5020);
-                (void)hoisted__U64_5022;
-                Type_delete(hoisted__Type_5021, 1);
-                U32 hoisted__U32_5023 = 104;
-                (void)hoisted__U32_5023;
-                Type *hoisted__Type_5024 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5024;
-                void *hoisted__v_5025 = ptr_add(new_data, hoisted__U64_5022);
-                (void)hoisted__v_5025;
-                (void)hoisted__v_5025;
-                U64 hoisted__U64_5026 = (U64)(hoisted__U32_5023);
-                (void)hoisted__U64_5026;
-                Type_delete(hoisted__Type_5024, 1);
-                memcpy(hoisted__v_5025, cloned, hoisted__U64_5026);
-                U32 hoisted__U32_5027 = 104;
-                (void)hoisted__U32_5027;
-                Type *hoisted__Type_5028 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5028;
-                I32 hoisted__I32_5029 = 0;
-                (void)hoisted__I32_5029;
-                U64 hoisted__U64_5030 = (U64)(hoisted__U32_5027);
-                (void)hoisted__U64_5030;
-                Type_delete(hoisted__Type_5028, 1);
-                memset(cloned, hoisted__I32_5029, hoisted__U64_5030);
+                U32 hoisted__U32_5098 = 104;
+                (void)hoisted__U32_5098;
+                U32 hoisted__U32_5099 = U32_mul(i, hoisted__U32_5098);
+                (void)hoisted__U32_5099;
+                Type *hoisted__Type_5100 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5100;
+                U64 hoisted__U64_5101 = (U64)(hoisted__U32_5099);
+                (void)hoisted__U64_5101;
+                Type_delete(hoisted__Type_5100, 1);
+                U32 hoisted__U32_5102 = 104;
+                (void)hoisted__U32_5102;
+                Type *hoisted__Type_5103 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5103;
+                void *hoisted__v_5104 = ptr_add(new_data, hoisted__U64_5101);
+                (void)hoisted__v_5104;
+                (void)hoisted__v_5104;
+                U64 hoisted__U64_5105 = (U64)(hoisted__U32_5102);
+                (void)hoisted__U64_5105;
+                Type_delete(hoisted__Type_5103, 1);
+                memcpy(hoisted__v_5104, cloned, hoisted__U64_5105);
+                U32 hoisted__U32_5106 = 104;
+                (void)hoisted__U32_5106;
+                Type *hoisted__Type_5107 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5107;
+                I32 hoisted__I32_5108 = 0;
+                (void)hoisted__I32_5108;
+                U64 hoisted__U64_5109 = (U64)(hoisted__U32_5106);
+                (void)hoisted__U64_5109;
+                Type_delete(hoisted__Type_5107, 1);
+                memset(cloned, hoisted__I32_5108, hoisted__U64_5109);
                 Declaration_delete(cloned, 1);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_5031 = U32_gt(_rc_U32_5013, _re_U32_5013);
-                (void)_wcond_Bool_5031;
-                if (_wcond_Bool_5031) {
+                Bool _wcond_Bool_5110 = U32_gt(_rc_U32_5092, _re_U32_5092);
+                (void)_wcond_Bool_5110;
+                if (_wcond_Bool_5110) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5013);
-                U32_dec(&_rc_U32_5013);
-                U32 hoisted__U32_5032 = 104;
-                (void)hoisted__U32_5032;
-                U32 hoisted__U32_5033 = U32_mul(i, hoisted__U32_5032);
-                (void)hoisted__U32_5033;
-                Type *hoisted__Type_5034 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5034;
-                U64 hoisted__U64_5035 = (U64)(hoisted__U32_5033);
-                (void)hoisted__U64_5035;
-                Type_delete(hoisted__Type_5034, 1);
-                Declaration *src = ptr_add(self->data, hoisted__U64_5035);
+                U32 i = U32_clone(&_rc_U32_5092);
+                U32_dec(&_rc_U32_5092);
+                U32 hoisted__U32_5111 = 104;
+                (void)hoisted__U32_5111;
+                U32 hoisted__U32_5112 = U32_mul(i, hoisted__U32_5111);
+                (void)hoisted__U32_5112;
+                Type *hoisted__Type_5113 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5113;
+                U64 hoisted__U64_5114 = (U64)(hoisted__U32_5112);
+                (void)hoisted__U64_5114;
+                Type_delete(hoisted__Type_5113, 1);
+                Declaration *src = ptr_add(self->data, hoisted__U64_5114);
                 Declaration *cloned = Declaration_clone(src);
-                U32 hoisted__U32_5036 = 104;
-                (void)hoisted__U32_5036;
-                U32 hoisted__U32_5037 = U32_mul(i, hoisted__U32_5036);
-                (void)hoisted__U32_5037;
-                Type *hoisted__Type_5038 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5038;
-                U64 hoisted__U64_5039 = (U64)(hoisted__U32_5037);
-                (void)hoisted__U64_5039;
-                Type_delete(hoisted__Type_5038, 1);
-                U32 hoisted__U32_5040 = 104;
-                (void)hoisted__U32_5040;
-                Type *hoisted__Type_5041 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5041;
-                void *hoisted__v_5042 = ptr_add(new_data, hoisted__U64_5039);
-                (void)hoisted__v_5042;
-                (void)hoisted__v_5042;
-                U64 hoisted__U64_5043 = (U64)(hoisted__U32_5040);
-                (void)hoisted__U64_5043;
-                Type_delete(hoisted__Type_5041, 1);
-                memcpy(hoisted__v_5042, cloned, hoisted__U64_5043);
-                U32 hoisted__U32_5044 = 104;
-                (void)hoisted__U32_5044;
-                Type *hoisted__Type_5045 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5045;
-                I32 hoisted__I32_5046 = 0;
-                (void)hoisted__I32_5046;
-                U64 hoisted__U64_5047 = (U64)(hoisted__U32_5044);
-                (void)hoisted__U64_5047;
-                Type_delete(hoisted__Type_5045, 1);
-                memset(cloned, hoisted__I32_5046, hoisted__U64_5047);
+                U32 hoisted__U32_5115 = 104;
+                (void)hoisted__U32_5115;
+                U32 hoisted__U32_5116 = U32_mul(i, hoisted__U32_5115);
+                (void)hoisted__U32_5116;
+                Type *hoisted__Type_5117 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5117;
+                U64 hoisted__U64_5118 = (U64)(hoisted__U32_5116);
+                (void)hoisted__U64_5118;
+                Type_delete(hoisted__Type_5117, 1);
+                U32 hoisted__U32_5119 = 104;
+                (void)hoisted__U32_5119;
+                Type *hoisted__Type_5120 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5120;
+                void *hoisted__v_5121 = ptr_add(new_data, hoisted__U64_5118);
+                (void)hoisted__v_5121;
+                (void)hoisted__v_5121;
+                U64 hoisted__U64_5122 = (U64)(hoisted__U32_5119);
+                (void)hoisted__U64_5122;
+                Type_delete(hoisted__Type_5120, 1);
+                memcpy(hoisted__v_5121, cloned, hoisted__U64_5122);
+                U32 hoisted__U32_5123 = 104;
+                (void)hoisted__U32_5123;
+                Type *hoisted__Type_5124 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5124;
+                I32 hoisted__I32_5125 = 0;
+                (void)hoisted__I32_5125;
+                U64 hoisted__U64_5126 = (U64)(hoisted__U32_5123);
+                (void)hoisted__U64_5126;
+                Type_delete(hoisted__Type_5124, 1);
+                memset(cloned, hoisted__I32_5125, hoisted__U64_5126);
                 Declaration_delete(cloned, 1);
             }
         }
     }
-    Vec__Declaration *hoisted__Vec__Declaration_5053 = malloc(sizeof(Vec__Declaration));
-    hoisted__Vec__Declaration_5053->data = new_data;
-    hoisted__Vec__Declaration_5053->count = self->count;
-    hoisted__Vec__Declaration_5053->cap = self->cap;
-    (void)hoisted__Vec__Declaration_5053;
-    return hoisted__Vec__Declaration_5053;
+    Vec__Declaration *hoisted__Vec__Declaration_5132 = malloc(sizeof(Vec__Declaration));
+    hoisted__Vec__Declaration_5132->data = new_data;
+    hoisted__Vec__Declaration_5132->count = self->count;
+    hoisted__Vec__Declaration_5132->cap = self->cap;
+    (void)hoisted__Vec__Declaration_5132;
+    return hoisted__Vec__Declaration_5132;
 }
 
 U32 Vec__Declaration_size(void) {
-    U32 hoisted__U32_5054 = 16;
-    (void)hoisted__U32_5054;
-    return hoisted__U32_5054;
+    U32 hoisted__U32_5133 = 16;
+    (void)hoisted__U32_5133;
+    return hoisted__U32_5133;
 }
 
 Vec__Expr * Vec__Expr_new(void) {
-    U32 hoisted__U32_5055 = 136;
-    (void)hoisted__U32_5055;
-    Type *hoisted__Type_5056 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_5056;
-    U64 hoisted__U64_5057 = (U64)(hoisted__U32_5055);
-    (void)hoisted__U64_5057;
-    Type_delete(hoisted__Type_5056, 1);
-    void * hoisted__v_5058 = malloc(hoisted__U64_5057);
-    (void)hoisted__v_5058;
-    U32 hoisted__U32_5059 = 0;
-    (void)hoisted__U32_5059;
-    I64 hoisted__I64_5060 = 1;
-    (void)hoisted__I64_5060;
-    Vec__Expr *hoisted__Vec__Expr_5061 = malloc(sizeof(Vec__Expr));
-    hoisted__Vec__Expr_5061->data = hoisted__v_5058;
-    hoisted__Vec__Expr_5061->count = hoisted__U32_5059;
-    hoisted__Vec__Expr_5061->cap = hoisted__I64_5060;
-    (void)hoisted__Vec__Expr_5061;
-    return hoisted__Vec__Expr_5061;
+    U32 hoisted__U32_5134 = 136;
+    (void)hoisted__U32_5134;
+    Type *hoisted__Type_5135 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_5135;
+    U64 hoisted__U64_5136 = (U64)(hoisted__U32_5134);
+    (void)hoisted__U64_5136;
+    Type_delete(hoisted__Type_5135, 1);
+    void * hoisted__v_5137 = malloc(hoisted__U64_5136);
+    (void)hoisted__v_5137;
+    U32 hoisted__U32_5138 = 0;
+    (void)hoisted__U32_5138;
+    I64 hoisted__I64_5139 = 1;
+    (void)hoisted__I64_5139;
+    Vec__Expr *hoisted__Vec__Expr_5140 = malloc(sizeof(Vec__Expr));
+    hoisted__Vec__Expr_5140->data = hoisted__v_5137;
+    hoisted__Vec__Expr_5140->count = hoisted__U32_5138;
+    hoisted__Vec__Expr_5140->cap = hoisted__I64_5139;
+    (void)hoisted__Vec__Expr_5140;
+    return hoisted__Vec__Expr_5140;
 }
 
 void Vec__Expr_clear(Vec__Expr * self) {
     {
-        U32 _re_U32_5062 = self->count;
-        (void)_re_U32_5062;
-        U32 _rc_U32_5062 = 0;
-        (void)_rc_U32_5062;
-        Bool hoisted__Bool_5077 = U32_lte(_rc_U32_5062, _re_U32_5062);
-        (void)hoisted__Bool_5077;
-        if (hoisted__Bool_5077) {
+        U32 _re_U32_5141 = self->count;
+        (void)_re_U32_5141;
+        U32 _rc_U32_5141 = 0;
+        (void)_rc_U32_5141;
+        Bool hoisted__Bool_5156 = U32_lte(_rc_U32_5141, _re_U32_5141);
+        (void)hoisted__Bool_5156;
+        if (hoisted__Bool_5156) {
             while (1) {
-                Bool _wcond_Bool_5063 = U32_lt(_rc_U32_5062, _re_U32_5062);
-                (void)_wcond_Bool_5063;
-                if (_wcond_Bool_5063) {
+                Bool _wcond_Bool_5142 = U32_lt(_rc_U32_5141, _re_U32_5141);
+                (void)_wcond_Bool_5142;
+                if (_wcond_Bool_5142) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5062);
-                U32_inc(&_rc_U32_5062);
-                U32 hoisted__U32_5064 = 136;
-                (void)hoisted__U32_5064;
-                U32 hoisted__U32_5065 = U32_mul(i, hoisted__U32_5064);
-                (void)hoisted__U32_5065;
-                Type *hoisted__Type_5066 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5066;
-                U64 hoisted__U64_5067 = (U64)(hoisted__U32_5065);
-                (void)hoisted__U64_5067;
-                Type_delete(hoisted__Type_5066, 1);
-                Expr *hoisted__Expr_5068 = ptr_add(self->data, hoisted__U64_5067);
-                (void)hoisted__Expr_5068;
-                (void)hoisted__Expr_5068;
-                Bool hoisted__Bool_5069 = 0;
-                (void)hoisted__Bool_5069;
-                Expr_delete(hoisted__Expr_5068, hoisted__Bool_5069);
+                U32 i = U32_clone(&_rc_U32_5141);
+                U32_inc(&_rc_U32_5141);
+                U32 hoisted__U32_5143 = 136;
+                (void)hoisted__U32_5143;
+                U32 hoisted__U32_5144 = U32_mul(i, hoisted__U32_5143);
+                (void)hoisted__U32_5144;
+                Type *hoisted__Type_5145 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5145;
+                U64 hoisted__U64_5146 = (U64)(hoisted__U32_5144);
+                (void)hoisted__U64_5146;
+                Type_delete(hoisted__Type_5145, 1);
+                Expr *hoisted__Expr_5147 = ptr_add(self->data, hoisted__U64_5146);
+                (void)hoisted__Expr_5147;
+                (void)hoisted__Expr_5147;
+                Bool hoisted__Bool_5148 = 0;
+                (void)hoisted__Bool_5148;
+                Expr_delete(hoisted__Expr_5147, hoisted__Bool_5148);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_5070 = U32_gt(_rc_U32_5062, _re_U32_5062);
-                (void)_wcond_Bool_5070;
-                if (_wcond_Bool_5070) {
+                Bool _wcond_Bool_5149 = U32_gt(_rc_U32_5141, _re_U32_5141);
+                (void)_wcond_Bool_5149;
+                if (_wcond_Bool_5149) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5062);
-                U32_dec(&_rc_U32_5062);
-                U32 hoisted__U32_5071 = 136;
-                (void)hoisted__U32_5071;
-                U32 hoisted__U32_5072 = U32_mul(i, hoisted__U32_5071);
-                (void)hoisted__U32_5072;
-                Type *hoisted__Type_5073 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5073;
-                U64 hoisted__U64_5074 = (U64)(hoisted__U32_5072);
-                (void)hoisted__U64_5074;
-                Type_delete(hoisted__Type_5073, 1);
-                Expr *hoisted__Expr_5075 = ptr_add(self->data, hoisted__U64_5074);
-                (void)hoisted__Expr_5075;
-                (void)hoisted__Expr_5075;
-                Bool hoisted__Bool_5076 = 0;
-                (void)hoisted__Bool_5076;
-                Expr_delete(hoisted__Expr_5075, hoisted__Bool_5076);
+                U32 i = U32_clone(&_rc_U32_5141);
+                U32_dec(&_rc_U32_5141);
+                U32 hoisted__U32_5150 = 136;
+                (void)hoisted__U32_5150;
+                U32 hoisted__U32_5151 = U32_mul(i, hoisted__U32_5150);
+                (void)hoisted__U32_5151;
+                Type *hoisted__Type_5152 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5152;
+                U64 hoisted__U64_5153 = (U64)(hoisted__U32_5151);
+                (void)hoisted__U64_5153;
+                Type_delete(hoisted__Type_5152, 1);
+                Expr *hoisted__Expr_5154 = ptr_add(self->data, hoisted__U64_5153);
+                (void)hoisted__Expr_5154;
+                (void)hoisted__Expr_5154;
+                Bool hoisted__Bool_5155 = 0;
+                (void)hoisted__Bool_5155;
+                Expr_delete(hoisted__Expr_5154, hoisted__Bool_5155);
             }
         }
     }
-    U32 hoisted__U32_5078 = 0;
-    (void)hoisted__U32_5078;
-    self->count = hoisted__U32_5078;
+    U32 hoisted__U32_5157 = 0;
+    (void)hoisted__U32_5157;
+    self->count = hoisted__U32_5157;
 }
 
 void Vec__Expr_delete(Vec__Expr * self, Bool call_free) {
@@ -5188,232 +5188,232 @@ void Vec__Expr_delete(Vec__Expr * self, Bool call_free) {
 }
 
 Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
-    U32 hoisted__U32_5371 = 136;
-    (void)hoisted__U32_5371;
-    U32 hoisted__U32_5372 = U32_mul(self->cap, hoisted__U32_5371);
-    (void)hoisted__U32_5372;
-    Type *hoisted__Type_5373 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_5373;
-    U64 hoisted__U64_5374 = (U64)(hoisted__U32_5372);
-    (void)hoisted__U64_5374;
-    Type_delete(hoisted__Type_5373, 1);
-    void * new_data = malloc(hoisted__U64_5374);
+    U32 hoisted__U32_5450 = 136;
+    (void)hoisted__U32_5450;
+    U32 hoisted__U32_5451 = U32_mul(self->cap, hoisted__U32_5450);
+    (void)hoisted__U32_5451;
+    Type *hoisted__Type_5452 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_5452;
+    U64 hoisted__U64_5453 = (U64)(hoisted__U32_5451);
+    (void)hoisted__U64_5453;
+    Type_delete(hoisted__Type_5452, 1);
+    void * new_data = malloc(hoisted__U64_5453);
     {
-        U32 _re_U32_5335 = self->count;
-        (void)_re_U32_5335;
-        U32 _rc_U32_5335 = 0;
-        (void)_rc_U32_5335;
-        Bool hoisted__Bool_5370 = U32_lte(_rc_U32_5335, _re_U32_5335);
-        (void)hoisted__Bool_5370;
-        if (hoisted__Bool_5370) {
+        U32 _re_U32_5414 = self->count;
+        (void)_re_U32_5414;
+        U32 _rc_U32_5414 = 0;
+        (void)_rc_U32_5414;
+        Bool hoisted__Bool_5449 = U32_lte(_rc_U32_5414, _re_U32_5414);
+        (void)hoisted__Bool_5449;
+        if (hoisted__Bool_5449) {
             while (1) {
-                Bool _wcond_Bool_5336 = U32_lt(_rc_U32_5335, _re_U32_5335);
-                (void)_wcond_Bool_5336;
-                if (_wcond_Bool_5336) {
+                Bool _wcond_Bool_5415 = U32_lt(_rc_U32_5414, _re_U32_5414);
+                (void)_wcond_Bool_5415;
+                if (_wcond_Bool_5415) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5335);
-                U32_inc(&_rc_U32_5335);
-                U32 hoisted__U32_5337 = 136;
-                (void)hoisted__U32_5337;
-                U32 hoisted__U32_5338 = U32_mul(i, hoisted__U32_5337);
-                (void)hoisted__U32_5338;
-                Type *hoisted__Type_5339 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5339;
-                U64 hoisted__U64_5340 = (U64)(hoisted__U32_5338);
-                (void)hoisted__U64_5340;
-                Type_delete(hoisted__Type_5339, 1);
-                Expr *src = ptr_add(self->data, hoisted__U64_5340);
+                U32 i = U32_clone(&_rc_U32_5414);
+                U32_inc(&_rc_U32_5414);
+                U32 hoisted__U32_5416 = 136;
+                (void)hoisted__U32_5416;
+                U32 hoisted__U32_5417 = U32_mul(i, hoisted__U32_5416);
+                (void)hoisted__U32_5417;
+                Type *hoisted__Type_5418 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5418;
+                U64 hoisted__U64_5419 = (U64)(hoisted__U32_5417);
+                (void)hoisted__U64_5419;
+                Type_delete(hoisted__Type_5418, 1);
+                Expr *src = ptr_add(self->data, hoisted__U64_5419);
                 Expr *cloned = Expr_clone(src);
-                U32 hoisted__U32_5341 = 136;
-                (void)hoisted__U32_5341;
-                U32 hoisted__U32_5342 = U32_mul(i, hoisted__U32_5341);
-                (void)hoisted__U32_5342;
-                Type *hoisted__Type_5343 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5343;
-                U64 hoisted__U64_5344 = (U64)(hoisted__U32_5342);
-                (void)hoisted__U64_5344;
-                Type_delete(hoisted__Type_5343, 1);
-                U32 hoisted__U32_5345 = 136;
-                (void)hoisted__U32_5345;
-                Type *hoisted__Type_5346 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5346;
-                void *hoisted__v_5347 = ptr_add(new_data, hoisted__U64_5344);
-                (void)hoisted__v_5347;
-                (void)hoisted__v_5347;
-                U64 hoisted__U64_5348 = (U64)(hoisted__U32_5345);
-                (void)hoisted__U64_5348;
-                Type_delete(hoisted__Type_5346, 1);
-                memcpy(hoisted__v_5347, cloned, hoisted__U64_5348);
-                U32 hoisted__U32_5349 = 136;
-                (void)hoisted__U32_5349;
-                Type *hoisted__Type_5350 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5350;
-                I32 hoisted__I32_5351 = 0;
-                (void)hoisted__I32_5351;
-                U64 hoisted__U64_5352 = (U64)(hoisted__U32_5349);
-                (void)hoisted__U64_5352;
-                Type_delete(hoisted__Type_5350, 1);
-                memset(cloned, hoisted__I32_5351, hoisted__U64_5352);
+                U32 hoisted__U32_5420 = 136;
+                (void)hoisted__U32_5420;
+                U32 hoisted__U32_5421 = U32_mul(i, hoisted__U32_5420);
+                (void)hoisted__U32_5421;
+                Type *hoisted__Type_5422 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5422;
+                U64 hoisted__U64_5423 = (U64)(hoisted__U32_5421);
+                (void)hoisted__U64_5423;
+                Type_delete(hoisted__Type_5422, 1);
+                U32 hoisted__U32_5424 = 136;
+                (void)hoisted__U32_5424;
+                Type *hoisted__Type_5425 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5425;
+                void *hoisted__v_5426 = ptr_add(new_data, hoisted__U64_5423);
+                (void)hoisted__v_5426;
+                (void)hoisted__v_5426;
+                U64 hoisted__U64_5427 = (U64)(hoisted__U32_5424);
+                (void)hoisted__U64_5427;
+                Type_delete(hoisted__Type_5425, 1);
+                memcpy(hoisted__v_5426, cloned, hoisted__U64_5427);
+                U32 hoisted__U32_5428 = 136;
+                (void)hoisted__U32_5428;
+                Type *hoisted__Type_5429 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5429;
+                I32 hoisted__I32_5430 = 0;
+                (void)hoisted__I32_5430;
+                U64 hoisted__U64_5431 = (U64)(hoisted__U32_5428);
+                (void)hoisted__U64_5431;
+                Type_delete(hoisted__Type_5429, 1);
+                memset(cloned, hoisted__I32_5430, hoisted__U64_5431);
                 Expr_delete(cloned, 1);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_5353 = U32_gt(_rc_U32_5335, _re_U32_5335);
-                (void)_wcond_Bool_5353;
-                if (_wcond_Bool_5353) {
+                Bool _wcond_Bool_5432 = U32_gt(_rc_U32_5414, _re_U32_5414);
+                (void)_wcond_Bool_5432;
+                if (_wcond_Bool_5432) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5335);
-                U32_dec(&_rc_U32_5335);
-                U32 hoisted__U32_5354 = 136;
-                (void)hoisted__U32_5354;
-                U32 hoisted__U32_5355 = U32_mul(i, hoisted__U32_5354);
-                (void)hoisted__U32_5355;
-                Type *hoisted__Type_5356 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5356;
-                U64 hoisted__U64_5357 = (U64)(hoisted__U32_5355);
-                (void)hoisted__U64_5357;
-                Type_delete(hoisted__Type_5356, 1);
-                Expr *src = ptr_add(self->data, hoisted__U64_5357);
+                U32 i = U32_clone(&_rc_U32_5414);
+                U32_dec(&_rc_U32_5414);
+                U32 hoisted__U32_5433 = 136;
+                (void)hoisted__U32_5433;
+                U32 hoisted__U32_5434 = U32_mul(i, hoisted__U32_5433);
+                (void)hoisted__U32_5434;
+                Type *hoisted__Type_5435 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5435;
+                U64 hoisted__U64_5436 = (U64)(hoisted__U32_5434);
+                (void)hoisted__U64_5436;
+                Type_delete(hoisted__Type_5435, 1);
+                Expr *src = ptr_add(self->data, hoisted__U64_5436);
                 Expr *cloned = Expr_clone(src);
-                U32 hoisted__U32_5358 = 136;
-                (void)hoisted__U32_5358;
-                U32 hoisted__U32_5359 = U32_mul(i, hoisted__U32_5358);
-                (void)hoisted__U32_5359;
-                Type *hoisted__Type_5360 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5360;
-                U64 hoisted__U64_5361 = (U64)(hoisted__U32_5359);
-                (void)hoisted__U64_5361;
-                Type_delete(hoisted__Type_5360, 1);
-                U32 hoisted__U32_5362 = 136;
-                (void)hoisted__U32_5362;
-                Type *hoisted__Type_5363 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5363;
-                void *hoisted__v_5364 = ptr_add(new_data, hoisted__U64_5361);
-                (void)hoisted__v_5364;
-                (void)hoisted__v_5364;
-                U64 hoisted__U64_5365 = (U64)(hoisted__U32_5362);
-                (void)hoisted__U64_5365;
-                Type_delete(hoisted__Type_5363, 1);
-                memcpy(hoisted__v_5364, cloned, hoisted__U64_5365);
-                U32 hoisted__U32_5366 = 136;
-                (void)hoisted__U32_5366;
-                Type *hoisted__Type_5367 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5367;
-                I32 hoisted__I32_5368 = 0;
-                (void)hoisted__I32_5368;
-                U64 hoisted__U64_5369 = (U64)(hoisted__U32_5366);
-                (void)hoisted__U64_5369;
-                Type_delete(hoisted__Type_5367, 1);
-                memset(cloned, hoisted__I32_5368, hoisted__U64_5369);
+                U32 hoisted__U32_5437 = 136;
+                (void)hoisted__U32_5437;
+                U32 hoisted__U32_5438 = U32_mul(i, hoisted__U32_5437);
+                (void)hoisted__U32_5438;
+                Type *hoisted__Type_5439 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5439;
+                U64 hoisted__U64_5440 = (U64)(hoisted__U32_5438);
+                (void)hoisted__U64_5440;
+                Type_delete(hoisted__Type_5439, 1);
+                U32 hoisted__U32_5441 = 136;
+                (void)hoisted__U32_5441;
+                Type *hoisted__Type_5442 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5442;
+                void *hoisted__v_5443 = ptr_add(new_data, hoisted__U64_5440);
+                (void)hoisted__v_5443;
+                (void)hoisted__v_5443;
+                U64 hoisted__U64_5444 = (U64)(hoisted__U32_5441);
+                (void)hoisted__U64_5444;
+                Type_delete(hoisted__Type_5442, 1);
+                memcpy(hoisted__v_5443, cloned, hoisted__U64_5444);
+                U32 hoisted__U32_5445 = 136;
+                (void)hoisted__U32_5445;
+                Type *hoisted__Type_5446 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5446;
+                I32 hoisted__I32_5447 = 0;
+                (void)hoisted__I32_5447;
+                U64 hoisted__U64_5448 = (U64)(hoisted__U32_5445);
+                (void)hoisted__U64_5448;
+                Type_delete(hoisted__Type_5446, 1);
+                memset(cloned, hoisted__I32_5447, hoisted__U64_5448);
                 Expr_delete(cloned, 1);
             }
         }
     }
-    Vec__Expr *hoisted__Vec__Expr_5375 = malloc(sizeof(Vec__Expr));
-    hoisted__Vec__Expr_5375->data = new_data;
-    hoisted__Vec__Expr_5375->count = self->count;
-    hoisted__Vec__Expr_5375->cap = self->cap;
-    (void)hoisted__Vec__Expr_5375;
-    return hoisted__Vec__Expr_5375;
+    Vec__Expr *hoisted__Vec__Expr_5454 = malloc(sizeof(Vec__Expr));
+    hoisted__Vec__Expr_5454->data = new_data;
+    hoisted__Vec__Expr_5454->count = self->count;
+    hoisted__Vec__Expr_5454->cap = self->cap;
+    (void)hoisted__Vec__Expr_5454;
+    return hoisted__Vec__Expr_5454;
 }
 
 U32 Vec__Expr_size(void) {
-    U32 hoisted__U32_5376 = 16;
-    (void)hoisted__U32_5376;
-    return hoisted__U32_5376;
+    U32 hoisted__U32_5455 = 16;
+    (void)hoisted__U32_5455;
+    return hoisted__U32_5455;
 }
 
 Vec__I64 * Vec__I64_new(void) {
-    U32 hoisted__U32_5377 = 8;
-    (void)hoisted__U32_5377;
-    Type *hoisted__Type_5378 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_5378;
-    U64 hoisted__U64_5379 = (U64)(hoisted__U32_5377);
-    (void)hoisted__U64_5379;
-    Type_delete(hoisted__Type_5378, 1);
-    void * hoisted__v_5380 = malloc(hoisted__U64_5379);
-    (void)hoisted__v_5380;
-    U32 hoisted__U32_5381 = 0;
-    (void)hoisted__U32_5381;
-    I64 hoisted__I64_5382 = 1;
-    (void)hoisted__I64_5382;
-    Vec__I64 *hoisted__Vec__I64_5383 = malloc(sizeof(Vec__I64));
-    hoisted__Vec__I64_5383->data = hoisted__v_5380;
-    hoisted__Vec__I64_5383->count = hoisted__U32_5381;
-    hoisted__Vec__I64_5383->cap = hoisted__I64_5382;
-    (void)hoisted__Vec__I64_5383;
-    return hoisted__Vec__I64_5383;
+    U32 hoisted__U32_5456 = 8;
+    (void)hoisted__U32_5456;
+    Type *hoisted__Type_5457 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_5457;
+    U64 hoisted__U64_5458 = (U64)(hoisted__U32_5456);
+    (void)hoisted__U64_5458;
+    Type_delete(hoisted__Type_5457, 1);
+    void * hoisted__v_5459 = malloc(hoisted__U64_5458);
+    (void)hoisted__v_5459;
+    U32 hoisted__U32_5460 = 0;
+    (void)hoisted__U32_5460;
+    I64 hoisted__I64_5461 = 1;
+    (void)hoisted__I64_5461;
+    Vec__I64 *hoisted__Vec__I64_5462 = malloc(sizeof(Vec__I64));
+    hoisted__Vec__I64_5462->data = hoisted__v_5459;
+    hoisted__Vec__I64_5462->count = hoisted__U32_5460;
+    hoisted__Vec__I64_5462->cap = hoisted__I64_5461;
+    (void)hoisted__Vec__I64_5462;
+    return hoisted__Vec__I64_5462;
 }
 
 void Vec__I64_clear(Vec__I64 * self) {
     {
-        U32 _re_U32_5384 = self->count;
-        (void)_re_U32_5384;
-        U32 _rc_U32_5384 = 0;
-        (void)_rc_U32_5384;
-        Bool hoisted__Bool_5399 = U32_lte(_rc_U32_5384, _re_U32_5384);
-        (void)hoisted__Bool_5399;
-        if (hoisted__Bool_5399) {
+        U32 _re_U32_5463 = self->count;
+        (void)_re_U32_5463;
+        U32 _rc_U32_5463 = 0;
+        (void)_rc_U32_5463;
+        Bool hoisted__Bool_5478 = U32_lte(_rc_U32_5463, _re_U32_5463);
+        (void)hoisted__Bool_5478;
+        if (hoisted__Bool_5478) {
             while (1) {
-                Bool _wcond_Bool_5385 = U32_lt(_rc_U32_5384, _re_U32_5384);
-                (void)_wcond_Bool_5385;
-                if (_wcond_Bool_5385) {
+                Bool _wcond_Bool_5464 = U32_lt(_rc_U32_5463, _re_U32_5463);
+                (void)_wcond_Bool_5464;
+                if (_wcond_Bool_5464) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5384);
-                U32_inc(&_rc_U32_5384);
-                U32 hoisted__U32_5386 = 8;
-                (void)hoisted__U32_5386;
-                U32 hoisted__U32_5387 = U32_mul(i, hoisted__U32_5386);
-                (void)hoisted__U32_5387;
-                Type *hoisted__Type_5388 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5388;
-                U64 hoisted__U64_5389 = (U64)(hoisted__U32_5387);
-                (void)hoisted__U64_5389;
-                Type_delete(hoisted__Type_5388, 1);
-                I64 *hoisted__I64_5390 = ptr_add(self->data, hoisted__U64_5389);
-                (void)hoisted__I64_5390;
-                (void)hoisted__I64_5390;
-                Bool hoisted__Bool_5391 = 0;
-                (void)hoisted__Bool_5391;
-                I64_delete(hoisted__I64_5390, hoisted__Bool_5391);
+                U32 i = U32_clone(&_rc_U32_5463);
+                U32_inc(&_rc_U32_5463);
+                U32 hoisted__U32_5465 = 8;
+                (void)hoisted__U32_5465;
+                U32 hoisted__U32_5466 = U32_mul(i, hoisted__U32_5465);
+                (void)hoisted__U32_5466;
+                Type *hoisted__Type_5467 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5467;
+                U64 hoisted__U64_5468 = (U64)(hoisted__U32_5466);
+                (void)hoisted__U64_5468;
+                Type_delete(hoisted__Type_5467, 1);
+                I64 *hoisted__I64_5469 = ptr_add(self->data, hoisted__U64_5468);
+                (void)hoisted__I64_5469;
+                (void)hoisted__I64_5469;
+                Bool hoisted__Bool_5470 = 0;
+                (void)hoisted__Bool_5470;
+                I64_delete(hoisted__I64_5469, hoisted__Bool_5470);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_5392 = U32_gt(_rc_U32_5384, _re_U32_5384);
-                (void)_wcond_Bool_5392;
-                if (_wcond_Bool_5392) {
+                Bool _wcond_Bool_5471 = U32_gt(_rc_U32_5463, _re_U32_5463);
+                (void)_wcond_Bool_5471;
+                if (_wcond_Bool_5471) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5384);
-                U32_dec(&_rc_U32_5384);
-                U32 hoisted__U32_5393 = 8;
-                (void)hoisted__U32_5393;
-                U32 hoisted__U32_5394 = U32_mul(i, hoisted__U32_5393);
-                (void)hoisted__U32_5394;
-                Type *hoisted__Type_5395 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5395;
-                U64 hoisted__U64_5396 = (U64)(hoisted__U32_5394);
-                (void)hoisted__U64_5396;
-                Type_delete(hoisted__Type_5395, 1);
-                I64 *hoisted__I64_5397 = ptr_add(self->data, hoisted__U64_5396);
-                (void)hoisted__I64_5397;
-                (void)hoisted__I64_5397;
-                Bool hoisted__Bool_5398 = 0;
-                (void)hoisted__Bool_5398;
-                I64_delete(hoisted__I64_5397, hoisted__Bool_5398);
+                U32 i = U32_clone(&_rc_U32_5463);
+                U32_dec(&_rc_U32_5463);
+                U32 hoisted__U32_5472 = 8;
+                (void)hoisted__U32_5472;
+                U32 hoisted__U32_5473 = U32_mul(i, hoisted__U32_5472);
+                (void)hoisted__U32_5473;
+                Type *hoisted__Type_5474 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5474;
+                U64 hoisted__U64_5475 = (U64)(hoisted__U32_5473);
+                (void)hoisted__U64_5475;
+                Type_delete(hoisted__Type_5474, 1);
+                I64 *hoisted__I64_5476 = ptr_add(self->data, hoisted__U64_5475);
+                (void)hoisted__I64_5476;
+                (void)hoisted__I64_5476;
+                Bool hoisted__Bool_5477 = 0;
+                (void)hoisted__Bool_5477;
+                I64_delete(hoisted__I64_5476, hoisted__Bool_5477);
             }
         }
     }
-    U32 hoisted__U32_5400 = 0;
-    (void)hoisted__U32_5400;
-    self->count = hoisted__U32_5400;
+    U32 hoisted__U32_5479 = 0;
+    (void)hoisted__U32_5479;
+    self->count = hoisted__U32_5479;
 }
 
 void Vec__I64_delete(Vec__I64 * self, Bool call_free) {
@@ -5425,291 +5425,291 @@ void Vec__I64_delete(Vec__I64 * self, Bool call_free) {
 }
 
 Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
-    U32 hoisted__U32_5693 = 8;
-    (void)hoisted__U32_5693;
-    U32 hoisted__U32_5694 = U32_mul(self->cap, hoisted__U32_5693);
-    (void)hoisted__U32_5694;
-    Type *hoisted__Type_5695 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-    (void)hoisted__Type_5695;
-    U64 hoisted__U64_5696 = (U64)(hoisted__U32_5694);
-    (void)hoisted__U64_5696;
-    Type_delete(hoisted__Type_5695, 1);
-    void * new_data = malloc(hoisted__U64_5696);
+    U32 hoisted__U32_5772 = 8;
+    (void)hoisted__U32_5772;
+    U32 hoisted__U32_5773 = U32_mul(self->cap, hoisted__U32_5772);
+    (void)hoisted__U32_5773;
+    Type *hoisted__Type_5774 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+    (void)hoisted__Type_5774;
+    U64 hoisted__U64_5775 = (U64)(hoisted__U32_5773);
+    (void)hoisted__U64_5775;
+    Type_delete(hoisted__Type_5774, 1);
+    void * new_data = malloc(hoisted__U64_5775);
     {
-        U32 _re_U32_5657 = self->count;
-        (void)_re_U32_5657;
-        U32 _rc_U32_5657 = 0;
-        (void)_rc_U32_5657;
-        Bool hoisted__Bool_5692 = U32_lte(_rc_U32_5657, _re_U32_5657);
-        (void)hoisted__Bool_5692;
-        if (hoisted__Bool_5692) {
+        U32 _re_U32_5736 = self->count;
+        (void)_re_U32_5736;
+        U32 _rc_U32_5736 = 0;
+        (void)_rc_U32_5736;
+        Bool hoisted__Bool_5771 = U32_lte(_rc_U32_5736, _re_U32_5736);
+        (void)hoisted__Bool_5771;
+        if (hoisted__Bool_5771) {
             while (1) {
-                Bool _wcond_Bool_5658 = U32_lt(_rc_U32_5657, _re_U32_5657);
-                (void)_wcond_Bool_5658;
-                if (_wcond_Bool_5658) {
+                Bool _wcond_Bool_5737 = U32_lt(_rc_U32_5736, _re_U32_5736);
+                (void)_wcond_Bool_5737;
+                if (_wcond_Bool_5737) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5657);
-                U32_inc(&_rc_U32_5657);
-                U32 hoisted__U32_5659 = 8;
-                (void)hoisted__U32_5659;
-                U32 hoisted__U32_5660 = U32_mul(i, hoisted__U32_5659);
-                (void)hoisted__U32_5660;
-                Type *hoisted__Type_5661 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5661;
-                U64 hoisted__U64_5662 = (U64)(hoisted__U32_5660);
-                (void)hoisted__U64_5662;
-                Type_delete(hoisted__Type_5661, 1);
-                I64 *src = ptr_add(self->data, hoisted__U64_5662);
+                U32 i = U32_clone(&_rc_U32_5736);
+                U32_inc(&_rc_U32_5736);
+                U32 hoisted__U32_5738 = 8;
+                (void)hoisted__U32_5738;
+                U32 hoisted__U32_5739 = U32_mul(i, hoisted__U32_5738);
+                (void)hoisted__U32_5739;
+                Type *hoisted__Type_5740 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5740;
+                U64 hoisted__U64_5741 = (U64)(hoisted__U32_5739);
+                (void)hoisted__U64_5741;
+                Type_delete(hoisted__Type_5740, 1);
+                I64 *src = ptr_add(self->data, hoisted__U64_5741);
                 I64 cloned = I64_clone(src);
-                U32 hoisted__U32_5663 = 8;
-                (void)hoisted__U32_5663;
-                U32 hoisted__U32_5664 = U32_mul(i, hoisted__U32_5663);
-                (void)hoisted__U32_5664;
-                Type *hoisted__Type_5665 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5665;
-                U64 hoisted__U64_5666 = (U64)(hoisted__U32_5664);
-                (void)hoisted__U64_5666;
-                Type_delete(hoisted__Type_5665, 1);
-                U32 hoisted__U32_5667 = 8;
-                (void)hoisted__U32_5667;
-                Type *hoisted__Type_5668 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5668;
-                void *hoisted__v_5669 = ptr_add(new_data, hoisted__U64_5666);
-                (void)hoisted__v_5669;
-                (void)hoisted__v_5669;
-                U64 hoisted__U64_5670 = (U64)(hoisted__U32_5667);
-                (void)hoisted__U64_5670;
-                Type_delete(hoisted__Type_5668, 1);
-                memcpy(hoisted__v_5669, &cloned, hoisted__U64_5670);
-                U32 hoisted__U32_5671 = 8;
-                (void)hoisted__U32_5671;
-                Type *hoisted__Type_5672 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5672;
-                I32 hoisted__I32_5673 = 0;
-                (void)hoisted__I32_5673;
-                U64 hoisted__U64_5674 = (U64)(hoisted__U32_5671);
-                (void)hoisted__U64_5674;
-                Type_delete(hoisted__Type_5672, 1);
-                memset(&cloned, hoisted__I32_5673, hoisted__U64_5674);
+                U32 hoisted__U32_5742 = 8;
+                (void)hoisted__U32_5742;
+                U32 hoisted__U32_5743 = U32_mul(i, hoisted__U32_5742);
+                (void)hoisted__U32_5743;
+                Type *hoisted__Type_5744 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5744;
+                U64 hoisted__U64_5745 = (U64)(hoisted__U32_5743);
+                (void)hoisted__U64_5745;
+                Type_delete(hoisted__Type_5744, 1);
+                U32 hoisted__U32_5746 = 8;
+                (void)hoisted__U32_5746;
+                Type *hoisted__Type_5747 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5747;
+                void *hoisted__v_5748 = ptr_add(new_data, hoisted__U64_5745);
+                (void)hoisted__v_5748;
+                (void)hoisted__v_5748;
+                U64 hoisted__U64_5749 = (U64)(hoisted__U32_5746);
+                (void)hoisted__U64_5749;
+                Type_delete(hoisted__Type_5747, 1);
+                memcpy(hoisted__v_5748, &cloned, hoisted__U64_5749);
+                U32 hoisted__U32_5750 = 8;
+                (void)hoisted__U32_5750;
+                Type *hoisted__Type_5751 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5751;
+                I32 hoisted__I32_5752 = 0;
+                (void)hoisted__I32_5752;
+                U64 hoisted__U64_5753 = (U64)(hoisted__U32_5750);
+                (void)hoisted__U64_5753;
+                Type_delete(hoisted__Type_5751, 1);
+                memset(&cloned, hoisted__I32_5752, hoisted__U64_5753);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_5675 = U32_gt(_rc_U32_5657, _re_U32_5657);
-                (void)_wcond_Bool_5675;
-                if (_wcond_Bool_5675) {
+                Bool _wcond_Bool_5754 = U32_gt(_rc_U32_5736, _re_U32_5736);
+                (void)_wcond_Bool_5754;
+                if (_wcond_Bool_5754) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5657);
-                U32_dec(&_rc_U32_5657);
-                U32 hoisted__U32_5676 = 8;
-                (void)hoisted__U32_5676;
-                U32 hoisted__U32_5677 = U32_mul(i, hoisted__U32_5676);
-                (void)hoisted__U32_5677;
-                Type *hoisted__Type_5678 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5678;
-                U64 hoisted__U64_5679 = (U64)(hoisted__U32_5677);
-                (void)hoisted__U64_5679;
-                Type_delete(hoisted__Type_5678, 1);
-                I64 *src = ptr_add(self->data, hoisted__U64_5679);
+                U32 i = U32_clone(&_rc_U32_5736);
+                U32_dec(&_rc_U32_5736);
+                U32 hoisted__U32_5755 = 8;
+                (void)hoisted__U32_5755;
+                U32 hoisted__U32_5756 = U32_mul(i, hoisted__U32_5755);
+                (void)hoisted__U32_5756;
+                Type *hoisted__Type_5757 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5757;
+                U64 hoisted__U64_5758 = (U64)(hoisted__U32_5756);
+                (void)hoisted__U64_5758;
+                Type_delete(hoisted__Type_5757, 1);
+                I64 *src = ptr_add(self->data, hoisted__U64_5758);
                 I64 cloned = I64_clone(src);
-                U32 hoisted__U32_5680 = 8;
-                (void)hoisted__U32_5680;
-                U32 hoisted__U32_5681 = U32_mul(i, hoisted__U32_5680);
-                (void)hoisted__U32_5681;
-                Type *hoisted__Type_5682 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5682;
-                U64 hoisted__U64_5683 = (U64)(hoisted__U32_5681);
-                (void)hoisted__U64_5683;
-                Type_delete(hoisted__Type_5682, 1);
-                U32 hoisted__U32_5684 = 8;
-                (void)hoisted__U32_5684;
-                Type *hoisted__Type_5685 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5685;
-                void *hoisted__v_5686 = ptr_add(new_data, hoisted__U64_5683);
-                (void)hoisted__v_5686;
-                (void)hoisted__v_5686;
-                U64 hoisted__U64_5687 = (U64)(hoisted__U32_5684);
-                (void)hoisted__U64_5687;
-                Type_delete(hoisted__Type_5685, 1);
-                memcpy(hoisted__v_5686, &cloned, hoisted__U64_5687);
-                U32 hoisted__U32_5688 = 8;
-                (void)hoisted__U32_5688;
-                Type *hoisted__Type_5689 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
-                (void)hoisted__Type_5689;
-                I32 hoisted__I32_5690 = 0;
-                (void)hoisted__I32_5690;
-                U64 hoisted__U64_5691 = (U64)(hoisted__U32_5688);
-                (void)hoisted__U64_5691;
-                Type_delete(hoisted__Type_5689, 1);
-                memset(&cloned, hoisted__I32_5690, hoisted__U64_5691);
+                U32 hoisted__U32_5759 = 8;
+                (void)hoisted__U32_5759;
+                U32 hoisted__U32_5760 = U32_mul(i, hoisted__U32_5759);
+                (void)hoisted__U32_5760;
+                Type *hoisted__Type_5761 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5761;
+                U64 hoisted__U64_5762 = (U64)(hoisted__U32_5760);
+                (void)hoisted__U64_5762;
+                Type_delete(hoisted__Type_5761, 1);
+                U32 hoisted__U32_5763 = 8;
+                (void)hoisted__U32_5763;
+                Type *hoisted__Type_5764 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5764;
+                void *hoisted__v_5765 = ptr_add(new_data, hoisted__U64_5762);
+                (void)hoisted__v_5765;
+                (void)hoisted__v_5765;
+                U64 hoisted__U64_5766 = (U64)(hoisted__U32_5763);
+                (void)hoisted__U64_5766;
+                Type_delete(hoisted__Type_5764, 1);
+                memcpy(hoisted__v_5765, &cloned, hoisted__U64_5766);
+                U32 hoisted__U32_5767 = 8;
+                (void)hoisted__U32_5767;
+                Type *hoisted__Type_5768 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = (Primitive){.tag = Primitive_TAG_U64}; _oa; }));
+                (void)hoisted__Type_5768;
+                I32 hoisted__I32_5769 = 0;
+                (void)hoisted__I32_5769;
+                U64 hoisted__U64_5770 = (U64)(hoisted__U32_5767);
+                (void)hoisted__U64_5770;
+                Type_delete(hoisted__Type_5768, 1);
+                memset(&cloned, hoisted__I32_5769, hoisted__U64_5770);
             }
         }
     }
-    Vec__I64 *hoisted__Vec__I64_5697 = malloc(sizeof(Vec__I64));
-    hoisted__Vec__I64_5697->data = new_data;
-    hoisted__Vec__I64_5697->count = self->count;
-    hoisted__Vec__I64_5697->cap = self->cap;
-    (void)hoisted__Vec__I64_5697;
-    return hoisted__Vec__I64_5697;
+    Vec__I64 *hoisted__Vec__I64_5776 = malloc(sizeof(Vec__I64));
+    hoisted__Vec__I64_5776->data = new_data;
+    hoisted__Vec__I64_5776->count = self->count;
+    hoisted__Vec__I64_5776->cap = self->cap;
+    (void)hoisted__Vec__I64_5776;
+    return hoisted__Vec__I64_5776;
 }
 
 U32 Vec__I64_size(void) {
-    U32 hoisted__U32_5698 = 16;
-    (void)hoisted__U32_5698;
-    return hoisted__U32_5698;
+    U32 hoisted__U32_5777 = 16;
+    (void)hoisted__U32_5777;
+    return hoisted__U32_5777;
 }
 
 void panic(Array__Str * parts, Str * loc) {
-    U32 hoisted__U32_6819 = 3;
-    (void)hoisted__U32_6819;
-    Array__Str *_va_Array_195 = Array__Str_new(hoisted__U32_6819);
-    (void)_va_Array_195;
-    I64 _va_Array_195_ek = 0;
-    (void)_va_Array_195_ek;
-    OutOfBounds *_va_Array_195_eo = malloc(sizeof(OutOfBounds));
-    _va_Array_195_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-    (void)_va_Array_195_eo;
-    U32 hoisted__U32_6820 = 0;
-    (void)hoisted__U32_6820;
-    Str *hoisted__Str_6821 = Str_clone(loc);
-    (void)hoisted__Str_6821;
-    Array__Str_set(_va_Array_195, hoisted__U32_6820, hoisted__Str_6821, &_va_Array_195_ek, _va_Array_195_eo);
-    U32 hoisted__U32_6822 = 1;
-    (void)hoisted__U32_6822;
-    Str hoisted__Str_6823 = (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_6823;
-    Array__Str_set(_va_Array_195, hoisted__U32_6822, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6823; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_195_ek, _va_Array_195_eo);
-    Array__Str *hoisted__Array__Str_6824 = Array__Str_clone(parts);
-    (void)hoisted__Array__Str_6824;
-    U32 hoisted__U32_6825 = 2;
-    (void)hoisted__U32_6825;
-    Str *hoisted__Str_6826 = format(hoisted__Array__Str_6824);
-    (void)hoisted__Str_6826;
-    Array__Str_set(_va_Array_195, hoisted__U32_6825, hoisted__Str_6826, &_va_Array_195_ek, _va_Array_195_eo);
-    OutOfBounds_delete(_va_Array_195_eo, 1);
+    U32 hoisted__U32_6898 = 3;
+    (void)hoisted__U32_6898;
+    Array__Str *_va_Array_200 = Array__Str_new(hoisted__U32_6898);
+    (void)_va_Array_200;
+    I64 _va_Array_200_ek = 0;
+    (void)_va_Array_200_ek;
+    OutOfBounds *_va_Array_200_eo = malloc(sizeof(OutOfBounds));
+    _va_Array_200_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+    (void)_va_Array_200_eo;
+    U32 hoisted__U32_6899 = 0;
+    (void)hoisted__U32_6899;
+    Str *hoisted__Str_6900 = Str_clone(loc);
+    (void)hoisted__Str_6900;
+    Array__Str_set(_va_Array_200, hoisted__U32_6899, hoisted__Str_6900, &_va_Array_200_ek, _va_Array_200_eo);
+    U32 hoisted__U32_6901 = 1;
+    (void)hoisted__U32_6901;
+    Str hoisted__Str_6902 = (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_6902;
+    Array__Str_set(_va_Array_200, hoisted__U32_6901, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6902; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_200_ek, _va_Array_200_eo);
+    Array__Str *hoisted__Array__Str_6903 = Array__Str_clone(parts);
+    (void)hoisted__Array__Str_6903;
+    U32 hoisted__U32_6904 = 2;
+    (void)hoisted__U32_6904;
+    Str *hoisted__Str_6905 = format(hoisted__Array__Str_6903);
+    (void)hoisted__Str_6905;
+    Array__Str_set(_va_Array_200, hoisted__U32_6904, hoisted__Str_6905, &_va_Array_200_ek, _va_Array_200_eo);
+    OutOfBounds_delete(_va_Array_200_eo, 1);
     Array__Str_delete(parts, 1);
-    println(_va_Array_195);
-    I64 hoisted__I64_6827 = 1;
-    (void)hoisted__I64_6827;
-    exit(hoisted__I64_6827);
+    println(_va_Array_200);
+    I64 hoisted__I64_6906 = 1;
+    (void)hoisted__I64_6906;
+    exit(hoisted__I64_6906);
 }
 
 void UNREACHABLE(Str * loc) {
-    U32 hoisted__U32_6834 = 1;
-    (void)hoisted__U32_6834;
-    Array__Str *_va_Array_197 = Array__Str_new(hoisted__U32_6834);
-    (void)_va_Array_197;
-    I64 _va_Array_197_ek = 0;
-    (void)_va_Array_197_ek;
-    OutOfBounds *_va_Array_197_eo = malloc(sizeof(OutOfBounds));
-    _va_Array_197_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-    (void)_va_Array_197_eo;
-    U32 hoisted__U32_6835 = 0;
-    (void)hoisted__U32_6835;
-    Str hoisted__Str_6836 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_6836;
-    Array__Str_set(_va_Array_197, hoisted__U32_6835, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6836; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_197_ek, _va_Array_197_eo);
-    OutOfBounds_delete(_va_Array_197_eo, 1);
-    panic(_va_Array_197, loc);
+    U32 hoisted__U32_6913 = 1;
+    (void)hoisted__U32_6913;
+    Array__Str *_va_Array_202 = Array__Str_new(hoisted__U32_6913);
+    (void)_va_Array_202;
+    I64 _va_Array_202_ek = 0;
+    (void)_va_Array_202_ek;
+    OutOfBounds *_va_Array_202_eo = malloc(sizeof(OutOfBounds));
+    _va_Array_202_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+    (void)_va_Array_202_eo;
+    U32 hoisted__U32_6914 = 0;
+    (void)hoisted__U32_6914;
+    Str hoisted__Str_6915 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_6915;
+    Array__Str_set(_va_Array_202, hoisted__U32_6914, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6915; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_202_ek, _va_Array_202_eo);
+    OutOfBounds_delete(_va_Array_202_eo, 1);
+    panic(_va_Array_202, loc);
 }
 
 void assert(Bool cond, Str * loc) {
-    Bool hoisted__Bool_6840 = not(cond);
-    (void)hoisted__Bool_6840;
-    if (hoisted__Bool_6840) {
-        U32 hoisted__U32_6837 = 1;
-        (void)hoisted__U32_6837;
-        Array__Str *_va_Array_198 = Array__Str_new(hoisted__U32_6837);
-        (void)_va_Array_198;
-        I64 _va_Array_198_ek = 0;
-        (void)_va_Array_198_ek;
-        OutOfBounds *_va_Array_198_eo = malloc(sizeof(OutOfBounds));
-        _va_Array_198_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_va_Array_198_eo;
-        U32 hoisted__U32_6838 = 0;
-        (void)hoisted__U32_6838;
-        Str hoisted__Str_6839 = (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_6839;
-        Array__Str_set(_va_Array_198, hoisted__U32_6838, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6839; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_198_ek, _va_Array_198_eo);
-        OutOfBounds_delete(_va_Array_198_eo, 1);
-        panic(_va_Array_198, loc);
+    Bool hoisted__Bool_6919 = not(cond);
+    (void)hoisted__Bool_6919;
+    if (hoisted__Bool_6919) {
+        U32 hoisted__U32_6916 = 1;
+        (void)hoisted__U32_6916;
+        Array__Str *_va_Array_203 = Array__Str_new(hoisted__U32_6916);
+        (void)_va_Array_203;
+        I64 _va_Array_203_ek = 0;
+        (void)_va_Array_203_ek;
+        OutOfBounds *_va_Array_203_eo = malloc(sizeof(OutOfBounds));
+        _va_Array_203_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+        (void)_va_Array_203_eo;
+        U32 hoisted__U32_6917 = 0;
+        (void)hoisted__U32_6917;
+        Str hoisted__Str_6918 = (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_6918;
+        Array__Str_set(_va_Array_203, hoisted__U32_6917, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6918; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_203_ek, _va_Array_203_eo);
+        OutOfBounds_delete(_va_Array_203_eo, 1);
+        panic(_va_Array_203, loc);
     }
 }
 
 void println(Array__Str * parts) {
     {
-        Array__Str *_fc_Array__Str_6848 = parts;
-        (void)_fc_Array__Str_6848;
-        (void)_fc_Array__Str_6848;
-        U32 _fi_USize_6848 = 0;
-        (void)_fi_USize_6848;
-        I64 _forin_err_kind_6848 = 0;
-        (void)_forin_err_kind_6848;
-        OutOfBounds *_forin_OutOfBounds_6848 = malloc(sizeof(OutOfBounds));
-        _forin_OutOfBounds_6848->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_forin_OutOfBounds_6848;
+        Array__Str *_fc_Array__Str_6927 = parts;
+        (void)_fc_Array__Str_6927;
+        (void)_fc_Array__Str_6927;
+        U32 _fi_USize_6927 = 0;
+        (void)_fi_USize_6927;
+        I64 _forin_err_kind_6927 = 0;
+        (void)_forin_err_kind_6927;
+        OutOfBounds *_forin_OutOfBounds_6927 = malloc(sizeof(OutOfBounds));
+        _forin_OutOfBounds_6927->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+        (void)_forin_OutOfBounds_6927;
         while (1) {
-            U32 hoisted__U32_6856 = Array__Str_len(_fc_Array__Str_6848);
-            (void)hoisted__U32_6856;
-            Bool _wcond_Bool_6849 = U32_lt(_fi_USize_6848, hoisted__U32_6856);
-            (void)_wcond_Bool_6849;
-            if (_wcond_Bool_6849) {
+            U32 hoisted__U32_6935 = Array__Str_len(_fc_Array__Str_6927);
+            (void)hoisted__U32_6935;
+            Bool _wcond_Bool_6928 = U32_lt(_fi_USize_6927, hoisted__U32_6935);
+            (void)_wcond_Bool_6928;
+            if (_wcond_Bool_6928) {
             } else {
                 break;
             }
-            Str *s = Array__Str_get(_fc_Array__Str_6848, &_fi_USize_6848, &_forin_err_kind_6848, _forin_OutOfBounds_6848);
-            I64 hoisted__I64_6857 = 0;
-            (void)hoisted__I64_6857;
-            Bool hoisted__Bool_6858 = I64_eq(_forin_err_kind_6848, hoisted__I64_6857);
-            (void)hoisted__Bool_6858;
-            Bool hoisted__Bool_6859 = not(hoisted__Bool_6858);
-            (void)hoisted__Bool_6859;
-            if (hoisted__Bool_6859) {
-                U32 hoisted__U32_6850 = 2;
-                (void)hoisted__U32_6850;
-                Array__Str *_va_Array_200 = Array__Str_new(hoisted__U32_6850);
-                (void)_va_Array_200;
-                I64 _va_Array_200_ek = 0;
-                (void)_va_Array_200_ek;
-                OutOfBounds *_va_Array_200_eo = malloc(sizeof(OutOfBounds));
-                _va_Array_200_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-                (void)_va_Array_200_eo;
-                U32 hoisted__U32_6851 = 0;
-                (void)hoisted__U32_6851;
-                Str hoisted__Str_6852 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
-                (void)hoisted__Str_6852;
-                Array__Str_set(_va_Array_200, hoisted__U32_6851, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6852; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_200_ek, _va_Array_200_eo);
-                U32 hoisted__U32_6853 = 1;
-                (void)hoisted__U32_6853;
-                Str hoisted__Str_6854 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
-                (void)hoisted__Str_6854;
-                Array__Str_set(_va_Array_200, hoisted__U32_6853, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6854; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_200_ek, _va_Array_200_eo);
-                OutOfBounds_delete(_va_Array_200_eo, 1);
-                Str hoisted__Str_6855 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
-                (void)hoisted__Str_6855;
-                panic(_va_Array_200, &hoisted__Str_6855);
-                Str_delete(&hoisted__Str_6855, (Bool){0});
+            Str *s = Array__Str_get(_fc_Array__Str_6927, &_fi_USize_6927, &_forin_err_kind_6927, _forin_OutOfBounds_6927);
+            I64 hoisted__I64_6936 = 0;
+            (void)hoisted__I64_6936;
+            Bool hoisted__Bool_6937 = I64_eq(_forin_err_kind_6927, hoisted__I64_6936);
+            (void)hoisted__Bool_6937;
+            Bool hoisted__Bool_6938 = not(hoisted__Bool_6937);
+            (void)hoisted__Bool_6938;
+            if (hoisted__Bool_6938) {
+                U32 hoisted__U32_6929 = 2;
+                (void)hoisted__U32_6929;
+                Array__Str *_va_Array_205 = Array__Str_new(hoisted__U32_6929);
+                (void)_va_Array_205;
+                I64 _va_Array_205_ek = 0;
+                (void)_va_Array_205_ek;
+                OutOfBounds *_va_Array_205_eo = malloc(sizeof(OutOfBounds));
+                _va_Array_205_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+                (void)_va_Array_205_eo;
+                U32 hoisted__U32_6930 = 0;
+                (void)hoisted__U32_6930;
+                Str hoisted__Str_6931 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+                (void)hoisted__Str_6931;
+                Array__Str_set(_va_Array_205, hoisted__U32_6930, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6931; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_205_ek, _va_Array_205_eo);
+                U32 hoisted__U32_6932 = 1;
+                (void)hoisted__U32_6932;
+                Str hoisted__Str_6933 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
+                (void)hoisted__Str_6933;
+                Array__Str_set(_va_Array_205, hoisted__U32_6932, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_6933; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_205_ek, _va_Array_205_eo);
+                OutOfBounds_delete(_va_Array_205_eo, 1);
+                Str hoisted__Str_6934 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+                (void)hoisted__Str_6934;
+                panic(_va_Array_205, &hoisted__Str_6934);
+                Str_delete(&hoisted__Str_6934, (Bool){0});
             }
-            U32 hoisted__U32_6860 = 1;
-            (void)hoisted__U32_6860;
-            U32 hoisted__U32_6861 = U32_add(_fi_USize_6848, hoisted__U32_6860);
-            (void)hoisted__U32_6861;
-            _fi_USize_6848 = hoisted__U32_6861;
+            U32 hoisted__U32_6939 = 1;
+            (void)hoisted__U32_6939;
+            U32 hoisted__U32_6940 = U32_add(_fi_USize_6927, hoisted__U32_6939);
+            (void)hoisted__U32_6940;
+            _fi_USize_6927 = hoisted__U32_6940;
             print_single(s);
         }
-        OutOfBounds_delete(_forin_OutOfBounds_6848, 1);
+        OutOfBounds_delete(_forin_OutOfBounds_6927, 1);
     }
     Array__Str_delete(parts, 1);
     print_flush();
 }
 
 Bool is_null(void * p) {
-    Bool hoisted__Bool_6901 = ptr_eq(p, NULL);
-    (void)hoisted__Bool_6901;
-    return hoisted__Bool_6901;
+    Bool hoisted__Bool_6980 = ptr_eq(p, NULL);
+    (void)hoisted__Bool_6980;
+    return hoisted__Bool_6980;
 }
 
 void swap(void * a, void * b, U64 size) {
@@ -5721,9 +5721,9 @@ void swap(void * a, void * b, U64 size) {
 }
 
 Range * Range_clone(Range * val) {
-    Range hoisted__Range_6910 = (Range){.start = val->start, .end = val->end};
-    (void)hoisted__Range_6910;
-    { Range *_r = malloc(sizeof(Range)); *_r = hoisted__Range_6910;
+    Range hoisted__Range_6989 = (Range){.start = val->start, .end = val->end};
+    (void)hoisted__Range_6989;
+    { Range *_r = malloc(sizeof(Range)); *_r = hoisted__Range_6989;
     return _r; }
 }
 
@@ -5734,108 +5734,108 @@ void Range_delete(Range * self, Bool call_free) {
 }
 
 U64 Range_hash(Range * self, HashFn hasher) {
-    U32 hoisted__U32_6911 = 0;
-    (void)hoisted__U32_6911;
-    U64 hoisted__U64_6912 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Range *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_6911); });
-    (void)hoisted__U64_6912;
-    return hoisted__U64_6912;
+    U32 hoisted__U32_6990 = 0;
+    (void)hoisted__U32_6990;
+    U64 hoisted__U64_6991 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Range *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_6990); });
+    (void)hoisted__U64_6991;
+    return hoisted__U64_6991;
 }
 
 U32 Range_size(void) {
-    U32 hoisted__U32_6936 = 16;
-    (void)hoisted__U32_6936;
-    return hoisted__U32_6936;
+    U32 hoisted__U32_7015 = 16;
+    (void)hoisted__U32_7015;
+    return hoisted__U32_7015;
 }
 
 void test_simple_add(void) {
     I64 result = 3;
-    I64 hoisted__I64_7047 = 3;
-    (void)hoisted__I64_7047;
-    Str hoisted__Str_7048 = (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7048;
-    assert_eq__I64(result, hoisted__I64_7047, &hoisted__Str_7048);
-    Str_delete(&hoisted__Str_7048, (Bool){0});
+    I64 hoisted__I64_7126 = 3;
+    (void)hoisted__I64_7126;
+    Str hoisted__Str_7127 = (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7127;
+    assert_eq__I64(result, hoisted__I64_7126, &hoisted__Str_7127);
+    Str_delete(&hoisted__Str_7127, (Bool){0});
 }
 
 void test_nested_arithmetic(void) {
     I64 result = 15;
-    I64 hoisted__I64_7055 = 15;
-    (void)hoisted__I64_7055;
-    Str hoisted__Str_7056 = (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7056;
-    assert_eq__I64(result, hoisted__I64_7055, &hoisted__Str_7056);
-    Str_delete(&hoisted__Str_7056, (Bool){0});
+    I64 hoisted__I64_7134 = 15;
+    (void)hoisted__I64_7134;
+    Str hoisted__Str_7135 = (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7135;
+    assert_eq__I64(result, hoisted__I64_7134, &hoisted__Str_7135);
+    Str_delete(&hoisted__Str_7135, (Bool){0});
 }
 
 void test_deeply_nested(void) {
     I64 result = 26;
-    I64 hoisted__I64_7063 = 26;
-    (void)hoisted__I64_7063;
-    Str hoisted__Str_7064 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7064;
-    assert_eq__I64(result, hoisted__I64_7063, &hoisted__Str_7064);
-    Str_delete(&hoisted__Str_7064, (Bool){0});
+    I64 hoisted__I64_7142 = 26;
+    (void)hoisted__I64_7142;
+    Str hoisted__Str_7143 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7143;
+    assert_eq__I64(result, hoisted__I64_7142, &hoisted__Str_7143);
+    Str_delete(&hoisted__Str_7143, (Bool){0});
 }
 
 void test_string_concat(void) {
     Str result = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7067 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7067;
-    Str hoisted__Str_7068 = (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7068;
-    assert_eq__Str(&result, &hoisted__Str_7067, &hoisted__Str_7068);
-    Str_delete(&hoisted__Str_7067, (Bool){0});
-    Str_delete(&hoisted__Str_7068, (Bool){0});
+    Str hoisted__Str_7146 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7146;
+    Str hoisted__Str_7147 = (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7147;
+    assert_eq__Str(&result, &hoisted__Str_7146, &hoisted__Str_7147);
+    Str_delete(&hoisted__Str_7146, (Bool){0});
+    Str_delete(&hoisted__Str_7147, (Bool){0});
     Str_delete(&result, (Bool){0});
 }
 
 void test_variadic_fold(void) {
     Str r = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7089 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7089;
-    Str hoisted__Str_7090 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7090;
-    assert_eq__Str(&r, &hoisted__Str_7089, &hoisted__Str_7090);
-    Str_delete(&hoisted__Str_7089, (Bool){0});
-    Str_delete(&hoisted__Str_7090, (Bool){0});
+    Str hoisted__Str_7168 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7168;
+    Str hoisted__Str_7169 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7169;
+    assert_eq__Str(&r, &hoisted__Str_7168, &hoisted__Str_7169);
+    Str_delete(&hoisted__Str_7168, (Bool){0});
+    Str_delete(&hoisted__Str_7169, (Bool){0});
     Str_delete(&r, (Bool){0});
     Str r2 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7094 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7094;
-    Str hoisted__Str_7095 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7095;
-    assert_eq__Str(&r2, &hoisted__Str_7094, &hoisted__Str_7095);
-    Str_delete(&hoisted__Str_7094, (Bool){0});
-    Str_delete(&hoisted__Str_7095, (Bool){0});
+    Str hoisted__Str_7173 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7173;
+    Str hoisted__Str_7174 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7174;
+    assert_eq__Str(&r2, &hoisted__Str_7173, &hoisted__Str_7174);
+    Str_delete(&hoisted__Str_7173, (Bool){0});
+    Str_delete(&hoisted__Str_7174, (Bool){0});
     Str_delete(&r2, (Bool){0});
 }
 
 void test_variadic_direct_fold(void) {
     Str d = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7122 = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7122;
-    Str hoisted__Str_7123 = (Str){.c_str = (void *)"test/constfold.til:72:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7123;
-    assert_eq__Str(&d, &hoisted__Str_7122, &hoisted__Str_7123);
+    Str hoisted__Str_7201 = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7201;
+    Str hoisted__Str_7202 = (Str){.c_str = (void *)"test/constfold.til:72:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7202;
+    assert_eq__Str(&d, &hoisted__Str_7201, &hoisted__Str_7202);
     Str_delete(&d, (Bool){0});
-    Str_delete(&hoisted__Str_7122, (Bool){0});
-    Str_delete(&hoisted__Str_7123, (Bool){0});
+    Str_delete(&hoisted__Str_7201, (Bool){0});
+    Str_delete(&hoisted__Str_7202, (Bool){0});
     Str d2 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7131 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7131;
-    Str hoisted__Str_7132 = (Str){.c_str = (void *)"test/constfold.til:74:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7132;
-    assert_eq__Str(&d2, &hoisted__Str_7131, &hoisted__Str_7132);
+    Str hoisted__Str_7210 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7210;
+    Str hoisted__Str_7211 = (Str){.c_str = (void *)"test/constfold.til:74:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7211;
+    assert_eq__Str(&d2, &hoisted__Str_7210, &hoisted__Str_7211);
     Str_delete(&d2, (Bool){0});
-    Str_delete(&hoisted__Str_7131, (Bool){0});
-    Str_delete(&hoisted__Str_7132, (Bool){0});
+    Str_delete(&hoisted__Str_7210, (Bool){0});
+    Str_delete(&hoisted__Str_7211, (Bool){0});
     I64 d3 = 106;
-    I64 hoisted__I64_7141 = 106;
-    (void)hoisted__I64_7141;
-    Str hoisted__Str_7142 = (Str){.c_str = (void *)"test/constfold.til:76:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7142;
-    assert_eq__I64(d3, hoisted__I64_7141, &hoisted__Str_7142);
-    Str_delete(&hoisted__Str_7142, (Bool){0});
+    I64 hoisted__I64_7220 = 106;
+    (void)hoisted__I64_7220;
+    Str hoisted__Str_7221 = (Str){.c_str = (void *)"test/constfold.til:76:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7221;
+    assert_eq__I64(d3, hoisted__I64_7220, &hoisted__Str_7221);
+    Str_delete(&hoisted__Str_7221, (Bool){0});
 }
 
 void test_lolalalo(void) {
@@ -5843,72 +5843,72 @@ void test_lolalalo(void) {
     Str lola_it = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     Str lalo_rec = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     Str lalo_it = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7631 = (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7631;
-    assert_eq__Str(&lola_rec, &lola_it, &hoisted__Str_7631);
-    Str_delete(&hoisted__Str_7631, (Bool){0});
+    Str hoisted__Str_7710 = (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7710;
+    assert_eq__Str(&lola_rec, &lola_it, &hoisted__Str_7710);
+    Str_delete(&hoisted__Str_7710, (Bool){0});
     Str_delete(&lola_it, (Bool){0});
     Str_delete(&lola_rec, (Bool){0});
-    Str hoisted__Str_7632 = (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7632;
-    assert_eq__Str(&lalo_rec, &lalo_it, &hoisted__Str_7632);
-    Str_delete(&hoisted__Str_7632, (Bool){0});
+    Str hoisted__Str_7711 = (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7711;
+    assert_eq__Str(&lalo_rec, &lalo_it, &hoisted__Str_7711);
+    Str_delete(&hoisted__Str_7711, (Bool){0});
     Str_delete(&lalo_it, (Bool){0});
     Str_delete(&lalo_rec, (Bool){0});
 }
 
 void test_fold_variable(void) {
     I64 result = 8;
-    I64 hoisted__I64_7634 = 8;
-    (void)hoisted__I64_7634;
-    Str hoisted__Str_7635 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7635;
-    assert_eq__I64(result, hoisted__I64_7634, &hoisted__Str_7635);
-    Str_delete(&hoisted__Str_7635, (Bool){0});
+    I64 hoisted__I64_7713 = 8;
+    (void)hoisted__I64_7713;
+    Str hoisted__Str_7714 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7714;
+    assert_eq__I64(result, hoisted__I64_7713, &hoisted__Str_7714);
+    Str_delete(&hoisted__Str_7714, (Bool){0});
 }
 
 void test_loc_folded(void) {
-    Bool hoisted__Bool_7638 = 1;
-    (void)hoisted__Bool_7638;
-    Str hoisted__Str_7639 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7639;
-    assert(hoisted__Bool_7638, &hoisted__Str_7639);
-    Str_delete(&hoisted__Str_7639, (Bool){0});
-    Bool hoisted__Bool_7642 = 1;
-    (void)hoisted__Bool_7642;
-    Str hoisted__Str_7643 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7643;
-    assert(hoisted__Bool_7642, &hoisted__Str_7643);
-    Str_delete(&hoisted__Str_7643, (Bool){0});
+    Bool hoisted__Bool_7717 = 1;
+    (void)hoisted__Bool_7717;
+    Str hoisted__Str_7718 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7718;
+    assert(hoisted__Bool_7717, &hoisted__Str_7718);
+    Str_delete(&hoisted__Str_7718, (Bool){0});
+    Bool hoisted__Bool_7721 = 1;
+    (void)hoisted__Bool_7721;
+    Str hoisted__Str_7722 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7722;
+    assert(hoisted__Bool_7721, &hoisted__Str_7722);
+    Str_delete(&hoisted__Str_7722, (Bool){0});
 }
 
 void test_fold_f32(void) {
-    Str hoisted__Str_7648 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7648;
-    Str hoisted__Str_7649 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7649;
-    Str hoisted__Str_7650 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7650;
-    assert_eq__Str(&hoisted__Str_7648, &hoisted__Str_7649, &hoisted__Str_7650);
-    Str_delete(&hoisted__Str_7648, (Bool){0});
-    Str_delete(&hoisted__Str_7649, (Bool){0});
-    Str_delete(&hoisted__Str_7650, (Bool){0});
-    Str hoisted__Str_7653 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7653;
-    Str hoisted__Str_7654 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7654;
-    Str hoisted__Str_7655 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7655;
-    assert_eq__Str(&hoisted__Str_7653, &hoisted__Str_7654, &hoisted__Str_7655);
-    Str_delete(&hoisted__Str_7653, (Bool){0});
-    Str_delete(&hoisted__Str_7654, (Bool){0});
-    Str_delete(&hoisted__Str_7655, (Bool){0});
+    Str hoisted__Str_7727 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7727;
+    Str hoisted__Str_7728 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7728;
+    Str hoisted__Str_7729 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7729;
+    assert_eq__Str(&hoisted__Str_7727, &hoisted__Str_7728, &hoisted__Str_7729);
+    Str_delete(&hoisted__Str_7727, (Bool){0});
+    Str_delete(&hoisted__Str_7728, (Bool){0});
+    Str_delete(&hoisted__Str_7729, (Bool){0});
+    Str hoisted__Str_7732 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7732;
+    Str hoisted__Str_7733 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7733;
+    Str hoisted__Str_7734 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7734;
+    assert_eq__Str(&hoisted__Str_7732, &hoisted__Str_7733, &hoisted__Str_7734);
+    Str_delete(&hoisted__Str_7732, (Bool){0});
+    Str_delete(&hoisted__Str_7733, (Bool){0});
+    Str_delete(&hoisted__Str_7734, (Bool){0});
 }
 
 CfVec2 * CfVec2_clone(CfVec2 * self) {
-    CfVec2 hoisted__CfVec2_7660 = (CfVec2){.x = self->x, .y = self->y};
-    (void)hoisted__CfVec2_7660;
-    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_7660;
+    CfVec2 hoisted__CfVec2_7739 = (CfVec2){.x = self->x, .y = self->y};
+    (void)hoisted__CfVec2_7739;
+    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_7739;
     return _r; }
 }
 
@@ -5919,57 +5919,57 @@ void CfVec2_delete(CfVec2 * self, Bool call_free) {
 }
 
 U64 CfVec2_hash(CfVec2 * self, HashFn hasher) {
-    U32 hoisted__U32_7661 = 0;
-    (void)hoisted__U32_7661;
-    U64 hoisted__U64_7662 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec2 *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_7661); });
-    (void)hoisted__U64_7662;
-    return hoisted__U64_7662;
+    U32 hoisted__U32_7740 = 0;
+    (void)hoisted__U32_7740;
+    U64 hoisted__U64_7741 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec2 *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_7740); });
+    (void)hoisted__U64_7741;
+    return hoisted__U64_7741;
 }
 
 U32 CfVec2_size(void) {
-    U32 hoisted__U32_7686 = 16;
-    (void)hoisted__U32_7686;
-    return hoisted__U32_7686;
+    U32 hoisted__U32_7765 = 16;
+    (void)hoisted__U32_7765;
+    return hoisted__U32_7765;
 }
 
 void test_struct_fold_simple(void) {
     CfVec2 v = (CfVec2){.x = 42, .y = 99};
-    I64 hoisted__I64_7687 = 42;
-    (void)hoisted__I64_7687;
-    Str hoisted__Str_7688 = (Str){.c_str = (void *)"test/constfold.til:178:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7688;
-    assert_eq__I64(v.x, hoisted__I64_7687, &hoisted__Str_7688);
-    Str_delete(&hoisted__Str_7688, (Bool){0});
-    I64 hoisted__I64_7689 = 99;
-    (void)hoisted__I64_7689;
-    Str hoisted__Str_7690 = (Str){.c_str = (void *)"test/constfold.til:179:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7690;
-    assert_eq__I64(v.y, hoisted__I64_7689, &hoisted__Str_7690);
-    Str_delete(&hoisted__Str_7690, (Bool){0});
+    I64 hoisted__I64_7766 = 42;
+    (void)hoisted__I64_7766;
+    Str hoisted__Str_7767 = (Str){.c_str = (void *)"test/constfold.til:178:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7767;
+    assert_eq__I64(v.x, hoisted__I64_7766, &hoisted__Str_7767);
+    Str_delete(&hoisted__Str_7767, (Bool){0});
+    I64 hoisted__I64_7768 = 99;
+    (void)hoisted__I64_7768;
+    Str hoisted__Str_7769 = (Str){.c_str = (void *)"test/constfold.til:179:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7769;
+    assert_eq__I64(v.y, hoisted__I64_7768, &hoisted__Str_7769);
+    Str_delete(&hoisted__Str_7769, (Bool){0});
     CfVec2_delete(&v, (Bool){0});
 }
 
 void test_struct_fold_values(void) {
     CfVec2 p = (CfVec2){.x = 10, .y = 20};
-    I64 hoisted__I64_7693 = 10;
-    (void)hoisted__I64_7693;
-    Str hoisted__Str_7694 = (Str){.c_str = (void *)"test/constfold.til:185:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7694;
-    assert_eq__I64(p.x, hoisted__I64_7693, &hoisted__Str_7694);
-    Str_delete(&hoisted__Str_7694, (Bool){0});
-    I64 hoisted__I64_7695 = 20;
-    (void)hoisted__I64_7695;
-    Str hoisted__Str_7696 = (Str){.c_str = (void *)"test/constfold.til:186:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7696;
-    assert_eq__I64(p.y, hoisted__I64_7695, &hoisted__Str_7696);
-    Str_delete(&hoisted__Str_7696, (Bool){0});
+    I64 hoisted__I64_7772 = 10;
+    (void)hoisted__I64_7772;
+    Str hoisted__Str_7773 = (Str){.c_str = (void *)"test/constfold.til:185:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7773;
+    assert_eq__I64(p.x, hoisted__I64_7772, &hoisted__Str_7773);
+    Str_delete(&hoisted__Str_7773, (Bool){0});
+    I64 hoisted__I64_7774 = 20;
+    (void)hoisted__I64_7774;
+    Str hoisted__Str_7775 = (Str){.c_str = (void *)"test/constfold.til:186:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7775;
+    assert_eq__I64(p.y, hoisted__I64_7774, &hoisted__Str_7775);
+    Str_delete(&hoisted__Str_7775, (Bool){0});
     CfVec2_delete(&p, (Bool){0});
 }
 
 CfRect * CfRect_clone(CfRect * self) {
-    CfRect hoisted__CfRect_7702 = (CfRect){.top_left = self->top_left, .bottom_right = self->bottom_right};
-    (void)hoisted__CfRect_7702;
-    { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_7702;
+    CfRect hoisted__CfRect_7781 = (CfRect){.top_left = self->top_left, .bottom_right = self->bottom_right};
+    (void)hoisted__CfRect_7781;
+    { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_7781;
     return _r; }
 }
 
@@ -5980,52 +5980,52 @@ void CfRect_delete(CfRect * self, Bool call_free) {
 }
 
 U64 CfRect_hash(CfRect * self, HashFn hasher) {
-    U32 hoisted__U32_7703 = 0;
-    (void)hoisted__U32_7703;
-    U64 hoisted__U64_7704 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfRect *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_7703); });
-    (void)hoisted__U64_7704;
-    return hoisted__U64_7704;
+    U32 hoisted__U32_7782 = 0;
+    (void)hoisted__U32_7782;
+    U64 hoisted__U64_7783 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfRect *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_7782); });
+    (void)hoisted__U64_7783;
+    return hoisted__U64_7783;
 }
 
 U32 CfRect_size(void) {
-    U32 hoisted__U32_7728 = 32;
-    (void)hoisted__U32_7728;
-    return hoisted__U32_7728;
+    U32 hoisted__U32_7807 = 32;
+    (void)hoisted__U32_7807;
+    return hoisted__U32_7807;
 }
 
 void test_struct_fold_nested(void) {
     CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
-    I64 hoisted__I64_7729 = 5;
-    (void)hoisted__I64_7729;
-    Str hoisted__Str_7730 = (Str){.c_str = (void *)"test/constfold.til:202:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7730;
-    assert_eq__I64(r.top_left.x, hoisted__I64_7729, &hoisted__Str_7730);
-    Str_delete(&hoisted__Str_7730, (Bool){0});
-    I64 hoisted__I64_7731 = 10;
-    (void)hoisted__I64_7731;
-    Str hoisted__Str_7732 = (Str){.c_str = (void *)"test/constfold.til:203:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7732;
-    assert_eq__I64(r.top_left.y, hoisted__I64_7731, &hoisted__Str_7732);
-    Str_delete(&hoisted__Str_7732, (Bool){0});
-    I64 hoisted__I64_7733 = 100;
-    (void)hoisted__I64_7733;
-    Str hoisted__Str_7734 = (Str){.c_str = (void *)"test/constfold.til:204:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7734;
-    assert_eq__I64(r.bottom_right.x, hoisted__I64_7733, &hoisted__Str_7734);
-    Str_delete(&hoisted__Str_7734, (Bool){0});
-    I64 hoisted__I64_7735 = 200;
-    (void)hoisted__I64_7735;
-    Str hoisted__Str_7736 = (Str){.c_str = (void *)"test/constfold.til:205:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7736;
-    assert_eq__I64(r.bottom_right.y, hoisted__I64_7735, &hoisted__Str_7736);
-    Str_delete(&hoisted__Str_7736, (Bool){0});
+    I64 hoisted__I64_7808 = 5;
+    (void)hoisted__I64_7808;
+    Str hoisted__Str_7809 = (Str){.c_str = (void *)"test/constfold.til:202:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7809;
+    assert_eq__I64(r.top_left.x, hoisted__I64_7808, &hoisted__Str_7809);
+    Str_delete(&hoisted__Str_7809, (Bool){0});
+    I64 hoisted__I64_7810 = 10;
+    (void)hoisted__I64_7810;
+    Str hoisted__Str_7811 = (Str){.c_str = (void *)"test/constfold.til:203:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7811;
+    assert_eq__I64(r.top_left.y, hoisted__I64_7810, &hoisted__Str_7811);
+    Str_delete(&hoisted__Str_7811, (Bool){0});
+    I64 hoisted__I64_7812 = 100;
+    (void)hoisted__I64_7812;
+    Str hoisted__Str_7813 = (Str){.c_str = (void *)"test/constfold.til:204:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7813;
+    assert_eq__I64(r.bottom_right.x, hoisted__I64_7812, &hoisted__Str_7813);
+    Str_delete(&hoisted__Str_7813, (Bool){0});
+    I64 hoisted__I64_7814 = 200;
+    (void)hoisted__I64_7814;
+    Str hoisted__Str_7815 = (Str){.c_str = (void *)"test/constfold.til:205:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7815;
+    assert_eq__I64(r.bottom_right.y, hoisted__I64_7814, &hoisted__Str_7815);
+    Str_delete(&hoisted__Str_7815, (Bool){0});
     CfRect_delete(&r, (Bool){0});
 }
 
 CfVec3f * CfVec3f_clone(CfVec3f * self) {
-    CfVec3f hoisted__CfVec3f_7738 = (CfVec3f){.x = self->x, .y = self->y, .z = self->z};
-    (void)hoisted__CfVec3f_7738;
-    { CfVec3f *_r = malloc(sizeof(CfVec3f)); *_r = hoisted__CfVec3f_7738;
+    CfVec3f hoisted__CfVec3f_7817 = (CfVec3f){.x = self->x, .y = self->y, .z = self->z};
+    (void)hoisted__CfVec3f_7817;
+    { CfVec3f *_r = malloc(sizeof(CfVec3f)); *_r = hoisted__CfVec3f_7817;
     return _r; }
 }
 
@@ -6036,51 +6036,51 @@ void CfVec3f_delete(CfVec3f * self, Bool call_free) {
 }
 
 U64 CfVec3f_hash(CfVec3f * self, HashFn hasher) {
-    U32 hoisted__U32_7739 = 0;
-    (void)hoisted__U32_7739;
-    U64 hoisted__U64_7740 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec3f *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_7739); });
-    (void)hoisted__U64_7740;
-    return hoisted__U64_7740;
+    U32 hoisted__U32_7818 = 0;
+    (void)hoisted__U32_7818;
+    U64 hoisted__U64_7819 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec3f *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_7818); });
+    (void)hoisted__U64_7819;
+    return hoisted__U64_7819;
 }
 
 U32 CfVec3f_size(void) {
-    U32 hoisted__U32_7773 = 12;
-    (void)hoisted__U32_7773;
-    return hoisted__U32_7773;
+    U32 hoisted__U32_7852 = 12;
+    (void)hoisted__U32_7852;
+    return hoisted__U32_7852;
 }
 
 void test_struct_fold_f32(void) {
     CfVec3f v = (CfVec3f){.x = 3, .y = 4, .z = 5};
-    Str *hoisted__Str_7777 = F32_to_str(v.x);
-    (void)hoisted__Str_7777;
-    Str hoisted__Str_7778 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7778;
-    Str hoisted__Str_7779 = (Str){.c_str = (void *)"test/constfold.til:228:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7779;
-    assert_eq__Str(hoisted__Str_7777, &hoisted__Str_7778, &hoisted__Str_7779);
-    Str_delete(hoisted__Str_7777, 1);
-    Str_delete(&hoisted__Str_7778, (Bool){0});
-    Str_delete(&hoisted__Str_7779, (Bool){0});
-    Str *hoisted__Str_7780 = F32_to_str(v.y);
-    (void)hoisted__Str_7780;
-    Str hoisted__Str_7781 = (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7781;
-    Str hoisted__Str_7782 = (Str){.c_str = (void *)"test/constfold.til:229:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7782;
-    assert_eq__Str(hoisted__Str_7780, &hoisted__Str_7781, &hoisted__Str_7782);
-    Str_delete(hoisted__Str_7780, 1);
-    Str_delete(&hoisted__Str_7781, (Bool){0});
-    Str_delete(&hoisted__Str_7782, (Bool){0});
-    Str *hoisted__Str_7783 = F32_to_str(v.z);
-    (void)hoisted__Str_7783;
-    Str hoisted__Str_7784 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7784;
-    Str hoisted__Str_7785 = (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7785;
-    assert_eq__Str(hoisted__Str_7783, &hoisted__Str_7784, &hoisted__Str_7785);
-    Str_delete(hoisted__Str_7783, 1);
-    Str_delete(&hoisted__Str_7784, (Bool){0});
-    Str_delete(&hoisted__Str_7785, (Bool){0});
+    Str *hoisted__Str_7856 = F32_to_str(v.x);
+    (void)hoisted__Str_7856;
+    Str hoisted__Str_7857 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7857;
+    Str hoisted__Str_7858 = (Str){.c_str = (void *)"test/constfold.til:228:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7858;
+    assert_eq__Str(hoisted__Str_7856, &hoisted__Str_7857, &hoisted__Str_7858);
+    Str_delete(hoisted__Str_7856, 1);
+    Str_delete(&hoisted__Str_7857, (Bool){0});
+    Str_delete(&hoisted__Str_7858, (Bool){0});
+    Str *hoisted__Str_7859 = F32_to_str(v.y);
+    (void)hoisted__Str_7859;
+    Str hoisted__Str_7860 = (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7860;
+    Str hoisted__Str_7861 = (Str){.c_str = (void *)"test/constfold.til:229:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7861;
+    assert_eq__Str(hoisted__Str_7859, &hoisted__Str_7860, &hoisted__Str_7861);
+    Str_delete(hoisted__Str_7859, 1);
+    Str_delete(&hoisted__Str_7860, (Bool){0});
+    Str_delete(&hoisted__Str_7861, (Bool){0});
+    Str *hoisted__Str_7862 = F32_to_str(v.z);
+    (void)hoisted__Str_7862;
+    Str hoisted__Str_7863 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7863;
+    Str hoisted__Str_7864 = (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7864;
+    assert_eq__Str(hoisted__Str_7862, &hoisted__Str_7863, &hoisted__Str_7864);
+    Str_delete(hoisted__Str_7862, 1);
+    Str_delete(&hoisted__Str_7863, (Bool){0});
+    Str_delete(&hoisted__Str_7864, (Bool){0});
     CfVec3f_delete(&v, (Bool){0});
 }
 
@@ -6100,33 +6100,33 @@ Color *Color_Blue() {
     return r;
 }
 Bool Color_eq(Color * self, Color * other) {
-    Bool hoisted__Bool_7790 = is(self, &(Color){.tag = Color_TAG_Red});
-    (void)hoisted__Bool_7790;
-    if (hoisted__Bool_7790) {
-        Bool hoisted__Bool_7787 = is(other, &(Color){.tag = Color_TAG_Red});
-        (void)hoisted__Bool_7787;
-        { Bool _ret_val = hoisted__Bool_7787;
+    Bool hoisted__Bool_7869 = is(self, &(Color){.tag = Color_TAG_Red});
+    (void)hoisted__Bool_7869;
+    if (hoisted__Bool_7869) {
+        Bool hoisted__Bool_7866 = is(other, &(Color){.tag = Color_TAG_Red});
+        (void)hoisted__Bool_7866;
+        { Bool _ret_val = hoisted__Bool_7866;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_7791 = is(self, &(Color){.tag = Color_TAG_Green});
-    (void)hoisted__Bool_7791;
-    if (hoisted__Bool_7791) {
-        Bool hoisted__Bool_7788 = is(other, &(Color){.tag = Color_TAG_Green});
-        (void)hoisted__Bool_7788;
-        { Bool _ret_val = hoisted__Bool_7788;
+    Bool hoisted__Bool_7870 = is(self, &(Color){.tag = Color_TAG_Green});
+    (void)hoisted__Bool_7870;
+    if (hoisted__Bool_7870) {
+        Bool hoisted__Bool_7867 = is(other, &(Color){.tag = Color_TAG_Green});
+        (void)hoisted__Bool_7867;
+        { Bool _ret_val = hoisted__Bool_7867;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_7792 = is(self, &(Color){.tag = Color_TAG_Blue});
-    (void)hoisted__Bool_7792;
-    if (hoisted__Bool_7792) {
-        Bool hoisted__Bool_7789 = is(other, &(Color){.tag = Color_TAG_Blue});
-        (void)hoisted__Bool_7789;
-        { Bool _ret_val = hoisted__Bool_7789;
+    Bool hoisted__Bool_7871 = is(self, &(Color){.tag = Color_TAG_Blue});
+    (void)hoisted__Bool_7871;
+    if (hoisted__Bool_7871) {
+        Bool hoisted__Bool_7868 = is(other, &(Color){.tag = Color_TAG_Blue});
+        (void)hoisted__Bool_7868;
+        { Bool _ret_val = hoisted__Bool_7868;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_7793 = 0;
-    (void)hoisted__Bool_7793;
-    return hoisted__Bool_7793;
+    Bool hoisted__Bool_7872 = 0;
+    (void)hoisted__Bool_7872;
+    return hoisted__Bool_7872;
 }
 
 void Color_delete(Color * self, Bool call_free) {
@@ -6136,55 +6136,55 @@ void Color_delete(Color * self, Bool call_free) {
 }
 
 Color * Color_clone(Color * self) {
-    Bool hoisted__Bool_7801 = Color_eq(self, &(Color){.tag = Color_TAG_Red});
-    (void)hoisted__Bool_7801;
-    if (hoisted__Bool_7801) {
+    Bool hoisted__Bool_7880 = Color_eq(self, &(Color){.tag = Color_TAG_Red});
+    (void)hoisted__Bool_7880;
+    if (hoisted__Bool_7880) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
                 return _r; }
     }
-    Bool hoisted__Bool_7802 = Color_eq(self, &(Color){.tag = Color_TAG_Green});
-    (void)hoisted__Bool_7802;
-    if (hoisted__Bool_7802) {
+    Bool hoisted__Bool_7881 = Color_eq(self, &(Color){.tag = Color_TAG_Green});
+    (void)hoisted__Bool_7881;
+    if (hoisted__Bool_7881) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Green;
                 return _r; }
     }
-    Bool hoisted__Bool_7803 = Color_eq(self, &(Color){.tag = Color_TAG_Blue});
-    (void)hoisted__Bool_7803;
-    if (hoisted__Bool_7803) {
+    Bool hoisted__Bool_7882 = Color_eq(self, &(Color){.tag = Color_TAG_Blue});
+    (void)hoisted__Bool_7882;
+    if (hoisted__Bool_7882) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Blue;
                 return _r; }
     }
-    Str hoisted__Str_7804 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7804;
-    UNREACHABLE(&hoisted__Str_7804);
-    Str_delete(&hoisted__Str_7804, (Bool){0});
+    Str hoisted__Str_7883 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7883;
+    UNREACHABLE(&hoisted__Str_7883);
+    Str_delete(&hoisted__Str_7883, (Bool){0});
     { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
     return _r; }
 }
 
 U32 Color_size(void) {
-    U32 hoisted__U32_7805 = 4;
-    (void)hoisted__U32_7805;
-    return hoisted__U32_7805;
+    U32 hoisted__U32_7884 = 4;
+    (void)hoisted__U32_7884;
+    return hoisted__U32_7884;
 }
 
 
 void test_enum_fold(void) {
     Color c = (Color){.tag = Color_TAG_Red};
-    Bool hoisted__Bool_7806 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
-    (void)hoisted__Bool_7806;
-    Str hoisted__Str_7807 = (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7807;
-    assert(hoisted__Bool_7806, &hoisted__Str_7807);
-    Str_delete(&hoisted__Str_7807, (Bool){0});
-    Bool hoisted__Bool_7808 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
-    (void)hoisted__Bool_7808;
-    Bool hoisted__Bool_7809 = not(hoisted__Bool_7808);
-    (void)hoisted__Bool_7809;
-    Str hoisted__Str_7810 = (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7810;
-    assert(hoisted__Bool_7809, &hoisted__Str_7810);
-    Str_delete(&hoisted__Str_7810, (Bool){0});
+    Bool hoisted__Bool_7885 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
+    (void)hoisted__Bool_7885;
+    Str hoisted__Str_7886 = (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7886;
+    assert(hoisted__Bool_7885, &hoisted__Str_7886);
+    Str_delete(&hoisted__Str_7886, (Bool){0});
+    Bool hoisted__Bool_7887 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
+    (void)hoisted__Bool_7887;
+    Bool hoisted__Bool_7888 = not(hoisted__Bool_7887);
+    (void)hoisted__Bool_7888;
+    Str hoisted__Str_7889 = (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7889;
+    assert(hoisted__Bool_7888, &hoisted__Str_7889);
+    Str_delete(&hoisted__Str_7889, (Bool){0});
 }
 
 Token *Token_Num(I64 * val) {
@@ -6206,31 +6206,31 @@ Token *Token_Eof() {
     return r;
 }
 Bool Token_is(Token * self, Token * other) {
-    Bool hoisted__Bool_7811 = is(self, other);
-    (void)hoisted__Bool_7811;
-    return hoisted__Bool_7811;
+    Bool hoisted__Bool_7890 = is(self, other);
+    (void)hoisted__Bool_7890;
+    return hoisted__Bool_7890;
 }
 
 void Token_delete(Token * self, Bool call_free) {
-    Bool hoisted__Bool_7829 = is(self, &(Token){.tag = Token_TAG_Num});
-    (void)hoisted__Bool_7829;
-    if (hoisted__Bool_7829) {
-        I64 *hoisted__I64_7825 = get_payload(self);
-        (void)hoisted__I64_7825;
-        (void)hoisted__I64_7825;
-        Bool hoisted__Bool_7826 = 0;
-        (void)hoisted__Bool_7826;
-        I64_delete(hoisted__I64_7825, hoisted__Bool_7826);
+    Bool hoisted__Bool_7908 = is(self, &(Token){.tag = Token_TAG_Num});
+    (void)hoisted__Bool_7908;
+    if (hoisted__Bool_7908) {
+        I64 *hoisted__I64_7904 = get_payload(self);
+        (void)hoisted__I64_7904;
+        (void)hoisted__I64_7904;
+        Bool hoisted__Bool_7905 = 0;
+        (void)hoisted__Bool_7905;
+        I64_delete(hoisted__I64_7904, hoisted__Bool_7905);
     }
-    Bool hoisted__Bool_7830 = is(self, &(Token){.tag = Token_TAG_Name});
-    (void)hoisted__Bool_7830;
-    if (hoisted__Bool_7830) {
-        Str *hoisted__Str_7827 = get_payload(self);
-        (void)hoisted__Str_7827;
-        (void)hoisted__Str_7827;
-        Bool hoisted__Bool_7828 = 0;
-        (void)hoisted__Bool_7828;
-        Str_delete(hoisted__Str_7827, hoisted__Bool_7828);
+    Bool hoisted__Bool_7909 = is(self, &(Token){.tag = Token_TAG_Name});
+    (void)hoisted__Bool_7909;
+    if (hoisted__Bool_7909) {
+        Str *hoisted__Str_7906 = get_payload(self);
+        (void)hoisted__Str_7906;
+        (void)hoisted__Str_7906;
+        Bool hoisted__Bool_7907 = 0;
+        (void)hoisted__Bool_7907;
+        Str_delete(hoisted__Str_7906, hoisted__Bool_7907);
     }
     if (call_free) {
         free(self);
@@ -6238,28 +6238,28 @@ void Token_delete(Token * self, Bool call_free) {
 }
 
 Token * Token_clone(Token * self) {
-    Bool hoisted__Bool_7855 = is(self, &(Token){.tag = Token_TAG_Num});
-    (void)hoisted__Bool_7855;
-    if (hoisted__Bool_7855) {
+    Bool hoisted__Bool_7934 = is(self, &(Token){.tag = Token_TAG_Num});
+    (void)hoisted__Bool_7934;
+    if (hoisted__Bool_7934) {
         I64 *_clone_payload_Num_0 = get_payload(self);
         (void)_clone_payload_Num_0;
         (void)_clone_payload_Num_0;
-        Token *hoisted__Token_7852 = Token_Num(_clone_payload_Num_0);
-        (void)hoisted__Token_7852;
-        { Token * _ret_val = hoisted__Token_7852;
+        Token *hoisted__Token_7931 = Token_Num(_clone_payload_Num_0);
+        (void)hoisted__Token_7931;
+        { Token * _ret_val = hoisted__Token_7931;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_7856 = is(self, &(Token){.tag = Token_TAG_Name});
-    (void)hoisted__Bool_7856;
-    if (hoisted__Bool_7856) {
+    Bool hoisted__Bool_7935 = is(self, &(Token){.tag = Token_TAG_Name});
+    (void)hoisted__Bool_7935;
+    if (hoisted__Bool_7935) {
         Str *_clone_payload_Name_1 = get_payload(self);
         (void)_clone_payload_Name_1;
         (void)_clone_payload_Name_1;
-        Str *hoisted__Str_7853 = Str_clone(_clone_payload_Name_1);
-        (void)hoisted__Str_7853;
-        Token *hoisted__Token_7854 = Token_Name(hoisted__Str_7853);
-        (void)hoisted__Token_7854;
-        { Token * _ret_val = hoisted__Token_7854;
+        Str *hoisted__Str_7932 = Str_clone(_clone_payload_Name_1);
+        (void)hoisted__Str_7932;
+        Token *hoisted__Token_7933 = Token_Name(hoisted__Str_7932);
+        (void)hoisted__Token_7933;
+        { Token * _ret_val = hoisted__Token_7933;
                 return _ret_val; }
     }
     { Token *_r = malloc(sizeof(Token)); _r->tag = Token_TAG_Eof;
@@ -6267,151 +6267,151 @@ Token * Token_clone(Token * self) {
 }
 
 U32 Token_size(void) {
-    U32 hoisted__U32_7857 = 24;
-    (void)hoisted__U32_7857;
-    return hoisted__U32_7857;
+    U32 hoisted__U32_7936 = 24;
+    (void)hoisted__U32_7936;
+    return hoisted__U32_7936;
 }
 
 
 void test_enum_payload_fold(void) {
     Token *t = Token_Num(&(I64){42});
-    Bool hoisted__Bool_7859 = Token_is(t, &(Token){.tag = Token_TAG_Num});
-    (void)hoisted__Bool_7859;
-    Str hoisted__Str_7860 = (Str){.c_str = (void *)"test/constfold.til:249:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7860;
-    assert(hoisted__Bool_7859, &hoisted__Str_7860);
-    Str_delete(&hoisted__Str_7860, (Bool){0});
-    Bool hoisted__Bool_7861 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
-    (void)hoisted__Bool_7861;
-    Bool hoisted__Bool_7862 = not(hoisted__Bool_7861);
-    (void)hoisted__Bool_7862;
-    Str hoisted__Str_7863 = (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7863;
-    assert(hoisted__Bool_7862, &hoisted__Str_7863);
-    Str_delete(&hoisted__Str_7863, (Bool){0});
+    Bool hoisted__Bool_7938 = Token_is(t, &(Token){.tag = Token_TAG_Num});
+    (void)hoisted__Bool_7938;
+    Str hoisted__Str_7939 = (Str){.c_str = (void *)"test/constfold.til:249:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7939;
+    assert(hoisted__Bool_7938, &hoisted__Str_7939);
+    Str_delete(&hoisted__Str_7939, (Bool){0});
+    Bool hoisted__Bool_7940 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
+    (void)hoisted__Bool_7940;
+    Bool hoisted__Bool_7941 = not(hoisted__Bool_7940);
+    (void)hoisted__Bool_7941;
+    Str hoisted__Str_7942 = (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7942;
+    assert(hoisted__Bool_7941, &hoisted__Str_7942);
+    Str_delete(&hoisted__Str_7942, (Bool){0});
     Token_delete(t, 1);
 }
 
 void test_enum_return_fold(void) {
     Color c = (Color){.tag = Color_TAG_Green};
-    Bool hoisted__Bool_7864 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
-    (void)hoisted__Bool_7864;
-    Str hoisted__Str_7865 = (Str){.c_str = (void *)"test/constfold.til:259:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7865;
-    assert(hoisted__Bool_7864, &hoisted__Str_7865);
-    Str_delete(&hoisted__Str_7865, (Bool){0});
-    Bool hoisted__Bool_7866 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
-    (void)hoisted__Bool_7866;
-    Bool hoisted__Bool_7867 = not(hoisted__Bool_7866);
-    (void)hoisted__Bool_7867;
-    Str hoisted__Str_7868 = (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7868;
-    assert(hoisted__Bool_7867, &hoisted__Str_7868);
-    Str_delete(&hoisted__Str_7868, (Bool){0});
+    Bool hoisted__Bool_7943 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
+    (void)hoisted__Bool_7943;
+    Str hoisted__Str_7944 = (Str){.c_str = (void *)"test/constfold.til:259:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7944;
+    assert(hoisted__Bool_7943, &hoisted__Str_7944);
+    Str_delete(&hoisted__Str_7944, (Bool){0});
+    Bool hoisted__Bool_7945 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
+    (void)hoisted__Bool_7945;
+    Bool hoisted__Bool_7946 = not(hoisted__Bool_7945);
+    (void)hoisted__Bool_7946;
+    Str hoisted__Str_7947 = (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7947;
+    assert(hoisted__Bool_7946, &hoisted__Str_7947);
+    Str_delete(&hoisted__Str_7947, (Bool){0});
 }
 
 void test_enum_payload_return_fold(void) {
     Token *t = Token_Num(&(I64){7});
-    Bool hoisted__Bool_7871 = Token_is(t, &(Token){.tag = Token_TAG_Num});
-    (void)hoisted__Bool_7871;
-    Str hoisted__Str_7872 = (Str){.c_str = (void *)"test/constfold.til:271:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7872;
-    assert(hoisted__Bool_7871, &hoisted__Str_7872);
-    Str_delete(&hoisted__Str_7872, (Bool){0});
-    Bool hoisted__Bool_7873 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
-    (void)hoisted__Bool_7873;
-    Bool hoisted__Bool_7874 = not(hoisted__Bool_7873);
-    (void)hoisted__Bool_7874;
-    Str hoisted__Str_7875 = (Str){.c_str = (void *)"test/constfold.til:272:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-    (void)hoisted__Str_7875;
-    assert(hoisted__Bool_7874, &hoisted__Str_7875);
-    Str_delete(&hoisted__Str_7875, (Bool){0});
+    Bool hoisted__Bool_7950 = Token_is(t, &(Token){.tag = Token_TAG_Num});
+    (void)hoisted__Bool_7950;
+    Str hoisted__Str_7951 = (Str){.c_str = (void *)"test/constfold.til:271:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7951;
+    assert(hoisted__Bool_7950, &hoisted__Str_7951);
+    Str_delete(&hoisted__Str_7951, (Bool){0});
+    Bool hoisted__Bool_7952 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
+    (void)hoisted__Bool_7952;
+    Bool hoisted__Bool_7953 = not(hoisted__Bool_7952);
+    (void)hoisted__Bool_7953;
+    Str hoisted__Str_7954 = (Str){.c_str = (void *)"test/constfold.til:272:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    (void)hoisted__Str_7954;
+    assert(hoisted__Bool_7953, &hoisted__Str_7954);
+    Str_delete(&hoisted__Str_7954, (Bool){0});
     Token_delete(t, 1);
 }
 
 void assert_eq__I64(I64 a, I64 b, Str * loc) {
-    Bool hoisted__Bool_8013 = I64_neq(a, b);
-    (void)hoisted__Bool_8013;
-    if (hoisted__Bool_8013) {
-        U32 hoisted__U32_8002 = 5;
-        (void)hoisted__U32_8002;
-        Array__Str *_va_Array_246 = Array__Str_new(hoisted__U32_8002);
-        (void)_va_Array_246;
-        I64 _va_Array_246_ek = 0;
-        (void)_va_Array_246_ek;
-        OutOfBounds *_va_Array_246_eo = malloc(sizeof(OutOfBounds));
-        _va_Array_246_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_va_Array_246_eo;
-        U32 hoisted__U32_8003 = 0;
-        (void)hoisted__U32_8003;
-        Str hoisted__Str_8004 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_8004;
-        Array__Str_set(_va_Array_246, hoisted__U32_8003, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8004; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_246_ek, _va_Array_246_eo);
-        U32 hoisted__U32_8005 = 1;
-        (void)hoisted__U32_8005;
-        Str *hoisted__Str_8006 = I64_to_str(a);
-        (void)hoisted__Str_8006;
-        Array__Str_set(_va_Array_246, hoisted__U32_8005, hoisted__Str_8006, &_va_Array_246_ek, _va_Array_246_eo);
-        U32 hoisted__U32_8007 = 2;
-        (void)hoisted__U32_8007;
-        Str hoisted__Str_8008 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_8008;
-        Array__Str_set(_va_Array_246, hoisted__U32_8007, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8008; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_246_ek, _va_Array_246_eo);
-        U32 hoisted__U32_8009 = 3;
-        (void)hoisted__U32_8009;
-        Str *hoisted__Str_8010 = I64_to_str(b);
-        (void)hoisted__Str_8010;
-        Array__Str_set(_va_Array_246, hoisted__U32_8009, hoisted__Str_8010, &_va_Array_246_ek, _va_Array_246_eo);
-        U32 hoisted__U32_8011 = 4;
-        (void)hoisted__U32_8011;
-        Str hoisted__Str_8012 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_8012;
-        Array__Str_set(_va_Array_246, hoisted__U32_8011, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8012; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_246_ek, _va_Array_246_eo);
-        OutOfBounds_delete(_va_Array_246_eo, 1);
-        panic(_va_Array_246, loc);
+    Bool hoisted__Bool_8092 = I64_neq(a, b);
+    (void)hoisted__Bool_8092;
+    if (hoisted__Bool_8092) {
+        U32 hoisted__U32_8081 = 5;
+        (void)hoisted__U32_8081;
+        Array__Str *_va_Array_251 = Array__Str_new(hoisted__U32_8081);
+        (void)_va_Array_251;
+        I64 _va_Array_251_ek = 0;
+        (void)_va_Array_251_ek;
+        OutOfBounds *_va_Array_251_eo = malloc(sizeof(OutOfBounds));
+        _va_Array_251_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+        (void)_va_Array_251_eo;
+        U32 hoisted__U32_8082 = 0;
+        (void)hoisted__U32_8082;
+        Str hoisted__Str_8083 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_8083;
+        Array__Str_set(_va_Array_251, hoisted__U32_8082, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8083; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_251_ek, _va_Array_251_eo);
+        U32 hoisted__U32_8084 = 1;
+        (void)hoisted__U32_8084;
+        Str *hoisted__Str_8085 = I64_to_str(a);
+        (void)hoisted__Str_8085;
+        Array__Str_set(_va_Array_251, hoisted__U32_8084, hoisted__Str_8085, &_va_Array_251_ek, _va_Array_251_eo);
+        U32 hoisted__U32_8086 = 2;
+        (void)hoisted__U32_8086;
+        Str hoisted__Str_8087 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_8087;
+        Array__Str_set(_va_Array_251, hoisted__U32_8086, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8087; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_251_ek, _va_Array_251_eo);
+        U32 hoisted__U32_8088 = 3;
+        (void)hoisted__U32_8088;
+        Str *hoisted__Str_8089 = I64_to_str(b);
+        (void)hoisted__Str_8089;
+        Array__Str_set(_va_Array_251, hoisted__U32_8088, hoisted__Str_8089, &_va_Array_251_ek, _va_Array_251_eo);
+        U32 hoisted__U32_8090 = 4;
+        (void)hoisted__U32_8090;
+        Str hoisted__Str_8091 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_8091;
+        Array__Str_set(_va_Array_251, hoisted__U32_8090, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8091; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_251_ek, _va_Array_251_eo);
+        OutOfBounds_delete(_va_Array_251_eo, 1);
+        panic(_va_Array_251, loc);
     }
 }
 
 void assert_eq__Str(Str * a, Str * b, Str * loc) {
-    Bool hoisted__Bool_8025 = Str_neq(a, b);
-    (void)hoisted__Bool_8025;
-    if (hoisted__Bool_8025) {
-        U32 hoisted__U32_8014 = 5;
-        (void)hoisted__U32_8014;
-        Array__Str *_va_Array_247 = Array__Str_new(hoisted__U32_8014);
-        (void)_va_Array_247;
-        I64 _va_Array_247_ek = 0;
-        (void)_va_Array_247_ek;
-        OutOfBounds *_va_Array_247_eo = malloc(sizeof(OutOfBounds));
-        _va_Array_247_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_va_Array_247_eo;
-        U32 hoisted__U32_8015 = 0;
-        (void)hoisted__U32_8015;
-        Str hoisted__Str_8016 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_8016;
-        Array__Str_set(_va_Array_247, hoisted__U32_8015, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8016; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_247_ek, _va_Array_247_eo);
-        U32 hoisted__U32_8017 = 1;
-        (void)hoisted__U32_8017;
-        Str *hoisted__Str_8018 = Str_to_str(a);
-        (void)hoisted__Str_8018;
-        Array__Str_set(_va_Array_247, hoisted__U32_8017, hoisted__Str_8018, &_va_Array_247_ek, _va_Array_247_eo);
-        U32 hoisted__U32_8019 = 2;
-        (void)hoisted__U32_8019;
-        Str hoisted__Str_8020 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_8020;
-        Array__Str_set(_va_Array_247, hoisted__U32_8019, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8020; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_247_ek, _va_Array_247_eo);
-        U32 hoisted__U32_8021 = 3;
-        (void)hoisted__U32_8021;
-        Str *hoisted__Str_8022 = Str_to_str(b);
-        (void)hoisted__Str_8022;
-        Array__Str_set(_va_Array_247, hoisted__U32_8021, hoisted__Str_8022, &_va_Array_247_ek, _va_Array_247_eo);
-        U32 hoisted__U32_8023 = 4;
-        (void)hoisted__U32_8023;
-        Str hoisted__Str_8024 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_8024;
-        Array__Str_set(_va_Array_247, hoisted__U32_8023, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8024; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_247_ek, _va_Array_247_eo);
-        OutOfBounds_delete(_va_Array_247_eo, 1);
-        panic(_va_Array_247, loc);
+    Bool hoisted__Bool_8104 = Str_neq(a, b);
+    (void)hoisted__Bool_8104;
+    if (hoisted__Bool_8104) {
+        U32 hoisted__U32_8093 = 5;
+        (void)hoisted__U32_8093;
+        Array__Str *_va_Array_252 = Array__Str_new(hoisted__U32_8093);
+        (void)_va_Array_252;
+        I64 _va_Array_252_ek = 0;
+        (void)_va_Array_252_ek;
+        OutOfBounds *_va_Array_252_eo = malloc(sizeof(OutOfBounds));
+        _va_Array_252_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
+        (void)_va_Array_252_eo;
+        U32 hoisted__U32_8094 = 0;
+        (void)hoisted__U32_8094;
+        Str hoisted__Str_8095 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_8095;
+        Array__Str_set(_va_Array_252, hoisted__U32_8094, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8095; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_252_ek, _va_Array_252_eo);
+        U32 hoisted__U32_8096 = 1;
+        (void)hoisted__U32_8096;
+        Str *hoisted__Str_8097 = Str_to_str(a);
+        (void)hoisted__Str_8097;
+        Array__Str_set(_va_Array_252, hoisted__U32_8096, hoisted__Str_8097, &_va_Array_252_ek, _va_Array_252_eo);
+        U32 hoisted__U32_8098 = 2;
+        (void)hoisted__U32_8098;
+        Str hoisted__Str_8099 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_8099;
+        Array__Str_set(_va_Array_252, hoisted__U32_8098, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8099; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_252_ek, _va_Array_252_eo);
+        U32 hoisted__U32_8100 = 3;
+        (void)hoisted__U32_8100;
+        Str *hoisted__Str_8101 = Str_to_str(b);
+        (void)hoisted__Str_8101;
+        Array__Str_set(_va_Array_252, hoisted__U32_8100, hoisted__Str_8101, &_va_Array_252_ek, _va_Array_252_eo);
+        U32 hoisted__U32_8102 = 4;
+        (void)hoisted__U32_8102;
+        Str hoisted__Str_8103 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
+        (void)hoisted__Str_8103;
+        Array__Str_set(_va_Array_252, hoisted__U32_8102, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8103; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_252_ek, _va_Array_252_eo);
+        OutOfBounds_delete(_va_Array_252_eo, 1);
+        panic(_va_Array_252, loc);
     }
 }
 

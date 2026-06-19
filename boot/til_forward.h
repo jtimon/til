@@ -13,6 +13,7 @@ typedef struct Array__Dynamic Array__Dynamic;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
 typedef struct KeyNotFound KeyNotFound;
+typedef struct ParseError ParseError;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
@@ -427,6 +428,11 @@ typedef struct OutOfBounds {
 typedef struct KeyNotFound {
     Str msg;
 } KeyNotFound;
+
+
+typedef struct ParseError {
+    Str msg;
+} ParseError;
 
 
 typedef struct Array__Str {
@@ -1936,7 +1942,8 @@ U64 Str_hash(Str * self, HashFn hasher);
 Str * Str_strip_prefix(Str * self, Str * prefix);
 Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 byte);
-I64 Str_to_i64(Str * self);
+I64 Str_parse_i64_core(Str * self, Bool * ok);
+I64 Str_to_i64(Str * self, I64 * _err_kind, ParseError * _err_ParseError);
 U8 Str_to_u8(Str * self);
 I8 Str_to_i8(Str * self);
 I16 Str_to_i16(Str * self);
@@ -1959,6 +1966,10 @@ KeyNotFound * KeyNotFound_clone(KeyNotFound * self);
 void KeyNotFound_delete(KeyNotFound * self, Bool call_free);
 U64 KeyNotFound_hash(KeyNotFound * self, HashFn hasher);
 U32 KeyNotFound_size(void);
+ParseError * ParseError_clone(ParseError * self);
+void ParseError_delete(ParseError * self, Bool call_free);
+U64 ParseError_hash(ParseError * self, HashFn hasher);
+U32 ParseError_size(void);
 Array__Str * Array__Str_new(U32 cap);
 U32 Array__Str_len(Array__Str * self);
 Str * Array__Str_get(Array__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds);

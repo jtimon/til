@@ -325,8 +325,13 @@ namespace:
     /// Parse the string as a signed integer. Accepts an optional leading
     /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
     /// Bare digit runs are base-10. Panics on invalid input.
-    to_i64 := func(self: Str) returns I64 {
-        if self.count.eq(0) { panic("Str.to_i64: empty string") }
+    // Shared integer scanner for to_i64 / parse_i64. Returns the parsed
+    // value and leaves `ok` untouched on success; on malformed input
+    // (empty, no digits, or a digit invalid for the detected base) sets
+    // `ok = false` and returns 0. Accepts an optional leading '-',
+    // 0x/0b/0o base prefixes, and '_' digit separators.
+    parse_i64_core := func(self: Str, mut ok: Bool) returns I64 {
+        if self.count.eq(0) { ok = false; return 0 }
         mut start : USize = 0
         mut neg := false
         ref first : I8 = self.get(0)
@@ -334,7 +339,7 @@ namespace:
             neg = true
             start = 1
         }
-        if start.eq(self.count) { panic("Str.to_i64: no digits") }
+        if start.eq(self.count) { ok = false; return 0 }
         // Base prefix: 0x (hex), 0b (binary), 0o (octal).
         mut base : I64 = 10
         if self.get(start).eq('0').and(start.add(1).lt(self.count)) {
@@ -350,62 +355,72 @@ namespace:
                 start = start.add(2)
             }
         }
-        if start.eq(self.count) { panic("Str.to_i64: no digits in '", self, "'") }
+        if start.eq(self.count) { ok = false; return 0 }
         mut result := 0
         mut any := false
         for i in start..self.count {
             ref ch : I8 = self.get(i)
             if ch.eq('_') { continue }
             d := digit_value(ch)
-            if d.lt(0).or(d.gte(base)) {
-                panic("Str.to_i64: invalid char in '", self, "'")
-            }
+            if d.lt(0).or(d.gte(base)) { ok = false; return 0 }
             result = result.mul(base).add(d)
             any = true
         }
-        if any.not() { panic("Str.to_i64: no digits in '", self, "'") }
+        if any.not() { ok = false; return 0 }
         if neg { return 0.sub(result) }
         return result
     }
 
+    /// Parse a base-10/16/2/8 integer (optional leading '-', '_' digit
+    /// separators). Throws ParseError on malformed input; call as
+    /// `s.to_i64()!` to panic on a bad string, or `?`/catch to handle it.
+    to_i64 := func(self: Str) returns I64 throws ParseError {
+        mut ok := true
+        v := self.parse_i64_core(ok)
+        if ok.not() {
+            throw ParseError(msg = format(__LOC__, ":Str.to_i64: invalid integer '", self, "'"))
+        }
+        return v
+    }
+
     /// Parse as base-10 unsigned 8-bit integer.
     to_u8 := func(self: Str) returns U8 {
-        return self.to_i64().to_u8()
+        return self.to_i64()!.to_u8()
     }
 
     /// Parse as base-10 signed 8-bit integer.
     to_i8 := func(self: Str) returns I8 {
-        return self.to_i64().to_i8()
+        return self.to_i64()!.to_i8()
     }
 
     /// Parse as base-10 signed 16-bit integer.
     to_i16 := func(self: Str) returns I16 {
-        return self.to_i64().to_i16()
+        return self.to_i64()!.to_i16()
     }
 
     /// Parse as base-10 unsigned 16-bit integer.
     to_u16 := func(self: Str) returns U16 {
-        return self.to_i64().to_u16()
+        return self.to_i64()!.to_u16()
     }
 
     /// Parse as base-10 signed 32-bit integer.
     to_i32 := func(self: Str) returns I32 {
-        return self.to_i64().to_i32()
+        return self.to_i64()!.to_i32()
     }
 
     /// Parse as base-10 unsigned 32-bit integer.
     to_u32 := func(self: Str) returns U32 {
-        return self.to_i64().to_u32()
+        return self.to_i64()!.to_u32()
     }
 
     /// Parse as base-10 unsigned 64-bit integer.
     to_u64 := func(self: Str) returns U64 {
-        return self.to_i64().cast(U64)
+        return self.to_i64()!.cast(U64)
     }
 
     /// Parse as base-10 USize (collection sizes/indices).
     to_usize := func(self: Str) returns USize {
-        return self.to_i64().to_usize()
+        return self.to_i64()!.to_usize()
     }
 
     /// Parse as a floating-point number. Backed by C strtof: handles
@@ -502,5 +517,12 @@ OutOfBounds := struct {
 /// "file:line:col:<method>: key not found" description set at the
 /// throw site.
 KeyNotFound := struct {
+    msg: Str = ""
+}
+
+/// Error type for fallible parsing (Str.parse_i64, ...). The msg field
+/// carries a "file:line:col:<method>: invalid ..." description set at
+/// the throw site.
+ParseError := struct {
     msg: Str = ""
 }

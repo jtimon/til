@@ -73,7 +73,7 @@ previous_build_ms := func() returns I64 {
     mut idx := 0
     mut ms : I64 = -1
     for col : Str in cols {
-        if idx.eq(1) { ms = col.trim().to_i64() }
+        if idx.eq(1) { ms = col.trim().to_i64()! }
         idx++
     }
     return ms
@@ -100,7 +100,7 @@ main := proc(args: ..Str) {
     mut target := TARGET.clone()
     if args.len().gte(1) {
         ref a0 : Str = args[0]
-        iters = a0.to_i64()
+        iters = a0.to_i64()!
     }
     if args.len().gte(2) {
         ref a1 : Str = args[1]

@@ -247,7 +247,7 @@ LiteralNumData := struct {
 namespace:
     eq := func(a: LiteralNumData, b: LiteralNumData) returns Bool { return a.text.eq(b.text) }
     to_str := func(self: LiteralNumData) returns Str { return self.text }
-    to_i64 := func(self: LiteralNumData) returns I64 { return self.text.to_i64() }
+    to_i64 := func(self: LiteralNumData) returns I64 { return self.text.to_i64()! }
     to_u8 := func(self: LiteralNumData) returns U8 { return self.text.to_u8() }
     to_i8 := func(self: LiteralNumData) returns I8 { return self.text.to_i8() }
     to_i16 := func(self: LiteralNumData) returns I16 { return self.text.to_i16() }

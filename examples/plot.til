@@ -98,14 +98,14 @@ parse_csv := func(content: Str) returns Vec(Row) {
         }
         rows.push(own Row(
             commit = c0.clone(),
-            interp_ms = c1.to_i64(),
-            compile_ms = c2.to_i64(),
-            run_ms = c3.to_i64(),
-            wall_ms = c7.to_i64(),
-            mem_inte = c10.to_i64(),
-            mem_comp = c11.to_i64(),
-            mem_run = c12.to_i64(),
-            mem_total = c13.to_i64()
+            interp_ms = c1.to_i64()!,
+            compile_ms = c2.to_i64()!,
+            run_ms = c3.to_i64()!,
+            wall_ms = c7.to_i64()!,
+            mem_inte = c10.to_i64()!,
+            mem_comp = c11.to_i64()!,
+            mem_run = c12.to_i64()!,
+            mem_total = c13.to_i64()!
         ))
         i++
     }
@@ -408,7 +408,7 @@ main := proc(args: ..Str) {
         if a.eq("--no-x-labels") {
             show_x = false
         } else {
-            last_n = a.to_i64()
+            last_n = a.to_i64()!
         }
         i++
     }

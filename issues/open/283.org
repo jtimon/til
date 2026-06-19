@@ -1,0 +1,51 @@
+# priority: low
+# category: features
+** OPEN #283 Complete the safe_* arithmetic family (I8 + optional safe_div widths)
+
+   Split out of [[./201.org][#201]]: most of the safe_* arithmetic family
+   has landed, so this tracks the remaining gap on its own.
+
+   *** Done already (for reference)
+
+   - ~safe_add~ / ~safe_sub~ / ~safe_mul~ throwing ~IntegerOverflow~ on:
+     ~I16~, ~I32~, ~I64~, ~U8~, ~U16~, ~U32~, ~U64~
+     (see each ~src/core/<type>.til~; tests in ~test/errors.til~,
+     e.g. ~test_i16_safe_add_overflow~).
+   - ~safe_div~ throwing ~DivideByZero~ on: ~I64~ (src/core/i64.til) and
+     ~F32~ (src/core/f32.til).
+   - The "one shared overflow type vs one per width" question from #201 is
+     already decided: a single ~IntegerOverflow~ struct (~msg: Str~,
+     defined in ~src/core/i64.til~) is used by every width; ~DivideByZero~
+     likewise. No new error type is needed for the work below.
+
+   *** Remaining
+
+   1. ~I8.safe_add~ / ~safe_sub~ / ~safe_mul~ throwing ~IntegerOverflow~ --
+      the only integer width still missing them. ~src/core/i8.til~ has the
+      ~I8~ type and its plain arithmetic but no safe_* methods. Mirror
+      ~src/core/i16.til~'s three methods exactly, adjusting the range
+      bounds to I8 (-128 .. 127) and the method-name strings in the thrown
+      ~IntegerOverflow(msg = format(__LOC__, ":I8.safe_add: ... overflow"))~.
+      Mechanically unblocked: #176 landed ~Type.I8~ as a first-class
+      primitive with arithmetic methods.
+
+   2. Optional: ~safe_div~ on the remaining integer widths (~I8~, ~I16~,
+      ~I32~, ~U8~, ~U16~, ~U32~, ~U64~) -- only ~I64~ has it today. For
+      integers the only failure is divide-by-zero (plus I64.MIN/-1, which
+      ~I64.safe_div~ already handles); decide whether each width needs its
+      own ~safe_div~ or whether ~I64.safe_div~ + casts is enough, and
+      document the choice.
+
+   *** Tests
+
+   Mirror ~test_i16_safe_{add,sub,mul}_overflow~ in ~test/errors.til~ for
+   I8 (and for any ~safe_div~ added): each test does one in-range success
+   and one overflow/zero-divisor that is caught via ~? + catch~.
+
+   *** Recipe
+
+   Copy ~src/core/i16.til~'s ~safe_add~/~safe_sub~/~safe_mul~ into
+   ~src/core/i8.til~, retarget the bounds and strings, and add the
+   regressions. [[../../doc/throws.org][doc/throws.org]] "Adding a new
+   built-in error type" has the throw shape, though no NEW type is needed
+   here (~IntegerOverflow~ already exists).

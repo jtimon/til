@@ -20,22 +20,22 @@
 
    Wanted (mirror rstil's ~src/core/~):
 
-   - ~I64.safe_add~ / ~safe_sub~ / ~safe_mul~ throwing
-     ~I64_Overflow~ with a ~msg: Str~ field, plus the equivalent
-     on ~I32~, ~U32~, ~U64~, ~U8~, ~I16~, ~I8~. ~I64_Overflow~
-     should be a single type used by all integer widths (or one
-     per width -- decide once and document). Note: the ~I8~ variant
-     is now mechanically unblocked -- issue #176's follow-up landed
-     ~Type.I8~ as a first-class primitive with arithmetic methods,
-     so ~I8.safe_add~ et al. drop in alongside the rest.
-   - ~F32.safe_div~ throwing ~DivideByZero~ (reuse the existing
-     type).
+   - Arithmetic ~safe_add~/~safe_sub~/~safe_mul~ (and ~safe_div~): largely
+     landed -- ~IntegerOverflow~ versions exist for every integer width
+     except ~I8~, and ~safe_div~ exists for ~I64~/~F32~. The shared-vs-
+     per-width question is settled (one ~IntegerOverflow~ type). The
+     remaining I8 methods and optional ~safe_div~ widths are split out to
+     [[./283.org][#283]].
+   - DONE: ~F32.safe_div~ throwing ~DivideByZero~ (src/core/f32.til).
    - ~Str.get_byte_safe(self, i: USize) returns I8 throws OutOfBounds~
      -- the last container accessor still missing a throwing variant
      (~Vec.get~, ~Map.get~, ~Array.get~ already throw). Reuse the
      existing ~OutOfBounds~ for consistency.
-   - Optional: ~Str.parse_i64~ throwing ~ParseError~ for the
-     fallible-parse pattern.
+   - DONE: ~Str.to_i64~ now throws ~ParseError~ on malformed input
+     (src/core/str.til, via the non-throwing ~parse_i64_core~ scanner).
+     The existing method was adapted to throw -- callers use ~to_i64()!~
+     to keep the panic -- rather than adding a parallel ~parse_i64~,
+     matching the get/set migration.
    - Migrate the methods that still ~panic~ on a bad index / empty
      receiver / missing key to THROW the existing error types instead
      -- no new type, the same panic->throw move #225 did for ~get~ /
@@ -49,8 +49,7 @@
      -- decide there between making ~Str.get~ itself throw vs adding
      the safe_ variant. Stays ~panic~ (programmer error, not OOB): the
      ~new()~ precondition checks (key_type required, must implement
-     hash / cmp). ~Str.to_i64~ on empty / invalid input is the
-     ~ParseError~ item, not OOB.
+     hash / cmp). ~Str.to_i64~ throws ~ParseError~ (done above), not OOB.
 
    For each new built-in error type, add a corresponding regression
    in ~test/errors.til~ that exercises a successful return and

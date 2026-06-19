@@ -55,11 +55,11 @@ test_number_literals := test() {
     assert_eq(I32, s, 16)
 
     // Str.to_i64 parses the same forms at runtime
-    assert_eq(I64, "0x1f".to_i64(), 31)
-    assert_eq(I64, "0b101".to_i64(), 5)
-    assert_eq(I64, "0o17".to_i64(), 15)
-    assert_eq(I64, "1_234".to_i64(), 1234)
-    assert_eq(I64, "-0xff".to_i64(), -255)
+    assert_eq(I64, "0x1f".to_i64()!, 31)
+    assert_eq(I64, "0b101".to_i64()!, 5)
+    assert_eq(I64, "0o17".to_i64()!, 15)
+    assert_eq(I64, "1_234".to_i64()!, 1234)
+    assert_eq(I64, "-0xff".to_i64()!, -255)
 }
 
 test_comparison := test() {

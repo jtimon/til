@@ -49,6 +49,29 @@ require_asan_output_ok := proc(channel: Str, status: I64, output: Str) {
     }
 }
 
+// Local decimal parser, deliberately independent of Str.to_i64: this merge
+// helper is compiled by *master's* bin/til at merge time, and Str.to_i64
+// changed from panic to throw (#201) -- a bare `to_i64()` call breaks after
+// the change and a `to_i64()!` call breaks before it, so neither is
+// cross-typer-safe. Inputs here are clean decimal counts. See doc/throws.org
+// "Breaking changes in standalone scripts".
+parse_dec := func(s: Str) returns I64 {
+    mut result : I64 = 0
+    mut neg := false
+    mut start : USize = 0
+    if s.len().gt(0) {
+        if s.get(0).eq(45) { neg = true; start = 1 }
+    }
+    for i in start..s.len() {
+        d := digit_value(s.get(i))
+        if d.gte(0).and(d.lte(9)) {
+            result = result.mul(10).add(d)
+        }
+    }
+    if neg { return 0.sub(result) }
+    return result
+}
+
 parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     sum_start := summary.find("SUMMARY:")
     if sum_start.eq(-1) { return }
@@ -70,7 +93,7 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
         bstart--
     }
     num_str := tail.substr(bstart.add(1).to_usize(), byte_pos.sub(bstart).sub(1).to_usize())
-    bytes = num_str.to_i64()
+    bytes = parse_dec(num_str)
 
     alloc_pos := tail.find(" allocation(s)")
     if alloc_pos.eq(-1) { return }
@@ -80,7 +103,7 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
         bstart--
     }
     num_str2 := tail.substr(bstart.add(1).to_usize(), alloc_pos.sub(bstart).sub(1).to_usize())
-    allocs = num_str2.to_i64()
+    allocs = parse_dec(num_str2)
 }
 
 // Parse the TIL_TRUE_LEAK=<bytes> line printed by the leak probe in
@@ -95,7 +118,7 @@ parse_true_leak := func(summary: Str) returns I64 {
     nl_off := summary.substr(start, rest).find("\n")
     mut num_len : USize = rest
     if nl_off.neq(-1) { num_len = nl_off.to_usize() }
-    return summary.substr(start, num_len).to_i64()
+    return parse_dec(summary.substr(start, num_len))
 }
 
 pct_str := func(old_val: I64, new_val: I64) returns Str {
@@ -194,7 +217,7 @@ asan_org_value := func(content: Str, channel: Str, cell_idx: USize, fallback: I6
             cells := split_by_pipe(line)
             if cells.len().gt(cell_idx) {
                 ref cell : Str = cells[cell_idx]
-                return trim_spaces(cell).to_i64()
+                return parse_dec(trim_spaces(cell))
             }
         }
     }

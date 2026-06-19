@@ -132,11 +132,11 @@ test_from_byte := test() {
 }
 
 test_to_i64 := test() {
-    assert_eq(I64, "42".to_i64(), 42)
-    assert_eq(I64, "0".to_i64(), 0)
-    assert_eq(I64, "123456".to_i64(), 123456)
-    assert_eq(I64, "-7".to_i64(), -7)
-    assert_eq(I64, "-100".to_i64(), -100)
+    assert_eq(I64, "42".to_i64()!, 42)
+    assert_eq(I64, "0".to_i64()!, 0)
+    assert_eq(I64, "123456".to_i64()!, 123456)
+    assert_eq(I64, "-7".to_i64()!, -7)
+    assert_eq(I64, "-100".to_i64()!, -100)
 }
 
 test_to_u8 := test() {

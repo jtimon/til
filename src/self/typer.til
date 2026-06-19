@@ -9807,25 +9807,25 @@ priv literal_in_range := func(val_str: Str, target: Type) returns Bool {
     case Type.Primitive(Primitive.I64): return true
     case Type.Primitive(Primitive.F32): return true
     case Type.Primitive(Primitive.U8):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(0).and(val.lte(255))
     case Type.Primitive(Primitive.I8):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(-128).and(val.lte(127))
     case Type.Primitive(Primitive.I16):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(-32768).and(val.lte(32767))
     case Type.Primitive(Primitive.U16):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(0).and(val.lte(65535))
     case Type.Primitive(Primitive.I32):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(-2147483648).and(val.lte(2147483647))
     case Type.Primitive(Primitive.U32):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(0).and(val.lte(4294967295))
     case Type.Primitive(Primitive.U64):
-        val := val_str.to_i64()
+        val := val_str.to_i64()!
         return val.gte(0)
     case: return true
     }

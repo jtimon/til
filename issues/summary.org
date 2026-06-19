@@ -67,6 +67,7 @@
 *** [[./open/264.org][#264]] Let enum specify its discriminant type: enum(U8), enum(U64), ...
 *** [[./open/274.org][#274]] Generated eq/to_str should support own/ref fields deeply
 *** [[./open/279.org][#279]] Compound assignment operators (+=, -=, *=, ...) desugar a OP= b -> a = a OP b
+*** [[./open/283.org][#283]] Complete the safe_* arithmetic family (I8 + optional safe_div widths)
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation

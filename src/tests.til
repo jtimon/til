@@ -75,7 +75,7 @@ parse_kv := func(line: Str, key: Str) returns I64 {
     while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
         end++
     }
-    return line.substr(start, end.sub(start)).to_i64()
+    return line.substr(start, end.sub(start)).to_i64()!
 }
 
 mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {

@@ -203,7 +203,7 @@ main := proc(args: ..Str) {
 
         ref label : Str = args[1]
         ref exit_str : Str = args[2]
-        expected_exit := exit_str.to_i64()
+        expected_exit := exit_str.to_i64()!
 
         // Find "--" starting from index 3
         mut dd : USize = 3
@@ -271,7 +271,7 @@ main := proc(args: ..Str) {
         ref label : Str = args[1]
         ref needle : Str = args[2]
         ref count_str : Str = args[3]
-        expected_count := count_str.to_i64()
+        expected_count := count_str.to_i64()!
 
         // Find "--" starting from index 4
         mut dd : USize = 4

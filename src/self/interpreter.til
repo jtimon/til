@@ -612,7 +612,7 @@ priv elem_size_for_type := func(type_name: Str) returns USize {
 // differs -- interpreter via panic, compiled via stderr -- but both bail.)
 priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow Value {
     if type_name.eq("Str") { return make_str_value(s.c_str, s.count, ctx) }
-    if type_name.eq("I64") { return Value.Int(s.to_i64()) }
+    if type_name.eq("I64") { return Value.Int(s.to_i64()!) }
     if type_name.eq("U8") { return Value.Byte(s.to_u8()) }
     if type_name.eq("I8") { return Value.Sbyte(s.to_i8()) }
     if type_name.eq("I16") { return Value.Short(s.to_i16()) }
