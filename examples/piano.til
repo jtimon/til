@@ -1,5 +1,7 @@
 mode gui
 
+import("../lib/music")
+
 // Playable piano with scrolling piano roll
 // QWERTY keyboard maps to 3 octaves (C3-B5)
 // Notes scroll left across the top as you play
@@ -7,7 +9,7 @@ mode gui
 WINDOW_WIDTH : I32 = 1920
 WINDOW_HEIGHT : I32 = 1080
 FPS : I32 = 60
-NUM_KEYS : USize = 36
+NUM_KEYS : USize = PIANO_KEY_COUNT
 MAX_NOTES : USize = 256
 
 // Layout
@@ -20,41 +22,6 @@ BLACK_W : I32 = WHITE_W * 3 / 5
 BLACK_H : I32 = WHITE_H * 2 / 3
 FONT : F32 = 20
 SCROLL_SPEED : I32 = 300
-
-// Raylib key codes for 36 keys (left-to-right = low-to-high)
-KEYCODES := array("I32",
-    49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-    81, 87, 69, 82, 84, 89, 85, 73, 79, 80,
-    65, 83, 68, 70, 71, 72, 74, 75, 76,
-    90, 88, 67, 86, 66, 78, 77
-)
-
-// Key labels for display
-KEY_LABELS := array("Str",
-    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-    "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
-    "A", "S", "D", "F", "G", "H", "J", "K", "L",
-    "Z", "X", "C", "V", "B", "N", "M"
-)
-
-// Frequencies for 36 chromatic notes C3-B5
-FREQS := array("I64",
-    131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
-    262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
-    523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988
-)
-
-// Piano key layout helpers
-NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
-BLACK_CHROMS := array("I32", 1, 3, 6, 8, 10)
-BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
-
-// Map chromatic note (0-35) to white key index (-1 if black)
-CHROM_TO_WHITE := array("I32", 0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6)
-IS_BLACK := array("I32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
-
-// Note names for piano roll labels
-NOTE_NAMES := array("Str", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
@@ -85,7 +52,7 @@ main := proc() {
     // Pre-generate all 36 sounds for polyphony
     mut sounds := Array(Sound).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
-        ref freq : I64 = FREQS[i]
+        ref freq : I64 = PIANO_FREQS[i]
         s := make_tone(freq, 10000, 1.to_f32().div(10))
         sounds[i] = s
     }
@@ -110,7 +77,7 @@ main := proc() {
 
         // -- Input: reset key_down, then set from keyboard + mouse --
         for i in 0..NUM_KEYS {
-            ref kc : I32 = KEYCODES[i]
+            ref kc : I32 = PIANO_KEYCODES[i]
             if IsKeyDown(kc) {
                 key_down[i] = 1
             } else {
@@ -253,7 +220,7 @@ main := proc() {
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
             ny := ROLL_H - (i.cast(I32) + 1) * note_h
-            ref nn : Str = NOTE_NAMES[i.mod(12)]
+            ref nn : Str = LETTER_NOTE_NAMES[i.mod(12)]
             oct_label := format(nn, (i / 12 + 3).to_str())
             DrawTextEx(fnt, oct_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
         }
@@ -277,7 +244,7 @@ main := proc() {
 
             // Key label
             if chrom.to_usize() < NUM_KEYS {
-                ref lbl : Str = KEY_LABELS[chrom.to_usize()]
+                ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
                 DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
             }
         }
@@ -301,7 +268,7 @@ main := proc() {
 
                 // Key label
                 if chrom.to_usize() < NUM_KEYS {
-                    ref lbl : Str = KEY_LABELS[chrom.to_usize()]
+                    ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
                     DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
                 }
             }

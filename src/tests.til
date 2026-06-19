@@ -370,7 +370,7 @@ main := proc(args: ..Str) {
     // === GUI build tests (slowest: build + run under xvfb with timeout) ===
     if en_gui.eq(1) {
         gui_files := array("Str",
-            "examples/music.til",
+            "examples/7modes.til",
             "examples/piano.til",
             "examples/chess.til",
             "examples/checkers.til",

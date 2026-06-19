@@ -1,9 +1,11 @@
 mode gui
 
+import("../lib/music")
+
 // Music Scale Viewer
 // Click note + mode buttons to see scale on pentagram and hear it
 // Shows triad type (M/m/dim) for each scale degree
-// Supports PT/ES/EN language and solfege/american notation
+// Supports PT/ES/EN language and solfege note names
 
 // -- Layout --
 WINDOW_WIDTH : I32 = 1920
@@ -26,8 +28,6 @@ MODE_ROW_Y : I32 = NOTE_ROW_Y + BTN_H * 3 + GAP
 RADIO_ROW_Y : I32 = MODE_ROW_Y + BTN_H + GAP
 // Radio button sizes
 LANG_BTN_W : I32 = BTN_W * 2 / 5
-NOTATION_BTN_W : I32 = BTN_W * 3 / 4
-NOTATION_X : I32 = MARGIN + LANG_BTN_W * 3 + GAP * 2
 
 // Staff/pentagram
 BUTTONS_END_Y : I32 = RADIO_ROW_Y + BTN_H
@@ -42,7 +42,7 @@ LABEL_Y : I32 = STAFF_BASE_Y + STAFF_SP * 2 + NOTE_R + GAP
 
 // Piano roll
 PIANO_Y : I32 = LABEL_Y + WINDOW_HEIGHT / 45 + GAP
-WHITE_W : I32 = STAFF_W / 15
+WHITE_W : I32 = STAFF_W / 14
 WHITE_H : I32 = WINDOW_HEIGHT / 8
 BLACK_W : I32 = WHITE_W / 2
 BLACK_H : I32 = WHITE_H * 2 / 3
@@ -59,27 +59,13 @@ INTERVALS := array("I32",
     1, 2, 2, 1, 2, 2, 2
 )
 
-// Diatonic to chromatic natural mapping: do=0 re=2 mi=4 fa=5 sol=7 la=9 si=11
-NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
+// Chord symbol suffixes for major, minor, diminished, augmented triads.
+TRIAD_SUFFIXES := array("Str", "", "m", "dim", "aug")
 
-// Note name lookup arrays
-NAMES_SOL := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
-NAMES_AME := array("Str", "C", "D", "E", "F", "G", "A", "B")
-
-// Triad suffixes: M, m, dim, aug
-TRIAD_SUFFIXES := array("Str", "-M", "-m", "-dim", "-aug")
-
-// Frequencies for chromatic notes C4..B4
-FREQS := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
-
-// Piano roll lookup arrays
-BLACK_CHROMS := array("I32", 1, 3, 6, 8, 10)
-BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
-
-// Language data: [name, mode0..mode6, notation0, notation1]
-LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio", "Solfejo", "Americano")
-LANG_ES := array("Str", "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio", "Solfeo", "Americano")
-LANG_EN := array("Str", "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian", "Solfege", "American")
+// Language data: [name, mode0..mode6]
+LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio")
+LANG_ES := array("Str", "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio")
+LANG_EN := array("Str", "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian")
 LANGS := array("Array__Str", LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
@@ -96,13 +82,9 @@ triad_type := func(mut sc_chrom: Array(I32), ti: USize) returns U32 {
     return 0
 }
 
-note_name := func(diat_idx: USize, sel_notation: USize) returns ref Str {
-    if sel_notation.eq(0) {
-        ref s : Str = NAMES_SOL[diat_idx]
-        return s
-    }
-    ref a : Str = NAMES_AME[diat_idx]
-    return a
+note_name := func(diat_idx: USize) returns ref Str {
+    ref s : Str = SOLFEGE_NOTE_NAMES[diat_idx]
+    return s
 }
 
 lang_str := func(lang_idx: USize, label_idx: USize) returns ref Str {
@@ -130,8 +112,8 @@ start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64)
 }
 
 draw_note := proc(dni: USize, mut sc_diat: Array(I32), mut sc_oct: Array(I32), mut sc_acc: Array(I32),
-                   mut sc_triad: Array(U32), playing: Bool, play_idx: USize,
-                   clicked_note: I32, sel_notation: USize, fnt: Font) {
+                    mut sc_triad: Array(U32), playing: Bool, play_idx: USize,
+                    clicked_note: I32, fnt: Font) {
     dnx := NOTE_X0 + dni.cast(I32) * NOTE_DX
     ref nd : I32 = sc_diat[dni]
     ref no : I32 = sc_oct[dni]
@@ -182,14 +164,16 @@ draw_note := proc(dni: USize, mut sc_diat: Array(I32), mut sc_oct: Array(I32), m
         DrawTextEx(fnt, at.c_str, Vector2(x = (dnx - (FONT + aw)).to_f32(), y = (dny - FONT / 2).to_f32()), FONT.to_f32(), 1.to_f32(), WHITE)
     }
 
-    // Note name with inline triad label
-    ref nn_base : Str = note_name(nd.to_usize(), sel_notation)
+    // Solfege note name with inline letter-based chord symbol.
+    ref nn_base : Str = note_name(nd.to_usize())
     nn_acc := acc_text(na.cast(I64))
     mut nn := format(nn_base, nn_acc)
     if dni.lt(7) {
         ref trt2 : USize = sc_triad[dni]
         ref tsuf : Str = TRIAD_SUFFIXES[trt2]
-        nn = format(nn, tsuf)
+        ref chord_base : Str = LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()]
+        chord := format(chord_base, nn_acc, tsuf)
+        nn = format(nn, " ", chord)
     }
     DrawTextEx(fnt, nn.c_str, Vector2(x = (dnx - NOTE_R).to_f32(), y = LABEL_Y.to_f32()), FONT_SM.to_f32(), 1.to_f32(), LIGHT_GRAY)
 }
@@ -206,7 +190,6 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
 
     for k : USize in 0..8 {
         chrom_mod := chrom_total % 12
-        chrom_oct := chrom_total / 12
         sc_chrom[k] = chrom_mod.clone()
         sc_diat[k] = diat_pos.clone()
         sc_oct[k] = diat_oct.clone()
@@ -218,11 +201,10 @@ recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USiz
         if acc.lt(-6) { acc = acc + 12 }
         sc_acc[k] = acc
 
-        // Frequency
-        ref f : I64 = FREQS[chrom_mod.to_usize()]
-        mut freq := f
-        if chrom_oct.gt(0) { freq = freq * 2 }
-        sc_freq[k] = freq
+        // Frequency: use the same rounded pitches as the shared piano mapping.
+        ref freq : I64 = PIANO_FREQS[PIANO_C4_KEY_OFFSET + chrom_total.to_usize()]
+        freq_val := freq
+        sc_freq[k] = freq_val
 
         // Next note
         if k.lt(7) {
@@ -250,22 +232,47 @@ play_note := proc(freq: I64, mut clicked_note: I32, mut clicked_timer: I32, note
     }
 }
 
-draw_piano := proc(active_chrom: I32, active_oct: USize) {
+scale_piano_key := func(chrom: I32, freq: I64) returns I32 {
+    ref base_f : I64 = CHROMATIC_FREQS_C4[chrom.to_usize()]
+    mut oct : I32 = 0
+    if freq.gt(base_f) { oct = 1 }
+    return oct * 12 + chrom
+}
+
+highlight_scale_for_key := func(key_idx: I32, mut sc_chrom: Array(I32), mut sc_freq: Array(I64), mut clicked_note: I32, mut clicked_timer: I32) {
+    for ci : USize in 0..8 {
+        ref chrom : I32 = sc_chrom[ci]
+        ref sf : I64 = sc_freq[ci]
+        scale_key_idx := scale_piano_key(chrom, sf)
+        if scale_key_idx.eq(key_idx) {
+            clicked_note = ci.cast(I32)
+            clicked_timer = 300
+            break
+        }
+    }
+}
+
+draw_piano := proc(active_key_idx: I32, fnt: Font) {
     KEY_WHITE_PRESSED := Color(r = 0, g = 200, b = 210, a = 255)
     KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
+    KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
     KEY_BLACK_PRESSED := Color(r = 0, g = 150, b = 155, a = 255)
     KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
+    KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
 
-    // 2 octaves: 15 white keys (C4-B4, C5-B5, C6)
-    for i : USize in 0..15 {
+    // 2 octaves: 14 white keys (C4-B5)
+    for i : USize in 0..14 {
         kx := STAFF_X + i.cast(I32) * WHITE_W
         ref nat : I32 = NATURALS[i.mod(7)]
         key_oct := i / 7
+        key_idx := key_oct.cast(I32) * 12 + nat
         mut k_color := KEY_WHITE
-        if active_chrom.gte(0).and(nat.eq(active_chrom)).and(key_oct.eq(active_oct)) {
+        if key_idx.eq(active_key_idx) {
             k_color = KEY_WHITE_PRESSED
         }
         DrawRectangle(kx, PIANO_Y, WHITE_W - 2, WHITE_H, k_color)
+        ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
+        DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
     }
 
     // 10 black keys (5 per octave, 2 octaves)
@@ -273,18 +280,21 @@ draw_piano := proc(active_chrom: I32, active_oct: USize) {
         for j : USize in 0..5 {
             ref bpos : I32 = BLACK_KEY_POS[j]
             ref bchrom : I32 = BLACK_CHROMS[j]
+            key_idx := oct.cast(I32) * 12 + bchrom
             bx := STAFF_X + (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
             mut kb_color := KEY_BLACK
-            if active_chrom.gte(0).and(bchrom.eq(active_chrom)).and(oct.eq(active_oct)) {
+            if key_idx.eq(active_key_idx) {
                 kb_color = KEY_BLACK_PRESSED
             }
             DrawRectangle(bx, PIANO_Y, BLACK_W, BLACK_H, kb_color)
+            ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
+            DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
         }
     }
 }
 
 main := proc() {
-    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
+    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "7 modes")
     SetTargetFPS(FPS)
     InitAudioDevice()
 
@@ -304,13 +314,14 @@ main := proc() {
     mut sel_accidental : I32 = 0
     mut sel_mode : USize = 1
     mut sel_lang : USize = 0
-    mut sel_notation : USize = 0
     mut need_recompute := true
     mut playing := false
     mut play_idx : USize = 0
     mut play_timer : I64 = 0
     mut clicked_note : I32 = -1
     mut clicked_timer : I32 = 0
+    mut piano_active_idx : I32 = -1
+    mut piano_active_timer : I32 = 0
 
     BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     GRAY := Color(r = 100, g = 100, b = 100, a = 255)
@@ -323,6 +334,13 @@ main := proc() {
 
     while !WindowShouldClose() {
         dt : I32 = (GetFrameTime() * 1000.to_f32()).to_i64().to_i32()
+
+        // Keep scale arrays current before keyboard/piano input maps back to them.
+        if need_recompute {
+            need_recompute = false
+            recompute_scale(sel_diatonic, sel_accidental, sel_mode,
+                            sc_chrom, sc_diat, sc_oct, sc_acc, sc_freq, sc_triad)
+        }
 
         // Input: mouse clicks
         if IsMouseButtonPressed(0) {
@@ -359,18 +377,12 @@ main := proc() {
                 }
             }
 
-            // Radio buttons: lang (PT/ES/EN) + notation (sol/ame)
+            // Language buttons: PT ES EN
             if my.gte(RADIO_ROW_Y).and(my.lt(RADIO_ROW_Y + BTN_H)) {
                 if mx.gte(MARGIN).and(mx.lt(MARGIN + LANG_BTN_W * 3)) {
                     lang_col : USize = (mx - MARGIN).div(LANG_BTN_W).to_usize()
                     if lang_col.lt(3) {
                         sel_lang = lang_col
-                    }
-                }
-                if mx.gte(NOTATION_X).and(mx.lt(NOTATION_X + NOTATION_BTN_W * 2)) {
-                    not_col : USize = (mx - NOTATION_X).div(NOTATION_BTN_W).to_usize()
-                    if not_col.lt(2) {
-                        sel_notation = not_col
                     }
                 }
             }
@@ -385,7 +397,50 @@ main := proc() {
                 if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
                     ref cf : I64 = sc_freq[ci]
                     play_note(cf, clicked_note, clicked_timer, ci.cast(I32))
+                    ref cc : I32 = sc_chrom[ci]
+                    piano_active_idx = scale_piano_key(cc, cf)
+                    piano_active_timer = 300
                 }
+            }
+
+            // Click on piano keys. Black keys are checked first because they are drawn on top.
+            if my.gte(PIANO_Y).and(my.lt(PIANO_Y + WHITE_H)).and(mx.gte(STAFF_X)).and(mx.lt(STAFF_X + WHITE_W * 14)) {
+                mut piano_key_idx : I32 = -1
+                if my.lt(PIANO_Y + BLACK_H) {
+                    for oct : USize in 0..2 {
+                        for j : USize in 0..5 {
+                            ref bpos : I32 = BLACK_KEY_POS[j]
+                            ref bchrom : I32 = BLACK_CHROMS[j]
+                            bx := STAFF_X + (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
+                            if mx.gte(bx).and(mx.lt(bx + BLACK_W)) {
+                                piano_key_idx = oct.cast(I32) * 12 + bchrom
+                            }
+                        }
+                    }
+                }
+                if piano_key_idx.lt(0) {
+                    wk := (mx - STAFF_X) / WHITE_W
+                    oct := wk / 7
+                    ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
+                    piano_key_idx = oct * 12 + nat
+                }
+                ref freq : I64 = PIANO_FREQS[PIANO_C4_KEY_OFFSET + piano_key_idx.to_usize()]
+                play_tone(freq, 250)
+                highlight_scale_for_key(piano_key_idx, sc_chrom, sc_freq, clicked_note, clicked_timer)
+                piano_active_idx = piano_key_idx
+                piano_active_timer = 300
+            }
+        }
+
+        // Input: keyboard piano keys matching examples/piano.til C4..B5.
+        for ki : USize in 0..PIANO_C4_KEY_COUNT {
+            ref kc : I32 = PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]
+            if IsKeyPressed(kc) {
+                ref freq : I64 = PIANO_FREQS[PIANO_C4_KEY_OFFSET + ki]
+                play_tone(freq, 250)
+                highlight_scale_for_key(ki.cast(I32), sc_chrom, sc_freq, clicked_note, clicked_timer)
+                piano_active_idx = ki.cast(I32)
+                piano_active_timer = 300
             }
         }
 
@@ -403,6 +458,12 @@ main := proc() {
                 clicked_note = -1
             }
         }
+        if piano_active_idx.gte(0) {
+            piano_active_timer = piano_active_timer - dt
+            if piano_active_timer.lte(0) {
+                piano_active_idx = -1
+            }
+        }
 
         // Playback
         if playing {
@@ -412,6 +473,9 @@ main := proc() {
                 if play_idx.lt(8) {
                     ref pf : I64 = sc_freq[play_idx]
                     play_note(pf, clicked_note, clicked_timer, play_idx.cast(I32))
+                    ref pc : I32 = sc_chrom[play_idx]
+                    piano_active_idx = scale_piano_key(pc, pf)
+                    piano_active_timer = 300
                     play_idx = play_idx + 1
                 } else {
                     playing = false
@@ -441,7 +505,7 @@ main := proc() {
                 DrawRectangle(bx, by, BTN_W - 2, BTN_H - 2, b_color)
 
                 // Label
-                ref ln : Str = note_name(col, sel_notation)
+                ref ln : Str = note_name(col)
                 mut label := ln.clone()
                 if row.eq(0) { label = format(ln, "b") }
                 if row.eq(2) { label = format(ln, "#") }
@@ -464,8 +528,7 @@ main := proc() {
             DrawTextEx(fnt, mlabel.c_str, Vector2(x = (mbx + PAD_X).to_f32(), y = (mby + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
         }
 
-        // -- Radio buttons: lang + notation --
-        // Lang: PT ES EN
+        // -- Language buttons: PT ES EN --
         for li : USize in 0..3 {
             lx := MARGIN + li.cast(I32) * LANG_BTN_W
             mut lr_color := Color(r = 40, g = 40, b = 40, a = 255)
@@ -473,15 +536,6 @@ main := proc() {
             DrawRectangle(lx, RADIO_ROW_Y, LANG_BTN_W - 2, BTN_H - 2, lr_color)
             ref ll : Str = lang_str(li, 0)
             DrawTextEx(fnt, ll.c_str, Vector2(x = (lx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
-        }
-        // Notation: solfege / american
-        for ni : USize in 0..2 {
-            nx := NOTATION_X + ni.cast(I32) * NOTATION_BTN_W
-            mut nr_color := Color(r = 40, g = 40, b = 40, a = 255)
-            if ni.eq(sel_notation) { nr_color = BTN_ACTIVE }
-            DrawRectangle(nx, RADIO_ROW_Y, NOTATION_BTN_W - 2, BTN_H - 2, nr_color)
-            ref nl : Str = lang_str(sel_lang, ni + 8)
-            DrawTextEx(fnt, nl.c_str, Vector2(x = (nx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
         }
 
         // -- Pentagram --
@@ -496,7 +550,7 @@ main := proc() {
         for ri : USize in 0..9 {
             ry := STAFF_BASE_Y - ri.cast(I32) * STAFF_SP
             rd := (ri + 2) % 7
-            ref rn : Str = note_name(rd, sel_notation)
+            ref rn : Str = note_name(rd)
             // Left side label
             DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X - MARGIN * 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1.to_f32(), TICK_LABEL)
             // Right side label
@@ -511,23 +565,14 @@ main := proc() {
         // Draw notes
         for dni : USize in 0..8 {
             draw_note(dni, sc_diat, sc_oct, sc_acc, sc_triad,
-                      playing, play_idx, clicked_note, sel_notation, fnt)
+                      playing, play_idx, clicked_note, fnt)
         }
 
         // Piano roll
-        mut active_chrom : I32 = -1
-        mut active_oct : USize = 0
-        if clicked_note.gte(0) {
-            ref ac : I32 = sc_chrom[clicked_note.to_usize()]
-            ref af : I64 = sc_freq[clicked_note.to_usize()]
-            ref base_f : I64 = FREQS[ac.to_usize()]
-            active_chrom = ac
-            if af.gt(base_f) { active_oct = 1 }
-        }
-        draw_piano(active_chrom, active_oct)
+        draw_piano(piano_active_idx, fnt)
 
         // Hint
-        DrawTextEx(fnt, "click note + mode to play scale".c_str, Vector2(x = (WINDOW_WIDTH / 3).to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1.to_f32(), TICK_LABEL)
+        DrawTextEx(fnt, "click note + mode to play scale; piano keys E-M play C4-B5".c_str, Vector2(x = (WINDOW_WIDTH / 4).to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1.to_f32(), TICK_LABEL)
 
         EndDrawing()
     }

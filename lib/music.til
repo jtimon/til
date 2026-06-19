@@ -1,0 +1,40 @@
+mode lib
+
+PIANO_KEY_COUNT : USize = 36
+PIANO_C4_KEY_OFFSET : USize = 12
+PIANO_C4_KEY_COUNT : USize = 24
+
+// Raylib key codes for three chromatic octaves, left-to-right low-to-high.
+PIANO_KEYCODES := array("I32",
+    49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
+    81, 87, 69, 82, 84, 89, 85, 73, 79, 80,
+    65, 83, 68, 70, 71, 72, 74, 75, 76,
+    90, 88, 67, 86, 66, 78, 77
+)
+
+PIANO_KEY_LABELS := array("Str",
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+    "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
+    "A", "S", "D", "F", "G", "H", "J", "K", "L",
+    "Z", "X", "C", "V", "B", "N", "M"
+)
+
+// Frequencies for 36 chromatic notes C3-B5.
+PIANO_FREQS := array("I64",
+    131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
+    262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
+    523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988
+)
+
+// Frequencies for chromatic notes C4..B4.
+CHROMATIC_FREQS_C4 := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+
+// Piano key layout helpers.
+NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
+BLACK_CHROMS := array("I32", 1, 3, 6, 8, 10)
+BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
+IS_BLACK := array("I32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
+
+SOLFEGE_NOTE_NAMES := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
+LETTER_DIATONIC_NOTE_NAMES := array("Str", "C", "D", "E", "F", "G", "A", "B")
+LETTER_NOTE_NAMES := array("Str", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
