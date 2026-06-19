@@ -51,18 +51,39 @@ Two modules sit underneath every phase below:
   - auto-generate helpers such as enum/struct namespace methods
   - prepare enough metadata for typing
 
-4. Type check
+4. Type check + desugar
 
 - `type_check(ast, scope, mode)`
-- Implemented in til: [[file:../src/self/typer.til][src/self/typer.til]]
-- Responsibilities:
+- Implemented in til:
+  [[file:../src/self/typer.til][src/self/typer.til]] (type errors + type
+  inference) and
+  [[file:../src/self/desugarer.til][src/self/desugarer.til]] (AST lowering /
+  desugaring).
+- The typer's body walk drives both: it resolves names and types, infers
+  expression types (replacing `Unknown` with the inferred type), and rejects
+  invalid programs; interleaved with that same walk the desugarer rewrites the
+  high-level constructs later phases do not handle into plain til. The
+  desugars are type-directed (they read inferred types), which is why they run
+  interleaved rather than as a separate up-front pass.
+- Typer responsibilities (src/self/typer.til):
   - resolve names and types
   - infer expression types
-  - lower/check some constructs during typing
-  - lower throw/catch to plain til (mut locals + if-guards) so
-    downstream stages don't need new node kinds; see
+  - reject invalid programs (type errors)
+- Desugarer responsibilities (src/self/desugarer.til), interleaved with typing
+  and driven by the typer's walk:
+  - lambda lifting (anonymous `func` literals -> top-level priv decls)
+  - optional / named / default + variadic / kwargs args -> positional args
+  - collection literals (array / vec / set / map) -> `new` + push/set/add
+  - for-in loops -> while
+  - switch / match -> if/elif chains (carrying the exhaustiveness and
+    unreachable-case diagnostics computed during the lowering walk)
+  - throw / catch / `?` / `!` -> plain til (mut `_err_kind` locals + if-guards)
+    so downstream stages need no new node kinds; see
     [[file:./throws.org][doc/throws.org]] for the surface and recipes
-  - reject invalid programs
+  - argument hoisting into temps for the back ends
+- Like the garbager (step 5), desugarer.til imports only `context`; it reaches
+  typer helpers, and the typer reaches the desugar passes, through the merged
+  program scope rather than an explicit import.
 
 5. Asap destruction
 
@@ -152,6 +173,9 @@ There are two main back ends.
 - Parser builds the AST.
 - Initer registers and synthesizes declarations.
 - Typer resolves and validates.
+- Desugarer lowers loops, switch/match, throw/catch, optional/variadic/kwargs
+  args, collection literals, and lambdas into plain til the back ends handle;
+  it runs interleaved with the typer.
 - Garbager inserts the automatic destructor calls.
 - Constfolder folds comptime work.
 - Scavenger removes unused leftovers.
@@ -168,6 +192,8 @@ That is the current practical phase order to keep in mind when debugging:
 - parse problem: `src/self/parser.til`
 - missing declaration / auto-generated helper: `src/self/initer.til`
 - name/type resolution or enum switch behavior: `src/self/typer.til`
+- loop / switch / match / throw-catch / optional-arg / collection-literal
+  lowering: `src/self/desugarer.til`
 - missing/extra `delete`/`free` call, use-after-move: `src/self/garbager.til`
 - comptime folding issue: `src/self/constfolder.til`
 - generated C / linkage issue: `src/self/builder.til`
