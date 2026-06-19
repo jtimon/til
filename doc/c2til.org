@@ -571,9 +571,9 @@ This pattern is used throughout ~builder.til~ (e.g.
 | ~strncmp(a, b, n) == 0~       | ~a.substr(0, n).eq(b.substr(0, n))~          |
 | ~memcmp(a, b, n)~             | ~a.eq(b)~ or compare substrings              |
 | ~s[i]~                        | ~s.char_at(i)~ (returns U8)                  |
-| ~strcat~ / concatenation       | ~a.concat(b)~                                |
+| ~strcat~ / concatenation       | ~format(a, b)~                               |
 | ~strstr(hay, needle)~         | ~hay.find(needle)~ (returns I64, -1 if none) |
-| ~snprintf(buf, n, "%s%s", a, b)~ | ~format(a, b)~ or ~a.concat(b)~          |
+| ~snprintf(buf, n, "%s%s", a, b)~ | ~format(a, b)~                            |
 | ~strdup(s)~                   | ~s.clone()~                                  |
 | ~strrchr(s, '/')~             | ~s.rfind("/")~                               |
 | ~strtol(s, &end, 10)~         | ~s.to_i64()~                                 |
