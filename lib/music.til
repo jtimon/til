@@ -3,6 +3,8 @@ mode lib
 PIANO_KEY_COUNT : USize = 36
 PIANO_C4_KEY_OFFSET : USize = 12
 PIANO_C4_KEY_COUNT : USize = 24
+PIANO_C3_FREQ_OFFSET : USize = 8
+PIANO_C4_FREQ_OFFSET : USize = 20
 
 // Raylib key codes for three chromatic octaves, left-to-right low-to-high.
 PIANO_KEYCODES := array("I32",
@@ -19,11 +21,15 @@ PIANO_KEY_LABELS := array("Str",
     "Z", "X", "C", "V", "B", "N", "M"
 )
 
-// Frequencies for 36 chromatic notes C3-B5.
+// Frequencies for 56 chromatic notes E2-B6. PIANO_KEY_COUNT stays at 36 so
+// piano.til keeps its original QWERTY range; guitar and music_modes use the
+// wider table for E2 strings and two-octave music_modes endpoints.
 FREQS := array("I64",
+    82, 87, 92, 98, 104, 110, 117, 123,
     131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
     262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
-    523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988
+    523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988,
+    1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976,
 )
 
 // Frequencies for chromatic notes C4..B4.
@@ -36,12 +42,31 @@ BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
 IS_BLACK := array("I32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
 
 // Experimental 5-name / 8-semitone layout helpers.
+//
+// Pitch facts for the current experiment:
+// - The pitch grid is still 12-TET; each chromatic step is a normal semitone.
+// - One hextave is 8 semitones, so 3 hextaves equal 2 octaves.
+// - The natural names are ca, de, fi, go, lu at offsets 0, 2, 3, 5, 7.
+// - music_modes uses a local C4-centered display window in 5-mode view;
+//   chromatic offset 0 is drawn as ca4 there. piano's Hextave display uses
+//   absolute ca5 = C5 labels.
+//
+// Absolute-register convention for the guitar notes:
+// - If ca5 is anchored to scientific-pitch C5, then ca1 lands on E2.
+// - Standard guitar E A D G B E spells ca go de lu fi ca: natural-only, but
+//   not alphabetical.
+// - All-fourths E A D G C F spells ca go de lu #fi #ca, so it is not cleaner
+//   for natural-note spelling under this anchor.
+// - Major-thirds tuning gives a regular +4-semitone grid; two strings equal
+//   one hextave, but adjacent strings are only half a hextave.
+// - ca0..lu9 spans roughly Ab1..Eb8. Lower piano notes need negative hextave
+//   numbers if represented exactly.
 FIVE_CYCLE : USize = 8
 FIVE_NATURAL_COUNT : USize = 5
 FIVE_SCALE_NOTES : USize = 6
-FIVE_BASE_SIXTAVE : I32 = 4
-FIVE_NAMES := array("Str", "ba", "#ba", "ce", "di", "#di", "fo", "#fo", "gu")
-FIVE_NATURAL_NAMES := array("Str", "ba", "ce", "di", "fo", "gu")
+FIVE_BASE_HEXTAVE : I32 = 4
+FIVE_NAMES := array("Str", "ca", "#ca", "de", "fi", "#fi", "go", "#go", "lu")
+FIVE_NATURAL_NAMES := array("Str", "ca", "de", "fi", "go", "lu")
 FIVE_NATURALS := array("I32", 0, 2, 3, 5, 7)
 FIVE_BLACKS := array("I32", 1, 4, 6)
 FIVE_BLACK_KEY_POS := array("I32", 0, 2, 3)
@@ -49,21 +74,35 @@ FIVE_IS_BLACK := array("I32", 0, 1, 0, 0, 1, 0, 1, 0)
 FIVE_DIATONIC_BY_CHROM := array("I32", 0, 0, 1, 2, 2, 3, 3, 4)
 FIVE_ACC_BY_CHROM := array("I32", 0, 1, 0, 0, 1, 0, 1, 0)
 
+five_abs_note_name := func(chrom_idx: I32) returns Str {
+    ref nn : Str = FIVE_NAMES[chrom_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
+    hextave := chrom_idx / FIVE_CYCLE.cast(I32) + 2
+    return format(nn, hextave.to_str())
+}
+
+SOLFEGE_CHROMATIC_NAMES := array("Str", "Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
+
+solfege_abs_note_name := func(chrom_idx: I32) returns Str {
+    ref nn : Str = SOLFEGE_CHROMATIC_NAMES[chrom_idx.mod(12).to_usize()]
+    octave := chrom_idx / 12 + 3
+    return format(nn, octave.to_str())
+}
+
 /// 5-name modes, brightest to darkest. Europe is the no-accidental baseline.
 ///
-/// Happy Birthday as movable-do Ionian degrees beside basic Europe/ba degrees:
+/// Happy Birthday as movable-do Ionian degrees beside basic Europe/ca degrees:
 ///
 ///   do notation: sol sol la  sol do' si
-///   ba notation: gu  gu  ba' gu  ba' gu'
+///   ca notation: lu  lu  ca' lu  ca' lu'
 ///
 ///   do notation: sol sol la  sol re' do'
-///   ba notation: gu  gu  ba' gu  ce' ba'
+///   ca notation: lu  lu  ca' lu  de' ca'
 ///
 ///   do notation: sol sol sol' mi' do' si  la
-///   ba notation: gu  gu  gu'  di' ba' gu' ba'
+///   ca notation: lu  lu  lu'  fi' ca' lu' ca'
 ///
 ///   do notation: fa' fa' mi' do' re' do'
-///   ba notation: fo' fo' di' ba' ce' ba'
+///   ca notation: go' go' fi' ca' de' ca'
 ///
 /// This maps scale-degree names directly; it is not a 7-note-to-5-note
 /// pitch-preserving transcription.
@@ -72,9 +111,10 @@ FIVE_MODE_INTERVALS := array("I32",
     2, 1, 2, 2, 1,
     2, 1, 2, 1, 2,
     1, 2, 2, 1, 2,
-    1, 2, 1, 2, 2
+    1, 2, 1, 2, 2,
 )
-FIVE_MODE_NAMES := array("Str", "America", "Europe", "Africa", "Asia", "Oceania")
+FIVE_MODE_NAMES := array("Str", "America", "Europa", "Africa", "Asia", "Oceania")
+FIVE_MODE_NAMES_EN := array("Str", "America", "Europe", "Africa", "Asia", "Oceania")
 
 five_acc_text := func(acc: I64) returns Str {
     if acc.eq(1) { return "#" }
@@ -84,31 +124,34 @@ five_acc_text := func(acc: I64) returns Str {
     return ""
 }
 
-five_full_note_name := func(name_idx: I32, acc: I32, sixtave: I32) returns Str {
+five_full_note_name := func(name_idx: I32, acc: I32, hextave: I32) returns Str {
+    ref nn : Str = FIVE_NATURAL_NAMES[name_idx.to_usize()]
     acc_label := five_acc_text(acc.cast(I64))
-    sixtave_label := (sixtave + FIVE_BASE_SIXTAVE).to_str()
-    return format(acc_label, FIVE_NATURAL_NAMES[name_idx.to_usize()], sixtave_label)
+    hextave_label := (hextave + FIVE_BASE_HEXTAVE).to_str()
+    return format(acc_label, nn, hextave_label)
 }
 
-five_staff_pos := func(name_idx: I32, sixtave: I32) returns I32 {
-    return name_idx - 2 + sixtave * FIVE_NATURAL_COUNT.cast(I32)
+five_staff_pos := func(name_idx: I32, hextave: I32) returns I32 {
+    return name_idx - 2 + hextave * FIVE_NATURAL_COUNT.cast(I32)
 }
 
-five_recompute_scale := func(sel_root: USize, sel_mode: USize,
-                             mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_sixtave: Array(I32),
+five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
+                             note_count: USize,
+                             mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_hextave: Array(I32),
                              mut sc_acc: Array(I32), mut sc_freq: Array(I64)) {
-    mut chrom_total := sel_root.cast(I32)
-    root_mod := chrom_total % FIVE_CYCLE.cast(I32)
-    ref root_diat : I32 = FIVE_DIATONIC_BY_CHROM[root_mod.to_usize()]
+    ref nat_c : I32 = FIVE_NATURALS[sel_diatonic]
+    root_chromatic := (nat_c + sel_accidental + FIVE_CYCLE.cast(I32)) % FIVE_CYCLE.cast(I32)
+    mut chrom_total := root_chromatic
+    root_diat := sel_diatonic.cast(I32)
 
-    for k : USize in 0..FIVE_SCALE_NOTES {
+    for k : USize in 0..note_count {
         diat_total := root_diat + k.cast(I32)
         diat_pos := diat_total % FIVE_NATURAL_COUNT.cast(I32)
-        sixtave := diat_total / FIVE_NATURAL_COUNT.cast(I32)
+        hextave := diat_total / FIVE_NATURAL_COUNT.cast(I32)
 
         sc_chrom[k] = chrom_total.clone()
         sc_diat[k] = diat_pos.clone()
-        sc_sixtave[k] = sixtave.clone()
+        sc_hextave[k] = hextave.clone()
 
         chrom_mod := chrom_total % FIVE_CYCLE.cast(I32)
         mut acc := chrom_mod - FIVE_NATURALS[diat_pos.to_usize()]
@@ -116,12 +159,14 @@ five_recompute_scale := func(sel_root: USize, sel_mode: USize,
         if acc.lt(-4) { acc = acc + FIVE_CYCLE.cast(I32) }
         sc_acc[k] = acc
 
-        ref freq : I64 = FREQS[PIANO_C4_KEY_OFFSET + chrom_total.to_usize()]
+        ref freq : I64 = FREQS[PIANO_C4_FREQ_OFFSET + chrom_total.to_usize()]
         freq_val := freq
         sc_freq[k] = freq_val
 
-        if k.lt(FIVE_NATURAL_COUNT) {
-            chrom_total = chrom_total + FIVE_MODE_INTERVALS[sel_mode * FIVE_NATURAL_COUNT + k]
+        if (k + 1).lt(note_count) {
+            step_idx := k % FIVE_NATURAL_COUNT
+            ref step : I32 = FIVE_MODE_INTERVALS[sel_mode * FIVE_NATURAL_COUNT + step_idx]
+            chrom_total = chrom_total + step
         }
     }
 }

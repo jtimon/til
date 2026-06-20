@@ -3,25 +3,32 @@ mode gui
 import("../lib/music")
 
 // Playable piano with scrolling piano roll
-// QWERTY keyboard maps to 3 octaves (C3-B5)
-// Notes scroll left across the top as you play
+// QWERTY keyboard maps to 3 octaves (C3-B5).
+// Solfege display is the default. Letters changes only labels. Hextaves keeps
+// the same sounds and physical key mapping but redraws labels and key layout.
 
 WINDOW_WIDTH : I32 = 1920
 WINDOW_HEIGHT : I32 = 1080
 FPS : I32 = 60
 NUM_KEYS : USize = PIANO_KEY_COUNT
 MAX_NOTES : USize = 256
+STANDARD_WHITE_KEYS : USize = 21
+HEXTAVE_WHITE_KEYS : USize = 23
+HEXTAVE_DRAW_CYCLES : USize = 5
 
 // Layout
 MARGIN : F32 = 40
 ROLL_H : I32 = WINDOW_HEIGHT / 2
 PIANO_Y : I32 = WINDOW_HEIGHT - WINDOW_HEIGHT / 3
-WHITE_W : I32 = WINDOW_WIDTH / 21
 WHITE_H : I32 = WINDOW_HEIGHT - PIANO_Y
-BLACK_W : I32 = WHITE_W * 3 / 5
 BLACK_H : I32 = WHITE_H * 2 / 3
 FONT : F32 = 20
 SCROLL_SPEED : I32 = 300
+TOGGLE_X : I32 = 40
+TOGGLE_Y : I32 = PIANO_Y - 70
+TOGGLE_W : I32 = 160
+TOGGLE_H : I32 = 34
+TOGGLE_GAP : I32 = 10
 
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
@@ -48,11 +55,12 @@ main := proc() {
     }
     mut ev_count : I64 = 0
     mut ev_head : I64 = 0
+    mut display_mode : I32 = 0
 
     // Pre-generate all 36 sounds for polyphony
     mut sounds := Array(Sound).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
-        ref freq : I64 = FREQS[i]
+        ref freq : I64 = FREQS[PIANO_C3_FREQ_OFFSET + i]
         s := make_tone(freq, 10000, 1.to_f32().div(10))
         sounds[i] = s
     }
@@ -70,10 +78,19 @@ main := proc() {
     KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
     KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
     LABEL_COLOR := Color(r = 60, g = 60, b = 80, a = 255)
+    BTN_ACTIVE := Color(r = 0, g = 150, b = 155, a = 255)
+    BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
+    BUTTON_LABEL := Color(r = 220, g = 220, b = 220, a = 255)
 
     while !WindowShouldClose() {
         dt := (GetFrameTime() * 1000.to_f32()).to_i64()
         timer = timer + dt
+
+        hextave_display := display_mode.eq(2)
+        mut white_key_count := STANDARD_WHITE_KEYS
+        if hextave_display { white_key_count = HEXTAVE_WHITE_KEYS }
+        white_w := WINDOW_WIDTH / white_key_count.cast(I32)
+        black_w := white_w * 3 / 5
 
         // -- Input: reset key_down, then set from keyboard + mouse --
         for i in 0..NUM_KEYS {
@@ -85,6 +102,24 @@ main := proc() {
             }
         }
 
+        if IsMouseButtonPressed(0) {
+            mx := GetMouseX()
+            my := GetMouseY()
+            if my >= TOGGLE_Y && my < TOGGLE_Y + TOGGLE_H {
+                if mx >= TOGGLE_X && mx < TOGGLE_X + TOGGLE_W {
+                    display_mode = 0
+                }
+                hx := TOGGLE_X + TOGGLE_W + TOGGLE_GAP
+                if mx >= hx && mx < hx + TOGGLE_W {
+                    display_mode = 1
+                }
+                lx := hx + TOGGLE_W + TOGGLE_GAP
+                if mx >= lx && mx < lx + TOGGLE_W {
+                    display_mode = 2
+                }
+            }
+        }
+
         // Mouse click on piano keys
         if IsMouseButtonDown(0) {
             mx := GetMouseX()
@@ -93,28 +128,48 @@ main := proc() {
                 mut mouse_note : I32 = -1
                 // Check black keys first (they're on top)
                 if my < PIANO_Y + BLACK_H {
-                    for oct : USize in 0..3 {
-                        for j : USize in 0..5 {
-                            ref bpos : I32 = BLACK_KEY_POS[j]
-                            ref bchrom_off : I32 = BLACK_CHROMS[j]
-                            chrom := bchrom_off + oct.cast(I32) * 12
-                            bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
-                            if chrom.to_usize() < NUM_KEYS && mx >= bx && mx < bx + BLACK_W {
-                                mouse_note = chrom
+                    if hextave_display {
+                        for cycle : USize in 0..HEXTAVE_DRAW_CYCLES {
+                            for j : USize in 0..3 {
+                                ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
+                                ref bchrom_off : I32 = FIVE_BLACKS[j]
+                                chrom := bchrom_off + cycle.cast(I32) * FIVE_CYCLE.cast(I32)
+                                bx := (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * white_w - black_w / 2
+                                if chrom.to_usize() < NUM_KEYS && mx >= bx && mx < bx + black_w {
+                                    mouse_note = chrom
+                                }
+                            }
+                        }
+                    } else {
+                        for oct : USize in 0..3 {
+                            for j : USize in 0..5 {
+                                ref bpos : I32 = BLACK_KEY_POS[j]
+                                ref bchrom_off : I32 = BLACK_CHROMS[j]
+                                chrom := bchrom_off + oct.cast(I32) * 12
+                                bx := (oct.cast(I32) * 7 + bpos + 1) * white_w - black_w / 2
+                                if chrom.to_usize() < NUM_KEYS && mx >= bx && mx < bx + black_w {
+                                    mouse_note = chrom
+                                }
                             }
                         }
                     }
                 }
                 // If no black key hit, check white keys
                 if mouse_note < 0 {
-                    wk := mx / WHITE_W
-                    if wk >= 0 && wk < 21 {
-                        oct := wk / 7
-                        ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
-                        mouse_note = nat + oct * 12
+                    wk := mx / white_w
+                    if wk >= 0 && wk < white_key_count.cast(I32) {
+                        if hextave_display {
+                            cycle := wk / FIVE_NATURAL_COUNT.cast(I32)
+                            ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.cast(I32)).to_usize()]
+                            mouse_note = nat + cycle * FIVE_CYCLE.cast(I32)
+                        } else {
+                            oct := wk / 7
+                            ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
+                            mouse_note = nat + oct * 12
+                        }
                     }
                 }
-                 if mouse_note >= 0 && mouse_note.to_usize() < NUM_KEYS {
+                if mouse_note >= 0 && mouse_note.to_usize() < NUM_KEYS {
                     key_down[mouse_note.to_usize()] = 1
                 }
             }
@@ -174,13 +229,25 @@ main := proc() {
         note_h := ROLL_H / NUM_KEYS.cast(I32)
         for i in 0..NUM_KEYS {
             ny := i.cast(I32) * note_h
-            ref ib : I32 = IS_BLACK[i.mod(12)]
+            mut ib : I32 = 0
+            if hextave_display {
+                ref hib : I32 = FIVE_IS_BLACK[i.mod(FIVE_CYCLE)]
+                ib = hib.clone()
+            } else {
+                ref sib : I32 = IS_BLACK[i.mod(12)]
+                ib = sib.clone()
+            }
             if ib == 1 {
                 DrawRectangle(0, ny, WINDOW_WIDTH, note_h, GRID_BLACK)
             }
-            // Octave separator
-            if i % 12 == 0 && i > 0 {
-                DrawRectangle(0, ny, WINDOW_WIDTH, 1, GRID_LINE)
+            if hextave_display {
+                if i % FIVE_CYCLE == 0 && i > 0 {
+                    DrawRectangle(0, ny, WINDOW_WIDTH, 1, GRID_LINE)
+                }
+            } else {
+                if i % 12 == 0 && i > 0 {
+                    DrawRectangle(0, ny, WINDOW_WIDTH, 1, GRID_LINE)
+                }
             }
         }
 
@@ -208,11 +275,14 @@ main := proc() {
             mut ew := x_left - x_right
             if ew < 2 { ew = 2 }
 
-            // Color: teal with brightness per octave
+            // Color: teal with brightness per display cycle.
             mut note_color := Color(r = 0, g = 150, b = 155, a = 255)
-            oct := en / 12
-            if oct == 1 { note_color = Color(r = 0, g = 180, b = 185, a = 255) }
-            if oct == 2 { note_color = Color(r = 0, g = 210, b = 215, a = 255) }
+            mut cycle : I32 = en / 12
+            if hextave_display { cycle = en / FIVE_CYCLE.cast(I32) }
+            if cycle == 1 { note_color = Color(r = 0, g = 165, b = 170, a = 255) }
+            if cycle == 2 { note_color = Color(r = 0, g = 180, b = 185, a = 255) }
+            if cycle == 3 { note_color = Color(r = 0, g = 195, b = 200, a = 255) }
+            if cycle == 4 { note_color = Color(r = 0, g = 210, b = 215, a = 255) }
 
             DrawRectangle(x_right, ey, ew, note_h - 1, note_color)
         }
@@ -220,62 +290,119 @@ main := proc() {
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
             ny := ROLL_H - (i.cast(I32) + 1) * note_h
-            ref nn : Str = LETTER_NOTE_NAMES[i.mod(12)]
-            oct_label := format(nn, (i / 12 + 3).to_str())
-            DrawTextEx(fnt, oct_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
+            mut note_label := solfege_abs_note_name(i.cast(I32))
+            if display_mode.eq(2) {
+                note_label = five_abs_note_name(i.cast(I32))
+            }
+            if display_mode.eq(1) {
+                ref nn : Str = LETTER_NOTE_NAMES[i.mod(12)]
+                note_label = format(nn, (i / 12 + 3).to_str())
+            }
+            DrawTextEx(fnt, note_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
         }
 
         // -- Piano keyboard --
-        // Draw 21 white keys (3 octaves)
-        for i : USize in 0..21 {
-            kx := i.cast(I32) * WHITE_W
-            oct := i / 7
-            ref nat : I32 = NATURALS[i.mod(7)]
-            chrom := nat + oct.cast(I32) * 12
-
-            mut k_color := KEY_WHITE
-            if chrom.to_usize() < NUM_KEYS {
-                ref kd : I32 = key_down[chrom.to_usize()]
-                if kd == 1 {
-                    k_color = KEY_WHITE_PRESSED
-                }
-            }
-            DrawRectangle(kx, PIANO_Y, WHITE_W - 2, WHITE_H, k_color)
-
-            // Key label
-            if chrom.to_usize() < NUM_KEYS {
-                ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
-                DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
-            }
-        }
-
-        // Draw 15 black keys (5 per octave, 3 octaves)
-        for oct : USize in 0..3 {
-            for j : USize in 0..5 {
-                ref bpos : I32 = BLACK_KEY_POS[j]
-                ref bchrom_off : I32 = BLACK_CHROMS[j]
-                chrom := bchrom_off + oct.cast(I32) * 12
-                bx := (oct.cast(I32) * 7 + bpos + 1) * WHITE_W - BLACK_W / 2
-
-                mut kb_color := KEY_BLACK
+        if hextave_display {
+            // Draw 23 white keys over the same 36-semitone sound range.
+            for i : USize in 0..HEXTAVE_WHITE_KEYS {
+                kx := i.cast(I32) * white_w
+                cycle := i / FIVE_NATURAL_COUNT
+                ref nat : I32 = FIVE_NATURALS[i.mod(FIVE_NATURAL_COUNT)]
+                chrom := nat + cycle.cast(I32) * FIVE_CYCLE.cast(I32)
+                mut k_color := KEY_WHITE
                 if chrom.to_usize() < NUM_KEYS {
                     ref kd : I32 = key_down[chrom.to_usize()]
-                    if kd == 1 {
-                        kb_color = KEY_BLACK_PRESSED
-                    }
+                    if kd == 1 { k_color = KEY_WHITE_PRESSED }
                 }
-                DrawRectangle(bx, PIANO_Y, BLACK_W, BLACK_H, kb_color)
-
-                // Key label
+                DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
                     ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
-                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+                }
+            }
+            for cycle : USize in 0..HEXTAVE_DRAW_CYCLES {
+                for j : USize in 0..3 {
+                    ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
+                    ref bchrom_off : I32 = FIVE_BLACKS[j]
+                    chrom := bchrom_off + cycle.cast(I32) * FIVE_CYCLE.cast(I32)
+                    bx := (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * white_w - black_w / 2
+                    mut kb_color := KEY_BLACK
+                    if chrom.to_usize() < NUM_KEYS {
+                        ref kd : I32 = key_down[chrom.to_usize()]
+                        if kd == 1 { kb_color = KEY_BLACK_PRESSED }
+                    }
+                    DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
+                    if chrom.to_usize() < NUM_KEYS {
+                        ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                        DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                    }
+                }
+            }
+        } else {
+            // Draw 21 white keys (3 octaves).
+            for i : USize in 0..STANDARD_WHITE_KEYS {
+                kx := i.cast(I32) * white_w
+                oct := i / 7
+                ref nat : I32 = NATURALS[i.mod(7)]
+                chrom := nat + oct.cast(I32) * 12
+                mut k_color := KEY_WHITE
+                if chrom.to_usize() < NUM_KEYS {
+                    ref kd : I32 = key_down[chrom.to_usize()]
+                    if kd == 1 { k_color = KEY_WHITE_PRESSED }
+                }
+                DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
+                if chrom.to_usize() < NUM_KEYS {
+                    ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+                }
+            }
+            for oct : USize in 0..3 {
+                for j : USize in 0..5 {
+                    ref bpos : I32 = BLACK_KEY_POS[j]
+                    ref bchrom_off : I32 = BLACK_CHROMS[j]
+                    chrom := bchrom_off + oct.cast(I32) * 12
+                    bx := (oct.cast(I32) * 7 + bpos + 1) * white_w - black_w / 2
+                    mut kb_color := KEY_BLACK
+                    if chrom.to_usize() < NUM_KEYS {
+                        ref kd : I32 = key_down[chrom.to_usize()]
+                        if kd == 1 { kb_color = KEY_BLACK_PRESSED }
+                    }
+                    DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
+                    if chrom.to_usize() < NUM_KEYS {
+                        ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                        DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                    }
                 }
             }
         }
 
+        mut sol_color := BTN_ACTIVE
+        mut letter_color := BTN_INACTIVE
+        mut hex_color := BTN_INACTIVE
+        if display_mode.eq(1) {
+            sol_color = BTN_INACTIVE
+            letter_color = BTN_ACTIVE
+        }
+        if display_mode.eq(2) {
+            sol_color = BTN_INACTIVE
+            hex_color = BTN_ACTIVE
+        }
+        DrawRectangle(TOGGLE_X, TOGGLE_Y, TOGGLE_W, TOGGLE_H, sol_color)
+        DrawRectangle(TOGGLE_X + TOGGLE_W + TOGGLE_GAP, TOGGLE_Y, TOGGLE_W, TOGGLE_H, letter_color)
+        DrawRectangle(TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2, TOGGLE_Y, TOGGLE_W, TOGGLE_H, hex_color)
+        DrawTextEx(fnt, "Solfege".c_str, Vector2(x = (TOGGLE_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
+        DrawTextEx(fnt, "Letters".c_str, Vector2(x = (TOGGLE_X + TOGGLE_W + TOGGLE_GAP + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
+        DrawTextEx(fnt, "Hextaves".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
+
         // Hint
-        DrawTextEx(fnt, "press keyboard keys to play (1-0, Q-P, A-L, Z-M)".c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1.to_f32(), KEY_LABEL_COLOR)
+        mut hint := "Solfege display: same keys and sounds"
+        if display_mode.eq(1) {
+            hint = "Letters display: same keys and sounds"
+        }
+        if display_mode.eq(2) {
+            hint = "Hextaves display: same keys and sounds, C5=ca5 labels"
+        }
+        DrawTextEx(fnt, hint.c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1.to_f32(), KEY_LABEL_COLOR)
 
         EndDrawing()
     }
