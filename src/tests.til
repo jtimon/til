@@ -468,6 +468,9 @@ main := proc(args: ..Str) {
     // enums_lifecycle runs compile-only (interp disabled), so it is the
     // fastest both test; keep it last.
     add_both(tests, "test/enums_lifecycle.til", mode_flags(0, en_run, asan_flag))
+    // doc_block_comments imports the lexer and builds Tokens (U32 fields),
+    // so it runs compile-only like the lexing tests below (issue #182).
+    add_both(tests, "test/doc_block_comments.til", mode_flags(0, en_run, asan_flag))
     // TODO: lexing.til and parsing.til fail interp mode after Token line/col I64→U32
     // (interpreter doesn't handle U32 struct fields correctly)
     // add_both(tests, "test/lexing.til", flags)

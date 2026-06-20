@@ -30,7 +30,8 @@ TokenType := enum {
     // Literals
     Ident, StringTok, Number, Char,
 
-    // Doc comment (text of one /// line, leading /// + one optional space stripped)
+    // Doc comment: text of one /// line (leading /// + one optional space
+    // stripped) or one content line of a /** ... */ block (issue #182).
     DocComment,
 
     // Keywords
@@ -97,6 +98,13 @@ priv is_bin_digit := func(c: I8) returns Bool {
 
 priv is_oct_digit := func(c: I8) returns Bool {
     return c.gte('0').and(c.lte('7'))
+}
+
+// Whitespace recognised when stripping /** ... */ doc-block lines:
+// spaces, tabs and a trailing '\r' (CRLF). Newlines are line separators,
+// not stripped here.
+priv is_doc_ws := func(c: I8) returns Bool {
+    return c.eq(' ').or(c.eq('\t')).or(c.eq('\r'))
 }
 
 // --- Keyword map ---
@@ -294,6 +302,58 @@ priv push_tok := func(mut tokens: Vec(Token), type: TokenType, start: USize, len
     tokens.push(own Token(type = type, start = start, len = len, line = line, col = col))
 }
 
+// --- emit_doc_block_lines ---
+// Issue #182: turn the body of a /** ... */ doc block (the range
+// [from, to) between the opening /** and the closing */) into one
+// DocComment token per content line, so the parser's drain_doc_comments
+// joins them with '\n' and merges them with any adjacent /// lines.
+// Each line is stripped Javadoc-style: leading whitespace, then one
+// optional '*', then one optional space; trailing whitespace is dropped.
+// Leading and trailing blank lines are discarded; interior blank lines
+// are kept (as empty DocComment tokens) so they become paragraph breaks.
+
+priv emit_doc_block_lines := func(mut tokens: Vec(Token), src: Str, from: USize, to: USize, doc_line: U32, col: U32) {
+    mut ls := from
+    mut cur_line := doc_line
+    mut pending_blanks : U32 = 0
+    mut emitted := false
+    mut p := from
+    while true {
+        at_end := p.gte(to)
+        is_nl := at_end.not().and(src.byte_at(p).eq('\n'))
+        if at_end.or(is_nl) {
+            // Strip the line [ls, p).
+            mut s := ls
+            mut e := p
+            while e.gt(s).and(is_doc_ws(src.byte_at(e.sub(1)))) { e = e.sub(1) }
+            while s.lt(e).and(is_doc_ws(src.byte_at(s))) { s++ }
+            if s.lt(e).and(src.byte_at(s).eq('*')) { s++ }
+            if s.lt(e).and(src.byte_at(s).eq(' ')) { s++ }
+            if e.lte(s) {
+                pending_blanks++
+            } else {
+                // Flush interior blanks once a non-blank line follows a
+                // previous one; drop blanks that lead the block.
+                if emitted {
+                    while pending_blanks.gt(0) {
+                        push_tok(tokens, TokenType.DocComment, ls, 0, cur_line, col)
+                        pending_blanks = pending_blanks.sub(1)
+                    }
+                }
+                pending_blanks = 0
+                push_tok(tokens, TokenType.DocComment, s, e.sub(s), cur_line, col)
+                emitted = true
+            }
+            if at_end { break }
+            cur_line++
+            p++
+            ls = p
+            continue
+        }
+        p++
+    }
+}
+
 // --- Tokenizer ---
 // Strict translation of C tokenize(). Uses integer index instead of
 // char pointer. Each Token records the byte range of its text within
@@ -349,10 +409,21 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     pos = scan_to_eol(src, pos, src_len)
                     continue
                 }
-                // Block comments: /* ... */ (nestable)
+                // Block comments: /* ... */ (nestable). A /** ... */ block
+                // (but not the empty /**/) is a doc-block comment (issue
+                // #182): its content lines become DocComment tokens. Both
+                // kinds nest the same way, so /** /* */ */ is one comment.
                 if c2.eq('*') {
-                    pos = pos.add(2)
+                    is_doc := pos.add(2).lt(src_len)
+                        .and(src.byte_at(pos.add(2)).eq('*'))
+                        .and(pos.add(3).lt(src_len))
+                        .and(src.byte_at(pos.add(3)).eq('/').not())
+                    doc_line := line
+                    mut body_start := pos.add(2)
+                    if is_doc { body_start = pos.add(3) }
+                    pos = body_start
                     mut depth := 1
+                    mut content_end := body_start
                     while pos.lt(src_len) {
                         if depth.lte(0) { break }
                         if pos.add(1).lt(src_len) {
@@ -365,6 +436,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                             }
                             if b1.eq('*').and(b2.eq('/')) {
                                 depth--
+                                if depth.lte(0) { content_end = pos }
                                 pos = pos.add(2)
                                 continue
                             }
@@ -377,6 +449,9 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     }
                     if depth.gt(0) {
                         println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated comment")
+                    }
+                    if is_doc.and(depth.lte(0)) {
+                        emit_doc_block_lines(tokens, src, body_start, content_end, doc_line, col)
                     }
                     continue
                 }

@@ -1,0 +1,121 @@
+mode script
+
+// Issue #182: /** ... */ block doc comments. The lexer turns each
+// content line of a /** */ block into a DocComment token (the same
+// token /// produces), so they drain and merge in the parser. These
+// tests drive tokenize() directly and check the resulting tokens.
+
+import("../src/self/lexer")
+
+// Recover a token's source text from its [start, len) range and assert
+// it is a DocComment with the expected stripped text.
+check_doc := func(src: Str, tokens: Vec(Token), i: USize, expected_text: Str) {
+    ref t : Token = tokens[i]
+    tt := t.type
+    expect(tt.eq(TokenType.DocComment),
+        "token ", i.to_str(), " type: expected DocComment got ", tt.to_str())
+    got := src.substr(t.start, t.len).clone()
+    assert_eq(Str, got, expected_text)
+}
+
+check_type := func(tokens: Vec(Token), i: USize, expected_type: TokenType) {
+    ref t : Token = tokens[i]
+    tt := t.type
+    expect(tt.eq(expected_type),
+        "token ", i.to_str(), " type: expected ", expected_type.to_str(),
+        " got ", tt.to_str())
+}
+
+// /** text */ on one line -> a single DocComment with the text stripped
+// of the /** , the */ and the surrounding spaces.
+test_single_line := proc() {
+    src := "/** hello world */"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 2)
+    check_doc(src, tokens, 0, "hello world")
+    check_type(tokens, 1, TokenType.Eof)
+}
+
+// Javadoc layout: a leading '*' and one space on each continuation line
+// are stripped; the close line (just " */") is a dropped trailing blank.
+test_javadoc_continuation := proc() {
+    src := "/** first\n * second\n */"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 3)
+    check_doc(src, tokens, 0, "first")
+    check_doc(src, tokens, 1, "second")
+    check_type(tokens, 2, TokenType.Eof)
+}
+
+// Continuation lines without a '*' keep their text (only leading
+// whitespace is stripped).
+test_indent_continuation := proc() {
+    src := "/** first\n    second\n*/"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 3)
+    check_doc(src, tokens, 0, "first")
+    check_doc(src, tokens, 1, "second")
+    check_type(tokens, 2, TokenType.Eof)
+}
+
+// /** */ nests like a normal block comment: an inner /* */ does not end
+// the doc, and stays as literal text on the line.
+test_nested := proc() {
+    src := "/** a /* b */ c */"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 2)
+    check_doc(src, tokens, 0, "a /* b */ c")
+    check_type(tokens, 1, TokenType.Eof)
+}
+
+// /**/ is the empty block comment, NOT a doc comment: no DocComment token.
+test_empty_block_is_not_doc := proc() {
+    src := "x /**/ y"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 3)
+    check_type(tokens, 0, TokenType.Ident)
+    check_type(tokens, 1, TokenType.Ident)
+    check_type(tokens, 2, TokenType.Eof)
+}
+
+// /** */ with no content produces no DocComment token at all.
+test_empty_doc := proc() {
+    src := "/** */ z"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 2)
+    check_type(tokens, 0, TokenType.Ident)
+    check_type(tokens, 1, TokenType.Eof)
+}
+
+// /// and /** */ both emit DocComment tokens, so the parser merges them.
+test_merges_with_line_doc := proc() {
+    src := "/// line one\n/** line two */"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 3)
+    check_doc(src, tokens, 0, "line one")
+    check_doc(src, tokens, 1, "line two")
+    check_type(tokens, 2, TokenType.Eof)
+}
+
+// An interior blank line is kept as an empty DocComment token so it
+// becomes a paragraph break when the parser joins lines with '\n'.
+test_interior_blank_line := proc() {
+    src := "/** para one\n *\n * para two */"
+    tokens := tokenize(src, "test")
+    assert_eq(USize, tokens.len(), 4)
+    check_doc(src, tokens, 0, "para one")
+    check_doc(src, tokens, 1, "")
+    check_doc(src, tokens, 2, "para two")
+    check_type(tokens, 3, TokenType.Eof)
+}
+
+test_single_line()
+test_javadoc_continuation()
+test_indent_continuation()
+test_nested()
+test_empty_block_is_not_doc()
+test_empty_doc()
+test_merges_with_line_doc()
+test_interior_blank_line()
+
+println("doc_block_comments: ok")
