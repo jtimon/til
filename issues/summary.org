@@ -4,6 +4,7 @@
 *** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
 ** Medium
 *** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
+*** [[./open/283.org][#283]] Bootstrap build prints nonfatal dlopen failed diagnostic
 ** Low
 *** [[./open/266.org][#266]] Flaky build_checkers (xvfb-run tmpdir cleanup race in parallel GUI suite)
 * Cleanups
