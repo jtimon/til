@@ -34,7 +34,7 @@ closure_value_name := func(name: Str) returns Str {
 // --- Leaf functions ---
 
 priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns ref Expr {
-    ref slot : Dynamic = ctx.local_fn_sigs.get(name)?
+    ref slot : Dynamic = ctx.builder_func.local_fn_sigs.get(name)?
     catch (e: KeyNotFound) { return NULL }
     return deref(slot)
 }
@@ -154,7 +154,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
 }
 
 priv is_stack_local := func(name: Str, ctx: Context) returns Bool {
-    return ctx.stack_locals.has(name)
+    return ctx.builder_func.stack_locals.has(name)
 }
 
 priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
@@ -180,8 +180,8 @@ priv is_value_global := func(name: Str, ctx: Context) returns Bool {
     // codegen would emit `.` field access / value returns against a
     // `Type *` local -- invalid C. See issue #220.
     if is_stack_local(name, ctx) { return false }
-    if ctx.ref_locals.has(name) { return false }
-    if ctx.ptr_locals.has(name) { return false }
+    if ctx.builder_func.ref_locals.has(name) { return false }
+    if ctx.builder_func.ptr_locals.has(name) { return false }
     return ctx.script_globals.has(name)
 }
 
@@ -190,13 +190,13 @@ priv is_ref_global := func(name: Str, ctx: Context) returns Bool {
     // Same shadowing rule as is_value_global: a current-function local
     // beats a script-level ref global of the same name.
     if is_stack_local(name, ctx) { return false }
-    if ctx.ref_locals.has(name) { return false }
-    if ctx.ptr_locals.has(name) { return false }
+    if ctx.builder_func.ref_locals.has(name) { return false }
+    if ctx.builder_func.ptr_locals.has(name) { return false }
     return ctx.ref_globals.has(name)
 }
 
 priv is_ref_local := func(name: Str, ctx: Context) returns Bool {
-    if ctx.ref_locals.has(name) { return true }
+    if ctx.builder_func.ref_locals.has(name) { return true }
     return is_ref_global(name, ctx)
 }
 
@@ -1088,7 +1088,7 @@ priv emit_field := proc(f: File, var: Str, field: Str, ctx: Context) {
 }
 
 priv get_stack_local_ctype := func(name: Str, ctx: Context) returns ref Str {
-    ref m : Map(Str, Str) = ctx.stack_local_types
+    ref m : Map(Str, Str) = ctx.builder_func.stack_local_types
     if m.has(name) {
         return m[name]
     }
@@ -1237,7 +1237,7 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
                             if fd.params[pi].is_mut {
                                 switch e.children[a].node_type {
                                 case NodeType.Ident(arg_name):
-                                    ctx.unsafe_to_hoist.add(own arg_name.ident_name())
+                                    ctx.builder_func.unsafe_to_hoist.add(own arg_name.ident_name())
                                 case:
                                 }
                             }
@@ -1263,7 +1263,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                     ref rhs : Expr = stmt.children[0]
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
-                        ctx.unsafe_to_hoist.add(own rhs_name.ident_name())
+                        ctx.builder_func.unsafe_to_hoist.add(own rhs_name.ident_name())
                     case NodeType.FCall:
                         callee := resolve_callee_name(rhs)
                         if callee.len().gt(0) {
@@ -1275,7 +1275,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                                         for a in 1..rhs.children.len() {
                                             switch rhs.children[a].node_type {
                                             case NodeType.Ident(arg_name):
-                                                ctx.unsafe_to_hoist.add(own arg_name.ident_name())
+                                                ctx.builder_func.unsafe_to_hoist.add(own arg_name.ident_name())
                                             case:
                                             }
                                         }
@@ -1308,13 +1308,13 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
 }
 
 priv builder_reset_func_scratch := func(mut ctx: Context) {
-    ctx.stack_locals = Set(Str).new()
-    ctx.stack_local_types = Map(Str, Str).new()
-    ctx.unsafe_to_hoist = Set(Str).new()
-    ctx.ref_locals = Set(Str).new()
-    ctx.ref_dyn_locals = Set(Str).new()
-    ctx.ptr_locals = Set(Str).new()
-    ctx.local_fn_sigs = Map(Str, Dynamic).new()
+    ctx.builder_func.stack_locals = Set(Str).new()
+    ctx.builder_func.stack_local_types = Map(Str, Str).new()
+    ctx.builder_func.unsafe_to_hoist = Set(Str).new()
+    ctx.builder_func.ref_locals = Set(Str).new()
+    ctx.builder_func.ref_dyn_locals = Set(Str).new()
+    ctx.builder_func.ptr_locals = Set(Str).new()
+    ctx.builder_func.local_fn_sigs = Map(Str, Dynamic).new()
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
@@ -1441,7 +1441,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     // it changes the global-vs-local decision and nothing else. (stack_locals
     // and ref_locals already cover their own cases; adding here is harmless
     // overlap.)
-    if ctx.in_func_def { ctx.ptr_locals.add(own dd.name.clone()) }
+    if ctx.in_func_def { ctx.builder_func.ptr_locals.add(own dd.name.clone()) }
     // For any FuncPtr-typed decl (own, ref, or value), capture the local's
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
@@ -1451,7 +1451,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if decl_sig.is_null().not() {
             sig_buf : Dynamic = malloc(I64.size().cast(U64))
             write_ptr(sig_buf, decl_sig)
-            ref mut m : Map(Str, Dynamic) = ctx.local_fn_sigs
+            ref mut m : Map(Str, Dynamic) = ctx.builder_func.local_fn_sigs
             m.set(dd.name, own sig_buf)
         }
     }
@@ -1498,12 +1498,12 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if dd.own_type.is(OwnType.Ref) {
             is_rg := is_ref_global(dd.name, ctx).and(ctx.in_func_def.not())
             if is_rg.not() {
-                ctx.ref_locals.add(own dd.name.clone())
+                ctx.builder_func.ref_locals.add(own dd.name.clone())
                 // #185: track ref-Dynamic locals so emit_deref can typed-
                 // cast at use sites where narrow_dynamic has retyped the
                 // Ident to a concrete primitive.
                 if dd.explicit_type.eq("Dynamic") {
-                    ctx.ref_dyn_locals.add(own dd.name.clone())
+                    ctx.builder_func.ref_dyn_locals.add(own dd.name.clone())
                 }
             }
             ctype := resolve_decl_ctype(e.expr_til_type(), rhs.expr_til_type(), dd.explicit_type, ctx)
@@ -1555,8 +1555,8 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_pod_compound_literal(f, rhs, depth, ctx)
                         f.write(";\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else {
                         f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
@@ -1580,8 +1580,8 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     case:
                     }
         f.write("ULL, .cap = TIL_CAP_LIT};\n")
-                    ctx.stack_locals.add(own dd.name.clone())
-                    ctx.stack_local_types.set(dd.name, own ctype.clone())
+                    ctx.builder_func.stack_locals.add(own dd.name.clone())
+                    ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                 } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
                 .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.expr_til_type().is(Type.Enum))) {
                     if is_global {
@@ -1604,8 +1604,8 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         if htype.len().eq(0) { htype = ctype.clone() }
                         f.write(htype).write(" ").write(dd.name).write(" = ")
                         emit_expr(f, rhs, depth, ctx); f.write(";\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own htype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own htype.clone())
                     } else if can_hoist.and(is_pod_enum_clone_call(rhs, ctx)) {
                         // POD enum clone wrap: typer wraps
                         // `c := Color.Red` as `c := Color.clone(Color.Red)`
@@ -1620,22 +1620,22 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_pod_enum_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
                         mut htype := fcall_return_ctype(rhs, ctx)
                         if htype.len().eq(0) { htype = ctype.clone() }
                         f.write(htype).write(" ").write(dd.name).write("; { ").write(htype).write(" *_hp = (").write(htype).write(" *)")
                         emit_expr(f, rhs, depth, ctx)
                         f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own htype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own htype.clone())
                     } else if can_hoist {
                         f.write(ctype).write(" ").write(dd.name).write("; { ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
                         emit_expr(f, rhs, depth, ctx)
                         f.write("; ").write(dd.name).write(" = *_hp; free(_hp); }\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else if is_pod_enum_clone_call(rhs, ctx).and(is_global.not()) {
                         // POD-enum heap-Decl variant: emit as stack
                         // value, garbager skips heap-promote, delete
@@ -1643,15 +1643,15 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_pod_enum_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else if is_pod_struct_user_clone(rhs, ctx).and(is_global.not()) {
                         // POD-struct `.clone()`: emit a struct value-copy.
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
                         f.write(";\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else {
                         if is_global { f.write(dd.name).write(" = ") }
                         else { f.write(ctype).write(" *").write(dd.name).write(" = ") }
@@ -1663,8 +1663,8 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     } else if can_hoist {
                         f.write(ctype).write(" ").write(dd.name).write(" = ")
                         emit_deref(f, rhs, depth, ctx); f.write(";\n")
-                        ctx.stack_locals.add(own dd.name.clone())
-                        ctx.stack_local_types.set(dd.name, own ctype.clone())
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else {
                         f.write(ctype).write(" *").write(dd.name).write(" = malloc(sizeof(").write(ctype).write("));\n")
                         emit_indent(f, depth)
@@ -2582,7 +2582,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         }
         if e.expr_til_type().is_funcptr() {
             ref ident_fdef : Expr = find_callee_fdef(ident.ident_name(), ctx)
-            if ident_fdef.is_null().not().and(ctx.closure_value_names.has(ident.ident_name())).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.ptr_locals.has(ident.ident_name()).not()) {
+            if ident_fdef.is_null().not().and(ctx.closure_value_names.has(ident.ident_name())).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_name()).not()) {
                 f.write("&")
                 f.write(closure_value_name(ident.ident_name()))
             } else {
@@ -3114,13 +3114,13 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
 }
 
 priv emit_body_scoped := proc(f: File, body: Expr, depth: I32, ctx: Context) {
-    saved_sl := ctx.stack_locals.clone()
-    saved_rl := ctx.ref_locals.clone()
-    saved_rdl := ctx.ref_dyn_locals.clone()
+    saved_sl := ctx.builder_func.stack_locals.clone()
+    saved_rl := ctx.builder_func.ref_locals.clone()
+    saved_rdl := ctx.builder_func.ref_dyn_locals.clone()
     emit_body(f, body, depth, ctx)
-    ctx.stack_locals = saved_sl
-    ctx.ref_locals = saved_rl
-    ctx.ref_dyn_locals = saved_rdl
+    ctx.builder_func.stack_locals = saved_sl
+    ctx.builder_func.ref_locals = saved_rl
+    ctx.builder_func.ref_dyn_locals = saved_rdl
 }
 
 priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
@@ -3154,7 +3154,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
             // is_shallow_param check below matches by name and can false-
             // positive across funcs). Check ref-local before that shortcut,
             // but after the ref-Dynamic case (#185), which needs a typed cast.
-            if ctx.ref_dyn_locals.has(ident.ident_name()) {
+            if ctx.builder_func.ref_dyn_locals.has(ident.ident_name()) {
                 // #185: ident is a ref-Dynamic local but the typer's
                 // narrow_dynamic has retyped this use to a concrete
                 // primitive. Emit a typed cast so DEREF doesn't try to
@@ -3522,13 +3522,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_caps := lp.ctx.closure_emit_captures.clone()
         saved_in_func_def := lp.ctx.in_func_def
         ref saved_current_fdef : Expr = lp.ctx.current_fdef
-        saved_stack_locals := lp.ctx.stack_locals.clone()
-        saved_stack_local_types := lp.ctx.stack_local_types.clone()
-        saved_unsafe_to_hoist := lp.ctx.unsafe_to_hoist.clone()
-        saved_ref_locals := lp.ctx.ref_locals.clone()
-        saved_ref_dyn_locals := lp.ctx.ref_dyn_locals.clone()
-        saved_ptr_locals := lp.ctx.ptr_locals.clone()
-        saved_local_fn_sigs := lp.ctx.local_fn_sigs.clone()
+        saved_builder_func := lp.ctx.builder_func.clone()
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Str).new()
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own cap2.name.clone()) }
@@ -3541,13 +3535,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.closure_emit_captures = saved_caps
         lp.ctx.in_func_def = saved_in_func_def
         lp.ctx.current_fdef = saved_current_fdef
-        lp.ctx.stack_locals = saved_stack_locals
-        lp.ctx.stack_local_types = saved_stack_local_types
-        lp.ctx.unsafe_to_hoist = saved_unsafe_to_hoist
-        lp.ctx.ref_locals = saved_ref_locals
-        lp.ctx.ref_dyn_locals = saved_ref_dyn_locals
-        lp.ctx.ptr_locals = saved_ptr_locals
-        lp.ctx.local_fn_sigs = saved_local_fn_sigs
+        lp.ctx.builder_func = saved_builder_func
         f.write("}\n\n")
     case:
     }
@@ -5179,12 +5167,12 @@ build_register_closure_values_lp := proc(lp: LoadedProgram) {
 priv build_register_lookups_lp := func(lp: LoadedProgram) {
     lp.ctx.struct_def_exprs = Map(Str, Dynamic).new()
     lp.ctx.func_defs = Map(Str, Dynamic).new()
-    lp.ctx.stack_locals = Set(Str).new()
-    lp.ctx.stack_local_types = Map(Str, Str).new()
-    lp.ctx.unsafe_to_hoist = Set(Str).new()
-    lp.ctx.ref_locals = Set(Str).new()
-    lp.ctx.ref_dyn_locals = Set(Str).new()
-    lp.ctx.ptr_locals = Set(Str).new()
+    lp.ctx.builder_func.stack_locals = Set(Str).new()
+    lp.ctx.builder_func.stack_local_types = Map(Str, Str).new()
+    lp.ctx.builder_func.unsafe_to_hoist = Set(Str).new()
+    lp.ctx.builder_func.ref_locals = Set(Str).new()
+    lp.ctx.builder_func.ref_dyn_locals = Set(Str).new()
+    lp.ctx.builder_func.ptr_locals = Set(Str).new()
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
@@ -6810,7 +6798,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
 priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     f.write("int main(void) {\n")
     emit_ns_inits(f, 1, lp)
-        lp.ctx.unsafe_to_hoist = Set(Str).new()
+        lp.ctx.builder_func.unsafe_to_hoist = Set(Str).new()
     // Collect hoist restrictions across all user units.
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -7077,9 +7065,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
         }
     }
     lp.ctx.func_defs = Map(Str, Dynamic).new()
-        lp.ctx.stack_locals = Set(Str).new()
-    lp.ctx.stack_local_types = Map(Str, Str).new()
-        lp.ctx.unsafe_to_hoist = Set(Str).new()
+        lp.ctx.builder_func.stack_locals = Set(Str).new()
+    lp.ctx.builder_func.stack_local_types = Map(Str, Str).new()
+        lp.ctx.builder_func.unsafe_to_hoist = Set(Str).new()
     return 0
 }
 

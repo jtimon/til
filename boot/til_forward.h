@@ -229,6 +229,7 @@ typedef enum {
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
+typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Map__Str_Mode Map__Str_Mode;
@@ -1622,6 +1623,17 @@ typedef struct ImportUnit {
 } ImportUnit;
 
 
+typedef struct BuilderFuncScratch {
+    Map__Str_Dynamic local_fn_sigs;
+    Set__Str stack_locals;
+    Map__Str_Str stack_local_types;
+    Set__Str unsafe_to_hoist;
+    Set__Str ref_locals;
+    Set__Str ref_dyn_locals;
+    Set__Str ptr_locals;
+} BuilderFuncScratch;
+
+
 typedef struct Map__Str_TypeBinding {
     Vec__Str keys;
     Vec__TypeBinding values;
@@ -1788,7 +1800,6 @@ typedef struct Context {
     Vec__Dynamic ns_keys;
     Bool ns_inited;
     Bool typing_namespace_member;
-    Map__Str_Dynamic local_fn_sigs;
     Str closure_emit_env;
     Set__Str closure_emit_captures;
     Map__Str_Dynamic func_defs;
@@ -1818,12 +1829,7 @@ typedef struct Context {
     Str current_top_func_name;
     I32 auto_gen_depth;
     Set__Str throw_used_local_names;
-    Set__Str stack_locals;
-    Map__Str_Str stack_local_types;
-    Set__Str unsafe_to_hoist;
-    Set__Str ref_locals;
-    Set__Str ptr_locals;
-    Set__Str ref_dyn_locals;
+    BuilderFuncScratch builder_func;
     Set__Str swap_freed;
     Expr *current_fdef;
     Expr *cached_str_def;
@@ -2426,6 +2432,10 @@ FuncType func_def_type(Expr * fdef);
 ImportUnit * ImportUnit_clone(ImportUnit * self);
 void ImportUnit_delete(ImportUnit * self, Bool call_free);
 U32 ImportUnit_size(void);
+BuilderFuncScratch * BuilderFuncScratch_clone(BuilderFuncScratch * self);
+void BuilderFuncScratch_delete(BuilderFuncScratch * self, Bool call_free);
+U64 BuilderFuncScratch_hash(BuilderFuncScratch * self, HashFn hasher);
+U32 BuilderFuncScratch_size(void);
 Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool call_free);
 U32 Context_size(void);
