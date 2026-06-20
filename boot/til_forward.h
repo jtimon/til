@@ -2957,6 +2957,7 @@ Bool fcall_is_get_method(Expr * fcall);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
 Vec__CtorArg * Vec__CtorArg_new(void);
+U32 Vec__CtorArg_len(Vec__CtorArg * self);
 void Vec__CtorArg_clear(Vec__CtorArg * self);
 void Vec__CtorArg_push(Vec__CtorArg * self, priv___src_self_typer_til__CtorArg * val);
 priv___src_self_typer_til__CtorArg * Vec__CtorArg_get(Vec__CtorArg * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);

@@ -104,8 +104,7 @@ namespace:
             free(own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
-            ref head2 : I64 = self.buckets[bi]
-            head_val : I64 = head2.clone()
+            head_val : I64 = self.buckets[bi].clone()
             self.nexts.push(own head_val)
 
             if self.keys.count.eq(self.keys.cap) {
@@ -204,8 +203,7 @@ namespace:
         V.delete(own ptr_add(self.values.data, values_off.cast(U64)), false)
 
         // Unlink from the chain.
-        ref nxt_of_idx : I64 = self.nexts[idx_u]
-        nxt_val : I64 = nxt_of_idx.clone()
+        nxt_val : I64 = self.nexts[idx_u].clone()
         if prev.lt(0) {
             self.buckets[bi] = nxt_val
         } else {
@@ -217,8 +215,7 @@ namespace:
             last_u : USize = last_idx.to_usize()
             // Rewrite whatever pointer in `last_idx`'s chain referenced
             // last_idx; it must now reference idx_u.
-            ref last_key : K = self.keys[last_u]
-            last_bi := bucket(HashMap(K, V).hash_key(last_key), self.buckets.count)
+            last_bi := bucket(HashMap(K, V).hash_key(self.keys[last_u]), self.buckets.count)
             ref last_head : I64 = self.buckets[last_bi]
             if last_head.eq(last_idx) {
                 self.buckets[last_bi] = entry.clone()
@@ -242,8 +239,7 @@ namespace:
                    ptr_add(self.keys.data, last_keys_off.cast(U64)), K.size().cast(U64))
             memcpy(ptr_add(self.values.data, values_off.cast(U64)),
                    ptr_add(self.values.data, last_values_off.cast(U64)), V.size().cast(U64))
-            ref last_nxt : I64 = self.nexts[last_u]
-            self.nexts[idx_u] = last_nxt.clone()
+            self.nexts[idx_u] = self.nexts[last_u].clone()
         }
 
         // Shrink the dense vectors by one. We touch count directly

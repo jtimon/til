@@ -30,8 +30,7 @@ ca_count_neighbors := func(mut grid: Array(I64), idx: I64, cols: I64, rows: I64)
                 wx := nx.add(cols).mod(cols)
                 wy := ny.add(rows).mod(rows)
                 ni := wy.mul(cols).add(wx)
-                ref nv : I64 = grid[ni.to_usize()]
-                if nv.eq(1) {
+                if grid[ni.to_usize()].eq(1) {
                     count++
                 }
             }
@@ -46,8 +45,7 @@ ca_count_neighbors := func(mut grid: Array(I64), idx: I64, cols: I64, rows: I64)
 ca_in_set := func(mut arr: Array(I64), len: I64, val: I64) returns Bool {
     mut i := 0
     while i.lt(len) {
-        ref v : I64 = arr[i.to_usize()]
-        if v.eq(val) { return true }
+        if arr[i.to_usize()].eq(val) { return true }
         i++
     }
     return false
@@ -62,8 +60,7 @@ ca_step := func(mut grid: Array(I64), mut next: Array(I64), cols: I64, rows: I64
     mut i := 0
     while i.lt(total) {
         neighbors := ca_count_neighbors(grid, i, cols, rows)
-        ref cur : I64 = grid[i.to_usize()]
-        if cur.eq(1) {
+        if grid[i.to_usize()].eq(1) {
             if ca_in_set(survive, survive_len, neighbors) {
                 next[i.to_usize()] = 1
             } else {
@@ -84,8 +81,7 @@ ca_step := func(mut grid: Array(I64), mut next: Array(I64), cols: I64, rows: I64
 ca_swap := func(mut grid: Array(I64), mut next: Array(I64), total: I64) {
     mut i := 0
     while i.lt(total) {
-        ref nval : I64 = next[i.to_usize()]
-        grid[i.to_usize()] = nval.clone()
+        grid[i.to_usize()] = next[i.to_usize()].clone()
         i++
     }
 }

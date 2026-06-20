@@ -56,8 +56,7 @@ namespace:
         }
         mut offset : USize = 0
         for j in 0..i {
-            ref sz : USize = self.type_sizes[j]
-            offset = offset.add(sz)
+            offset = offset.add(self.type_sizes[j])
         }
         return ptr_add(self.data, offset)
     }
@@ -65,15 +64,13 @@ namespace:
     /// Type name of the element at index `i`. Panics if `i` is past
     /// the end.
     type_at := func(self: Tuple, i: USize) returns ref Str {
-        ref out_name : Str = self.type_names[i]
-        return out_name
+        return self.type_names[i]
     }
 
     /// Byte size of the element at index `i`. Panics if `i` is past
     /// the end.
     size_at := func(self: Tuple, i: USize) returns ref USize {
-        ref out_size : USize = self.type_sizes[i]
-        return out_size
+        return self.type_sizes[i]
     }
 
     delete := func(own self: Tuple, call_free: Bool = true) {

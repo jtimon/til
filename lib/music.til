@@ -85,10 +85,9 @@ five_acc_text := func(acc: I64) returns Str {
 }
 
 five_full_note_name := func(name_idx: I32, acc: I32, sixtave: I32) returns Str {
-    ref nn : Str = FIVE_NATURAL_NAMES[name_idx.to_usize()]
     acc_label := five_acc_text(acc.cast(I64))
     sixtave_label := (sixtave + FIVE_BASE_SIXTAVE).to_str()
-    return format(acc_label, nn, sixtave_label)
+    return format(acc_label, FIVE_NATURAL_NAMES[name_idx.to_usize()], sixtave_label)
 }
 
 five_staff_pos := func(name_idx: I32, sixtave: I32) returns I32 {
@@ -112,8 +111,7 @@ five_recompute_scale := func(sel_root: USize, sel_mode: USize,
         sc_sixtave[k] = sixtave.clone()
 
         chrom_mod := chrom_total % FIVE_CYCLE.cast(I32)
-        ref nat_ref : I32 = FIVE_NATURALS[diat_pos.to_usize()]
-        mut acc := chrom_mod - nat_ref
+        mut acc := chrom_mod - FIVE_NATURALS[diat_pos.to_usize()]
         if acc.gt(4) { acc = acc - FIVE_CYCLE.cast(I32) }
         if acc.lt(-4) { acc = acc + FIVE_CYCLE.cast(I32) }
         sc_acc[k] = acc
@@ -123,8 +121,7 @@ five_recompute_scale := func(sel_root: USize, sel_mode: USize,
         sc_freq[k] = freq_val
 
         if k.lt(FIVE_NATURAL_COUNT) {
-            ref step : I32 = FIVE_MODE_INTERVALS[sel_mode * FIVE_NATURAL_COUNT + k]
-            chrom_total = chrom_total + step
+            chrom_total = chrom_total + FIVE_MODE_INTERVALS[sel_mode * FIVE_NATURAL_COUNT + k]
         }
     }
 }

@@ -932,8 +932,8 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         }
         mut new_ch := Vec(Expr).new()
         new_ch.push_take(e.children, 0)
-        for i in 0..nfields {
-            switch field_vals[i] {
+        for fv : CtorArg in field_vals {
+            switch fv {
             case CtorArg.Filled(filled_arg):
                 new_ch.push(own filled_arg.clone())
             case:
@@ -1813,8 +1813,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         ref callee : Expr = e.children[0]
         new_ch.push(own callee.clone())
         mut missing_filled := false
-        for i in 0..np {
-            ref slot_arg : CtorArg = new_args[i]
+        for slot_arg : CtorArg in new_args {
             switch slot_arg {
             case CtorArg.Filled(filled_arg):
                 new_ch.push(own filled_arg.clone())

@@ -2923,9 +2923,7 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeSco
 // `TemplVec(Bool)` compile to ONE generated type.
 priv init_hoist_inline_macros := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
     mut synthesized := Vec(Expr).new()
-    np := program.children.len()
-    for i in 0..np {
-        ref mut stmt : Expr = program.children[i]
+    for mut stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl) {
             if stmt.children.len().gt(0) {
                 if init_is_type_gen_macro_def(stmt.children[0]) { continue }
