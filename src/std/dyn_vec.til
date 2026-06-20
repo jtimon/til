@@ -132,9 +132,9 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    get := func(self: DynVec, i: USize) returns ref Dynamic throws OutOfBounds {
+    get := func(self: DynVec, i: USize, loc: Str = __LOC__) returns ref Dynamic throws OutOfBounds {
         if i.gte(self.count) {
-            throw OutOfBounds(msg = format(__LOC__, ":DynVec.get: index ", i.to_str(),
+            throw OutOfBounds(msg = format(loc, ":DynVec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
         return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
@@ -180,7 +180,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `dynvec[i] = val`
     /// (or `dynvec.set(i, own val)!`) to panic on a bad index.
-    set := func(mut self: DynVec, i: USize, own val: Dynamic) throws OutOfBounds {
+    set := func(mut self: DynVec, i: USize, own val: Dynamic, loc: Str = __LOC__) throws OutOfBounds {
         if i.gte(self.count) {
             // val is not stored on the error path: drop its element
             // content (if boxed) and free the box so it does not leak.
@@ -189,7 +189,7 @@ namespace:
                 self.elem_delete(val, false)
             }
             free(own val)
-            throw OutOfBounds(msg = format(__LOC__, ":DynVec.set: index ", i.to_str(),
+            throw OutOfBounds(msg = format(loc, ":DynVec.set: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         } else {
             if self.elem_kind.eq(ELEM_BOXED) {
