@@ -223,6 +223,9 @@ I64 U32_cmp(U32 a, U32 b);
 
 // U32 conversions
 I64 U32_to_i64(U32 a);
+I32 U32_to_i32(U32 a);
+U32 U32_to_u32(U32 a);
+U64 U32_to_u64(U32 a);
 F32 U32_to_f32(U32 a);
 U32 U32_from_i64_ext(const I64 *a);
 
@@ -249,6 +252,8 @@ I64 U64_cmp(U64 a, U64 b);
 // U64 conversions
 U32 U64_to_u32(U64 a);
 I32 U64_to_i32(U64 a);
+I64 U64_to_i64(U64 a);
+U64 U64_to_u64(U64 a);
 USize U64_to_usize(U64 a);
 F32 U64_to_f32(U64 a);
 Str *U64_to_str_ext(U64 v);
