@@ -4159,7 +4159,19 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     }
 
     ref len_func : Expr = find_namespace_func(sdef, "len", scope)
-    ref get_func : Expr = find_namespace_func(sdef, "get", scope)
+    // Issue #284: prefer an unchecked accessor when the collection offers
+    // one. The desugared index runs exactly 0..len(), so the loop's own
+    // `_fi < len()` test already proves the access in bounds -- the
+    // per-element bounds check inside the throwing `get` is pure redundancy.
+    // Because unsafe_get is non-throwing, the whole get_throws branch below
+    // (err out-params, malloc(OutOfBounds) slot, post-call _err_kind check)
+    // is never emitted; the loop body collapses to one compare + ptr
+    // arithmetic. Falls back to `get` for collections without unsafe_get.
+    mut method_name := "unsafe_get"
+    if find_namespace_func(sdef, "unsafe_get", scope).is_null() {
+        method_name = "get"
+    }
+    ref get_func : Expr = find_namespace_func(sdef, method_name, scope)
 
     if len_func.is_null() {
         stmt.type_error(format("type '", type_name, "' has no 'len' method (required for for-in)"), ctx)
@@ -4320,7 +4332,7 @@ desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     if get_returns_ref { forin_own = OwnType.Ref }
     mut elem_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = elem_type, own_type = forin_own, is_mut = forin_is_mut)), line, col)
     mut col_ident_get := Expr.new(ident_node(col_name), line, col)
-    mut get_call := make_method_call_fcall(own col_ident_get, "get", line, col)
+    mut get_call := make_method_call_fcall(own col_ident_get, method_name, line, col)
     mut idx_ident_get := Expr.new(ident_node(idx_name), line, col)
     get_call.add_child(own idx_ident_get)
     if get_throws {

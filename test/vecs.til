@@ -267,6 +267,46 @@ test_vec_append_str := test() {
     assert_eq(Str, a2, "cc")
 }
 
+// Issue #284: collection for-in iterates via the unchecked unsafe_get
+// accessor (the loop's `_fi < len()` test already proves the index in
+// bounds). Results must be identical to the old checked-get path; this
+// asserts the sum/order over a grown Vec is unchanged.
+test_vec_for_in := test() {
+    v := Vec(I64).new()
+    v.push(own 1)
+    v.push(own 2)
+    v.push(own 3)
+    v.push(own 4)
+    v.push(own 5)
+    v.push(own 6)
+    v.push(own 7)
+    v.push(own 8)
+    v.push(own 9)
+    v.push(own 10)
+    mut sum : I64 = 0
+    mut idx : USize = 0
+    for x : I64 in v {
+        ref expect_x : I64 = v[idx]
+        assert_eq(I64, x, expect_x)
+        sum = sum.add(x)
+        idx = idx.add(1)
+    }
+    assert_eq(USize, idx, 10)
+    assert_eq(I64, sum, 55)
+}
+
+test_vec_for_in_str := test() {
+    v := Vec(Str).new()
+    v.push(own "a")
+    v.push(own "b")
+    v.push(own "c")
+    mut joined := ""
+    for s : Str in v {
+        joined = format(joined, s)
+    }
+    assert_eq(Str, joined, "abc")
+}
+
 test_vec_take_prefix_append_roundtrip := test() {
     v := Vec(I64).new()
     v.push(own 5)
