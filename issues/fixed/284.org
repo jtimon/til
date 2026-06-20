@@ -1,6 +1,32 @@
 # priority: medium
 # category: cleanups
-** OPEN #284 for-in: skip the redundant bounds check via unsafe_get
+** FIXED #284 for-in: skip the redundant bounds check via unsafe_get
+
+*** Post-mortem
+
+  Root cause: collection for-in desugared to a per-element call into the
+  bounds-checked, OutOfBounds-throwing ~get~, re-testing ~idx >= count~
+  that the loop's own ~_fi < len()~ termination test already proves --
+  plus the full throw plumbing (err out-params, ~malloc(OutOfBounds)~
+  slot, post-call ~_err_kind~ check) emitted per pass.
+
+  Fix:
+  - ~src/core/vec.til~, ~src/core/array.til~: factored the unchecked core
+    into a non-throwing ~unsafe_get(self, i) returns ref T~; ~get~ now
+    bounds-checks then delegates to ~unsafe_get~.
+  - ~src/self/desugarer.til~ ~desugar_for_in_collection_stmt~: prefers
+    ~unsafe_get~ when the collection offers it, falling back to ~get~.
+    Because ~unsafe_get~ is non-throwing, the entire ~get_throws~ branch
+    (err slots, malloc, ~_err_kind~ guard) is never emitted; the loop
+    body collapses to one ~_fi < len~ compare + ptr arithmetic + ~_fi++~.
+
+  Semantics-preserving: for-in over an in-range collection produces
+  identical results. Map's ~.values~ for-in iterates the inner Vec and so
+  inherits the unchecked path for free.
+
+  Regression tests: ~test_vec_for_in~, ~test_vec_for_in_str~ in
+  test/vecs.til and ~test_array_for_in~ in test/arrays.til assert the
+  iteration sum/order is unchanged across interp, compile, and run.
 
 Related: [[./94.org][#94]] (cursor/iterator direction for *range* for-in;
   see "Relation to #94" below).

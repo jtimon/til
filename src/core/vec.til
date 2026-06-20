@@ -90,6 +90,15 @@ namespace:
         other.count = 0
     }
 
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    unsafe_get := func(self: Vec(T), i: USize) returns ref T {
+        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+    }
+
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
@@ -99,7 +108,7 @@ namespace:
             throw OutOfBounds(msg = format(loc, ":Vec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
-        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+        return self.unsafe_get(i)
     }
 
     /// Remove and return the last element. Panics if empty. The caller

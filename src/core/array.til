@@ -21,6 +21,15 @@ namespace:
 
     len := func(self: Array(T)) returns USize { return self.cap }
 
+    /// Unchecked element access: ref to the element at index `i` with
+    /// NO bounds check. The caller must prove `i < len()`. This is the
+    /// unchecked core that `get` wraps; for-in uses it directly because
+    /// its `_fi < len()` termination test already proves the index in
+    /// bounds (issue #284).
+    unsafe_get := func(self: Array(T), i: USize) returns ref T {
+        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+    }
+
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
     get := func(self: Array(T), i: USize, loc: Str = __LOC__) returns ref T throws OutOfBounds {
@@ -28,7 +37,7 @@ namespace:
             throw OutOfBounds(msg = format(loc, ":Array.get: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")"))
         }
-        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+        return self.unsafe_get(i)
     }
 
     /// Overwrite the element at index `i`. Drops the old value. `val` is

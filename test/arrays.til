@@ -16,6 +16,26 @@ test_array_new_get_set := test() {
     assert_eq(USize, a.len(), 3)
 }
 
+// Issue #284: collection for-in iterates via the unchecked unsafe_get
+// accessor; results must match the old checked-get path.
+test_array_for_in := test() {
+    a := Array(I64).new(4)
+    a.set(0, own 5)!
+    a.set(1, own 6)!
+    a.set(2, own 7)!
+    a.set(3, own 8)!
+    mut sum : I64 = 0
+    mut idx : USize = 0
+    for x : I64 in a {
+        ref expect_x : I64 = a.get(idx)!
+        assert_eq(I64, x, expect_x)
+        sum = sum.add(x)
+        idx = idx.add(1)
+    }
+    assert_eq(USize, idx, 4)
+    assert_eq(I64, sum, 26)
+}
+
 // a[i] desugars to a.get(i)! in the parser (generic over any type
 // whose get throws), so subscript and explicit get(i)! agree.
 test_array_subscript := test() {
