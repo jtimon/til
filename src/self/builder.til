@@ -3579,7 +3579,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
         for drop_cap : Declaration in fd.captures {
             if drop_cap.own_type.is(OwnType.Ref).not() {
-                drop_type := til_type_name_c(drop_cap.til_type)
+                drop_type := type_to_name(drop_cap.til_type)
                 if is_primitive_type(drop_type) {
                     f.write("    free(til_env->").write(drop_cap.name).write(");\n")
                 } else {

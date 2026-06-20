@@ -1,0 +1,16 @@
+mode test
+
+UnaryOp := func(I64) returns I64
+
+make_counter := func() returns UnaryOp {
+    mut total := 0
+    return func(x: I64) returns I64 [mut total] {
+        total = total.add(x)
+        return total
+    }
+}
+
+test_returned_mut_borrowed_closure_error := test() {
+    counter := make_counter()
+    println(counter(1).to_str())
+}
