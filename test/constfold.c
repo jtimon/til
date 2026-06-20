@@ -1220,7 +1220,7 @@ Str * format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str hoisted__Str_738 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+            static Str hoisted__Str_738 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
             (void)hoisted__Str_738;
             Str *s = Array__Str_get(_fc_Array__Str_727, &_fi_USize_727, &_forin_err_kind_727, _forin_OutOfBounds_727, &hoisted__Str_738);
             I64 hoisted__I64_739 = 0;
@@ -1241,22 +1241,22 @@ Str * format(Array__Str * parts) {
                 (void)_va_Array_16_eo;
                 U32 hoisted__U32_730 = 0;
                 (void)hoisted__U32_730;
-                Str hoisted__Str_731 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_731 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_731;
-                Str hoisted__Str_732 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_732 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_732;
-                Array__Str_set(_va_Array_16, hoisted__U32_730, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_731; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_16_ek, _va_Array_16_eo, &hoisted__Str_732);
+                Array__Str_set(_va_Array_16, hoisted__U32_730, &hoisted__Str_731, &_va_Array_16_ek, _va_Array_16_eo, &hoisted__Str_732);
                 Str_delete(&hoisted__Str_732, (Bool){0});
                 U32 hoisted__U32_733 = 1;
                 (void)hoisted__U32_733;
-                Str hoisted__Str_734 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_734 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_734;
-                Str hoisted__Str_735 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_735 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_735;
-                Array__Str_set(_va_Array_16, hoisted__U32_733, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_734; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_16_ek, _va_Array_16_eo, &hoisted__Str_735);
+                Array__Str_set(_va_Array_16, hoisted__U32_733, &hoisted__Str_734, &_va_Array_16_ek, _va_Array_16_eo, &hoisted__Str_735);
                 OutOfBounds_delete(_va_Array_16_eo, 1);
                 Str_delete(&hoisted__Str_735, (Bool){0});
-                Str hoisted__Str_736 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_736 = (Str){.c_str = (void *)"./src/core/str.til:18:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_736;
                 panic(_va_Array_16, &hoisted__Str_736);
                 Str_delete(&hoisted__Str_736, (Bool){0});
@@ -1296,7 +1296,7 @@ Str * format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str hoisted__Str_757 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+            static Str hoisted__Str_757 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
             (void)hoisted__Str_757;
             Str *s = Array__Str_get(_fc_Array__Str_746, &_fi_USize_746, &_forin_err_kind_746, _forin_OutOfBounds_746, &hoisted__Str_757);
             I64 hoisted__I64_758 = 0;
@@ -1317,22 +1317,22 @@ Str * format(Array__Str * parts) {
                 (void)_va_Array_17_eo;
                 U32 hoisted__U32_749 = 0;
                 (void)hoisted__U32_749;
-                Str hoisted__Str_750 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_750 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_750;
-                Str hoisted__Str_751 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_751 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_751;
-                Array__Str_set(_va_Array_17, hoisted__U32_749, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_750; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_17_ek, _va_Array_17_eo, &hoisted__Str_751);
+                Array__Str_set(_va_Array_17, hoisted__U32_749, &hoisted__Str_750, &_va_Array_17_ek, _va_Array_17_eo, &hoisted__Str_751);
                 Str_delete(&hoisted__Str_751, (Bool){0});
                 U32 hoisted__U32_752 = 1;
                 (void)hoisted__U32_752;
-                Str hoisted__Str_753 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_753 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_753;
-                Str hoisted__Str_754 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_754 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_754;
-                Array__Str_set(_va_Array_17, hoisted__U32_752, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_753; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_17_ek, _va_Array_17_eo, &hoisted__Str_754);
+                Array__Str_set(_va_Array_17, hoisted__U32_752, &hoisted__Str_753, &_va_Array_17_ek, _va_Array_17_eo, &hoisted__Str_754);
                 OutOfBounds_delete(_va_Array_17_eo, 1);
                 Str_delete(&hoisted__Str_754, (Bool){0});
-                Str hoisted__Str_755 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_755 = (Str){.c_str = (void *)"./src/core/str.til:22:9", .count = 23ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_755;
                 panic(_va_Array_17, &hoisted__Str_755);
                 Str_delete(&hoisted__Str_755, (Bool){0});
@@ -1370,14 +1370,14 @@ I8 * Str_get(Str * self, U32 * i) {
         (void)_va_Array_18_eo;
         U32 hoisted__U32_764 = 0;
         (void)hoisted__U32_764;
-        Str hoisted__Str_765 = (Str){.c_str = (void *)"Str.get: index out of bounds", .count = 28ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_765 = (Str){.c_str = (void *)"Str.get: index out of bounds", .count = 28ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_765;
-        Str hoisted__Str_766 = (Str){.c_str = (void *)"./src/core/str.til:42:13", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_766 = (Str){.c_str = (void *)"./src/core/str.til:42:13", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_766;
-        Array__Str_set(_va_Array_18, hoisted__U32_764, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_765; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_18_ek, _va_Array_18_eo, &hoisted__Str_766);
+        Array__Str_set(_va_Array_18, hoisted__U32_764, &hoisted__Str_765, &_va_Array_18_ek, _va_Array_18_eo, &hoisted__Str_766);
         OutOfBounds_delete(_va_Array_18_eo, 1);
         Str_delete(&hoisted__Str_766, (Bool){0});
-        Str hoisted__Str_767 = (Str){.c_str = (void *)"./src/core/str.til:42:13", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_767 = (Str){.c_str = (void *)"./src/core/str.til:42:13", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_767;
         panic(_va_Array_18, &hoisted__Str_767);
         Str_delete(&hoisted__Str_767, (Bool){0});
@@ -1489,14 +1489,14 @@ void Str_push_str(Str * self, Str * s) {
         (void)_va_Array_19_eo;
         U32 hoisted__U32_790 = 0;
         (void)hoisted__U32_790;
-        Str hoisted__Str_791 = (Str){.c_str = (void *)"Str.push_str: cannot mutate a string view or literal", .count = 52ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_791 = (Str){.c_str = (void *)"Str.push_str: cannot mutate a string view or literal", .count = 52ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_791;
-        Str hoisted__Str_792 = (Str){.c_str = (void *)"./src/core/str.til:83:13", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_792 = (Str){.c_str = (void *)"./src/core/str.til:83:13", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_792;
-        Array__Str_set(_va_Array_19, hoisted__U32_790, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_791; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_19_ek, _va_Array_19_eo, &hoisted__Str_792);
+        Array__Str_set(_va_Array_19, hoisted__U32_790, &hoisted__Str_791, &_va_Array_19_ek, _va_Array_19_eo, &hoisted__Str_792);
         OutOfBounds_delete(_va_Array_19_eo, 1);
         Str_delete(&hoisted__Str_792, (Bool){0});
-        Str hoisted__Str_793 = (Str){.c_str = (void *)"./src/core/str.til:83:13", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_793 = (Str){.c_str = (void *)"./src/core/str.til:83:13", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_793;
         panic(_va_Array_19, &hoisted__Str_793);
         Str_delete(&hoisted__Str_793, (Bool){0});
@@ -1516,14 +1516,14 @@ void Str_push_str(Str * self, Str * s) {
         (void)_va_Array_20_eo;
         U32 hoisted__U32_795 = 0;
         (void)hoisted__U32_795;
-        Str hoisted__Str_796 = (Str){.c_str = (void *)"Str.push_str: capacity exceeded", .count = 31ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_796 = (Str){.c_str = (void *)"Str.push_str: capacity exceeded", .count = 31ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_796;
-        Str hoisted__Str_797 = (Str){.c_str = (void *)"./src/core/str.til:87:13", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_797 = (Str){.c_str = (void *)"./src/core/str.til:87:13", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_797;
-        Array__Str_set(_va_Array_20, hoisted__U32_795, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_796; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_20_ek, _va_Array_20_eo, &hoisted__Str_797);
+        Array__Str_set(_va_Array_20, hoisted__U32_795, &hoisted__Str_796, &_va_Array_20_ek, _va_Array_20_eo, &hoisted__Str_797);
         OutOfBounds_delete(_va_Array_20_eo, 1);
         Str_delete(&hoisted__Str_797, (Bool){0});
-        Str hoisted__Str_798 = (Str){.c_str = (void *)"./src/core/str.til:87:13", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_798 = (Str){.c_str = (void *)"./src/core/str.til:87:13", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_798;
         panic(_va_Array_20, &hoisted__Str_798);
         Str_delete(&hoisted__Str_798, (Bool){0});
@@ -1583,7 +1583,7 @@ void Str_delete(Str * self, Bool call_free) {
     Bool hoisted__Bool_814 = and(call_free, hoisted__Bool_813);
     (void)hoisted__Bool_814;
     if (hoisted__Bool_814) {
-        free(self);
+        if ((self)->cap != TIL_CAP_LIT) { free(self); };
     }
 }
 
@@ -1690,49 +1690,49 @@ Str * Array__Str_get(Array__Str * self, U32 * i, I64 * _err_kind, OutOfBounds * 
         (void)hoisted__U32_1365;
         Str *hoisted__Str_1366 = Str_clone(loc);
         (void)hoisted__Str_1366;
-        Str hoisted__Str_1367 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1367 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1367;
         Array__Str_set(_va_Array_32, hoisted__U32_1365, hoisted__Str_1366, &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1367);
         Str_delete(&hoisted__Str_1367, (Bool){0});
         U32 hoisted__U32_1368 = 1;
         (void)hoisted__U32_1368;
-        Str hoisted__Str_1369 = (Str){.c_str = (void *)":Array.get: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1369 = (Str){.c_str = (void *)":Array.get: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1369;
-        Str hoisted__Str_1370 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1370 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1370;
-        Array__Str_set(_va_Array_32, hoisted__U32_1368, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1369; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1370);
+        Array__Str_set(_va_Array_32, hoisted__U32_1368, &hoisted__Str_1369, &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1370);
         Str_delete(&hoisted__Str_1370, (Bool){0});
         U32 hoisted__U32_1371 = 2;
         (void)hoisted__U32_1371;
         Str *hoisted__Str_1372 = U32_to_str(DEREF(i));
         (void)hoisted__Str_1372;
-        Str hoisted__Str_1373 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1373 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1373;
         Array__Str_set(_va_Array_32, hoisted__U32_1371, hoisted__Str_1372, &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1373);
         Str_delete(&hoisted__Str_1373, (Bool){0});
         U32 hoisted__U32_1374 = 3;
         (void)hoisted__U32_1374;
-        Str hoisted__Str_1375 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1375 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1375;
-        Str hoisted__Str_1376 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1376 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1376;
-        Array__Str_set(_va_Array_32, hoisted__U32_1374, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1375; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1376);
+        Array__Str_set(_va_Array_32, hoisted__U32_1374, &hoisted__Str_1375, &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1376);
         Str_delete(&hoisted__Str_1376, (Bool){0});
         U32 hoisted__U32_1377 = 4;
         (void)hoisted__U32_1377;
         Str *hoisted__Str_1378 = U32_to_str(self->cap);
         (void)hoisted__Str_1378;
-        Str hoisted__Str_1379 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1379 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1379;
         Array__Str_set(_va_Array_32, hoisted__U32_1377, hoisted__Str_1378, &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1379);
         Str_delete(&hoisted__Str_1379, (Bool){0});
         U32 hoisted__U32_1380 = 5;
         (void)hoisted__U32_1380;
-        Str hoisted__Str_1381 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1381 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1381;
-        Str hoisted__Str_1382 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1382 = (Str){.c_str = (void *)"./src/core/str.til:28:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1382;
-        Array__Str_set(_va_Array_32, hoisted__U32_1380, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1381; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1382);
+        Array__Str_set(_va_Array_32, hoisted__U32_1380, &hoisted__Str_1381, &_va_Array_32_ek, _va_Array_32_eo, &hoisted__Str_1382);
         OutOfBounds_delete(_va_Array_32_eo, 1);
         Str_delete(&hoisted__Str_1382, (Bool){0});
         OutOfBounds *hoisted__OutOfBounds_1383 = malloc(sizeof(OutOfBounds));
@@ -1786,49 +1786,49 @@ void Array__Str_set(Array__Str * self, U32 i, Str * val, I64 * _err_kind, OutOfB
         (void)hoisted__U32_1395;
         Str *hoisted__Str_1396 = Str_clone(loc);
         (void)hoisted__Str_1396;
-        Str hoisted__Str_1397 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1397 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1397;
         Array__Str_set(_va_Array_33, hoisted__U32_1395, hoisted__Str_1396, &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1397);
         Str_delete(&hoisted__Str_1397, (Bool){0});
         U32 hoisted__U32_1398 = 1;
         (void)hoisted__U32_1398;
-        Str hoisted__Str_1399 = (Str){.c_str = (void *)":Array.set: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1399 = (Str){.c_str = (void *)":Array.set: index ", .count = 18ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1399;
-        Str hoisted__Str_1400 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1400 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1400;
-        Array__Str_set(_va_Array_33, hoisted__U32_1398, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1399; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1400);
+        Array__Str_set(_va_Array_33, hoisted__U32_1398, &hoisted__Str_1399, &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1400);
         Str_delete(&hoisted__Str_1400, (Bool){0});
         U32 hoisted__U32_1401 = 2;
         (void)hoisted__U32_1401;
         Str *hoisted__Str_1402 = U32_to_str(i);
         (void)hoisted__Str_1402;
-        Str hoisted__Str_1403 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1403 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1403;
         Array__Str_set(_va_Array_33, hoisted__U32_1401, hoisted__Str_1402, &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1403);
         Str_delete(&hoisted__Str_1403, (Bool){0});
         U32 hoisted__U32_1404 = 3;
         (void)hoisted__U32_1404;
-        Str hoisted__Str_1405 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1405 = (Str){.c_str = (void *)" out of bounds (len ", .count = 20ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1405;
-        Str hoisted__Str_1406 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1406 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1406;
-        Array__Str_set(_va_Array_33, hoisted__U32_1404, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1405; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1406);
+        Array__Str_set(_va_Array_33, hoisted__U32_1404, &hoisted__Str_1405, &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1406);
         Str_delete(&hoisted__Str_1406, (Bool){0});
         U32 hoisted__U32_1407 = 4;
         (void)hoisted__U32_1407;
         Str *hoisted__Str_1408 = U32_to_str(self->cap);
         (void)hoisted__Str_1408;
-        Str hoisted__Str_1409 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1409 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1409;
         Array__Str_set(_va_Array_33, hoisted__U32_1407, hoisted__Str_1408, &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1409);
         Str_delete(&hoisted__Str_1409, (Bool){0});
         U32 hoisted__U32_1410 = 5;
         (void)hoisted__U32_1410;
-        Str hoisted__Str_1411 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1411 = (Str){.c_str = (void *)")", .count = 1ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1411;
-        Str hoisted__Str_1412 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_1412 = (Str){.c_str = (void *)"./src/core/str.til:39:37", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_1412;
-        Array__Str_set(_va_Array_33, hoisted__U32_1410, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_1411; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1412);
+        Array__Str_set(_va_Array_33, hoisted__U32_1410, &hoisted__Str_1411, &_va_Array_33_ek, _va_Array_33_eo, &hoisted__Str_1412);
         OutOfBounds_delete(_va_Array_33_eo, 1);
         Str_delete(&hoisted__Str_1412, (Bool){0});
         OutOfBounds *hoisted__OutOfBounds_1413 = malloc(sizeof(OutOfBounds));
@@ -1891,7 +1891,7 @@ void Array__Str_set(Array__Str * self, U32 i, Str * val, I64 * _err_kind, OutOfB
         U64 hoisted__U64_1433 = (U64)(hoisted__U32_1430);
         (void)hoisted__U64_1433;
         Type_delete(hoisted__Type_1431, 1);
-        memset(val, hoisted__I32_1432, hoisted__U64_1433);
+        if ((val)->cap != TIL_CAP_LIT) { memset(val, hoisted__I32_1432, hoisted__U64_1433); };
     }
     Str_delete(val, 1);
 }
@@ -2032,7 +2032,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 U64 hoisted__U64_1470 = (U64)(hoisted__U32_1467);
                 (void)hoisted__U64_1470;
                 Type_delete(hoisted__Type_1468, 1);
-                memset(cloned, hoisted__I32_1469, hoisted__U64_1470);
+                if ((cloned)->cap != TIL_CAP_LIT) { memset(cloned, hoisted__I32_1469, hoisted__U64_1470); };
                 Str_delete(cloned, 1);
             }
         } else {
@@ -2085,7 +2085,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 U64 hoisted__U64_1487 = (U64)(hoisted__U32_1484);
                 (void)hoisted__U64_1487;
                 Type_delete(hoisted__Type_1485, 1);
-                memset(cloned, hoisted__I32_1486, hoisted__U64_1487);
+                if ((cloned)->cap != TIL_CAP_LIT) { memset(cloned, hoisted__I32_1486, hoisted__U64_1487); };
                 Str_delete(cloned, 1);
             }
         }
@@ -2268,7 +2268,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 U64 hoisted__U64_1815 = (U64)(hoisted__U32_1812);
                 (void)hoisted__U64_1815;
                 Type_delete(hoisted__Type_1813, 1);
-                memset(cloned, hoisted__I32_1814, hoisted__U64_1815);
+                if ((cloned)->cap != TIL_CAP_LIT) { memset(cloned, hoisted__I32_1814, hoisted__U64_1815); };
                 Str_delete(cloned, 1);
             }
         } else {
@@ -2321,7 +2321,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 U64 hoisted__U64_1832 = (U64)(hoisted__U32_1829);
                 (void)hoisted__U64_1832;
                 Type_delete(hoisted__Type_1830, 1);
-                memset(cloned, hoisted__I32_1831, hoisted__U64_1832);
+                if ((cloned)->cap != TIL_CAP_LIT) { memset(cloned, hoisted__I32_1831, hoisted__U64_1832); };
                 Str_delete(cloned, 1);
             }
         }
@@ -2804,7 +2804,7 @@ Primitive * Primitive_clone(Primitive * self) {
         { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_Bool;
                 return _r; }
     }
-    Str hoisted__Str_2380 = (Str){.c_str = (void *)"Primitive.clone:20:1", .count = 20ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_2380 = (Str){.c_str = (void *)"Primitive.clone:20:1", .count = 20ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_2380;
     UNREACHABLE(&hoisted__Str_2380);
     Str_delete(&hoisted__Str_2380, (Bool){0});
@@ -2833,7 +2833,7 @@ Type *Type_Struct(Str * val) {
     Type *r = malloc(sizeof(Type));
     r->tag = Type_TAG_Struct;
     r->data.Struct = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 Type *Type_StructDef() {
@@ -2845,7 +2845,7 @@ Type *Type_Enum(Str * val) {
     Type *r = malloc(sizeof(Type));
     r->tag = Type_TAG_Enum;
     r->data.Enum = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 Type *Type_EnumDef() {
@@ -2872,7 +2872,7 @@ Type *Type_Custom(Str * val) {
     Type *r = malloc(sizeof(Type));
     r->tag = Type_TAG_Custom;
     r->data.Custom = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 Type *Type_Primitive(Primitive * val) {
@@ -2886,7 +2886,7 @@ Type *Type_FuncPtrSig(Str * val) {
     Type *r = malloc(sizeof(Type));
     r->tag = Type_TAG_FuncPtrSig;
     r->data.FuncPtrSig = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 void Type_delete(Type * self, Bool call_free) {
@@ -3222,7 +3222,7 @@ FuncType * FuncType_clone(FuncType * self) {
         { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_LazyProc;
                 return _r; }
     }
-    Str hoisted__Str_2669 = (Str){.c_str = (void *)"FuncType.clone:129:1", .count = 20ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_2669 = (Str){.c_str = (void *)"FuncType.clone:129:1", .count = 20ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_2669;
     UNREACHABLE(&hoisted__Str_2669);
     Str_delete(&hoisted__Str_2669, (Bool){0});
@@ -3307,7 +3307,7 @@ OwnType * OwnType_clone(OwnType * self) {
         { OwnType *_r = malloc(sizeof(OwnType)); _r->tag = OwnType_TAG_Shallow;
                 return _r; }
     }
-    Str hoisted__Str_2689 = (Str){.c_str = (void *)"OwnType.clone:134:1", .count = 19ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_2689 = (Str){.c_str = (void *)"OwnType.clone:134:1", .count = 19ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_2689;
     UNREACHABLE(&hoisted__Str_2689);
     Str_delete(&hoisted__Str_2689, (Bool){0});
@@ -3822,7 +3822,7 @@ Literal *Literal_Str(Str * val) {
     Literal *r = malloc(sizeof(Literal));
     r->tag = Literal_TAG_Str;
     r->data.Str = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 Literal *Literal_Num(LiteralNumData * val) {
@@ -4115,7 +4115,7 @@ NodeType *NodeType_NamedArg(Str * val) {
     NodeType *r = malloc(sizeof(NodeType));
     r->tag = NodeType_TAG_NamedArg;
     r->data.NamedArg = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 NodeType *NodeType_Break() {
@@ -5639,17 +5639,17 @@ void panic(Array__Str * parts, Str * loc) {
     (void)hoisted__U32_7458;
     Str *hoisted__Str_7459 = Str_clone(loc);
     (void)hoisted__Str_7459;
-    Str hoisted__Str_7460 = (Str){.c_str = (void *)"./src/core/exit.til:18:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7460 = (Str){.c_str = (void *)"./src/core/exit.til:18:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7460;
     Array__Str_set(_va_Array_193, hoisted__U32_7458, hoisted__Str_7459, &_va_Array_193_ek, _va_Array_193_eo, &hoisted__Str_7460);
     Str_delete(&hoisted__Str_7460, (Bool){0});
     U32 hoisted__U32_7461 = 1;
     (void)hoisted__U32_7461;
-    Str hoisted__Str_7462 = (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7462 = (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7462;
-    Str hoisted__Str_7463 = (Str){.c_str = (void *)"./src/core/exit.til:18:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7463 = (Str){.c_str = (void *)"./src/core/exit.til:18:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7463;
-    Array__Str_set(_va_Array_193, hoisted__U32_7461, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_7462; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_193_ek, _va_Array_193_eo, &hoisted__Str_7463);
+    Array__Str_set(_va_Array_193, hoisted__U32_7461, &hoisted__Str_7462, &_va_Array_193_ek, _va_Array_193_eo, &hoisted__Str_7463);
     Str_delete(&hoisted__Str_7463, (Bool){0});
     Array__Str *hoisted__Array__Str_7464 = Array__Str_clone(parts);
     (void)hoisted__Array__Str_7464;
@@ -5657,7 +5657,7 @@ void panic(Array__Str * parts, Str * loc) {
     (void)hoisted__U32_7465;
     Str *hoisted__Str_7466 = format(hoisted__Array__Str_7464);
     (void)hoisted__Str_7466;
-    Str hoisted__Str_7467 = (Str){.c_str = (void *)"./src/core/exit.til:18:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7467 = (Str){.c_str = (void *)"./src/core/exit.til:18:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7467;
     Array__Str_set(_va_Array_193, hoisted__U32_7465, hoisted__Str_7466, &_va_Array_193_ek, _va_Array_193_eo, &hoisted__Str_7467);
     OutOfBounds_delete(_va_Array_193_eo, 1);
@@ -5681,11 +5681,11 @@ void UNREACHABLE(Str * loc) {
     (void)_va_Array_195_eo;
     U32 hoisted__U32_7478 = 0;
     (void)hoisted__U32_7478;
-    Str hoisted__Str_7479 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7479 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7479;
-    Str hoisted__Str_7480 = (Str){.c_str = (void *)"./src/core/exit.til:27:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7480 = (Str){.c_str = (void *)"./src/core/exit.til:27:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7480;
-    Array__Str_set(_va_Array_195, hoisted__U32_7478, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_7479; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_195_ek, _va_Array_195_eo, &hoisted__Str_7480);
+    Array__Str_set(_va_Array_195, hoisted__U32_7478, &hoisted__Str_7479, &_va_Array_195_ek, _va_Array_195_eo, &hoisted__Str_7480);
     OutOfBounds_delete(_va_Array_195_eo, 1);
     Str_delete(&hoisted__Str_7480, (Bool){0});
     panic(_va_Array_195, loc);
@@ -5706,11 +5706,11 @@ void assert(Bool cond, Str * loc) {
         (void)_va_Array_196_eo;
         U32 hoisted__U32_7482 = 0;
         (void)hoisted__U32_7482;
-        Str hoisted__Str_7483 = (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_7483 = (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_7483;
-        Str hoisted__Str_7484 = (Str){.c_str = (void *)"./src/core/exit.til:35:9", .count = 24ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_7484 = (Str){.c_str = (void *)"./src/core/exit.til:35:9", .count = 24ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_7484;
-        Array__Str_set(_va_Array_196, hoisted__U32_7482, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_7483; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_196_ek, _va_Array_196_eo, &hoisted__Str_7484);
+        Array__Str_set(_va_Array_196, hoisted__U32_7482, &hoisted__Str_7483, &_va_Array_196_ek, _va_Array_196_eo, &hoisted__Str_7484);
         OutOfBounds_delete(_va_Array_196_eo, 1);
         Str_delete(&hoisted__Str_7484, (Bool){0});
         panic(_va_Array_196, loc);
@@ -5738,7 +5738,7 @@ void println(Array__Str * parts) {
             } else {
                 break;
             }
-            Str hoisted__Str_7506 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+            static Str hoisted__Str_7506 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
             (void)hoisted__Str_7506;
             Str *s = Array__Str_get(_fc_Array__Str_7495, &_fi_USize_7495, &_forin_err_kind_7495, _forin_OutOfBounds_7495, &hoisted__Str_7506);
             I64 hoisted__I64_7507 = 0;
@@ -5759,22 +5759,22 @@ void println(Array__Str * parts) {
                 (void)_va_Array_198_eo;
                 U32 hoisted__U32_7498 = 0;
                 (void)hoisted__U32_7498;
-                Str hoisted__Str_7499 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_7499 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_7499;
-                Str hoisted__Str_7500 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_7500 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_7500;
-                Array__Str_set(_va_Array_198, hoisted__U32_7498, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_7499; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_198_ek, _va_Array_198_eo, &hoisted__Str_7500);
+                Array__Str_set(_va_Array_198, hoisted__U32_7498, &hoisted__Str_7499, &_va_Array_198_ek, _va_Array_198_eo, &hoisted__Str_7500);
                 Str_delete(&hoisted__Str_7500, (Bool){0});
                 U32 hoisted__U32_7501 = 1;
                 (void)hoisted__U32_7501;
-                Str hoisted__Str_7502 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_7502 = (Str){.c_str = (void *)"OutOfBounds", .count = 11ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_7502;
-                Str hoisted__Str_7503 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_7503 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_7503;
-                Array__Str_set(_va_Array_198, hoisted__U32_7501, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_7502; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_198_ek, _va_Array_198_eo, &hoisted__Str_7503);
+                Array__Str_set(_va_Array_198, hoisted__U32_7501, &hoisted__Str_7502, &_va_Array_198_ek, _va_Array_198_eo, &hoisted__Str_7503);
                 OutOfBounds_delete(_va_Array_198_eo, 1);
                 Str_delete(&hoisted__Str_7503, (Bool){0});
-                Str hoisted__Str_7504 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
+                static Str hoisted__Str_7504 = (Str){.c_str = (void *)"./src/core/io.til:15:9", .count = 22ULL, .cap = TIL_CAP_LIT};
                 (void)hoisted__Str_7504;
                 panic(_va_Array_198, &hoisted__Str_7504);
                 Str_delete(&hoisted__Str_7504, (Bool){0});
@@ -5838,7 +5838,7 @@ void test_simple_add(void) {
     I64 result = 3;
     I64 hoisted__I64_7730 = 3;
     (void)hoisted__I64_7730;
-    Str hoisted__Str_7731 = (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7731 = (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7731;
     assert_eq__I64(result, hoisted__I64_7730, &hoisted__Str_7731);
     Str_delete(&hoisted__Str_7731, (Bool){0});
@@ -5848,7 +5848,7 @@ void test_nested_arithmetic(void) {
     I64 result = 15;
     I64 hoisted__I64_7738 = 15;
     (void)hoisted__I64_7738;
-    Str hoisted__Str_7739 = (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7739 = (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7739;
     assert_eq__I64(result, hoisted__I64_7738, &hoisted__Str_7739);
     Str_delete(&hoisted__Str_7739, (Bool){0});
@@ -5858,17 +5858,17 @@ void test_deeply_nested(void) {
     I64 result = 26;
     I64 hoisted__I64_7746 = 26;
     (void)hoisted__I64_7746;
-    Str hoisted__Str_7747 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7747 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7747;
     assert_eq__I64(result, hoisted__I64_7746, &hoisted__Str_7747);
     Str_delete(&hoisted__Str_7747, (Bool){0});
 }
 
 void test_string_concat(void) {
-    Str result = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7750 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str result = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7750 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7750;
-    Str hoisted__Str_7751 = (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7751 = (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7751;
     assert_eq__Str(&result, &hoisted__Str_7750, &hoisted__Str_7751);
     Str_delete(&hoisted__Str_7750, (Bool){0});
@@ -5877,19 +5877,19 @@ void test_string_concat(void) {
 }
 
 void test_variadic_fold(void) {
-    Str r = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7779 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str r = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7779 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7779;
-    Str hoisted__Str_7780 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7780 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7780;
     assert_eq__Str(&r, &hoisted__Str_7779, &hoisted__Str_7780);
     Str_delete(&hoisted__Str_7779, (Bool){0});
     Str_delete(&hoisted__Str_7780, (Bool){0});
     Str_delete(&r, (Bool){0});
-    Str r2 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7784 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
+    static Str r2 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7784 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7784;
-    Str hoisted__Str_7785 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7785 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7785;
     assert_eq__Str(&r2, &hoisted__Str_7784, &hoisted__Str_7785);
     Str_delete(&hoisted__Str_7784, (Bool){0});
@@ -5898,19 +5898,19 @@ void test_variadic_fold(void) {
 }
 
 void test_variadic_direct_fold(void) {
-    Str d = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7820 = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
+    static Str d = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7820 = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7820;
-    Str hoisted__Str_7821 = (Str){.c_str = (void *)"test/constfold.til:72:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7821 = (Str){.c_str = (void *)"test/constfold.til:72:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7821;
     assert_eq__Str(&d, &hoisted__Str_7820, &hoisted__Str_7821);
     Str_delete(&d, (Bool){0});
     Str_delete(&hoisted__Str_7820, (Bool){0});
     Str_delete(&hoisted__Str_7821, (Bool){0});
-    Str d2 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_7832 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
+    static Str d2 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7832 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7832;
-    Str hoisted__Str_7833 = (Str){.c_str = (void *)"test/constfold.til:74:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7833 = (Str){.c_str = (void *)"test/constfold.til:74:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7833;
     assert_eq__Str(&d2, &hoisted__Str_7832, &hoisted__Str_7833);
     Str_delete(&d2, (Bool){0});
@@ -5919,24 +5919,24 @@ void test_variadic_direct_fold(void) {
     I64 d3 = 106;
     I64 hoisted__I64_7845 = 106;
     (void)hoisted__I64_7845;
-    Str hoisted__Str_7846 = (Str){.c_str = (void *)"test/constfold.til:76:5", .count = 23ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_7846 = (Str){.c_str = (void *)"test/constfold.til:76:5", .count = 23ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_7846;
     assert_eq__I64(d3, hoisted__I64_7845, &hoisted__Str_7846);
     Str_delete(&hoisted__Str_7846, (Bool){0});
 }
 
 void test_lolalalo(void) {
-    Str lola_rec = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    Str lola_it = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    Str lalo_rec = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    Str lalo_it = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    Str hoisted__Str_8445 = (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str lola_rec = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    static Str lola_it = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    static Str lalo_rec = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    static Str lalo_it = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8445 = (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8445;
     assert_eq__Str(&lola_rec, &lola_it, &hoisted__Str_8445);
     Str_delete(&hoisted__Str_8445, (Bool){0});
     Str_delete(&lola_it, (Bool){0});
     Str_delete(&lola_rec, (Bool){0});
-    Str hoisted__Str_8446 = (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8446 = (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8446;
     assert_eq__Str(&lalo_rec, &lalo_it, &hoisted__Str_8446);
     Str_delete(&hoisted__Str_8446, (Bool){0});
@@ -5948,7 +5948,7 @@ void test_fold_variable(void) {
     I64 result = 8;
     I64 hoisted__I64_8448 = 8;
     (void)hoisted__I64_8448;
-    Str hoisted__Str_8449 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8449 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8449;
     assert_eq__I64(result, hoisted__I64_8448, &hoisted__Str_8449);
     Str_delete(&hoisted__Str_8449, (Bool){0});
@@ -5957,34 +5957,34 @@ void test_fold_variable(void) {
 void test_loc_folded(void) {
     Bool hoisted__Bool_8452 = 1;
     (void)hoisted__Bool_8452;
-    Str hoisted__Str_8453 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8453 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8453;
     assert(hoisted__Bool_8452, &hoisted__Str_8453);
     Str_delete(&hoisted__Str_8453, (Bool){0});
     Bool hoisted__Bool_8456 = 1;
     (void)hoisted__Bool_8456;
-    Str hoisted__Str_8457 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8457 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8457;
     assert(hoisted__Bool_8456, &hoisted__Str_8457);
     Str_delete(&hoisted__Str_8457, (Bool){0});
 }
 
 void test_fold_f32(void) {
-    Str hoisted__Str_8462 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8462 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8462;
-    Str hoisted__Str_8463 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8463 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8463;
-    Str hoisted__Str_8464 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8464 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8464;
     assert_eq__Str(&hoisted__Str_8462, &hoisted__Str_8463, &hoisted__Str_8464);
     Str_delete(&hoisted__Str_8462, (Bool){0});
     Str_delete(&hoisted__Str_8463, (Bool){0});
     Str_delete(&hoisted__Str_8464, (Bool){0});
-    Str hoisted__Str_8467 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8467 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8467;
-    Str hoisted__Str_8468 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8468 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8468;
-    Str hoisted__Str_8469 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8469 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8469;
     assert_eq__Str(&hoisted__Str_8467, &hoisted__Str_8468, &hoisted__Str_8469);
     Str_delete(&hoisted__Str_8467, (Bool){0});
@@ -6023,13 +6023,13 @@ void test_struct_fold_simple(void) {
     CfVec2 v = (CfVec2){.x = 42, .y = 99};
     I64 hoisted__I64_8508 = 42;
     (void)hoisted__I64_8508;
-    Str hoisted__Str_8509 = (Str){.c_str = (void *)"test/constfold.til:178:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8509 = (Str){.c_str = (void *)"test/constfold.til:178:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8509;
     assert_eq__I64(v.x, hoisted__I64_8508, &hoisted__Str_8509);
     Str_delete(&hoisted__Str_8509, (Bool){0});
     I64 hoisted__I64_8510 = 99;
     (void)hoisted__I64_8510;
-    Str hoisted__Str_8511 = (Str){.c_str = (void *)"test/constfold.til:179:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8511 = (Str){.c_str = (void *)"test/constfold.til:179:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8511;
     assert_eq__I64(v.y, hoisted__I64_8510, &hoisted__Str_8511);
     Str_delete(&hoisted__Str_8511, (Bool){0});
@@ -6040,13 +6040,13 @@ void test_struct_fold_values(void) {
     CfVec2 p = (CfVec2){.x = 10, .y = 20};
     I64 hoisted__I64_8514 = 10;
     (void)hoisted__I64_8514;
-    Str hoisted__Str_8515 = (Str){.c_str = (void *)"test/constfold.til:185:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8515 = (Str){.c_str = (void *)"test/constfold.til:185:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8515;
     assert_eq__I64(p.x, hoisted__I64_8514, &hoisted__Str_8515);
     Str_delete(&hoisted__Str_8515, (Bool){0});
     I64 hoisted__I64_8516 = 20;
     (void)hoisted__I64_8516;
-    Str hoisted__Str_8517 = (Str){.c_str = (void *)"test/constfold.til:186:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8517 = (Str){.c_str = (void *)"test/constfold.til:186:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8517;
     assert_eq__I64(p.y, hoisted__I64_8516, &hoisted__Str_8517);
     Str_delete(&hoisted__Str_8517, (Bool){0});
@@ -6084,25 +6084,25 @@ void test_struct_fold_nested(void) {
     CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
     I64 hoisted__I64_8557 = 5;
     (void)hoisted__I64_8557;
-    Str hoisted__Str_8558 = (Str){.c_str = (void *)"test/constfold.til:202:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8558 = (Str){.c_str = (void *)"test/constfold.til:202:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8558;
     assert_eq__I64(r.top_left.x, hoisted__I64_8557, &hoisted__Str_8558);
     Str_delete(&hoisted__Str_8558, (Bool){0});
     I64 hoisted__I64_8559 = 10;
     (void)hoisted__I64_8559;
-    Str hoisted__Str_8560 = (Str){.c_str = (void *)"test/constfold.til:203:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8560 = (Str){.c_str = (void *)"test/constfold.til:203:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8560;
     assert_eq__I64(r.top_left.y, hoisted__I64_8559, &hoisted__Str_8560);
     Str_delete(&hoisted__Str_8560, (Bool){0});
     I64 hoisted__I64_8561 = 100;
     (void)hoisted__I64_8561;
-    Str hoisted__Str_8562 = (Str){.c_str = (void *)"test/constfold.til:204:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8562 = (Str){.c_str = (void *)"test/constfold.til:204:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8562;
     assert_eq__I64(r.bottom_right.x, hoisted__I64_8561, &hoisted__Str_8562);
     Str_delete(&hoisted__Str_8562, (Bool){0});
     I64 hoisted__I64_8563 = 200;
     (void)hoisted__I64_8563;
-    Str hoisted__Str_8564 = (Str){.c_str = (void *)"test/constfold.til:205:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8564 = (Str){.c_str = (void *)"test/constfold.til:205:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8564;
     assert_eq__I64(r.bottom_right.y, hoisted__I64_8563, &hoisted__Str_8564);
     Str_delete(&hoisted__Str_8564, (Bool){0});
@@ -6140,9 +6140,9 @@ void test_struct_fold_f32(void) {
     CfVec3f v = (CfVec3f){.x = 3, .y = 4, .z = 5};
     Str *hoisted__Str_8615 = F32_to_str(v.x);
     (void)hoisted__Str_8615;
-    Str hoisted__Str_8616 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8616 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8616;
-    Str hoisted__Str_8617 = (Str){.c_str = (void *)"test/constfold.til:228:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8617 = (Str){.c_str = (void *)"test/constfold.til:228:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8617;
     assert_eq__Str(hoisted__Str_8615, &hoisted__Str_8616, &hoisted__Str_8617);
     Str_delete(hoisted__Str_8615, 1);
@@ -6150,9 +6150,9 @@ void test_struct_fold_f32(void) {
     Str_delete(&hoisted__Str_8617, (Bool){0});
     Str *hoisted__Str_8618 = F32_to_str(v.y);
     (void)hoisted__Str_8618;
-    Str hoisted__Str_8619 = (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8619 = (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8619;
-    Str hoisted__Str_8620 = (Str){.c_str = (void *)"test/constfold.til:229:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8620 = (Str){.c_str = (void *)"test/constfold.til:229:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8620;
     assert_eq__Str(hoisted__Str_8618, &hoisted__Str_8619, &hoisted__Str_8620);
     Str_delete(hoisted__Str_8618, 1);
@@ -6160,9 +6160,9 @@ void test_struct_fold_f32(void) {
     Str_delete(&hoisted__Str_8620, (Bool){0});
     Str *hoisted__Str_8621 = F32_to_str(v.z);
     (void)hoisted__Str_8621;
-    Str hoisted__Str_8622 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8622 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8622;
-    Str hoisted__Str_8623 = (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8623 = (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8623;
     assert_eq__Str(hoisted__Str_8621, &hoisted__Str_8622, &hoisted__Str_8623);
     Str_delete(hoisted__Str_8621, 1);
@@ -6241,7 +6241,7 @@ Color * Color_clone(Color * self) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Blue;
                 return _r; }
     }
-    Str hoisted__Str_8642 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8642 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8642;
     UNREACHABLE(&hoisted__Str_8642);
     Str_delete(&hoisted__Str_8642, (Bool){0});
@@ -6260,7 +6260,7 @@ void test_enum_fold(void) {
     Color c = (Color){.tag = Color_TAG_Red};
     Bool hoisted__Bool_8644 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     (void)hoisted__Bool_8644;
-    Str hoisted__Str_8645 = (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8645 = (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8645;
     assert(hoisted__Bool_8644, &hoisted__Str_8645);
     Str_delete(&hoisted__Str_8645, (Bool){0});
@@ -6268,7 +6268,7 @@ void test_enum_fold(void) {
     (void)hoisted__Bool_8646;
     Bool hoisted__Bool_8647 = not(hoisted__Bool_8646);
     (void)hoisted__Bool_8647;
-    Str hoisted__Str_8648 = (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8648 = (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8648;
     assert(hoisted__Bool_8647, &hoisted__Str_8648);
     Str_delete(&hoisted__Str_8648, (Bool){0});
@@ -6284,7 +6284,7 @@ Token *Token_Name(Str * val) {
     Token *r = malloc(sizeof(Token));
     r->tag = Token_TAG_Name;
     r->data.Name = *val;
-    free(val);
+    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 Token *Token_Eof() {
@@ -6364,7 +6364,7 @@ void test_enum_payload_fold(void) {
     Token *t = Token_Num(&(I64){42});
     Bool hoisted__Bool_8703 = Token_is(t, &(Token){.tag = Token_TAG_Num});
     (void)hoisted__Bool_8703;
-    Str hoisted__Str_8704 = (Str){.c_str = (void *)"test/constfold.til:249:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8704 = (Str){.c_str = (void *)"test/constfold.til:249:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8704;
     assert(hoisted__Bool_8703, &hoisted__Str_8704);
     Str_delete(&hoisted__Str_8704, (Bool){0});
@@ -6372,7 +6372,7 @@ void test_enum_payload_fold(void) {
     (void)hoisted__Bool_8705;
     Bool hoisted__Bool_8706 = not(hoisted__Bool_8705);
     (void)hoisted__Bool_8706;
-    Str hoisted__Str_8707 = (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8707 = (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8707;
     assert(hoisted__Bool_8706, &hoisted__Str_8707);
     Str_delete(&hoisted__Str_8707, (Bool){0});
@@ -6383,7 +6383,7 @@ void test_enum_return_fold(void) {
     Color c = (Color){.tag = Color_TAG_Green};
     Bool hoisted__Bool_8708 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_8708;
-    Str hoisted__Str_8709 = (Str){.c_str = (void *)"test/constfold.til:259:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8709 = (Str){.c_str = (void *)"test/constfold.til:259:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8709;
     assert(hoisted__Bool_8708, &hoisted__Str_8709);
     Str_delete(&hoisted__Str_8709, (Bool){0});
@@ -6391,7 +6391,7 @@ void test_enum_return_fold(void) {
     (void)hoisted__Bool_8710;
     Bool hoisted__Bool_8711 = not(hoisted__Bool_8710);
     (void)hoisted__Bool_8711;
-    Str hoisted__Str_8712 = (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8712 = (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8712;
     assert(hoisted__Bool_8711, &hoisted__Str_8712);
     Str_delete(&hoisted__Str_8712, (Bool){0});
@@ -6401,7 +6401,7 @@ void test_enum_payload_return_fold(void) {
     Token *t = Token_Num(&(I64){7});
     Bool hoisted__Bool_8715 = Token_is(t, &(Token){.tag = Token_TAG_Num});
     (void)hoisted__Bool_8715;
-    Str hoisted__Str_8716 = (Str){.c_str = (void *)"test/constfold.til:271:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8716 = (Str){.c_str = (void *)"test/constfold.til:271:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8716;
     assert(hoisted__Bool_8715, &hoisted__Str_8716);
     Str_delete(&hoisted__Str_8716, (Bool){0});
@@ -6409,7 +6409,7 @@ void test_enum_payload_return_fold(void) {
     (void)hoisted__Bool_8717;
     Bool hoisted__Bool_8718 = not(hoisted__Bool_8717);
     (void)hoisted__Bool_8718;
-    Str hoisted__Str_8719 = (Str){.c_str = (void *)"test/constfold.til:272:5", .count = 24ULL, .cap = TIL_CAP_LIT};
+    static Str hoisted__Str_8719 = (Str){.c_str = (void *)"test/constfold.til:272:5", .count = 24ULL, .cap = TIL_CAP_LIT};
     (void)hoisted__Str_8719;
     assert(hoisted__Bool_8718, &hoisted__Str_8719);
     Str_delete(&hoisted__Str_8719, (Bool){0});
@@ -6431,43 +6431,43 @@ void assert_eq__I64(I64 a, I64 b, Str * loc) {
         (void)_va_Array_244_eo;
         U32 hoisted__U32_8859 = 0;
         (void)hoisted__U32_8859;
-        Str hoisted__Str_8860 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8860 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8860;
-        Str hoisted__Str_8861 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8861 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8861;
-        Array__Str_set(_va_Array_244, hoisted__U32_8859, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8860; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8861);
+        Array__Str_set(_va_Array_244, hoisted__U32_8859, &hoisted__Str_8860, &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8861);
         Str_delete(&hoisted__Str_8861, (Bool){0});
         U32 hoisted__U32_8862 = 1;
         (void)hoisted__U32_8862;
         Str *hoisted__Str_8863 = I64_to_str(a);
         (void)hoisted__Str_8863;
-        Str hoisted__Str_8864 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8864 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8864;
         Array__Str_set(_va_Array_244, hoisted__U32_8862, hoisted__Str_8863, &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8864);
         Str_delete(&hoisted__Str_8864, (Bool){0});
         U32 hoisted__U32_8865 = 2;
         (void)hoisted__U32_8865;
-        Str hoisted__Str_8866 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8866 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8866;
-        Str hoisted__Str_8867 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8867 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8867;
-        Array__Str_set(_va_Array_244, hoisted__U32_8865, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8866; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8867);
+        Array__Str_set(_va_Array_244, hoisted__U32_8865, &hoisted__Str_8866, &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8867);
         Str_delete(&hoisted__Str_8867, (Bool){0});
         U32 hoisted__U32_8868 = 3;
         (void)hoisted__U32_8868;
         Str *hoisted__Str_8869 = I64_to_str(b);
         (void)hoisted__Str_8869;
-        Str hoisted__Str_8870 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8870 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8870;
         Array__Str_set(_va_Array_244, hoisted__U32_8868, hoisted__Str_8869, &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8870);
         Str_delete(&hoisted__Str_8870, (Bool){0});
         U32 hoisted__U32_8871 = 4;
         (void)hoisted__U32_8871;
-        Str hoisted__Str_8872 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8872 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8872;
-        Str hoisted__Str_8873 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8873 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8873;
-        Array__Str_set(_va_Array_244, hoisted__U32_8871, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8872; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8873);
+        Array__Str_set(_va_Array_244, hoisted__U32_8871, &hoisted__Str_8872, &_va_Array_244_ek, _va_Array_244_eo, &hoisted__Str_8873);
         OutOfBounds_delete(_va_Array_244_eo, 1);
         Str_delete(&hoisted__Str_8873, (Bool){0});
         panic(_va_Array_244, loc);
@@ -6489,43 +6489,43 @@ void assert_eq__Str(Str * a, Str * b, Str * loc) {
         (void)_va_Array_245_eo;
         U32 hoisted__U32_8876 = 0;
         (void)hoisted__U32_8876;
-        Str hoisted__Str_8877 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8877 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8877;
-        Str hoisted__Str_8878 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8878 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8878;
-        Array__Str_set(_va_Array_245, hoisted__U32_8876, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8877; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8878);
+        Array__Str_set(_va_Array_245, hoisted__U32_8876, &hoisted__Str_8877, &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8878);
         Str_delete(&hoisted__Str_8878, (Bool){0});
         U32 hoisted__U32_8879 = 1;
         (void)hoisted__U32_8879;
         Str *hoisted__Str_8880 = Str_to_str(a);
         (void)hoisted__Str_8880;
-        Str hoisted__Str_8881 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8881 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8881;
         Array__Str_set(_va_Array_245, hoisted__U32_8879, hoisted__Str_8880, &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8881);
         Str_delete(&hoisted__Str_8881, (Bool){0});
         U32 hoisted__U32_8882 = 2;
         (void)hoisted__U32_8882;
-        Str hoisted__Str_8883 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8883 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8883;
-        Str hoisted__Str_8884 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8884 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8884;
-        Array__Str_set(_va_Array_245, hoisted__U32_8882, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8883; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8884);
+        Array__Str_set(_va_Array_245, hoisted__U32_8882, &hoisted__Str_8883, &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8884);
         Str_delete(&hoisted__Str_8884, (Bool){0});
         U32 hoisted__U32_8885 = 3;
         (void)hoisted__U32_8885;
         Str *hoisted__Str_8886 = Str_to_str(b);
         (void)hoisted__Str_8886;
-        Str hoisted__Str_8887 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8887 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8887;
         Array__Str_set(_va_Array_245, hoisted__U32_8885, hoisted__Str_8886, &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8887);
         Str_delete(&hoisted__Str_8887, (Bool){0});
         U32 hoisted__U32_8888 = 4;
         (void)hoisted__U32_8888;
-        Str hoisted__Str_8889 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8889 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8889;
-        Str hoisted__Str_8890 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
+        static Str hoisted__Str_8890 = (Str){.c_str = (void *)"test/constfold.til:47:9", .count = 23ULL, .cap = TIL_CAP_LIT};
         (void)hoisted__Str_8890;
-        Array__Str_set(_va_Array_245, hoisted__U32_8888, ({ Str *_oa = malloc(sizeof(Str)); *_oa = hoisted__Str_8889; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }; _oa; }), &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8890);
+        Array__Str_set(_va_Array_245, hoisted__U32_8888, &hoisted__Str_8889, &_va_Array_245_ek, _va_Array_245_eo, &hoisted__Str_8890);
         OutOfBounds_delete(_va_Array_245_eo, 1);
         Str_delete(&hoisted__Str_8890, (Bool){0});
         panic(_va_Array_245, loc);
@@ -8362,21 +8362,21 @@ Str *struct_field_name(Str *type_name, I64 *index) {
     if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) {
     }
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"c_str", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit1 = (Str){.c_str = (void *)"c_str", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit1; });
+        if (*index == 1LL) return ({ static Str _lit2 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit2; });
+        if (*index == 2LL) return ({ static Str _lit3 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit3; });
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "OutOfBounds", 11ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"msg", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit4 = (Str){.c_str = (void *)"msg", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit4; });
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "Array__Str", 10ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit5 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit5; });
+        if (*index == 1LL) return ({ static Str _lit6 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit6; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__Str", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit7 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit7; });
+        if (*index == 1LL) return ({ static Str _lit8 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit8; });
+        if (*index == 2LL) return ({ static Str _lit9 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit9; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
     }
@@ -8385,134 +8385,134 @@ Str *struct_field_name(Str *type_name, I64 *index) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "Declaration", 11ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"doc", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"explicit_type", .count = 13ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_mut", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"redundant_mut", .count = 13ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_priv", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"used", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"own_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"default_value", .count = 13ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"orig_name", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit10 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit10; });
+        if (*index == 1LL) return ({ static Str _lit11 = (Str){.c_str = (void *)"doc", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit11; });
+        if (*index == 2LL) return ({ static Str _lit12 = (Str){.c_str = (void *)"explicit_type", .count = 13ULL, .cap = TIL_CAP_LIT}; &_lit12; });
+        if (*index == 3LL) return ({ static Str _lit13 = (Str){.c_str = (void *)"is_mut", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit13; });
+        if (*index == 4LL) return ({ static Str _lit14 = (Str){.c_str = (void *)"redundant_mut", .count = 13ULL, .cap = TIL_CAP_LIT}; &_lit14; });
+        if (*index == 5LL) return ({ static Str _lit15 = (Str){.c_str = (void *)"is_priv", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit15; });
+        if (*index == 6LL) return ({ static Str _lit16 = (Str){.c_str = (void *)"used", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit16; });
+        if (*index == 7LL) return ({ static Str _lit17 = (Str){.c_str = (void *)"own_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit17; });
+        if (*index == 8LL) return ({ static Str _lit18 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit18; });
+        if (*index == 9LL) return ({ static Str _lit19 = (Str){.c_str = (void *)"default_value", .count = 13ULL, .cap = TIL_CAP_LIT}; &_lit19; });
+        if (*index == 10LL) return ({ static Str _lit20 = (Str){.c_str = (void *)"orig_name", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit20; });
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"func_type", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"params", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"return_type", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"throw_types", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"variadic_index", .count = 14ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"kwargs_index", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"return_own_type", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"auto_generated", .count = 14ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_enum_variant_ctor", .count = 20ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"captures", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"closure_name", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit21 = (Str){.c_str = (void *)"func_type", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit21; });
+        if (*index == 1LL) return ({ static Str _lit22 = (Str){.c_str = (void *)"params", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit22; });
+        if (*index == 2LL) return ({ static Str _lit23 = (Str){.c_str = (void *)"return_type", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit23; });
+        if (*index == 3LL) return ({ static Str _lit24 = (Str){.c_str = (void *)"throw_types", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit24; });
+        if (*index == 4LL) return ({ static Str _lit25 = (Str){.c_str = (void *)"variadic_index", .count = 14ULL, .cap = TIL_CAP_LIT}; &_lit25; });
+        if (*index == 5LL) return ({ static Str _lit26 = (Str){.c_str = (void *)"kwargs_index", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit26; });
+        if (*index == 6LL) return ({ static Str _lit27 = (Str){.c_str = (void *)"return_own_type", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit27; });
+        if (*index == 7LL) return ({ static Str _lit28 = (Str){.c_str = (void *)"auto_generated", .count = 14ULL, .cap = TIL_CAP_LIT}; &_lit28; });
+        if (*index == 8LL) return ({ static Str _lit29 = (Str){.c_str = (void *)"is_enum_variant_ctor", .count = 20ULL, .cap = TIL_CAP_LIT}; &_lit29; });
+        if (*index == 9LL) return ({ static Str _lit30 = (Str){.c_str = (void *)"captures", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit30; });
+        if (*index == 10LL) return ({ static Str _lit31 = (Str){.c_str = (void *)"closure_name", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit31; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "FCallData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_splat", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"does_throw", .count = 10ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_bang", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"own_args", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"swap_replace", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit32 = (Str){.c_str = (void *)"is_splat", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit32; });
+        if (*index == 1LL) return ({ static Str _lit33 = (Str){.c_str = (void *)"does_throw", .count = 10ULL, .cap = TIL_CAP_LIT}; &_lit33; });
+        if (*index == 2LL) return ({ static Str _lit34 = (Str){.c_str = (void *)"is_bang", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit34; });
+        if (*index == 3LL) return ({ static Str _lit35 = (Str){.c_str = (void *)"own_args", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit35; });
+        if (*index == 4LL) return ({ static Str _lit36 = (Str){.c_str = (void *)"swap_replace", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit36; });
+        if (*index == 5LL) return ({ static Str _lit37 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit37; });
     }
     if (type_name->count == 14ULL && memcmp(type_name->c_str, "LiteralNumData", 14ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"text", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit38 = (Str){.c_str = (void *)"text", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit38; });
+        if (*index == 1LL) return ({ static Str _lit39 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit39; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "IdentData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit40 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit40; });
+        if (*index == 1LL) return ({ static Str _lit41 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit41; });
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAccessData", 15ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit42 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit42; });
+        if (*index == 1LL) return ({ static Str _lit43 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit43; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "StructDef", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"fields", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"ns_decls", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"c_tag", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_interface", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"interface_ns_marker", .count = 19ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"implements_name", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit44 = (Str){.c_str = (void *)"fields", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit44; });
+        if (*index == 1LL) return ({ static Str _lit45 = (Str){.c_str = (void *)"ns_decls", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit45; });
+        if (*index == 2LL) return ({ static Str _lit46 = (Str){.c_str = (void *)"c_tag", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit46; });
+        if (*index == 3LL) return ({ static Str _lit47 = (Str){.c_str = (void *)"is_interface", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit47; });
+        if (*index == 4LL) return ({ static Str _lit48 = (Str){.c_str = (void *)"interface_ns_marker", .count = 19ULL, .cap = TIL_CAP_LIT}; &_lit48; });
+        if (*index == 5LL) return ({ static Str _lit49 = (Str){.c_str = (void *)"implements_name", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit49; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"ns_decls", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"variants", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"payload_types", .count = 13ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"payload_consts", .count = 14ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"implements_name", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit50 = (Str){.c_str = (void *)"ns_decls", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit50; });
+        if (*index == 1LL) return ({ static Str _lit51 = (Str){.c_str = (void *)"variants", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit51; });
+        if (*index == 2LL) return ({ static Str _lit52 = (Str){.c_str = (void *)"payload_types", .count = 13ULL, .cap = TIL_CAP_LIT}; &_lit52; });
+        if (*index == 3LL) return ({ static Str _lit53 = (Str){.c_str = (void *)"payload_consts", .count = 14ULL, .cap = TIL_CAP_LIT}; &_lit53; });
+        if (*index == 4LL) return ({ static Str _lit54 = (Str){.c_str = (void *)"implements_name", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit54; });
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "AssignData", 10ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"save_old_delete", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_payload_alias", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"swap_replace", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit55 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit55; });
+        if (*index == 1LL) return ({ static Str _lit56 = (Str){.c_str = (void *)"save_old_delete", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit56; });
+        if (*index == 2LL) return ({ static Str _lit57 = (Str){.c_str = (void *)"is_payload_alias", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit57; });
+        if (*index == 3LL) return ({ static Str _lit58 = (Str){.c_str = (void *)"swap_replace", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit58; });
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAssignData", 15ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"save_old_delete", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit59 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit59; });
+        if (*index == 1LL) return ({ static Str _lit60 = (Str){.c_str = (void *)"save_old_delete", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit60; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "ForInData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"is_mut", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit61 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit61; });
+        if (*index == 1LL) return ({ static Str _lit62 = (Str){.c_str = (void *)"is_mut", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit62; });
+        if (*index == 2LL) return ({ static Str _lit63 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit63; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "MatchData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"result_temp", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit64 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit64; });
+        if (*index == 1LL) return ({ static Str _lit65 = (Str){.c_str = (void *)"result_temp", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit65; });
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "CaptureBlockData", 16ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"captures", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit66 = (Str){.c_str = (void *)"captures", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit66; });
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"node_type", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"children", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"line", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"col", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit67 = (Str){.c_str = (void *)"node_type", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit67; });
+        if (*index == 1LL) return ({ static Str _lit68 = (Str){.c_str = (void *)"children", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit68; });
+        if (*index == 2LL) return ({ static Str _lit69 = (Str){.c_str = (void *)"line", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit69; });
+        if (*index == 3LL) return ({ static Str _lit70 = (Str){.c_str = (void *)"col", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit70; });
     }
     if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__I64_Str", 12ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"keys", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"values", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit71 = (Str){.c_str = (void *)"keys", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit71; });
+        if (*index == 1LL) return ({ static Str _lit72 = (Str){.c_str = (void *)"values", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit72; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Bool", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit73 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit73; });
+        if (*index == 1LL) return ({ static Str _lit74 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit74; });
+        if (*index == 2LL) return ({ static Str _lit75 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit75; });
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "Vec__Declaration", 16ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit76 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit76; });
+        if (*index == 1LL) return ({ static Str _lit77 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit77; });
+        if (*index == 2LL) return ({ static Str _lit78 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit78; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit79 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit79; });
+        if (*index == 1LL) return ({ static Str _lit80 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit80; });
+        if (*index == 2LL) return ({ static Str _lit81 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit81; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__I64", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit82 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit82; });
+        if (*index == 1LL) return ({ static Str _lit83 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit83; });
+        if (*index == 2LL) return ({ static Str _lit84 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit84; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"start", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"end", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit85 = (Str){.c_str = (void *)"start", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit85; });
+        if (*index == 1LL) return ({ static Str _lit86 = (Str){.c_str = (void *)"end", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit86; });
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit87 = (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_LIT}; &_lit87; });
+        if (*index == 1LL) return ({ static Str _lit88 = (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_LIT}; &_lit88; });
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"top_left", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"bottom_right", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit89 = (Str){.c_str = (void *)"top_left", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit89; });
+        if (*index == 1LL) return ({ static Str _lit90 = (Str){.c_str = (void *)"bottom_right", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit90; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "CfVec3f", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"z", .count = 1ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit91 = (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_LIT}; &_lit91; });
+        if (*index == 1LL) return ({ static Str _lit92 = (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_LIT}; &_lit92; });
+        if (*index == 2LL) return ({ static Str _lit93 = (Str){.c_str = (void *)"z", .count = 1ULL, .cap = TIL_CAP_LIT}; &_lit93; });
     }
     fprintf(stderr, "struct_field_name: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -8704,21 +8704,21 @@ Str *struct_field_type(Str *type_name, I64 *index) {
     if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) {
     }
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit94 = (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit94; });
+        if (*index == 1LL) return ({ static Str _lit95 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit95; });
+        if (*index == 2LL) return ({ static Str _lit96 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit96; });
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "OutOfBounds", 11ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit97 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit97; });
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "Array__Str", 10ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit98 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit98; });
+        if (*index == 1LL) return ({ static Str _lit99 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit99; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__Str", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit100 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit100; });
+        if (*index == 1LL) return ({ static Str _lit101 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit101; });
+        if (*index == 2LL) return ({ static Str _lit102 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit102; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
     }
@@ -8727,134 +8727,134 @@ Str *struct_field_type(Str *type_name, I64 *index) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "Declaration", 11ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"OwnType", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Expr", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit103 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit103; });
+        if (*index == 1LL) return ({ static Str _lit104 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit104; });
+        if (*index == 2LL) return ({ static Str _lit105 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit105; });
+        if (*index == 3LL) return ({ static Str _lit106 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit106; });
+        if (*index == 4LL) return ({ static Str _lit107 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit107; });
+        if (*index == 5LL) return ({ static Str _lit108 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit108; });
+        if (*index == 6LL) return ({ static Str _lit109 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit109; });
+        if (*index == 7LL) return ({ static Str _lit110 = (Str){.c_str = (void *)"OwnType", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit110; });
+        if (*index == 8LL) return ({ static Str _lit111 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit111; });
+        if (*index == 9LL) return ({ static Str _lit112 = (Str){.c_str = (void *)"Expr", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit112; });
+        if (*index == 10LL) return ({ static Str _lit113 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit113; });
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FuncType", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"OwnType", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit114 = (Str){.c_str = (void *)"FuncType", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit114; });
+        if (*index == 1LL) return ({ static Str _lit115 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit115; });
+        if (*index == 2LL) return ({ static Str _lit116 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit116; });
+        if (*index == 3LL) return ({ static Str _lit117 = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit117; });
+        if (*index == 4LL) return ({ static Str _lit118 = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit118; });
+        if (*index == 5LL) return ({ static Str _lit119 = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit119; });
+        if (*index == 6LL) return ({ static Str _lit120 = (Str){.c_str = (void *)"OwnType", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit120; });
+        if (*index == 7LL) return ({ static Str _lit121 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit121; });
+        if (*index == 8LL) return ({ static Str _lit122 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit122; });
+        if (*index == 9LL) return ({ static Str _lit123 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit123; });
+        if (*index == 10LL) return ({ static Str _lit124 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit124; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "FCallData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit125 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit125; });
+        if (*index == 1LL) return ({ static Str _lit126 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit126; });
+        if (*index == 2LL) return ({ static Str _lit127 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit127; });
+        if (*index == 3LL) return ({ static Str _lit128 = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit128; });
+        if (*index == 4LL) return ({ static Str _lit129 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit129; });
+        if (*index == 5LL) return ({ static Str _lit130 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit130; });
     }
     if (type_name->count == 14ULL && memcmp(type_name->c_str, "LiteralNumData", 14ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit131 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit131; });
+        if (*index == 1LL) return ({ static Str _lit132 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit132; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "IdentData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit133 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit133; });
+        if (*index == 1LL) return ({ static Str _lit134 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit134; });
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAccessData", 15ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit135 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit135; });
+        if (*index == 1LL) return ({ static Str _lit136 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit136; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "StructDef", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit137 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit137; });
+        if (*index == 1LL) return ({ static Str _lit138 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit138; });
+        if (*index == 2LL) return ({ static Str _lit139 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit139; });
+        if (*index == 3LL) return ({ static Str _lit140 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit140; });
+        if (*index == 4LL) return ({ static Str _lit141 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit141; });
+        if (*index == 5LL) return ({ static Str _lit142 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit142; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Map__I64_Str", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Bool", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit143 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit143; });
+        if (*index == 1LL) return ({ static Str _lit144 = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit144; });
+        if (*index == 2LL) return ({ static Str _lit145 = (Str){.c_str = (void *)"Map__I64_Str", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit145; });
+        if (*index == 3LL) return ({ static Str _lit146 = (Str){.c_str = (void *)"Vec__Bool", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit146; });
+        if (*index == 4LL) return ({ static Str _lit147 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit147; });
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "AssignData", 10ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit148 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit148; });
+        if (*index == 1LL) return ({ static Str _lit149 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit149; });
+        if (*index == 2LL) return ({ static Str _lit150 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit150; });
+        if (*index == 3LL) return ({ static Str _lit151 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit151; });
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAssignData", 15ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit152 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit152; });
+        if (*index == 1LL) return ({ static Str _lit153 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit153; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "ForInData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit154 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit154; });
+        if (*index == 1LL) return ({ static Str _lit155 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit155; });
+        if (*index == 2LL) return ({ static Str _lit156 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit156; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "MatchData", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit157 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit157; });
+        if (*index == 1LL) return ({ static Str _lit158 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit158; });
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "CaptureBlockData", 16ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit159 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit159; });
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"NodeType", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Expr", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit160 = (Str){.c_str = (void *)"NodeType", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit160; });
+        if (*index == 1LL) return ({ static Str _lit161 = (Str){.c_str = (void *)"Vec__Expr", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit161; });
+        if (*index == 2LL) return ({ static Str _lit162 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit162; });
+        if (*index == 3LL) return ({ static Str _lit163 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit163; });
     }
     if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__I64_Str", 12ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__I64", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit164 = (Str){.c_str = (void *)"Vec__I64", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit164; });
+        if (*index == 1LL) return ({ static Str _lit165 = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit165; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Bool", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit166 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit166; });
+        if (*index == 1LL) return ({ static Str _lit167 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit167; });
+        if (*index == 2LL) return ({ static Str _lit168 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit168; });
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "Vec__Declaration", 16ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit169 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit169; });
+        if (*index == 1LL) return ({ static Str _lit170 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit170; });
+        if (*index == 2LL) return ({ static Str _lit171 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit171; });
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit172 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit172; });
+        if (*index == 1LL) return ({ static Str _lit173 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit173; });
+        if (*index == 2LL) return ({ static Str _lit174 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit174; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__I64", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit175 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit175; });
+        if (*index == 1LL) return ({ static Str _lit176 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit176; });
+        if (*index == 2LL) return ({ static Str _lit177 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit177; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit178 = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit178; });
+        if (*index == 1LL) return ({ static Str _lit179 = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit179; });
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit180 = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit180; });
+        if (*index == 1LL) return ({ static Str _lit181 = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit181; });
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit182 = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit182; });
+        if (*index == 1LL) return ({ static Str _lit183 = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit183; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "CfVec3f", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit184 = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit184; });
+        if (*index == 1LL) return ({ static Str _lit185 = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit185; });
+        if (*index == 2LL) return ({ static Str _lit186 = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit186; });
     }
     fprintf(stderr, "struct_field_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -8893,92 +8893,92 @@ I64 enum_variant_count(Str *type_name) {
 Str *enum_variant_name(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Primitive", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I16", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U16", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit187 = (Str){.c_str = (void *)"I16", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit187; });
+        if (*index == 1LL) return ({ static Str _lit188 = (Str){.c_str = (void *)"U16", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit188; });
+        if (*index == 2LL) return ({ static Str _lit189 = (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit189; });
+        if (*index == 3LL) return ({ static Str _lit190 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit190; });
+        if (*index == 4LL) return ({ static Str _lit191 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit191; });
+        if (*index == 5LL) return ({ static Str _lit192 = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit192; });
+        if (*index == 6LL) return ({ static Str _lit193 = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit193; });
+        if (*index == 7LL) return ({ static Str _lit194 = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit194; });
+        if (*index == 8LL) return ({ static Str _lit195 = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit195; });
+        if (*index == 9LL) return ({ static Str _lit196 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit196; });
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Unknown", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"None", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Struct", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Enum", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FuncDef", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FuncPtr", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Custom", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Primitive", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 11LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FuncPtrSig", .count = 10ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit197 = (Str){.c_str = (void *)"Unknown", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit197; });
+        if (*index == 1LL) return ({ static Str _lit198 = (Str){.c_str = (void *)"None", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit198; });
+        if (*index == 2LL) return ({ static Str _lit199 = (Str){.c_str = (void *)"Struct", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit199; });
+        if (*index == 3LL) return ({ static Str _lit200 = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit200; });
+        if (*index == 4LL) return ({ static Str _lit201 = (Str){.c_str = (void *)"Enum", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit201; });
+        if (*index == 5LL) return ({ static Str _lit202 = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit202; });
+        if (*index == 6LL) return ({ static Str _lit203 = (Str){.c_str = (void *)"FuncDef", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit203; });
+        if (*index == 7LL) return ({ static Str _lit204 = (Str){.c_str = (void *)"FuncPtr", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit204; });
+        if (*index == 8LL) return ({ static Str _lit205 = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit205; });
+        if (*index == 9LL) return ({ static Str _lit206 = (Str){.c_str = (void *)"Custom", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit206; });
+        if (*index == 10LL) return ({ static Str _lit207 = (Str){.c_str = (void *)"Primitive", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit207; });
+        if (*index == 11LL) return ({ static Str _lit208 = (Str){.c_str = (void *)"FuncPtrSig", .count = 10ULL, .cap = TIL_CAP_LIT}; &_lit208; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "FuncType", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Func", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Proc", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Test", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Macro", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"ExtFunc", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"ExtProc", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"LazyFunc", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"LazyProc", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit209 = (Str){.c_str = (void *)"Func", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit209; });
+        if (*index == 1LL) return ({ static Str _lit210 = (Str){.c_str = (void *)"Proc", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit210; });
+        if (*index == 2LL) return ({ static Str _lit211 = (Str){.c_str = (void *)"Test", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit211; });
+        if (*index == 3LL) return ({ static Str _lit212 = (Str){.c_str = (void *)"Macro", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit212; });
+        if (*index == 4LL) return ({ static Str _lit213 = (Str){.c_str = (void *)"ExtFunc", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit213; });
+        if (*index == 5LL) return ({ static Str _lit214 = (Str){.c_str = (void *)"ExtProc", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit214; });
+        if (*index == 6LL) return ({ static Str _lit215 = (Str){.c_str = (void *)"LazyFunc", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit215; });
+        if (*index == 7LL) return ({ static Str _lit216 = (Str){.c_str = (void *)"LazyProc", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit216; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "OwnType", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Own", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Ref", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Shallow", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit217 = (Str){.c_str = (void *)"Own", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit217; });
+        if (*index == 1LL) return ({ static Str _lit218 = (Str){.c_str = (void *)"Ref", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit218; });
+        if (*index == 2LL) return ({ static Str _lit219 = (Str){.c_str = (void *)"Shallow", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit219; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Literal", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Null", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"MapLit", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"SetLit", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit220 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit220; });
+        if (*index == 1LL) return ({ static Str _lit221 = (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit221; });
+        if (*index == 2LL) return ({ static Str _lit222 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit222; });
+        if (*index == 3LL) return ({ static Str _lit223 = (Str){.c_str = (void *)"Null", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit223; });
+        if (*index == 4LL) return ({ static Str _lit224 = (Str){.c_str = (void *)"MapLit", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit224; });
+        if (*index == 5LL) return ({ static Str _lit225 = (Str){.c_str = (void *)"SetLit", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit225; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Body", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Literal", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Ident", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Decl", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Assign", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FCall", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FuncDef", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FieldAccess", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FieldAssign", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 11LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Return", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 12LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"If", .count = 2ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 13LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"While", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 14LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"ForIn", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 15LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"NamedArg", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 16LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Break", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 17LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Continue", .count = 8ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 18LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Switch", .count = 6ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 19LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Match", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 20LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Case", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 21LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"NoDefaultArg", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 22LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Throw", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 23LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Catch", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 24LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"RestPattern", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 25LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CaptureBlock", .count = 12ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 26LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Loc", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit226 = (Str){.c_str = (void *)"Body", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit226; });
+        if (*index == 1LL) return ({ static Str _lit227 = (Str){.c_str = (void *)"Literal", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit227; });
+        if (*index == 2LL) return ({ static Str _lit228 = (Str){.c_str = (void *)"Ident", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit228; });
+        if (*index == 3LL) return ({ static Str _lit229 = (Str){.c_str = (void *)"Decl", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit229; });
+        if (*index == 4LL) return ({ static Str _lit230 = (Str){.c_str = (void *)"Assign", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit230; });
+        if (*index == 5LL) return ({ static Str _lit231 = (Str){.c_str = (void *)"FCall", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit231; });
+        if (*index == 6LL) return ({ static Str _lit232 = (Str){.c_str = (void *)"FuncDef", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit232; });
+        if (*index == 7LL) return ({ static Str _lit233 = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit233; });
+        if (*index == 8LL) return ({ static Str _lit234 = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit234; });
+        if (*index == 9LL) return ({ static Str _lit235 = (Str){.c_str = (void *)"FieldAccess", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit235; });
+        if (*index == 10LL) return ({ static Str _lit236 = (Str){.c_str = (void *)"FieldAssign", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit236; });
+        if (*index == 11LL) return ({ static Str _lit237 = (Str){.c_str = (void *)"Return", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit237; });
+        if (*index == 12LL) return ({ static Str _lit238 = (Str){.c_str = (void *)"If", .count = 2ULL, .cap = TIL_CAP_LIT}; &_lit238; });
+        if (*index == 13LL) return ({ static Str _lit239 = (Str){.c_str = (void *)"While", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit239; });
+        if (*index == 14LL) return ({ static Str _lit240 = (Str){.c_str = (void *)"ForIn", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit240; });
+        if (*index == 15LL) return ({ static Str _lit241 = (Str){.c_str = (void *)"NamedArg", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit241; });
+        if (*index == 16LL) return ({ static Str _lit242 = (Str){.c_str = (void *)"Break", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit242; });
+        if (*index == 17LL) return ({ static Str _lit243 = (Str){.c_str = (void *)"Continue", .count = 8ULL, .cap = TIL_CAP_LIT}; &_lit243; });
+        if (*index == 18LL) return ({ static Str _lit244 = (Str){.c_str = (void *)"Switch", .count = 6ULL, .cap = TIL_CAP_LIT}; &_lit244; });
+        if (*index == 19LL) return ({ static Str _lit245 = (Str){.c_str = (void *)"Match", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit245; });
+        if (*index == 20LL) return ({ static Str _lit246 = (Str){.c_str = (void *)"Case", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit246; });
+        if (*index == 21LL) return ({ static Str _lit247 = (Str){.c_str = (void *)"NoDefaultArg", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit247; });
+        if (*index == 22LL) return ({ static Str _lit248 = (Str){.c_str = (void *)"Throw", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit248; });
+        if (*index == 23LL) return ({ static Str _lit249 = (Str){.c_str = (void *)"Catch", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit249; });
+        if (*index == 24LL) return ({ static Str _lit250 = (Str){.c_str = (void *)"RestPattern", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit250; });
+        if (*index == 25LL) return ({ static Str _lit251 = (Str){.c_str = (void *)"CaptureBlock", .count = 12ULL, .cap = TIL_CAP_LIT}; &_lit251; });
+        if (*index == 26LL) return ({ static Str _lit252 = (Str){.c_str = (void *)"Loc", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit252; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Red", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Green", .count = 5ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Blue", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit253 = (Str){.c_str = (void *)"Red", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit253; });
+        if (*index == 1LL) return ({ static Str _lit254 = (Str){.c_str = (void *)"Green", .count = 5ULL, .cap = TIL_CAP_LIT}; &_lit254; });
+        if (*index == 2LL) return ({ static Str _lit255 = (Str){.c_str = (void *)"Blue", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit255; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Name", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Eof", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit256 = (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit256; });
+        if (*index == 1LL) return ({ static Str _lit257 = (Str){.c_str = (void *)"Name", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit257; });
+        if (*index == 2LL) return ({ static Str _lit258 = (Str){.c_str = (void *)"Eof", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit258; });
     }
     fprintf(stderr, "enum_variant_name: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -9081,92 +9081,92 @@ I64 enum_variant_has_payload(Str *type_name, I64 *index) {
 Str *enum_variant_payload_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Primitive", 9ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit259 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit259; });
+        if (*index == 1LL) return ({ static Str _lit260 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit260; });
+        if (*index == 2LL) return ({ static Str _lit261 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit261; });
+        if (*index == 3LL) return ({ static Str _lit262 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit262; });
+        if (*index == 4LL) return ({ static Str _lit263 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit263; });
+        if (*index == 5LL) return ({ static Str _lit264 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit264; });
+        if (*index == 6LL) return ({ static Str _lit265 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit265; });
+        if (*index == 7LL) return ({ static Str _lit266 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit266; });
+        if (*index == 8LL) return ({ static Str _lit267 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit267; });
+        if (*index == 9LL) return ({ static Str _lit268 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit268; });
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Primitive", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 11LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit269 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit269; });
+        if (*index == 1LL) return ({ static Str _lit270 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit270; });
+        if (*index == 2LL) return ({ static Str _lit271 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit271; });
+        if (*index == 3LL) return ({ static Str _lit272 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit272; });
+        if (*index == 4LL) return ({ static Str _lit273 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit273; });
+        if (*index == 5LL) return ({ static Str _lit274 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit274; });
+        if (*index == 6LL) return ({ static Str _lit275 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit275; });
+        if (*index == 7LL) return ({ static Str _lit276 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit276; });
+        if (*index == 8LL) return ({ static Str _lit277 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit277; });
+        if (*index == 9LL) return ({ static Str _lit278 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit278; });
+        if (*index == 10LL) return ({ static Str _lit279 = (Str){.c_str = (void *)"Primitive", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit279; });
+        if (*index == 11LL) return ({ static Str _lit280 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit280; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "FuncType", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit281 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit281; });
+        if (*index == 1LL) return ({ static Str _lit282 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit282; });
+        if (*index == 2LL) return ({ static Str _lit283 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit283; });
+        if (*index == 3LL) return ({ static Str _lit284 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit284; });
+        if (*index == 4LL) return ({ static Str _lit285 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit285; });
+        if (*index == 5LL) return ({ static Str _lit286 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit286; });
+        if (*index == 6LL) return ({ static Str _lit287 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit287; });
+        if (*index == 7LL) return ({ static Str _lit288 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit288; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "OwnType", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit289 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit289; });
+        if (*index == 1LL) return ({ static Str _lit290 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit290; });
+        if (*index == 2LL) return ({ static Str _lit291 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit291; });
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Literal", 7ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"LiteralNumData", .count = 14ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit292 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit292; });
+        if (*index == 1LL) return ({ static Str _lit293 = (Str){.c_str = (void *)"LiteralNumData", .count = 14ULL, .cap = TIL_CAP_LIT}; &_lit293; });
+        if (*index == 2LL) return ({ static Str _lit294 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT}; &_lit294; });
+        if (*index == 3LL) return ({ static Str _lit295 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit295; });
+        if (*index == 4LL) return ({ static Str _lit296 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit296; });
+        if (*index == 5LL) return ({ static Str _lit297 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit297; });
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Literal", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"IdentData", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 3LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Declaration", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 4LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"AssignData", .count = 10ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 5LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FCallData", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 6LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FunctionDef", .count = 11ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 7LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 8LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 9LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FieldAccessData", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 10LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"FieldAssignData", .count = 15ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 11LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 12LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 13LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 14LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"ForInData", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 15LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 16LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 17LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 18LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 19LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"MatchData", .count = 9ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 20LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 21LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 22LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 23LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 24LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 25LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"CaptureBlockData", .count = 16ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 26LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit298 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit298; });
+        if (*index == 1LL) return ({ static Str _lit299 = (Str){.c_str = (void *)"Literal", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit299; });
+        if (*index == 2LL) return ({ static Str _lit300 = (Str){.c_str = (void *)"IdentData", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit300; });
+        if (*index == 3LL) return ({ static Str _lit301 = (Str){.c_str = (void *)"Declaration", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit301; });
+        if (*index == 4LL) return ({ static Str _lit302 = (Str){.c_str = (void *)"AssignData", .count = 10ULL, .cap = TIL_CAP_LIT}; &_lit302; });
+        if (*index == 5LL) return ({ static Str _lit303 = (Str){.c_str = (void *)"FCallData", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit303; });
+        if (*index == 6LL) return ({ static Str _lit304 = (Str){.c_str = (void *)"FunctionDef", .count = 11ULL, .cap = TIL_CAP_LIT}; &_lit304; });
+        if (*index == 7LL) return ({ static Str _lit305 = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit305; });
+        if (*index == 8LL) return ({ static Str _lit306 = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit306; });
+        if (*index == 9LL) return ({ static Str _lit307 = (Str){.c_str = (void *)"FieldAccessData", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit307; });
+        if (*index == 10LL) return ({ static Str _lit308 = (Str){.c_str = (void *)"FieldAssignData", .count = 15ULL, .cap = TIL_CAP_LIT}; &_lit308; });
+        if (*index == 11LL) return ({ static Str _lit309 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit309; });
+        if (*index == 12LL) return ({ static Str _lit310 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit310; });
+        if (*index == 13LL) return ({ static Str _lit311 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit311; });
+        if (*index == 14LL) return ({ static Str _lit312 = (Str){.c_str = (void *)"ForInData", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit312; });
+        if (*index == 15LL) return ({ static Str _lit313 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit313; });
+        if (*index == 16LL) return ({ static Str _lit314 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit314; });
+        if (*index == 17LL) return ({ static Str _lit315 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit315; });
+        if (*index == 18LL) return ({ static Str _lit316 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit316; });
+        if (*index == 19LL) return ({ static Str _lit317 = (Str){.c_str = (void *)"MatchData", .count = 9ULL, .cap = TIL_CAP_LIT}; &_lit317; });
+        if (*index == 20LL) return ({ static Str _lit318 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit318; });
+        if (*index == 21LL) return ({ static Str _lit319 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit319; });
+        if (*index == 22LL) return ({ static Str _lit320 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit320; });
+        if (*index == 23LL) return ({ static Str _lit321 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit321; });
+        if (*index == 24LL) return ({ static Str _lit322 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit322; });
+        if (*index == 25LL) return ({ static Str _lit323 = (Str){.c_str = (void *)"CaptureBlockData", .count = 16ULL, .cap = TIL_CAP_LIT}; &_lit323; });
+        if (*index == 26LL) return ({ static Str _lit324 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit324; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit325 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit325; });
+        if (*index == 1LL) return ({ static Str _lit326 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit326; });
+        if (*index == 2LL) return ({ static Str _lit327 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit327; });
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 2LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit328 = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit328; });
+        if (*index == 1LL) return ({ static Str _lit329 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit329; });
+        if (*index == 2LL) return ({ static Str _lit330 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT}; &_lit330; });
     }
     fprintf(stderr, "enum_variant_payload_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -9184,8 +9184,8 @@ I64 func_sig_param_count(Str *type_name) {
 Str *func_sig_param_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "HashFn", 6ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_VIEW}; _lit; });
-        if (*index == 1LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit331 = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT}; &_lit331; });
+        if (*index == 1LL) return ({ static Str _lit332 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit332; });
     }
     fprintf(stderr, "func_sig_param_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -9203,7 +9203,7 @@ I64 func_sig_return_count(Str *type_name) {
 Str *func_sig_return_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "HashFn", 6ULL) == 0) {
-        if (*index == 0LL) return ({ Str *_lit = malloc(sizeof(Str)); *_lit = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_VIEW}; _lit; });
+        if (*index == 0LL) return ({ static Str _lit333 = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT}; &_lit333; });
     }
     fprintf(stderr, "func_sig_return_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);

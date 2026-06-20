@@ -232,6 +232,14 @@ the same task thread. Do NOT create a fresh sibling worktree for each next
 commit in the same session; rebase the existing worktree onto master after
 merged work lands, then continue there.
 
+Once a dedicated worktree exists for the task, all subsequent inspection,
+discussion, edits, builds, tests, and follow-up fixes for that task happen in
+that worktree by default. The main checkout is only for the exact master
+operation the human explicitly requested (for example, a cherry-pick to
+master). After that exact operation finishes, immediately stop using the main
+checkout and return to the task worktree unless the human explicitly says to do
+more on master.
+
 Directory: `~/sync/data_common/code/jt/til_worktrees/<descriptive-name>`
 
 Setup::
