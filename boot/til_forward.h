@@ -3672,6 +3672,9 @@ priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__Dy
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
 void priv___src_self_interpreter_til__free_value_full(Value v);
+Str * priv___src_self_interpreter_til__container_elem_type(Str * struct_name);
+void priv___src_self_interpreter_til__free_container_str_data(Str * struct_name, void * data, Context * ctx);
+void priv___src_self_interpreter_til__clone_container_str_buffer(Str * struct_name, void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
 void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope, Expr * call_expr, Expr * func_def);
 Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);

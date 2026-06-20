@@ -104,6 +104,15 @@ priv struct_deep_free := func(struct_name: Str, sdef: Expr, data: Dynamic, ctx: 
                 }
             }
         }
+        // Issue #275: free a Str-element container's `own data` buffer + element
+        // c_strs. The field loop above skips `own` fields, so an Array(Str)/
+        // Vec(Str) would otherwise leak its buffer and every element c_str at
+        // scope teardown (e.g. the constfolder's va_scope arrays from 25de8797).
+        // No double-free: clone_container_str_buffer gives each clone its own
+        // buffer, and borrowed containers never reach struct_deep_free.
+        if container_elem_type(struct_name).eq("Str") {
+            free_container_str_data(struct_name, data, ctx)
+        }
     case:
     }
 }
@@ -160,6 +169,11 @@ namespace:
                         memset(cloned_str, 0, Str.size().cast(U64))
                     }
                 }
+            } else if container_elem_type(self.struct_name).eq("Str") {
+                // Issue #275: deep-copy the Str container's `own data` buffer so
+                // the clone owns it (the outer memcpy only copied the pointer);
+                // dual of struct_deep_free's free_container_str_data.
+                clone_container_str_buffer(self.struct_name, self.data, dst_data, self.ctx)
             } else if struct_def_shallow_safe(sdef_data, self.ctx) {
                 // POD shortcut: every field is either a primitive,
                 // a ref (skipped anyway), or a nested shallow-safe
@@ -2217,6 +2231,93 @@ priv free_value_full := func(shallow v: Value) {
     }
 }
 
+// Issue #275: an Array(Str)/Vec(Str) keeps its elements in an `own data` heap
+// buffer. struct_deep_free skips `own` fields and StructInstance.clone's outer
+// memcpy only shallow-copies the data pointer, so at interpret-mode scope
+// teardown the buffer AND every element c_str leak (e.g. the constfolder's
+// va_scope arrays from 25de8797), while a cloned container would share its
+// buffer. The two helpers below fix it symmetrically: free_container_str_data
+// reclaims the buffer + element c_strs at teardown (called from
+// struct_deep_free), and clone_container_str_buffer deep-copies them at clone
+// time so each value owns its buffer -- no double-free. Only Str-element
+// containers are handled; other element types stay on the existing shallow path.
+
+// Element type of a monomorphized container ("Array__Str" -> "Str",
+// "Vec__I64" -> "I64"); "" for a non-container struct name.
+priv container_elem_type := func(struct_name: Str) returns Str {
+    array_prefix := "Array__"
+    if struct_name.starts_with(array_prefix) {
+        return struct_name.substr(array_prefix.count, struct_name.count.sub(array_prefix.count))
+    }
+    vec_prefix := "Vec__"
+    if struct_name.starts_with(vec_prefix) {
+        return struct_name.substr(vec_prefix.count, struct_name.count.sub(vec_prefix.count))
+    }
+    return ""
+}
+
+// Free an Array(Str)/Vec(Str) `own data` buffer and its element c_strs. Does
+// not touch the struct instance bytes (the scope teardown frees those) nor
+// borrowed/view element c_strs (cap >= CAP_VIEW guards them, mirroring the
+// Str-field handling in struct_deep_free).
+priv free_container_str_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout(struct_name, "data", ctx)
+    // Reinterpret the container's `own data` field (an 8-byte owned pointer,
+    // same shape as DynPtrBox.p) so the buffer is freed via the proven
+    // `free(own <struct>.<field>)` path -- a `ref Dynamic` from deref() cannot
+    // be moved into free's `own` parameter. (Mirrors free_value_full's
+    // `ref box : DynPtrBox = slot; free(own box.p)`.)
+    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
+    if hdr.p.is_null() { return }
+    mut count_field := "cap"
+    if struct_name.starts_with("Vec__") { count_field = "count" }
+    cnt_fl := ctx_field_layout(struct_name, count_field, ctx)
+    ref n : USize = ptr_add(data, cnt_fl.offset.cast(U64))
+    esz := Str.size()
+    for i in 0..n {
+        ref s : Str = ptr_add(hdr.p, i.mul(esz).cast(U64))
+        if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+            if s.c_str.is_null().not() { free(own s.c_str) }
+        }
+    }
+    free(own hdr.p)
+}
+
+// Deep-copy an Array(Str)/Vec(Str) `own data` buffer into a freshly cloned
+// instance (dual of free_container_str_data). StructInstance.clone's outer
+// memcpy shallow-copies the data pointer, so without this the clone would
+// share -- and later double-free -- the original's buffer. Give the clone its
+// own buffer and freshly cloned element c_strs.
+priv clone_container_str_buffer := func(struct_name: Str, src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout(struct_name, "data", ctx)
+    ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
+    if src_hdr.p.is_null() { return }
+    cap_fl := ctx_field_layout(struct_name, "cap", ctx)
+    ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
+    esz := Str.size()
+    buf_bytes := cap.mul(esz).cast(U64)
+    new_buf : Dynamic = malloc(buf_bytes)
+    memcpy(new_buf, src_hdr.p, buf_bytes)
+    mut count_field := "cap"
+    if struct_name.starts_with("Vec__") { count_field = "count" }
+    cnt_fl := ctx_field_layout(struct_name, count_field, ctx)
+    ref n : USize = ptr_add(src_data, cnt_fl.offset.cast(U64))
+    for i in 0..n {
+        elem_off := i.mul(esz).cast(U64)
+        ref s : Str = ptr_add(src_hdr.p, elem_off)
+        if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+            if s.c_str.is_null().not() {
+                cloned_str := s.clone()
+                write_ptr(ptr_add(new_buf, elem_off), cloned_str.c_str)
+                ref mut dst_elem_cap : U32 = ptr_add(ptr_add(new_buf, elem_off), 12)
+                dst_elem_cap = s.count.clone()
+                memset(cloned_str, 0, Str.size().cast(U64))
+            }
+        }
+    }
+    write_ptr(ptr_add(dst_data, data_fl.offset.cast(U64)), new_buf)
+}
+
 priv free_temp_arg_value := func(shallow v: Value) {
     switch v {
     case Value.Struct(si):
@@ -2526,7 +2627,19 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     // sole owner and scope_free reclaims it.
     if s.bindings.has(name) {
         ref b : Binding = s.bindings[name]
-        free_value(b.cell.val)
+        // Rebinding an existing name: the old value must be fully reclaimed,
+        // not just its top box. A local cell OWNS its payload, so deep-free it
+        // (a Str's c_str, a struct's nested heap) -- the shallow free_value
+        // leaked that payload on every rebind, the dominant
+        // bind_known_idents_in / constfolder Str_clone leak. free_temp_arg_value
+        // honours the borrowed flag and the CAP_VIEW guard, so an owned view
+        // Str keeps its borrowed c_str. A borrowed binding shares the source
+        // cell, so never deep-free it: keep the shallow release there.
+        if b.cell_is_local {
+            free_temp_arg_value(b.cell.val)
+        } else {
+            free_value(b.cell.val)
+        }
         memcpy(b.cell.val, val, Value.size().cast(U64))
         memcpy(val, val_none(), Value.size().cast(U64))
         return
