@@ -29,6 +29,7 @@
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 ** Medium
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
+*** [[./open/284.org][#284]] for-in: skip the redundant bounds check via unsafe_get
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs

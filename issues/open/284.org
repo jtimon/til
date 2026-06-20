@@ -1,0 +1,135 @@
+# priority: medium
+# category: cleanups
+** OPEN #284 for-in: skip the redundant bounds check via unsafe_get
+
+Related: [[./94.org][#94]] (cursor/iterator direction for *range* for-in;
+  see "Relation to #94" below).
+
+  Collection for-in (~for x in coll~) desugars, in
+  ~desugar_for_in_collection_stmt~ (src/self/typer.til), to the
+  random-access shape::
+
+    _fc := ref coll
+    _fi := 0
+    while _fi < _fc.len() {
+        elem := _fc.get(_fi)
+        <body>
+        _fi++
+    }
+
+  ~Vec.get~ / ~Array.get~ are ~throws OutOfBounds~ and bounds-checked.
+  Because ~get~ throws, the desugar emits, per element, the full
+  throw-plumbing: a ~get(idx, mut _err_kind, mut _err_OutOfBounds)~
+  call into the checked accessor (which re-tests ~idx >= count~), a
+  once-per-pass ~malloc(OutOfBounds)~ error slot, and a post-call
+  ~if (_err_kind != 0) { panic }~ check.
+
+  All of this is pure redundancy: the desugared index runs exactly
+  ~0..len()~, so it is provably in bounds. The loop's own ~_fi < len~
+  termination test already guarantees the access is valid -- the
+  second, per-element bounds check inside ~get~ exists only because
+  ~get~ does not know its caller proved the bound.
+
+*** Measured cost
+
+  Tight loop, 100M element-visits, ~til build~ at ~-O2~ (tmp benchmark,
+  Map(I64,I64) of 1000 entries x 100000 passes):
+
+  - unchecked accessor (~Map.val_ptr~):           ~4.0s
+  - checked ~get~ (~v[i]~ or for-in over .values): ~5.4s
+
+  i.e. the checked path is ~34% slower. Disassembly: ~Map.val_ptr~ is
+  46 instructions; ~Vec.get~ is 201 (far past the inline threshold, so
+  every element is a real call into the heavy function), plus the
+  per-element ~err_kind~ equality checks that til emits as non-inlined
+  calls. Hoisting ~len()~ out (range loop) does NOT help -- proven by a
+  variant that keeps ~len()~ hoisted yet still routes through ~get~ and
+  is just as slow. The cost is the checked accessor, not the loop shape.
+
+*** Fix
+
+  Factor the unchecked core out of ~get~ and have for-in call it. Map
+  ALREADY follows this pattern: ~Map.get~ binary-searches then returns
+  ~self.val_ptr(mid)~ -- ~val_ptr~ is the unchecked core, ~get~ the
+  checked wrapper. Generalize that to the other collections::
+
+    // src/core/vec.til (mirror in array.til)
+    unsafe_get := func(self: Vec(T), i: USize) returns ref T {
+        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+    }
+    get := func(self: Vec(T), i: USize) returns ref T throws OutOfBounds {
+        if i.gte(self.count) { throw OutOfBounds(...) }
+        return self.unsafe_get(i)
+    }
+
+  Then in ~desugar_for_in_collection_stmt~, prefer the unchecked
+  accessor when the collection offers it::
+
+    ref get_func : Expr = find_namespace_func(sdef, "unsafe_get", scope)
+    if get_func.is_null() { get_func = find_namespace_func(sdef, "get", scope) }
+
+  Because ~unsafe_get~ is non-throwing, the desugar's entire
+  ~get_throws~ branch never fires, so the err out-params, the
+  ~malloc(OutOfBounds)~ slot, and the post-call ~_err_kind~ check are
+  all simply not emitted. The loop body collapses to: one ~_fi < len~
+  compare + ~unsafe_get~ (ptr arithmetic) + ~_fi++~ -- a genuine
+  one-compare loop, the single compare serving as both termination and
+  the proof that ~unsafe_get~ is in bounds.
+
+  Naming: ~unsafe_get~ (no leading underscore, per CLAUDE.md). Map's
+  existing ~val_ptr~ is the precedent; consider whether to rename it to
+  ~unsafe_get~ for a uniform protocol name, or have the desugar look for
+  either.
+
+*** Scope
+
+  - ~src/core/vec.til~: add ~unsafe_get~, make ~get~ delegate.
+  - ~src/core/array.til~: same.
+  - Map already has ~val_ptr~ (used by ~.values~ for-in, which iterates
+    the inner Vec) -- decide on the shared protocol name.
+  - ~src/self/typer.til~ ~desugar_for_in_collection_stmt~: prefer the
+    unchecked accessor.
+  - This is the lightweight, semantics-preserving win. It does NOT
+    change any observable behavior; for-in over an in-range collection
+    produces identical results.
+
+*** Out of scope (tracked elsewhere / separate)
+
+  - The per-element ~.cast(U64)~ widening (~i.mul(size).cast(U64)~) still
+    allocates a ~Type~ descriptor (malloc/Type_delete) inside the
+    accessor. That is the *other* per-element cost and it disappears
+    independently once ~USize~ becomes target-width (~U64~ on 64-bit,
+    == ~UPtr~), removing the widening entirely. ~unsafe_get~ and that
+    change are orthogonal and compound.
+  - Full parity with a real optimizer (where checked-and-elided indexing
+    equals iteration) also needs inlining of leaf primitives (mul, the
+    comparisons, ~unsafe_get~ itself). Out of scope here.
+
+*** Relation to #94
+
+  #94 ("Generic Range: support any type with inc/dec") is a *different*
+  for-in path: it targets *range* for-in (~for x in a..b~) over arbitrary
+  element types, via a generic ~Range~ whose ~get~ advances a cursor with
+  inc/dec. That is the cursor/iterator direction (analogous to a
+  pointer-walk iterator for collections). This issue (#284) is the
+  *collection* for-in path (~len()~ + ~get(i)~) and just removes the
+  redundant check -- no new protocol, no cursor object.
+
+  The relevant carry-over from #94 is a *warning*: one of its recorded
+  blockers is that making the range desugar build heavyweight per-element
+  objects (opaque bytes + FuncPtr dispatch every step) *regressed* core
+  for-in (Str.cmp etc.). That argues for #284's surgical approach over a
+  heavyweight iterator: keep the desugared loop close to raw arithmetic.
+  Analysis shows that, with ~unsafe_get~, the indexed loop is ALREADY a
+  one-compare loop equivalent to a pointer-walk iterator -- the iterator
+  would only additionally save the per-element address recompute, which a
+  real optimizer (or ~USize=U64~ + inlining) erases for free. So
+  ~unsafe_get~ is the high-value change; a full iterator protocol is
+  marginal on top of it.
+
+*** Regression test
+
+  Add a for-in test (test/for_in*.til or test/vecs.til) asserting
+  iteration results are unchanged. Optionally assert via ~til translate~
+  that the for-in body for a Vec contains no ~OutOfBounds~ / ~_err_kind~
+  plumbing (i.e. the unchecked path was taken).

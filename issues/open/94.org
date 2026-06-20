@@ -23,3 +23,17 @@
 
   Design documented in ~doc/auto.org~. wip_94 branch has partial impl.
 
+  2026-06-20: status of the recorded blockers may be stale.
+  - The [[./79.org][#79]] blocker (~USize~ type alias not resolved in FuncPtr
+    forward decls) overlaps the in-progress work to make ~USize~
+    target-width (~U64~ on 64-bit, like ~UPtr~). Re-check #79 against that
+    work before relying on this note; the alias plumbing it depends on is
+    being reworked.
+  - This issue is the *cursor/iterator* direction for *range* for-in
+    (~get~ advances a cursor via inc/dec). The separate
+    [[./284.org][#284]] covers *collection* for-in (~len()~ + ~get(i)~):
+    removing the redundant bounds check via an ~unsafe_get~ accessor.
+    #94's recorded bootstrap slowdown (heavyweight per-element Range
+    objects) is the cautionary precedent for both: keep the desugared
+    loop close to raw arithmetic, not per-element FuncPtr dispatch.
+
