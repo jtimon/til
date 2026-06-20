@@ -453,7 +453,7 @@ typedef struct Dynamic {
 
 
 typedef struct DivideByZero {
-    char _;
+    Str msg;
 } DivideByZero;
 
 
@@ -2022,7 +2022,7 @@ Bool I64_gt(I64 a, I64 b);
 Bool I64_neq(I64 a, I64 b);
 Bool I64_lte(I64 a, I64 b);
 Bool I64_gte(I64 a, I64 b);
-DivideByZero * DivideByZero_clone(DivideByZero * _self);
+DivideByZero * DivideByZero_clone(DivideByZero * self);
 void DivideByZero_delete(DivideByZero * self, Bool call_free);
 U64 DivideByZero_hash(DivideByZero * self, HashFn hasher);
 U32 DivideByZero_size(void);

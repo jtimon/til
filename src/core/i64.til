@@ -95,9 +95,9 @@ namespace:
 
     /// Issue #198: division that throws DivideByZero when dividing by
     /// zero. Use I64.div for the panicking variant.
-    safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+    safe_div := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws DivideByZero {
         if b.eq(0) {
-            throw DivideByZero()
+            throw DivideByZero(msg = format(loc, ":I64.safe_div: divide by zero"))
         }
         return a.div(b)
     }
@@ -154,8 +154,12 @@ namespace:
     }
 }
 
-/// Error thrown by I64.safe_div when dividing by zero.
-DivideByZero := struct {}
+/// Error thrown by I64.safe_div / F32.safe_div when dividing by zero.
+/// Carries a "file:line:col:<method>: divide by zero" msg pointing at
+/// the caller (loc defaults to the call site, like IntegerOverflow).
+DivideByZero := struct {
+    msg: Str = ""
+}
 
 /// Error thrown by safe_add / safe_sub / safe_mul on the integer
 /// types when the operation would wrap. Carries a

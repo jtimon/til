@@ -74,17 +74,23 @@
      the variadic call as the caller. Without this a comptime-evaluated variadic
      call (a const-folded format/panic) mis-arities and trips eval_call.
    - Then the conversion commit added the ~loc~ defaults to the core accessors.
-   - A final commit converted the ~src/std~ dynamic-element accessors --
+   - A commit converted the ~src/std~ dynamic-element accessors --
      ~DynVec.get~ / ~DynVec.set~, ~DynArray.get~ / ~DynArray.set~, ~DynMap.get~
      -- the same way. No new prep was needed: the only hand-built lowering that
      reaches them is the for-in ~get~ (already generic from prep 1); the
      variadic collector always builds a fixed core ~Array~, never a Dyn type,
      and ~Map.set~ / ~DynMap.set~ do not throw.
+   - A final commit closed the last gap: ~I64.safe_div~ / ~F32.safe_div~ threw a
+     FIELDLESS ~DivideByZero~, so unlike their ~safe_add~/~sub~/~mul~ siblings
+     they reported no location at all. ~DivideByZero~ gained a ~msg: Str = ""~
+     field and both ~safe_div~ a defaulted ~loc~, so a divide-by-zero now names
+     the caller too.
 
-   Regression tests: ~test/errors.til~ ~test_vec_get_oob_reports_caller~ and
-   ~test/dyn_vecs.til~ ~test_dyn_vec_get_oob_reports_caller~ (a real ~Vec.get~ /
-   ~DynVec.get~ OOB names the CALL site's file:line, not the accessor's throw
-   line).
+   Regression tests: ~test/errors.til~ ~test_vec_get_oob_reports_caller~ /
+   ~test_safe_div_reports_caller~ and ~test/dyn_vecs.til~
+   ~test_dyn_vec_get_oob_reports_caller~ (a real ~Vec.get~ / ~DynVec.get~ OOB and
+   a ~safe_div~ divide-by-zero name the CALL site's file:line, not the
+   accessor's own throw line).
 
 ** FIXED #281 Caller-location default args (__CALLER_LOC__): drop the __LOC__ boilerplate
 

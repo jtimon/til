@@ -52,6 +52,24 @@ test_unsafe_div := test() {
     assert(unsafe_div(42, 2).eq(21))
 }
 
+// Issue #281 follow-up: safe_div now reports the caller. DivideByZero gained a
+// msg field and safe_div a defaulted loc, so a divide-by-zero names the CALL
+// site, not i64.til's throw line -- consistent with safe_add/sub/mul.
+test_safe_div_reports_caller := test() {
+    mut caught := ""
+    cl := __LINE__
+    _ := I64.safe_div(1, 0)?
+    catch (e: DivideByZero) {
+        caught = e.msg.clone()
+    }
+    call_line := cl.add(1)
+    expect(caught.find("errors.til").neq(-1),
+           "safe_div DivideByZero names the CALLER file, not i64.til")
+    expect(caught.find(format(":", call_line.to_str(), ":")).neq(-1),
+           "safe_div DivideByZero points at the CALL line, not i64.til's throw")
+    expect(caught.find("safe_div").neq(-1), "carries the safe_div message")
+}
+
 test_catch_str_error := test() {
     mut caught := false
     mut error_msg := ""
