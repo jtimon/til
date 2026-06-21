@@ -5582,8 +5582,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
 ffi_cleanup := proc(ctx: Context) {
     ffi_close_user_so()
     if ctx.ffi_loaded {
-        for i in 0..ctx.ffi_map.len() {
-            ref fe : FFIEntry = ctx.ffi_map.val_ptr(i)
+        for fe : FFIEntry in ctx.ffi_map.values {
             free(own fe.param_shallows)
             free(own fe.arg_types)
             free(own fe.cif)
