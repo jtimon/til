@@ -1351,7 +1351,7 @@ Str *til_str_left(const Str *s, U64 n) {
     return result;
 }
 
-// --- `til build --prof`: per-function CPU + call profiler ---
+// --- `til build --prof`: per-function CPU + allocation profiler ---
 //
 // Active only in binaries compiled with -finstrument-functions, which
 // `til build --prof` adds (mirroring how --asan adds -fsanitize=address).
@@ -1362,10 +1362,18 @@ Str *til_str_left(const Str *s, U64 n) {
 // not depend on _GNU_SOURCE -- and the build links -rdynamic, so the til
 // function names show through as the C symbol names (Map_set, Vec_push,
 // the typer_* helpers, ...). Set TIL_PROF_TOP=N to change the row count
-// (0 = all). Not built on Windows; intended for the single-threaded
-// self-host build, so the stats counters are not lock-protected (the call
-// stack is per-thread, so multithreaded programs will not crash but their
-// counters may race).
+// (0 = all).
+//
+// With -DTIL_PROF_ALLOC (added by --prof unless --asan, since asan owns
+// malloc) the build also wraps malloc/calloc/realloc via -Wl,--wrap; the
+// wrappers charge the bytes to whichever instrumented function is on top of
+// the call stack, and a second "top by bytes allocated" table is printed.
+// That answers "which callsite mallocs the most / which Vec reallocs worst".
+//
+// Not built on Windows; intended for the single-threaded self-host build,
+// so the stats counters are not lock-protected (the call stack is
+// per-thread, so multithreaded programs will not crash but their counters
+// may race).
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 
 typedef struct {
@@ -1383,6 +1391,8 @@ typedef struct {
     unsigned long long calls;
     unsigned long long total_ns;    // inclusive (self + callees)
     unsigned long long self_ns;     // exclusive
+    unsigned long long allocs;      // malloc/calloc/realloc calls (TIL_PROF_ALLOC)
+    unsigned long long alloc_bytes; // bytes requested through them
 } TilProfSlot;
 
 typedef struct {
@@ -1414,8 +1424,8 @@ static unsigned til_prof_slot(void *fn) {
     return 0;   // table full: should not happen with the headroom above
 }
 
-static int til_prof_cmp(const void *a, const void *b) __attribute__((no_instrument_function));
-static int til_prof_cmp(const void *a, const void *b) {
+static int til_prof_cmp_self(const void *a, const void *b) __attribute__((no_instrument_function));
+static int til_prof_cmp_self(const void *a, const void *b) {
     const TilProfSlot *x = *(const TilProfSlot *const *)a;
     const TilProfSlot *y = *(const TilProfSlot *const *)b;
     if (y->self_ns > x->self_ns) return 1;
@@ -1423,32 +1433,61 @@ static int til_prof_cmp(const void *a, const void *b) {
     return 0;
 }
 
+static int til_prof_cmp_bytes(const void *a, const void *b) __attribute__((no_instrument_function));
+static int til_prof_cmp_bytes(const void *a, const void *b) {
+    const TilProfSlot *x = *(const TilProfSlot *const *)a;
+    const TilProfSlot *y = *(const TilProfSlot *const *)b;
+    if (y->alloc_bytes > x->alloc_bytes) return 1;
+    if (y->alloc_bytes < x->alloc_bytes) return -1;
+    return 0;
+}
+
+static const char *til_prof_name(const TilProfSlot *s, void *pd) __attribute__((no_instrument_function));
+static const char *til_prof_name(const TilProfSlot *s, void *pd) {
+    typedef int (*til_dladdr_fn)(const void *, TilDlInfo *);
+    til_dladdr_fn pdladdr = (til_dladdr_fn)pd;
+    TilDlInfo info;
+    if (pdladdr && pdladdr(s->fn, &info) && info.dli_sname) return info.dli_sname;
+    return "(unknown)";
+}
+
 static void til_prof_report(void) __attribute__((no_instrument_function));
 static void til_prof_report(void) {
     static const TilProfSlot *order[TIL_PROF_SLOTS];
     unsigned n = 0;
+    unsigned long long total_allocs = 0;
     for (unsigned i = 0; i < TIL_PROF_SLOTS; i++) {
-        if (til_prof_slots[i].fn && til_prof_slots[i].calls) order[n++] = &til_prof_slots[i];
+        if (til_prof_slots[i].fn && til_prof_slots[i].calls) {
+            order[n++] = &til_prof_slots[i];
+            total_allocs += til_prof_slots[i].allocs;
+        }
     }
-    qsort(order, n, sizeof(order[0]), til_prof_cmp);
 
     unsigned want = 20;
     const char *env = getenv("TIL_PROF_TOP");
     if (env) want = (unsigned)strtoul(env, NULL, 10);
     if (want == 0 || want > n) want = n;
 
-    typedef int (*til_dladdr_fn)(const void *, TilDlInfo *);
-    til_dladdr_fn pdladdr = (til_dladdr_fn)dlsym(RTLD_DEFAULT, "dladdr");
+    void *pd = dlsym(RTLD_DEFAULT, "dladdr");
 
+    qsort(order, n, sizeof(order[0]), til_prof_cmp_self);
     fprintf(stderr, "\n=== til --prof: %u functions instrumented, top %u by self time ===\n", n, want);
     fprintf(stderr, "%-48s %14s %12s %12s\n", "function", "calls", "self_ms", "total_ms");
     for (unsigned i = 0; i < want; i++) {
         const TilProfSlot *s = order[i];
-        const char *name = "(unknown)";
-        TilDlInfo info;
-        if (pdladdr && pdladdr(s->fn, &info) && info.dli_sname) name = info.dli_sname;
         fprintf(stderr, "%-48s %14llu %12.3f %12.3f\n",
-                name, s->calls, (double)s->self_ns / 1e6, (double)s->total_ns / 1e6);
+                til_prof_name(s, pd), s->calls, (double)s->self_ns / 1e6, (double)s->total_ns / 1e6);
+    }
+
+    if (total_allocs > 0) {
+        qsort(order, n, sizeof(order[0]), til_prof_cmp_bytes);
+        fprintf(stderr, "\n=== til --prof: top %u by bytes allocated ===\n", want);
+        fprintf(stderr, "%-48s %14s %14s %14s\n", "function", "allocs", "alloc_kb", "calls");
+        for (unsigned i = 0; i < want; i++) {
+            const TilProfSlot *s = order[i];
+            fprintf(stderr, "%-48s %14llu %14.1f %14llu\n",
+                    til_prof_name(s, pd), s->allocs, (double)s->alloc_bytes / 1024.0, s->calls);
+        }
     }
 }
 
@@ -1476,6 +1515,43 @@ void __cyg_profile_func_exit(void *this_fn, void *call_site) {
     til_prof_slots[f->idx].self_ns  += incl - f->child_ns;
     if (til_prof_depth > 0) til_prof_stack[til_prof_depth - 1].child_ns += incl;
 }
+
+#ifdef TIL_PROF_ALLOC
+// --prof (unless --asan) links -Wl,--wrap=malloc/calloc/realloc, so these
+// wrappers see every heap allocation. They charge the bytes to whichever
+// instrumented function is on top of the call stack (allocations before the
+// first instrumented call, e.g. C runtime startup, are not attributed). free
+// is left unwrapped: __real_malloc'd pointers are released by the real free.
+extern void *__real_malloc(size_t size);
+extern void *__real_calloc(size_t nmemb, size_t size);
+extern void *__real_realloc(void *ptr, size_t size);
+
+static void til_prof_charge(unsigned long long bytes) __attribute__((no_instrument_function));
+static void til_prof_charge(unsigned long long bytes) {
+    if (til_prof_depth == 0) return;
+    unsigned idx = til_prof_stack[til_prof_depth - 1].idx;
+    til_prof_slots[idx].allocs++;
+    til_prof_slots[idx].alloc_bytes += bytes;
+}
+
+void *__wrap_malloc(size_t size) __attribute__((no_instrument_function));
+void *__wrap_malloc(size_t size) {
+    til_prof_charge((unsigned long long)size);
+    return __real_malloc(size);
+}
+
+void *__wrap_calloc(size_t nmemb, size_t size) __attribute__((no_instrument_function));
+void *__wrap_calloc(size_t nmemb, size_t size) {
+    til_prof_charge((unsigned long long)nmemb * (unsigned long long)size);
+    return __real_calloc(nmemb, size);
+}
+
+void *__wrap_realloc(void *ptr, size_t size) __attribute__((no_instrument_function));
+void *__wrap_realloc(void *ptr, size_t size) {
+    til_prof_charge((unsigned long long)size);
+    return __real_realloc(ptr, size);
+}
+#endif // TIL_PROF_ALLOC
 
 #endif // !_WIN32 && !__EMSCRIPTEN__
 

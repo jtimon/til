@@ -4996,9 +4996,19 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // -Werror=return-type ("control reaches end of non-void function"). The
     // non-prof build validates return-type strictly, so relax just that check
     // for instrumented builds.
+    //
+    // For the allocation profile, -DTIL_PROF_ALLOC turns on the wrap hooks in
+    // ext.c and -Wl,--wrap=malloc/calloc/realloc (link-only) routes heap
+    // allocation through them. asan owns malloc, so the wrap is skipped when
+    // both are set; CPU profiling still works.
     mut prof_flags := ""
+    mut prof_link_flags := ""
     if prof.and(target.is(Target.WindowsX64).not()) {
         prof_flags = " -finstrument-functions -Wno-error=return-type"
+        if asan.not() {
+            prof_flags = format(prof_flags, " -DTIL_PROF_ALLOC")
+            prof_link_flags = " -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc"
+        }
     }
 
     // Extract directory from ext_c_path for -I flag
@@ -5079,7 +5089,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut gui_part := ""
     if is_gui_auto_import(mode_auto_import) { gui_part = format(" ", target_gui_libs(target)) }
 
-    cmd := compiler.format(extra, werr, asan_flags, prof_flags, " -g", dyn_flag, " -I", ext_dir,
+    cmd := compiler.format(extra, werr, asan_flags, prof_flags, prof_link_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
         " ", ffi_lib, gui_part, " ", sys_libs)

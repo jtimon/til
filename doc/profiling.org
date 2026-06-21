@@ -114,6 +114,26 @@ compares string keys) dominates inclusive time, a concrete callsite for #234
 / a HashSet swap rather than a guess. expr_uses_var is the typer's hottest
 walk. Columns: exact call count, self time (exclusive of callees), inclusive
 total.
+
+With ~--prof~ (and without ~--asan~) the run also wraps malloc/calloc/realloc
+and prints a second table, ranked by bytes allocated -- same run, abridged:
+
+  : === til --prof: top 15 by bytes allocated ===
+  : function                                 allocs       alloc_kb          calls
+  : Str_clone                               7630750        90401.1        3815375
+  : Vec_clone                                160312        45999.6          80156
+  : Vec_new_type_name                        299816        40884.9         149908
+  : expr_uses_var                           2212834        34575.5        2229579
+  : Vec_push                                  36859        29183.7         125873
+  : Expr_child                              1681070        26266.7        1681070
+  : ...
+
+Bytes are charged to whichever instrumented function is on top of the call
+stack when malloc runs. So Str_clone is the dominant allocator (string
+copies), and Vec_push / Vec_clone / Vec_new_type_name are the grow-and-realloc
+offenders -- the concrete callsites a with_capacity / string-interning pass
+should target.
+
 Set ~TIL_PROF_TOP=N~ for a different row count (0 = all). Names are the C
 symbols, which are the til function names -- the build links ~-rdynamic~ and
 the profiler resolves addresses with dladdr -- so the profile reads at the til
@@ -129,18 +149,37 @@ substantially (every call hits a per-thread stack + the clock), so prefer a
 representative input over the full ~translate src/til.til~ when iterating, and
 expect a profiled self-host build to take noticeably longer than the bare one.
 Linux only (the runtime in src/c/ext.c is ~#ifndef _WIN32~); ~--prof~ is
-ignored when cross-compiling to Windows. The call stack is per-thread but the
+ignored when cross-compiling to Windows. The allocation table needs malloc
+wrapping, which asan owns, so it is omitted when ~--asan~ and ~--prof~ are
+combined (CPU profiling still works). The call stack is per-thread but the
 counters are not locked, so the numbers are exact only for the single-threaded
 self-host build.
 
-** Roadmap (remaining #237 stretch goals)
+** Hot functions snapshot
 
-Shipped: the sample-profile recipe (perf / callgrind), the build-time
-regression harness (~make profile~), and the per-function ~--prof~ profiler
-above. Still open, each shippable on its own:
+From ~bin/til_prof translate test/maps.til~ on the current compiler -- the ten
+biggest CPU / allocation offenders and a suspected fix each. Refresh per
+release by re-running the command above (the absolute numbers drift; the
+ranking is what matters).
 
-  - Allocation profile: which call sites malloc the most, which Vec is the
-    worst grow-and-realloc offender. (~--prof~ gives call counts and time but
-    not bytes allocated per site.)
-  - A small table per release of the slowest 10 til functions and the
-    suspected fix, inlined back into the issue tracker / docs.
+  | function                     | signal                  | suspected fix                                            |
+  |------------------------------+-------------------------+----------------------------------------------------------|
+  | Str_cmp                      | 14M calls, 61s incl     | how Maps compare Str keys -> HashMap/HashSet for Str keys (#234) |
+  | Str_clone                    | 7.6M allocs, 90 MB      | dominant allocator: share refs/views, intern repeat idents |
+  | Str_get                      | 63M calls               | byte-by-byte bounds-checked access; bulk/unchecked in Str_cmp + lexer |
+  | expr_uses_var                | 2.2M calls, 34 MB       | repeated AST walk -> memoize per (expr, var)             |
+  | Map_has / Map_get            | 1.9M / 0.5M calls       | hot Maps -> HashMap swap (#234)                          |
+  | Vec_push                     | 29 MB via realloc       | worst grow-and-realloc offender; reserve capacity at known-size sites |
+  | Vec_clone / Vec_new_type_name| 46 / 41 MB              | eager Vec copies; share via ref where ownership allows   |
+  | TypeScope_get_struct         | 1.5M allocs, 23 MB      | cache struct lookups; avoid an alloc per query           |
+  | Expr_child / Expr_new / Expr_clone | AST node churn    | arena-allocate AST nodes; cut Expr_clone in the typer    |
+  | U32_lt / I64_eq / U32_cmp    | 100M+ calls each        | loop bounds + bounds checks; fewer checked Str_get/Vec_get in hot loops |
+
+** Status
+
+All five #237 stretch goals have shipped: the sample-profile recipe (perf /
+callgrind), the build-time regression harness (~make profile~), the
+per-function ~--prof~ CPU/call profiler, the allocation profile (the second
+~--prof~ table), and this hot-functions table. The table above is meant to be
+refreshed each release and is where #234 / #235 / a HashMap-for-X swap can
+point at a concrete callsite.
