@@ -29,13 +29,27 @@ v1 status (implemented):
     if/while/for/switch/catch, not a match expression), so the call reached
     infer unlowered and failed with "missing argument for parameter
     '_err_kind'".
+  - Lisp-style N-ary ~and~ / ~or~: a binary (2-param, non-variadic) lazy
+    callable called with more than two effective args right-folds into nested
+    binary calls before inlining (~lazy_try_fold_nary~ / ~lazy_build_fold~ in
+    src/self/loader.til), e.g. ~and(a, b, c)~ -> ~and(a, and(b, c))~. The
+    outer call inlines to a ~match~ and the spliced inner call is inlined by
+    the re-expansion pass, so the whole chain short-circuits. Works for both
+    bare ~and(a, b, c)~ and method ~a.and(b, c)~ forms. Purely additive:
+    N<=2 is unchanged, so the pervasive binary ~.and()~/~.or()~ path is
+    untouched. Folding assumes associativity (true for ~and~/~or~).
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
-    core Bool and/or, operator syntax, decisive short-circuit proofs where
-    an unused side-effecting argument must not run, and a throwing call in a
-    lazy and/or argument that must compile and short-circuit).
+    core Bool and/or, operator syntax, N-ary fold and its short-circuit,
+    decisive short-circuit proofs where an unused side-effecting argument
+    must not run, and a throwing call in a lazy and/or argument that must
+    compile and short-circuit).
 
 Remaining (deferred):
-  - Variadic, Lisp-style ~and~/~or~ folding (and N-ary lazy callables).
+  - General declared-variadic lazy callables (~lazy_func(xs: ..Bool)~): the
+    N-ary fold above special-cases binary associative callables; a true
+    variadic lazy param would need a thunk-array or a compiler-only lazy
+    rest-arg (an ordinary ~Array(Bool)~ would eagerly evaluate every operand
+    and destroy short-circuiting).
   - First-class lazy callables (stored in a var / funcptr) and recursive
     lazy callables, which cannot be inlined and need real thunks/closures.
   - Multi-statement lazy bodies (v1 requires a single ~return <expr>~).

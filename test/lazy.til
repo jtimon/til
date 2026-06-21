@@ -51,6 +51,46 @@ test_core_bool_and_or := test() {
     expect((false || false).not(), "F || F")
 }
 
+# --- Lisp-style N-ary and/or: a binary lazy callable called with more than
+#     two args right-folds into nested short-circuit matches. ---
+
+test_nary_and_or := test() {
+    expect(and(true, true, true), "and(T,T,T)")
+    expect(and(true, true, false).not(), "and(T,T,F)")
+    expect(and(true, false, true).not(), "and(T,F,T)")
+    expect(and(false, true, true).not(), "and(F,...)")
+    expect(or(false, false, true), "or(F,F,T)")
+    expect(or(false, false, false).not(), "or(F,F,F)")
+    expect(or(true, false, false), "or(T,...)")
+    # four operands
+    expect(and(true, true, true, true), "and x4 T")
+    expect(and(true, true, true, false).not(), "and x4 with F")
+    expect(or(false, false, false, true), "or x4 with T")
+    # method-call form folds identically (receiver is the first operand)
+    expect(true.and(true, true), "T.and(T,T)")
+    expect(false.or(false, true), "F.or(F,T)")
+}
+
+test_nary_short_circuits := test() {
+    eval_count = 0
+    # first false -> every later operand (the bump()s) is skipped
+    r := and(false, bump(), bump())
+    expect(r.not(), "and(false, bump, bump) skips all")
+    assert_eq(I64, eval_count, 0)
+
+    eval_count = 0
+    # first true -> or short-circuits, no bump() runs
+    r2 := or(true, bump(), bump())
+    expect(r2, "or(true, bump, bump) short-circuits")
+    assert_eq(I64, eval_count, 0)
+
+    eval_count = 0
+    # and(true, true, bump()) reaches and evaluates the last operand once
+    r3 := and(true, true, bump())
+    expect(r3, "and(true, true, bump) evaluates last")
+    assert_eq(I64, eval_count, 1)
+}
+
 # --- decisive short-circuit proof: an unused side-effecting argument must
 #     NOT run. bump() increments a global counter; if it ran when it should
 #     have been short-circuited, the count would be non-zero. ---

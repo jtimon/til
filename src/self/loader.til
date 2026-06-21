@@ -1814,11 +1814,13 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 // (being uncalled after inlining) they emit as ordinary dead functions,
 // exactly like macros.
 //
-// v1 scope: top-level lazy callables, called by bare name or UFCS method
-// syntax, fixed arity, non-recursive. Variadic (Lisp-style) and first-class /
-// recursive lazy callables are deferred (issue #262). A call that does not
-// match this shape is simply left un-inlined and types as an ordinary (eager)
-// call.
+// Scope: top-level lazy callables, called by bare name or UFCS method
+// syntax, non-recursive. Fixed-arity calls inline directly; a binary lazy
+// callable (and/or) called with more than two args right-folds into nested
+// binary calls first (Lisp-style N-ary and/or). Declared-variadic, first-
+// class, and recursive lazy callables are deferred (issue #262). A call that
+// does not match a supported shape is left un-inlined and types as an
+// ordinary (eager) call.
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     expect(e.is_null().not(), "e is null")
@@ -1905,6 +1907,64 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     return true
 }
 
+// Clone the k-th effective argument of a (possibly UFCS) call. For a method
+// call the receiver is effective arg 0 and the explicit args follow; for a
+// bare call the explicit args are the effective args.
+priv lazy_eff_arg_clone := func(call: Expr, is_method: Bool, k: USize) returns Expr {
+    if is_method {
+        if k.eq(0) { return call.children[0].children[0].clone() }
+        return call.children[k].clone()
+    }
+    return call.children[k.add(1)].clone()
+}
+
+// Build a right-folded binary-call tree over effective args [lo, hi]:
+// `f(eff[lo], f(eff[lo+1], ... f(eff[hi-1], eff[hi])))`. Recursive so no
+// loop-carried ownership transfer is needed.
+priv lazy_build_fold := func(call: Expr, is_method: Bool, lo: USize, hi: USize,
+    name: Str, line: U32, col: U32) returns Expr {
+    if lo.eq(hi) { return lazy_eff_arg_clone(call, is_method, lo) }
+    mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    nc.add_child(own Expr.new(ident_node(name), line, col))
+    nc.add_child(own lazy_eff_arg_clone(call, is_method, lo))
+    nc.add_child(own lazy_build_fold(call, is_method, lo.add(1), hi, name, line, col))
+    return nc
+}
+
+// Issue #262: a binary (2-param, non-variadic) lazy callable called with more
+// than 2 effective args right-folds into nested binary calls before inlining,
+// e.g. `and(a, b, c)` -> `and(a, and(b, c))`. This gives Lisp-style N-ary
+// short-circuit `and`/`or` while reusing the binary inliner -- the outer call
+// inlines to a `match`, and the spliced inner call is inlined by the
+// re-expansion pass. The fold builds bare-Ident calls regardless of whether
+// the original was written bare `and(a, b, c)` or UFCS `a.and(b, c)`. Folding
+// assumes the callable is associative (true for `and`/`or`); a non-associative
+// binary lazy callable should not be called with more than two args.
+priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: Str) {
+    mut nparams : USize = 0
+    mut variadic := false
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        nparams = fd.params.len()
+        variadic = fd.variadic_index.gte(0)
+    case:
+    }
+    if variadic.or(nparams.eq(2).not()) { return }
+
+    ref call : Expr = parent.children[idx]
+    mut is_method := false
+    switch call.children[0].node_type {
+    case NodeType.FieldAccess: is_method = call.children[0].children.len().eq(1)
+    case:
+    }
+    mut n := call.children.len().sub(1)
+    if is_method { n = call.children.len() }
+    if n.gt(2).not() { return }
+
+    folded := lazy_build_fold(call, is_method, 0, n.sub(1), name, call.line, call.col)
+    parent.children[idx] = folded
+}
+
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     expect(e.is_null().not(), "e is null")
     if depth.gt(256) { return }
@@ -1923,6 +1983,9 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
                 if fdef.is_null().not() {
                     ft := func_def_type(fdef)
                     if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
+                        // N-ary fold for binary lazy callables (and/or):
+                        // `and(a, b, c)` -> `and(a, and(b, c))` before inline.
+                        lazy_try_fold_nary(e, i, fdef, lname)
                         if inline_lazy_call(e, i, fdef) {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).

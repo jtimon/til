@@ -3288,6 +3288,9 @@ Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec__Expr *
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
 Bool priv___src_self_loader_til__inline_lazy_call(Expr * parent, U32 call_idx, Expr * fdef);
+Expr * priv___src_self_loader_til__lazy_eff_arg_clone(Expr * call, Bool is_method, U32 k);
+Expr * priv___src_self_loader_til__lazy_build_fold(Expr * call, Bool is_method, U32 lo, U32 hi, Str * name, U32 line, U32 col);
+void priv___src_self_loader_til__lazy_try_fold_nary(Expr * parent, U32 idx, Expr * fdef, Str * name);
 void priv___src_self_loader_til__expand_lazy_in_expr(Expr * e, TypeScope * scope, I32 depth);
 void priv___src_self_loader_til__expand_lazy_calls_in_program(LoadedProgram * lp);
 void init_and_type_program(LoadedProgram * lp, Bool run_tests);
