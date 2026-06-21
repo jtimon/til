@@ -6199,3 +6199,1221 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope) returns I32 {
     }
     return 0
 }
+
+// ---- switch / match / for-in TYPE INFERENCE (moved back from desugarer) ----
+// These drive type inference (infer_expr / infer_body) and emit the
+// exhaustiveness / pattern type errors, so they live in the typer. The pure
+// lowering primitives they invoke (make_switch_case_condition, the if/elif and
+// while builders) stay in desugarer.til.
+// Issue #200: per-arm coverage trie for nested switch exhaustiveness.
+// Each node corresponds to one enum's variants. ~fully_covered~ means the
+// pattern bound the entire value at this level (e.g. ~case X.A(v):~ or
+// ~case X.A:~) so no inner walk is needed. Otherwise the parallel vecs
+// ~sub_names~ / ~sub_nodes~ hold per-variant child coverage; an empty
+// ~sub_nodes~ entry means "the variant's payload was never decomposed"
+// and is only fully_covered iff its own ~fully_covered~ bit is set.
+priv CoverageNode := struct {
+    fully_covered := false
+    sub_names := Vec(Str).new()
+    sub_nodes := Vec(CoverageNode).new()
+}
+
+// Seed a node with empty per-variant sub-coverage for an enum_def.
+priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
+    if enum_def.is_null() { return }
+    switch enum_def.node_type {
+    case NodeType.EnumDef(cn_edd):
+        for vn : Str in cn_edd.variants {
+            node.sub_names.push(own vn.clone())
+            node.sub_nodes.push(own CoverageNode())
+        }
+    case:
+    }
+}
+
+priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns I32 {
+    for csi in 0..coverage.sub_names.len() {
+        ref n : Str = coverage.sub_names[csi]
+        if n.eq(variant_name) { return csi.cast(I32) }
+    }
+    return -1
+}
+
+// Read-only mirror of mark_pattern_coverage: true iff every value the
+// pattern could match has already been captured by an earlier (unguarded)
+// arm in this switch -- i.e. the arm carrying this pattern is dead.
+// Patterns the trie doesn't statically describe (value literals, struct
+// patterns, non-enum subjects) return false so a more permissive checker
+// or guard-protected arm doesn't get a false positive.
+priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expected_type_name: Str, pattern: Expr) returns Bool {
+    if expected_type_name.len().eq(0) { return false }
+    ref enum_def : Expr = scope.get_struct(expected_type_name)
+    if enum_def.is_null() { return false }
+    if enum_def.node_type.is(NodeType.EnumDef).not() { return false }
+
+    if pattern.node_type.is(NodeType.FieldAccess) {
+        if pattern.children.len().gt(0) {
+            if pattern.children[0].node_type.is(NodeType.Ident) {
+                mut type_name := ""
+                mut variant_name := ""
+                switch pattern.children[0].node_type {
+                case NodeType.Ident(tn): type_name = tn.ident_name()
+                case:
+                }
+                switch pattern.node_type {
+                case NodeType.FieldAccess(vn): variant_name = vn.field_access_name()
+                case:
+                }
+                if type_name.eq(expected_type_name) {
+                    idx := coverage_sub_index(coverage, variant_name)
+                    if idx.gte(0) {
+                        ref sub : CoverageNode = coverage.sub_nodes[idx.cast(U32)]
+                        return sub.fully_covered
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    if pattern.node_type.is(NodeType.FCall) {
+        if pattern.children.len().eq(2) {
+            ref callee : Expr = pattern.children[0]
+            if callee.node_type.is(NodeType.FieldAccess) {
+                if callee.children.len().gt(0) {
+                    if callee.children[0].node_type.is(NodeType.Ident) {
+                        mut type_name2 := ""
+                        mut variant_name2 := ""
+                        switch callee.children[0].node_type {
+                        case NodeType.Ident(tn2): type_name2 = tn2.ident_name()
+                        case:
+                        }
+                        switch callee.node_type {
+                        case NodeType.FieldAccess(vn2): variant_name2 = vn2.field_access_name()
+                        case:
+                        }
+                        if type_name2.eq(expected_type_name) {
+                            idx2 := coverage_sub_index(coverage, variant_name2)
+                            if idx2.gte(0) {
+                                ref sub2 : CoverageNode = coverage.sub_nodes[idx2.cast(U32)]
+                                if sub2.fully_covered { return true }
+                                ref inner_pat : Expr = pattern.children[1]
+                                if inner_pat.node_type.is(NodeType.Ident) {
+                                    return false
+                                }
+                                vt_tag := enum_variant_tag(enum_def, variant_name2)
+                                if vt_tag.gte(0) {
+                                    inner_type_name := enum_variant_type(enum_def, vt_tag)
+                                    if inner_type_name.len().gt(0) {
+                                        ref inner_def : Expr = scope.get_struct(inner_type_name)
+                                        if inner_def.is_null().not().and(inner_def.node_type.is(NodeType.EnumDef)) {
+                                            if sub2.sub_names.len().gt(0) {
+                                                return is_pattern_covered(scope, sub2, inner_type_name, inner_pat)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+    return false
+}
+
+// Walk a case pattern against the (expected) enum type and update the
+// coverage trie. Returns silently for patterns that don't statically
+// describe a variant of `expected_type_name` (e.g. ~case 42:~, or a
+// pattern targeting a different enum -- those will surface as other
+// type errors).
+priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode, expected_type_name: Str, pattern: Expr) {
+    if expected_type_name.len().eq(0) { return }
+    ref enum_def : Expr = scope.get_struct(expected_type_name)
+    if enum_def.is_null() { return }
+    if enum_def.node_type.is(NodeType.EnumDef).not() { return }
+
+    // `case Type.Variant` (bare).
+    if pattern.node_type.is(NodeType.FieldAccess) {
+        if pattern.children.len().gt(0) {
+            if pattern.children[0].node_type.is(NodeType.Ident) {
+                mut type_name := ""
+                mut variant_name := ""
+                switch pattern.children[0].node_type {
+                case NodeType.Ident(tn): type_name = tn.ident_name()
+                case:
+                }
+                switch pattern.node_type {
+                case NodeType.FieldAccess(vn): variant_name = vn.field_access_name()
+                case:
+                }
+                if type_name.eq(expected_type_name) {
+                    idx := coverage_sub_index(coverage, variant_name)
+                    if idx.gte(0) {
+                        ref mut sub : CoverageNode = coverage.sub_nodes[idx.cast(U32)]
+                        sub.fully_covered = true
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    // `case Type.Variant(inner)` -- inner is either a binding (Ident, marks
+    // the variant fully covered) or another enum pattern (recurse).
+    if pattern.node_type.is(NodeType.FCall) {
+        if pattern.children.len().eq(2) {
+            ref callee : Expr = pattern.children[0]
+            if callee.node_type.is(NodeType.FieldAccess) {
+                if callee.children.len().gt(0) {
+                    if callee.children[0].node_type.is(NodeType.Ident) {
+                        mut type_name2 := ""
+                        mut variant_name2 := ""
+                        switch callee.children[0].node_type {
+                        case NodeType.Ident(tn2): type_name2 = tn2.ident_name()
+                        case:
+                        }
+                        switch callee.node_type {
+                        case NodeType.FieldAccess(vn2): variant_name2 = vn2.field_access_name()
+                        case:
+                        }
+                        if type_name2.eq(expected_type_name) {
+                            idx2 := coverage_sub_index(coverage, variant_name2)
+                            if idx2.gte(0) {
+                                ref mut sub2 : CoverageNode = coverage.sub_nodes[idx2.cast(U32)]
+                                ref inner_pat : Expr = pattern.children[1]
+                                if inner_pat.node_type.is(NodeType.Ident) {
+                                    // Whole-payload binding -> covers all sub-variants.
+                                    sub2.fully_covered = true
+                                } else {
+                                    // Nested pattern: find inner enum and recurse.
+                                    vt_tag := enum_variant_tag(enum_def, variant_name2)
+                                    if vt_tag.gte(0) {
+                                        inner_type_name := enum_variant_type(enum_def, vt_tag)
+                                        if inner_type_name.len().gt(0) {
+                                            ref inner_def : Expr = scope.get_struct(inner_type_name)
+                                            if inner_def.is_null().not().and(inner_def.node_type.is(NodeType.EnumDef)) {
+                                                if sub2.sub_names.len().eq(0) {
+                                                    init_coverage_for_enum(sub2, inner_def)
+                                                }
+                                                mark_pattern_coverage(scope, sub2, inner_type_name, inner_pat)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
+}
+
+// Collect "Outer.Inner.Leaf"-style paths for any uncovered variants of
+// `enum_def` under `coverage`. A variant is OK iff fully_covered or
+// (its payload is itself an enum AND its sub-coverage is exhaustive).
+priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec(Str), ctx: Context) {
+    if enum_def.is_null() { return }
+    switch enum_def.node_type {
+    case NodeType.EnumDef(cm_edd):
+        for cmi in 0..cm_edd.variants.len() {
+            ref vn : Str = cm_edd.variants[cmi]
+            ref sub : CoverageNode = coverage.sub_nodes[cmi]
+            mut current := ""
+            if prefix.len().eq(0) {
+                current = vn.clone()
+            } else {
+                current = format(prefix, ".", vn)
+            }
+            if sub.fully_covered { continue }
+            mut recursed := false
+            vt_tag := enum_variant_tag(enum_def, vn)
+            if vt_tag.gte(0) {
+                inner_type_name := enum_variant_type(enum_def, vt_tag)
+                if inner_type_name.len().gt(0) {
+                    ref inner_def : Expr = scope.get_struct(inner_type_name)
+                    if inner_def.is_null().not().and(inner_def.node_type.is(NodeType.EnumDef)) {
+                        if sub.sub_names.len().gt(0) {
+                            collect_missing_paths(scope, sub, inner_def, current, out, ctx)
+                            recursed = true
+                        }
+                    }
+                }
+            }
+            if recursed.not() {
+                out.push(own current.clone())
+            }
+        }
+    case:
+    }
+}
+
+// Issue #244: type a `match` expression by computing the common arm type.
+// Each arm body is a single value-expression; the whole match yields that
+// type. The actual lowering (result temp + synthetic switch) happens at the
+// statement level in lower_matches_in_stmt; here we only set the node's type
+// so enclosing decls/args/returns/nested-matches see it. The common type is
+// taken from the first arm; the synthetic switch's per-arm assignment then
+// enforces that every other arm agrees (a mismatch surfaces as an assign
+// type error). Arm values are type-checked on a throwaway clone so the real
+// arm nodes stay pristine for the desugar that re-infers them.
+priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
+    if expr.children.len().eq(0) { expr.set_expr_til_type(Type.Unknown); return }
+    ref subj : Expr = expr.children[0]
+    infer_expr(scope, subj, in_func, ctx)
+    // The match's type is the common arm type. Take it from the first arm and
+    // check the rest agree, so a mismatch is reported clearly here (rather than
+    // surfacing later as a temp-named assignment error from the lowering).
+    mut result_t := Type.Unknown
+    mut has_t := false
+    mut reported := false
+    for ci in 1..expr.children.len() {
+        arm_t := match_arm_value_type(scope, expr.children[ci], subj, in_func, ctx)
+        if has_t.not() {
+            result_t = arm_t
+            has_t = true
+        } else if reported.not().and(arm_t.is(Type.Unknown).not()).and(result_t.is(Type.Unknown).not()).and(arm_t.eq(result_t).not()) {
+            expr.children[ci].type_error(format("match arms have incompatible types: '", type_to_name(result_t), "' vs '", type_to_name(arm_t), "'; all arms must yield the same type"), ctx)
+            reported = true
+        }
+    }
+    // Arm-type agreement is the one check unique to match (switch arms have no
+    // type). Exhaustiveness -- enum and non-enum alike -- is enforced by the
+    // shared switch desugar (infer_switch_stmt) once the match is lowered.
+    expr.set_expr_til_type(result_t)
+}
+
+// Type of one match arm's value-expression. Clones the arm body (so the real
+// node is untouched), prepends the pattern's payload bindings via the shared
+// switch helper, infers the bindings, then infers the value expression.
+priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, ctx: Context) returns Type {
+    arm_scope := TypeScope(parent = scope)
+    mut body_idx : U32 = 0
+    mut has_pattern := false
+    if case_node.children.len().eq(1) {
+        body_idx = 0                 // default `case:` -- child(0) is the Body
+    } else if case_node.children.len().eq(3) {
+        body_idx = 2                 // guarded -- [pattern, guard, Body]
+        has_pattern = true
+    } else {
+        body_idx = 1                 // [pattern, Body]
+        has_pattern = true
+    }
+    mut trial := case_node.children[body_idx].clone()
+    if has_pattern {
+        sw_ref := subj.clone()
+        make_switch_case_condition(arm_scope, trial, case_node.children[0], sw_ref, case_node.line, case_node.col)
+    }
+    mut t := Type.Unknown
+    if trial.children.len().gt(0) {
+        last_idx := trial.children.len().sub(1)
+        mut k : U32 = 0
+        while k.lt(last_idx) {
+            infer_body_stmt(arm_scope, trial, k, in_func, 0, 0, 0, ctx)
+            k++
+        }
+        infer_expr(arm_scope, trial.children[last_idx], in_func, ctx)
+        t = trial.children[last_idx].expr_til_type()
+    }
+    TypeScope.delete(own arm_scope)
+    return t
+}
+
+// Lower every top-level Match in body.children[stmt_idx] into a result temp plus
+// the match itself (tagged with that temp so the shared switch desugar handles
+// it), spliced as new statements before stmt_idx. Each Match node is replaced
+// in place by an Ident referencing its result temp. Returns the number of
+// statements inserted, so the caller can advance past them to type-check the
+// now-match-free statement.
+priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns U32 {
+    mut pre := Vec(Expr).new()
+    ref mut stmt : Expr = body.children[stmt_idx]
+    replace_matches_rec(scope, stmt, in_func, in_loop, returns_ref, ctx, pre)
+    inserted := pre.len()
+    splice_stmts_before(body, stmt_idx, pre)
+    return inserted
+}
+
+// Walk `node`, replacing each top-level Match child with an Ident to its
+// lowered result temp and collecting the temp's setup statements into `pre`.
+// Does not descend into a Match (its arms are lowered by lower_one_match's own
+// infer_body pass) nor into nested blocks/definitions (handled separately).
+priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) {
+    switch node.node_type {
+    case NodeType.Body:      return
+    case NodeType.FuncDef:   return
+    case NodeType.StructDef: return
+    case NodeType.EnumDef:   return
+    // #282: do not hoist a match out of a case guard (or body) -- it is
+    // conditionally evaluated and infer_switch_stmt lowers it into the
+    // pattern-gated position. See stmt_contains_match for the rationale.
+    case NodeType.Case:      return
+    case:
+    }
+    mut ci : U32 = 0
+    while ci.lt(node.children.len()) {
+        if node.children[ci].node_type.is(NodeType.Match) {
+            infer_match_expr(scope, node.children[ci], in_func, ctx)
+            mname := lower_one_match(scope, node.children[ci], in_func, in_loop, returns_ref, ctx, pre)
+            mut id := Expr.new(ident_node(mname), node.children[ci].line, node.children[ci].col)
+            id.set_expr_til_type(node.children[ci].expr_til_type())
+            node.children[ci] = id
+        } else {
+            replace_matches_rec(scope, node.children[ci], in_func, in_loop, returns_ref, ctx, pre)
+        }
+        ci++
+    }
+}
+
+// Build the lowering for one (already-typed) Match: a `mut _m := default(T)`
+// temp plus the match itself tagged with that temp. The block is inferred here
+// (declaring the temp in `scope`, then reaching infer_switch_stmt which turns
+// the arms into `_m = <value>` assignments and emits the dispatch, including
+// any nested matches in arm values), then its statements are appended to
+// `pre`. Returns the temp's name.
+priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) returns Str {
+    line := match_node.line
+    col := match_node.col
+    result_t := match_node.expr_til_type()
+    tname := type_to_name(result_t)
+    mname := format("_m_", type_prefix(result_t), "_", ctx.hoist_counter.to_str())
+    ctx.hoist_counter++
+
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = mname.clone(), is_mut = true, explicit_type = tname.clone(), til_type = result_t.clone())), line, col)
+    decl.add_child(own make_default_value_expr(tname, line, col))
+
+    // Clone the match and tag it with the result temp; the shared switch
+    // desugar (infer_switch_stmt, reached via infer_body) turns its arms into
+    // `mname = <value>` assignments and emits the dispatch.
+    mut match_stmt := match_node.clone()
+    switch match_stmt.node_type {
+    case NodeType.Match(md): md.result_temp = mname.clone()
+    case:
+    }
+
+    mut block := Expr.new(NodeType.Body, line, col)
+    block.add_child(own decl)
+    block.add_child(own match_stmt)
+    infer_body(scope, block, in_func, 0, in_loop, returns_ref, 0, ctx)
+    for bi in 0..block.children.len() {
+        pre.push_take(block.children, bi)
+    }
+    return mname
+}
+
+// Issue #36: a struct pattern that omits fields needs an explicit `..`
+// marker. Run on each non-default case BEFORE make_switch_case_condition
+// (which is a func and can't call the proc-typed type_error). Skips
+// silently for patterns that aren't struct-shaped.
+priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: Context) {
+    if pattern.node_type.is(NodeType.FCall).not() { return }
+    if pattern.children.len().eq(0) { return }
+    if pattern.children[0].node_type.is(NodeType.Ident).not() { return }
+    mut vsp_type_name := ""
+    switch pattern.children[0].node_type {
+    case NodeType.Ident(vspn): vsp_type_name = vspn.ident_name()
+    case:
+    }
+    mut vsp_all_named := true
+    mut vsp_has_rest := false
+    for vci in 1..pattern.children.len() {
+        ref vsc : Expr = pattern.children[vci]
+        if vsc.node_type.is(NodeType.RestPattern) {
+            vsp_has_rest = true
+        } else if vsc.node_type.is(NodeType.NamedArg).not() {
+            vsp_all_named = false
+        }
+    }
+    if vsp_all_named.not() { return }
+    ref vsp_def : Expr = scope.get_struct(vsp_type_name)
+    if vsp_def.is_null() { return }
+    if vsp_def.node_type.is(NodeType.StructDef).not() { return }
+    if vsp_has_rest { return }
+    switch vsp_def.node_type {
+    case NodeType.StructDef(vsp_sdd):
+        for vfld : Declaration in vsp_sdd.fields {
+            mut vsp_found := false
+            for vnai in 1..pattern.children.len() {
+                ref vnac : Expr = pattern.children[vnai]
+                switch vnac.node_type {
+                case NodeType.NamedArg(vnan):
+                    if vnan.eq(vfld.name) { vsp_found = true }
+                case:
+                }
+            }
+            if vsp_found.not() {
+                pattern.type_error(format("struct pattern '", vsp_type_name, "' is missing field '", vfld.name, "'; either bind it or add '..' to allow partial matching"), ctx)
+            }
+        }
+    case:
+    }
+}
+
+// #254: type-check a C-like switch in place, leaving its Switch/Case nodes for
+// the backends instead of desugaring to if/elif. Each case body is inferred in
+// its own child scope, mirroring infer_if_stmt's branch handling. For an enum
+// scrutinee, runs the same coverage/exhaustiveness checks as the desugar path;
+// an exhaustive enum switch with no `case:` turns its last case into the
+// default so the emitted C switch has a terminal arm (no -Wreturn-type).
+priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
+    ref sw_expr : Expr = stmt.children[0]
+    sw_sname := til_type_name(sw_expr.expr_til_type())
+    mut is_enum := false
+    is_bool := type_is_primitive(sw_expr.expr_til_type(), Primitive.Bool)
+    mut bool_labels := 0
+    mut coverage := CoverageNode()
+    if sw_expr.expr_til_type().is(Type.Enum).and(sw_sname.len().gt(0)) {
+        ref edef : Expr = scope.get_struct(sw_sname)
+        if edef.is_null().not() {
+            if edef.node_type.is(NodeType.EnumDef) {
+                is_enum = true
+                init_coverage_for_enum(coverage, edef)
+            }
+        }
+    }
+    mut has_default := false
+    mut default_line : U32 = 0
+    mut default_col : U32 = 0
+    mut last_case_idx : U32 = 0
+    mut has_last_case := false
+    for ci in 1..stmt.children.len() {
+        ref mut cn : Expr = stmt.children[ci]
+        mut body_idx : U32 = 1
+        if cn.children.len().eq(1) {
+            body_idx = 0
+            has_default = true
+            default_line = cn.line
+            default_col = cn.col
+        } else {
+            if is_enum {
+                mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0])
+                prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname)
+            }
+            if is_bool { bool_labels = bool_labels.add(1) }
+            last_case_idx = ci
+            has_last_case = true
+        }
+        ref mut case_body : Expr = cn.children[body_idx]
+        case_scope := TypeScope(parent = scope)
+        infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
+        garbager_destroy_body(ctx, case_body, case_scope)
+        check_unused_locals(case_scope, ctx.path, ctx)
+        check_unused_mut_locals(case_scope, ctx.path, ctx)
+        TypeScope.delete(own case_scope)
+    }
+    if is_enum {
+        ref edef2 : Expr = scope.get_struct(sw_sname)
+        mut missing := Vec(Str).new()
+        collect_missing_paths(scope, coverage, edef2, "", missing, ctx)
+        if has_default {
+            if missing.len().eq(0) {
+                type_error_at(ctx.path, default_line, default_col, format("unnecessary default `case:`; all variants of enum '", sw_sname, "' are already covered"), ctx)
+            }
+        } else if missing.len().gt(0) {
+            mut msg := format("non-exhaustive switch on enum '", sw_sname, "'; missing cases:")
+            for mp : Str in missing {
+                if msg.ends_with(":").not() { msg = format(msg, ",") }
+                msg = format(msg, " ", mp)
+            }
+            stmt.type_error(msg, ctx)
+        } else if has_last_case {
+            ref mut last_cn : Expr = stmt.children[last_case_idx]
+            mut bvec := Vec(Expr).new()
+            bvec.push_take(last_cn.children, 1)
+            last_cn.children.move_from(bvec)
+        }
+    } else if is_bool {
+        // A bool switch covering both true and false with no `case:` is
+        // exhaustive; turn the last case into the default so the emitted C
+        // switch has a terminal arm (C does not know bool is only 0/1).
+        if has_default.not().and(bool_labels.eq(2)).and(has_last_case) {
+            ref mut last_cn : Expr = stmt.children[last_case_idx]
+            mut bvec := Vec(Expr).new()
+            bvec.push_take(last_cn.children, 1)
+            last_cn.children.move_from(bvec)
+        }
+    }
+    stmt.set_expr_til_type(Type.None)
+}
+
+priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
+    ref mut stmt : Expr = body.children[stmt_idx]
+    ref mut sw_expr : Expr = stmt.children[0]
+    sw_line := stmt.line
+    sw_col := stmt.col
+    // Issue #244: a Match node rides the same desugar -- it is a switch whose
+    // arms yield a value. The only difference: each arm body is a single
+    // value-expression, which we wrap into `result_temp = <value>` up front so
+    // every downstream step (conditions, payload bindings, guards, coverage,
+    // unreachable/exhaustiveness diagnostics, if/elif building) is shared
+    // verbatim with switch. The result temp itself is declared by the lowering
+    // (it must live in the enclosing scope, not this block's scope).
+    is_match := stmt.node_type.is(NodeType.Match)
+    mut kind_word := "switch"
+    mut result_temp := ""
+    if is_match {
+        kind_word = "match"
+        switch stmt.node_type {
+        case NodeType.Match(md): result_temp = md.result_temp.clone()
+        case:
+        }
+        for tci in 1..stmt.children.len() {
+            ref tcase : Expr = stmt.children[tci]
+            mut tbody_idx : U32 = 1
+            if tcase.children.len().eq(1) { tbody_idx = 0 }
+            else if tcase.children.len().eq(3) { tbody_idx = 2 }
+            ref tvbody : Expr = tcase.children[tbody_idx]
+            mut tvalue : Expr = tvbody.children.pop()
+            mut tassign := Expr.new(NodeType.Assign(AssignData(name = result_temp.clone())), tvbody.line, tvbody.col)
+            tassign.add_child(own tvalue)
+            tvbody.add_child(own tassign)
+        }
+    }
+    infer_expr(scope, sw_expr, in_func, ctx)
+    if switch_is_clike(scope, stmt, sw_expr, is_match) {
+        infer_clike_switch(scope, stmt, in_func, in_loop, returns_ref, ctx)
+        return false
+    }
+    mut coverage := CoverageNode()
+    mut has_default_case := false
+    mut has_switch_enum_def := false
+    sw_expr_sname := til_type_name(sw_expr.expr_til_type())
+    ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
+    if sw_expr.expr_til_type().is(Type.Enum).and(sw_expr_sname.len().gt(0)) {
+        if switch_enum_def.is_null().not() {
+            if switch_enum_def.node_type.is(NodeType.EnumDef) {
+                has_switch_enum_def = true
+                init_coverage_for_enum(coverage, switch_enum_def)
+            }
+        }
+    }
+
+    mut sw_ref := Expr.new(NodeType.Literal(Literal.Null), sw_line, sw_col)
+    mut block := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    // #196.B: Never hoist enum-typed subjects. A hoisted local would be
+    // either a shallow value copy (whose destructor frees aliased Vec/Str
+    // pointers and corrupts the source AST in compile mode) or a deep
+    // clone (whose destructor frees clone-owned strings that downstream
+    // case-bindings expose via CAP_VIEW pointers in callers like
+    // ffi_register). Re-evaluate sw_expr per case condition instead.
+    if is_simple_lvalue_expr(sw_expr).or(sw_expr.expr_til_type().is(Type.Enum)) {
+        sw_ref = sw_expr.clone()
+    } else {
+        tp := type_prefix(sw_expr.expr_til_type())
+        sw_name := format("_sw_", tp, "_", ctx.hoist_counter.to_str())
+        ctx.hoist_counter++
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col)
+        decl.add_child(own sw_expr.clone())
+        block.add_child(own decl)
+        sw_ref = Expr.new(ident_node(sw_name), sw_line, sw_col)
+    }
+
+    // Issue #199: a Case with 3 children is `[pattern, guard, body]`; with
+    // 2 children it's `[pattern, body]`. When ANY case in this switch has
+    // a guard we can't use a plain if/elif chain -- a failed guard must
+    // fall through to the next case, which an if/elif chain cannot model.
+    // Instead we hoist a `_sw_matched_<n> := false` flag and emit each
+    // case as an independent `if _sw_matched.not().and(cond) { body;
+    // _sw_matched = true }`. Guards become an inner `if <guard> { ...
+    // _sw_matched = true }` wrapped around the user body so a failed
+    // guard leaves _sw_matched false and the next case runs. Plain
+    // switches keep the cheaper if/elif chain.
+    mut any_guard := false
+    for ag_ci in 1..stmt.children.len() {
+        ref ag_cn : Expr = stmt.children[ag_ci]
+        if ag_cn.children.len().eq(3) { any_guard = true }
+    }
+
+    mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut has_first_if := false
+    mut default_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut has_default_body := false
+    // For an exhaustive enum switch with no `case:`, the if/elif chain
+    // would have no terminal else and C's -Wreturn-type would fire on
+    // value-returning funcs. Stash the last non-guarded case body so we
+    // can attach it as the synthetic terminal else after the loop.
+    mut last_case_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut has_last_case_body := false
+
+    mut matched_name := ""
+    if any_guard {
+        matched_name = format("_sw_matched_", ctx.hoist_counter.to_str())
+        ctx.hoist_counter++
+        mut matched_decl := Expr.new(NodeType.Decl(Declaration(name = matched_name.clone(), is_mut = true, explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Shallow)), stmt.line, stmt.col)
+        matched_decl.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
+        block.add_child(own matched_decl)
+    }
+
+    // Dead-arm detection: any case after a default arm is unreachable
+    // (the default absorbs everything earlier cases didn't match). Tracked
+    // here as a flag rather than re-scanning the case vec per case.
+    mut saw_default := false
+    mut default_line : U32 = 0
+    mut default_col : U32 = 0
+
+    // #282: once an earlier case's guard/body can leave _err_kind set (a `?`
+    // throw), the following independent case `if`s must be gated on
+    // `_err_kind == 0` so they don't run after a throw. Tracks that state
+    // across the case loop (only meaningful on the any_guard path).
+    mut switch_can_throw := false
+
+    for ci in 1..stmt.children.len() {
+        ref case_node : Expr = stmt.children[ci]
+        if case_node.children.len().eq(1) {
+            if saw_default {
+                case_node.type_error("unreachable default arm; an earlier `case:` already covers everything", ctx)
+            }
+            default_body = case_node.children[0].clone()
+            has_default_body = true
+            has_default_case = true
+            saw_default = true
+            default_line = case_node.line
+            default_col = case_node.col
+            continue
+        }
+        mut has_guard := false
+        mut body_idx : U32 = 1
+        if case_node.children.len().eq(3) {
+            has_guard = true
+            body_idx = 2
+        }
+        ref match_expr : Expr = case_node.children[0]
+        ref mut case_body : Expr = case_node.children[body_idx]
+        validate_struct_pattern_rest(scope, match_expr, ctx)
+        if saw_default {
+            case_node.type_error("unreachable case; an earlier `case:` default already covers everything", ctx)
+        } else if has_switch_enum_def.and(has_guard.not()) {
+            if is_pattern_covered(scope, coverage, sw_expr_sname, match_expr) {
+                case_node.type_error("unreachable case; the variant is already fully covered by an earlier arm", ctx)
+            }
+        }
+        // Guards may fail at runtime, so they don't mark the pattern as
+        // covered for exhaustiveness.
+        if has_switch_enum_def.and(has_guard.not()) {
+            mark_pattern_coverage(scope, coverage, sw_expr_sname, match_expr)
+        }
+        user_stmt_count := case_body.children.len()
+        condition := make_switch_case_condition(scope, case_body, match_expr, sw_ref, sw_line, sw_col)
+
+        if any_guard {
+            // Build the case_body for the flag-based desugar:
+            //   [bindings..., if <guard> { user_stmts; _sw_matched = true }]
+            //   or (no guard)
+            //   [bindings..., user_stmts..., _sw_matched = true]
+            total_count := case_body.children.len()
+            n_bindings := total_count.sub(user_stmt_count)
+            mut all_children := Vec(Expr).new()
+            all_children.move_from(case_body.children)
+            mut new_body := Vec(Expr).new()
+            for bi in 0..n_bindings {
+                new_body.push_take(all_children, bi)
+            }
+            mut user_stmts := Expr.new(NodeType.Body, case_node.line, case_node.col)
+            for ui in 0..user_stmt_count {
+                user_stmts.children.push_take(all_children, n_bindings.add(ui))
+            }
+            mut matched_assign := Expr.new(NodeType.Assign(AssignData(name = matched_name.clone())), case_node.line, case_node.col)
+            matched_assign.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), case_node.line, case_node.col))
+            user_stmts.add_child(own matched_assign)
+
+            if has_guard {
+                ref guard_expr : Expr = case_node.children[1]
+                mut guard_if := Expr.new(NodeType.If, case_node.line, case_node.col)
+                guard_if.add_child(own guard_expr.clone())
+                guard_if.add_child(own user_stmts)
+                // #282: the pre-infer throw pass deliberately left a throwing
+                // (bang) call in the guard un-hoisted. Lower it now into
+                // new_body, before the guard `if`. new_body is the body of the
+                // pattern gate (`if _sw_matched.not().and(pattern) { ... }`),
+                // so the call -- and its panic-on-throw check -- run only when
+                // the pattern matches; short-circuit preserved.
+                if subtree_has_bang(guard_if.children[0]) {
+                    lower_guard_bang_calls(scope, guard_if, new_body, body, ctx)
+                }
+                new_body.push(own guard_if)
+            } else {
+                for us_i in 0..user_stmts.children.len() {
+                    new_body.push_take(user_stmts.children, us_i)
+                }
+            }
+            case_body.children.move_from(new_body)
+
+            // Outer condition: _sw_matched.not().and(pattern_cond)
+            mut not_id := Expr.new(ident_node(matched_name), case_node.line, case_node.col)
+            mut not_call := make_method_call_fcall(own not_id, "not", case_node.line, case_node.col)
+            mut gated_cond := make_method_call_fcall(own not_call, "and", case_node.line, case_node.col)
+            gated_cond.add_child(own condition)
+
+            mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
+            if_node.add_child(own gated_cond)
+            if_node.add_child(own case_body.clone())
+            // #282: this case can leave _err_kind set if its guard or body
+            // contains a (lowered) throwing call -- detected by a reference to
+            // _err_kind. Gate it on `_err_kind == 0` when a PRIOR case could
+            // throw, then propagate the flag.
+            case_can_throw := subtree_references_name(if_node, "_err_kind")
+            if switch_can_throw {
+                block.add_child(own make_if_kind_eq_zero_wrap(if_node, case_node.line, case_node.col))
+            } else {
+                block.add_child(own if_node)
+            }
+            if case_can_throw { switch_can_throw = true }
+        } else {
+            mut if_node := Expr.new(NodeType.If, case_node.line, case_node.col)
+            if_node.add_child(own condition)
+            if_node.add_child(own case_body.clone())
+            if has_first_if.not() {
+                first_if = if_node
+                has_first_if = true
+            } else {
+                append_switch_else_if(first_if, if_node)
+            }
+            last_case_body = case_body.clone()
+            has_last_case_body = true
+        }
+    }
+
+    if any_guard {
+        if has_default_body {
+            mut nid2 := Expr.new(ident_node(matched_name), stmt.line, stmt.col)
+            mut ncall2 := make_method_call_fcall(own nid2, "not", stmt.line, stmt.col)
+            mut def_if := Expr.new(NodeType.If, stmt.line, stmt.col)
+            def_if.add_child(own ncall2)
+            def_if.add_child(own default_body.clone())
+            // #282: skip the default too if an earlier case's guard threw.
+            if switch_can_throw {
+                block.add_child(own make_if_kind_eq_zero_wrap(def_if, stmt.line, stmt.col))
+            } else {
+                block.add_child(own def_if)
+            }
+        }
+    } else {
+        if has_default_body.and(has_first_if) {
+            attach_switch_default_body(first_if, default_body)
+        } else if has_default_body.and(has_first_if.not()) {
+            first_if = default_body.clone()
+            has_first_if = true
+        }
+    }
+
+    if has_switch_enum_def {
+        ref switch_enum_def : Expr = scope.get_struct(sw_expr_sname)
+        mut missing_paths := Vec(Str).new()
+        collect_missing_paths(scope, coverage, switch_enum_def, "", missing_paths, ctx)
+        if has_default_case {
+            if missing_paths.len().eq(0) {
+                type_error_at(ctx.path, default_line, default_col, format("unnecessary default `case:`; all variants of enum '", sw_expr_sname, "' are already covered"), ctx)
+            }
+        } else if missing_paths.len().gt(0) {
+            mut msg := format("non-exhaustive ", kind_word, " on enum '", sw_expr_sname, "'; missing cases:")
+            for mp : Str in missing_paths {
+                if msg.ends_with(":").not() { msg = format(msg, ",") }
+                msg = format(msg, " ", mp)
+            }
+            stmt.type_error(msg, ctx)
+        } else if any_guard.not().and(has_first_if).and(has_last_case_body) {
+            // Exhaustive enum switch, no `case:`, no guards: attach a clone
+            // of the last case body as the chain's terminal else so C sees
+            // an unconditional return path. By exhaustiveness the duplicate
+            // body never runs at the source level; it exists purely so the
+            // generated C compiles under -Wreturn-type.
+            attach_switch_default_body(first_if, last_case_body)
+        }
+    }
+    // Issue #244: a match must yield a value on every path. The enum case is
+    // covered above (same check switch uses); for any other subject, require an
+    // explicit `case:` default. switch has no such requirement, so this is the
+    // one place the two forms genuinely diverge.
+    if is_match.and(has_switch_enum_def.not()).and(has_default_case.not()) {
+        stmt.type_error("non-exhaustive match; add a 'case:' default arm to cover the remaining values", ctx)
+    }
+
+    if has_first_if { block.add_child(own first_if.clone()) }
+    replace_switch_stmt_with_block(body, stmt_idx, own block)
+    return true
+}
+
+priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
+    ref mut stmt : Expr = body.children[stmt_idx]
+    ref mut iter : Expr = stmt.children[0]
+    if iter.node_type.is(NodeType.FCall).not() { return false }
+    if iter.children.len().neq(3) { return false }
+    ref callee : Expr = iter.children[0]
+    switch callee.node_type {
+    case NodeType.FieldAccess(callee_field):
+        if callee_field.field_access_name().eq("new").not() { return false }
+    case:
+        return false
+    }
+    if callee.children.len().eq(0) { return false }
+    ref callee_base : Expr = callee.children[0]
+    switch callee_base.node_type {
+    case NodeType.Ident(callee_name):
+        if callee_name.ident_name().eq("Range").not() { return false }
+    case:
+        return false
+    }
+
+    ref mut start_expr : Expr = iter.children[1]
+    ref mut end_expr : Expr = iter.children[2]
+    infer_expr(scope, start_expr, in_func, ctx)
+    infer_expr(scope, end_expr, in_func, ctx)
+
+    mut elem_type := til_type_name(stmt.expr_til_type())
+    if elem_type.len().eq(0) {
+        mut type_src := start_expr
+        if start_expr.node_type.is_literal_num().and(end_expr.node_type.is_literal_num().not()) {
+            type_src = end_expr
+        } else if end_expr.node_type.is_literal_num().and(start_expr.node_type.is_literal_num().not()) {
+            type_src = start_expr
+        }
+        if is_aggregate(type_src.expr_til_type()) {
+            ts_sname := til_type_name(type_src.expr_til_type())
+            if ts_sname.len().gt(0) {
+                elem_type = ts_sname
+            } else {
+                elem_type = type_to_name(type_src.expr_til_type())
+            }
+        } else {
+            elem_type = type_to_name(type_src.expr_til_type())
+        }
+    }
+
+    mut var_name := ""
+    mut forin_is_mut := false
+    switch stmt.node_type {
+    case NodeType.ForIn(forin_data_r):
+        var_name = forin_data_r.name.clone()
+        forin_is_mut = forin_data_r.is_mut
+    case:
+        UNREACHABLE()
+        return false
+    }
+    ref for_body : Expr = stmt.children[1]
+    line := stmt.line
+    col := stmt.col
+    counter := ctx.hoist_counter
+    ctx.hoist_counter++
+
+    end_name := format("_re_", elem_type, "_", counter.to_str())
+    cur_name := format("_rc_", elem_type, "_", counter.to_str())
+
+    mut block := Expr.new(NodeType.Body, line, col)
+
+    mut end_decl := Expr.new(NodeType.Decl(decl_typed(name = end_name, explicit_type = elem_type)), line, col)
+    end_decl.add_child(own end_expr.clone())
+    block.add_child(own end_decl)
+
+    mut cur_decl := Expr.new(NodeType.Decl(decl_typed(name = cur_name, explicit_type = elem_type, is_mut = true)), line, col)
+    cur_decl.add_child(own start_expr.clone())
+    block.add_child(own cur_decl)
+
+    mut cur_ident_lt := Expr.new(ident_node(cur_name), line, col)
+    mut lt_call := make_method_call_fcall(own cur_ident_lt, "lt", line, col)
+    mut end_ident_lt := Expr.new(ident_node(end_name), line, col)
+    lt_call.add_child(own end_ident_lt)
+    mut asc_while := Expr.new(NodeType.While, line, col)
+    asc_while.add_child(own lt_call)
+    asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, elem_type, forin_is_mut))
+
+    mut cur_ident_gt := Expr.new(ident_node(cur_name), line, col)
+    mut gt_call := make_method_call_fcall(own cur_ident_gt, "gt", line, col)
+    mut end_ident_gt := Expr.new(ident_node(end_name), line, col)
+    gt_call.add_child(own end_ident_gt)
+    mut desc_while := Expr.new(NodeType.While, line, col)
+    desc_while.add_child(own gt_call)
+    desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, elem_type, forin_is_mut))
+
+    mut if_node := Expr.new(NodeType.If, line, col)
+    mut cur_ident_lte := Expr.new(ident_node(cur_name), line, col)
+    mut lte_call := make_method_call_fcall(own cur_ident_lte, "lte", line, col)
+    mut end_ident_lte := Expr.new(ident_node(end_name), line, col)
+    lte_call.add_child(own end_ident_lte)
+    if_node.add_child(own lte_call)
+
+    mut then_body := Expr.new(NodeType.Body, line, col)
+    then_body.add_child(own asc_while)
+    if_node.add_child(own then_body)
+
+    mut else_body := Expr.new(NodeType.Body, line, col)
+    else_body.add_child(own desc_while)
+    if_node.add_child(own else_body)
+    block.add_child(own if_node)
+
+    replace_body_stmt_with_block(body, stmt_idx, own block)
+    return true
+}
+
+priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
+    ref mut stmt : Expr = body.children[stmt_idx]
+    ref mut iter : Expr = stmt.children[0]
+
+    infer_expr(scope, iter, in_func, ctx)
+
+    mut type_name := ""
+    if is_aggregate(iter.expr_til_type()) {
+        iter_sname := til_type_name(iter.expr_til_type())
+        if iter_sname.len().gt(0) {
+            type_name = iter_sname
+        }
+    }
+    if type_name.len().eq(0) {
+        stmt.type_error("for-in requires a collection type with get() and len() methods", ctx)
+        return false
+    }
+
+    ref sdef : Expr = scope.get_struct(type_name)
+    if sdef.is_null() {
+        stmt.type_error("for-in requires a collection type with get() and len() methods", ctx)
+        return false
+    }
+
+    ref len_func : Expr = find_namespace_func(sdef, "len", scope)
+    // Issue #284: prefer an unchecked accessor when the collection offers
+    // one. The desugared index runs exactly 0..len(), so the loop's own
+    // `_fi < len()` test already proves the access in bounds -- the
+    // per-element bounds check inside the throwing `get` is pure redundancy.
+    // Because unsafe_get is non-throwing, the whole get_throws branch below
+    // (err out-params, malloc(OutOfBounds) slot, post-call _err_kind check)
+    // is never emitted; the loop body collapses to one compare + ptr
+    // arithmetic. Falls back to `get` for collections without unsafe_get.
+    mut method_name := "unsafe_get"
+    if find_namespace_func(sdef, "unsafe_get", scope).is_null() {
+        method_name = "get"
+    }
+    ref get_func : Expr = find_namespace_func(sdef, method_name, scope)
+
+    if len_func.is_null() {
+        stmt.type_error(format("type '", type_name, "' has no 'len' method (required for for-in)"), ctx)
+        return false
+    }
+    mut idx_type := ""
+    switch len_func.node_type {
+    case NodeType.FuncDef(len_def):
+        if len_def.params.len().neq(1).or(len_def.return_type.len().eq(0)) {
+            stmt.type_error(format("type '", type_name, "' len() must take 1 param and return a scalar for for-in"), ctx)
+            return false
+        }
+        idx_type = len_def.return_type.clone()
+    case:
+        UNREACHABLE()
+        return false
+    }
+
+    if get_func.is_null() {
+        stmt.type_error(format("type '", type_name, "' has no 'get' method (required for for-in)"), ctx)
+        return false
+    }
+    mut elem_type := til_type_name(stmt.expr_til_type())
+    mut get_returns_ref := false
+    mut get_throws := false
+    mut get_throw_types := Vec(Str).new()
+    // Issue #281: a get() may carry trailing defaulted params (e.g.
+    // `loc: Str = __LOC__`). The for-in hand-builds the get call below, so it
+    // must fill those itself; capture their default expressions here while
+    // get_def is in scope. Empty (no-op) for the common get(self, i) shape.
+    mut get_trailing_defaults := Vec(Expr).new()
+    switch get_func.node_type {
+    case NodeType.FuncDef(get_def):
+        // A throwing get gets its signature extended in place with
+        // synthetic _err_kind/_err_<T> params below. Allow either
+        // the original (self, idx) shape or the already-extended one
+        // -- the original 2-param form is what user code wrote, and
+        // any subsequent for-in over the same type sees the extended
+        // shape because we mutated its FuncDef.
+        if get_def.params.len().lt(2) {
+            stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
+            return false
+        }
+        ref get_idx_param : Declaration = get_def.params[1]
+        if get_idx_param.explicit_type.len().eq(0).or(get_idx_param.explicit_type.eq(idx_type).not()) {
+            stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
+            return false
+        }
+        if elem_type.len().eq(0) {
+            if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
+                stmt.type_error(format("cannot infer element type for '", type_name, "', use explicit type: for x : Type in ..."), ctx)
+                return false
+            }
+            elem_type = get_def.return_type.clone()
+        }
+        get_returns_ref = get_def.return_own_type.is(OwnType.Ref)
+        get_throws = get_def.throw_types.len().gt(0)
+        if get_throws {
+            for gtn : Str in get_def.throw_types {
+                get_throw_types.push(own gtn.clone())
+            }
+            // Extend the get FuncDef in place with the synthetic
+            // _err_kind + _err_<T> out-params so the call we emit
+            // below (4-arg shape for a 1-throw get) matches the
+            // callee's arity. Idempotent: only extends once.
+            mut already_extended := false
+            for p : Declaration in get_def.params {
+                if p.name.eq("_err_kind") { already_extended = true }
+            }
+            if already_extended.not() {
+                append_err_out_params(get_def.params, get_def.throw_types)
+            }
+        }
+        // Issue #281: capture any params beyond self + idx (+ the err out-args
+        // for a throwing get) -- the trailing defaulted params (e.g. a
+        // `loc: Str = __LOC__`) the hand-built call below must fill itself.
+        mut forin_filled : USize = 1
+        if get_throws { forin_filled = forin_filled.add(1).add(get_throw_types.len()) }
+        for tp_i in forin_filled.add(1)..get_def.params.len() {
+            get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
+        }
+    case:
+        UNREACHABLE()
+        return false
+    }
+
+    mut var_name := ""
+    mut forin_is_mut := false
+    switch stmt.node_type {
+    case NodeType.ForIn(forin_data_c):
+        var_name = forin_data_c.name.clone()
+        forin_is_mut = forin_data_c.is_mut
+    case:
+        UNREACHABLE()
+        return false
+    }
+    ref for_body : Expr = stmt.children[1]
+    line := stmt.line
+    col := stmt.col
+
+    counter := ctx.hoist_counter
+    ctx.hoist_counter++
+    col_name := format("_fc_", type_name, "_", counter.to_str())
+    idx_name := format("_fi_USize_", counter.to_str())
+
+    mut block := Expr.new(NodeType.Body, line, col)
+
+    // When iter is an lvalue (ident or field access), bind _fc as a ref to
+    // alias the source instead of letting infer_decl_value insert a deep
+    // .clone() that would dangle any refs taken out of the loop body.
+    // For rvalues (literals, calls), keep the default Shallow so the result
+    // gets stored as a value.
+    mut col_own_type := OwnType.Shallow
+    if iter.node_type.is(NodeType.Ident).or(iter.node_type.is(NodeType.FieldAccess)) {
+        col_own_type = OwnType.Ref
+    }
+    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
+    col_decl.add_child(own iter.clone())
+    block.add_child(own col_decl)
+
+    mut idx_decl := Expr.new(NodeType.Decl(decl_typed(name = idx_name, explicit_type = idx_type, is_mut = true)), line, col)
+    mut zero := Expr.new(literal_num_node("0"), line, col)
+    idx_decl.add_child(own zero)
+    block.add_child(own idx_decl)
+
+    // For a throwing get, declare block-local err slots: we lower
+    // the iteration access as an explicit `get(idx, mut _kind, mut _slot)`
+    // followed by `if _kind != 0 { panic(...) }`, instead of routing
+    // through the bang/throw-catch pipeline. Self-contained: no extra
+    // pre-pass, no fdef-level slot prepend.
+    fk_name := format("_forin_err_kind_", counter.to_str())
+    if get_throws {
+        mut kind_decl := Expr.new(NodeType.Decl(Declaration(name = fk_name.clone(),
+            explicit_type = "I64", til_type = Type.Primitive(Primitive.I64), is_mut = true)), line, col)
+        kind_decl.add_child(own make_int_lit(0, line, col))
+        block.add_child(own kind_decl)
+        for gtn : Str in get_throw_types {
+            slot_name := format("_forin_", gtn, "_", counter.to_str())
+            mut slot_decl := Expr.new(NodeType.Decl(decl_typed(name = slot_name,
+                explicit_type = gtn,
+                is_mut = true)), line, col)
+            slot_decl.add_child(own make_default_value_expr(gtn, line, col))
+            block.add_child(own slot_decl)
+        }
+    }
+
+    mut while_node := Expr.new(NodeType.While, line, col)
+
+    mut idx_ident_cond := Expr.new(ident_node(idx_name), line, col)
+    mut cond_call := make_method_call_fcall(own idx_ident_cond, "lt", line, col)
+    mut col_ident_len := Expr.new(ident_node(col_name), line, col)
+    cond_call.add_child(own make_method_call_fcall(own col_ident_len, "len", line, col))
+    while_node.add_child(own cond_call)
+
+    mut wbody := Expr.new(NodeType.Body, line, col)
+
+    mut forin_own := OwnType.Shallow
+    if get_returns_ref { forin_own = OwnType.Ref }
+    mut elem_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = elem_type, own_type = forin_own, is_mut = forin_is_mut)), line, col)
+    mut col_ident_get := Expr.new(ident_node(col_name), line, col)
+    mut get_call := make_method_call_fcall(own col_ident_get, method_name, line, col)
+    mut idx_ident_get := Expr.new(ident_node(idx_name), line, col)
+    get_call.add_child(own idx_ident_get)
+    if get_throws {
+        // Pass the block-local err slots as out-args so the throwing
+        // get's extended signature is satisfied without any flag-and-
+        // lower roundtrip through the throw/catch pass.
+        mut kind_arg := Expr.new(ident_node(fk_name), line, col)
+        kind_arg.set_expr_til_type(Type.Primitive(Primitive.I64))
+        get_call.add_child(own kind_arg)
+        for gtn : Str in get_throw_types {
+            slot_name := format("_forin_", gtn, "_", counter.to_str())
+            mut slot_arg := Expr.new(ident_node(slot_name), line, col)
+            slot_arg.set_expr_til_type(til_type_from_explicit_type(gtn))
+            get_call.add_child(own slot_arg)
+        }
+    }
+    // Issue #281: fill get's trailing defaulted params (e.g. `loc: Str =
+    // __LOC__`). resolve_default_value stamps a __LOC__ default with the for-in
+    // loop's location (get_call's coords) -- the loop is the caller. No-op when
+    // get_trailing_defaults is empty (the common get(self, i) shape).
+    for td : Expr in get_trailing_defaults {
+        get_call.add_child(own resolve_default_value(td, get_call, ctx))
+    }
+    elem_decl.add_child(own get_call)
+    wbody.add_child(own elem_decl)
+
+    if get_throws {
+        // if _forin_err_kind_<n>.eq(0).not() { panic("<T>") }
+        // for-in is the only caller of this get; on-error semantics is
+        // panic-with-type-name, matching the user-visible `arr[i]`.
+        mut kind_id := Expr.new(ident_node(fk_name), line, col)
+        kind_id.set_expr_til_type(Type.Primitive(Primitive.I64))
+        mut zero_lit := make_int_lit(0, line, col)
+        mut eq_call := make_method_call_fcall(own kind_id, "eq", line, col)
+        eq_call.add_child(own zero_lit)
+        mut not_call := make_method_call_fcall(own eq_call, "not", line, col)
+
+        loc_str := format(ctx.path, ":", line.to_str(), ":", col.to_str())
+        mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+        panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
+        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_str)), line, col))
+        ref first_throw : Str = get_throw_types[0]
+        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(first_throw.clone())), line, col))
+
+        mut panic_body := Expr.new(NodeType.Body, line, col)
+        panic_body.add_child(own panic_call)
+        mut if_panic := Expr.new(NodeType.If, line, col)
+        if_panic.add_child(own not_call)
+        if_panic.add_child(own panic_body)
+        wbody.add_child(own if_panic)
+    }
+
+    mut idx_assign := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
+    mut idx_ident_inc := Expr.new(ident_node(idx_name), line, col)
+    mut add_call := make_method_call_fcall(own idx_ident_inc, "add", line, col)
+    mut one := Expr.new(literal_num_node("1"), line, col)
+    add_call.add_child(own one)
+    idx_assign.add_child(own add_call)
+    wbody.add_child(own idx_assign)
+
+    for e_bi : Expr in for_body.children {
+        wbody.add_child(own e_bi.clone())
+    }
+
+    while_node.add_child(own wbody)
+    block.add_child(own while_node)
+    replace_body_stmt_with_block(body, stmt_idx, own block)
+    return true
+}
+

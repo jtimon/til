@@ -280,8 +280,8 @@ typedef enum {
     priv___src_self_typer_til__CtorArg_TAG_Filled
 } priv___src_self_typer_til__CtorArg_tag;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
+typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__CtorArg Vec__CtorArg;
-typedef struct priv___src_self_desugarer_til__CoverageNode priv___src_self_desugarer_til__CoverageNode;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
@@ -1690,11 +1690,11 @@ typedef struct Map__Str_ExprPtrBox {
 } Map__Str_ExprPtrBox;
 
 
-typedef struct priv___src_self_desugarer_til__CoverageNode {
+typedef struct priv___src_self_typer_til__CoverageNode {
     Bool fully_covered;
     Vec__Str sub_names;
     Vec__CoverageNode sub_nodes;
-} priv___src_self_desugarer_til__CoverageNode;
+} priv___src_self_typer_til__CoverageNode;
 
 
 typedef struct ProgramUnit {
@@ -2973,6 +2973,25 @@ void priv___src_self_typer_til__narrow_dynamic(Expr * expr, Type * target);
 Bool fcall_is_get_method(Expr * fcall);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
+priv___src_self_typer_til__CoverageNode * priv___src_self_typer_til__CoverageNode_clone(priv___src_self_typer_til__CoverageNode * self);
+void priv___src_self_typer_til__CoverageNode_delete(priv___src_self_typer_til__CoverageNode * self, Bool call_free);
+U64 priv___src_self_typer_til__CoverageNode_hash(priv___src_self_typer_til__CoverageNode * self, HashFn hasher);
+U32 priv___src_self_typer_til__CoverageNode_size(void);
+void priv___src_self_typer_til__init_coverage_for_enum(priv___src_self_typer_til__CoverageNode * node, Expr * enum_def);
+I32 priv___src_self_typer_til__coverage_sub_index(priv___src_self_typer_til__CoverageNode * coverage, Str * variant_name);
+Bool priv___src_self_typer_til__is_pattern_covered(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
+void priv___src_self_typer_til__mark_pattern_coverage(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
+void priv___src_self_typer_til__collect_missing_paths(TypeScope * scope, priv___src_self_typer_til__CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec__Str * out, Context * ctx);
+void priv___src_self_typer_til__infer_match_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
+Type * priv___src_self_typer_til__match_arm_value_type(TypeScope * scope, Expr * case_node, Expr * subj, I32 in_func, Context * ctx);
+U32 priv___src_self_typer_til__lower_matches_in_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+void priv___src_self_typer_til__replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
+Str * priv___src_self_typer_til__lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
+void priv___src_self_typer_til__validate_struct_pattern_rest(TypeScope * scope, Expr * pattern, Context * ctx);
+void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
+Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Vec__CtorArg * Vec__CtorArg_new(void);
 U32 Vec__CtorArg_len(Vec__CtorArg * self);
 void Vec__CtorArg_clear(Vec__CtorArg * self);
@@ -2983,6 +3002,14 @@ void Vec__CtorArg_set(Vec__CtorArg * self, U32 i, priv___src_self_typer_til__Cto
 void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
 Vec__CtorArg * Vec__CtorArg_clone(Vec__CtorArg * self);
 U32 Vec__CtorArg_size(void);
+Vec__CoverageNode * Vec__CoverageNode_new(void);
+void Vec__CoverageNode_clear(Vec__CoverageNode * self);
+void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_typer_til__CoverageNode * val);
+priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_unsafe_get(Vec__CoverageNode * self, U32 * i);
+priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_get(Vec__CoverageNode * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
+void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
+Vec__CoverageNode * Vec__CoverageNode_clone(Vec__CoverageNode * self);
+U32 Vec__CoverageNode_size(void);
 void desugar_user_func_fcall_args(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_desugarer_til__typer_is_lambda_target(Expr * e);
 I64 priv___src_self_desugarer_til__typer_lift_one_default_value(Declaration * dd, Vec__Expr * top_level, I64 * counter);
@@ -3042,40 +3069,21 @@ void priv___src_self_desugarer_til__register_bang_guard_throws(Context * ctx, Ex
 void priv___src_self_desugarer_til__process_match_arms_in(Context * ctx, Expr * e, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void priv___src_self_desugarer_til__process_throw_catch_in_body(Context * ctx, Expr * body, Expr * root_body, Vec__Str * fdef_throws, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path, Str * return_type, OwnType * return_own_type);
 void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec__Str * fdef_throws, Str * return_type, OwnType * return_own_type);
-priv___src_self_desugarer_til__CoverageNode * priv___src_self_desugarer_til__CoverageNode_clone(priv___src_self_desugarer_til__CoverageNode * self);
-void priv___src_self_desugarer_til__CoverageNode_delete(priv___src_self_desugarer_til__CoverageNode * self, Bool call_free);
-U64 priv___src_self_desugarer_til__CoverageNode_hash(priv___src_self_desugarer_til__CoverageNode * self, HashFn hasher);
-U32 priv___src_self_desugarer_til__CoverageNode_size(void);
-void priv___src_self_desugarer_til__init_coverage_for_enum(priv___src_self_desugarer_til__CoverageNode * node, Expr * enum_def);
-I32 priv___src_self_desugarer_til__coverage_sub_index(priv___src_self_desugarer_til__CoverageNode * coverage, Str * variant_name);
-Bool priv___src_self_desugarer_til__is_pattern_covered(TypeScope * scope, priv___src_self_desugarer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
-void priv___src_self_desugarer_til__mark_pattern_coverage(TypeScope * scope, priv___src_self_desugarer_til__CoverageNode * coverage, Str * expected_type_name, Expr * pattern);
-void priv___src_self_desugarer_til__collect_missing_paths(TypeScope * scope, priv___src_self_desugarer_til__CoverageNode * coverage, Expr * enum_def, Str * prefix, Vec__Str * out, Context * ctx);
-void infer_match_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
-Type * priv___src_self_desugarer_til__match_arm_value_type(TypeScope * scope, Expr * case_node, Expr * subj, I32 in_func, Context * ctx);
 Bool stmt_contains_match(Expr * e);
-U32 lower_matches_in_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
-void priv___src_self_desugarer_til__replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
-Str * priv___src_self_desugarer_til__lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
-void priv___src_self_desugarer_til__splice_stmts_before(Expr * body, U32 idx, Vec__Expr * pre);
+void splice_stmts_before(Expr * body, U32 idx, Vec__Expr * pre);
 Str * priv___src_self_desugarer_til__lookup_variant_payload_type(TypeScope * scope, Str * enum_name, Str * variant_name);
 void collect_switch_case_bindings(Context * ctx, Expr * e);
 Expr * priv___src_self_desugarer_til__fold_and_chain(Vec__Expr * conds, U32 line, U32 col);
-Expr * priv___src_self_desugarer_til__make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
-void priv___src_self_desugarer_til__replace_switch_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
-void priv___src_self_desugarer_til__append_switch_else_if(Expr * root_if, Expr * if_node);
-void priv___src_self_desugarer_til__attach_switch_default_body(Expr * root_if, Expr * default_body);
-void priv___src_self_desugarer_til__validate_struct_pattern_rest(TypeScope * scope, Expr * pattern, Context * ctx);
+Expr * make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
+void replace_switch_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
+void append_switch_else_if(Expr * root_if, Expr * if_node);
+void attach_switch_default_body(Expr * root_if, Expr * default_body);
 Bool priv___src_self_desugarer_til__expr_has_unguarded_break(Expr * e);
-Bool priv___src_self_desugarer_til__switch_is_clike(TypeScope * scope, Expr * stmt, Expr * sw_expr, Bool is_match);
+Bool switch_is_clike(TypeScope * scope, Expr * stmt, Expr * sw_expr, Bool is_match);
 Str * priv___src_self_desugarer_til__lvalue_root_name(Expr * e);
-void priv___src_self_desugarer_til__prepend_clike_payload_binding(TypeScope * scope, Expr * sw_expr, Expr * case_node, Str * sw_sname);
-void priv___src_self_desugarer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
-Bool infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
-void priv___src_self_desugarer_til__replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
-Expr * priv___src_self_desugarer_til__make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
-Bool desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
-Bool desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
+void prepend_clike_payload_binding(TypeScope * scope, Expr * sw_expr, Expr * case_node, Str * sw_sname);
+void replace_body_stmt_with_block(Expr * body, U32 stmt_idx, Expr * block);
+Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
 Expr * priv___src_self_desugarer_til__find_variadic_fcall(Expr * e, TypeScope * scope);
 Expr * priv___src_self_desugarer_til__find_kwargs_fcall(Expr * e, TypeScope * scope);
 Expr * priv___src_self_desugarer_til__find_array_vec_fcall(Expr * e);
@@ -3120,14 +3128,6 @@ Bool priv___src_self_desugarer_til__desugar_pure_splat_variadic_call(Expr * fcal
 void priv___src_self_desugarer_til__rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
 Bool priv___src_self_desugarer_til__field_assign_needs_delete(Expr * stmt, TypeScope * scope);
 Expr * priv___src_self_desugarer_til__hoist_to_temp(Context * ctx, Expr * val, Vec__Expr * hoisted, TypeScope * scope, Bool is_own);
-Vec__CoverageNode * Vec__CoverageNode_new(void);
-void Vec__CoverageNode_clear(Vec__CoverageNode * self);
-void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_desugarer_til__CoverageNode * val);
-priv___src_self_desugarer_til__CoverageNode * Vec__CoverageNode_unsafe_get(Vec__CoverageNode * self, U32 * i);
-priv___src_self_desugarer_til__CoverageNode * Vec__CoverageNode_get(Vec__CoverageNode * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
-void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
-Vec__CoverageNode * Vec__CoverageNode_clone(Vec__CoverageNode * self);
-U32 Vec__CoverageNode_size(void);
 priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 U32 priv___src_self_garbager_til__LocalInfo_size(void);
