@@ -6,44 +6,63 @@ Permanent umbrella issue for GUI music theory learning examples.
 
 Current examples:
 
-- `examples/7modes.til`: renamed from `examples/music.til` after the
-  shared helper module became `lib/music.til`. Shows note/mode controls,
-  a pentagram, scale playback, note click playback, triad labels, PT/ES/EN
-  mode-name labels, and a compact playable piano.
+- `examples/music_modes.til`: unified mode viewer for 7 Greek modes,
+  5 Global modes, and experimental 5 Nathex modes. Shows note/mode
+  controls, a pentagram, scale playback, note click playback, triad labels
+  for 7-mode scales, language selectors, span selector, and a compact
+  playable piano.
 - `examples/piano.til`: standalone 3-octave QWERTY piano with scrolling
-  piano-roll visualization.
+  piano-roll visualization, Solfege/Letters/Hextaves/Nathex display modes,
+  and a Happy Birthday playback button.
+- `examples/guitar.til`: clickable 6-string guitar simulator with Standard
+  and All-fourths tunings, Solfege/Letters/Hextaves/Nathex display modes,
+  and physical fret spacing for standard and nathex fretboards.
 
 Recent progress:
 
-- Extracted common piano/music data into `lib/music.til`: QWERTY keycodes,
-  key labels, C3-B5 piano frequencies, natural/black-key layout tables,
-  solfege names, and letter pitch names.
-- Updated `examples/piano.til` and `examples/7modes.til` to share the same
-  key/frequency mapping, so a keyboard key means the same pitch in both.
-- Added QWERTY labels to the compact piano in `examples/7modes.til`.
-- Added keyboard and mouse/touch input for the compact piano in
-  `examples/7modes.til`.
-- Made pentagram notes and piano keys highlight each other in both
-  directions when the played key is part of the displayed scale.
-- Removed the stale solfege/letter notation radio button. Individual note
-  labels now use solfege (`Do`, `Re`, `Mi`), while triad labels use
-  letter-based chord symbols (`C`, `Dm`, `Bdim`).
-- Kept the piano-roll labels in `examples/piano.til` as letter pitch names,
-  because piano-roll rows represent absolute pitches, not chord symbols.
+- Extracted and extended common music data in `lib/music.til`: QWERTY
+  keycodes, key labels, regular frequency tables, nathex frequency table
+  generation, natural/black-key layout tables, solfege names, letter pitch
+  names, shared display-mode constants, shared note-label helpers, and shared
+  piano/music_modes/guitar frequency lookup helpers.
+- Unified the 7-mode and 5-mode experiments into `examples/music_modes.til`.
+  The top selector switches between 7 Greek, 5 Global, and 5 Nathex without
+  moving the staff or compact piano layout.
+- Added the `Once` / `2 full octaves` span selector. 7 Greek uses 8/15 notes,
+  5 Global uses 6/16 notes, and Nathex uses 6/11 notes so its full span is
+  two nathex hextaves, i.e. two octaves.
+- Added 5 Global language controls (`PT/ES`, `EN`) and kept 7 Greek language
+  controls (`PT`, `ES`, `EN`).
+- Added the separate Nathex table: `ca1 = do1`, one nathex hextave is one
+  frequency doubling, and each nathex step is `2^(1/8)`. `music_modes` starts
+  Nathex at `ca4`.
+- Added Nathex mode to `examples/piano.til`. The same physical/QWERTY keys
+  play through the nathex sound bank, with the C4 key mapped to `ca4`.
+- Added a Happy Birthday playback button to `examples/piano.til`, using the
+  canonical G-major melody from the public-domain Happy Birthday score. The
+  scheduler reuses normal key press/release handling so keys light up and the
+  piano roll records the song.
+- Added `examples/guitar.til`, including Standard and All-fourths tunings.
+  Nathex mode keeps the same open-string names but plays `NATHEX_FREQS` and
+  uses 16 wider frets over the same physical span as the regular 24-fret
+  board.
+- Opened [[./285.org][#285]] for the macro bug found while building the
+  nathex table: foldable function-call expressions such as `2.to_f32()` are
+  rejected as macro arguments even though they should be constfoldable.
 
 Notes:
 
 - The old mode-button rendering note from [[./44.org][#44]] is stale; manual
-  testing of the current `examples/7modes.til` showed the mode controls and
-  removed radio row behaving correctly.
-- `examples/7modes.til` still calculates scale spelling separately from
+  testing of the current music examples showed the mode controls and removed
+  radio row behaving correctly.
+- `examples/music_modes.til` still calculates scale spelling separately from
   pitch frequency so staff position, accidentals, and audio stay aligned.
-
-*** TODO `examples/5modes.til`
-Needs human details before implementation. Capture which five modes to show,
-how they differ pedagogically from `examples/7modes.til`, and what UI/audio
-behavior should change.
+- Regular 5 Global hextaves and Nathex use the same names but different
+  frequency semantics: regular 5 Global uses 3 hextaves for two octaves,
+  while Nathex uses 2 hextaves for two octaves.
 
 *** TODO Richer audio (sustain, chords, drone note under scale)
 *** TODO Chord progressions
 *** TODO Key signatures on staff
+*** TODO More example songs
+*** TODO Guitar chords and strumming

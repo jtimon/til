@@ -1,0 +1,32 @@
+# priority: medium
+# category: bugs
+** OPEN #285 Macro arguments reject foldable function-call expressions
+
+   Macro calls currently reject arguments whose values are statically known via
+   foldable function calls. This came up while building a compile-time nathex
+   frequency table in ~lib/music.til~.
+
+*** Reproduction
+
+    A macro call like this fails:
+
+    : calculate_sqrt(calculate_sqrt(calculate_sqrt(2.to_f32())))
+
+    Observed diagnostic:
+
+    : ./lib/music.til:28:59: error: macro argument must be known at compile time
+    : ./lib/music.til:28:42: error: macro argument must be known at compile time
+    : ./lib/music.til:28:27: error: macro argument must be known at compile time
+
+*** Expected
+
+    The argument should be accepted because ~2.to_f32()~ has compile-time-known
+    inputs and should be constfolded before macro argument validation, just like
+    an equivalent macro result.
+
+*** Acceptance
+
+    - Macro arguments accept expressions that constfold to compile-time-known
+      values, including primitive conversion calls such as ~2.to_f32()~.
+    - Nested macro calls whose arguments are foldable also work.
+    - Add a regression test covering the nested-call case above.

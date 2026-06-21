@@ -5,6 +5,42 @@ PIANO_C4_KEY_OFFSET : USize = 12
 PIANO_C4_KEY_COUNT : USize = 24
 PIANO_C3_FREQ_OFFSET : USize = 8
 PIANO_C4_FREQ_OFFSET : USize = 20
+NATHEX_FREQ_COUNT : USize = 72
+NATHEX_MUSIC_MODES_FREQ_OFFSET : USize = 24
+// Piano key index PIANO_C4_KEY_OFFSET is the C4 key; nathex maps it to ca4.
+NATHEX_PIANO_FREQ_OFFSET : USize = 12
+// Prototype anchor for the separate nathex table: ca1 is classical do1.
+// One nathex hextave is a doubling, so caN matches doN.
+NATHEX_BASE_FREQ : F32 = 32.703
+
+DISPLAY_MODE_SOLFEGE : I32 = 0
+DISPLAY_MODE_LETTERS : I32 = 1
+DISPLAY_MODE_HEXTAVES : I32 = 2
+DISPLAY_MODE_NATHEX : I32 = 3
+
+calculate_sqrt := macro(x: F32) returns F32 {
+    mut guess := x
+    for _ in 0..12 {
+        guess = guess.add(x.div(guess)).div(2.to_f32())
+    }
+    return guess
+}
+
+calculate_nathex_step_ratio := macro() returns F32 {
+    // Full nathex ratio is 2; 8 equal steps means one step is 2^(1/8).
+    return calculate_sqrt(calculate_sqrt(calculate_sqrt(2)))
+}
+
+calculate_nathex_freqs := macro() returns Array(I64) {
+    mut freqs := Array(I64).new(NATHEX_FREQ_COUNT)
+    mut freq := NATHEX_BASE_FREQ
+    step_ratio := calculate_nathex_step_ratio()
+    for i : USize in 0..NATHEX_FREQ_COUNT {
+        freqs[i] = freq.add(0.5).to_i64()
+        freq = freq.mul(step_ratio)
+    }
+    return freqs
+}
 
 // Raylib key codes for three chromatic octaves, left-to-right low-to-high.
 PIANO_KEYCODES := array("I32",
@@ -34,6 +70,8 @@ FREQS := array("I64",
 
 // Frequencies for chromatic notes C4..B4.
 CHROMATIC_FREQS_C4 := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+
+NATHEX_FREQS := calculate_nathex_freqs()
 
 // Piano key layout helpers.
 NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
@@ -65,6 +103,7 @@ FIVE_CYCLE : USize = 8
 FIVE_NATURAL_COUNT : USize = 5
 FIVE_SCALE_NOTES : USize = 6
 FIVE_BASE_HEXTAVE : I32 = 4
+NATHEX_BASE_HEXTAVE : I32 = 4
 FIVE_NAMES := array("Str", "ca", "#ca", "de", "fi", "#fi", "go", "#go", "lu")
 FIVE_NATURAL_NAMES := array("Str", "ca", "de", "fi", "go", "lu")
 FIVE_NATURALS := array("I32", 0, 2, 3, 5, 7)
@@ -78,6 +117,40 @@ five_abs_note_name := func(chrom_idx: I32) returns Str {
     ref nn : Str = FIVE_NAMES[chrom_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
     hextave := chrom_idx / FIVE_CYCLE.cast(I32) + 2
     return format(nn, hextave.to_str())
+}
+
+nathex_abs_note_name := func(key_idx: I32) returns Str {
+    table_idx := key_idx + NATHEX_PIANO_FREQ_OFFSET.cast(I32)
+    ref nn : Str = FIVE_NAMES[table_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
+    hextave := table_idx / FIVE_CYCLE.cast(I32) + 1
+    return format(nn, hextave.to_str())
+}
+
+piano_key_freq := func(use_nathex: Bool, key_idx: USize) returns ref I64 {
+    if use_nathex {
+        ref freq : I64 = NATHEX_FREQS[NATHEX_PIANO_FREQ_OFFSET + key_idx]
+        return freq
+    }
+    ref freq : I64 = FREQS[PIANO_C3_FREQ_OFFSET + key_idx]
+    return freq
+}
+
+music_modes_key_freq := func(use_nathex: Bool, key_idx: USize) returns ref I64 {
+    if use_nathex {
+        ref freq : I64 = NATHEX_FREQS[NATHEX_MUSIC_MODES_FREQ_OFFSET + key_idx]
+        return freq
+    }
+    ref freq : I64 = FREQS[PIANO_C4_FREQ_OFFSET + key_idx]
+    return freq
+}
+
+guitar_freq := func(use_nathex: Bool, rel: I32) returns ref I64 {
+    if use_nathex {
+        ref freq : I64 = NATHEX_FREQS[rel.to_usize()]
+        return freq
+    }
+    ref freq : I64 = FREQS[rel.to_usize()]
+    return freq
 }
 
 SOLFEGE_CHROMATIC_NAMES := array("Str", "Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
@@ -124,11 +197,19 @@ five_acc_text := func(acc: I64) returns Str {
     return ""
 }
 
-five_full_note_name := func(name_idx: I32, acc: I32, hextave: I32) returns Str {
+five_full_note_name_with_base := func(name_idx: I32, acc: I32, hextave: I32, base_hextave: I32) returns Str {
     ref nn : Str = FIVE_NATURAL_NAMES[name_idx.to_usize()]
     acc_label := five_acc_text(acc.cast(I64))
-    hextave_label := (hextave + FIVE_BASE_HEXTAVE).to_str()
+    hextave_label := (hextave + base_hextave).to_str()
     return format(acc_label, nn, hextave_label)
+}
+
+five_full_note_name := func(name_idx: I32, acc: I32, hextave: I32) returns Str {
+    return five_full_note_name_with_base(name_idx, acc, hextave, FIVE_BASE_HEXTAVE)
+}
+
+nathex_full_note_name := func(name_idx: I32, acc: I32, hextave: I32) returns Str {
+    return five_full_note_name_with_base(name_idx, acc, hextave, NATHEX_BASE_HEXTAVE)
 }
 
 five_staff_pos := func(name_idx: I32, hextave: I32) returns I32 {
@@ -136,7 +217,7 @@ five_staff_pos := func(name_idx: I32, hextave: I32) returns I32 {
 }
 
 five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
-                             note_count: USize,
+                             note_count: USize, use_nathex: Bool,
                              mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_hextave: Array(I32),
                              mut sc_acc: Array(I32), mut sc_freq: Array(I64)) {
     ref nat_c : I32 = FIVE_NATURALS[sel_diatonic]
@@ -159,9 +240,8 @@ five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode:
         if acc.lt(-4) { acc = acc + FIVE_CYCLE.cast(I32) }
         sc_acc[k] = acc
 
-        ref freq : I64 = FREQS[PIANO_C4_FREQ_OFFSET + chrom_total.to_usize()]
-        freq_val := freq
-        sc_freq[k] = freq_val
+        ref freq : I64 = music_modes_key_freq(use_nathex, chrom_total.to_usize())
+        sc_freq[k] = freq.clone()
 
         if (k + 1).lt(note_count) {
             step_idx := k % FIVE_NATURAL_COUNT
@@ -174,3 +254,40 @@ five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode:
 SOLFEGE_NOTE_NAMES := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
 LETTER_DIATONIC_NOTE_NAMES := array("Str", "C", "D", "E", "F", "G", "A", "B")
 LETTER_NOTE_NAMES := array("Str", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+
+freqs_letter_note_name := func(freq_idx: I32) returns Str {
+    chrom := (freq_idx + 4) % 12
+    octave := (freq_idx + 4) / 12 + 2
+    ref nn : Str = LETTER_NOTE_NAMES[chrom.to_usize()]
+    return format(nn, octave.to_str())
+}
+
+freqs_solfege_note_name := func(freq_idx: I32) returns Str {
+    chrom := (freq_idx + 4) % 12
+    octave := (freq_idx + 4) / 12 + 2
+    ref nn : Str = SOLFEGE_CHROMATIC_NAMES[chrom.to_usize()]
+    return format(nn, octave.to_str())
+}
+
+freqs_five_note_name := func(freq_idx: I32) returns Str {
+    ref nn : Str = FIVE_NAMES[freq_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
+    hextave := freq_idx / FIVE_CYCLE.cast(I32) + 1
+    return format(nn, hextave.to_str())
+}
+
+piano_note_label := func(display_mode: I32, key_idx: I32) returns Str {
+    if display_mode.eq(DISPLAY_MODE_NATHEX) { return nathex_abs_note_name(key_idx) }
+    if display_mode.eq(DISPLAY_MODE_HEXTAVES) { return five_abs_note_name(key_idx) }
+    if display_mode.eq(DISPLAY_MODE_LETTERS) {
+        return freqs_letter_note_name(PIANO_C3_FREQ_OFFSET.cast(I32) + key_idx)
+    }
+    return solfege_abs_note_name(key_idx)
+}
+
+guitar_note_label := func(display_mode: I32, rel: I32) returns Str {
+    if display_mode.eq(DISPLAY_MODE_NATHEX).or(display_mode.eq(DISPLAY_MODE_HEXTAVES)) {
+        return freqs_five_note_name(rel)
+    }
+    if display_mode.eq(DISPLAY_MODE_LETTERS) { return freqs_letter_note_name(rel) }
+    return freqs_solfege_note_name(rel)
+}

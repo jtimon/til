@@ -3,15 +3,19 @@ mode gui
 import("../lib/music")
 
 // Clickable 6-string guitar simulator.
-// Display toggles change only note labels: Solfege, Letters, or Hextaves.
+// Display toggles change note labels: Solfege, Letters, Hextaves, or Nathex.
 // Tuning toggles change open strings: Standard E A D G B E or All-fourths
-// E A D G C F. The fretboard always shows frets 0..24.
+// E A D G C F. Nathex keeps the same open-string names, plays NATHEX_FREQS,
+// and uses 16 wider frets over the same neck span as 24 standard frets.
 
 WINDOW_WIDTH : I32 = 1920
 WINDOW_HEIGHT : I32 = 1080
 FPS : I32 = 60
 STRING_COUNT : USize = 6
-FRET_COUNT : USize = 25
+STANDARD_FRET_MAX : I32 = 24
+NATHEX_FRET_MAX : I32 = 16
+STANDARD_FRET_RATIO : F32 = 1.0594630943592953
+FRETBOARD_END_FRACTION : F32 = 0.75
 
 MARGIN : I32 = 60
 TOP_Y : I32 = 60
@@ -22,7 +26,6 @@ BOARD_X : I32 = 150
 BOARD_Y : I32 = 220
 BOARD_W : I32 = WINDOW_WIDTH - BOARD_X - MARGIN
 BOARD_H : I32 = WINDOW_HEIGHT - BOARD_Y - 100
-FRET_W : I32 = BOARD_W / FRET_COUNT.cast(I32)
 STRING_H : I32 = BOARD_H / STRING_COUNT.cast(I32)
 FONT : F32 = 20
 FONT_SM : F32 = 16
@@ -41,30 +44,52 @@ guitar_rel_note := func(all_fourths: Bool, string_idx: USize, fret: I32) returns
     return open_note + fret
 }
 
-octave_label := func(rel: I32) returns Str {
-    chrom := (rel + 4) % 12
-    oct := (rel + 4) / 12 + 2
-    ref nn : Str = LETTER_NOTE_NAMES[chrom.to_usize()]
-    return format(nn, oct.to_str())
+active_fret_max := func(use_nathex: Bool) returns I32 {
+    if use_nathex { return NATHEX_FRET_MAX }
+    return STANDARD_FRET_MAX
 }
 
-solfege_label := func(rel: I32) returns Str {
-    chrom := (rel + 4) % 12
-    oct := (rel + 4) / 12 + 2
-    ref nn : Str = SOLFEGE_CHROMATIC_NAMES[chrom.to_usize()]
-    return format(nn, oct.to_str())
+fret_x := func(use_nathex: Bool, fret: I32) returns I32 {
+    if fret.lte(0) { return BOARD_X }
+
+    mut ratio := STANDARD_FRET_RATIO
+    if use_nathex { ratio = calculate_nathex_step_ratio() }
+
+    mut inv_pow := 1.to_f32()
+    for _ in 0..fret.to_usize() {
+        inv_pow = inv_pow.div(ratio)
+    }
+
+    span := (1.to_f32() - inv_pow).div(FRETBOARD_END_FRACTION)
+    return BOARD_X + span.mul(BOARD_W.to_f32()).to_i64().to_i32()
 }
 
-hextave_label := func(rel: I32) returns Str {
-    ref nn : Str = FIVE_NAMES[rel.mod(FIVE_CYCLE.cast(I32)).to_usize()]
-    hextave := rel / FIVE_CYCLE.cast(I32) + 1
-    return format(nn, hextave.to_str())
+hit_fret := func(use_nathex: Bool, x: I32) returns I32 {
+    max_fret := active_fret_max(use_nathex)
+    for fret in 1..(max_fret + 1).to_usize() {
+        fret_i := fret.cast(I32)
+        left := fret_x(use_nathex, fret_i - 1)
+        right := fret_x(use_nathex, fret_i)
+        if x.gte(left).and(x.lt(right)) { return fret_i }
+    }
+    return -1
 }
 
-note_label := func(display_mode: I32, rel: I32) returns Str {
-    if display_mode.eq(2) { return hextave_label(rel) }
-    if display_mode.eq(1) { return octave_label(rel) }
-    return solfege_label(rel)
+fret_marker_style := func(use_nathex: Bool, fret: I32) returns I32 {
+    if use_nathex {
+        if fret.eq(8).or(fret.eq(16)) { return 2 }
+        if fret.eq(4).or(fret.eq(12)) { return 1 }
+        return 0
+    }
+
+    for marker : USize in 0..9 {
+        ref marker_fret : I32 = FRET_MARKERS[marker]
+        if fret.eq(marker_fret) {
+            if fret.eq(12).or(fret.eq(24)) { return 2 }
+            return 1
+        }
+    }
+    return 0
 }
 
 draw_toggle := proc(fnt: Font, x: I32, y: I32, label: Str, active: Bool, active_color: Color, inactive_color: Color, text_color: Color) {
@@ -80,7 +105,7 @@ main := proc() {
     InitAudioDevice()
     fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, NULL, 0)
 
-    mut display_mode : I32 = 0
+    mut display_mode : I32 = DISPLAY_MODE_SOLFEGE
     mut all_fourths := false
     mut active_string : I32 = -1
     mut active_fret : I32 = -1
@@ -100,30 +125,35 @@ main := proc() {
 
     while !WindowShouldClose() {
         dt : I32 = (GetFrameTime() * 1000.to_f32()).to_i64().to_i32()
+        use_nathex := display_mode.eq(DISPLAY_MODE_NATHEX)
+        max_fret := active_fret_max(use_nathex)
+        board_end := fret_x(use_nathex, max_fret)
 
         if IsMouseButtonPressed(0) {
             mx := GetMouseX()
             my := GetMouseY()
 
             if my >= TOP_Y && my < TOP_Y + BTN_H {
-                if mx >= MARGIN && mx < MARGIN + BTN_W { display_mode = 0 }
+                if mx >= MARGIN && mx < MARGIN + BTN_W { display_mode = DISPLAY_MODE_SOLFEGE }
                 hx := MARGIN + BTN_W + BTN_GAP
-                if mx >= hx && mx < hx + BTN_W { display_mode = 1 }
+                if mx >= hx && mx < hx + BTN_W { display_mode = DISPLAY_MODE_LETTERS }
                 cx := hx + BTN_W + BTN_GAP
-                if mx >= cx && mx < cx + BTN_W { display_mode = 2 }
+                if mx >= cx && mx < cx + BTN_W { display_mode = DISPLAY_MODE_HEXTAVES }
+                nx := cx + BTN_W + BTN_GAP
+                if mx >= nx && mx < nx + BTN_W { display_mode = DISPLAY_MODE_NATHEX }
 
-                tx := MARGIN + (BTN_W + BTN_GAP) * 4
+                tx := MARGIN + (BTN_W + BTN_GAP) * 5
                 if mx >= tx && mx < tx + BTN_W { all_fourths = false }
                 fx := tx + BTN_W + BTN_GAP
                 if mx >= fx && mx < fx + BTN_W { all_fourths = true }
             }
 
-            if mx >= BOARD_X && mx < BOARD_X + FRET_W * FRET_COUNT.cast(I32) && my >= BOARD_Y && my < BOARD_Y + BOARD_H {
-                fret := (mx - BOARD_X) / FRET_W
+            if mx >= BOARD_X && mx < board_end && my >= BOARD_Y && my < BOARD_Y + BOARD_H {
+                fret := hit_fret(use_nathex, mx)
                 string_idx : USize = (my - BOARD_Y).div(STRING_H).to_usize()
-                if string_idx.lt(STRING_COUNT).and(fret.gte(0)).and(fret.lt(FRET_COUNT.cast(I32))) {
+                if string_idx.lt(STRING_COUNT).and(fret.gt(0)).and(fret.lte(max_fret)) {
                     rel := guitar_rel_note(all_fourths, string_idx, fret)
-                    ref freq : I64 = FREQS[rel.to_usize()]
+                    ref freq : I64 = guitar_freq(use_nathex, rel)
                     play_tone(freq, 450)
                     active_string = string_idx.cast(I32)
                     active_fret = fret
@@ -143,52 +173,63 @@ main := proc() {
         BeginDrawing()
         ClearBackground(BG_COLOR)
 
-        draw_toggle(fnt, MARGIN, TOP_Y, "Solfege", display_mode.eq(0), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
-        draw_toggle(fnt, MARGIN + BTN_W + BTN_GAP, TOP_Y, "Letters", display_mode.eq(1), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
-        draw_toggle(fnt, MARGIN + (BTN_W + BTN_GAP) * 2, TOP_Y, "Hextaves", display_mode.eq(2), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
-        tuning_x := MARGIN + (BTN_W + BTN_GAP) * 4
+        draw_toggle(fnt, MARGIN, TOP_Y, "Solfege", display_mode.eq(DISPLAY_MODE_SOLFEGE), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, MARGIN + BTN_W + BTN_GAP, TOP_Y, "Letters", display_mode.eq(DISPLAY_MODE_LETTERS), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, MARGIN + (BTN_W + BTN_GAP) * 2, TOP_Y, "Hextaves", display_mode.eq(DISPLAY_MODE_HEXTAVES), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, MARGIN + (BTN_W + BTN_GAP) * 3, TOP_Y, "Nathex", use_nathex, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        tuning_x := MARGIN + (BTN_W + BTN_GAP) * 5
         draw_toggle(fnt, tuning_x, TOP_Y, "Standard", !all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
         draw_toggle(fnt, tuning_x + BTN_W + BTN_GAP, TOP_Y, "All-fourths", all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
 
-        DrawTextEx(fnt, "24 frets; click a string/fret to play".c_str, Vector2(x = MARGIN.to_f32(), y = (TOP_Y + BTN_H + 18).to_f32()), FONT, 1.to_f32(), MUTED_TEXT)
+        mut fret_hint := "24 frets; click a string/fret to play"
+        if use_nathex { fret_hint = "Nathex: 16 wider frets, same open-string names" }
+        DrawTextEx(fnt, fret_hint.c_str, Vector2(x = MARGIN.to_f32(), y = (TOP_Y + BTN_H + 18).to_f32()), FONT, 1.to_f32(), MUTED_TEXT)
 
-        DrawRectangle(BOARD_X, BOARD_Y, FRET_W * FRET_COUNT.cast(I32), BOARD_H, BOARD_COLOR)
+        DrawRectangle(BOARD_X, BOARD_Y, board_end - BOARD_X, BOARD_H, BOARD_COLOR)
 
-        // Fret markers and labels. Fret 0 is the open string column.
-        for fret : USize in 0..FRET_COUNT {
-            x := BOARD_X + fret.cast(I32) * FRET_W
+        // Physical fret positions. Fretted note N is between frets N-1 and N.
+        for fret : USize in 0..(max_fret + 1).to_usize() {
+            x := fret_x(use_nathex, fret.cast(I32))
             DrawRectangle(x, BOARD_Y, 2, BOARD_H, FRET_COLOR)
-            flabel := fret.to_str()
-            DrawTextEx(fnt, flabel.c_str, Vector2(x = (x + FRET_W / 2 - 8).to_f32(), y = (BOARD_Y - 30).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
         }
-        DrawRectangle(BOARD_X + FRET_W * FRET_COUNT.cast(I32), BOARD_Y, 2, BOARD_H, FRET_COLOR)
 
-        for marker : USize in 0..9 {
-            ref fret : I32 = FRET_MARKERS[marker]
-            cx := BOARD_X + fret * FRET_W + FRET_W / 2
-            if fret.eq(12).or(fret.eq(24)) {
+        for fret : USize in 1..(max_fret + 1).to_usize() {
+            fret_i := fret.cast(I32)
+            left := fret_x(use_nathex, fret_i - 1)
+            right := fret_x(use_nathex, fret_i)
+            cx := left + (right - left) / 2
+            flabel := fret.to_str()
+            DrawTextEx(fnt, flabel.c_str, Vector2(x = (cx - 8).to_f32(), y = (BOARD_Y - 30).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
+
+            marker_style := fret_marker_style(use_nathex, fret_i)
+            if marker_style.eq(2) {
                 DrawCircle(cx, BOARD_Y + BOARD_H / 3, 8.to_f32(), DOT_COLOR)
                 DrawCircle(cx, BOARD_Y + BOARD_H * 2 / 3, 8.to_f32(), DOT_COLOR)
-            } else {
+            }
+            if marker_style.eq(1) {
                 DrawCircle(cx, BOARD_Y + BOARD_H / 2, 8.to_f32(), DOT_COLOR)
             }
         }
 
         for string_idx : USize in 0..STRING_COUNT {
             sy := BOARD_Y + string_idx.cast(I32) * STRING_H + STRING_H / 2
-            DrawRectangle(BOARD_X, sy - 2, FRET_W * FRET_COUNT.cast(I32), 4, STRING_COLOR)
+            DrawRectangle(BOARD_X, sy - 2, board_end - BOARD_X, 4, STRING_COLOR)
 
             open_rel := guitar_rel_note(all_fourths, string_idx, 0)
-            open_label := note_label(display_mode, open_rel)
+            open_label := guitar_note_label(display_mode, open_rel)
             DrawTextEx(fnt, open_label.c_str, Vector2(x = MARGIN.to_f32(), y = (sy - 10).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
 
-            for fret : USize in 0..FRET_COUNT {
-                rel := guitar_rel_note(all_fourths, string_idx, fret.cast(I32))
-                label := note_label(display_mode, rel)
-                lx := BOARD_X + fret.cast(I32) * FRET_W + 6
+            for fret : USize in 1..(max_fret + 1).to_usize() {
+                fret_i := fret.cast(I32)
+                left := fret_x(use_nathex, fret_i - 1)
+                right := fret_x(use_nathex, fret_i)
+                cell_w := right - left
+                rel := guitar_rel_note(all_fourths, string_idx, fret_i)
+                label := guitar_note_label(display_mode, rel)
+                lx := left + 6
                 ly := BOARD_Y + string_idx.cast(I32) * STRING_H + 8
-                if active_string.eq(string_idx.cast(I32)).and(active_fret.eq(fret.cast(I32))) {
-                    DrawRectangle(BOARD_X + fret.cast(I32) * FRET_W + 2, BOARD_Y + string_idx.cast(I32) * STRING_H + 2, FRET_W - 4, STRING_H - 4, CELL_ACTIVE)
+                if active_string.eq(string_idx.cast(I32)).and(active_fret.eq(fret_i)) {
+                    DrawRectangle(left + 2, BOARD_Y + string_idx.cast(I32) * STRING_H + 2, cell_w - 4, STRING_H - 4, CELL_ACTIVE)
                 }
                 DrawTextEx(fnt, label.c_str, Vector2(x = lx.to_f32(), y = ly.to_f32()), FONT_SM, 1.to_f32(), LABEL_COLOR)
             }
@@ -196,6 +237,7 @@ main := proc() {
 
         mut tuning_label := "Standard E A D G B E"
         if all_fourths { tuning_label = "All-fourths E A D G C F" }
+        if use_nathex { tuning_label = format(tuning_label, " on nathex frets") }
         DrawTextEx(fnt, tuning_label.c_str, Vector2(x = MARGIN.to_f32(), y = (BOARD_Y + BOARD_H + 35).to_f32()), FONT, 1.to_f32(), TEXT_COLOR)
 
         EndDrawing()

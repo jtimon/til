@@ -6,6 +6,7 @@ import("../lib/music")
 // QWERTY keyboard maps to 3 octaves (C3-B5).
 // Solfege display is the default. Letters changes only labels. Hextaves keeps
 // the same sounds and physical key mapping but redraws labels and key layout.
+// Nathex keeps the key mapping and plays the separate 8-step doubling table.
 
 WINDOW_WIDTH : I32 = 1920
 WINDOW_HEIGHT : I32 = 1080
@@ -29,6 +30,25 @@ TOGGLE_Y : I32 = PIANO_Y - 70
 TOGGLE_W : I32 = 160
 TOGGLE_H : I32 = 34
 TOGGLE_GAP : I32 = 10
+SONG_BTN_X : I32 = TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 5
+SONG_BTN_W : I32 = 240
+SONG_GAP_MS : I64 = 30
+HAPPY_BIRTHDAY_NOTE_COUNT : USize = 25
+
+// Happy Birthday in piano key indices. Reference melody: Wikipedia's G major
+// score, d d | e d g | fis2 ... Starting on D4 keeps it in the visible range.
+HAPPY_BIRTHDAY_NOTES := array("I32",
+    14, 14, 16, 14, 19, 18,
+    14, 14, 16, 14, 21, 19,
+    14, 14, 26, 23, 19, 18, 16,
+    24, 24, 23, 19, 21, 19,
+)
+HAPPY_BIRTHDAY_DURATIONS := array("I64",
+    360, 120, 480, 480, 480, 960,
+    360, 120, 480, 480, 480, 960,
+    360, 120, 480, 480, 480, 480, 720,
+    360, 120, 480, 480, 480, 960,
+)
 
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
@@ -55,14 +75,21 @@ main := proc() {
     }
     mut ev_count : I64 = 0
     mut ev_head : I64 = 0
-    mut display_mode : I32 = 0
+    mut display_mode : I32 = DISPLAY_MODE_SOLFEGE
+    mut song_playing := false
+    mut song_idx : USize = 0
+    mut song_timer : I64 = 0
 
-    // Pre-generate all 36 sounds for polyphony
+    // Pre-generate all 36 sounds for polyphony.
     mut sounds := Array(Sound).new(NUM_KEYS)
+    mut nathex_sounds := Array(Sound).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
-        ref freq : I64 = FREQS[PIANO_C3_FREQ_OFFSET + i]
+        ref freq : I64 = piano_key_freq(false, i)
         s := make_tone(freq, 10000, 1.to_f32().div(10))
         sounds[i] = s
+        ref nathex_freq : I64 = piano_key_freq(true, i)
+        ns := make_tone(nathex_freq, 10000, 1.to_f32().div(10))
+        nathex_sounds[i] = ns
     }
 
     mut timer : I64 = 0
@@ -86,7 +113,8 @@ main := proc() {
         dt := (GetFrameTime() * 1000.to_f32()).to_i64()
         timer = timer + dt
 
-        hextave_display := display_mode.eq(2)
+        nathex_display := display_mode.eq(DISPLAY_MODE_NATHEX)
+        hextave_display := display_mode.eq(DISPLAY_MODE_HEXTAVES).or(nathex_display)
         mut white_key_count := STANDARD_WHITE_KEYS
         if hextave_display { white_key_count = HEXTAVE_WHITE_KEYS }
         white_w := WINDOW_WIDTH / white_key_count.cast(I32)
@@ -107,15 +135,24 @@ main := proc() {
             my := GetMouseY()
             if my >= TOGGLE_Y && my < TOGGLE_Y + TOGGLE_H {
                 if mx >= TOGGLE_X && mx < TOGGLE_X + TOGGLE_W {
-                    display_mode = 0
+                    display_mode = DISPLAY_MODE_SOLFEGE
                 }
                 hx := TOGGLE_X + TOGGLE_W + TOGGLE_GAP
                 if mx >= hx && mx < hx + TOGGLE_W {
-                    display_mode = 1
+                    display_mode = DISPLAY_MODE_LETTERS
                 }
                 lx := hx + TOGGLE_W + TOGGLE_GAP
                 if mx >= lx && mx < lx + TOGGLE_W {
-                    display_mode = 2
+                    display_mode = DISPLAY_MODE_HEXTAVES
+                }
+                nx := lx + TOGGLE_W + TOGGLE_GAP
+                if mx >= nx && mx < nx + TOGGLE_W {
+                    display_mode = DISPLAY_MODE_NATHEX
+                }
+                if mx >= SONG_BTN_X && mx < SONG_BTN_X + SONG_BTN_W {
+                    song_playing = true
+                    song_idx = 0
+                    song_timer = 0
                 }
             }
         }
@@ -175,14 +212,35 @@ main := proc() {
             }
         }
 
+        if song_playing {
+            ref note_ms : I64 = HAPPY_BIRTHDAY_DURATIONS[song_idx]
+            if song_timer.lt(note_ms) {
+                ref note_code : I32 = HAPPY_BIRTHDAY_NOTES[song_idx]
+                key_down[note_code.to_usize()] = 1
+            }
+            song_timer = song_timer + dt
+            if song_timer.gte(note_ms + SONG_GAP_MS) {
+                song_timer = 0
+                song_idx = song_idx + 1
+                if song_idx.gte(HAPPY_BIRTHDAY_NOTE_COUNT) {
+                    song_playing = false
+                }
+            }
+        }
+
         // Detect press/release by comparing with prev_down
         for i in 0..NUM_KEYS {
             ref kd : I32 = key_down[i]
             ref pd : I32 = prev_down[i]
             // Newly pressed
             if kd == 1 && pd == 0 {
-                ref s : Sound = sounds[i]
-                PlaySound(s)
+                if nathex_display {
+                    ref s : Sound = nathex_sounds[i]
+                    PlaySound(s)
+                } else {
+                    ref s : Sound = sounds[i]
+                    PlaySound(s)
+                }
                 // Add note event
                 ev_note[ev_head.to_usize()] = i.cast(I32)
                 t_val := timer
@@ -197,6 +255,8 @@ main := proc() {
             if kd == 0 && pd == 1 {
                 ref s : Sound = sounds[i]
                 StopSound(s)
+                ref ns : Sound = nathex_sounds[i]
+                StopSound(ns)
                 // Close the note event
                 for j in 0..ev_count.to_u32() {
                     idx := (ev_head - 1 - j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
@@ -290,14 +350,7 @@ main := proc() {
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
             ny := ROLL_H - (i.cast(I32) + 1) * note_h
-            mut note_label := solfege_abs_note_name(i.cast(I32))
-            if display_mode.eq(2) {
-                note_label = five_abs_note_name(i.cast(I32))
-            }
-            if display_mode.eq(1) {
-                ref nn : Str = LETTER_NOTE_NAMES[i.mod(12)]
-                note_label = format(nn, (i / 12 + 3).to_str())
-            }
+            note_label := piano_note_label(display_mode, i.cast(I32))
             DrawTextEx(fnt, note_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
         }
 
@@ -379,28 +432,45 @@ main := proc() {
         mut sol_color := BTN_ACTIVE
         mut letter_color := BTN_INACTIVE
         mut hex_color := BTN_INACTIVE
-        if display_mode.eq(1) {
+        mut nathex_color := BTN_INACTIVE
+        if display_mode.eq(DISPLAY_MODE_LETTERS) {
             sol_color = BTN_INACTIVE
             letter_color = BTN_ACTIVE
         }
-        if display_mode.eq(2) {
+        if display_mode.eq(DISPLAY_MODE_HEXTAVES) {
             sol_color = BTN_INACTIVE
             hex_color = BTN_ACTIVE
+        }
+        if nathex_display {
+            sol_color = BTN_INACTIVE
+            nathex_color = BTN_ACTIVE
         }
         DrawRectangle(TOGGLE_X, TOGGLE_Y, TOGGLE_W, TOGGLE_H, sol_color)
         DrawRectangle(TOGGLE_X + TOGGLE_W + TOGGLE_GAP, TOGGLE_Y, TOGGLE_W, TOGGLE_H, letter_color)
         DrawRectangle(TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2, TOGGLE_Y, TOGGLE_W, TOGGLE_H, hex_color)
+        DrawRectangle(TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 3, TOGGLE_Y, TOGGLE_W, TOGGLE_H, nathex_color)
+        mut song_color := BTN_INACTIVE
+        if song_playing { song_color = BTN_ACTIVE }
+        DrawRectangle(SONG_BTN_X, TOGGLE_Y, SONG_BTN_W, TOGGLE_H, song_color)
         DrawTextEx(fnt, "Solfege".c_str, Vector2(x = (TOGGLE_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
         DrawTextEx(fnt, "Letters".c_str, Vector2(x = (TOGGLE_X + TOGGLE_W + TOGGLE_GAP + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
         DrawTextEx(fnt, "Hextaves".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
+        DrawTextEx(fnt, "Nathex".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 3 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
+        DrawTextEx(fnt, "Happy Birthday".c_str, Vector2(x = (SONG_BTN_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
 
         // Hint
         mut hint := "Solfege display: same keys and sounds"
-        if display_mode.eq(1) {
+        if display_mode.eq(DISPLAY_MODE_LETTERS) {
             hint = "Letters display: same keys and sounds"
         }
-        if display_mode.eq(2) {
+        if display_mode.eq(DISPLAY_MODE_HEXTAVES) {
             hint = "Hextaves display: same keys and sounds, C5=ca5 labels"
+        }
+        if nathex_display {
+            hint = "Nathex: same keys, separate 8-step doubling sounds, C4 key=ca4"
+        }
+        if song_playing {
+            hint = "Playing Happy Birthday with the same hextave note names"
         }
         DrawTextEx(fnt, hint.c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1.to_f32(), KEY_LABEL_COLOR)
 
@@ -408,6 +478,9 @@ main := proc() {
     }
 
     for s : Sound in sounds {
+        UnloadSound(s)
+    }
+    for s : Sound in nathex_sounds {
         UnloadSound(s)
     }
     UnloadFont(fnt)
