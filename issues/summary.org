@@ -49,6 +49,7 @@
 ** Medium
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
+*** [[./open/287.org][#287]] Key-value for-in over maps: `for k, v in map`
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/55.org][#55]] Lambda functions and first-class bodies
