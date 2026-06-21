@@ -71,11 +71,13 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
 // inline nested structs; the shallow scope teardown freed only the struct
 // buffer, so every cloned struct-with-Str-field leaked the field's c_str.
 // Frees owned Str-field c_strs (cap<CAP_VIEW guards against borrowed views and
-// literals) and recurses into inline nested structs. Owned-pointer (own)
-// struct/enum fields and inline payload-enum fields are deferred -- freeing
-// them here would risk a double-free with the pointer-sharing construction
-// paths, and they leak more rarely than direct Str fields. Only call while the
-// AST is live (scope teardown during execution); reads struct_def/field names.
+// literals), recurses into inline nested structs, and -- the dual of clone's
+// own-field deep-copy -- frees `own` struct/container fields whose nested type
+// is a StructDef (clone deep-copies exactly those, so the buffer is never
+// shared). Own enum fields, inline payload-enum fields, and own non-struct
+// pointers (own Dynamic) stay deferred -- those construction paths can share a
+// pointer, so freeing here would risk a double-free. Only call while the AST is
+// live (scope teardown during execution); reads struct_def/field names.
 priv struct_deep_free := func(struct_name: Str, sdef: Expr, data: Dynamic, ctx: Context) {
     if sdef.is_null() { return }
     if data.is_null() { return }
@@ -83,10 +85,32 @@ priv struct_deep_free := func(struct_name: Str, sdef: Expr, data: Dynamic, ctx: 
     case NodeType.StructDef(sdef_data):
         if struct_def_shallow_safe(sdef_data, ctx) { return }
         for dd : Declaration in sdef_data.fields {
-            if dd.own_type.is(OwnType.Own) { continue }
             if dd.own_type.is(OwnType.Ref) { continue }
             ref ftype : Str = dd.explicit_type
             foff := ctx_field_layout(struct_name, dd.name, ctx).offset
+            if dd.own_type.is(OwnType.Own) {
+                // Issue #275: free an `own` struct/container field. clone's
+                // own-field branch (StructInstance.clone's tmp.clone()) deep-
+                // copies these, so the field owns an independent buffer -- this
+                // is the dual free. Only fields whose nested type is a StructDef
+                // are freed: that is exactly what clone deep-copies, so the
+                // buffer is never shared. Own fields with no struct nested type
+                // (a container's own `data` element buffer is reclaimed by
+                // free_container_str_data below; own Dynamic stays shallow) and
+                // own enum fields are left on the shallow path.
+                ref own_nested : Expr = field_nested_def(dd, ctx)
+                if own_nested.is_null().not() {
+                    if own_nested.node_type.is(NodeType.StructDef) {
+                        ref own_hdr : DynPtrBox = ptr_add(data, foff.cast(U64))
+                        if own_hdr.p.is_null().not() {
+                            ref stable_own_ftype : Str = stable_type_name(ftype, ctx)
+                            struct_deep_free(stable_own_ftype, own_nested, own_hdr.p, ctx)
+                            free(own own_hdr.p)
+                        }
+                    }
+                }
+                continue
+            }
             if ftype.eq("Str") {
                 ref s : Str = ptr_add(data, foff.cast(U64))
                 if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
