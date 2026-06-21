@@ -1,0 +1,54 @@
+# priority: high
+# category: features
+** FIXED #182 Support ~/** */~ block doc comments (in addition to ~///~)
+
+*** Post-mortem
+
+   Root cause: the lexer only recognised ~///~ line doc comments; a
+   ~/** ... */~ block was tokenised as an ordinary (ignored) nested
+   block comment, so its text never reached the parser.
+
+   Fix (src/self/lexer.til): the ~/*~ branch now distinguishes a doc
+   block ~/**~ (but not the empty ~/**/~) from a plain ~/*~. For a doc
+   block it records the body range [after ~/**~, before the closing
+   ~*/~] while still scanning with the existing nesting logic, then
+   ~emit_doc_block_lines~ splits the body into lines and pushes one
+   ~DocComment~ token per content line -- the very token ~///~ already
+   produces. Each line is stripped Javadoc-style (leading whitespace,
+   one optional ~*~, one optional space; trailing whitespace dropped);
+   leading/trailing blank lines are discarded and interior blank lines
+   are kept as empty ~DocComment~ tokens so they become paragraph
+   breaks. Because both comment styles emit the same token, the
+   parser's ~drain_doc_comments~ is unchanged: ~/** */~ joins its lines
+   with ~\n~ and merges seamlessly with adjacent ~///~ lines.
+
+   Design decisions from the issue: (1) nesting -- a ~/** */~ nests
+   like a normal block comment, so ~/** /* */ */~ is one comment; (2)
+   join vs raw -- lines join with ~\n~, same as ~///~; (3) strip
+   leading ~*~ -- yes, Javadoc convention; (4) ~///~ + ~/** */~ on the
+   same decl merge (both drain into pending_doc).
+
+   Regression test: test/doc_block_comments.til (added to the suite
+   compile-only, like the other lexer tests) drives ~tokenize~ over
+   single-line, Javadoc-continuation, indented-continuation, nested,
+   ~/**/~, empty-doc, ~///~-merge and interior-blank-line inputs and
+   checks the emitted DocComment tokens.
+
+Currently only Rust-style ~///~ line doc comments are parsed.
+  Support C-style ~/** ... */~ block comments as an alternative
+  for multi-paragraph documentation. The parser already drains
+  ~///~ via ~drain_doc_comments~; adding ~/** */~ would require
+  lexer recognition of the open/close tokens and a similar drain
+  in the parser.
+
+  Relevant precedent: the rstil prototype (../rstil/) had this
+  working. Key design decisions:
+
+  - How to handle nesting (~/** /* */ */~ vs ~/** /** */ */~)
+  - Whether ~/** */~ joins lines same as ~///~ (with ~\n~) or
+    preserves the raw block text including newlines
+  - Whether to strip the leading ~*~ on continuation lines
+    (Javadoc convention: ~/**\n * line\n */~)
+  - Interaction with ~///~: should consecutive ~///~ and
+    ~/** */~ on the same decl merge or compete?
+
