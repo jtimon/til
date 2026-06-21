@@ -1,0 +1,175 @@
+# priority: high
+# category: cleanups
+** OPEN #286 Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
+
+  The interpreter's runtime value representation is the root cause of the
+  recurring memory leaks (#275 and the long tail of follow-ups after it).
+  We box every runtime value in a ~Value~ enum (~src/self/interpreter.til:382~);
+  the heap-owning variants ~Struct: StructInstance~ and ~Enum: EnumInstance~
+  keep their payload in a per-value ~own data~ malloc plus dangling ~ref~
+  type fields, binding/passing deep-clones the box, and teardown frees it
+  by hand. rstil (the Rust predecessor, github.com/jtimon/rstil, cloned at
+  ~/home/user/rstil~ in the session that filed this) has NO Value box: a
+  variable is a NAME -> OFFSET into one flat heap, the value is the raw
+  bytes (the same layout the C backend emits), the type lives in the
+  scope's symbol table, and reclamation is one ~heap_free(ptr)~ per block.
+  This issue ports that model. It is large; stage it.
+
+*** Why the current model leaks (band-aids will not converge)
+
+  ~Value.Struct(StructInstance { ref struct_name, ref struct_def, ref ctx,
+  own data, borrowed })~ (interpreter.til:144) is a SECOND memory model
+  layered on top of the raw buffer that ~make_struct_value~
+  (interpreter.til:2478) already mallocs:
+
+  - Per-value clone: 56 ~.clone()~ sites in interpreter.til alone;
+    ~Value~ / ~StructInstance.clone~ deep-copy the box, and post-#275
+    ~clone_container_str_buffer~ deep-copies container element buffers.
+  - Per-value hand-free: ~struct_deep_free~ (81), ~free_value~ (2216),
+    ~free_value_full~ (2248), ~free_container_str_data~ (2287),
+    ~free_temp_arg_value~ (2345), ~free_non_own_temp_args~ (2370). Every
+    one is a band-aid; each new clone path is a new leak (the #275
+    follow-ups -- va arrays, container teardown, own-field teardown --
+    are exactly this treadmill).
+  - Dangling refs: ~ref struct_name / struct_def / ctx~ exist ONLY so a
+    boxed value can find its own type to clone/free itself, and they
+    dangle once the AST/Context is torn down (this is #239). A value that
+    is just bytes does not carry them.
+
+  The garbager (~src/self/garbager.til~) already inserts asap-destruction
+  ~delete~ calls into the AST -- it is NOT broken. The defect is that the
+  interpreter evaluates those deletes against the ~Value~ boxes
+  (struct_deep_free, which is structurally incomplete) instead of against
+  raw heap bytes (heap_free, which is total). Same garbager, wrong runtime
+  representation.
+
+*** rstil's target model (what to port -- read these files)
+
+  ~src/rs/eval_heap.rs~, ~src/rs/init.rs~, ~src/rs/interpreter.rs~,
+  ~src/rs/garbager.rs~ in the rstil clone.
+
+  - ~ScopeFrame~ (init.rs:73): ~heap_index: HashMap<String, usize>~ maps a
+    variable name -> offset in the heap. Separate ~symbols~, ~structs~,
+    ~enums~, ~funcs~ tables hold the TYPE info (NOT carried in the value).
+  - ~ScopeStack~ (init.rs:98): ~frames: Vec<ScopeFrame>~;
+    ~lookup_var(name) -> Option<usize>~ walks frames inner->outer and
+    returns the offset (init.rs:153).
+  - ~EvalHeap~ (eval_heap.rs): one flat heap. API surface:
+      get(offset,len)->&[u8], set(offset,bytes),
+      heap_alloc(size)->ptr, heap_free(ptr)            (block-level, #163),
+      insert_i64/u8/string/struct/enum/array(ctx,id,...) -- writes bytes
+        AND records frame.heap_index[id]=offset,
+      get_i64/u8/string/enum/struct(ctx,id) -- lookup_var -> read bytes.
+    Stored via ~to_le_bytes~ / read via ~from_le_bytes~: the exact C
+    layout the backend emits.
+  - The garbager (garbager.rs, rstil Issue #159) inserts explicit
+    ~.clone()~ AST calls for deep-copy semantics on assignment; the
+    interpreter NEVER deep-clones implicitly. Reclamation is ~heap_free~.
+
+  Net target: no Value box, no StructInstance, no per-value clone, no
+  hand-free, no dangling type-refs.
+
+*** Bootstrap constraint (read FIRST)
+
+  The ~Value~ enum's integer tags are baked into ~til_boot~'s committed C
+  (that is why Sbyte/Ushort were appended at the end rather than inserted,
+  interpreter.til:397-403). Any change that REMOVES or REORDERS Value
+  variants must be staged across master merges with a preparation commit
+  (see ~doc/self.org~ "When a preparation commit is needed" / "Staged
+  migration across master merges"). Schedule all variant removals LAST,
+  after the heap path is already live. The interpreter compiles itself, so
+  every stage must also round-trip ~make two_pass~.
+
+*** Staged migration plan (each stage: keep ~make clean && make test~ at
+    157/157 AND do not regress the strings.til leak probe)
+
+  Stage 1 -- EvalHeap module. Port ~eval_heap.rs~ to a new
+    ~src/self/eval_heap.til~: a heap of malloc/realloc blocks tracked like
+    rstil's ~heap_blocks~ (ptr -> size), with get/set/heap_alloc/heap_free.
+    rstil uses a ~static mut~ singleton; in til prefer threading it through
+    ~Context~ (Context already flows everywhere) rather than a global.
+    Exercise it standalone before touching eval.
+
+  Stage 2 -- name -> offset scope. Add ~heap_index : Map(Str, USize)~ to
+    ~Scope~ (interpreter.til:484) alongside the existing
+    ~bindings : Map(Str, Binding)~, and ~scope_lookup_offset(name)~. Keep
+    both maps live so eval can migrate value-kind by value-kind.
+
+  Stage 3 -- kill the dangling type-refs (smallest standalone win; do it
+    first). Drop ~ref struct_name / struct_def / ctx~ from StructInstance;
+    carry only the struct's type NAME (owned Str or interned id) and look
+    up struct_def/ctx from the scope's type tables at use sites (mirrors
+    rstil's ~symbols~/~structs~). Removes the #239 UAF class and shrinks
+    StructInstance toward "just a pointer to bytes". Verify with
+    ~bin/til_asan~ that no use-after-free appears.
+
+  Stage 4 -- unbox Struct. Replace ~Value.Struct(StructInstance)~ with a
+    binding of (heap offset, type name): ~x := Foo(...)~ writes Foo's bytes
+    into the EvalHeap and records the offset in ~heap_index~. Field
+    access reads/writes bytes at offset+field_offset (~ctx_field_layout~
+    already returns the offsets). The garbager's ~x.delete()~ lowers to
+    ~heap_free(offset)~; ~x.clone()~ lowers to ONE generic
+    ~heap_clone(offset, type)~ = byte-copy + deep-copy of owned-pointer
+    fields (Str c_str, container data), replacing struct_deep_free AND
+    clone_container_str_buffer with a single symmetric pair.
+
+  Stage 5 -- unbox Str. A Str is {c_str, count, cap}; store it in the heap
+    and let heap_clone/heap_free own the c_str (cap < CAP_VIEW still
+    distinguishes owned from view). Remove the ~is_str~ flag and the Str
+    special-cases in free_temp_arg_value / StructInstance.clone.
+
+  Stage 6 -- unbox Enum (EnumInstance, ~interpreter.til:337~) the same
+    way: payload bytes in the heap, tag + payload-type from the enum table.
+
+  Stage 7 -- containers. Array/Vec/Map already hold ~own data~ raw
+    buffers; once Struct is unboxed they are just structs whose
+    heap_clone/heap_free recurse on the data buffer + elements. Delete
+    free_container_str_data / clone_container_str_buffer (subsumed by the
+    generic heap_clone/heap_free).
+
+  Stage 8 -- scope teardown = heap_free. ~scope_free~ walks the popped
+    frame's ~heap_index~ and heap_frees each block, honouring borrowed /
+    moved-out cells (the garbager already nulls moved-out sources). Delete
+    free_temp_arg_value, free_non_own_temp_args, struct_deep_free,
+    free_value, free_value_full.
+
+  Stage 9 -- scalars + drop the box. Move Int/Byte/.../Bool into heap
+    bytes (rstil's insert_i64), or keep a thin inline ~Value~ for scalars
+    ONLY if a full unbox is too invasive. Then remove the
+    Struct/Enum/Str/Ref/Dynamic variants from ~Value~ (the staged-
+    bootstrap step) and delete the dead clone/free machinery.
+
+*** Deletions when done
+
+  StructInstance/EnumInstance type-refs and the whole boxed-payload path;
+  struct_deep_free, free_value, free_value_full, free_container_str_data,
+  clone_container_str_buffer, free_temp_arg_value, free_non_own_temp_args,
+  and make_struct_value's boxing wrapper; the bulk of the 56 ~.clone()~
+  sites (replaced by the garbager's explicit clones + one heap_clone).
+  interpreter.til is 5631 lines today; this should delete a large fraction
+  of the runtime-memory code.
+
+*** Verification at every stage
+
+  - ~make clean && make test~ stays 157/157.
+  - strings.til ASAN probe does not regress and trends to ~0:
+      ulimit -d unlimited; TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 \
+        bin/til_asan interpret  test/strings.til
+        bin/til_asan translate test/strings.til
+    (current master: interpret 2494, translate 6070; rstil leaks nothing
+    on equivalent inputs -- the END target is 0 true leaks).
+  - ~make two_pass~ green (the interpreter self-applies).
+  - When eval semantics are ambiguous, cross-check against rstil's
+    ~interpreter.rs~ for the same construct.
+
+*** Notes
+
+  - This SUBSUMES the #275 follow-up leak work: once values are raw bytes
+    with one heap_clone/heap_free pair, the own-field / container / clone
+    leaks chased one-by-one disappear structurally rather than needing a
+    new hand-free per case.
+  - Confirm til's garbager has rstil-#159 parity (explicit clone insertion
+    for assignment deep-copy), since the new model forbids the interpreter
+    from deep-cloning implicitly. til's garbager currently emphasises
+    asap-destruction (delete insertion); verify the clone side exists or
+    add it before Stage 4.
