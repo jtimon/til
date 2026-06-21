@@ -493,6 +493,13 @@ main := proc(args: ..Str) {
     File.writefile(ext_libc_exp, format("ok", NL))
     add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
         format(til_bin, " run", asan_flag, " test/ext_libc.til"))
+    // Issue #283: a real dlopen failure must be reported loudly at RUNTIME.
+    // The diagnostic's stderr_print/ffi_last_error are ext_proc so the
+    // const-folder never executes them at build time (which printed a bogus
+    // line and dropped the runtime report). Assert the message appears exactly
+    // once when interpreting a file whose FFI .so fails to load.
+    add_count(tests, "ffi_dlopen_fail_interp", "ffi", "dlopen failed", 1,
+        format(til_bin, " interpret test/ffi_dlopen_fail.til"))
 
     // === library mode checks (pure/pura build are the heaviest here) ===
     add_single(tests, "pure_build", "library", 0, "",

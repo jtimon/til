@@ -1,0 +1,74 @@
+# priority: medium
+# category: bugs
+** FIXED #283 Bootstrap build prints nonfatal dlopen failed diagnostic
+
+*** Post-mortem
+
+    Root cause: the const-folder was executing a side-effecting FFI call at
+    COMPILE time. The const-folder folds ext_funcs (issue #136) on the stated
+    assumption that "anything side-effecting is a proc/ext_proc" and so is
+    never classified foldable (see the comment in try_eval_call,
+    src/self/constfolder.til). But ~stderr_print~, ~ffi_open_user_so~,
+    ~ffi_load_global_lib~ and ~ffi_last_error~ were declared ~ext_func~ despite
+    each having a side effect (write to stderr / dlopen / clear dlerror). While
+    folding ~ffi_init_user_so~'s body the const-folder therefore evaluated
+    ~stderr_print(format("error: dlopen failed: ", ffi_last_error(), "\n"))~ --
+    printing the bogus line during a normal ~til build~ of the compiler -- and
+    then baked the empty ~ffi_last_error()~ in and replaced the whole call with
+    its I32 return literal. Codegen dropped that bare literal as
+    ~/* TODO: unknown stmt type */~, so a *real* runtime dlopen failure printed
+    nothing at all.
+
+    Fix: declare the four side-effecting builtins as ~ext_proc~ instead of
+    ~ext_func~ (and make their ~func~ caller ~ffi_init_link_libs~ a ~proc~), so
+    the const-folder never folds them. The diagnostic now stays in the compiled
+    compiler and runs only at runtime, with the real loader error. The message
+    also now names the failing path: ~error: dlopen failed for '<path>': ...~.
+    ~ffi_user_symbol~/~ffi_global_symbol~ stayed ~ext_func~ -- their ~ref U8~
+    return is already never folded.
+
+    Regression test: ~ffi_dlopen_fail_interp~ (src/tests.til, FFI category)
+    interprets test/ffi_dlopen_fail.til, whose linked C (test/ffi_dlopen_fail.c)
+    references an undefined symbol so the FFI .so fails dlopen(RTLD_NOW). The
+    test asserts the string "dlopen failed" appears exactly once at runtime; if
+    the print is ever folded away again the count drops to 0 and the test fails.
+
+   Building the compiler currently emits a bare FFI diagnostic even when the
+   build succeeds:
+
+   : bin/til_boot build -o bin/til src/til.til
+   : error: dlopen failed:
+
+   I saw this while testing the Context builder scratch grouping, then compared
+   against current master with custom outputs and confirmed master already
+   prints the same line while exiting successfully. The full suite still passes,
+   so this is not blocking builds, but it is noisy and looks like a failed
+   bootstrap step.
+
+*** Reproduction
+
+    From master:
+
+    : bin/til_boot build -o /tmp/opencode/til_master -c /tmp/opencode/til_master.c src/til.til > tmp/master_repro.log 2>&1
+
+    Observed output:
+
+    : error: dlopen failed:
+
+    The command returns success and continues to produce the compiler output.
+
+*** Suspected area
+
+    The message comes from ~ffi_init_user_so~ in ~src/self/interpreter.til~
+    after ~ffi_open_user_so(so_path)~ returns false. The printed
+    ~ffi_last_error()~ string is empty, so the diagnostic currently gives no
+    useful reason for the failed open.
+
+*** Acceptance
+
+    - A successful compiler bootstrap no longer prints a misleading
+      ~error: dlopen failed:~ line.
+    - Real FFI loading failures still report loudly with the failing path and
+      useful loader error text.
+    - Add a regression check or tighten an existing build/FFI test so this
+      diagnostic does not silently reappear on successful builds.

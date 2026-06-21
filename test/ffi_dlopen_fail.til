@@ -1,0 +1,16 @@
+mode script
+
+// Issue #283 regression test. The linked C file references an undefined
+// symbol, so the FFI shared object built by `til interpret` fails to dlopen.
+// ffi_init_user_so must report this loudly at RUNTIME:
+//
+//   error: dlopen failed for 'tmp/ffi_<pid>.so': ...undefined symbol...
+//
+// Before the fix the const-folder evaluated that stderr_print at build time
+// (printing a bogus "dlopen failed" while compiling the compiler) and dropped
+// the call from the runtime, so a genuine load failure printed nothing here.
+link_c("test/ffi_dlopen_fail.c")
+
+til_283_boom := ext_func() returns I64 {}
+
+println(til_283_boom().to_str())
