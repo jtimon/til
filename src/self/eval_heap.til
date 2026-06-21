@@ -1,0 +1,180 @@
+mode lib
+
+// EvalHeap -- the flat raw-bytes runtime heap (#286 Stage 1).
+//
+// rstil (github.com/jtimon/rstil) drops the interpreter's boxed `Value`
+// model entirely: a variable is a NAME -> OFFSET into one flat heap, and
+// the value at that offset is just the raw bytes the C backend would emit
+// (stored little-endian, the exact layout the compiled program uses).
+// Type information lives in the scope's symbol tables, NOT in the value.
+// Reclamation is one heap_free per block instead of a per-value hand-free.
+//
+// This module ports rstil's src/rs/eval_heap.rs as the first stage of
+// #286. It is STANDALONE here: not yet wired into the interpreter or
+// Context. Later stages add a name->offset index to Scope (Stage 2) and
+// migrate eval value-kind by value-kind to read/write these bytes instead
+// of boxing a `Value` (Stages 3-9). Exercised on its own by
+// test/eval_heap.til.
+//
+// Model: one growable byte buffer (`data`, like a flat Vec(U8) that the C
+// backend would index by offset). Each live block is laid out as
+//
+//     [ size: USize (EVAL_HEAP_HEADER bytes) ][ payload: `size` bytes ]
+//
+// and heap_alloc returns the offset of the PAYLOAD. The inline size header
+// is rstil's heap_blocks (ptr -> size) tracking, carried with the block so
+// heap_free can reclaim a whole block (rstil #163) in O(1) without a side
+// table -- core Map has no per-key remove, and the header is both simpler
+// and faster. Payload sizes are rounded up to 8 so successive payloads
+// stay 8-byte aligned.
+//
+// heap_free reclaims the TOP block immediately by rewinding the bump
+// pointer; this fully reclaims a scope's blocks when they are freed in
+// LIFO order (the dominant interpreter pattern -- inner scopes pop first).
+// REM: non-top frees currently leave a hole until reset()/delete(); a free
+// list / coalescing for mid-heap churn is deferred to the stage that wires
+// EvalHeap into eval and can measure the real allocation pattern. The
+// live_blocks / live_bytes counters always track correctly either way, so
+// nothing leaks at teardown (delete() frees the whole buffer).
+//
+// Pointers handed out by `ptr` / `get_bytes` alias `data` and are INVALID
+// after the next heap_alloc that grows the buffer (realloc may move it) --
+// the same borrow rule rstil's &[u8] slices follow. Read or write through
+// them before allocating again; the typed get_*/set_* helpers each re-derive
+// the pointer from the current `data`, so they are always safe.
+
+// Bytes reserved before each payload to store the block's rounded size.
+EVAL_HEAP_HEADER : USize = 8
+// Initial buffer capacity in bytes; grows by doubling.
+EVAL_HEAP_INIT_CAP : USize = 64
+
+EvalHeap := struct {
+    own data : U8 = 0
+    // Bump pointer: bytes used (including header bytes and any holes left
+    // by non-top frees). The next block's header starts here.
+    len : USize = 0
+    cap : USize = 0
+    // Live accounting (rstil's heap_blocks reduced to two counters since the
+    // per-block size lives inline). live_bytes counts payload bytes only.
+    live_blocks : USize = 0
+    live_bytes : USize = 0
+
+namespace:
+    new := func() returns EvalHeap {
+        return EvalHeap(data = malloc(EVAL_HEAP_INIT_CAP.cast(U64)), len = 0,
+                        cap = EVAL_HEAP_INIT_CAP, live_blocks = 0, live_bytes = 0)
+    }
+
+    // Allocate a block big enough for `size` payload bytes and return the
+    // offset of its payload. The payload size is rounded up to a multiple
+    // of 8; read it back later with block_size.
+    heap_alloc := func(mut self: EvalHeap, size: USize) returns USize {
+        if size.eq(0) { panic("EvalHeap.heap_alloc: zero-size allocation") }
+        asize := size.add(7).div(8).mul(8)
+        block_off := self.len
+        user_off := block_off.add(EVAL_HEAP_HEADER)
+        need := user_off.add(asize)
+        if need.gt(self.cap) {
+            mut new_cap := self.cap
+            if new_cap.eq(0) { new_cap = EVAL_HEAP_INIT_CAP }
+            while need.gt(new_cap) { new_cap = new_cap.mul(2) }
+            self.data = realloc(own self.data, new_cap.cast(U64))
+            self.cap = new_cap
+        }
+        ref mut hdr : USize = ptr_add(self.data, block_off.cast(U64))
+        hdr = asize
+        self.len = need
+        self.live_blocks = self.live_blocks.add(1)
+        self.live_bytes = self.live_bytes.add(asize)
+        return user_off
+    }
+
+    // Rounded payload size of the block whose payload is at `offset`.
+    block_size := func(self: EvalHeap, offset: USize) returns USize {
+        ref hdr : USize = ptr_add(self.data, offset.sub(EVAL_HEAP_HEADER).cast(U64))
+        return hdr.clone()
+    }
+
+    // Reclaim the block whose payload is at `offset`. Rewinds the bump
+    // pointer when this is the top block (full reclaim); otherwise the
+    // span stays a hole until reset()/delete() (see header REM).
+    heap_free := func(mut self: EvalHeap, offset: USize) {
+        if self.live_blocks.eq(0) { panic("EvalHeap.heap_free: no live blocks") }
+        asize := EvalHeap.block_size(self, offset)
+        self.live_blocks = self.live_blocks.sub(1)
+        self.live_bytes = self.live_bytes.sub(asize)
+        if offset.add(asize).eq(self.len) {
+            self.len = offset.sub(EVAL_HEAP_HEADER)
+        }
+    }
+
+    // Drop every block at once, keeping the buffer for reuse.
+    reset := func(mut self: EvalHeap) {
+        self.len = 0
+        self.live_blocks = 0
+        self.live_bytes = 0
+    }
+
+    // Raw pointer to the payload bytes at `offset` (alias of `data`,
+    // invalidated by the next growing heap_alloc -- see header).
+    ptr := func(self: EvalHeap, offset: USize) returns ref Dynamic {
+        return ptr_add(self.data, offset.cast(U64))
+    }
+
+    // Copy `n` bytes from `src` into the block at `offset`.
+    set_bytes := func(self: EvalHeap, offset: USize, src: Dynamic, n: USize) {
+        memcpy(ptr_add(self.data, offset.cast(U64)), src, n.cast(U64))
+    }
+
+    // Copy `n` bytes from the block at `offset` into `dst`.
+    get_bytes := func(self: EvalHeap, offset: USize, dst: Dynamic, n: USize) {
+        memcpy(dst, ptr_add(self.data, offset.cast(U64)), n.cast(U64))
+    }
+
+    // --- Typed scalar accessors (native little-endian C layout). ---
+
+    set_i64 := func(self: EvalHeap, offset: USize, val: I64) {
+        write_i64(ptr_add(self.data, offset.cast(U64)), val)
+    }
+    get_i64 := func(self: EvalHeap, offset: USize) returns I64 {
+        ref v : I64 = ptr_add(self.data, offset.cast(U64))
+        return v.clone()
+    }
+
+    set_u64 := func(self: EvalHeap, offset: USize, val: U64) {
+        write_u64(ptr_add(self.data, offset.cast(U64)), val)
+    }
+    get_u64 := func(self: EvalHeap, offset: USize) returns U64 {
+        ref v : U64 = ptr_add(self.data, offset.cast(U64))
+        return v.clone()
+    }
+
+    set_u8 := func(self: EvalHeap, offset: USize, val: U8) {
+        write_u8(ptr_add(self.data, offset.cast(U64)), val)
+    }
+    get_u8 := func(self: EvalHeap, offset: USize) returns U8 {
+        ref v : U8 = ptr_add(self.data, offset.cast(U64))
+        return v.clone()
+    }
+
+    set_f32 := func(self: EvalHeap, offset: USize, val: F32) {
+        write_f32(ptr_add(self.data, offset.cast(U64)), val)
+    }
+    get_f32 := func(self: EvalHeap, offset: USize) returns F32 {
+        ref v : F32 = ptr_add(self.data, offset.cast(U64))
+        return v.clone()
+    }
+
+    set_bool := func(self: EvalHeap, offset: USize, val: Bool) {
+        write_bool(ptr_add(self.data, offset.cast(U64)), val)
+    }
+    get_bool := func(self: EvalHeap, offset: USize) returns Bool {
+        ref v : Bool = ptr_add(self.data, offset.cast(U64))
+        return v.clone()
+    }
+
+    delete := func(own self: EvalHeap, call_free: Bool = true) {
+        free(own self.data)
+        if call_free { free(own self) }
+    }
+}

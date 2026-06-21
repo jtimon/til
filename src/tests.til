@@ -424,6 +424,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/comparisons.til", flags)
     add_both(tests, "test/vecs.til", flags)
     add_both(tests, "test/dyn_vecs.til", flags)
+    add_both(tests, "test/eval_heap.til", flags)
     add_both(tests, "test/templ_vec.til", flags)
     add_both(tests, "test/templ_cross_unit.til", flags)
     add_both(tests, "test/templ_type_only.til", flags)

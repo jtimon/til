@@ -1,6 +1,6 @@
 # priority: high
 # category: cleanups
-** OPEN #286 Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
+** WIP #286 Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
 
   The interpreter's runtime value representation is the root cause of the
   recurring memory leaks (#275 and the long tail of follow-ups after it).
@@ -14,6 +14,25 @@
   bytes (the same layout the C backend emits), the type lives in the
   scope's symbol table, and reclamation is one ~heap_free(ptr)~ per block.
   This issue ports that model. It is large; stage it.
+
+*** Progress
+
+  - Stage 1 DONE: ported rstil's eval_heap.rs to ~src/self/eval_heap.til~ --
+    a flat raw-bytes runtime heap. One growable byte buffer; each block is
+    laid out [size header][payload]; heap_alloc returns the payload offset;
+    heap_free reclaims the top block by rewinding the bump pointer; typed
+    get_*/set_* read/write the native little-endian C layout the backend
+    emits. STANDALONE -- not yet wired into eval or Context. Exercised by
+    ~test/eval_heap.til~ (alloc/free, size rounding, typed round-trips,
+    sub-block addressing, raw byte copy, top-block rewind reuse, realloc
+    growth) in both interpret and compiled+ASAN modes.
+    ~make clean && make test~ green at 161/161.
+    REM: non-top frees leave a hole until reset()/delete(); a free
+    list / coalescing is deferred to the stage that wires EvalHeap into
+    eval and can measure the real allocation pattern.
+  - Stages 2-9 remain: Scope name->offset index, kill the dangling
+    type-refs, unbox Struct/Str/Enum, containers, scope-teardown =
+    heap_free, drop the Value box.
 
 *** Why the current model leaks (band-aids will not converge)
 
