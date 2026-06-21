@@ -13,7 +13,11 @@ import("scavenger")
 
 // --- External C bridges used by the loader ---
 
-realpath_str := ext_func(path: Str) returns Str {}
+// realpath_str resolves a path against the live filesystem/CWD, so its result
+// is not a pure function of its argument -- folding it would bake a
+// CWD-dependent path at build time. It is ext_proc (not ext_func) so the
+// const-folder never folds it; see #283. Its func callers below are procs too.
+realpath_str := ext_proc(path: Str) returns Str {}
 
 // --- Leaf helpers ---
 
@@ -68,7 +72,7 @@ priv dir_of := func(abs: Str) returns Str {
     return abs.substr(0, last_slash).clone()
 }
 
-priv resolve_link_path := func(base_dir: Str, root_dir: Str, path: Str) returns Str {
+priv resolve_link_path := proc(base_dir: Str, root_dir: Str, path: Str) returns Str {
     if path.starts_with("/") {
         return path
     }
@@ -94,7 +98,7 @@ ProgramUnit := struct {
 }
 
 // Resolve a file's direct import paths to display paths.
-priv resolve_import_disps := func(import_paths: Vec(Str), base_dir: Str, lib_dir: Str, cwd: Str) returns Vec(Str) {
+priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir: Str, cwd: Str) returns Vec(Str) {
     mut out := Vec(Str).new()
     for import_path : Str in import_paths {
         mut try_path := base_dir.format("/", import_path)
@@ -716,7 +720,7 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
 
 // Scan program AST for link()/link_c() directives; fill link_flags,
 // include_flags, link_c_paths on the given LoadedProgram.
-priv extract_link_info := func(mut lp: LoadedProgram) {
+priv extract_link_info := proc(mut lp: LoadedProgram) {
     root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them. Move iu.ast.children into a local Vec
