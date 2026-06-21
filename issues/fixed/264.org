@@ -1,0 +1,84 @@
+# priority: low
+# category: features
+** FIXED #264 Let enum specify its discriminant type: enum(U8), enum(U64), ...
+
+*** Post-mortem
+
+  Root cause: enums always emitted their tag as a C ~enum {}~ typedef
+  (~<name>_tag~, effectively C ~int~ = 4 bytes) with no way to choose the
+  width, and ~compute_enum_layout~ hardcoded the tag at 4 bytes.
+
+  Fix:
+  - ~EnumDef~ gained a ~tag_type~ field (empty = default U32), appended at
+    the end of the struct to minimise til_boot layout disturbance
+    (~src/core/ast.til~).
+  - ~parse_enum_def~ parses the optional ~(Type)~ before ~implements~/~{~
+    and rejects anything but U8/U16/U32/U64; it also rejects a tag too
+    narrow to hold all variants (~src/self/parser.til~). Only the paren form
+    is accepted.
+  - ~enum_tag_type~ / ~enum_tag_size~ helpers (~src/self/context.til~).
+  - ~compute_enum_layout~ now uses the chosen tag width for the tag size,
+    payload offset and alignment base (~src/self/initer.til~), so
+    ~dyn_size_of~ matches.
+  - ~emit_enum_struct_body~ emits the chosen C integer type for the tag
+    field when ~(Type)~ was given, else keeps ~<name>_tag~
+    (~src/self/builder.til~).
+
+  Audit (open question in the issue): the type-erased runtime ~is(void*,
+  void*)~ compared tags via ~*(I32*)~, a fixed 4-byte read. That over-reads
+  a 1- or 2-byte enum struct (the actual failure: a U8 enum's ~eq~ compared
+  garbage). Added ~is_n(void*, void*, size)~ (~src/c/ext.c~ / ~ext.h~,
+  declared in ~src/core/dyn.til~ with a ~shallow~ size param so it is passed
+  by value) and routed the auto-generated ~eq~/~is~/~to_str~/~clone~/~delete~
+  methods and the switch-case lowering (~make_is_tag_check_fcall~ +
+  ~make_switch_case_condition~ in ~src/self/desugarer.til~) through it for
+  non-4-byte tags. 4-byte (default/U32) enums still use plain ~is~, so
+  existing boot output is unchanged.
+
+  The anonymous-enum structural signature folds in ~tag_type~ so two anon
+  enums differing only in tag width are distinct types.
+
+  Regression test: ~test/enums.til~ -- ~test_enum_tag_width_sizes~ (sizeof
+  via ~dyn_size_of~ for default/U8/U16/U64), ~test_enum_tag_width_behaviour~
+  (eq/to_str on a U8 and U64 tag), ~test_enum_tag_width_payload~ (a U8 tag
+  with a payload variant).
+
+An ~enum~ has an implicit discriminant (tag) type. Conceptually the
+default is ~enum(U32)~. The user should be able to override it:
+
+    Color  := enum(U8)  { Red, Green, Blue }       // 1-byte tag
+    Big    := enum(U64) { ... }                    // 8-byte tag
+    Status := enum      { Ok, Err }                // default == enum(U32)
+
+The point is control over the in-memory size of the tag (compactness, and
+matching a C enum's backing type for FFI).
+
+*** Current state
+
+  Enums emit their tag as a C ~enum {}~ typedef named ~<name>_tag~
+  (~src/self/builder.til~, the ~EnumDef~ forward-decl path), which is C
+  ~int~ by default. There is no user-facing way to choose the width.
+
+*** Scope
+
+  - Syntax: ~enum(Type) { ... }~. Decide whether to also accept the
+    paren-less ~enum Type { ... }~; recommend the paren form for symmetry
+    with ~ext_struct("tag")~ and to keep the grammar unambiguous.
+  - Allowed Types: unsigned integer primitives at least (~U8~ ~U16~ ~U32~
+    ~U64~); decide on signed.
+  - Parser: ~parse_enum_def~ reads the optional ~(Type)~ before the ~{~
+    and stores it on ~EnumDef~ (new field, default ~U32~).
+  - Builder: emit the tag field with the chosen integer type instead of a
+    bare C ~enum~ typedef (or pin the enum's underlying type), so
+    ~sizeof~ matches.
+  - Validation: reject types too small to hold all variants? (N variants
+    need a tag that can represent 0..N-1.) At minimum document the
+    behavior.
+
+*** Open questions
+
+  - Does any current code assume the tag is exactly ~int~/~U32~ width
+    (e.g. ~dyn_size_of~, clone/delete, the ~.tag~ accesses)? Audit before
+    changing the default representation.
+  - Interaction with payload-carrying variants (the union following the
+    tag): only the tag width changes; payload layout is unaffected.

@@ -206,7 +206,10 @@ priv anon_def_key := func(def: Expr) returns Str {
         }
         return format(k, "}")
     case NodeType.EnumDef(edd):
-        mut k := "enum{"
+        mut k := "enum"
+        // #264: tag width is part of the type identity.
+        if edd.tag_type.len().gt(0) { k = format(k, "(", edd.tag_type, ")") }
+        k = format(k, "{")
         for j in 0..edd.variants.len() {
             ref vn : Str = edd.variants[j]
             k = format(k, vn)
@@ -1050,6 +1053,23 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     ref edd : EnumDef = enumdef_of(def)
 
+    // #264: optional discriminant type, `enum(Type) { ... }`. Only the
+    // paren form is accepted (symmetry with ext_struct("tag") and an
+    // unambiguous grammar). Allowed types are the unsigned integer
+    // primitives; anything else is a parse error.
+    if check(p, TokenType.LParen) {
+        advance(p)
+        tt_line := peek_line(p)
+        tt_col := peek_col(p)
+        tt := expect_text(p, TokenType.Ident)
+        if tt.eq("U8").or(tt.eq("U16")).or(tt.eq("U32")).or(tt.eq("U64")).not() {
+            panic(__LOC__, p.path, ":", tt_line.to_str(), ":", tt_col.to_str(),
+                ": enum discriminant type must be U8, U16, U32 or U64, found '", tt, "'")
+        }
+        edd.tag_type = tt.clone()
+        expect_token(p, TokenType.RParen)
+    }
+
     // Issue #251: `enum implements Iface { ... }` records the interface the
     // enum conforms to; the typer verifies it provides every abstract method
     // Iface lists, exactly as for `struct implements Iface`.
@@ -1128,6 +1148,15 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
+    // #264: a pinned tag must be wide enough to represent 0..N-1.
+    if edd.tag_type.eq("U8").and(variant_idx.gt(256)) {
+        panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
+            ": enum has ", variant_idx.to_str(), " variants, too many for a U8 discriminant (max 256)")
+    }
+    if edd.tag_type.eq("U16").and(variant_idx.gt(65536)) {
+        panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
+            ": enum has ", variant_idx.to_str(), " variants, too many for a U16 discriminant (max 65536)")
+    }
     p.pending_doc = saved_doc.clone()
     return def
 }

@@ -3805,7 +3805,18 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
 
 priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context) {
     f.write("struct ").write(ename).write(" {\n")
-    f.write("    ").write(ename).write("_tag tag;\n")
+    // #264: when `enum(Type)` pinned the discriminant width, emit the tag
+    // field with that integer type so sizeof matches; the `<ename>_TAG_X`
+    // enum constants stay usable as plain integer values. Otherwise keep
+    // the historical C-`enum`-backed `<ename>_tag` field.
+    mut tag_ctype := ename.format("_tag")
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        if edd.tag_type.len().gt(0) { tag_ctype = type_name_to_c_value(edd.tag_type, ctx) }
+    case:
+        UNREACHABLE()
+    }
+    f.write("    ").write(tag_ctype).write(" tag;\n")
     if enum_has_payloads(enum_def) {
         f.write("    union {\n")
         switch enum_def.node_type {

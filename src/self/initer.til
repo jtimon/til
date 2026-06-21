@@ -575,13 +575,21 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
 
 priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
-    mut is_id := Expr.new(ident_node("is"), line, col)
+    // #264: pick `is` (4-byte tag) or `is_n` (width-correct) for the tag.
+    tag_sz := enum_tag_size(enum_def)
+    mut builtin := "is"
+    if tag_sz.neq(4) { builtin = "is_n" }
+    mut is_id := Expr.new(ident_node(builtin), line, col)
     mut self_id := Expr.new(ident_node("self"), line, col)
     mut other_id := Expr.new(ident_node("other"), line, col)
     mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     is_call.add_child(own is_id)
     is_call.add_child(own self_id)
     is_call.add_child(own other_id)
+    if tag_sz.neq(4) {
+        mut sz_lit := Expr.new(literal_num_node(tag_sz.to_str()), line, col)
+        is_call.add_child(own sz_lit)
+    }
     mut ret := Expr.new(NodeType.Return, line, col)
     ret.add_child(own is_call)
     func_body.add_child(own ret)
@@ -611,7 +619,7 @@ priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col:
     mut func_body := Expr.new(NodeType.Body, line, col)
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
-        mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
+        mut is_call := make_is_tag_check_fcall("self", ename, vn, enum_tag_size(enum_def), line, col)
 
         mut then_body := Expr.new(NodeType.Body, line, col)
 
@@ -619,7 +627,7 @@ priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col:
         if vtype.len().gt(0) {
             is_funcsig := type_from_name_init(vtype, scope).is_funcptr()
 
-            mut is_call2 := make_is_tag_check_fcall("other", ename, vn, line, col)
+            mut is_call2 := make_is_tag_check_fcall("other", ename, vn, enum_tag_size(enum_def), line, col)
             mut not_call := make_method_call_fcall(own is_call2, "not", line, col)
 
             mut ret_false := Expr.new(NodeType.Return, line, col)
@@ -653,7 +661,7 @@ priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col:
                 then_body.add_child(own ret_eq)
             }
         } else {
-            mut is_call3 := make_is_tag_check_fcall("other", ename, vn, line, col)
+            mut is_call3 := make_is_tag_check_fcall("other", ename, vn, enum_tag_size(enum_def), line, col)
             mut ret := Expr.new(NodeType.Return, line, col)
             ret.add_child(own is_call3)
             then_body.add_child(own ret)
@@ -698,7 +706,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
             if vtype.eq("Dynamic") { continue }
             if type_from_name_init(vtype, scope).is_funcptr() { continue }
 
-            mut is_call := make_is_tag_check_fcall("self", ename, variant_names[j], line, col)
+            mut is_call := make_is_tag_check_fcall("self", ename, variant_names[j], enum_tag_size(enum_def), line, col)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
 
@@ -769,7 +777,7 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
         ref vtype : Str = variant_types[j]
 
         if has_payloads {
-            mut is_call := make_is_tag_check_fcall("self", ename, vn, line, col)
+            mut is_call := make_is_tag_check_fcall("self", ename, vn, enum_tag_size(enum_def), line, col)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
             if vtype.len().gt(0).and(type_from_name_init(vtype, scope).is_funcptr()) {
@@ -970,7 +978,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
         if emit_guard {
             mut cond := Expr.new(NodeType.Literal(Literal.Null), line, col)
             if has_payloads {
-                cond = make_is_tag_check_fcall("self", ename, vname, line, col)
+                cond = make_is_tag_check_fcall("self", ename, vname, enum_tag_size(enum_def), line, col)
             } else {
                 mut self_id := Expr.new(ident_node("self"), line, col)
                 mut cond_call := make_method_call_fcall(own self_id, "eq", line, col)
@@ -1924,8 +1932,10 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
     ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4))
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
+        // #264: the tag width is chosen by `enum(Type)`; default U32 (4).
+        tag_size := enum_tag_size(enum_def)
         mut max_payload_size : USize = 0
-        mut max_payload_align : USize = 4
+        mut max_payload_align : USize = tag_size
         for vi in 0..edd.variants.len() {
             vt := enum_variant_type(enum_def, vi.cast(I32))
             if vt.len().eq(0) { continue }
@@ -1935,9 +1945,9 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
             if psz.gt(max_payload_size) { max_payload_size = psz }
             if palign.gt(max_payload_align) { max_payload_align = palign }
         }
-        mut total : USize = 4
+        mut total : USize = tag_size
         if max_payload_size.gt(0) {
-            total = align_up(4, max_payload_align)
+            total = align_up(tag_size, max_payload_align)
             total = total.add(max_payload_size)
         }
         total = align_up(total, max_payload_align)

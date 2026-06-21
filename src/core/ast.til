@@ -385,6 +385,11 @@ EnumDef : StructDef = struct {
     // method of Iface with a matching signature. Enums carry methods in their
     // namespace just as structs do, so conformance checks identically.
     implements_name := ""
+    // #264: discriminant (tag) type chosen via `enum(Type) { ... }`.
+    // Empty means unspecified, which defaults to U32 (the historical
+    // C-`enum`-backed width). Appended at the end to minimise layout
+    // disturbance for til_boot.
+    tag_type := ""
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len().eq(b.variants.len())

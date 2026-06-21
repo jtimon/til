@@ -592,6 +592,17 @@ void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
+/* #264: compare enum tags of a chosen width without over-reading a struct
+ * narrower than 4 bytes (enum(U8)/enum(U16)) or under-reading a wider one
+ * (enum(U64)). */
+Bool is_n(void *self, void *other, USize size) {
+    switch (size) {
+    case 1: return *(U8*)self == *(U8*)other;
+    case 2: return *(U16*)self == *(U16*)other;
+    case 8: return *(U64*)self == *(U64*)other;
+    default: return *(U32*)self == *(U32*)other;
+    }
+}
 void *get_payload(void *self) { return (U8*)self + sizeof(void *); }
 
 // CLI arg parsing

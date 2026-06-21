@@ -853,3 +853,38 @@ test_mut_nested_enum_payload_binding := test() {
     case: assert_eq(Str, "wrong outer variant", "")
     }
 }
+
+// #264: `enum(Type)` pins the discriminant (tag) width. The default
+// (no parens) stays U32 (4 bytes); U8/U16/U64 shrink/grow the in-memory
+// tag so sizeof matches a chosen C backing type for FFI/compactness.
+TagDefault := enum { A, B, C }
+TagU8  := enum(U8)  { A, B, C }
+TagU16 := enum(U16) { A, B, C }
+TagU64 := enum(U64) { A, B, C }
+
+test_enum_tag_width_sizes := test() {
+    assert_eq(I64, dyn_size_of("TagDefault").to_i64(), 4)
+    assert_eq(I64, dyn_size_of("TagU8").to_i64(), 1)
+    assert_eq(I64, dyn_size_of("TagU16").to_i64(), 2)
+    assert_eq(I64, dyn_size_of("TagU64").to_i64(), 8)
+}
+
+test_enum_tag_width_behaviour := test() {
+    c := TagU8.B
+    expect(c.eq(TagU8.B), "U8 tag: B eq B")
+    expect(c.eq(TagU8.A).not(), "U8 tag: B neq A")
+    assert_eq(Str, TagU8.C.to_str(), "C")
+    assert_eq(Str, TagU64.A.to_str(), "A")
+}
+
+// A pinned tag with payload variants: only the tag width changes, the
+// payload union layout is unaffected.
+TagU8Payload := enum(U8) { None, Num: I64 }
+
+test_enum_tag_width_payload := test() {
+    v := TagU8Payload.Num(42)
+    switch v {
+    case TagU8Payload.Num(n): assert_eq(I64, n, 42)
+    case: assert_eq(Str, "wrong variant", "")
+    }
+}

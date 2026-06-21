@@ -1722,6 +1722,7 @@ typedef struct EnumDef {
     Map__I64_Str payload_types;
     Vec__Bool payload_consts;
     Str implements_name;
+    Str tag_type;
 } EnumDef;
 
 
@@ -2461,7 +2462,7 @@ U32 align_up(U32 offset, U32 align);
 void constfolder_classify_stmt(Expr * stmt, Context * ctx);
 Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
-Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, U32 line, U32 col);
+Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, U32 tag_size, U32 line, U32 col);
 Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col, Bool is_mut);
 Bool type_is_primitive(Type * t, Primitive * p);
 Bool is_type_metatype(Type * t);
@@ -2476,6 +2477,8 @@ Bool is_func_decl(Expr * stmt);
 Bool is_def(Expr * stmt);
 Vec__Declaration * def_ns_decls(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
+Str * enum_tag_type(Expr * enum_def);
+U32 enum_tag_size(Expr * enum_def);
 I32 enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Bool enum_variant_payload_const(Expr * enum_def, I32 tag);

@@ -3054,7 +3054,11 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                                         payload_type = enum_variant_type(enum_def, vt_tag)
                                     }
                                     if payload_type.len().gt(0) {
-                                        mut iv_id := Expr.new(ident_node("is"), sw_line, sw_col)
+                                        // #264: width-correct tag comparison.
+                                        sw_tag_sz := enum_tag_size(enum_def)
+                                        mut sw_builtin := "is"
+                                        if sw_tag_sz.neq(4) { sw_builtin = "is_n" }
+                                        mut iv_id := Expr.new(ident_node(sw_builtin), sw_line, sw_col)
                                         mut sw_id := sw_ref.clone()
                                         mut vtype_id := Expr.new(ident_node(type_name), sw_line, sw_col)
                                         mut vref := Expr.new(field_access_node(variant_name), sw_line, sw_col)
@@ -3063,6 +3067,10 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                                         condition.add_child(own iv_id)
                                         condition.add_child(own sw_id)
                                         condition.add_child(own vref)
+                                        if sw_tag_sz.neq(4) {
+                                            mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
+                                            condition.add_child(own sw_sz_lit)
+                                        }
 
                                         mut sw_id2 := sw_ref.clone()
                                         // #211: payload binding inherits the matched value's
@@ -3152,7 +3160,11 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                                     }
                                     if payload_type3.len().gt(0) {
                                         // outer condition: sw_ref.is(Type.Variant)
-                                        mut iv_id3 := Expr.new(ident_node("is"), sw_line, sw_col)
+                                        // #264: width-correct tag comparison.
+                                        sw_tag_sz3 := enum_tag_size(enum_def3)
+                                        mut sw_builtin3 := "is"
+                                        if sw_tag_sz3.neq(4) { sw_builtin3 = "is_n" }
+                                        mut iv_id3 := Expr.new(ident_node(sw_builtin3), sw_line, sw_col)
                                         mut sw_id3 := sw_ref.clone()
                                         mut vtype_id3 := Expr.new(ident_node(type_name3), sw_line, sw_col)
                                         mut vref3 := Expr.new(field_access_node(variant_name3), sw_line, sw_col)
@@ -3161,6 +3173,10 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                                         outer_cond3.add_child(own iv_id3)
                                         outer_cond3.add_child(own sw_id3)
                                         outer_cond3.add_child(own vref3)
+                                        if sw_tag_sz3.neq(4) {
+                                            mut sw_sz_lit3 := Expr.new(literal_num_node(sw_tag_sz3.to_str()), sw_line, sw_col)
+                                            outer_cond3.add_child(own sw_sz_lit3)
+                                        }
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
@@ -3213,7 +3229,11 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                             // tag-only comparison and never recurses through a
                             // user-defined eq (which is itself often defined as a
                             // switch -- e.g. Value.eq).
-                            mut iv_id := Expr.new(ident_node("is"), sw_line, sw_col)
+                            // #264: width-correct tag comparison.
+                            sw_tag_sz := enum_tag_size(enum_def)
+                            mut sw_builtin := "is"
+                            if sw_tag_sz.neq(4) { sw_builtin = "is_n" }
+                            mut iv_id := Expr.new(ident_node(sw_builtin), sw_line, sw_col)
                             mut sw_id := sw_ref.clone()
                             mut vtype_id := Expr.new(ident_node(type_name), sw_line, sw_col)
                             mut vref := Expr.new(field_access_node(variant_name), sw_line, sw_col)
@@ -3222,6 +3242,10 @@ priv make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, m
                             condition.add_child(own iv_id)
                             condition.add_child(own sw_id)
                             condition.add_child(own vref)
+                            if sw_tag_sz.neq(4) {
+                                mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
+                                condition.add_child(own sw_sz_lit)
+                            }
                             has_condition = true
                         }
                     }
