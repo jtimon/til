@@ -725,3 +725,13 @@ namespace:
 TErrConfEnumImplNonIface := enum implements TErrConfNotIface {
     A,
 }
+
+// #287: the key binding of a two-variable for-in cannot be `mut` -- mutating
+// a key in place would corrupt the map's key ordering / bucket placement.
+// Values may be mutated (`for k, mut v`); keys may not.
+terr_kvmut_map := Map(Str, I64).new()
+terr_kvmut_map.set("a", own 1)
+for mut k, v in terr_kvmut_map {
+    println(k)
+    println(v.to_str())
+}

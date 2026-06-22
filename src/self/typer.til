@@ -7498,6 +7498,16 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
         return false
     }
 
+    // The key of a two-variable for-in cannot be `mut`: mutating a key in
+    // place breaks the map's key ordering (Map/DynMap binary search) and
+    // bucket placement (HashMap), so a later get/has/set would silently
+    // miss. Values may be mutated (`for k, mut v`); keys may not. Flag it
+    // and continue as a non-mut key so the rest of typing stays sane.
+    if forin_is_mut {
+        stmt.type_error("for k, v in map: the key binding cannot be 'mut' -- mutating a key in place breaks the map's key ordering; drop 'mut' on the key (use 'for k, mut v' to mutate values)", ctx)
+        forin_is_mut = false
+    }
+
     ref mut iter : Expr = stmt.children[0]
     infer_expr(scope, iter, in_func, ctx)
 
@@ -7586,22 +7596,29 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
     mut wbody := Expr.new(NodeType.Body, line, col)
 
     // ref [mut] k : K = _fc.keys.unsafe_get(_fi)
-    mut key_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = key_elem, own_type = OwnType.Ref, is_mut = forin_is_mut)), line, col)
-    mut keys_recv := Expr.new(field_access_node("keys"), line, col)
-    keys_recv.add_child(own Expr.new(ident_node(col_name), line, col))
-    mut key_get := make_method_call_fcall(own keys_recv, "unsafe_get", line, col)
-    key_get.add_child(own Expr.new(ident_node(idx_name), line, col))
-    key_decl.add_child(own key_get)
-    wbody.add_child(own key_decl)
+    // A `_` binding is a discard: emit no decl for it. The body never
+    // references `_`, and two `_` element decls in one scope would collide
+    // as identical C identifiers (`for _, _ in map` -> "redefinition of _").
+    if var_name.eq("_").not() {
+        mut key_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = key_elem, own_type = OwnType.Ref, is_mut = forin_is_mut)), line, col)
+        mut keys_recv := Expr.new(field_access_node("keys"), line, col)
+        keys_recv.add_child(own Expr.new(ident_node(col_name), line, col))
+        mut key_get := make_method_call_fcall(own keys_recv, "unsafe_get", line, col)
+        key_get.add_child(own Expr.new(ident_node(idx_name), line, col))
+        key_decl.add_child(own key_get)
+        wbody.add_child(own key_decl)
+    }
 
     // ref [mut] v : V = _fc.values.unsafe_get(_fi)
-    mut val_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name2, explicit_type = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2)), line, col)
-    mut vals_recv := Expr.new(field_access_node("values"), line, col)
-    vals_recv.add_child(own Expr.new(ident_node(col_name), line, col))
-    mut val_get := make_method_call_fcall(own vals_recv, "unsafe_get", line, col)
-    val_get.add_child(own Expr.new(ident_node(idx_name), line, col))
-    val_decl.add_child(own val_get)
-    wbody.add_child(own val_decl)
+    if var_name2.eq("_").not() {
+        mut val_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name2, explicit_type = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2)), line, col)
+        mut vals_recv := Expr.new(field_access_node("values"), line, col)
+        vals_recv.add_child(own Expr.new(ident_node(col_name), line, col))
+        mut val_get := make_method_call_fcall(own vals_recv, "unsafe_get", line, col)
+        val_get.add_child(own Expr.new(ident_node(idx_name), line, col))
+        val_decl.add_child(own val_get)
+        wbody.add_child(own val_decl)
+    }
 
     // _fi = _fi.add(1)
     mut idx_assign_kv := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)

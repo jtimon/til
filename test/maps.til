@@ -122,3 +122,17 @@ test_map_for_in_kv_ignore_key := test() {
     }
     assert_eq(I64, sum, 600)
 }
+
+// Both bindings may be `_` (count-only walk). Each `_` is a discard that
+// emits no element decl, so the two do not collide as duplicate C locals.
+test_map_for_in_kv_ignore_both := test() {
+    m := Map(Str, I64).new()
+    m.set("a", own 1)
+    m.set("b", own 2)
+    m.set("c", own 3)
+    mut n := 0
+    for _, _ in m {
+        n = n.add(1)
+    }
+    assert_eq(I64, n, 3)
+}
