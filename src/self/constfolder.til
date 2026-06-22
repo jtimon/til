@@ -503,8 +503,10 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
         // for-in loop variables live in the ForIn payload, not as a Decl
         // child. The interpreter binds them when it walks the loop, so
         // they are body-locals just like a Decl name -- don't flag them
-        // as unknown globals.
+        // as unknown globals. The two-variable `for k, v in map` form
+        // binds name2 as well.
         if fd.name.eq(name) { return true }
+        if fd.name2.eq(name) { return true }
     case NodeType.FuncDef:
         return false
     case:

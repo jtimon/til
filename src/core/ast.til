@@ -508,11 +508,15 @@ namespace:
     to_str := func(self: FieldAssignData) returns Str { return self.name }
 }
 
-/// Payload for `for name in range` loop nodes.
+/// Payload for `for name in range` loop nodes. The two-variable
+/// key/value form `for k, v in map` fills name2/is_mut2; name2 is
+/// empty for the ordinary single-variable form.
 ForInData := struct {
     name := ""
     is_mut := false
     til_type := Type.Unknown
+    name2 := ""
+    is_mut2 := false
 namespace:
     eq := func(a: ForInData, b: ForInData) returns Bool { return a.name.eq(b.name) }
     to_str := func(self: ForInData) returns Str { return self.name }
@@ -870,8 +874,14 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.If:             return "If"
     case NodeType.While:          return "While"
     case NodeType.ForIn(fi):
-        if fi.is_mut { return format("ForIn mut ", fi.name) }
-        return format("ForIn ", fi.name)
+        mut head := "ForIn "
+        if fi.is_mut { head = "ForIn mut " }
+        if fi.name2.len().gt(0) {
+            mut tail := format(", ", fi.name2)
+            if fi.is_mut2 { tail = format(", mut ", fi.name2) }
+            return format(head, fi.name, tail)
+        }
+        return format(head, fi.name)
     case NodeType.NamedArg(s):    return format("NamedArg ", s)
     case NodeType.Break:          return "Break"
     case NodeType.Continue:       return "Continue"

@@ -4727,7 +4727,9 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I
         switch_lowered := infer_switch_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
         if switch_lowered { i = i.sub(1) }
     case NodeType.ForIn:
-        if desugar_for_in_range_stmt(scope, body, i, in_func, ctx) {
+        if desugar_for_in_kv_stmt(scope, body, i, in_func, ctx) {
+            i--
+        } else if desugar_for_in_range_stmt(scope, body, i, in_func, ctx) {
             i--
         } else if desugar_for_in_collection_stmt(scope, body, i, in_func, ctx) {
             i--
@@ -7409,6 +7411,200 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
 
     for e_bi : Expr in for_body.children {
         wbody.add_child(own e_bi.clone())
+    }
+
+    while_node.add_child(own wbody)
+    block.add_child(own while_node)
+    replace_body_stmt_with_block(body, stmt_idx, own block)
+    return true
+}
+
+// True when struct/enum def `sdef` declares a field named `field_name`.
+priv struct_def_has_field := func(sdef: Expr, field_name: Str) returns Bool {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        for fd : Declaration in sd.fields {
+            if fd.name.eq(field_name) { return true }
+        }
+    case:
+    }
+    return false
+}
+
+// Element type of a collection type named `col_type_name`, read off its
+// unchecked accessor's (unsafe_get, else get) return type -- the same
+// resolution desugar_for_in_collection_stmt uses for the single-variable
+// element decl. Returns "" when the type or accessor is missing. The
+// element decls need this concrete type explicitly: a typeless `ref`
+// decl makes the interpreter copy the value instead of aliasing the
+// slot, so a `for k, mut v` write would not persist.
+priv collection_elem_type_of := func(scope: TypeScope, col_type_name: Str) returns Str {
+    ref col_sdef : Expr = scope.get_struct(col_type_name)
+    if col_sdef.is_null() { return "" }
+    mut method_name := "unsafe_get"
+    if find_namespace_func(col_sdef, "unsafe_get", scope).is_null() {
+        method_name = "get"
+    }
+    ref get_func : Expr = find_namespace_func(col_sdef, method_name, scope)
+    if get_func.is_null() { return "" }
+    switch get_func.node_type {
+    case NodeType.FuncDef(get_def):
+        return get_def.return_type.clone()
+    case:
+        return ""
+    }
+}
+
+// Issue #287: key-value for-in over maps -- `for k, v in map`.
+//
+// Maps (Map, HashMap, and the dyn variants) store their entries as two
+// index-aligned Vecs, `keys` and `values`. A two-variable for-in lowers
+// to a single lockstep index walk over those backing Vecs, going
+// straight through the public fields -- no map-level key/value accessor
+// is leaked into the desugared loop::
+//
+//   _fc := ref map
+//   _fi := 0
+//   while _fi < _fc.keys.len() {
+//       ref k : K = _fc.keys.unsafe_get(_fi)     // unchecked: _fi < len
+//       ref v : V = _fc.values.unsafe_get(_fi)
+//       _fi++
+//       <body>
+//   }
+//
+// Like the single-variable collection for-in (#284) this rides
+// Vec.unsafe_get, so the loop body is one `_fi < len` compare plus
+// pointer arithmetic with no per-element bounds check. The element
+// types K/V are resolved and set explicitly (see collection_elem_type_of)
+// so the interpreter aliases each slot -- a `for k, mut v` write must
+// persist into the map. Returns false for the single-variable form
+// (name2 empty), leaving the other for-in desugars to handle it.
+priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
+    ref mut stmt : Expr = body.children[stmt_idx]
+
+    mut var_name := ""
+    mut var_name2 := ""
+    mut forin_is_mut := false
+    mut forin_is_mut2 := false
+    switch stmt.node_type {
+    case NodeType.ForIn(fid):
+        if fid.name2.len().eq(0) { return false }
+        var_name = fid.name.clone()
+        var_name2 = fid.name2.clone()
+        forin_is_mut = fid.is_mut
+        forin_is_mut2 = fid.is_mut2
+    case:
+        UNREACHABLE()
+        return false
+    }
+
+    ref mut iter : Expr = stmt.children[0]
+    infer_expr(scope, iter, in_func, ctx)
+
+    mut type_name := ""
+    if is_aggregate(iter.expr_til_type()) {
+        iter_sname := til_type_name(iter.expr_til_type())
+        if iter_sname.len().gt(0) { type_name = iter_sname }
+    }
+    if type_name.len().eq(0) {
+        stmt.type_error("for k, v in ...: requires a map type with 'keys' and 'values' fields", ctx)
+        return false
+    }
+
+    ref sdef : Expr = scope.get_struct(type_name)
+    if sdef.is_null() {
+        stmt.type_error("for k, v in ...: requires a map type with 'keys' and 'values' fields", ctx)
+        return false
+    }
+    if struct_def_has_field(sdef, "keys").not().or(struct_def_has_field(sdef, "values").not()) {
+        stmt.type_error(format("type '", type_name, "' has no 'keys'/'values' fields (required for two-variable for-in)"), ctx)
+        return false
+    }
+
+    ref for_body : Expr = stmt.children[1]
+    line := stmt.line
+    col := stmt.col
+    counter := ctx.hoist_counter
+    ctx.hoist_counter++
+    col_name := format("_fc_", type_name, "_", counter.to_str())
+    idx_name := format("_fi_USize_", counter.to_str())
+
+    // Resolve the concrete key/value element types. Probe the inferred
+    // map's `keys` / `values` field types (which carry the monomorphized
+    // backing-Vec types), then read each element type off the Vec's
+    // unsafe_get return -- mirroring the single-variable desugar. These
+    // must be set explicitly on the element decls; a typeless `ref` decl
+    // makes the interpreter copy rather than alias, so `for k, mut v`
+    // writes would not persist.
+    mut keys_probe := Expr.new(field_access_node("keys"), line, col)
+    keys_probe.add_child(own iter.clone())
+    infer_expr(scope, keys_probe, in_func, ctx)
+    mut vals_probe := Expr.new(field_access_node("values"), line, col)
+    vals_probe.add_child(own iter.clone())
+    infer_expr(scope, vals_probe, in_func, ctx)
+    key_elem := collection_elem_type_of(scope, til_type_name(keys_probe.expr_til_type()))
+    val_elem := collection_elem_type_of(scope, til_type_name(vals_probe.expr_til_type()))
+    if key_elem.len().eq(0).or(val_elem.len().eq(0)) {
+        stmt.type_error(format("cannot resolve key/value element types for two-variable for-in over '", type_name, "'"), ctx)
+        return false
+    }
+
+    mut block := Expr.new(NodeType.Body, line, col)
+
+    // _fc := ref map  (ref when iter is an lvalue, mirroring the
+    // single-variable collection desugar; else a shallow value bind).
+    mut col_own_type := OwnType.Shallow
+    if iter.node_type.is(NodeType.Ident).or(iter.node_type.is(NodeType.FieldAccess)) {
+        col_own_type = OwnType.Ref
+    }
+    mut col_decl := Expr.new(NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
+    col_decl.add_child(own iter.clone())
+    block.add_child(own col_decl)
+
+    // _fi := 0
+    mut idx_decl := Expr.new(NodeType.Decl(decl_typed(name = idx_name, explicit_type = "USize", is_mut = true)), line, col)
+    idx_decl.add_child(own Expr.new(literal_num_node("0"), line, col))
+    block.add_child(own idx_decl)
+
+    // while _fi < _fc.keys.len()
+    mut while_node := Expr.new(NodeType.While, line, col)
+    mut idx_ident_cond := Expr.new(ident_node(idx_name), line, col)
+    mut cond_call := make_method_call_fcall(own idx_ident_cond, "lt", line, col)
+    mut keys_len_recv := Expr.new(field_access_node("keys"), line, col)
+    keys_len_recv.add_child(own Expr.new(ident_node(col_name), line, col))
+    cond_call.add_child(own make_method_call_fcall(own keys_len_recv, "len", line, col))
+    while_node.add_child(own cond_call)
+
+    mut wbody := Expr.new(NodeType.Body, line, col)
+
+    // ref [mut] k : K = _fc.keys.unsafe_get(_fi)
+    mut key_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name, explicit_type = key_elem, own_type = OwnType.Ref, is_mut = forin_is_mut)), line, col)
+    mut keys_recv := Expr.new(field_access_node("keys"), line, col)
+    keys_recv.add_child(own Expr.new(ident_node(col_name), line, col))
+    mut key_get := make_method_call_fcall(own keys_recv, "unsafe_get", line, col)
+    key_get.add_child(own Expr.new(ident_node(idx_name), line, col))
+    key_decl.add_child(own key_get)
+    wbody.add_child(own key_decl)
+
+    // ref [mut] v : V = _fc.values.unsafe_get(_fi)
+    mut val_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name2, explicit_type = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2)), line, col)
+    mut vals_recv := Expr.new(field_access_node("values"), line, col)
+    vals_recv.add_child(own Expr.new(ident_node(col_name), line, col))
+    mut val_get := make_method_call_fcall(own vals_recv, "unsafe_get", line, col)
+    val_get.add_child(own Expr.new(ident_node(idx_name), line, col))
+    val_decl.add_child(own val_get)
+    wbody.add_child(own val_decl)
+
+    // _fi = _fi.add(1)
+    mut idx_assign_kv := Expr.new(NodeType.Assign(AssignData(name = idx_name.clone())), line, col)
+    mut idx_ident_inc_kv := Expr.new(ident_node(idx_name), line, col)
+    mut add_call_kv := make_method_call_fcall(own idx_ident_inc_kv, "add", line, col)
+    add_call_kv.add_child(own Expr.new(literal_num_node("1"), line, col))
+    idx_assign_kv.add_child(own add_call_kv)
+    wbody.add_child(own idx_assign_kv)
+
+    for e_bi_kv : Expr in for_body.children {
+        wbody.add_child(own e_bi_kv.clone())
     }
 
     while_node.add_child(own wbody)

@@ -172,3 +172,41 @@ test_hashmap_remove_str_key_frees_c_str := test() {
     ref v : I64 = m.get("banana")
     assert_eq(I64, v, 2)
 }
+
+// Issue #287: key-value for-in (`for k, v in map`) over a HashMap.
+// HashMap iterates in dense insertion order; assert order-independent
+// aggregates plus correct per-key pairing.
+test_hashmap_for_in_kv := test() {
+    m := HashMap(Str, I64).new()
+    m.set("a", own 1)
+    m.set("b", own 2)
+    m.set("c", own 3)
+    mut count := 0
+    mut sum := 0
+    mut pairs_ok := true
+    for k, v in m {
+        count = count.add(1)
+        sum = sum.add(v)
+        if k.eq("a").and(v.eq(1).not()) { pairs_ok = false }
+        if k.eq("b").and(v.eq(2).not()) { pairs_ok = false }
+        if k.eq("c").and(v.eq(3).not()) { pairs_ok = false }
+    }
+    assert_eq(I64, count, 3)
+    assert_eq(I64, sum, 6)
+    assert(pairs_ok)
+}
+
+// `for k, mut v` mutates HashMap values in place.
+test_hashmap_for_in_kv_mut := test() {
+    mut m := HashMap(I64, I64).new()
+    m.set(1, own 10)
+    m.set(2, own 20)
+    for k, mut v in m {
+        assert(k.gte(1))
+        v = v.add(1)
+    }
+    ref v1 : I64 = m.get(1)
+    ref v2 : I64 = m.get(2)
+    assert_eq(I64, v1, 11)
+    assert_eq(I64, v2, 21)
+}

@@ -554,6 +554,8 @@ typedef struct ForInData {
     Str name;
     Bool is_mut;
     Type til_type;
+    Str name2;
+    Bool is_mut2;
 } ForInData;
 
 
@@ -2992,6 +2994,9 @@ void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stm
 Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
+Bool priv___src_self_typer_til__struct_def_has_field(Expr * sdef, Str * field_name);
+Str * priv___src_self_typer_til__collection_elem_type_of(TypeScope * scope, Str * col_type_name);
+Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope, Expr * body, U32 stmt_idx, I32 in_func, Context * ctx);
 Vec__CtorArg * Vec__CtorArg_new(void);
 U32 Vec__CtorArg_len(Vec__CtorArg * self);
 void Vec__CtorArg_clear(Vec__CtorArg * self);

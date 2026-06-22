@@ -1,9 +1,64 @@
 # priority: medium
 # category: features
-** OPEN #287 Key-value for-in over maps: `for k, v in map`
+** WIP #287 Key-value for-in over maps: `for k, v in map`
 
 Related: builds on [[./284.org][#284]] (collection for-in via unchecked
   unsafe_get); sibling of the value/key iteration cleanups below.
+
+*** Progress
+
+  Step 1 (DONE): the `for k, v in map` language feature lands first as a
+  standalone commit, so master's ~til_boot~ understands the new syntax
+  before any compiler source uses it. What this commit adds:
+
+  - ~src/core/ast.til~: ~ForInData~ gains ~name2~ / ~is_mut2~ (empty
+    name2 == ordinary single-variable for-in); ~node_head_str~ shows the
+    pair form.
+  - ~src/self/parser.til~: parse `for [mut] k, [mut] v in <expr>` -- a
+    comma after the loop var introduces the second binding.
+  - ~src/self/desugarer.til~ ~desugar_for_in_kv_stmt~: lowers the pair
+    form to a single lockstep index walk over the map's public ~keys~ /
+    ~values~ Vecs via ~unsafe_get~ (no map-level accessor leaked):
+      _fc := ref map
+      _fi := 0
+      while _fi < _fc.keys.len() {
+          ref k : K = _fc.keys.unsafe_get(_fi)
+          ref v : V = _fc.values.unsafe_get(_fi)
+          _fi++
+          <body>
+      }
+    K/V element types are resolved off each backing Vec's unsafe_get
+    return and set explicitly on the element decls (a typeless ref decl
+    makes the interpreter copy rather than alias, so a `for k, mut v`
+    write would not persist). Protocol detection: the iterated type must
+    expose ~keys~ and ~values~ fields (Map, HashMap, and dyn variants).
+  - ~src/self/typer.til~: dispatch the pair form before the range /
+    single-variable collection desugars.
+  - ~src/self/constfolder.til~: count name2 as a body-local.
+  - Tests: ~test_map_for_in_kv~ / ~test_map_for_in_kv_mut~ /
+    ~test_map_for_in_kv_ignore_key~ (test/maps.til) and
+    ~test_hashmap_for_in_kv~ / ~test_hashmap_for_in_kv_mut~
+    (test/hashmaps.til) -- assert pairing, sorted/dense order, a
+    `for k, mut v` in-place mutation, and the `for _, v` key-ignore form,
+    across interp + compile.
+
+  Step 2 (TODO, staged follow-up -- authored only once step 1 is on
+  master, per doc/self.org "Staged migration across master merges",
+  because HEAD's til_boot cannot parse `for k, v` in compiler sources):
+  convert the consumer counting-loops below to for-in and then mark the
+  map accessors ~priv~. This is the "stop leaking the indexed accessors"
+  payoff and the commit that finishes it closes this issue.
+
+  - value-only (8) -> ~for v in map.values~: typer.til
+    ~3342/3373/3402/4780/4790/4869~ (scope.bindings), interpreter.til
+    ~2694~ (s.bindings), garbager.til ~125~ (scope.bindings).
+  - key-only (2) -> ~for k in map.keys~: loader.til ~551/555~.
+  - key+value (3) -> ~for k, v in map~: interpreter.til ~1685/1686~
+    (ns_fields), garbager.til ~1028/1029~ (imported), initer.til
+    ~3448/3450~ (generic_funcs).
+  - Then mark ~key_ptr~ / ~val_ptr~ ~priv~ in src/core/map.til (only the
+    binary-search has/get/set remain as callers) and confirm
+    src/std/dyn_map.til's accessors are already internal-only.
 
   Maps expose internal unchecked indexed accessors -- ~key_ptr(i)~ (key)
   and ~unsafe_get(i)~ (value, formerly ~val_ptr~) -- and consumer code

@@ -70,3 +70,55 @@ test_map_literal_i64_str := test() {
     ref v1 : Str = m[1]
     assert_eq(Str, v1, "one")
 }
+
+// --- Issue #287: key-value for-in (`for k, v in map`) ---
+
+// `for k, v in map` visits every entry with the right key/value pairing.
+// Map iterates in sorted key order, so the concatenated keys are exact.
+test_map_for_in_kv := test() {
+    m := Map(Str, I64).new()
+    m.set("b", own 2)
+    m.set("a", own 1)
+    m.set("c", own 3)
+    mut order := Str.with_capacity(8)
+    mut sum := 0
+    mut pairs_ok := true
+    for k, v in m {
+        order.push_str(k)
+        sum = sum.add(v)
+        if k.eq("a").and(v.eq(1).not()) { pairs_ok = false }
+        if k.eq("b").and(v.eq(2).not()) { pairs_ok = false }
+        if k.eq("c").and(v.eq(3).not()) { pairs_ok = false }
+    }
+    assert_eq(Str, order, "abc")
+    assert_eq(I64, sum, 6)
+    assert(pairs_ok)
+}
+
+// `for k, mut v in map` mutates values in place through the value ref.
+test_map_for_in_kv_mut := test() {
+    mut m := Map(Str, I64).new()
+    m.set("x", own 10)
+    m.set("y", own 20)
+    for k, mut v in m {
+        assert(k.len().gt(0))
+        v = v.mul(2)
+    }
+    ref vx : I64 = m["x"]
+    ref vy : I64 = m["y"]
+    assert_eq(I64, vx, 20)
+    assert_eq(I64, vy, 40)
+}
+
+// The key binding may be `_` when only values are needed.
+test_map_for_in_kv_ignore_key := test() {
+    m := Map(I64, I64).new()
+    m.set(1, own 100)
+    m.set(2, own 200)
+    m.set(3, own 300)
+    mut sum := 0
+    for _, v in m {
+        sum = sum.add(v)
+    }
+    assert_eq(I64, sum, 600)
+}

@@ -2291,10 +2291,26 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         i_line := peek_line(p)
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
-        mut node := Expr.new(NodeType.ForIn(ForInData(name = iname, is_mut = for_is_mut)), i_line, i_col)
+        mut fid := ForInData(name = iname, is_mut = for_is_mut)
+        mut has_explicit_type := false
+        mut explicit_type := Type.Unknown
         if check(p, TokenType.Colon) {
             advance(p)
-            node.set_expr_til_type(Type.Custom(expect_text(p, TokenType.Ident)))
+            explicit_type = Type.Custom(expect_text(p, TokenType.Ident))
+            has_explicit_type = true
+        }
+        // Two-variable key/value form: `for [mut] k, [mut] v in map`.
+        if check(p, TokenType.Comma) {
+            advance(p)
+            if check(p, TokenType.KwMut) {
+                advance(p)
+                fid.is_mut2 = true
+            }
+            fid.name2 = expect_text(p, TokenType.Ident)
+        }
+        mut node := Expr.new(NodeType.ForIn(fid), i_line, i_col)
+        if has_explicit_type {
+            node.set_expr_til_type(explicit_type)
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))
