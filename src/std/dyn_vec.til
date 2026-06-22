@@ -128,6 +128,13 @@ namespace:
         other.count = 0
     }
 
+    /// Unchecked ref to the element at index `i`. Caller guarantees
+    /// `i < self.count`; bypasses get's throwing bounds check. for-in
+    /// and the DynMap binary search use this directly (issue #284/#287).
+    unsafe_get := func(self: DynVec, i: USize) returns ref Dynamic {
+        return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
+    }
+
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
@@ -137,7 +144,7 @@ namespace:
             throw OutOfBounds(msg = format(loc, ":DynVec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
-        return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
+        return self.unsafe_get(i)
     }
 
     /// Remove and return the last element. Panics if empty. The caller

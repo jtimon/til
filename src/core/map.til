@@ -25,29 +25,13 @@ namespace:
         self.values.clear()
     }
 
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    priv key_ptr := func(self: Map(K, V), i: USize) returns ref K {
-        return ptr_add(self.keys.data, i.mul(K.size()).cast(U64))
-    }
-
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    priv val_ptr := func(self: Map(K, V), i: USize) returns ref V {
-        return ptr_add(self.values.data, i.mul(V.size()).cast(U64))
-    }
-
     /// True if a value exists for the given key.
     has := func(self: Map(K, V), key: K) returns Bool {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo.lt(hi) {
             mid : USize = lo.add(hi.sub(lo).div(2))
-            c : I64 = K.cmp(self.key_ptr(mid), key)
+            c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
@@ -65,11 +49,11 @@ namespace:
         mut hi : USize = self.keys.count
         while lo.lt(hi) {
             mid : USize = lo.add(hi.sub(lo).div(2))
-            c : I64 = K.cmp(self.key_ptr(mid), key)
+            c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
-                else { return self.val_ptr(mid) }
+                else { return self.values.unsafe_get(mid) }
             }
         }
         throw KeyNotFound(msg = format(loc, ":Map.get: key not found"))
@@ -82,7 +66,7 @@ namespace:
         mut found := false
         while lo.lt(hi) {
             mid : USize = lo.add(hi.sub(lo).div(2))
-            c : I64 = K.cmp(self.key_ptr(mid), key)
+            c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
                 if c.gt(0) { hi = mid }
@@ -91,10 +75,10 @@ namespace:
         }
         if found {
             // Delete old value at index lo. The stored key remains unchanged.
-            V.delete(own self.val_ptr(lo), false)
+            V.delete(own self.values.unsafe_get(lo), false)
 
             // Overwrite bytes with new value.
-            memcpy(self.val_ptr(lo), val, V.size().cast(U64))
+            memcpy(self.values.unsafe_get(lo), val, V.size().cast(U64))
             memset(val, 0, V.size().cast(U64))
             free(own val)
         } else {
