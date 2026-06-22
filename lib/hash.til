@@ -35,12 +35,12 @@ hash_u64 := func(x: U64) returns U64 {
     return x.mul(KNUTH_MULT)
 }
 
-// FNV-1a over the bytes of a Str. Reuses Str.byte_at so we don't pay
+// FNV-1a over the bytes of a Str. Reuses Str.unsafe_get so we don't pay
 // for the bounds check on every byte.
 hash_str := func(s: Str) returns U64 {
     mut h : U64 = FNV_OFFSET
     for i in 0..s.len() {
-        ref b : I8 = s.byte_at(i)
+        ref b : I8 = s.unsafe_get(i)
         h = h.bxor(b.to_u64()).mul(FNV_PRIME)
     }
     return h

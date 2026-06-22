@@ -65,7 +65,7 @@ priv from_source_form := func(s: Str) returns Str {
     mut has_bs := false
     nn := s.len()
     for ii in 0..nn {
-        if s.byte_at(ii).eq(92) { has_bs = true; break }
+        if s.unsafe_get(ii).eq(92) { has_bs = true; break }
     }
     if has_bs.not() { return s }
     n := s.len()
@@ -74,9 +74,9 @@ priv from_source_form := func(s: Str) returns Str {
     one : U32 = 1
     two : U32 = 2
     while i.lt(n) {
-        ref b : I8 = s.byte_at(i)
+        ref b : I8 = s.unsafe_get(i)
         if b.eq(92).and(i.add(one).lt(n)) {
-            ref nx : I8 = s.byte_at(i.add(one))
+            ref nx : I8 = s.unsafe_get(i.add(one))
             if nx.eq(110) { out = format(out, "\n"); i = i.add(two); continue }
             if nx.eq(114) { out = format(out, "\r"); i = i.add(two); continue }
             if nx.eq(116) { out = format(out, "\t"); i = i.add(two); continue }
@@ -85,8 +85,8 @@ priv from_source_form := func(s: Str) returns Str {
             if nx.eq(39)  { out = format(out, "'"); i = i.add(two); continue }
             if nx.eq(48)  { out = format(out, "\0"); i = i.add(two); continue }
             if nx.eq(120).and(i.add(3).lt(n)) {
-                ref h1 : I8 = s.byte_at(i.add(two))
-                ref h2 : I8 = s.byte_at(i.add(3))
+                ref h1 : I8 = s.unsafe_get(i.add(two))
+                ref h2 : I8 = s.unsafe_get(i.add(3))
                 val : U8 = hex_digit_value(h1).mul(16).add(hex_digit_value(h2))
                 out = format(out, Str.from_byte(val))
                 i = i.add(4)
@@ -111,7 +111,7 @@ priv from_source_form := func(s: Str) returns Str {
 priv needs_source_escape := func(s: Str) returns Bool {
     n := s.len()
     for i in 0..n {
-        ref b : I8 = s.byte_at(i)
+        ref b : I8 = s.unsafe_get(i)
         if b.eq(34) { return true }
         if b.eq(92) { return true }
         if b.lt(32) { return true }
@@ -130,7 +130,7 @@ priv str_to_source_form := func(s: Str) returns Str {
     n := s.len()
     mut out := ""
     for i in 0..n {
-        ref b : I8 = s.byte_at(i)
+        ref b : I8 = s.unsafe_get(i)
         if b.eq(34)  { out = format(out, "\\\""); continue }
         if b.eq(92)  { out = format(out, "\\\\"); continue }
         if b.eq(10)  { out = format(out, "\\n"); continue }
@@ -418,7 +418,7 @@ priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         // on the constfolder hot path).
         mut has_bs := false
         for bi in 0..s.len() {
-            if s.byte_at(bi).eq(92) { has_bs = true; break }
+            if s.unsafe_get(bi).eq(92) { has_bs = true; break }
         }
         if has_bs.not() {
             return make_str_value_view(s.c_str, s.count, ctx)
@@ -651,7 +651,7 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
 priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
     n := name.len()
     for i in 1..n {
-        ref b : I8 = name.byte_at(i)
+        ref b : I8 = name.unsafe_get(i)
         if b.eq(95).not() { continue }
         sname := name.substr(0, i)
         rest_start := i.add(1)

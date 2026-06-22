@@ -287,7 +287,7 @@ priv lookup_keyword := func(word: Str, kw: Map(Str, TokenType)) returns TokenTyp
 priv scan_to_eol := func(src: Str, from: USize, src_len: USize) returns USize {
     mut p := from
     while p.lt(src_len) {
-        if src.byte_at(p).eq('\n') { break }
+        if src.unsafe_get(p).eq('\n') { break }
         p++
     }
     return p
@@ -320,15 +320,15 @@ priv emit_doc_block_lines := func(mut tokens: Vec(Token), src: Str, from: USize,
     mut p := from
     while true {
         at_end := p.gte(to)
-        is_nl := at_end.not().and(src.byte_at(p).eq('\n'))
+        is_nl := at_end.not().and(src.unsafe_get(p).eq('\n'))
         if at_end.or(is_nl) {
             // Strip the line [ls, p).
             mut s := ls
             mut e := p
-            while e.gt(s).and(is_doc_ws(src.byte_at(e.sub(1)))) { e = e.sub(1) }
-            while s.lt(e).and(is_doc_ws(src.byte_at(s))) { s++ }
-            if s.lt(e).and(src.byte_at(s).eq('*')) { s++ }
-            if s.lt(e).and(src.byte_at(s).eq(' ')) { s++ }
+            while e.gt(s).and(is_doc_ws(src.unsafe_get(e.sub(1)))) { e = e.sub(1) }
+            while s.lt(e).and(is_doc_ws(src.unsafe_get(s))) { s++ }
+            if s.lt(e).and(src.unsafe_get(s).eq('*')) { s++ }
+            if s.lt(e).and(src.unsafe_get(s).eq(' ')) { s++ }
             if e.lte(s) {
                 pending_blanks++
             } else {
@@ -368,7 +368,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
     kw_map := keyword_map()
 
     while pos.lt(src_len) {
-        ref c : I8 = src.byte_at(pos)
+        ref c : I8 = src.unsafe_get(pos)
         col : U32 = pos.sub(line_start).add(1)
         start := pos
 
@@ -392,13 +392,13 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
         // Comments (// /// /* */) or the '/' operator
         case '/':
             if pos.add(1).lt(src_len) {
-                ref c2 : I8 = src.byte_at(pos.add(1))
+                ref c2 : I8 = src.unsafe_get(pos.add(1))
                 if c2.eq('/') {
                     // Check for /// doc comment
-                    is_doc := pos.add(2).lt(src_len).and(src.byte_at(pos.add(2)).eq('/'))
+                    is_doc := pos.add(2).lt(src_len).and(src.unsafe_get(pos.add(2)).eq('/'))
                     if is_doc {
                         mut text_start := pos.add(3)
-                        if text_start.lt(src_len).and(src.byte_at(text_start).eq(' ')) {
+                        if text_start.lt(src_len).and(src.unsafe_get(text_start).eq(' ')) {
                             text_start++
                         }
                         text_end := scan_to_eol(src, text_start, src_len)
@@ -415,9 +415,9 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 // kinds nest the same way, so /** /* */ */ is one comment.
                 if c2.eq('*') {
                     is_doc := pos.add(2).lt(src_len)
-                        .and(src.byte_at(pos.add(2)).eq('*'))
+                        .and(src.unsafe_get(pos.add(2)).eq('*'))
                         .and(pos.add(3).lt(src_len))
-                        .and(src.byte_at(pos.add(3)).eq('/').not())
+                        .and(src.unsafe_get(pos.add(3)).eq('/').not())
                     doc_line := line
                     mut body_start := pos.add(2)
                     if is_doc { body_start = pos.add(3) }
@@ -427,8 +427,8 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     while pos.lt(src_len) {
                         if depth.lte(0) { break }
                         if pos.add(1).lt(src_len) {
-                            ref b1 : I8 = src.byte_at(pos)
-                            ref b2 : I8 = src.byte_at(pos.add(1))
+                            ref b1 : I8 = src.unsafe_get(pos)
+                            ref b2 : I8 = src.unsafe_get(pos.add(1))
                             if b1.eq('/').and(b2.eq('*')) {
                                 depth++
                                 pos = pos.add(2)
@@ -441,7 +441,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                                 continue
                             }
                         }
-                        if src.byte_at(pos).eq('\n') {
+                        if src.unsafe_get(pos).eq('\n') {
                             line++
                             line_start = pos.add(1)
                         }
@@ -465,17 +465,17 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
         case '"':
             pos++
             while pos.lt(src_len) {
-                if src.byte_at(pos).eq('"') { break }
-                if src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len)) {
+                if src.unsafe_get(pos).eq('"') { break }
+                if src.unsafe_get(pos).eq('\\').and(pos.add(1).lt(src_len)) {
                     pos++
                 }
-                if src.byte_at(pos).eq('\n') {
+                if src.unsafe_get(pos).eq('\n') {
                     line++
                     line_start = pos.add(1)
                 }
                 pos++
             }
-            if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
+            if pos.lt(src_len).and(src.unsafe_get(pos).eq('"')) {
                 pos++
                 push_tok(tokens, TokenType.StringTok, start.add(1), pos.sub(start).sub(2), line, col)
             } else {
@@ -488,11 +488,11 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
         case '\'':
             pos++
             ch_start := pos
-            if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
+            if pos.lt(src_len).and(src.unsafe_get(pos).eq('\\').and(pos.add(1).lt(src_len))) {
                 pos++
             }
             pos++
-            if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
+            if pos.lt(src_len).and(src.unsafe_get(pos).eq('\'')) {
                 push_tok(tokens, TokenType.Char, ch_start, pos.sub(ch_start), line, col)
                 pos++
             } else {
@@ -507,12 +507,12 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
             mut handled_prefix := false
             // Base-prefixed integer literal: 0x.., 0b.., 0o..
             if c.eq('0').and(pos.add(2).lt(src_len)) {
-                ref p1 : I8 = src.byte_at(pos.add(1))
-                ref p2 : I8 = src.byte_at(pos.add(2))
+                ref p1 : I8 = src.unsafe_get(pos.add(1))
+                ref p2 : I8 = src.unsafe_get(pos.add(2))
                 if p1.eq('x').or(p1.eq('X')).and(is_hex_digit(p2)) {
                     pos = pos.add(2)
                     while pos.lt(src_len) {
-                        ref d : I8 = src.byte_at(pos)
+                        ref d : I8 = src.unsafe_get(pos)
                         if is_hex_digit(d).or(d.eq('_')).not() { break }
                         pos++
                     }
@@ -520,7 +520,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 } else if p1.eq('b').or(p1.eq('B')).and(is_bin_digit(p2)) {
                     pos = pos.add(2)
                     while pos.lt(src_len) {
-                        ref d : I8 = src.byte_at(pos)
+                        ref d : I8 = src.unsafe_get(pos)
                         if is_bin_digit(d).or(d.eq('_')).not() { break }
                         pos++
                     }
@@ -528,7 +528,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 } else if p1.eq('o').or(p1.eq('O')).and(is_oct_digit(p2)) {
                     pos = pos.add(2)
                     while pos.lt(src_len) {
-                        ref d : I8 = src.byte_at(pos)
+                        ref d : I8 = src.unsafe_get(pos)
                         if is_oct_digit(d).or(d.eq('_')).not() { break }
                         pos++
                     }
@@ -538,16 +538,16 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
             if handled_prefix.not() {
                 // Decimal integer part (with digit separators)
                 while pos.lt(src_len) {
-                    ref d : I8 = src.byte_at(pos)
+                    ref d : I8 = src.unsafe_get(pos)
                     if is_digit(d).or(d.eq('_')).not() { break }
                     pos++
                 }
                 // Fractional part: '.' immediately followed by a digit
                 if pos.add(1).lt(src_len) {
-                    if src.byte_at(pos).eq('.').and(is_digit(src.byte_at(pos.add(1)))) {
+                    if src.unsafe_get(pos).eq('.').and(is_digit(src.unsafe_get(pos.add(1)))) {
                         pos++
                         while pos.lt(src_len) {
-                            ref d : I8 = src.byte_at(pos)
+                            ref d : I8 = src.unsafe_get(pos)
                             if is_digit(d).or(d.eq('_')).not() { break }
                             pos++
                         }
@@ -555,16 +555,16 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 }
                 // Exponent: e/E with optional sign, then at least one digit
                 if pos.lt(src_len) {
-                    ref e : I8 = src.byte_at(pos)
+                    ref e : I8 = src.unsafe_get(pos)
                     if e.eq('e').or(e.eq('E')) {
                         mut epos := pos.add(1)
-                        if epos.lt(src_len).and(src.byte_at(epos).eq('+').or(src.byte_at(epos).eq('-'))) {
+                        if epos.lt(src_len).and(src.unsafe_get(epos).eq('+').or(src.unsafe_get(epos).eq('-'))) {
                             epos++
                         }
-                        if epos.lt(src_len).and(is_digit(src.byte_at(epos))) {
+                        if epos.lt(src_len).and(is_digit(src.unsafe_get(epos))) {
                             pos = epos
                             while pos.lt(src_len) {
-                                ref d : I8 = src.byte_at(pos)
+                                ref d : I8 = src.unsafe_get(pos)
                                 if is_digit(d).or(d.eq('_')).not() { break }
                                 pos++
                             }
@@ -580,7 +580,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
             // Identifiers and keywords
             if is_alpha(c) {
                 while pos.lt(src_len) {
-                    if is_alnum(src.byte_at(pos)).not() { break }
+                    if is_alnum(src.unsafe_get(pos)).not() { break }
                     pos++
                 }
                 word := src.substr(start, pos.sub(start))
@@ -590,10 +590,10 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
 
             // Two-character tokens
             if pos.add(1).lt(src_len) {
-                ref c2 : I8 = src.byte_at(pos.add(1))
+                ref c2 : I8 = src.unsafe_get(pos.add(1))
                 // Check for ... (three dots) before the two-char dispatch below
                 if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
-                    ref c3 : I8 = src.byte_at(pos.add(2))
+                    ref c3 : I8 = src.unsafe_get(pos.add(2))
                     if c3.eq('.') {
                         push_tok(tokens, TokenType.DotDotDot, start, 3, line, col)
                         pos = pos.add(3)

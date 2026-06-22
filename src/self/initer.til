@@ -2764,7 +2764,7 @@ priv init_macro_inst_name_byte := func(b: I8) returns Str {
 priv init_macro_inst_text_name := func(prefix: Str, text: Str) returns Str {
     mut out := format(prefix, text.len().to_str(), "_")
     for i in 0..text.len() {
-        out = format(out, init_macro_inst_name_byte(text.byte_at(i)))
+        out = format(out, init_macro_inst_name_byte(text.unsafe_get(i)))
     }
     return out
 }

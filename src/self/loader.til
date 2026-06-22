@@ -1203,7 +1203,7 @@ priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
     if doc.is_empty() { return }
     mut start : USize = 0
     for i in 0..doc.len() {
-        ref c : I8 = doc.byte_at(i)
+        ref c : I8 = doc.unsafe_get(i)
         if c.eq(10) {
             out.push_str(indent)
             out.push_str("/// ")
@@ -1264,7 +1264,7 @@ parse_doc_meta := func(doc: Str) returns DocMeta {
     mut body := Str.with_capacity(doc.len())
     mut start : USize = 0
     for i in 0..doc.len() {
-        ref c : I8 = doc.byte_at(i)
+        ref c : I8 = doc.unsafe_get(i)
         if c.eq(10) {
             line := doc.substr(start, i.sub(start))
             if doc_meta_line(line, meta).not() {

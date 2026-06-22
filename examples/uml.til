@@ -246,7 +246,7 @@ append_token_text := func(mut out: Str, tok: Token, src: Str) returns Str {
     if tok.type.is(TokenType.Eof) { return out }
     if out.len().gt(0) {
         no_space_before := tok.type.is(TokenType.RParen).or(tok.type.is(TokenType.Colon)).or(tok.type.is(TokenType.Comma))
-        ref prev : I8 = out.byte_at(out.len().sub(1))
+        ref prev : I8 = out.unsafe_get(out.len().sub(1))
         no_space_after_prev := prev.eq('(').or(prev.eq(':'))
         if (!no_space_before).and(!no_space_after_prev) {
             out = format(out, " ")
@@ -462,7 +462,7 @@ xml_escape := func(s: Str) returns Str {
             out = format(out, "&lt;")
         } else if c.eq('>') {
             out = format(out, "&gt;")
-        } else if c.eq(Q.byte_at(0)) {
+        } else if c.eq(Q.unsafe_get(0)) {
             out = format(out, "&quot;")
         } else {
             out = format(out, Str.from_byte(c.cast(I64).band(255).to_u8()))

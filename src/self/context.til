@@ -580,7 +580,7 @@ priv_c_name := func(path: Str, name: Str) returns Str {
     mut last_was_underscore := false
     mut i : USize = 0
     while i.lt(path.len()) {
-        ref c : I8 = path.byte_at(i)
+        ref c : I8 = path.unsafe_get(i)
         is_alnum := c.gte('a').and(c.lte('z'))
             .or(c.gte('A').and(c.lte('Z')))
             .or(c.gte('0').and(c.lte('9')))

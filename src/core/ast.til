@@ -271,7 +271,7 @@ namespace:
     ends_with := func(self: IdentData, suffix: Str) returns Bool { return self.name.ends_with(suffix) }
     replace := func(self: IdentData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
     strip_suffix := func(self: IdentData, suffix: Str) returns Str { return self.name.strip_suffix(suffix) }
-    byte_at := func(self: IdentData, i: U32) returns ref I8 { return self.name.byte_at(i) }
+    unsafe_get := func(self: IdentData, i: U32) returns ref I8 { return self.name.unsafe_get(i) }
     get := func(self: IdentData, i: U32) returns ref I8 { return self.name.get(i) }
 }
 

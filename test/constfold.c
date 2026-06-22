@@ -451,7 +451,7 @@ U32 U8_size(void);
 U64 U8_hash(U8 self, HashFn hasher);
 Str * format(Array__Str * parts);
 U32 Str_len(Str * self);
-I8 * Str_get(Str * self, U32 * i);
+I8 * Str_unsafe_get(Str * self, U32 * i);
 I64 Str_cmp(Str * a, Str * b);
 Str * Str_with_capacity(U32 n);
 void Str_push_str(Str * self, Str * s);
@@ -688,7 +688,7 @@ U32 U8_size(void);
 U64 U8_hash(U8 self, HashFn hasher);
 Str * format(Array__Str * parts);
 U32 Str_len(Str * self);
-I8 * Str_get(Str * self, U32 * i);
+I8 * Str_unsafe_get(Str * self, U32 * i);
 I64 Str_cmp(Str * a, Str * b);
 Str * Str_with_capacity(U32 n);
 void Str_push_str(Str * self, Str * s);
@@ -1264,37 +1264,11 @@ U32 Str_len(Str * self) {
     return self->count;
 }
 
-I8 * Str_get(Str * self, U32 * i) {
-    Bool hoisted__Bool_752 = U32_gte(DEREF(i), self->count);
-    (void)hoisted__Bool_752;
-    if (hoisted__Bool_752) {
-        U32 hoisted__U32_747 = 1;
-        (void)hoisted__U32_747;
-        Array__Str *_va_Array_17 = Array__Str_new(hoisted__U32_747);
-        (void)_va_Array_17;
-        I64 _va_Array_17_ek = 0;
-        (void)_va_Array_17_ek;
-        OutOfBounds *_va_Array_17_eo = malloc(sizeof(OutOfBounds));
-        _va_Array_17_eo->msg = (Str){.c_str=(void*)"", .count=0ULL, .cap=TIL_CAP_LIT};
-        (void)_va_Array_17_eo;
-        U32 hoisted__U32_748 = 0;
-        (void)hoisted__U32_748;
-        static Str hoisted__Str_749 = (Str){.c_str = (void *)"Str.get: index out of bounds", .count = 28ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_749;
-        static Str hoisted__Str_750 = (Str){.c_str = (void *)"./src/core/str.til:42:13", .count = 24ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_750;
-        Array__Str_set(_va_Array_17, hoisted__U32_748, &hoisted__Str_749, &_va_Array_17_ek, _va_Array_17_eo, &hoisted__Str_750);
-        OutOfBounds_delete(_va_Array_17_eo, 1);
-        Str_delete(&hoisted__Str_750, (Bool){0});
-        static Str hoisted__Str_751 = (Str){.c_str = (void *)"./src/core/str.til:42:13", .count = 24ULL, .cap = TIL_CAP_LIT};
-        (void)hoisted__Str_751;
-        panic(_va_Array_17, &hoisted__Str_751);
-        Str_delete(&hoisted__Str_751, (Bool){0});
-    }
-    void *hoisted__v_753 = ptr_add(self->c_str, DEREF(i));
-    (void)hoisted__v_753;
-    (void)hoisted__v_753;
-    return hoisted__v_753;
+I8 * Str_unsafe_get(Str * self, U32 * i) {
+    void *hoisted__v_754 = ptr_add(self->c_str, DEREF(i));
+    (void)hoisted__v_754;
+    (void)hoisted__v_754;
+    return hoisted__v_754;
 }
 
 I64 Str_cmp(Str * a, Str * b) {
@@ -1321,8 +1295,8 @@ I64 Str_cmp(Str * a, Str * b) {
                 }
                 U32 i = U32_clone(&_rc_U32_755);
                 U32_inc(&_rc_U32_755);
-                I8 *ab = Str_get(a, &i);
-                I8 *bb = Str_get(b, &i);
+                I8 *ab = Str_unsafe_get(a, &i);
+                I8 *bb = Str_unsafe_get(b, &i);
                 I64 c = I8_cmp(DEREF(ab), DEREF(bb));
                 I64 hoisted__I64_757 = 0;
                 (void)hoisted__I64_757;
@@ -1343,8 +1317,8 @@ I64 Str_cmp(Str * a, Str * b) {
                 }
                 U32 i = U32_clone(&_rc_U32_755);
                 U32_dec(&_rc_U32_755);
-                I8 *ab = Str_get(a, &i);
-                I8 *bb = Str_get(b, &i);
+                I8 *ab = Str_unsafe_get(a, &i);
+                I8 *bb = Str_unsafe_get(b, &i);
                 I64 c = I8_cmp(DEREF(ab), DEREF(bb));
                 I64 hoisted__I64_760 = 0;
                 (void)hoisted__I64_760;
@@ -6571,11 +6545,11 @@ U32 Str_len_dyn(void *til_env, void *_a0) {
     return Str_len(_a0);
 }
 static __attribute__((unused)) TilClosure Str_len_dyn__til_closure = { (void *)Str_len_dyn, NULL, NULL };
-void *Str_get_dyn(void *til_env, void *_a0, void *_a1) {
+void *Str_unsafe_get_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
-    return (void *)Str_get(_a0, _a1);
+    return (void *)Str_unsafe_get(_a0, _a1);
 }
-static __attribute__((unused)) TilClosure Str_get_dyn__til_closure = { (void *)Str_get_dyn, NULL, NULL };
+static __attribute__((unused)) TilClosure Str_unsafe_get_dyn__til_closure = { (void *)Str_unsafe_get_dyn, NULL, NULL };
 I64 Str_cmp_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
     return Str_cmp(_a0, _a1);
@@ -7747,7 +7721,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&U8_size_dyn__til_closure;
     if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&U8_hash_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "len", 3ULL) == 0) return (void*)&Str_len_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "get", 3ULL) == 0) return (void*)&Str_get_dyn__til_closure;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 10ULL && memcmp(method->c_str, "unsafe_get", 10ULL) == 0) return (void*)&Str_unsafe_get_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) return (void*)&Str_cmp_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 13ULL && memcmp(method->c_str, "with_capacity", 13ULL) == 0) return (void*)&Str_with_capacity_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "push_str", 8ULL) == 0) return (void*)&Str_push_str_dyn__til_closure;

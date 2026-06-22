@@ -143,7 +143,7 @@ is_cmd_ch := func(b: I8) returns Bool {
 skip_ws := func(d: Str, i: USize) returns USize {
     mut j := i
     while j.lt(d.len()) {
-        ref b : I8 = d.byte_at(j)
+        ref b : I8 = d.unsafe_get(j)
         if is_ws(b).not() { break }
         j++
     }
@@ -156,14 +156,14 @@ parse_int := func(d: Str, i: USize, mut out_idx: USize) returns I64 {
     mut j := skip_ws(d, i)
     mut neg := false
     if j.lt(d.len()) {
-        ref b : I8 = d.byte_at(j)
+        ref b : I8 = d.unsafe_get(j)
         if b.eq('-') { neg = true; j++ }
         else if b.eq('+') { j++ }
     }
     mut val : I64 = 0
     mut digits := 0
     while j.lt(d.len()) {
-        ref b : I8 = d.byte_at(j)
+        ref b : I8 = d.unsafe_get(j)
         if is_digit_ch(b).not() { break }
         val = val.mul(10).add(b.cast(I64).sub(48))
         digits++
@@ -207,7 +207,7 @@ parse_path_d := func(d: Str, mut segments: Vec(Segment)) {
     while i.lt(d.len()) {
         i = skip_ws(d, i)
         if i.gte(d.len()) { break }
-        ref first : I8 = d.byte_at(i)
+        ref first : I8 = d.unsafe_get(i)
         mut cmd : I8 = last_cmd
         if is_cmd_ch(first) {
             cmd = first

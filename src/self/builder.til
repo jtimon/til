@@ -890,9 +890,9 @@ priv c_lit_byte_count := func(s: Str) returns USize {
     mut count : USize = 0
     mut i : USize = 0
     while i.lt(n) {
-        ref b : I8 = s.byte_at(i)
+        ref b : I8 = s.unsafe_get(i)
         if b.eq('\\').and(i.add(1).lt(n)) {
-            ref nx : I8 = s.byte_at(i.add(1))
+            ref nx : I8 = s.unsafe_get(i.add(1))
             if nx.eq('x').and(i.add(3).lt(n)) {
                 i = i.add(4)
                 count++
@@ -907,7 +907,7 @@ priv c_lit_byte_count := func(s: Str) returns USize {
         // hex/digit chars into the escape. The C compiler concatenates the
         // two adjacent literals and the `""` contributes zero bytes to the
         // resulting global array, so don't count them.
-        if b.eq('"').and(i.add(1).lt(n)).and(s.byte_at(i.add(1)).eq('"')) {
+        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i.add(1)).eq('"')) {
             i = i.add(2)
             continue
         }
@@ -2562,14 +2562,14 @@ priv num_lit_to_c := func(text: Str) returns Str {
     n := text.len()
     mut start : USize = 0
     mut neg := false
-    if n.gte(1).and(text.byte_at(0).eq('-')) {
+    if n.gte(1).and(text.unsafe_get(0).eq('-')) {
         neg = true
         start = 1
     }
     body := text.substr(start, n.sub(start))
     // Binary/octal -> decimal constant (C has no 0b/0o literal syntax).
-    if body.len().gte(2).and(body.byte_at(0).eq('0')) {
-        ref p1 : I8 = body.byte_at(1)
+    if body.len().gte(2).and(body.unsafe_get(0).eq('0')) {
+        ref p1 : I8 = body.unsafe_get(1)
         if p1.eq('b').or(p1.eq('B')).or(p1.eq('o')).or(p1.eq('O')) {
             v := body.to_i64().to_str()
             if neg { return format("-", v) }

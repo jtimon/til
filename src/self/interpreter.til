@@ -709,10 +709,10 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         mut j : USize = 0
         mut i : USize = 0
         while i.lt(raw.count) {
-            ref ch : I8 = raw.byte_at(i)
+            ref ch : I8 = raw.unsafe_get(i)
             if ch.eq(92) {
                 if i.add(1).lt(raw.count) {
-                    ref next : I8 = raw.byte_at(i.add(1))
+                    ref next : I8 = raw.unsafe_get(i.add(1))
                     if next.eq(110) { memset(ptr_add(buf, j.cast(U64)), 10, 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(116) { memset(ptr_add(buf, j.cast(U64)), 9, 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(92) { memset(ptr_add(buf, j.cast(U64)), 92, 1); j = j.add(1); i = i.add(2); continue }
@@ -2776,8 +2776,8 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
             case NodeType.Ident(ident):
                 if ident.ident_name().eq(sname) { return true }
                 if ident.len().gt(0) {
-                    if ident.byte_at(0).gte(65) {
-                        if ident.byte_at(0).lte(90) { return true }
+                    if ident.unsafe_get(0).gte(65) {
+                        if ident.unsafe_get(0).lte(90) { return true }
                     }
                 }
             case:
@@ -2791,8 +2791,8 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
             case NodeType.Ident(ident):
                 if ident.ident_name().eq(sname) { return true }
                 if ident.len().gt(0) {
-                    if ident.byte_at(0).gte(65) {
-                        if ident.byte_at(0).lte(90) { return true }
+                    if ident.unsafe_get(0).gte(65) {
+                        if ident.unsafe_get(0).lte(90) { return true }
                     }
                 }
             case:
@@ -3729,11 +3729,11 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
     }
     mut i : USize = 0
     while i.add(1).lt(link_flags.len()) {
-        if link_flags.byte_at(i).eq(45).and(link_flags.byte_at(i.add(1)).eq(108)) {
+        if link_flags.unsafe_get(i).eq(45).and(link_flags.unsafe_get(i.add(1)).eq(108)) {
             i = i.add(2)
             start := i
             while i.lt(link_flags.len()) {
-                if link_flags.byte_at(i).eq(32) {
+                if link_flags.unsafe_get(i).eq(32) {
                     break
                 }
                 i++

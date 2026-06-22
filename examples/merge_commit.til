@@ -66,7 +66,7 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     if byte_pos.eq(-1) { return }
     mut bstart : I64 = byte_pos.sub(1)
     while bstart.gte(0) {
-        if tail.byte_at(bstart.to_usize()).eq(' ') { break }
+        if tail.unsafe_get(bstart.to_usize()).eq(' ') { break }
         bstart--
     }
     num_str := tail.substr(bstart.add(1).to_usize(), byte_pos.sub(bstart).sub(1).to_usize())
@@ -76,7 +76,7 @@ parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
     if alloc_pos.eq(-1) { return }
     bstart = alloc_pos.sub(1)
     while bstart.gte(0) {
-        if tail.byte_at(bstart.to_usize()).eq(' ') { break }
+        if tail.unsafe_get(bstart.to_usize()).eq(' ') { break }
         bstart--
     }
     num_str2 := tail.substr(bstart.add(1).to_usize(), alloc_pos.sub(bstart).sub(1).to_usize())
