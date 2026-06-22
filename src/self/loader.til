@@ -1845,6 +1845,63 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     }
 }
 
+// The value of a single-`return` body `{ return <expr> }`, else NULL.
+priv lazy_single_return_value := func(body: Expr) returns Expr {
+    if body.node_type.is(NodeType.Body).not() { return NULL }
+    if body.children.len().eq(1).not() { return NULL }
+    ref ret : Expr = body.children[0]
+    if ret.node_type.is(NodeType.Return).not() { return NULL }
+    if ret.children.len().lt(1) { return NULL }
+    return ret.children[0].clone()
+}
+
+// The expression a lazy body inlines to, freshly owned, or NULL when the
+// body shape is not inlinable. Two inlinable shapes:
+//   { return <expr> }                         -> <expr>
+//   { if cond { return X } else { return Y } } -> match cond { case true: X
+//                                                              case: Y }
+// The if/else form is rewritten to a `match` so it inlines and short-circuits
+// like the `match` form (til's `if` is a statement, not a value-expression).
+// Other shapes (multi-statement bodies, loops, ...) return NULL; those need
+// the thunk fallback (issue #262).
+priv lazy_body_as_expr := func(body: Expr) returns Expr {
+    if body.node_type.is(NodeType.Body).not() { return NULL }
+    if body.children.len().eq(1).not() { return NULL }
+    ref stmt : Expr = body.children[0]
+    switch stmt.node_type {
+    case NodeType.Return:
+        if stmt.children.len().lt(1) { return NULL }
+        return stmt.children[0].clone()
+    case NodeType.If:
+        // Need an explicit else branch: [cond, then-Body, else-Body].
+        if stmt.children.len().lt(3) { return NULL }
+        x := lazy_single_return_value(stmt.children[1])
+        if x.is_null() { return NULL }
+        y := lazy_single_return_value(stmt.children[2])
+        if y.is_null() { return NULL }
+        line := stmt.line
+        col := stmt.col
+        mut m := Expr.new(NodeType.Match(MatchData()), line, col)
+        m.add_child(own stmt.children[0].clone())            // subject = cond
+        // case true: X
+        mut c1 := Expr.new(NodeType.Case, line, col)
+        c1.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), line, col))
+        mut b1 := Expr.new(NodeType.Body, line, col)
+        b1.add_child(own x)
+        c1.add_child(own b1)
+        m.add_child(own c1)
+        // case: Y  (default arm catches false)
+        mut c2 := Expr.new(NodeType.Case, line, col)
+        mut b2 := Expr.new(NodeType.Body, line, col)
+        b2.add_child(own y)
+        c2.add_child(own b2)
+        m.add_child(own c2)
+        return m
+    case:
+        return NULL
+    }
+}
+
 // Returns true if the call was inlined. Leaves `call` untouched (and
 // returns false) for any shape v1 does not handle, so the residual call
 // types as an ordinary eager call.
@@ -1852,12 +1909,6 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     ref call : Expr = parent.children[call_idx]
     if fdef.children.len().eq(0) { return false }
     ref body : Expr = fdef.children[0]
-    if body.node_type.is(NodeType.Body).not() { return false }
-    // Body must be exactly `return <expr>`.
-    if body.children.len().eq(1).not() { return false }
-    ref ret_stmt : Expr = body.children[0]
-    if ret_stmt.node_type.is(NodeType.Return).not() { return false }
-    if ret_stmt.children.len().lt(1) { return false }
 
     mut subs := Map(Str, Expr).new()
     mut ok := false
@@ -1891,7 +1942,8 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     }
     if ok.not() { return false }
 
-    mut cloned := ret_stmt.children[0].clone()
+    mut cloned := lazy_body_as_expr(body)
+    if cloned.is_null() { return false }
     // A bare-Ident body (`return x`) is the whole expression: the walk
     // below only substitutes CHILDREN, so swap the root here. Plain
     // assignment reclaims the first clone (save_old_delete).

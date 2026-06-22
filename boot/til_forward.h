@@ -3303,6 +3303,8 @@ ReplCoreDocCache * build_repl_core_doc_cache(LoadedProgram * lp);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec__Expr * new_ch, Bool is_decl_rhs, Str * decl_name, Bool is_mut, U32 decl_line, U32 decl_col, Context * ctx, Str * resolved_path);
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
+Expr * priv___src_self_loader_til__lazy_single_return_value(Expr * body);
+Expr * priv___src_self_loader_til__lazy_body_as_expr(Expr * body);
 Bool priv___src_self_loader_til__inline_lazy_call(Expr * parent, U32 call_idx, Expr * fdef);
 Expr * priv___src_self_loader_til__lazy_eff_arg_clone(Expr * call, Bool is_method, U32 k);
 Expr * priv___src_self_loader_til__lazy_build_fold(Expr * call, Bool is_method, U32 lo, U32 hi, Str * name, U32 line, U32 col);

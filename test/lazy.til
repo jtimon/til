@@ -15,6 +15,17 @@ lazy_or := lazy_func(a: Bool, b: Bool) returns Bool {
     return match a { case true: true case: b }
 }
 
+# An if/else body with single returns inlines too: the inliner rewrites
+# `if cond { return X } else { return Y }` to `match cond { case true: X
+# case: Y }`, so it short-circuits exactly like the match form.
+if_and := lazy_func(a: Bool, b: Bool) returns Bool {
+    if a { return b } else { return false }
+}
+
+if_or := lazy_func(a: Bool, b: Bool) returns Bool {
+    if a { return true } else { return b }
+}
+
 # --- functional correctness ---
 
 test_lazy_and := test() {
@@ -29,6 +40,28 @@ test_lazy_or := test() {
     expect(lazy_or(true, false), "T or F")
     expect(lazy_or(false, true), "F or T")
     expect(lazy_or(false, false).not(), "F or F")
+}
+
+# --- if/else-body lazy funcs: same results and same short-circuit as match ---
+
+test_if_body_funcs := test() {
+    expect(if_and(true, true), "if T and T")
+    expect(if_and(true, false).not(), "if T and F")
+    expect(if_and(false, true).not(), "if F and T")
+    expect(if_or(false, true), "if F or T")
+    expect(if_or(true, false), "if T or F")
+    expect(if_or(false, false).not(), "if F or F")
+}
+
+test_if_body_short_circuits := test() {
+    eval_count = 0
+    r := if_and(false, bump())
+    expect(r.not(), "if_and(false, bump()) is false")
+    assert_eq(I64, eval_count, 0)
+    eval_count = 0
+    r2 := if_or(true, bump())
+    expect(r2, "if_or(true, bump()) is true")
+    assert_eq(I64, eval_count, 0)
 }
 
 # --- nested lazy calls (re-expansion of the spliced body) ---

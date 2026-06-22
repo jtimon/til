@@ -38,11 +38,21 @@ v1 status (implemented):
     bare ~and(a, b, c)~ and method ~a.and(b, c)~ forms. Purely additive:
     N<=2 is unchanged, so the pervasive binary ~.and()~/~.or()~ path is
     untouched. Folding assumes associativity (true for ~and~/~or~).
+  - if/else body inlining (first step of the inline-when-possible side of
+    the hybrid): a lazy body shaped ~if cond { return X } else { return Y }~
+    also inlines -- ~lazy_body_as_expr~ (src/self/loader.til) rewrites it to
+    ~match cond { case true: X case: Y }~ and inlines that, so the if/else
+    form short-circuits at zero runtime cost just like the match form. (til's
+    ~if~ is a statement, not a value-expression, hence the rewrite to a
+    ~match~ expression.) This removes the if/else manifestation of the
+    silent-eager bug below; multi-statement / loop / first-class bodies still
+    fall through and await the thunk fallback.
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
     core Bool and/or, operator syntax, N-ary fold and its short-circuit,
-    decisive short-circuit proofs where an unused side-effecting argument
-    must not run, and a throwing call in a lazy and/or argument that must
-    compile and short-circuit).
+    if/else-body lazy funcs and their short-circuit, decisive short-circuit
+    proofs where an unused side-effecting argument must not run, and a
+    throwing call in a lazy and/or argument that must compile and
+    short-circuit).
 
 Remaining (deferred):
   - General declared-variadic lazy callables (~lazy_func(xs: ..Bool)~): the
@@ -186,19 +196,17 @@ options in detail; no decision made yet):
       stays pre-typer (needs raw bodies), thunk-lowering is type-directed
       (desugarer.til).
 
-  Silent-eager fallback bug (confirmed empirically). Today a lazy_func whose
-  body is NOT a single ~return <expr>~ (e.g. an ~if~ body) is silently left
-  un-inlined and degrades to an EAGER call: it returns the right value but
-  evaluates all args, with no diagnostic. Verified -- with
-  ~my_and := lazy_func(a: Bool, b: Bool) returns Bool { if a { return b }
-  else { return false } }~, the call ~my_and(false, bump())~ runs ~bump()~
-  (no short-circuit), whereas the ~match~-body version does not. This
-  violates the fail-loud rule and can be a correctness bug (a guarded
-  throwing / out-of-bounds operand would panic). Two fixes, depending on
-  direction: emit a HARD ERROR at the lazy definition when the body is not
-  inlinable (until multi-statement bodies are supported), OR -- under the
-  recommended hybrid -- fall back to THUNKS instead of eager, which removes
-  the failure mode entirely.
+  Silent-eager fallback bug (partially addressed). A lazy_func whose body is
+  not inlinable is silently left un-inlined and degrades to an EAGER call: it
+  returns the right value but evaluates all args, with no diagnostic. The
+  if/else single-return shape (~if cond { return X } else { return Y }~) now
+  inlines (see v1 status), so that common manifestation is fixed. What
+  REMAINS silently-eager: multi-statement bodies, loops, and first-class /
+  recursive use. Those still violate the fail-loud rule and can be a
+  correctness bug (a guarded throwing / out-of-bounds operand would panic).
+  Two fixes, depending on direction: emit a HARD ERROR when such a body is
+  defined (until it is supported), OR -- under the recommended hybrid -- fall
+  back to THUNKS instead of eager, which removes the failure mode entirely.
 
   Staged path (one reasonable ordering): (1) stop the silent-eager fallback
   (hard error now, or thunk fallback once Design 2 lands); (2) implement
