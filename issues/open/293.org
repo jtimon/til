@@ -1,0 +1,45 @@
+# priority: medium
+# category: optimizations
+** OPEN #293 Speed up Str.cmp -- per-byte ext_func calls at -O0 dominate compare time
+
+  Str.cmp (src/core/str.til) compares byte-by-byte:
+    for i in 0..min_len {
+        ref ab : I8 = a.unsafe_get(i)   // -> ptr_add ext_func
+        ref bb : I8 = b.unsafe_get(i)   // -> ptr_add ext_func
+        c := ab.cmp(bb)                  // -> I8.cmp ext_func
+        if c.neq(0) { return c }
+    }
+  That is ~5 ext_func calls per byte. The compiler is built at -g / -O0
+  (no inlining; see doc/profiling.org), so each is a real call. Profiling
+  (`bin/til run examples/profile.til src/til.til`): Str_cmp 20M calls /
+  ~37s inclusive (the #1 CPU cost), Str_unsafe_get 117M calls / ~4.3s.
+  Str.cmp is how ordered Maps compare Str keys -- the hottest path.
+
+  Option A -- memcmp (biggest, but a stdlib behavior change):
+    Expose `memcmp` as an ext_func in src/core/mem.til (like memcpy /
+    memmove / memset), compare the common prefix in one call, then compare
+    counts. Caveats:
+      * memcmp is UNSIGNED; the current I8.cmp is SIGNED. The order differs
+        only when the first differing byte has the high bit set (>= 128).
+        Unsigned is the conventional lexicographic order and is IDENTICAL
+        for ASCII (all compiler strings, and Str keys in practice), but it
+        changes ordering for high-byte strings -- a stdlib semantics change
+        to confirm before doing.
+      * Verify the interpreter dispatches a NEW memcmp at comptime. The
+        mem* builtins (memcpy/memset/...) are hardcoded in the interpreter's
+        ext_function_dispatch; an unknown memcmp falls through to the FFI
+        (libffi) path, which should resolve libc memcmp but must be checked
+        under `bin/til_boot build` (comptime Str-keyed Maps would exercise
+        it).
+
+  Option B -- word-at-a-time, semantics preserving:
+    Scan 8 bytes at a time as U64 words while equal (word equality is
+    endianness-independent), then drop to the existing signed byte loop at
+    the first differing word + tail. Preserves the exact signed order and
+    speeds up long-common-prefix compares (common among sorted identifier
+    keys). Needs typed U64 loads from the byte buffer plus tail / alignment
+    care.
+
+  Overlap: interning (#292) also collapses Str_cmp into an id comparison
+  and would subsume this. #293 is the smaller, standalone CPU win that does
+  not require the interning project.

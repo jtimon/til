@@ -1,0 +1,43 @@
+# priority: high
+# category: optimizations
+** OPEN #292 Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
+
+  After the cast Type_Primitive fix landed, a fresh --prof run
+  (`bin/til run examples/profile.til src/til.til`; snapshot in
+  doc/profiling.org "Hot functions") makes two costs dominate, and they
+  are the SAME problem:
+    - Str_clone is the #1 allocator: 11.8M allocs / 26M frees / 145 MB,
+      ~3x the next entry.
+    - Str_cmp is the #1 CPU cost: 20M calls, ~37s inclusive -- this is how
+      ordered Maps compare Str keys.
+  The compiler copies and compares identifier / type-name strings nonstop.
+
+  Where the clones come from:
+    - ident_name / field_access_name (src/core/ast.til) clone
+      unconditionally on EVERY read: `return id.name.clone()`. There are
+      ~495 read sites across src/self, the large majority compare-and-
+      discard (e.g. `id.ident_name().eq("foo")`).
+    - Expr_clone deep-copies every embedded name Str.
+    - Every Type.Struct/Enum/Custom/FuncPtrSig carries a cloned Str name
+      (til_type_name's .clone(), make_delete_call's Type.Custom(tname.clone())
+      per cleanup site, etc.). NOTE: these are NOT garbager auto-clones --
+      the garbager only inserts the matching deletes (the 26M Str_delete
+      frees); the clones are hand-written because the signatures return /
+      hold owned Str where a borrow would do.
+
+  Structural fix (the real win): intern identifier and type-name strings
+  into a pool held in Context. A Sym (small integer id) replaces the Str in
+  the hot name positions: IdentData.name, FieldAccessData.name, the Str
+  payloads of Type.Struct/Enum/Custom/FuncPtrSig, struct/func names.
+  clone(Sym) = copy an int (no malloc); cmp(Sym) = int compare (no byte
+  scan). This removes most Str_clone churn (memory #1) AND collapses
+  Str_cmp into id comparison (CPU #1). #234 (HashMap for Str keys) largely
+  falls out of it.
+
+  Lighter first step (independently valuable, no Sym needed): change
+  ident_name / field_access_name to `returns ref Str` (borrow) and drop the
+  .clone(). Then walk the ~495 sites compiler-guided: compare-and-discard
+  callers need no change; only callers that store/return the name keep an
+  explicit clone. Best done in a fast LOCAL session -- it is a cascading,
+  multi-build change -- and watch the interpreter/comptime paths that read
+  these accessors (ident_name is used during comptime eval too).

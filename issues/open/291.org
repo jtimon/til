@@ -1,0 +1,44 @@
+# priority: medium
+# category: optimizations
+** OPEN #291 Lazy Vec.new() -- no allocation until first push
+
+  Vec.new() (src/core/vec.til) mallocs cap=1 storage even for Vecs that
+  stay empty. Every leaf AST node (Ident, Literal, Break, ...) pays a
+  malloc+free for its empty `children` Vec, and most of the tree is
+  leaves. A massif run (`bin/til run examples/profile.til --massif
+  test/maps.til`) showed Expr_new via Vec__Expr_new dominating live heap
+  (22.9%, 8.6 MB) and Vec__Expr_new at ~39 MB of push-realloc churn.
+
+  Design (verified to compile): new() returns a Vec with data=NULL,
+  cap=0; the first push/append/insert allocates. The count==0/data==NULL
+  convention already exists -- push_take, take_children and Vec.delete
+  tolerate NULL data, and realloc(NULL, n) == malloc(n). The only hazard
+  is the `cap.mul(2)` doubling starting from 0 (loops forever / allocs 0
+  bytes), so every grow site needs a `cap==0 -> 1` guard:
+    - vec.til: push, append, move_from, push_take, clone
+    - ast.til: take_children (Expr.children grows inline)
+    - map.til: keys/values grow (Map storage is Vec(K)/Vec(V) via new())
+  Set and Tuple use their own eager storage (malloc, cap>=1) and are
+  unaffected. No inline Vec grows exist in src/self.
+
+  BLOCKER (why it is not landed yet): comptime construction. `bin/til_boot
+  build` comptime-evaluates Vec.new() (struct-field defaults such as
+  `type_names := Vec(Str).new()` in tuple.til), and HEAD's interpreter
+  cannot write a null pointer into an `own` field. interpreter.til:3262
+  (the own-field writer in write_field_value) hits UNREACHABLE: its cases
+  only accept a deref-able slot (Struct/Ref/Dynamic/Func). `data = 0` is a
+  raw Value.Int -> UNREACHABLE; `data = NULL` -> Value.Ref(NULL) ->
+  write_ptr(ptr, deref(pv)) with deref(slot)=*(void**)slot, so deref(NULL)
+  segfaults. malloc works only because the interpreter boxes its result as
+  Value.Dynamic(slot) whose *slot is the pointer.
+
+  Path: staged across a master merge.
+  1. Teach the interpreter's own-field writer (interpreter.til ~3240-3264)
+     to write NULL when the value is a null/0 pointer (e.g. add a case
+     that writes write_ptr(ptr, NULL) for a null Value), and MERGE it so
+     til_boot carries it -- pass-1 comptime runs the pre-built til_boot,
+     so a source-only fix does not help the same commit.
+  2. In a follow-up, land lazy new() + the 8 grow-site guards above.
+
+  Win: eliminates a malloc+free for every empty Vec, in the compiler and
+  in every compiled program.
