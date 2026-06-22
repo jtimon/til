@@ -74,13 +74,9 @@ namespace:
             }
         }
         if found {
-            // Delete old value at index lo. The stored key remains unchanged.
-            V.delete(own self.values.unsafe_get(lo), false)
-
-            // Overwrite bytes with new value.
-            memcpy(self.values.unsafe_get(lo), val, V.size().cast(U64))
-            memset(val, 0, V.size().cast(U64))
-            free(own val)
+            // Overwrite the value at index lo (drops the old). The stored
+            // key is unchanged; lo came from the search, so it is in bounds.
+            self.values.unsafe_set(lo, own val)
         } else {
             if self.keys.count.eq(self.keys.cap) {
                 new_cap : USize = self.keys.cap.mul(2)

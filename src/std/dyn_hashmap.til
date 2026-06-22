@@ -61,13 +61,13 @@ namespace:
     find := func(self: DynHashMap, key: Dynamic) returns I64 {
         if self.keys.count.eq(0) { return -1 }
         bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
-        ref head : I64 = self.buckets[bi]
+        ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys[entry_u]
+            ref k : Dynamic = self.keys.unsafe_get(entry_u)
             if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
-            ref nxt : I64 = self.nexts[entry_u]
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
         return -1
@@ -80,22 +80,22 @@ namespace:
     get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic {
         idx := self.find(key)
         if idx.lt(0) { panic("DynHashMap.get: key not found") }
-        return self.values[idx.to_usize()]
+        return self.values.unsafe_get(idx.to_usize())
     }
 
     set := func(mut self: DynHashMap, key: Dynamic, own val: Dynamic) {
         bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
-        ref head : I64 = self.buckets[bi]
+        ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         mut existing : I64 = -1
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys[entry_u]
+            ref k : Dynamic = self.keys.unsafe_get(entry_u)
             if self.keys_equal(to_ptr(key), to_ptr(k)) {
                 existing = entry.clone()
                 break
             }
-            ref nxt : I64 = self.nexts[entry_u]
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
         if existing.gte(0) {
@@ -106,7 +106,7 @@ namespace:
             free(own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
-            ref head2 : I64 = self.buckets[bi]
+            ref head2 : I64 = self.buckets.unsafe_get(bi)
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
             cloned_key : Dynamic = malloc(self.keys.elem_size.cast(U64))
@@ -119,7 +119,7 @@ namespace:
             }
             self.keys.push(own cloned_key)
             self.values.push(own val)
-            self.buckets[bi] = new_idx
+            self.buckets.unsafe_set(bi, own new_idx)
             if self.keys.count.mul(4).gt(self.buckets.count.mul(3)) {
                 self.rehash()
             }
@@ -129,18 +129,18 @@ namespace:
     rehash := func(mut self: DynHashMap) {
         new_count : USize = self.buckets.count.mul(2)
         for i in 0..self.buckets.count {
-            self.buckets[i] = -1
+            self.buckets.unsafe_set(i, own -1)
         }
         while self.buckets.count.lt(new_count) {
             self.buckets.push(own -1)
         }
         for i in 0..self.keys.count {
-            ref k : Dynamic = self.keys[i]
+            ref k : Dynamic = self.keys.unsafe_get(i)
             bi := bucket(self.hash_key(to_ptr(k)), self.buckets.count)
-            ref head : I64 = self.buckets[bi]
+            ref head : I64 = self.buckets.unsafe_get(bi)
             head_val : I64 = head.clone()
-            self.nexts[i] = head_val
-            self.buckets[bi] = i.to_i64()
+            self.nexts.unsafe_set(i, own head_val)
+            self.buckets.unsafe_set(bi, own i.to_i64())
         }
     }
 
@@ -156,19 +156,19 @@ namespace:
         if self.keys.count.eq(0) { return }
         bi := bucket(self.hash_key(key), self.buckets.count)
 
-        ref head : I64 = self.buckets[bi]
+        ref head : I64 = self.buckets.unsafe_get(bi)
         mut prev : I64 = -1
         mut entry : I64 = head.clone()
         mut found := false
         while entry.gte(0) {
             entry_u : USize = entry.to_usize()
-            ref k : Dynamic = self.keys[entry_u]
+            ref k : Dynamic = self.keys.unsafe_get(entry_u)
             if self.keys_equal(key, k) {
                 found = true
                 break
             }
             prev = entry.clone()
-            ref nxt : I64 = self.nexts[entry_u]
+            ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
         if found.not() { return }
@@ -180,29 +180,29 @@ namespace:
         self.keys.elem_delete(ptr_add(self.keys.data, keys_off.cast(U64)), false)
         self.values.elem_delete(ptr_add(self.values.data, values_off.cast(U64)), false)
 
-        ref nxt_of_idx : I64 = self.nexts[idx_u]
+        ref nxt_of_idx : I64 = self.nexts.unsafe_get(idx_u)
         nxt_val : I64 = nxt_of_idx.clone()
         if prev.lt(0) {
-            self.buckets[bi] = nxt_val
+            self.buckets.unsafe_set(bi, own nxt_val)
         } else {
-            self.nexts[prev.to_usize()] = nxt_val
+            self.nexts.unsafe_set(prev.to_usize(), own nxt_val)
         }
 
         last_idx : I64 = self.keys.count.to_i64().sub(1)
         if entry.eq(last_idx).not() {
             last_u : USize = last_idx.to_usize()
-            ref last_key : Dynamic = self.keys[last_u]
+            ref last_key : Dynamic = self.keys.unsafe_get(last_u)
             last_bi := bucket(self.hash_key(last_key), self.buckets.count)
-            ref last_head : I64 = self.buckets[last_bi]
+            ref last_head : I64 = self.buckets.unsafe_get(last_bi)
             if last_head.eq(last_idx) {
-                self.buckets[last_bi] = entry.clone()
+                self.buckets.unsafe_set(last_bi, own entry.clone())
             } else {
                 mut walker : I64 = last_head.clone()
                 while walker.gte(0) {
                     walker_u : USize = walker.to_usize()
-                    ref walker_nxt : I64 = self.nexts[walker_u]
+                    ref walker_nxt : I64 = self.nexts.unsafe_get(walker_u)
                     if walker_nxt.eq(last_idx) {
-                        self.nexts[walker_u] = entry.clone()
+                        self.nexts.unsafe_set(walker_u, own entry.clone())
                         break
                     }
                     walker = walker_nxt.clone()
@@ -215,8 +215,8 @@ namespace:
                    ptr_add(self.keys.data, last_keys_off.cast(U64)), self.keys.elem_size.cast(U64))
             memcpy(ptr_add(self.values.data, values_off.cast(U64)),
                    ptr_add(self.values.data, last_values_off.cast(U64)), self.values.elem_size.cast(U64))
-            ref last_nxt : I64 = self.nexts[last_u]
-            self.nexts[idx_u] = last_nxt.clone()
+            ref last_nxt : I64 = self.nexts.unsafe_get(last_u)
+            self.nexts.unsafe_set(idx_u, own last_nxt.clone())
         }
 
         self.keys.count = self.keys.count.sub(1)
