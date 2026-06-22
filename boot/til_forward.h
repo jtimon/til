@@ -3099,6 +3099,7 @@ Bool priv___src_self_desugarer_til__desugar_array_vec_fcall(Context * ctx, Expr 
 Bool priv___src_self_desugarer_til__desugar_array_vec_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
 Bool priv___src_self_desugarer_til__desugar_set_literal_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
 Bool priv___src_self_desugarer_til__desugar_map_literal_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
+void priv___src_self_desugarer_til__desugar_one_variadic_fcall(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope);
 void priv___src_self_desugarer_til__process_call_desugars(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs);
 Bool body_pre_passes(Context * ctx, Expr * body, TypeScope * scope, I32 owns_scope);
 void priv___src_self_desugarer_til__apply_hoist_to_stmt(Context * ctx, Expr * stmt, Vec__Expr * new_ch, TypeScope * scope);
