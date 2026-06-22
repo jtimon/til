@@ -735,3 +735,11 @@ for mut k, v in terr_kvmut_map {
     println(k)
     println(v.to_str())
 }
+
+// #262: a lazy_func/lazy_proc body must be inlinable (a single `return
+// <expr>` or `if cond { return X } else { return Y }`); a multi-statement
+// body is rejected until the thunk fallback exists.
+terr_bad_lazy := lazy_func(a: Bool, b: Bool) returns Bool {
+    if a { return b }
+    return false
+}

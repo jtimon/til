@@ -45,8 +45,13 @@ v1 status (implemented):
     form short-circuits at zero runtime cost just like the match form. (til's
     ~if~ is a statement, not a value-expression, hence the rewrite to a
     ~match~ expression.) This removes the if/else manifestation of the
-    silent-eager bug below; multi-statement / loop / first-class bodies still
-    fall through and await the thunk fallback.
+    silent-eager bug below.
+  - Non-inlinable lazy bodies now HARD-ERROR instead of silently degrading to
+    an eager call. ~lazy_body_inlinable~ (src/core/ast.til) is the shared
+    shape predicate (single ~return <expr>~, or ~if/else~ with single
+    returns); the typer rejects anything else in ~infer_func_def_expr~ before
+    the body is lowered. This makes the current limitation loud and is the
+    placeholder the thunk fallback will replace with a real lowering.
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
     core Bool and/or, operator syntax, N-ary fold and its short-circuit,
     if/else-body lazy funcs and their short-circuit, decisive short-circuit
@@ -61,10 +66,15 @@ Remaining (deferred):
     rest-arg (an ordinary ~Array(Bool)~ would eagerly evaluate every operand
     and destroy short-circuiting).
   - First-class lazy callables (stored in a var / funcptr) and recursive
-    lazy callables, which cannot be inlined and need real thunks/closures.
-  - Multi-statement lazy bodies (v1 requires a single ~return <expr>~).
-  - Hard errors for lazy-call shapes that v1 cannot inline; today they are
-    left as residual eager calls.
+    lazy callables, which cannot be inlined and need real thunks/closures
+    (currently a hard error).
+  - Multi-statement / loop lazy bodies (currently a hard error; the thunk
+    fallback would make them work).
+  - The thunk fallback itself (Design 2 below): type-directed, in the
+    typer/desugarer -- free-variable analysis (none exists yet; captures are
+    explicit), synthesized capturing closures per arg, auto-force at param
+    uses, and thunk ownership. Additive: every existing lazy func inlines, so
+    the thunk path only activates for the bodies that currently error.
   - call-by-need (memoize a reused argument once) vs the current
     call-by-name (re-evaluate on each use).
 
@@ -196,17 +206,17 @@ options in detail; no decision made yet):
       stays pre-typer (needs raw bodies), thunk-lowering is type-directed
       (desugarer.til).
 
-  Silent-eager fallback bug (partially addressed). A lazy_func whose body is
-  not inlinable is silently left un-inlined and degrades to an EAGER call: it
-  returns the right value but evaluates all args, with no diagnostic. The
-  if/else single-return shape (~if cond { return X } else { return Y }~) now
-  inlines (see v1 status), so that common manifestation is fixed. What
-  REMAINS silently-eager: multi-statement bodies, loops, and first-class /
-  recursive use. Those still violate the fail-loud rule and can be a
-  correctness bug (a guarded throwing / out-of-bounds operand would panic).
-  Two fixes, depending on direction: emit a HARD ERROR when such a body is
-  defined (until it is supported), OR -- under the recommended hybrid -- fall
-  back to THUNKS instead of eager, which removes the failure mode entirely.
+  Silent-eager fallback bug (FIXED). A lazy_func whose body was not inlinable
+  used to be silently left un-inlined and degrade to an EAGER call (right
+  value, but all args evaluated, no diagnostic -- a correctness bug, since a
+  guarded throwing / out-of-bounds operand would panic). Now: the if/else
+  single-return shape inlines (see v1 status), and ANY other body shape
+  (multi-statement, loops, ...) is rejected with a HARD ERROR at the lazy
+  definition -- ~lazy_body_inlinable~ (src/core/ast.til) is the shared shape
+  predicate; the typer checks it in ~infer_func_def_expr~ before the body is
+  lowered. Negative test: test/typer_errors.til (terr_bad_lazy). When the
+  thunk fallback lands, this hard error becomes a THUNK lowering instead, so
+  those bodies start working rather than erroring.
 
   Staged path (one reasonable ordering): (1) stop the silent-eager fallback
   (hard error now, or thunk fallback once Design 2 lands); (2) implement

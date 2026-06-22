@@ -2197,6 +2197,8 @@ Str * func_type_variant_name(FuncType * ft);
 Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
+Bool priv___src_core_ast_til__lazy_single_return_body(Expr * body);
+Bool lazy_body_inlinable(Expr * body);
 U32 fcall_kwargs_count(Expr * fcall);
 U32 fcall_variadic_count(Expr * fcall, U32 nparam, Bool callee_has_kwargs);
 Map__I64_Str * Map__I64_Str_new(void);

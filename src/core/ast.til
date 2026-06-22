@@ -971,6 +971,36 @@ func_type_name := func(ft: FuncType) returns Str {
     }
 }
 
+// Issue #262: a lazy_func/lazy_proc body the inliner can splice. True for a
+// single-statement body that is `return <expr>` or `if cond { return X }
+// else { return Y }` (the if/else form is rewritten to a `match` when
+// inlined). The loader's lazy_body_as_expr constructs the inlined expression
+// for exactly these shapes; the typer uses this predicate to reject any
+// other shape (multi-statement, loops, ...) loudly instead of silently
+// degrading to an eager call. Keep the two in sync.
+priv lazy_single_return_body := func(body: Expr) returns Bool {
+    if body.node_type.is(NodeType.Body).not() { return false }
+    if body.children.len().eq(1).not() { return false }
+    ref ret : Expr = body.children[0]
+    return ret.node_type.is(NodeType.Return).and(ret.children.len().gte(1))
+}
+
+lazy_body_inlinable := func(body: Expr) returns Bool {
+    if body.node_type.is(NodeType.Body).not() { return false }
+    if body.children.len().eq(1).not() { return false }
+    ref stmt : Expr = body.children[0]
+    switch stmt.node_type {
+    case NodeType.Return:
+        return stmt.children.len().gte(1)
+    case NodeType.If:
+        if stmt.children.len().lt(3) { return false }
+        return lazy_single_return_body(stmt.children[1])
+            .and(lazy_single_return_body(stmt.children[2]))
+    case:
+        return false
+    }
+}
+
 // --- ast_print ---
 ast_print := proc(e: Expr, indent: U32) {
     for _ in 0..indent.cast(U64) {
