@@ -257,8 +257,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
         ref rhs : Expr = lifted.children[0]
         switch rhs.node_type {
         case NodeType.FuncDef:
-            rt := Type.None
-            scope.set(sdecl.name, rt, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
+            scope.set(sdecl.name, Type.None, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
             scope.set_func_def(sdecl.name, lifted.children[0])
             ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
             fb.is_func_decl = true
@@ -3997,14 +3996,12 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     if elem_type.is_null() { return }
     array_type := variadic_array_type_name(scope, elem_type)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
-    line := e.line
-    col := e.col
     va_name := format("_va_Array_", ctx.va_counter.to_str())
     ctx.va_counter++
     mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
-    scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, line, col, false, OwnType.Own)
+    scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, e.line, e.col, false, OwnType.Own)
     new_ch.push(own va_decl)
-    build_variadic_err_slots(va_name, new_ch, scope, ctx, line, col)
+    build_variadic_err_slots(va_name, new_ch, scope, ctx, e.line, e.col)
     for j in 0..vc {
         mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi, j, ctx)
         new_ch.push(own setter)
@@ -4862,8 +4859,7 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
 // pre-variadic-rewrite "position would be different" is irrelevant
 // there.
 priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) returns I32 {
-    fkwi := fdef_data.kwargs_index
-    if fkwi.lt(0) { return -1 }
+    if fdef_data.kwargs_index.lt(0) { return -1 }
     return fdef_data.params.len().cast(I32)
 }
 

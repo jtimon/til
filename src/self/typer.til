@@ -2518,8 +2518,7 @@ priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
             }
         }
     case NodeType.FieldAssign(fad):
-        fad_name := fad.name
-        if fad_name.eq(field_name) {
+        if fad.name.eq(field_name) {
             if e.children.len().gt(0) {
                 switch e.children[0].node_type {
                 case NodeType.Ident(id2):
@@ -3789,8 +3788,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
     mut fname := ""
     switch stmt.node_type {
     case NodeType.FieldAssign(fad):
-        fn := fad.name
-        fname = fn.clone()
+        fname = fad.name.clone()
     case:
         UNREACHABLE()
         return

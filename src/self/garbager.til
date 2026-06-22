@@ -501,8 +501,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                     }
                 }
                 if type_to_name(local.type).len().gt(0) {
-                    heap := local.is_heap
-                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                    del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                     if del.is_null().not() {
                         if stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0)) {
                             stmt.add_child(own del)
@@ -617,8 +616,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         if local.decl_index.lt(stmt_idx.cast(I32)) {
             if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
                 if type_to_name(local.type).len().gt(0) {
-                    heap := local.is_heap
-                    del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                    del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                     if del.is_null().not() { new_ch.push(own del) }
                 } else if local.is_heap {
                     del := make_free_call(local.name, local.type, stmt)
@@ -763,8 +761,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                 }
             }
             if type_to_name(local.type).len().gt(0) {
-                heap := local.is_heap
-                del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
             } else if local.is_heap {
                 del := make_free_call(local.name, local.type, stmt)
@@ -773,8 +770,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.cast(I32))) {
             if type_to_name(local.type).len().gt(0) {
-                heap := local.is_heap
-                del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
             } else if local.is_heap {
                 del := make_free_call(local.name, local.type, stmt)
@@ -796,8 +792,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                     stmt.set_expr_til_type(local.type.clone())
                 } else {
                     if type_to_name(local.type).len().gt(0) {
-                        heap := local.is_heap
-                        del := make_delete_call(local.name, local.type, heap, heap, stmt)
+                        del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                         if del.is_null().not() { new_ch.push(own del) }
                     } else if local.is_heap {
                         del := make_free_call(local.name, local.type, stmt)

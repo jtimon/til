@@ -222,13 +222,12 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             }
         }
     case NodeType.FieldAssign(fad):
-        field_name := fad.name
         if scav_fa_is_ns(e) {
             if e.children[0].node_type.is(NodeType.Ident) {
                 switch e.children[0].node_type {
                 case NodeType.Ident(type_name):
                     vec_push_str(refs, type_name.ident_name())
-                    push_qn(refs, type_name.ident_name(), field_name)
+                    push_qn(refs, type_name.ident_name(), fad.name)
                 case:
                     UNREACHABLE()
                 }

@@ -239,9 +239,6 @@ main := proc(args: ..Str) {
         outfile := format("gen/out/single/", label, ".out")
 
         phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
-        ms := phase.ms
-        mem := phase.mem
-
         mut ok := 1
         if phase.status.neq(expected_exit) {
             println("FAIL: ", label, " exit=", phase.status.to_str(), " expected=", expected_exit.to_str())
@@ -257,7 +254,7 @@ main := proc(args: ..Str) {
             }
         }
 
-        println("RESULT ms=", ms.to_str(), " mem=", mem.to_str(), " ok=", ok.to_str())
+        println("RESULT ms=", phase.ms.to_str(), " mem=", phase.mem.to_str(), " ok=", ok.to_str())
         if ok.eq(1) { exit(0) } else { exit(1) }
     }
 
@@ -298,9 +295,6 @@ main := proc(args: ..Str) {
         outfile := format("gen/out/single/", label, ".out")
 
         phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
-        ms := phase.ms
-        mem := phase.mem
-
         actual_out := File.readfile(outfile)
         actual_count := count_matches(actual_out, needle)
 
@@ -310,7 +304,7 @@ main := proc(args: ..Str) {
             ok = 0
         }
 
-        println("RESULT ms=", ms.to_str(), " mem=", mem.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
+        println("RESULT ms=", phase.ms.to_str(), " mem=", phase.mem.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
         if ok.eq(1) { exit(0) } else { exit(1) }
     }
 

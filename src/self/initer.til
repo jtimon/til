@@ -1115,8 +1115,6 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
         UNREACHABLE()
         return
     }
-    line := stmt.line
-    col := stmt.col
     mut has_clone := false
     switch stmt.children[0].node_type {
     case NodeType.EnumDef(ecl_edd):
@@ -1135,7 +1133,7 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
         variant_types := Vec(Str).new()
         mut has_payloads := false
         collect_enum_variants(stmt.children[0], variant_names, variant_types, has_payloads)
-        generate_enum_clone_method(stmt.children[0], ename, line, col, variant_names, variant_types, has_payloads, scope)
+        generate_enum_clone_method(stmt.children[0], ename, stmt.line, stmt.col, variant_names, variant_types, has_payloads, scope)
     }
 }
 
