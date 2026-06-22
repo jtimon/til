@@ -86,3 +86,42 @@ test_func_str := test() {
 test_func_ns_method_size := test() {
     assert_eq(USize, Dynamic.size(), 8)
 }
+
+# --- #285: macro args accept foldable namespace-method calls ---
+
+# A primitive conversion call (`2.to_f32()`) is lowered to the namespace
+# method `I64.to_f32(2)`, whose FuncDef lives in the I64 namespace rather
+# than as a flat `I64_to_f32` binding. expr_is_comptime used to resolve the
+# callee only through scope.get_binding, so that flat-name miss wrongly
+# rejected the arg with "macro argument must be known at compile time".
+macro_f32_id := macro(x: F32) returns F32 {
+    return x
+}
+
+test_macro_to_f32_arg := test() {
+    assert_eq(I64, macro_f32_id(2.to_f32()).to_i64(), 2)
+}
+
+# Newton-sqrt macro reused from the lib/music.til case that surfaced #285.
+calculate_sqrt := macro(x: F32) returns F32 {
+    mut guess := x
+    for _ in 0..12 {
+        guess = guess.add(x.div(guess)).div(2.to_f32())
+    }
+    return guess
+}
+
+# Nested macro calls whose innermost arg is the foldable `2.to_f32()`.
+# Folds to 2^(1/8); raising it to the 8th power recovers 2 exactly enough
+# that adding 0.5 and truncating lands on 2 regardless of F32 rounding.
+nathex_step_ratio := macro() returns F32 {
+    return calculate_sqrt(calculate_sqrt(calculate_sqrt(2.to_f32())))
+}
+
+test_macro_nested_foldable_args := test() {
+    step := nathex_step_ratio()
+    pow2 := step.mul(step)
+    pow4 := pow2.mul(pow2)
+    pow8 := pow4.mul(pow4)
+    assert_eq(I64, pow8.add(0.5).to_i64(), 2)
+}

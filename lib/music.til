@@ -23,7 +23,7 @@ DISPLAY_MODE_NATHEX : I32 = 3
 calculate_sqrt := macro(x: F32) returns F32 {
     mut guess := x
     for _ in 0..12 {
-        guess = guess.add(x.div(guess)).div(2.to_f32())
+        guess = guess.add(x.div(guess)).div(2)
     }
     return guess
 }
