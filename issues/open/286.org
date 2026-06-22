@@ -17,22 +17,38 @@
 
 *** Progress
 
-  - Stage 1 DONE: ported rstil's eval_heap.rs to ~src/self/eval_heap.til~ --
-    a flat raw-bytes runtime heap. One growable byte buffer; each block is
-    laid out [size header][payload]; heap_alloc returns the payload offset;
-    heap_free reclaims the top block by rewinding the bump pointer; typed
-    get_*/set_* read/write the native little-endian C layout the backend
-    emits. STANDALONE -- not yet wired into eval or Context. Exercised by
-    ~test/eval_heap.til~ (alloc/free, size rounding, typed round-trips,
-    sub-block addressing, raw byte copy, top-block rewind reuse, realloc
-    growth) in both interpret and compiled+ASAN modes.
-    ~make clean && make test~ green at 161/161.
-    REM: non-top frees leave a hole until reset()/delete(); a free
-    list / coalescing is deferred to the stage that wires EvalHeap into
-    eval and can measure the real allocation pattern.
-  - Stages 2-9 remain: Scope name->offset index, kill the dangling
-    type-refs, unbox Struct/Str/Enum, containers, scope-teardown =
-    heap_free, drop the Value box.
+  Plan: 4 commits (revised from 9 after reading rstil). Only the last is
+  bootstrap-independent in self.org terms -- removing Value variants changes
+  what til_boot's committed boot/ encodes (the reason Sbyte/Ushort were
+  appended, not inserted). Commits 1-3 are regular single commits, each
+  green on ~make test~ + ~make test_two_pass~.
+
+  - Commit 1 DONE: real-pointer EvalHeap. The first Stage-1 cut used a flat
+    growable buffer with synthetic offsets; that was WRONG -- later commits
+    store real C pointers inside heap bytes (Str.c_str, Vec.data, enum
+    payloads) and pass them back to get()/FFI, and a growable buffer moves
+    under realloc and dangles them. So ~src/self/eval_heap.til~ now wraps
+    calloc/free: a handle is a REAL address (rstil's alloc_zeroed -> ptr),
+    heap_free = free (C needs no size, so no heap_blocks table), and a
+    live_blocks counter is the balance/leak probe. Standalone infrastructure
+    also wired in: ~Scope.heap_index : Map(Str, Dynamic)~ +
+    scope_lookup_offset / scope_insert_offset (parent-chain walk, rstil's
+    lookup_var) and ~Context.eval_heap~. Eval does not read the heap yet.
+    Exercised by ~test/eval_heap.til~ in both interpret and compiled+ASAN;
+    ~make clean && make test_two_pass~ green at 161/161.
+  - Commit 2: unbox Struct + containers onto the heap (one generic
+    heap_clone/heap_free pair). Also adds the garbager's explicit
+    clone-on-assign insertion (rstil #159) and stops the interpreter cloning
+    implicitly -- til's garbager today only inserts deletes (it reasons
+    about clones but never emits them), so the clone side must be added,
+    coupled with the representation change. Removes StructInstance and, with
+    it, the #239 dangling type-refs.
+  - Commit 3: unbox Str + Enum; delete struct_deep_free, free_value,
+    free_value_full, free_container_str_data, clone_container_str_buffer,
+    free_temp_arg_value, free_non_own_temp_args.
+  - Commit 4 (self.org-independent): remove the Value.Struct/Enum/Str/Ref/
+    Dynamic variants, scalars into heap. A ~Two-pass:~ commit, or a
+    prep + removal pair across a master merge if two_pass can't carry it.
 
 *** Why the current model leaks (band-aids will not converge)
 

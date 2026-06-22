@@ -1,6 +1,7 @@
 mode lib
 
 import("parser")
+import("eval_heap")
 
 TypeBinding := struct {
     name := ""
@@ -304,6 +305,10 @@ Context := struct {
     path := ""
     path_modes := Map(Str, Mode).new()
     mode_registry := Map(Str, Mode).new()
+    // #286 commit 1: the raw-bytes runtime heap (rstil's EvalHeap), threaded
+    // through Context since Context already flows everywhere eval runs.
+    // Eval does not use it yet -- commits 2-3 migrate values onto it.
+    eval_heap := EvalHeap.new()
     target_usize_pname := "U32"
     target_uptr_pname := "U64"
     anon_type_counter : I64 = 0

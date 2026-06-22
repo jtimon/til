@@ -483,6 +483,12 @@ Binding := struct {
 
 Scope := struct {
     bindings := Map(Str, Binding).new()
+    // #286 commit 1: name -> raw heap pointer (rstil's heap_index), added
+    // alongside `bindings` so eval can migrate value-kind by value-kind
+    // onto the EvalHeap (commits 2-3). Empty until then. A stored Dynamic
+    // is the block's real address (from Context.eval_heap.heap_alloc); the
+    // value bytes live there and the type lives in the symbol tables.
+    heap_index := Map(Str, Dynamic).new()
     ref parent : Scope = NULL
     // #211 follow-up: payload bindings that alias an enum's payload memory.
     // Key: binding name (the case-binding identifier). Value: encoded as
@@ -2588,6 +2594,28 @@ scope_get := func(mut s: Scope, name: Str) returns ref Cell {
 
 scope_new := func(parent: Scope) returns Scope {
     return Scope(parent = parent)
+}
+
+// #286 commit 1: walk the scope chain (inner -> outer) for `name`'s heap
+// pointer (rstil's lookup_var). Returns the block's real address, or NULL
+// if unbound. The heap_index is empty until eval starts storing values in
+// the EvalHeap (commits 2-3), so this returns NULL everywhere for now.
+scope_lookup_offset := func(mut s: Scope, name: Str) returns ref Dynamic {
+    ref mut cur : Scope = s
+    while true {
+        if cur.is_null() { return NULL }
+        if cur.heap_index.has(name) {
+            ref p : Dynamic = cur.heap_index[name]
+            return p
+        }
+        cur = cur.parent
+    }
+    return NULL
+}
+
+// #286 commit 1: bind `name` to a heap pointer in the current scope.
+scope_insert_offset := func(mut s: Scope, name: Str, own ptr: Dynamic) {
+    s.heap_index.set(name, own ptr)
 }
 
 // #211 follow-up: walk the scope chain looking up a payload-alias entry

@@ -221,6 +221,7 @@ typedef struct Vec__TokenType Vec__TokenType;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
 typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
+typedef struct EvalHeap EvalHeap;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
     ScopeFind_TAG_NotFound,
@@ -675,6 +676,11 @@ typedef struct Map__Str_Str {
     Vec__Str keys;
     Vec__Str values;
 } Map__Str_Str;
+
+
+typedef struct EvalHeap {
+    U32 live_blocks;
+} EvalHeap;
 
 
 typedef struct TypeBinding {
@@ -1776,6 +1782,7 @@ typedef struct Context {
     Str path;
     Map__Str_Mode path_modes;
     Map__Str_Mode mode_registry;
+    EvalHeap eval_heap;
     Str target_usize_pname;
     Str target_uptr_pname;
     I64 anon_type_counter;
@@ -1882,6 +1889,7 @@ typedef struct LoadedProgram {
 
 typedef struct Scope {
     Map__Str_Binding bindings;
+    Map__Str_Dynamic heap_index;
     Scope *parent;
     Map__Str_Str payload_aliases;
     Map__Str_Dynamic ref_primitive_ptrs;
@@ -2413,6 +2421,11 @@ void Map__Str_Str_delete(Map__Str_Str * self, Bool call_free);
 Map__Str_Str * Map__Str_Str_clone(Map__Str_Str * self);
 U64 Map__Str_Str_hash(Map__Str_Str * self, HashFn hasher);
 U32 Map__Str_Str_size(void);
+EvalHeap EvalHeap_new(void);
+void EvalHeap_delete(EvalHeap * self, Bool call_free);
+EvalHeap EvalHeap_clone(EvalHeap self);
+U64 EvalHeap_hash(EvalHeap self, HashFn hasher);
+U32 EvalHeap_size(void);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U64 TypeBinding_hash(TypeBinding * self, HashFn hasher);

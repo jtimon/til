@@ -1,138 +1,117 @@
 mode test
 
-// Stage 1 of #286: exercise the standalone EvalHeap raw-bytes runtime heap
-// before it is wired into the interpreter. Covers alloc/free, block-size
-// tracking + rounding, typed scalar round-trips, sub-block addressing, raw
-// byte copies, top-block rewind reuse, and growth (realloc) correctness.
-// Runs in both interpret and compiled modes under ASAN, so a leak or a
-// use-after-free in the heap fails the suite.
+// #286 commit 1: exercise the standalone EvalHeap raw-bytes runtime heap
+// before it is wired into eval. Handles are REAL heap addresses (rstil's
+// model): heap_alloc returns a zeroed block's pointer, heap_free reclaims
+// it, the static get_*/set_* read/write the native C layout, and a
+// within-block field is reached with ptr_add. Runs in both interpret and
+// compiled modes under ASAN, so a leak or use-after-free fails the suite.
 
 import("../src/self/eval_heap")
 
 test_eval_heap_basic := test() {
     h := EvalHeap.new()
     assert_eq(USize, h.live_blocks, 0)
-    assert_eq(USize, h.live_bytes, 0)
-    assert_eq(USize, h.len, 0)
 
-    a := h.heap_alloc(8)
+    a : Dynamic = h.heap_alloc(8)
+    assert(a.is_null().not())
     assert_eq(USize, h.live_blocks, 1)
-    assert_eq(USize, h.live_bytes, 8)
-    assert_eq(USize, h.block_size(a), 8)
-    h.set_i64(a, 1234567890123)
-    assert_eq(I64, h.get_i64(a), 1234567890123)
+    EvalHeap.set_i64(a, 1234567890123)
+    assert_eq(I64, EvalHeap.get_i64(a), 1234567890123)
 
-    b := h.heap_alloc(8)
-    assert(a.eq(b).not())
-    h.set_i64(b, 0.sub(42))
-    assert_eq(I64, h.get_i64(b), 0.sub(42))
-    // Writing b leaves a untouched.
-    assert_eq(I64, h.get_i64(a), 1234567890123)
+    b : Dynamic = h.heap_alloc(8)
+    assert(a.ptr_eq(b).not())
+    EvalHeap.set_i64(b, 0.sub(42))
+    assert_eq(I64, EvalHeap.get_i64(b), 0.sub(42))
+    // Writing b leaves a untouched (distinct blocks).
+    assert_eq(I64, EvalHeap.get_i64(a), 1234567890123)
     assert_eq(USize, h.live_blocks, 2)
-    assert_eq(USize, h.live_bytes, 16)
+
+    h.heap_free(own a)
+    h.heap_free(own b)
+    assert_eq(USize, h.live_blocks, 0)
 }
 
-test_eval_heap_rounding := test() {
+test_eval_heap_zeroed := test() {
     h := EvalHeap.new()
-    a := h.heap_alloc(5)
-    assert_eq(USize, h.block_size(a), 8)
-    assert_eq(USize, h.live_bytes, 8)
-    b := h.heap_alloc(13)
-    assert_eq(USize, h.block_size(b), 16)
-    assert_eq(USize, h.live_bytes, 24)
+    // calloc-backed: a fresh block reads back as all zeros.
+    p : Dynamic = h.heap_alloc(16)
+    assert_eq(I64, EvalHeap.get_i64(p), 0)
+    assert_eq(I64, EvalHeap.get_i64(ptr_add(p, 8)), 0)
+    h.heap_free(own p)
 }
 
 test_eval_heap_typed := test() {
     h := EvalHeap.new()
 
-    ou := h.heap_alloc(8)
-    h.set_u64(ou, 1234567890123456789)
-    assert_eq(U64, h.get_u64(ou), 1234567890123456789)
+    pu : Dynamic = h.heap_alloc(8)
+    EvalHeap.set_u64(pu, 1234567890123456789)
+    assert_eq(U64, EvalHeap.get_u64(pu), 1234567890123456789)
 
-    ob := h.heap_alloc(1)
-    h.set_u8(ob, 200)
-    assert_eq(U8, h.get_u8(ob), 200)
+    pb : Dynamic = h.heap_alloc(1)
+    EvalHeap.set_u8(pb, 200)
+    assert_eq(U8, EvalHeap.get_u8(pb), 200)
 
-    of := h.heap_alloc(4)
-    h.set_f32(of, 2.5)
-    assert_eq(F32, h.get_f32(of), 2.5)
+    pf : Dynamic = h.heap_alloc(4)
+    EvalHeap.set_f32(pf, 2.5)
+    assert_eq(F32, EvalHeap.get_f32(pf), 2.5)
 
-    obool := h.heap_alloc(1)
-    h.set_bool(obool, true)
-    assert(h.get_bool(obool))
-    h.set_bool(obool, false)
-    assert(h.get_bool(obool).not())
+    pbool : Dynamic = h.heap_alloc(1)
+    EvalHeap.set_bool(pbool, true)
+    assert(EvalHeap.get_bool(pbool))
+    EvalHeap.set_bool(pbool, false)
+    assert(EvalHeap.get_bool(pbool).not())
+
+    h.heap_free(own pu)
+    h.heap_free(own pb)
+    h.heap_free(own pf)
+    h.heap_free(own pbool)
 }
 
 test_eval_heap_subblock := test() {
     h := EvalHeap.new()
-    o := h.heap_alloc(16)
-    h.set_i64(o, 111)
-    h.set_i64(o.add(8), 222)
-    assert_eq(I64, h.get_i64(o), 111)
-    assert_eq(I64, h.get_i64(o.add(8)), 222)
+    p : Dynamic = h.heap_alloc(16)
+    EvalHeap.set_i64(p, 111)
+    EvalHeap.set_i64(ptr_add(p, 8), 222)
+    assert_eq(I64, EvalHeap.get_i64(p), 111)
+    assert_eq(I64, EvalHeap.get_i64(ptr_add(p, 8)), 222)
+    h.heap_free(own p)
 }
 
 test_eval_heap_bytes := test() {
     h := EvalHeap.new()
-    src := h.heap_alloc(8)
-    h.set_i64(src, 999888777)
-    dst := h.heap_alloc(8)
+    src : Dynamic = h.heap_alloc(8)
+    EvalHeap.set_i64(src, 999888777)
+    dst : Dynamic = h.heap_alloc(8)
     tmp : Dynamic = malloc(8)
-    h.get_bytes(src, tmp, 8)
-    h.set_bytes(dst, tmp, 8)
+    EvalHeap.get_bytes(src, tmp, 8)
+    EvalHeap.set_bytes(dst, tmp, 8)
     free(own tmp)
-    assert_eq(I64, h.get_i64(dst), 999888777)
+    assert_eq(I64, EvalHeap.get_i64(dst), 999888777)
+    h.heap_free(own src)
+    h.heap_free(own dst)
 }
 
-test_eval_heap_free_rewind := test() {
+test_eval_heap_zero_size := test() {
     h := EvalHeap.new()
-    a := h.heap_alloc(8)
-    b := h.heap_alloc(8)
-    len_two := h.len
-    h.heap_free(b)
+    // Zero-size request still yields a unique, freeable address.
+    p : Dynamic = h.heap_alloc(0)
+    assert(p.is_null().not())
     assert_eq(USize, h.live_blocks, 1)
-    assert_eq(USize, h.live_bytes, 8)
-    assert(h.len.lt(len_two))
-    // The rewound top space is handed back to the next alloc.
-    c := h.heap_alloc(8)
-    assert_eq(USize, c, b)
-    h.heap_free(c)
-    h.heap_free(a)
+    h.heap_free(own p)
     assert_eq(USize, h.live_blocks, 0)
-    assert_eq(USize, h.live_bytes, 0)
-    assert_eq(USize, h.len, 0)
 }
 
-test_eval_heap_reset := test() {
+test_eval_heap_many := test() {
     h := EvalHeap.new()
-    h.heap_alloc(8)
-    h.heap_alloc(16)
-    assert_eq(USize, h.live_blocks, 2)
-    h.reset()
-    assert_eq(USize, h.live_blocks, 0)
-    assert_eq(USize, h.live_bytes, 0)
-    assert_eq(USize, h.len, 0)
-    // Reused after reset.
-    o := h.heap_alloc(8)
-    assert_eq(USize, h.block_size(o), 8)
-    h.set_i64(o, 5)
-    assert_eq(I64, h.get_i64(o), 5)
-}
-
-test_eval_heap_growth := test() {
-    h := EvalHeap.new()
-    first := h.heap_alloc(8)
-    h.set_i64(first, 7)
+    // Many independent alloc/write/read/free cycles balance to zero.
     mut i : USize = 0
-    while i.lt(20) {
-        o := h.heap_alloc(8)
-        h.set_i64(o, i.to_i64())
+    while i.lt(50) {
+        p : Dynamic = h.heap_alloc(8)
+        EvalHeap.set_i64(p, i.to_i64())
+        assert_eq(I64, EvalHeap.get_i64(p), i.to_i64())
+        h.heap_free(own p)
         i = i.add(1)
     }
-    // Earlier offset still reads correctly after the buffer was reallocated
-    // (get_i64 re-derives the pointer from the current data each call).
-    assert_eq(I64, h.get_i64(first), 7)
-    assert(h.cap.gte(h.len))
-    assert(h.cap.gt(64))
+    assert_eq(USize, h.live_blocks, 0)
 }
