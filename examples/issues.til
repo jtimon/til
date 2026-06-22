@@ -62,7 +62,7 @@ known_priority := func(p: Str) returns Bool {
 // Keep in sync with the category sections emitted by main().
 known_category := func(c: Str) returns Bool {
     return c.eq("bugs").or(c.eq("cleanups")).or(c.eq("features"))
-        .or(c.eq("experiments")).or(c.eq("examples"))
+        .or(c.eq("optimizations")).or(c.eq("experiments")).or(c.eq("examples"))
         .or(c.eq("deferred")).or(c.eq("unknown"))
 }
 
@@ -128,8 +128,8 @@ parse_issue_body := func(fname: Str, content: Str) returns Str {
     }
     if !known_category(category) {
         return format("!issues/open/", fname, ": unknown category '", category,
-                      "' (expected bugs, cleanups, features, experiments, ",
-                      "examples, deferred, or unknown)")
+                      "' (expected bugs, cleanups, features, optimizations, ",
+                      "experiments, examples, deferred, or unknown)")
     }
     if title.is_empty() {
         return format("!issues/open/", fname, ": missing '** ... #NNN' heading")
@@ -256,6 +256,7 @@ main := proc() {
     mut s := ""
     s = format(s, emit_category(entries, "bugs", "Bugs"))
     s = format(s, emit_category(entries, "cleanups", "Cleanups"))
+    s = format(s, emit_category(entries, "optimizations", "Optimizations"))
     s = format(s, emit_category(entries, "features", "Features"))
     s = format(s, emit_category(entries, "experiments", "Experiments"))
     s = format(s, emit_category(entries, "examples", "Examples"))

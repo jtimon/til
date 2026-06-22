@@ -1,0 +1,215 @@
+# priority: low
+# category: optimizations
+** OPEN #288 core_func/core_proc: primitive intrinsics each codegen lowers natively
+
+Related: follow-up to the container-perf thread -- unchecked accessors
+  [[../fixed/284.org][#284]], for-in [[../fixed/287.org][#287]], and the
+  cast-malloc removal (master commit 3f7ab4d). Interacts with
+  [[./192.org][#192]] (USize width) and [[./212.org][#212]] (cast(e,T)
+  builtin emitting a C cast inline -- the same "codegen emits the op
+  inline" precedent this generalises).
+
+*** Motivation
+
+  The original deep-dive on container hot loops isolated THREE
+  per-element costs. Two are now gone:
+
+  1. The throwing bounds check on every `get`/`[i]` -- removed by the
+     unsafe_get/unsafe_set work (#284, #287, and the HashMap/DynHashMap
+     conversion).
+  2. A `Type_Primitive(malloc)` + `Type_delete` per `.cast(U64)` inside
+     every accessor -- removed by 3f7ab4d, which a self-host `--prof`
+     run had flagged as the SINGLE LARGEST allocation source (~1 GB of
+     churn; dead Type temps in boot/til.c dropped 1495 -> 43).
+
+  The third remains: **trivial scalar ops compile to non-inlined C
+  function calls.** `a.add(b)` / `a.mul(b)` / `a.lt(b)` / `a.eq(b)` are
+  declared `ext_func` in src/core/*.til and implemented in src/c/ext.c
+  (e.g. `U32 U32_mul(U32 a, U32 b) { return a * b; }`), compiled into a
+  separate object. gcc cannot inline across that TU boundary at -O2 (no
+  LTO), so every one emits a real `call U32_mul`. The earlier
+  disassembly confirmed `call U32_cmp` / `call I64_eq` in the hot path.
+  After the bounds check and the cast-malloc are gone, a hot
+  binary-search / loop iteration is essentially a string of these
+  primitive-op calls (loop condition, index arithmetic, comparison).
+
+  Two payoffs:
+  - *Speed.* These become native C operators (`a*b`), inlined, in the
+    hottest code in the whole compiler.
+  - *Legibility (the design point).* A reader can tell what is inlined
+    vs. linked just by looking at the declaration in src/core: `add :=
+    core_func(...)` (inlined by every backend) vs. `format :=
+    ext_func(...)` (a real linked per-backend symbol). The inline/link
+    boundary becomes source-visible, not buried in builder.til.
+
+*** Design: a new declaration form, distinct from ext_func/ext_proc
+
+  ~core_func~ / ~core_proc~ declare *primitive intrinsics* that every
+  backend -- and the interpreter -- must lower natively.
+
+  Contract:
+  - Empty body, like ext_func, but NO emitted symbol and NO per-backend
+    implementation (no entry in src/c/ext.c). `add` cannot be written in
+    til anyway; the codegen IS the implementation.
+  - **Inline-only by invariant.** A core_func may not be taken by
+    function pointer, `dyn_fn`'d, FFI'd, or assigned to a FuncPtr field.
+    The typer ENFORCES this (hard error), which is what makes a
+    symbol-less intrinsic safe -- "never indirected" becomes a checked
+    property, not a convention.
+  - Every backend MUST lower every core_func. It is the mandatory finite
+    primitive ISA.
+
+  ~ext_func~ / ~ext_proc~ stay exactly as they are: a real per-backend
+  symbol for everything that needs one -- FFI, `mode gui`, I/O, and the
+  dynamic-dispatch protocol ops dispatched through FuncPtr types.
+
+*** The partition (rule: ever-indirected -> ext_func; else core_func)
+
+  Confirmed against the FuncPtr aliases in src/core/dyn.til
+  (CloneFn/DeleteFn/CmpFn/DistanceFn/HashFn/IncFn) and the dyn_fn
+  dispatch:
+
+  - ~core_func~ (direct-only, never wrapped): per scalar type
+    (u8/u16/u32/u64/i8/i16/i32/i64/f32, in src/core/<type>.til):
+    ~add sub mul div mod~, ~eq neq lt gt lte gte~,
+    ~band bor bxor bnot shl shr~, and the integer ~to_*~ conversions.
+    Nothing takes `&mul` or `dyn_fn(T,"mul")`.
+  - ~ext_func~ (keep symbol -- dyn_fn'd / FuncPtr'd): ~cmp~, ~clone~,
+    ~delete~, ~hash~, ~distance~, ~inc~ -- plus ~format~, the allocator/
+    IO builtins, ~ptr_add~, gui, FFI.
+  - Edge calls to verify during implementation:
+    - ~cmp~ stays ext_func (Map/Set do `K.cmp(...)` directly AND
+      `dyn_fn(type,"cmp")`); its direct calls miss the inline win, which
+      is fine (cmp is a 3-way branch, not one operator, and is on the dyn
+      path). ~eq~ is NOT a FuncPtr type -> core_func.
+    - ~clone~ on scalars is in src/core/<type>.til as ext_func but is
+      dyn_fn'd (CloneFn) -> stays ext_func.
+    First implementation step: grep the FuncPtr-type assignments +
+    `dyn_fn(` to draw the exact line before migrating.
+
+*** Multi-backend rationale (the real long-term point)
+
+  This formalises the portability boundary for future codegens (HolyC,
+  fasm, MLIR, BEAM, Arduino) and special modes (`mode gui`, user-defined
+  modes):
+  - ~core_func~ = the mandatory primitive ISA. A new backend MUST lower
+    every one inline -- C -> `a*b`, fasm -> `imul`, MLIR -> `arith.muli`,
+    BEAM -> the BIF. No symbol, no runtime object.
+  - ~ext_func~ = the open-ended per-backend symbol layer. Each backend
+    supplies implementations as needed (ext.c for C, an ext.holyc for
+    HolyC, ...). `mode gui` is raylib-on-C vs. native-HolyC graphics
+    behind one ext_func interface; user modes provide per-backend
+    externals.
+
+*** Implementation plan (staged; each stage green on make test AND
+    make test_two_pass)
+
+  All call-site/line references from a full ext_func-lifecycle trace.
+
+  Stage 0 -- measure (do FIRST, cheap):
+  - Run a fresh self-host `--prof` now that Type_Primitive is gone, to
+    confirm primitive-op calls are the new top cost.
+  - One-off `-flto` build to estimate the upper-bound win with zero
+    source changes, before committing to the work.
+
+  Stage 1 -- the keyword + AST (bootstrap-sensitive; `Two-pass:`):
+  - src/core/ast.til:129 ~FuncType~ enum
+    (`Func, Proc, Test, Macro, ExtFunc, ExtProc, LazyFunc, LazyProc`):
+    APPEND ~CoreFunc, CoreProc~ at the end. Do NOT insert -- the tags are
+    baked into til_boot's committed boot/ (same constraint that made #286
+    append Sbyte/Ushort). This makes the whole issue a staged change.
+  - src/self/lexer.til:134-135: add
+    `kw.set("core_func", own TokenType.KwCoreFunc)` /
+    `kw.set("core_proc", own TokenType.KwCoreProc)` (+ the two
+    TokenType variants).
+  - src/self/parser.til:482-483: add
+    `case TokenType.KwCoreFunc: ft = FuncType.CoreFunc` (and CoreProc).
+    Parse identically to ext_func (empty `{}` body; same kwargs/variadic
+    caller-ownership handling at parser.til:567-568, 588-589).
+
+  Stage 2 -- typer treats CoreFunc like ExtFunc, then ENFORCES the
+  invariant:
+  - Mirror every `FuncType.ExtFunc`/`ExtProc` match for CoreFunc/CoreProc
+    (typer.til ~330/333/398-400 return-type rules, ~1433/1441 caller
+    rules, ~1679/1728 interface conformance, ~2717/2764/2796 ownership,
+    ~3152/3158/3291-3318 body/closure skips, ~4072 generics). The typer
+    does no special inference for ext_func, so CoreFunc inherits the same
+    signature handling.
+  - ADD enforcement: error when a core_func is `dyn_fn`'d, address-taken,
+    assigned to a FuncPtr field, or used via FFI. (The builder's dyn-fn
+    dispatch at builder.til:5828-5953 already enumerates type+method; the
+    typer should reject before codegen.)
+
+  Stage 3 -- C backend lowers core_func calls to native operators:
+  - The call-emit site is builder.til:2645-2674; line 2649 computes the
+    flat C name `TypeName_method` and writes it as a bare call. Intercept
+    here: if the callee resolves to a CoreFunc, emit the native C op
+    instead of the call. Table keyed by (scalar type, method) ->
+    operator: add->`+`, sub->`-`, mul->`*`, div->`/`, mod->`%`,
+    lt->`<`, ..., eq->`==`, neq->`!=`, band->`&`, bor->`|`, bxor->`^`,
+    bnot->`~`, shl->`<<`, shr->`>>`; to_* -> `(CType)x`. Emit
+    `(a OP b)` (parenthesised) reading child(1)/child(2) directly --
+    mirrors #212's inline C cast.
+  - SKIP symbol + wrapper emission for CoreFunc: builder.til:6994
+    `emit_ext_func_declarations` must not forward-declare a CoreFunc
+    (there is no symbol), and builder.til:5750-5826 `emit_dyn_fn_wrapper`
+    / closure emission must skip CoreFunc (no `_dyn__til_closure`, since
+    indirection is forbidden). Top-level skip at builder.til:3982 already
+    drops ext_func bodies; extend to CoreFunc.
+
+  Stage 4 -- interpreter native evaluation (KEY, non-trivial):
+  - TODAY the interpreter does NOT have a primitive-arithmetic table. It
+    evaluates `a.mul(b)` by FALLING THROUGH to FFI: ext_function_dispatch
+    (interpreter.til:5475) -> ext_dispatch_builtin (4993-5067, a hardcoded
+    map of `and`/`or`/`not`/`cast`/`exit`/`free`/`ptr_add`/`dyn_fn`/...
+    -- NOT arithmetic) misses, then ext_dispatch_ffi (5545+) `dlsym`s the
+    flat symbol `U32_mul` (bin/til is `-rdynamic`, so it finds its own
+    linked ext.c symbol) and calls it via libffi.
+  - Removing the C symbol therefore BREAKS interpret unless the
+    interpreter gains native handling. So: register every core_func in
+    the builtin dispatch (extend dispatch_init / ext_dispatch_builtin at
+    interpreter.til:4993-5067) to evaluate the op directly on the scalar
+    Value, instead of relying on a dlsym'able symbol. This is the largest
+    new code chunk and the main correctness risk -- the interpreter
+    becomes the "interpreter backend" that must implement the core_func
+    ISA, exactly like every compiled backend.
+
+  Stage 5 -- migrate + delete (the payoff):
+  - Flip the direct-only ops in src/core/<scalar>.til from `ext_func`
+    to `core_func` (the partition list above).
+  - Delete the now-dead trivial impls from src/c/ext.c (e.g.
+    `U32_mul`, `I64_eq`, ...) and their ext.h prototypes -- nothing
+    references them once direct calls lower inline and indirection is
+    rejected. Keep cmp/clone/delete/hash/distance and all non-trivial
+    ext.c functions.
+
+*** Rejected alternative: inline the ext.c primitives (extern inline)
+
+  Keep them as ext_func but make them inlinable -- C99 `inline` body in
+  ext.h + `extern inline` in ext.c, so gcc -O2 inlines callers while
+  ext.o keeps one external symbol for dlsym.
+
+  Rejected: it couples the optimisation to C-linkage minutiae. gnu89
+  `inline` semantics are the OPPOSITE of C99's (a non-static `inline` in
+  a header emits a per-TU definition -> multiple-definition link errors),
+  so it needs `-std` pinning and is fragile across C versions/compilers.
+  That drags C-dialect specifics into something that should be
+  language-level, and benefits no other backend. Native per-backend
+  lowering (this issue) has zero C-dialect coupling -- emitting `*`
+  instead of a call works on any C, any era -- and generalises to every
+  backend.
+
+*** Risks / notes
+
+  - Bootstrap: Stage 1 appends FuncType variants -> `Two-pass:` commit
+    (or prep+removal across a master merge if two_pass can't carry it).
+    See doc/self.org.
+  - Interpreter parity (Stage 4) is the real work and the main risk: it
+    must evaluate the full core_func ISA natively. Land Stage 1-2 (parse
+    + treat-as-ext + enforce) first, keeping the symbols, so make test
+    stays green; only Stage 5 removes the symbols, and Stage 4 must be
+    in place before it.
+  - Generics: scalar core_funcs can appear inside generic funcs
+    (typer.til:4072) and inside `dyn_call` paths -- verify monomorphised
+    instantiations lower correctly and that no generic path needs a
+    core_func symbol.

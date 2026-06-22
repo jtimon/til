@@ -44,6 +44,9 @@
 *** [[./open/253.org][#253]] Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
 *** [[./open/257.org][#257]] Centralize primitive size/align: stop hardcoding I64=8, U8=1, ... in layout code
 *** [[./open/278.org][#278]] codegen: faster string switch dispatch (not a C switch)
+* Optimizations
+** Low
+*** [[./open/288.org][#288]] core_func/core_proc: primitive intrinsics each codegen lowers natively
 * Features
 ** Medium
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)

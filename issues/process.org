@@ -2,8 +2,8 @@
 2. Create a new file in issues/open/ with that number, e.g. issues/open/189.org
 3. First line: "# priority: high", "# priority: medium", or "# priority: low"
 4. Second line: "# category: <cat>" where <cat> is one of bugs, cleanups,
-   features, experiments, examples, deferred (use "unknown" if none clearly
-   fit). summary.org groups by category first, then by priority.
+   features, optimizations, experiments, examples, deferred (use "unknown" if
+   none clearly fit). summary.org groups by category first, then by priority.
 5. Then: "** OPEN #189 Title" followed by the issue body
 6. After creating an issue, increment `issues/NEXT_ISSUE.txt` manually.
 7. To start work: change OPEN -> WIP in the title line (no directory move needed)
@@ -13,8 +13,9 @@
 
 Categories (topical, orthogonal to priority):
   - bugs        correctness defects: memory safety, wrong behaviour
-  - cleanups    refactors, perf, internal restructuring, tech debt, tooling
+  - cleanups    refactors, internal restructuring, tech debt, tooling
   - features    new language / stdlib / editor capabilities
+  - optimizations  making existing behaviour faster: codegen, hot paths, allocations
   - experiments exploratory or speculative directions
   - examples    example programs / apps shipped under examples/
   - deferred    cross-platform / OS / arch targets parked for later
