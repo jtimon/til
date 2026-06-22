@@ -4313,6 +4313,7 @@ extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;
 extern Str __til_docs_blob__;
 extern Str __til_info_blob__;
+extern Map__Str_TokenType priv___src_self_lexer_til__KEYWORDS;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;

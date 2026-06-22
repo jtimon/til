@@ -160,6 +160,11 @@ priv keyword_map := func() returns Map(Str, TokenType) {
     return kw
 }
 
+// The keyword table, built once at startup. It is never mutated, so
+// tok_name / lex read this shared map instead of rebuilding it on every
+// call (keyword_map() allocates a fresh Map per invocation).
+priv KEYWORDS := keyword_map()
+
 // --- tok_name ---
 // Returns a human-readable name for a token type.
 // Matches C tok_name() output exactly. Keyword types resolve through the
@@ -167,9 +172,8 @@ priv keyword_map := func() returns Map(Str, TokenType) {
 // is a fixed punctuation/literal name.
 
 tok_name := func(type: TokenType) returns Str {
-    kw := keyword_map()
-    for k : Str in kw.keys {
-        if kw[k].is(type) { return k.clone() }
+    for k, v in KEYWORDS {
+        if v.is(type) { return k.clone() }
     }
     switch type {
     case TokenType.Eof: return "eof"
@@ -365,7 +369,6 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
     mut line : U32 = 1
     mut line_start : USize = 0
     src_len := src.len()
-    kw_map := keyword_map()
 
     while pos.lt(src_len) {
         ref c : I8 = src.unsafe_get(pos)
@@ -584,7 +587,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                     pos++
                 }
                 word := src.substr(start, pos.sub(start))
-                push_tok(tokens, lookup_keyword(word, kw_map), start, pos.sub(start), line, col)
+                push_tok(tokens, lookup_keyword(word, KEYWORDS), start, pos.sub(start), line, col)
                 continue
             }
 
