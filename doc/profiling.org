@@ -194,18 +194,18 @@ biggest CPU / allocation offenders and a suspected fix each. Refresh per
 release by re-running the command above (the absolute numbers drift; the
 ranking is what matters).
 
-  | function                     | signal                  | suspected fix                                            |
-  |------------------------------+-------------------------+----------------------------------------------------------|
-  | Str_cmp                      | 14M calls, 61s incl     | how Maps compare Str keys -> HashMap/HashSet for Str keys (#234) |
-  | Str_clone                    | 7.6M allocs, 90 MB      | dominant allocator: share refs/views, intern repeat idents |
-  | Str_get                      | 63M calls               | byte-by-byte bounds-checked access; bulk/unchecked in Str_cmp + lexer |
-  | expr_uses_var                | 2.2M calls, 34 MB       | repeated AST walk -> memoize per (expr, var)             |
-  | Map_has / Map_get            | 1.9M / 0.5M calls       | hot Maps -> HashMap swap (#234)                          |
-  | Vec_push                     | 29 MB via realloc       | worst grow-and-realloc offender; reserve capacity at known-size sites |
-  | Vec_clone / Vec_new_type_name| 46 / 41 MB              | eager Vec copies; share via ref where ownership allows   |
-  | TypeScope_get_struct         | 1.5M allocs, 23 MB      | cache struct lookups; avoid an alloc per query           |
-  | Expr_child / Expr_new / Expr_clone | AST node churn    | arena-allocate AST nodes; cut Expr_clone in the typer    |
-  | U32_lt / I64_eq / U32_cmp    | 100M+ calls each        | loop bounds + bounds checks; fewer checked Str_get/Vec_get in hot loops |
+  | function                                           | signal                         | suspected fix                                            |
+  |----------------------------------------------------+--------------------------------+----------------------------------------------------------|
+  | Str_cmp                                            | 20.0M calls, 9.8s self / 37s total | how Maps compare Str keys -> HashMap/HashSet for Str keys (#234) |
+  | U32_lt / I64_eq / U32_cmp                          | 156M / 277M / 184M calls       | cut generated integer helper traffic in tight loops      |
+  | Str_unsafe_get                                     | 117M calls, 4.3s self          | bulk/unchecked string scans inside compare / lexer paths |
+  | I64_neq / U32_inc / U32_neq                        | 58M / 63M / 26M calls          | reduce repeated loop and predicate helper calls          |
+  | Str_delete / Str_clone                             | 26M frees, 11.8M allocs, 145 MB | reduce temporary string churn; share refs/views/intern repeat idents |
+  | Vec__Expr_clone / Expr_clone                       | 328K / 164K allocs, 54 MB      | cut Expr_clone in typer; share/borrow AST where ownership allows |
+  | Array__Str_new / Vec__Str_new / Vec__Str_clone      | 1.6M / 433K / 5.4K allocs, 43 MB | avoid rebuilding string arrays/vectors in repeated lookups |
+  | Vec__Expr_new / Vec__Expr_push / Vec__Expr_push_take | 375K news, 39 MB push reallocs | reserve expression vectors at known-size sites           |
+  | Vec__Value_clone                                   | 296 allocs, 22 MB              | avoid cloning large value vectors; move/borrow where ownership permits |
+  | expr_uses_var / expr_used_in_nested_func / expr_transfers_own | 3.5M CPU calls, 37 MB alloc | memoize repeated AST ownership/use walks                 |
 
 ** Status
 
