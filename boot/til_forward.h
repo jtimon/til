@@ -1850,6 +1850,7 @@ typedef struct Context {
     I32 auto_gen_depth;
     Set__Str throw_used_local_names;
     BuilderFuncScratch builder_func;
+    Set__Str builder_file_static_str_lits;
     Set__Str swap_freed;
     Expr *current_fdef;
     Expr *cached_str_def;
@@ -3429,6 +3430,10 @@ void priv___src_self_builder_til__emit_user_fcall_with_inline_closure_cleanup(Fi
 void priv___src_self_builder_til__check_fcall_mut_args(Context * ctx, Expr * e);
 void priv___src_self_builder_til__collect_unsafe_to_hoist(Context * ctx, Expr * body);
 void priv___src_self_builder_til__builder_reset_func_scratch(Context * ctx);
+Bool priv___src_self_builder_til__builder_is_file_static_str_lit_name(Str * name);
+void priv___src_self_builder_til__builder_emit_file_static_str_lit(File * f, Str * name, Str * s);
+void priv___src_self_builder_til__builder_emit_file_static_str_lits_for_expr(File * f, Expr * e, Set__Str * emitted, Context * ctx);
+void priv___src_self_builder_til__builder_emit_file_static_str_lits(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__collect_dyn_has_methods(Expr * e, Vec__Str * methods);
 Bool priv___src_self_builder_til__fcall_is_struct_ctor(Expr * e);
 Bool priv___src_self_builder_til__pod_ctor_args_are_safe(Expr * ctor, Context * ctx);

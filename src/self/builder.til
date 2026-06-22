@@ -1341,6 +1341,55 @@ priv builder_reset_func_scratch := func(mut ctx: Context) {
     ctx.builder_func.local_fn_sigs = Map(Str, Dynamic).new()
 }
 
+priv builder_is_file_static_str_lit_name := func(name: Str) returns Bool {
+    return name.starts_with("hoisted__Str_")
+}
+
+priv builder_emit_file_static_str_lit := proc(f: File, name: Str, s: Str) {
+    f.write("static Str ").write(name).write(" = (Str){.c_str = (void *)\"")
+    f.write(s)
+    f.write("\", .count = ")
+    emit_usize(f, c_lit_byte_count(s))
+    f.write("ULL, .cap = TIL_CAP_LIT};\n")
+}
+
+priv builder_emit_file_static_str_lits_for_expr := proc(f: File, e: Expr, mut emitted: Set(Str), mut ctx: Context) {
+    expect(e.is_null().not(), "e is null")
+    switch e.node_type {
+    case NodeType.Decl(dd):
+        if dd.is_mut.not().and(builder_is_file_static_str_lit_name(dd.name)).and(e.children.len().gt(0)) {
+            ref rhs : Expr = e.children[0]
+            switch rhs.node_type {
+            case NodeType.Literal(Literal.Str(s)):
+                if emitted.has(dd.name).not() {
+                    builder_emit_file_static_str_lit(f, dd.name, s)
+                    emitted.add(own dd.name.clone())
+                    ctx.builder_file_static_str_lits.add(own dd.name.clone())
+                }
+            case:
+            }
+        }
+    case:
+    }
+    for child : Expr in e.children { builder_emit_file_static_str_lits_for_expr(f, child, emitted, ctx) }
+}
+
+priv builder_emit_file_static_str_lits := proc(f: File, lp: LoadedProgram) {
+    lp.ctx.builder_file_static_str_lits = Set(Str).new()
+    mut emitted := Set(Str).new()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            builder_emit_file_static_str_lits_for_expr(f, iu.ast, emitted, lp.ctx)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        builder_emit_file_static_str_lits_for_expr(f, iu.ast, emitted, lp.ctx)
+    }
+    if emitted.len().gt(0) { f.write("\n") }
+}
+
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
     expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FCall) {
@@ -1594,16 +1643,20 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     // Vec_push, etc.) emit_as_ptr's stack_local + is_own=true
                     // branch does the usual malloc round-trip so `free(own
                     // val)` still operates on a heap wrapper.
-                    if dd.is_mut.not() { f.write("static ") }
-                    f.write(ctype).write(" ").write(dd.name).write(" = (Str){.c_str = (void *)\"")
-                    switch rhs.node_type {
-                    case NodeType.Literal(Literal.Str(s)):
-                        f.write(s)
-                        f.write("\", .count = ")
-                        emit_usize(f, c_lit_byte_count(s))
-                    case:
+                    if dd.is_mut.not().and(ctx.builder_file_static_str_lits.has(dd.name)) {
+                        f.write("(void)").write(dd.name).write(";\n")
+                    } else {
+                        if dd.is_mut.not() { f.write("static ") }
+                        f.write(ctype).write(" ").write(dd.name).write(" = (Str){.c_str = (void *)\"")
+                        switch rhs.node_type {
+                        case NodeType.Literal(Literal.Str(s)):
+                            f.write(s)
+                            f.write("\", .count = ")
+                            emit_usize(f, c_lit_byte_count(s))
+                        case:
+                        }
+                        f.write("ULL, .cap = TIL_CAP_LIT};\n")
                     }
-                    f.write("ULL, .cap = TIL_CAP_LIT};\n")
                     ctx.builder_func.stack_locals.add(own dd.name.clone())
                     ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     if dd.is_mut.not() { ctx.builder_func.stack_lit_str_locals.add(own dd.name.clone()) }
@@ -7089,6 +7142,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     f.write("void print_flush() {\n")
     f.write("    putchar('\\n');\n")
     f.write("}\n\n")
+
+    builder_emit_file_static_str_lits(f, lp)
 
     emit_global_declarations(f, lp)
     emit_function_bodies(f, mode, lp)
