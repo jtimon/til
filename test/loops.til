@@ -258,3 +258,32 @@ test_for_in_mut_range := test() {
     // 0+2+4+6+8 = 20
     assert_eq(I64, sum, 20)
 }
+
+// #287 follow-up: `for mut x in coll` mutates coll's elements through the
+// element ref, so a `mut coll` whose ONLY writer is the loop must compile
+// (not be flagged "redundant 'mut' ... never written through"). `vec(...)`
+// init does not mark the local written, so the loop is the sole writer.
+test_for_in_mut_collection_marks_written := test() {
+    mut v := vec("I64", 10, 20, 30)
+    for mut x in v {
+        x = x.add(5)
+    }
+    mut sum := 0
+    for x in v { sum = sum.add(x) }
+    // 15 + 25 + 35 = 75
+    assert_eq(I64, sum, 75)
+}
+
+// Same for the two-variable `for k, mut v in map`: a `mut` map whose only
+// writer is the value-mutating loop must compile. The map literal init does
+// not count as writing through `m`.
+test_for_kv_mut_collection_marks_written := test() {
+    mut m := {"a": 1, "b": 2, "c": 3}
+    for _, mut val in m {
+        val = val.mul(10)
+    }
+    mut sum := 0
+    for v in m.values { sum = sum.add(v) }
+    // 10 + 20 + 30 = 60
+    assert_eq(I64, sum, 60)
+}

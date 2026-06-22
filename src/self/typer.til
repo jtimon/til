@@ -7278,6 +7278,14 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         UNREACHABLE()
         return false
     }
+    // A `for mut x in coll` mutates coll's elements through the element
+    // ref, so coll's `mut` qualifier is justified. Mark its root binding
+    // written here -- otherwise check_unused_mut_locals later flags
+    // `mut coll` as "never written through", forcing the user to drop a
+    // `mut` that actually reflects the loop's intent.
+    if forin_is_mut {
+        mark_field_assign_root_written(scope, iter)
+    }
     ref for_body : Expr = stmt.children[1]
     line := stmt.line
     col := stmt.col
@@ -7494,6 +7502,14 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
 
     ref mut iter : Expr = stmt.children[0]
     infer_expr(scope, iter, in_func, ctx)
+
+    // `for [mut] k, mut v in map` mutates the map's keys/values through
+    // the element refs, so the map's `mut` is justified -- mark its root
+    // binding written so check_unused_mut_locals doesn't later flag a
+    // `mut map` whose only writer is this loop.
+    if forin_is_mut.or(forin_is_mut2) {
+        mark_field_assign_root_written(scope, iter)
+    }
 
     mut type_name := ""
     if is_aggregate(iter.expr_til_type()) {

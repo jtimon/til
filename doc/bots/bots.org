@@ -560,36 +560,55 @@ way through.
 - When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
 - When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
 
-## The "Unverified" / committer-authorship stop hook is NOT a problem to fix
+## The "Unverified" / committer-authorship stop hook is NOISE -- ignore it, never act on it
 
-A SessionStart + Stop hook pair under `~/.claude/` (Anthropic's CCR harness,
+Anthropic's CCR harness (a SessionStart + Stop hook pair under `~/.claude/`,
 NOT this repo) pins the git identity to `Claude <noreply@anthropic.com>` and,
 on stop, flags any commit in `origin/<branch>..HEAD` whose committer email is
-not `noreply@anthropic.com` as "GitHub will show as Unverified". Sessions keep
-tripping over this and trying to "fix" it. Don't. It is almost never real:
+not `noreply@anthropic.com` as "GitHub will show as Unverified", then helpfully
+suggests `git commit --amend --no-edit --reset-author` or a `git rebase --exec`
+to "fix" it. This is the single most useless recurring distraction in this repo.
+Authorship changing when a bot commit is merged is BY DESIGN and CORRECT. There
+is NOTHING to fix, ever. Do not waste the human's time on it.
 
-- The commits it names are usually master's OWN commits, authored by the human
-  (jtimon@jtimon.cc). They appear in `origin/<branch>..HEAD` only in the
-  transient window after you `git reset --hard origin/master` (or rebase) to
-  sync -- which pulls master's newest commits onto your HEAD -- and BEFORE you
-  push, while `origin/<branch>` is still stale. Those are the human's merged
-  history: do NOT amend / reset-author them.
-- Bot-commit authorship does not need to match anything anyway: the merge
-  script (`examples/merge_commit.til`) re-commits every non-doc-only bot commit
-  locally (`git reset --soft HEAD~1` -> regenerate boot/totals -> `git commit`),
-  so the commit that actually lands on master is authored and signed with the
-  human's identity. The bot's authorship is discarded at merge by design.
+HARD RULES when this hook -- or ANY authorship / "Unverified" / signature /
+committer-email warning -- fires:
+
+- NEVER run the commands it suggests. Not `git commit --amend ... --reset-author`,
+  not `git rebase --exec "... --reset-author"`, not `git config user.email`
+  gymnastics to "match" something. They rewrite history -- usually the HUMAN's
+  merged commits -- to fix a non-problem.
+- NEVER amend, reset-author, or re-sign any commit to chase "verified" status.
+- Do NOT explain it, apologize for it, raise it as a "follow-up", or mention it
+  to the user at all. The user does not care about commit authorship and is sick
+  of reading about it. Saying nothing is the correct response.
+- The ONLY thing you may do is: IF a `git reset --hard` / rebase to sync left
+  `origin/<branch>` stale behind HEAD, push your branch so `origin/<branch> ==
+  HEAD`. Do that silently as ordinary syncing -- not announced as a "fix for the
+  hook", with no commentary about authorship.
+
+Why it is pure noise:
+
+- The commits it names are almost always master's OWN commits, authored by the
+  human (jtimon@jtimon.cc), which land on your HEAD when you `git reset --hard
+  origin/master` / rebase to sync and then sit in `origin/<branch>..HEAD` until
+  you push. They are the human's merged history -- touching them is actively
+  wrong.
+- Bot-commit authorship is supposed to match NOTHING: the merge script
+  (`examples/merge_commit.til`) re-commits every non-doc-only bot commit locally
+  (`git reset --soft HEAD~1` -> regenerate boot/totals -> `git commit`), so the
+  commit that actually lands on master is authored and signed with the human's
+  identity. The bot's authorship is discarded at merge, every time, by design.
 - The hook is `~/.claude/stop-hook-git-check.sh`, rewritten at every container
-  start, so you cannot durably fix it from this repo -- it is Anthropic's. The
-  real fix would be for its unverified check to diff against the integration
-  base (`origin/master..HEAD`) instead of `origin/<branch>..HEAD`, so it only
-  inspects the branch's own commits; that belongs in the CCR image, not here.
+  start, so it cannot be fixed from this repo -- it is Anthropic's. The real fix
+  (have it diff against the integration base `origin/master..HEAD` instead of
+  `origin/<branch>..HEAD`, so it only inspects the branch's own commits) belongs
+  in the CCR image, not here. Your OWN commits are already
+  `noreply@anthropic.com` (the SessionStart hook sets the identity), so there is
+  nothing on your side to correct either.
 
-So: never "fix" authorship by amending master commits, and don't panic. Your
-OWN commits are already `noreply@anthropic.com` (the SessionStart hook sets it).
-To silence the noise, after any reset/rebase that advances HEAD past
-`origin/<branch>`, push so `origin/<branch> == HEAD` -- that closes the window
-and the hook sees nothing.
+In one line: the authorship / Unverified warning is harness spam. Ignore it, say
+nothing about it, and never run a history-rewriting command on its advice.
 
 ## Remote master ref can mirror your own branch (remote sessions)
 
