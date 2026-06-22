@@ -40,6 +40,15 @@ namespace:
         return self.unsafe_get(i)
     }
 
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.cap`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    unsafe_set := func(self: Array(T), i: USize, own val: T) {
+        T.delete(own self.unsafe_get(i), false)
+        memcpy(self.unsafe_get(i), val, T.size().cast(U64))
+        memset(val, 0, T.size().cast(U64))
+    }
+
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
@@ -48,9 +57,7 @@ namespace:
             throw OutOfBounds(msg = format(loc, ":Array.set: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")"))
         }
-        T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
-        memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-        memset(val, 0, T.size().cast(U64))
+        self.unsafe_set(i, own val)
     }
 
     delete := func(own self: Array(T), call_free: Bool = true) {

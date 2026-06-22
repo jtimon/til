@@ -184,6 +184,17 @@ namespace:
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    unsafe_set := func(mut self: DynVec, i: USize, own val: Dynamic) {
+        if self.elem_kind.eq(ELEM_BOXED) {
+            self.elem_delete(self.unsafe_get(i), false)
+        }
+        memcpy(self.unsafe_get(i), val, self.elem_size.cast(U64))
+        free(own val)
+    }
+
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `dynvec[i] = val`
     /// (or `dynvec.set(i, own val)!`) to panic on a bad index.
@@ -199,11 +210,7 @@ namespace:
             throw OutOfBounds(msg = format(loc, ":DynVec.set: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         } else {
-            if self.elem_kind.eq(ELEM_BOXED) {
-                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
-            }
-            memcpy(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
-            free(own val)
+            self.unsafe_set(i, own val)
         }
     }
 

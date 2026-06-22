@@ -150,6 +150,15 @@ namespace:
         return Vec(T)(data = prefix_data, count = n, cap = prefix_cap)
     }
 
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    unsafe_set := func(mut self: Vec(T), i: USize, own val: T) {
+        T.delete(own self.unsafe_get(i), false)
+        memcpy(self.unsafe_get(i), val, T.size().cast(U64))
+        memset(val, 0, T.size().cast(U64))
+    }
+
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -158,9 +167,7 @@ namespace:
             throw OutOfBounds(msg = format(loc, ":Vec.set: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
-        T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
-        memcpy(ptr_add(self.data, i.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-        memset(val, 0, T.size().cast(U64))
+        self.unsafe_set(i, own val)
     }
 
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
