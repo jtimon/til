@@ -7,4 +7,3 @@ Ordered map from typed keys to typed values.
 #+begin_src til
 macro Map(K: Type, V: Type) returns StructDef
 #+end_src
-

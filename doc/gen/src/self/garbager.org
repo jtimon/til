@@ -37,11 +37,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__LocalInfo, mut other: Vec__LocalInfo)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__LocalInfo, i: U32) returns ref priv___src_self_garbager_til__LocalInfo
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__LocalInfo, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref priv___src_self_garbager_til__LocalInfo
+    func get(self: Vec__LocalInfo, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_garbager_til__LocalInfo
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__LocalInfo) returns priv___src_self_garbager_til__LocalInfo
@@ -51,7 +57,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__LocalInfo, shallow i: U32, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__LocalInfo, shallow i: U32, own val: priv___src_self_garbager_til__LocalInfo, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -64,4 +70,3 @@ namespace:
     func size() returns shallow U32
 }
 #+end_src
-

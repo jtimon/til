@@ -25,7 +25,7 @@ namespace:
     /// Division that throws DivideByZero when dividing by zero.
     /// Reuses the DivideByZero type from src/core/i64.til.
     /// Use F32.div for the silent (NaN/Inf) variant.
-    func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero) returns shallow F32
+    func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
     func hash(shallow self: F32, hasher: HashFn) returns shallow U64
     func lt(shallow a: F32, shallow b: F32) returns shallow Bool
     func gt(shallow a: F32, shallow b: F32) returns shallow Bool
@@ -34,4 +34,3 @@ namespace:
     func gte(shallow a: F32, shallow b: F32) returns shallow Bool
 }
 #+end_src
-

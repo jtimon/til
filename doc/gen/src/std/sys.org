@@ -70,4 +70,3 @@ proc wait_cmd(shallow pid: I64) returns shallow I64
 #+begin_src til
 proc run_cmd(mut output: Str, args: ..Str) returns shallow I64
 #+end_src
-

@@ -1,0 +1,117 @@
+#+TITLE: src/self/desugarer.til
+#+OPTIONS: toc:t
+
+* desugar_user_func_fcall_args
+#+begin_src til
+proc desugar_user_func_fcall_args(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context)
+#+end_src
+
+* typer_lift_lambdas
+#+begin_src til
+proc typer_lift_lambdas(mut scope: TypeScope, mut prog: Expr, ctx: Context)
+#+end_src
+
+* lower_guard_bang_calls
+#+begin_src til
+proc lower_guard_bang_calls(scope: TypeScope, mut guard_if: Expr, mut dest: Vec__Expr, resolve_body: Expr, mut ctx: Context)
+#+end_src
+
+* subtree_references_name
+#+begin_src til
+func subtree_references_name(e: Expr, name: Str) returns shallow Bool
+#+end_src
+
+* subtree_has_bang
+#+begin_src til
+func subtree_has_bang(e: Expr) returns shallow Bool
+#+end_src
+
+* append_err_out_params
+#+begin_src til
+func append_err_out_params(mut params: Vec__Declaration, throw_types: Vec__Str)
+#+end_src
+
+* make_int_lit
+#+begin_src til
+func make_int_lit(shallow n: I64, shallow line: U32, shallow col: U32) returns Expr
+#+end_src
+
+* make_default_value_expr
+#+begin_src til
+func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32) returns Expr
+#+end_src
+
+* make_if_kind_eq_zero_wrap
+#+begin_src til
+func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr
+#+end_src
+
+* extend_throwing_func_sigs
+#+begin_src til
+proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
+#+end_src
+
+* process_throw_catch_in_func_body
+#+begin_src til
+proc process_throw_catch_in_func_body(mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType)
+#+end_src
+
+* stmt_contains_match
+#+begin_src til
+func stmt_contains_match(e: Expr) returns shallow Bool
+#+end_src
+
+* splice_stmts_before
+#+begin_src til
+func splice_stmts_before(mut body: Expr, shallow idx: U32, mut pre: Vec__Expr)
+#+end_src
+
+* collect_switch_case_bindings
+#+begin_src til
+proc collect_switch_case_bindings(mut ctx: Context, e: Expr)
+#+end_src
+
+* make_switch_case_condition
+#+begin_src til
+func make_switch_case_condition(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+#+end_src
+
+* replace_switch_stmt_with_block
+#+begin_src til
+func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, own block: Expr)
+#+end_src
+
+* append_switch_else_if
+#+begin_src til
+proc append_switch_else_if(mut root_if: Expr, if_node: Expr)
+#+end_src
+
+* attach_switch_default_body
+#+begin_src til
+proc attach_switch_default_body(mut root_if: Expr, default_body: Expr)
+#+end_src
+
+* switch_is_clike
+#+begin_src til
+func switch_is_clike(scope: TypeScope, stmt: Expr, sw_expr: Expr, shallow is_match: Bool) returns shallow Bool
+#+end_src
+
+* prepend_clike_payload_binding
+#+begin_src til
+func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str)
+#+end_src
+
+* replace_body_stmt_with_block
+#+begin_src til
+func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, own block: Expr)
+#+end_src
+
+* make_for_in_range_while_body
+#+begin_src til
+func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr
+#+end_src
+
+* body_pre_passes
+#+begin_src til
+proc body_pre_passes(mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32) returns shallow Bool
+#+end_src

@@ -5,4 +5,3 @@
 #+begin_src til
 proc generate_bindings(in_path: Str, out_path: Str)
 #+end_src
-

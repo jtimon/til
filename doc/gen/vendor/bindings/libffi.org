@@ -382,4 +382,3 @@ ext_proc ffi_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue
 #+begin_src til
 ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: U32) returns shallow I32
 #+end_src
-

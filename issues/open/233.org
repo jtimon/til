@@ -20,7 +20,8 @@
 *   Progress:
     - First slice landed org-style doc metadata parsing/rendering and runtime filtering.
     - Second slice pre-generates escaped core ~help()~ blobs under ~doc/~ so ~til repl~ no longer walks and escapes core docs on the first successful turn.
-    - Current slice generates ~doc/gen/index.org~ as the first navigation layer over public docs, grouped by ~#+group:~.
+    - Third slice generated ~doc/gen/index.org~ as the first navigation layer over public docs, grouped by ~#+group:~.
+    - Current slice factors ~til doc~ through a reusable in-memory catalog so org pages, the index, and later HTML/search output share one collected doc model.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:

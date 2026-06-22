@@ -20,4 +20,3 @@ namespace:
     func size() returns shallow U32
 }
 #+end_src
-

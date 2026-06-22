@@ -25,4 +25,3 @@ func scavenge_filter(mut program: Expr, visited: Set__Str)
 #+begin_src til
 proc dce_program_bodies(mut program: Expr)
 #+end_src
-

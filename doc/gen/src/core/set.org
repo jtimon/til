@@ -7,4 +7,3 @@ Unordered collection of unique typed elements.
 #+begin_src til
 macro Set(T: Type) returns StructDef
 #+end_src
-

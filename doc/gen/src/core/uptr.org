@@ -10,4 +10,3 @@ The source alias defaults to U64; the loader retargets it to U32 for
 #+begin_src til
 UPtr
 #+end_src
-

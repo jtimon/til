@@ -104,4 +104,3 @@ func target_gui_libs(target: Target) returns Str
 #+begin_src til
 proc detect_current_target() returns Target
 #+end_src
-

@@ -2571,4 +2571,3 @@ ext_proc nng_respondent0_open(mut sock: nng_socket) returns shallow I32
 #+begin_src til
 ext_proc nng_respondent0_open_raw(mut sock: nng_socket) returns shallow I32
 #+end_src
-

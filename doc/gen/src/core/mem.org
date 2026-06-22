@@ -130,4 +130,3 @@ func swap(a: Dynamic, b: Dynamic, shallow size: U64)
 #+begin_src til
 func move(dest: Dynamic, src: Dynamic, shallow size: U64)
 #+end_src
-

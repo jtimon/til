@@ -32,7 +32,8 @@ ext_proc tinyfd_colorChooser(aTitle: I8, aDefaultHexRGB: I8, aDefaultRGB: U8, mu
 #+end_src
 
 * tinyfd_arrayDialog
+********* NOT CROSS PLATFORM SECTION STARTS HERE ***********************
+
 #+begin_src til
 ext_proc tinyfd_arrayDialog(aTitle: I8, shallow aNumOfColumns: I32, aColumns: Dynamic, shallow aNumOfRows: I32, aCells: Dynamic) returns ref I8
 #+end_src
-

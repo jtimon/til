@@ -40,13 +40,13 @@ namespace:
     func size() returns shallow U32
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I32.add for the wrapping variant.
-    func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow I32
+    func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
     /// Subtraction that throws IntegerOverflow on signed wrap.
     /// Use I32.sub for the wrapping variant.
-    func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow I32
+    func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I32.mul for the wrapping variant.
-    func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow I32
+    func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
     func hash(shallow self: I32, hasher: HashFn) returns shallow U64
     func lt(shallow a: I32, shallow b: I32) returns shallow Bool
     func gt(shallow a: I32, shallow b: I32) returns shallow Bool
@@ -55,4 +55,3 @@ namespace:
     func gte(shallow a: I32, shallow b: I32) returns shallow Bool
 }
 #+end_src
-

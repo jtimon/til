@@ -125,6 +125,7 @@
 *** payload_types : Map(I64, Str) = Map(I64, Str).new()
 *** payload_consts := Vec(Bool).new()
 *** implements_name := ""
+*** tag_type := ""
 ** FieldLayout: StructDef
 *** offset : USize = 0
 *** size : USize = 0
@@ -145,6 +146,8 @@
 *** name := ""
 *** is_mut := false
 *** til_type := Type.Unknown
+*** name2 := ""
+*** is_mut2 := false
 ** Literal: EnumDef
 *** Str:Str
 *** Num:LiteralNumData
@@ -240,6 +243,16 @@
 *** mode := Mode()
 *** own ast := Expr.new(NodeType.Body, 0, 0)
 *** imports := Vec(Str).new()
+** BuilderFuncScratch: StructDef
+*** local_fn_sigs := Map(Str, Dynamic).new()
+*** stack_locals := Set(Str).new()
+*** stack_local_types := Map(Str, Str).new()
+*** stack_lit_str_locals := Set(Str).new()
+*** force_heap_stack_lit_str_own : Bool = false
+*** unsafe_to_hoist := Set(Str).new()
+*** ref_locals := Set(Str).new()
+*** ref_dyn_locals := Set(Str).new()
+*** ptr_locals := Set(Str).new()
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
@@ -268,7 +281,7 @@
 *** has_break := false
 *** has_continue := false
 *** return_value := Value.None
-*** ... (59 more)
+*** ... (53 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -352,13 +365,17 @@
 *** til_path := ""
 *** py_path := ""
 *** do_lib := false
-** DocIndexEntry: StructDef
+** DocEntry: StructDef
 *** name := ""
+*** unit_path := ""
 *** group := ""
 *** page := ""
+*** body := ""
 *** info := ""
 *** since := ""
 *** deprecated := ""
+** DocCatalog: StructDef
+*** entries := Vec(DocEntry).new()
 * interpreter
 ** StructInstance: StructDef
 *** ref struct_name : Str = NULL
@@ -425,3 +442,10 @@
 ** BinderState: StructDef
 *** alias_to_primitive := "|"
 *** alias_to_dynamic := "|"
+* eval_heap
+** EvalHeap: StructDef
+*** own data : U8 = 0
+*** len : USize = 0
+*** cap : USize = 0
+*** live_blocks : USize = 0
+*** live_bytes : USize = 0

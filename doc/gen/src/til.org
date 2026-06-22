@@ -92,4 +92,3 @@ func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_id
 #+begin_src til
 proc main(args: ..Str)
 #+end_src
-

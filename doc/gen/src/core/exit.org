@@ -30,4 +30,3 @@ func assert(shallow cond: Bool, loc: Str)
 #+begin_src til
 func expect(shallow cond: Bool, parts: ..Str, loc: Str)
 #+end_src
-

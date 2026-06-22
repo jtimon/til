@@ -30,4 +30,3 @@ func constfolder_register_fold_scope(mut global: Scope, prog: Expr, ctx: Context
 #+begin_src til
 func constfolder_register_core_constants(mut global: Scope)
 #+end_src
-

@@ -1,6 +1,16 @@
 #+TITLE: src/self/typer.til
 #+OPTIONS: toc:t
 
+* fa_is_ns
+#+begin_src til
+func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
+#+end_src
+
+* make_til_type_expr
+#+begin_src til
+func make_til_type_expr(src: Expr, t: Type) returns Expr
+#+end_src
+
 * fa_own_type
 #+begin_src til
 func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
@@ -61,6 +71,11 @@ BoolName is a Str
 proc type_error(e: Expr, msg: Str, ctx: Context)
 #+end_src
 
+* type_error_at
+#+begin_src til
+proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx: Context)
+#+end_src
+
 * find_namespace_func
 #+begin_src til
 func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr
@@ -81,9 +96,34 @@ func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns ref Expr
 func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
+* is_clone_fcall
+#+begin_src til
+func is_clone_fcall(e: Expr) returns shallow Bool
+#+end_src
+
+* resolve_default_value
+#+begin_src til
+func resolve_default_value(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr
+#+end_src
+
+* infer_expr
+#+begin_src til
+proc infer_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
+#+end_src
+
 * PTR_SIZE_BYTES
 #+begin_src til
 PTR_SIZE_BYTES is a U32
+#+end_src
+
+* check_unused_locals
+#+begin_src til
+proc check_unused_locals(scope: TypeScope, path: Str, ctx: Context)
+#+end_src
+
+* check_unused_mut_locals
+#+begin_src til
+proc check_unused_mut_locals(scope: TypeScope, path: Str, ctx: Context)
 #+end_src
 
 * check_unused_priv_top_level
@@ -96,9 +136,24 @@ proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow
 proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
 #+end_src
 
+* is_simple_lvalue_expr
+#+begin_src til
+func is_simple_lvalue_expr(e: Expr) returns shallow Bool
+#+end_src
+
 * is_compile_directive
 #+begin_src til
 func is_compile_directive(e: Expr) returns shallow Bool
+#+end_src
+
+* infer_body_stmt
+#+begin_src til
+proc infer_body_stmt(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
+#+end_src
+
+* infer_body
+#+begin_src til
+proc infer_body(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
 #+end_src
 
 * normalize_scope_bindings
@@ -116,9 +171,39 @@ proc type_file(path: Str, ctx: Context) returns shallow I32
 func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
 #+end_src
 
+* is_numeric_type
+#+begin_src til
+func is_numeric_type(t: Type) returns shallow Bool
+#+end_src
+
+* is_integral_numeric_type
+#+begin_src til
+func is_integral_numeric_type(t: Type) returns shallow Bool
+#+end_src
+
+* literal_in_range
+#+begin_src til
+func literal_in_range(val_str: Str, target: Type) returns shallow Bool
+#+end_src
+
+* type_from_name
+#+begin_src til
+func type_from_name(name: Str, scope: TypeScope, ctx: Context) returns Type
+#+end_src
+
 * resolve_type_alias
 #+begin_src til
 func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
+#+end_src
+
+* usize_type
+#+begin_src til
+func usize_type(scope: TypeScope, ctx: Context) returns Type
+#+end_src
+
+* type_has_cmp
+#+begin_src til
+func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
 #+end_src
 
 * expr_uses_var
@@ -134,6 +219,11 @@ func expr_contains_decl(e: Expr, name: Str) returns shallow Bool
 * expr_used_in_nested_func
 #+begin_src til
 func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
+#+end_src
+
+* type_prefix
+#+begin_src til
+func type_prefix(t: Type) returns Str
 #+end_src
 
 * type_to_name
@@ -161,68 +251,39 @@ func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeSco
 func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
 #+end_src
 
+* make_clone_call
+#+begin_src til
+func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
+#+end_src
+
+* make_ns_call
+#+begin_src til
+func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
+#+end_src
+
+* variadic_array_type_name
+#+begin_src til
+func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
+#+end_src
+
 * expr_transfers_own
 #+begin_src til
 func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
+* fcall_is_get_method
+#+begin_src til
+func fcall_is_get_method(fcall: Expr) returns shallow Bool
+#+end_src
+
+* fcall_returns_ref
+#+begin_src til
+func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
+#+end_src
+
 * fcall_returns_shallow
 #+begin_src til
 func fcall_returns_shallow(fcall: Expr, scope: TypeScope) returns shallow I32
-#+end_src
-
-* Vec__CoverageNode
-#+begin_src til
-struct Vec__CoverageNode {
-    own mut data : U8
-    mut count : U32
-    mut cap : U32
-namespace:
-    /// Create a new empty Vec for elements of type T.
-    func new() returns Vec__CoverageNode
-    func len(self: Vec__CoverageNode) returns shallow U32
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__CoverageNode)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__CoverageNode, mut other: Vec__CoverageNode)
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__CoverageNode, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref priv___src_self_typer_til__CoverageNode
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__CoverageNode, shallow n: U32) returns Vec__CoverageNode
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__CoverageNode, mut src: Vec__CoverageNode, shallow i: U32)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__CoverageNode, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__CoverageNode) returns Vec__CoverageNode
-    func size() returns shallow U32
-}
 #+end_src
 
 * Vec__CtorArg
@@ -251,11 +312,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__CtorArg, mut other: Vec__CtorArg)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__CtorArg, i: U32) returns ref priv___src_self_typer_til__CtorArg
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__CtorArg, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref priv___src_self_typer_til__CtorArg
+    func get(self: Vec__CtorArg, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_typer_til__CtorArg
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__CtorArg) returns priv___src_self_typer_til__CtorArg
@@ -265,7 +332,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -279,3 +346,62 @@ namespace:
 }
 #+end_src
 
+* Vec__CoverageNode
+#+begin_src til
+struct Vec__CoverageNode {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__CoverageNode
+    func len(self: Vec__CoverageNode) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__CoverageNode)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__CoverageNode, mut other: Vec__CoverageNode)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__CoverageNode, i: U32) returns ref priv___src_self_typer_til__CoverageNode
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__CoverageNode, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_typer_til__CoverageNode
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__CoverageNode, shallow n: U32) returns Vec__CoverageNode
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__CoverageNode, mut src: Vec__CoverageNode, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__CoverageNode, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__CoverageNode) returns Vec__CoverageNode
+    func size() returns shallow U32
+}
+#+end_src

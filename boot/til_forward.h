@@ -297,12 +297,13 @@ typedef struct Vec__DeclRef Vec__DeclRef;
 typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
 typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
-typedef struct DocIndexEntry DocIndexEntry;
+typedef struct DocEntry DocEntry;
+typedef struct DocCatalog DocCatalog;
 typedef struct Array__Bool Array__Bool;
 typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct Vec__CollectionInfo Vec__CollectionInfo;
-typedef struct Vec__DocIndexEntry Vec__DocIndexEntry;
+typedef struct Vec__DocEntry Vec__DocEntry;
 typedef struct _ffi_type ffi_type;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
@@ -915,14 +916,16 @@ typedef struct priv___src_self_builder_til__BuildPaths {
 } priv___src_self_builder_til__BuildPaths;
 
 
-typedef struct DocIndexEntry {
+typedef struct DocEntry {
     Str name;
+    Str unit_path;
     Str group;
     Str page;
+    Str body;
     Str info;
     Str since;
     Str deprecated;
-} DocIndexEntry;
+} DocEntry;
 
 
 typedef struct Array__Bool {
@@ -951,11 +954,11 @@ typedef struct Vec__CollectionInfo {
 } Vec__CollectionInfo;
 
 
-typedef struct Vec__DocIndexEntry {
+typedef struct Vec__DocEntry {
     U8 *data;
     U32 count;
     U32 cap;
-} Vec__DocIndexEntry;
+} Vec__DocEntry;
 
 
 typedef struct _ffi_type {
@@ -1716,6 +1719,11 @@ typedef struct Map__Str_DeclRef {
     Vec__Str keys;
     Vec__DeclRef values;
 } Map__Str_DeclRef;
+
+
+typedef struct DocCatalog {
+    Vec__DocEntry entries;
+} DocCatalog;
 
 
 typedef struct Map__Str_Binding {
@@ -3546,22 +3554,30 @@ I32 cmd_install(LoadedProgram * lp, Str * install_prefix_in, Target * target, St
 Str * priv___src_self_builder_til__asan_child_prefix(Bool asan);
 I32 cmd_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Vec__Str * user_argv, Target * target, Str * cc_override, Bool asan, Bool prof);
 I32 cmd_test_build_run(LoadedProgram * lp, Str * custom_bin, Str * custom_c, Target * target, Str * cc_override, Bool asan, Bool prof);
-DocIndexEntry * DocIndexEntry_clone(DocIndexEntry * self);
-void DocIndexEntry_delete(DocIndexEntry * self, Bool call_free);
-U64 DocIndexEntry_hash(DocIndexEntry * self, HashFn hasher);
-U32 DocIndexEntry_size(void);
+DocEntry * DocEntry_clone(DocEntry * self);
+void DocEntry_delete(DocEntry * self, Bool call_free);
+U64 DocEntry_hash(DocEntry * self, HashFn hasher);
+U32 DocEntry_size(void);
+DocCatalog * DocCatalog_clone(DocCatalog * self);
+void DocCatalog_delete(DocCatalog * self, Bool call_free);
+U64 DocCatalog_hash(DocCatalog * self, HashFn hasher);
+U32 DocCatalog_size(void);
 Bool priv___src_self_builder_til__doc_decl_hidden(Declaration * dd, DocMeta * meta);
 Str * priv___src_self_builder_til__doc_index_link_path(Str * out_path);
-Str * priv___src_self_builder_til__format_unit_doc_org(Str * unit_path, Expr * ast, TypeScope * scope);
+void priv___src_self_builder_til__collect_unit_doc_catalog(ProgramUnit * u, Context * ctx, DocCatalog * catalog);
+DocCatalog * priv___src_self_builder_til__build_doc_catalog(LoadedProgram * lp);
+void priv___src_self_builder_til__append_doc_properties(Str * out, DocEntry * e, Bool include_group);
+U32 priv___src_self_builder_til__doc_unit_entry_capacity(DocEntry * e);
+void priv___src_self_builder_til__append_doc_unit_entry(Str * out, DocEntry * e);
+Str * priv___src_self_builder_til__format_unit_doc_org(Str * unit_path, DocCatalog * catalog);
 Bool priv___src_self_builder_til__doc_index_has_group(Vec__Str * groups, Str * group);
-void priv___src_self_builder_til__collect_unit_doc_index(ProgramUnit * u, Context * ctx, Vec__DocIndexEntry * entries);
-void priv___src_self_builder_til__append_doc_index_entry(Str * out, DocIndexEntry * e);
-U32 priv___src_self_builder_til__doc_index_entry_capacity(DocIndexEntry * e);
-Str * priv___src_self_builder_til__format_doc_index_org(Vec__DocIndexEntry * entries);
-void priv___src_self_builder_til__emit_doc_index(Vec__DocIndexEntry * entries);
+void priv___src_self_builder_til__append_doc_index_entry(Str * out, DocEntry * e);
+U32 priv___src_self_builder_til__doc_index_entry_capacity(DocEntry * e);
+Str * priv___src_self_builder_til__format_doc_index_org(DocCatalog * catalog);
+void priv___src_self_builder_til__emit_doc_index(DocCatalog * catalog);
 Str * priv___src_self_builder_til__til_doc_out_path(Str * unit_path);
 void priv___src_self_builder_til__ensure_parent_dir(Str * path);
-void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, Context * ctx);
+void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, DocCatalog * catalog);
 I32 cmd_doc(LoadedProgram * lp);
 I32 cmd_doc_cache(LoadedProgram * lp);
 Array__Bool * Array__Bool_new(U32 cap);
@@ -3596,14 +3612,14 @@ priv___src_self_builder_til__CollectionInfo * Vec__CollectionInfo_unsafe_get(Vec
 void Vec__CollectionInfo_delete(Vec__CollectionInfo * self, Bool call_free);
 Vec__CollectionInfo * Vec__CollectionInfo_clone(Vec__CollectionInfo * self);
 U32 Vec__CollectionInfo_size(void);
-Vec__DocIndexEntry * Vec__DocIndexEntry_new(void);
-U32 Vec__DocIndexEntry_len(Vec__DocIndexEntry * self);
-void Vec__DocIndexEntry_clear(Vec__DocIndexEntry * self);
-void Vec__DocIndexEntry_push(Vec__DocIndexEntry * self, DocIndexEntry * val);
-DocIndexEntry * Vec__DocIndexEntry_unsafe_get(Vec__DocIndexEntry * self, U32 * i);
-void Vec__DocIndexEntry_delete(Vec__DocIndexEntry * self, Bool call_free);
-Vec__DocIndexEntry * Vec__DocIndexEntry_clone(Vec__DocIndexEntry * self);
-U32 Vec__DocIndexEntry_size(void);
+Vec__DocEntry * Vec__DocEntry_new(void);
+U32 Vec__DocEntry_len(Vec__DocEntry * self);
+void Vec__DocEntry_clear(Vec__DocEntry * self);
+void Vec__DocEntry_push(Vec__DocEntry * self, DocEntry * val);
+DocEntry * Vec__DocEntry_unsafe_get(Vec__DocEntry * self, U32 * i);
+void Vec__DocEntry_delete(Vec__DocEntry * self, Bool call_free);
+Vec__DocEntry * Vec__DocEntry_clone(Vec__DocEntry * self);
+U32 Vec__DocEntry_size(void);
 ffi_type * ffi_type_clone(ffi_type * self);
 void ffi_type_delete(ffi_type * self, Bool call_free);
 U32 ffi_type_size(void);

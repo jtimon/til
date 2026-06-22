@@ -101,6 +101,26 @@ namespace:
 }
 #+end_src
 
+* BuilderFuncScratch
+#+begin_src til
+struct BuilderFuncScratch {
+    mut local_fn_sigs : Map__Str_Dynamic
+    mut stack_locals : Set__Str
+    mut stack_local_types : Map__Str_Str
+    mut stack_lit_str_locals : Set__Str
+    mut force_heap_stack_lit_str_own : Bool
+    mut unsafe_to_hoist : Set__Str
+    mut ref_locals : Set__Str
+    mut ref_dyn_locals : Set__Str
+    mut ptr_locals : Set__Str
+namespace:
+    func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
+    func delete(own self: BuilderFuncScratch, shallow call_free: Bool)
+    func hash(self: BuilderFuncScratch, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 * Context
 #+begin_src til
 struct Context {
@@ -137,7 +157,6 @@ struct Context {
     mut ns_keys : Vec__Dynamic
     mut ns_inited : Bool
     mut typing_namespace_member : Bool
-    mut local_fn_sigs : Map__Str_Dynamic
     mut closure_emit_env : Str
     mut closure_emit_captures : Set__Str
     mut func_defs : Map__Str_Dynamic
@@ -167,12 +186,7 @@ struct Context {
     mut current_top_func_name : Str
     mut auto_gen_depth : I32
     mut throw_used_local_names : Set__Str
-    mut stack_locals : Set__Str
-    mut stack_local_types : Map__Str_Str
-    mut unsafe_to_hoist : Set__Str
-    mut ref_locals : Set__Str
-    mut ptr_locals : Set__Str
-    mut ref_dyn_locals : Set__Str
+    mut builder_func : BuilderFuncScratch
     mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
@@ -244,7 +258,7 @@ func make_get_payload_fcall(own arg: Expr, shallow payload_type: Type, shallow l
 
 * make_is_tag_check_fcall
 #+begin_src til
-func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow line: U32, shallow col: U32) returns Expr
+func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow tag_size: U32, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * make_payload_ref_decl
@@ -312,6 +326,16 @@ func def_ns_decls(sdef: Expr) returns ref Vec__Declaration
 func enum_has_payloads(enum_def: Expr) returns shallow Bool
 #+end_src
 
+* enum_tag_type
+#+begin_src til
+func enum_tag_type(enum_def: Expr) returns Str
+#+end_src
+
+* enum_tag_size
+#+begin_src til
+func enum_tag_size(enum_def: Expr) returns shallow U32
+#+end_src
+
 * enum_variant_tag
 #+begin_src til
 func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
@@ -342,17 +366,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_TypeBinding, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_TypeBinding, i: U32) returns ref TypeBinding
     /// True if a value exists for the given key.
     func has(self: Map__Str_TypeBinding, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref TypeBinding
+    func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref TypeBinding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
     func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
@@ -377,17 +403,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_Mode, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_Mode, i: U32) returns ref Mode
     /// True if a value exists for the given key.
     func has(self: Map__Str_Mode, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Mode, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Mode
+    func get(self: Map__Str_Mode, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Mode
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Mode, key: Str, own val: Mode)
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
@@ -412,17 +440,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_ImportUnit, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_ImportUnit, i: U32) returns ref ImportUnit
     /// True if a value exists for the given key.
     func has(self: Map__Str_ImportUnit, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_ImportUnit, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref ImportUnit
+    func get(self: Map__Str_ImportUnit, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref ImportUnit
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
@@ -447,17 +477,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_Expr, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_Expr, i: U32) returns ref Expr
     /// True if a value exists for the given key.
     func has(self: Map__Str_Expr, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Expr, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Expr
+    func get(self: Map__Str_Expr, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Expr
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Expr, key: Str, own val: Expr)
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
@@ -482,17 +514,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_StructLayout, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_StructLayout, i: U32) returns ref StructLayout
     /// True if a value exists for the given key.
     func has(self: Map__Str_StructLayout, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_StructLayout, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref StructLayout
+    func get(self: Map__Str_StructLayout, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref StructLayout
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
@@ -517,17 +551,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_FuncType, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_FuncType, i: U32) returns ref FuncType
     /// True if a value exists for the given key.
     func has(self: Map__Str_FuncType, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_FuncType, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref FuncType
+    func get(self: Map__Str_FuncType, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref FuncType
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
@@ -552,17 +588,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_Value, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_Value, i: U32) returns ref Value
     /// True if a value exists for the given key.
     func has(self: Map__Str_Value, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Value, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Value
+    func get(self: Map__Str_Value, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Value
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Value, key: Str, own val: Value)
     func delete(own self: Map__Str_Value, shallow call_free: Bool)
@@ -598,11 +636,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__Dynamic, mut other: Vec__Dynamic)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Dynamic, i: U32) returns ref Dynamic
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Dynamic, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Dynamic
+    func get(self: Vec__Dynamic, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Dynamic
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Dynamic) returns Dynamic
@@ -612,7 +656,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Dynamic, shallow i: U32, own val: Dynamic, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__Dynamic, shallow i: U32, own val: Dynamic, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -641,17 +685,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_call_Vec_Str, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_call_Vec_Str, i: U32) returns ref Vec__Str
     /// True if a value exists for the given key.
     func has(self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_call_Vec_Str, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Vec__Str
+    func get(self: Map__Str_call_Vec_Str, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Vec__Str
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
@@ -676,17 +722,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_Dynamic, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_Dynamic, i: U32) returns ref Dynamic
     /// True if a value exists for the given key.
     func has(self: Map__Str_Dynamic, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Dynamic
+    func get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Dynamic
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
@@ -711,17 +759,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_FFIEntry, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_FFIEntry, i: U32) returns ref FFIEntry
     /// True if a value exists for the given key.
     func has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref FFIEntry
+    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref FFIEntry
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
@@ -746,17 +796,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_ExprPtrBox, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_ExprPtrBox, i: U32) returns ref ExprPtrBox
     /// True if a value exists for the given key.
     func has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref ExprPtrBox
+    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref ExprPtrBox
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
@@ -792,11 +844,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__FFITypePtrBox, mut other: Vec__FFITypePtrBox)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__FFITypePtrBox, i: U32) returns ref FFITypePtrBox
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__FFITypePtrBox, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref FFITypePtrBox
+    func get(self: Vec__FFITypePtrBox, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FFITypePtrBox
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
@@ -806,7 +864,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__FFITypePtrBox, shallow i: U32, own val: FFITypePtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__FFITypePtrBox, shallow i: U32, own val: FFITypePtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -846,11 +904,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__TypeBinding, mut other: Vec__TypeBinding)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__TypeBinding, i: U32) returns ref TypeBinding
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__TypeBinding, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref TypeBinding
+    func get(self: Vec__TypeBinding, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref TypeBinding
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__TypeBinding) returns TypeBinding
@@ -860,7 +924,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__TypeBinding, shallow i: U32, own val: TypeBinding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__TypeBinding, shallow i: U32, own val: TypeBinding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -900,11 +964,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__Mode, mut other: Vec__Mode)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Mode, i: U32) returns ref Mode
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Mode, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Mode
+    func get(self: Vec__Mode, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Mode
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Mode) returns Mode
@@ -914,7 +984,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Mode, shallow i: U32, own val: Mode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__Mode, shallow i: U32, own val: Mode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -954,11 +1024,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__ImportUnit, mut other: Vec__ImportUnit)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__ImportUnit, i: U32) returns ref ImportUnit
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__ImportUnit, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref ImportUnit
+    func get(self: Vec__ImportUnit, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref ImportUnit
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ImportUnit) returns ImportUnit
@@ -968,7 +1044,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__ImportUnit, shallow i: U32, own val: ImportUnit, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__ImportUnit, shallow i: U32, own val: ImportUnit, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1008,11 +1084,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__StructLayout, mut other: Vec__StructLayout)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__StructLayout, i: U32) returns ref StructLayout
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__StructLayout, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref StructLayout
+    func get(self: Vec__StructLayout, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref StructLayout
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__StructLayout) returns StructLayout
@@ -1022,7 +1104,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__StructLayout, shallow i: U32, own val: StructLayout, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__StructLayout, shallow i: U32, own val: StructLayout, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1062,11 +1144,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__FuncType, mut other: Vec__FuncType)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__FuncType, i: U32) returns ref FuncType
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__FuncType, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref FuncType
+    func get(self: Vec__FuncType, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FuncType
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FuncType) returns FuncType
@@ -1076,7 +1164,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__FuncType, shallow i: U32, own val: FuncType, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__FuncType, shallow i: U32, own val: FuncType, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1116,11 +1204,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__Value, mut other: Vec__Value)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Value, i: U32) returns ref Value
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Value, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Value
+    func get(self: Vec__Value, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Value
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Value) returns Value
@@ -1130,7 +1224,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Value, shallow i: U32, own val: Value, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__Value, shallow i: U32, own val: Value, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1170,11 +1264,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__call_Vec_Str, mut other: Vec__call_Vec_Str)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__call_Vec_Str, i: U32) returns ref Vec__Str
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__call_Vec_Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Vec__Str
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
@@ -1184,7 +1284,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__call_Vec_Str, shallow i: U32, own val: Vec__Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__call_Vec_Str, shallow i: U32, own val: Vec__Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1224,11 +1324,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__FFIEntry, mut other: Vec__FFIEntry)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__FFIEntry, i: U32) returns ref FFIEntry
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__FFIEntry, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref FFIEntry
+    func get(self: Vec__FFIEntry, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FFIEntry
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FFIEntry) returns FFIEntry
@@ -1238,7 +1344,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__FFIEntry, shallow i: U32, own val: FFIEntry, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__FFIEntry, shallow i: U32, own val: FFIEntry, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1278,11 +1384,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__ExprPtrBox, mut other: Vec__ExprPtrBox)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__ExprPtrBox, i: U32) returns ref ExprPtrBox
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__ExprPtrBox, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref ExprPtrBox
+    func get(self: Vec__ExprPtrBox, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref ExprPtrBox
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
@@ -1292,7 +1404,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__ExprPtrBox, shallow i: U32, own val: ExprPtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__ExprPtrBox, shallow i: U32, own val: ExprPtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1305,4 +1417,3 @@ namespace:
     func size() returns shallow U32
 }
 #+end_src
-

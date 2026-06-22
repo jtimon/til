@@ -7443,13 +7443,19 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 
 // --- til doc <path> -- documentation generator ---
 
-DocIndexEntry := struct {
+DocEntry := struct {
     name := ""
+    unit_path := ""
     group := ""
     page := ""
+    body := ""
     info := ""
     since := ""
     deprecated := ""
+}
+
+DocCatalog := struct {
+    entries := Vec(DocEntry).new()
 }
 
 priv doc_decl_hidden := func(dd: Declaration, meta: DocMeta) returns Bool {
@@ -7464,96 +7470,7 @@ priv doc_index_link_path := func(out_path: Str) returns Str {
     return out_path.clone()
 }
 
-// Walk a single source file's typed AST and render it as an org-mode page.
-// One headline per top-level Decl, with the /// doc text and a kind/signature
-// info block (reusing format_decl_info for the rich rendering).
-priv format_unit_doc_org := func(unit_path: Str, ast: Expr, scope: TypeScope) returns Str {
-    // Strip a leading "./" via a self-reassign from a substring of `title`.
-    // This (`title = title.strip_prefix(...).clone()`) is compiled correctly
-    // since issue #238 fixed the asap-destruction delete-ordering / clone-elision.
-    mut title := unit_path.clone()
-    if title.starts_with("./") {
-        title = title.strip_prefix("./").clone()
-    }
-    // First pass: render each Decl's chunk separately. format_decl_info
-    // already sizes its returned Str to fit, so we don't need to pre-size
-    // the page buffer here -- chunks are accumulated and concatenated once.
-    chunks := Vec(Str).new()
-    mut total : USize = title.len().add(64)
-    for stmt : Expr in ast.children {
-        if stmt.node_type.is(NodeType.Decl) {
-            switch stmt.node_type {
-            case NodeType.Decl(dd):
-                // Hide compiler-internal and private decls. hoisted__
-                // names are constfolder temps; priv___ names are the
-                // mangler's output for `priv` decls that got lifted
-                // out of a function body; `is_priv` is the explicit
-                // `priv` keyword. None of them are public API and all
-                // three were leaking into the bare org-mode output
-                // before -- see issue #233's "Current state" notes.
-                meta := parse_doc_meta(dd.doc)
-                doc_hide := doc_decl_hidden(dd, meta)
-                if doc_hide.not() {
-                    info := format_decl_info(stmt, scope)
-                    chunk_cap : USize = dd.name.len()
-                        .add(meta.body.len())
-                        .add(meta.since.len())
-                        .add(meta.deprecated.len())
-                        .add(meta.group.len())
-                        .add(info.len())
-                        .add(160)
-                    mut chunk := Str.with_capacity(chunk_cap)
-                    chunk.push_str("* ")
-                    chunk.push_str(dd.name)
-                    chunk.push_str("\n")
-                    if meta.since.is_empty().not().or(meta.deprecated.is_empty().not()).or(meta.group.is_empty().not()) {
-                        chunk.push_str(":PROPERTIES:\n")
-                        if meta.since.is_empty().not() {
-                            chunk.push_str(":since: "); chunk.push_str(meta.since); chunk.push_str("\n")
-                        }
-                        if meta.deprecated.is_empty().not() {
-                            chunk.push_str(":deprecated: "); chunk.push_str(meta.deprecated); chunk.push_str("\n")
-                        }
-                        if meta.group.is_empty().not() {
-                            chunk.push_str(":group: "); chunk.push_str(meta.group); chunk.push_str("\n")
-                        }
-                        chunk.push_str(":END:\n\n")
-                    }
-                    if meta.body.is_empty().not() {
-                        chunk.push_str(meta.body)
-                        if meta.body.ends_with("\n").not() { chunk.push_str("\n") }
-                        chunk.push_str("\n")
-                    }
-                    if info.is_empty().not() {
-                        chunk.push_str("#+begin_src til\n")
-                        chunk.push_str(info)
-                        if info.ends_with("\n").not() { chunk.push_str("\n") }
-                        chunk.push_str("#+end_src\n\n")
-                    }
-                    total = total.add(chunk.len())
-                    chunks.push(own chunk)
-                }
-            case:
-                UNREACHABLE()
-            }
-        }
-    }
-    mut buf := Str.with_capacity(total)
-    buf.push_str("#+TITLE: ")
-    buf.push_str(title)
-    buf.push_str("\n#+OPTIONS: toc:t\n\n")
-    for c : Str in chunks { buf.push_str(c) }
-    return buf
-}
-
-priv doc_index_has_group := func(groups: Vec(Str), group: Str) returns Bool {
-    for existing : Str in groups {
-        if existing.eq(group) { return true }
-    }
-    return false
-}
-
-priv collect_unit_doc_index := func(u: ProgramUnit, ctx: Context, mut entries: Vec(DocIndexEntry)) {
+priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog: DocCatalog) {
     ref iu : ImportUnit = ctx.imported[u.path]
     page := doc_index_link_path(til_doc_out_path(u.path))
     for stmt : Expr in iu.ast.children {
@@ -7563,10 +7480,12 @@ priv collect_unit_doc_index := func(u: ProgramUnit, ctx: Context, mut entries: V
                 meta := parse_doc_meta(dd.doc)
                 if doc_decl_hidden(dd, meta).not() {
                     info := format_decl_info(stmt, ctx.scope)
-                    entries.push(own DocIndexEntry(
+                    catalog.entries.push(own DocEntry(
                         name = dd.name.clone(),
+                        unit_path = u.path.clone(),
                         group = meta.group.clone(),
                         page = page.clone(),
+                        body = meta.body.clone(),
                         info = info.clone(),
                         since = meta.since.clone(),
                         deprecated = meta.deprecated.clone()))
@@ -7578,15 +7497,18 @@ priv collect_unit_doc_index := func(u: ProgramUnit, ctx: Context, mut entries: V
     }
 }
 
-priv append_doc_index_entry := func(mut out: Str, e: DocIndexEntry) {
-    out.push_str("** [[file:")
-    out.push_str(e.page)
-    out.push_str("::*")
-    out.push_str(e.name)
-    out.push_str("][")
-    out.push_str(e.name)
-    out.push_str("]]\n")
-    if e.since.is_empty().not().or(e.deprecated.is_empty().not()) {
+priv build_doc_catalog := func(lp: LoadedProgram) returns DocCatalog {
+    mut catalog := DocCatalog()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units { collect_unit_doc_catalog(u, lp.ctx, catalog) }
+    }
+    for u : ProgramUnit in lp.units { collect_unit_doc_catalog(u, lp.ctx, catalog) }
+    return catalog
+}
+
+priv append_doc_properties := func(mut out: Str, e: DocEntry, include_group: Bool) {
+    has_group := include_group.and(e.group.is_empty().not())
+    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(has_group) {
         out.push_str(":PROPERTIES:\n")
         if e.since.is_empty().not() {
             out.push_str(":since: "); out.push_str(e.since); out.push_str("\n")
@@ -7594,8 +7516,86 @@ priv append_doc_index_entry := func(mut out: Str, e: DocIndexEntry) {
         if e.deprecated.is_empty().not() {
             out.push_str(":deprecated: "); out.push_str(e.deprecated); out.push_str("\n")
         }
+        if has_group {
+            out.push_str(":group: "); out.push_str(e.group); out.push_str("\n")
+        }
         out.push_str(":END:\n")
     }
+}
+
+priv doc_unit_entry_capacity := func(e: DocEntry) returns USize {
+    return e.name.len()
+        .add(e.body.len())
+        .add(e.since.len())
+        .add(e.deprecated.len())
+        .add(e.group.len())
+        .add(e.info.len())
+        .add(160)
+}
+
+priv append_doc_unit_entry := func(mut out: Str, e: DocEntry) {
+    out.push_str("* ")
+    out.push_str(e.name)
+    out.push_str("\n")
+    append_doc_properties(out, e, true)
+    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(e.group.is_empty().not()) {
+        out.push_str("\n")
+    }
+    if e.body.is_empty().not() {
+        out.push_str(e.body)
+        if e.body.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str("\n")
+    }
+    if e.info.is_empty().not() {
+        out.push_str("#+begin_src til\n")
+        out.push_str(e.info)
+        if e.info.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str("#+end_src\n\n")
+    }
+}
+
+// Render one source file's catalog entries as an org-mode page.
+// One headline per public Decl, with the /// doc text and a kind/signature
+// info block collected from the typed AST.
+priv format_unit_doc_org := func(unit_path: Str, catalog: DocCatalog) returns Str {
+    // Strip a leading "./" via a self-reassign from a substring of `title`.
+    // This (`title = title.strip_prefix(...).clone()`) is compiled correctly
+    // since issue #238 fixed the asap-destruction delete-ordering / clone-elision.
+    mut title := unit_path.clone()
+    if title.starts_with("./") {
+        title = title.strip_prefix("./").clone()
+    }
+    mut total : USize = title.len().add(64)
+    for e : DocEntry in catalog.entries {
+        if e.unit_path.eq(unit_path) { total = total.add(doc_unit_entry_capacity(e)) }
+    }
+    mut buf := Str.with_capacity(total)
+    buf.push_str("#+TITLE: ")
+    buf.push_str(title)
+    buf.push_str("\n#+OPTIONS: toc:t\n\n")
+    for e : DocEntry in catalog.entries {
+        if e.unit_path.eq(unit_path) { append_doc_unit_entry(buf, e) }
+    }
+    if buf.ends_with("\n\n") { buf = buf.strip_suffix("\n").clone() }
+    return buf
+}
+
+priv doc_index_has_group := func(groups: Vec(Str), group: Str) returns Bool {
+    for existing : Str in groups {
+        if existing.eq(group) { return true }
+    }
+    return false
+}
+
+priv append_doc_index_entry := func(mut out: Str, e: DocEntry) {
+    out.push_str("** [[file:")
+    out.push_str(e.page)
+    out.push_str("::*")
+    out.push_str(e.name)
+    out.push_str("][")
+    out.push_str(e.name)
+    out.push_str("]]\n")
+    append_doc_properties(out, e, false)
     if e.info.is_empty().not() {
         out.push_str("#+begin_src til\n")
         out.push_str(e.info)
@@ -7605,7 +7605,7 @@ priv append_doc_index_entry := func(mut out: Str, e: DocIndexEntry) {
     out.push_str("\n")
 }
 
-priv doc_index_entry_capacity := func(e: DocIndexEntry) returns USize {
+priv doc_index_entry_capacity := func(e: DocEntry) returns USize {
     return e.name.len().mul(2)
         .add(e.page.len())
         .add(e.info.len())
@@ -7614,11 +7614,11 @@ priv doc_index_entry_capacity := func(e: DocIndexEntry) returns USize {
         .add(160)
 }
 
-priv format_doc_index_org := func(entries: Vec(DocIndexEntry)) returns Str {
+priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
     groups := Vec(Str).new()
     mut has_ungrouped := false
     mut total : USize = 128
-    for e : DocIndexEntry in entries {
+    for e : DocEntry in catalog.entries {
         total = total.add(doc_index_entry_capacity(e))
         if e.group.is_empty() {
             has_ungrouped = true
@@ -7636,14 +7636,14 @@ priv format_doc_index_org := func(entries: Vec(DocIndexEntry)) returns Str {
         out.push_str("* ")
         out.push_str(group)
         out.push_str("\n\n")
-        for e : DocIndexEntry in entries {
+        for e : DocEntry in catalog.entries {
             if e.group.eq(group) { append_doc_index_entry(out, e) }
         }
     }
 
     if has_ungrouped {
         out.push_str("* Ungrouped\n\n")
-        for e : DocIndexEntry in entries {
+        for e : DocEntry in catalog.entries {
             if e.group.is_empty() { append_doc_index_entry(out, e) }
         }
     }
@@ -7651,10 +7651,10 @@ priv format_doc_index_org := func(entries: Vec(DocIndexEntry)) returns Str {
     return out
 }
 
-priv emit_doc_index := proc(entries: Vec(DocIndexEntry)) {
+priv emit_doc_index := proc(catalog: DocCatalog) {
     out := "doc/gen/index.org"
     ensure_parent_dir(out)
-    page := format_doc_index_org(entries)
+    page := format_doc_index_org(catalog)
     File.writefile(out, page)
     println(format("Generated: ", out))
 }
@@ -7682,28 +7682,21 @@ priv ensure_parent_dir := proc(path: Str) {
     if mkdir_p(dir).neq(0) { panic("failed to create parent dir for ", path) }
 }
 
-priv emit_unit_doc := proc(u: ProgramUnit, ctx: Context) {
-    ref iu : ImportUnit = ctx.imported[u.path]
+priv emit_unit_doc := proc(u: ProgramUnit, catalog: DocCatalog) {
     out := til_doc_out_path(u.path)
     ensure_parent_dir(out)
-    page := format_unit_doc_org(u.path, iu.ast, ctx.scope)
+    page := format_unit_doc_org(u.path, catalog)
     File.writefile(out, page)
     println(format("Generated: ", out))
 }
 
 cmd_doc := proc(lp: LoadedProgram) returns I32 {
-    entries := Vec(DocIndexEntry).new()
+    catalog := build_doc_catalog(lp)
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            emit_unit_doc(u, lp.ctx)
-            collect_unit_doc_index(u, lp.ctx, entries)
-        }
+        for u : ProgramUnit in lp.core_units { emit_unit_doc(u, catalog) }
     }
-    for u : ProgramUnit in lp.units {
-        emit_unit_doc(u, lp.ctx)
-        collect_unit_doc_index(u, lp.ctx, entries)
-    }
-    emit_doc_index(entries)
+    for u : ProgramUnit in lp.units { emit_unit_doc(u, catalog) }
+    emit_doc_index(catalog)
     return 0
 }
 

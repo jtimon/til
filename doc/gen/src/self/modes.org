@@ -25,4 +25,3 @@ func context_init_mode_registry(mut ctx: Context)
 #+begin_src til
 func mode_resolve(ctx: Context, name: Str) returns ref Mode
 #+end_src
-

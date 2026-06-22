@@ -33,12 +33,10 @@ namespace:
     /// Return a ref to byte `i`. Panics if `i` is out of bounds.
     func get(self: Str, i: U32) returns ref I8
     /// Unchecked byte access -- caller must ensure i < self.len().
-    func byte_at(self: Str, i: U32) returns ref I8
+    func unsafe_get(self: Str, i: U32) returns ref I8
     /// Lexicographic comparison. Returns 0 if equal, negative if a < b,
     /// positive if a > b.
     func cmp(a: Str, b: Str) returns shallow I64
-    /// Return a new Str with the contents of `a` followed by `b`.
-    func concat(a: Str, b: Str) returns Str
     /// Create an empty Str pre-allocated for up to `n` bytes.
     func with_capacity(shallow n: U32) returns Str
     /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
@@ -199,13 +197,19 @@ namespace:
     /// Create a zero-initialized Array with the given capacity.
     func new(shallow cap: U32) returns Array__Str
     func len(self: Array__Str) returns shallow U32
+    /// Unchecked element access: ref to the element at index `i` with
+    /// NO bounds check. The caller must prove `i < len()`. This is the
+    /// unchecked core that `get` wraps; for-in uses it directly because
+    /// its `_fi < len()` termination test already proves the index in
+    /// bounds (issue #284).
+    func unsafe_get(self: Array__Str, i: U32) returns ref Str
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
-    func get(self: Array__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Str
+    func get(self: Array__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    func set(self: Array__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(self: Array__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     func delete(own self: Array__Str, shallow call_free: Bool)
     func clone(self: Array__Str) returns Array__Str
     func size() returns shallow U32
@@ -238,11 +242,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__Str, mut other: Vec__Str)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Str, i: U32) returns ref Str
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Str
+    func get(self: Vec__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Str) returns Str
@@ -252,7 +262,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -265,4 +275,3 @@ namespace:
     func size() returns shallow U32
 }
 #+end_src
-

@@ -12,4 +12,3 @@ Fixed-capacity array of typed elements.
 #+begin_src til
 macro Array(T: Type) returns StructDef
 #+end_src
-

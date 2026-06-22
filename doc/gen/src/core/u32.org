@@ -8,6 +8,9 @@ Unsigned 32-bit integer.
 struct U32 {
 namespace:
     ext_func to_i64(shallow val: U32) returns shallow I64
+    ext_func to_i32(shallow val: U32) returns shallow I32
+    ext_func to_u32(shallow val: U32) returns shallow U32
+    ext_func to_u64(shallow val: U32) returns shallow U64
     ext_func to_f32(shallow val: U32) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: U32) returns Str
@@ -35,13 +38,13 @@ namespace:
     func size() returns shallow U32
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U32.add for the wrapping variant.
-    func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow U32
+    func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
     /// Subtraction that throws IntegerOverflow when a < b (underflow
     /// wraps unsigned). Use U32.sub for the wrapping variant.
-    func safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow U32
+    func safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U32.mul for the wrapping variant.
-    func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow) returns shallow U32
+    func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
     func hash(shallow self: U32, hasher: HashFn) returns shallow U64
     func lt(shallow a: U32, shallow b: U32) returns shallow Bool
     func gt(shallow a: U32, shallow b: U32) returns shallow Bool
@@ -50,4 +53,3 @@ namespace:
     func gte(shallow a: U32, shallow b: U32) returns shallow Bool
 }
 #+end_src
-

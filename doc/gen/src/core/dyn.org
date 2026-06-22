@@ -16,6 +16,11 @@ namespace:
 ext_func is(self: Dynamic, other: Dynamic) returns shallow Bool
 #+end_src
 
+* is_n
+#+begin_src til
+ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow Bool
+#+end_src
+
 * get_payload
 #+begin_src til
 ext_func get_payload(self: Dynamic) returns ref Dynamic
@@ -195,4 +200,3 @@ ELEM_BOXED is a U32
 #+begin_src til
 ELEM_FN is a U32
 #+end_src
-

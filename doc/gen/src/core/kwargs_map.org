@@ -43,17 +43,19 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (Map's binary-search consumers
     /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check.
+    /// bounds check. priv (#287): only the binary-search has/get/set
+    /// need indexed key access; consumers walk entries via for-in over
+    /// the public keys/values Vecs instead.
     func key_ptr(self: Map__Str_Tuple, i: U32) returns ref Str
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
+    /// contract as key_ptr; likewise priv (#287).
     func val_ptr(self: Map__Str_Tuple, i: U32) returns ref Tuple
     /// True if a value exists for the given key.
     func has(self: Map__Str_Tuple, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Tuple
+    func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Tuple
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
     func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
@@ -89,11 +91,17 @@ namespace:
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
     func move_from(mut self: Vec__Tuple, mut other: Vec__Tuple)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Tuple, i: U32) returns ref Tuple
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Tuple, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds) returns ref Tuple
+    func get(self: Vec__Tuple, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Tuple
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Tuple) returns Tuple
@@ -103,7 +111,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Tuple, shallow i: U32, own val: Tuple, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds)
+    func set(mut self: Vec__Tuple, shallow i: U32, own val: Tuple, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -116,4 +124,3 @@ namespace:
     func size() returns shallow U32
 }
 #+end_src
-

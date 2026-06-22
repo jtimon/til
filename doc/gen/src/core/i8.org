@@ -44,4 +44,3 @@ namespace:
     func gte(shallow a: I8, shallow b: I8) returns shallow Bool
 }
 #+end_src
-
