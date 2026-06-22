@@ -5,6 +5,8 @@ PIANO_C4_KEY_OFFSET : USize = 12
 PIANO_C4_KEY_COUNT : USize = 24
 PIANO_C3_FREQ_OFFSET : USize = 8
 PIANO_C4_FREQ_OFFSET : USize = 20
+HAPPY_BIRTHDAY_GAP_MS : I64 = 30
+HAPPY_BIRTHDAY_NOTE_COUNT : USize = 25
 NATHEX_FREQ_COUNT : USize = 72
 NATHEX_MUSIC_MODES_FREQ_OFFSET : USize = 24
 // Piano key index PIANO_C4_KEY_OFFSET is the C4 key; nathex maps it to ca4.
@@ -55,6 +57,22 @@ PIANO_KEY_LABELS := array("Str",
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
     "A", "S", "D", "F", "G", "H", "J", "K", "L",
     "Z", "X", "C", "V", "B", "N", "M"
+)
+
+// Happy Birthday as FREQS/NATHEX_FREQS indices. Reference melody: Wikipedia's
+// G major score, d d | e d g | fis2 ... Starting on D4 keeps it visible in
+// both piano and guitar examples.
+HAPPY_BIRTHDAY_FREQ_NOTES := array("I32",
+    22, 22, 24, 22, 27, 26,
+    22, 22, 24, 22, 29, 27,
+    22, 22, 34, 31, 27, 26, 24,
+    32, 32, 31, 27, 29, 27,
+)
+HAPPY_BIRTHDAY_DURATIONS := array("I64",
+    360, 120, 480, 480, 480, 960,
+    360, 120, 480, 480, 480, 960,
+    360, 120, 480, 480, 480, 480, 720,
+    360, 120, 480, 480, 480, 960,
 )
 
 // Frequencies for 56 chromatic notes E2-B6. PIANO_KEY_COUNT stays at 36 so

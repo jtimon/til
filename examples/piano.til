@@ -32,23 +32,6 @@ TOGGLE_H : I32 = 34
 TOGGLE_GAP : I32 = 10
 SONG_BTN_X : I32 = TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 5
 SONG_BTN_W : I32 = 240
-SONG_GAP_MS : I64 = 30
-HAPPY_BIRTHDAY_NOTE_COUNT : USize = 25
-
-// Happy Birthday in piano key indices. Reference melody: Wikipedia's G major
-// score, d d | e d g | fis2 ... Starting on D4 keeps it in the visible range.
-HAPPY_BIRTHDAY_NOTES := array("I32",
-    14, 14, 16, 14, 19, 18,
-    14, 14, 16, 14, 21, 19,
-    14, 14, 26, 23, 19, 18, 16,
-    24, 24, 23, 19, 21, 19,
-)
-HAPPY_BIRTHDAY_DURATIONS := array("I64",
-    360, 120, 480, 480, 480, 960,
-    360, 120, 480, 480, 480, 960,
-    360, 120, 480, 480, 480, 480, 720,
-    360, 120, 480, 480, 480, 960,
-)
 
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
@@ -215,11 +198,12 @@ main := proc() {
         if song_playing {
             ref note_ms : I64 = HAPPY_BIRTHDAY_DURATIONS[song_idx]
             if song_timer.lt(note_ms) {
-                ref note_code : I32 = HAPPY_BIRTHDAY_NOTES[song_idx]
-                key_down[note_code.to_usize()] = 1
+                ref note_code : I32 = HAPPY_BIRTHDAY_FREQ_NOTES[song_idx]
+                key_idx := note_code - PIANO_C3_FREQ_OFFSET.cast(I32)
+                key_down[key_idx.to_usize()] = 1
             }
             song_timer = song_timer + dt
-            if song_timer.gte(note_ms + SONG_GAP_MS) {
+            if song_timer.gte(note_ms + HAPPY_BIRTHDAY_GAP_MS) {
                 song_timer = 0
                 song_idx = song_idx + 1
                 if song_idx.gte(HAPPY_BIRTHDAY_NOTE_COUNT) {
@@ -470,7 +454,7 @@ main := proc() {
             hint = "Nathex: same keys, separate 8-step doubling sounds, C4 key=ca4"
         }
         if song_playing {
-            hint = "Playing Happy Birthday with the same hextave note names"
+            hint = "Playing Happy Birthday"
         }
         DrawTextEx(fnt, hint.c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1.to_f32(), KEY_LABEL_COLOR)
 

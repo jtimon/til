@@ -7,6 +7,8 @@ import("../lib/music")
 // Tuning toggles change open strings: Standard E A D G B E or All-fourths
 // E A D G C F. Nathex keeps the same open-string names, plays NATHEX_FREQS,
 // and uses 16 wider frets over the same neck span as 24 standard frets.
+// Microtones adds quarter-tone frets for regular modes and 32 half-nathex
+// frets for Nathex.
 
 WINDOW_WIDTH : I32 = 1920
 WINDOW_HEIGHT : I32 = 1080
@@ -14,7 +16,12 @@ FPS : I32 = 60
 STRING_COUNT : USize = 6
 STANDARD_FRET_MAX : I32 = 24
 NATHEX_FRET_MAX : I32 = 16
+STANDARD_MICRO_STEP_MAX : I32 = 48
+NATHEX_MICRO_STEP_MAX : I32 = 32
+STANDARD_MICRO_LAST_INSERT_STEP : I32 = 29
 STANDARD_FRET_RATIO : F32 = 1.0594630943592953
+STANDARD_MICRO_FRET_RATIO : F32 = 1.029302236643492
+NATHEX_MICRO_FRET_RATIO : F32 = 1.0442737824274138
 FRETBOARD_END_FRACTION : F32 = 0.75
 
 MARGIN : I32 = 60
@@ -22,6 +29,8 @@ TOP_Y : I32 = 60
 BTN_W : I32 = 190
 BTN_H : I32 = 38
 BTN_GAP : I32 = 12
+ROW2_Y : I32 = TOP_Y + BTN_H + BTN_GAP
+SONG_BTN_X : I32 = MARGIN + (BTN_W + BTN_GAP) * 2
 BOARD_X : I32 = 150
 BOARD_Y : I32 = 220
 BOARD_W : I32 = WINDOW_WIDTH - BOARD_X - MARGIN
@@ -29,6 +38,20 @@ BOARD_H : I32 = WINDOW_HEIGHT - BOARD_Y - 100
 STRING_H : I32 = BOARD_H / STRING_COUNT.cast(I32)
 FONT : F32 = 20
 FONT_SM : F32 = 16
+FONT_MICRO : F32 = 12
+
+SONG_NONE : I32 = -1
+SONG_HAPPY_BIRTHDAY : I32 = 0
+SONG_FABIENK_CLIMB : I32 = 1
+SONG_FABIENK_HOOK : I32 = 2
+SONG_MICRO_HAPPY : I32 = 3
+FABIENK_NOTE_COUNT : USize = 7
+
+// 24-TET steps from E2. These are the two Angine de Poitrine style examples
+// from the prompt: Re Ret Re# Re#t Mi Mit Fa, and Sol Lab Lap La Sib Sip Si.
+FABIENK_CLIMB_STEPS := array("I32", 44, 45, 46, 47, 48, 49, 50)
+FABIENK_HOOK_STEPS := array("I32", 54, 56, 57, 58, 60, 61, 62)
+FABIENK_DURATIONS := array("I64", 180, 180, 180, 180, 180, 180, 360)
 
 // Top-to-bottom string order, semitones above E2.
 STANDARD_OPEN := array("I32", 24, 19, 15, 10, 5, 0)
@@ -49,14 +72,46 @@ active_fret_max := func(use_nathex: Bool) returns I32 {
     return STANDARD_FRET_MAX
 }
 
-fret_x := func(use_nathex: Bool, fret: I32) returns I32 {
-    if fret.lte(0) { return BOARD_X }
+active_step_max := func(use_nathex: Bool, use_microtones: Bool) returns I32 {
+    if use_microtones {
+        if use_nathex { return NATHEX_MICRO_STEP_MAX }
+        return STANDARD_MICRO_STEP_MAX
+    }
+    return active_fret_max(use_nathex)
+}
 
-    mut ratio := STANDARD_FRET_RATIO
-    if use_nathex { ratio = calculate_nathex_step_ratio() }
+active_step_ratio := func(use_nathex: Bool, use_microtones: Bool) returns F32 {
+    if use_microtones {
+        if use_nathex { return NATHEX_MICRO_FRET_RATIO }
+        return STANDARD_MICRO_FRET_RATIO
+    }
+    if use_nathex { return calculate_nathex_step_ratio() }
+    return STANDARD_FRET_RATIO
+}
+
+is_fret_step := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns Bool {
+    if !use_microtones { return true }
+    if use_nathex { return true }
+    if step.mod(2).eq(0) { return true }
+    return step.lte(STANDARD_MICRO_LAST_INSERT_STEP)
+}
+
+prev_fret_step := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
+    mut prev := step - 1
+    while prev.gt(0) {
+        if is_fret_step(use_nathex, use_microtones, prev) { return prev }
+        prev = prev - 1
+    }
+    return 0
+}
+
+fret_x := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
+    if step.lte(0) { return BOARD_X }
+
+    ratio := active_step_ratio(use_nathex, use_microtones)
 
     mut inv_pow := 1.to_f32()
-    for _ in 0..fret.to_usize() {
+    for _ in 0..step.to_usize() {
         inv_pow = inv_pow.div(ratio)
     }
 
@@ -64,22 +119,36 @@ fret_x := func(use_nathex: Bool, fret: I32) returns I32 {
     return BOARD_X + span.mul(BOARD_W.to_f32()).to_i64().to_i32()
 }
 
-hit_fret := func(use_nathex: Bool, x: I32) returns I32 {
-    max_fret := active_fret_max(use_nathex)
-    for fret in 1..(max_fret + 1).to_usize() {
-        fret_i := fret.cast(I32)
-        left := fret_x(use_nathex, fret_i - 1)
-        right := fret_x(use_nathex, fret_i)
-        if x.gte(left).and(x.lt(right)) { return fret_i }
+hit_fret := func(use_nathex: Bool, use_microtones: Bool, x: I32) returns I32 {
+    max_step := active_step_max(use_nathex, use_microtones)
+    for step in 1..(max_step + 1).to_usize() {
+        step_i := step.cast(I32)
+        if is_fret_step(use_nathex, use_microtones, step_i) {
+            prev_step := prev_fret_step(use_nathex, use_microtones, step_i)
+            left := fret_x(use_nathex, use_microtones, prev_step)
+            right := fret_x(use_nathex, use_microtones, step_i)
+            if x.gte(left).and(x.lt(right)) { return step_i }
+        }
     }
     return -1
 }
 
-fret_marker_style := func(use_nathex: Bool, fret: I32) returns I32 {
+fret_marker_style := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
     if use_nathex {
+        mut fret := step
+        if use_microtones {
+            if !step.mod(2).eq(0) { return 0 }
+            fret = step / 2
+        }
         if fret.eq(8).or(fret.eq(16)) { return 2 }
         if fret.eq(4).or(fret.eq(12)) { return 1 }
         return 0
+    }
+
+    mut fret := step
+    if use_microtones {
+        if !step.mod(2).eq(0) { return 0 }
+        fret = step / 2
     }
 
     for marker : USize in 0..9 {
@@ -90,6 +159,125 @@ fret_marker_style := func(use_nathex: Bool, fret: I32) returns I32 {
         }
     }
     return 0
+}
+
+guitar_step_freq := func(all_fourths: Bool, use_nathex: Bool, use_microtones: Bool, string_idx: USize, step: I32) returns I64 {
+    open_rel := guitar_rel_note(all_fourths, string_idx, 0)
+    if !use_microtones {
+        ref freq : I64 = guitar_freq(use_nathex, open_rel + step)
+        return freq.clone()
+    }
+
+    ref open_freq : I64 = guitar_freq(use_nathex, open_rel)
+    mut freq := open_freq.to_f32()
+    ratio := active_step_ratio(use_nathex, use_microtones)
+    for _ in 0..step.to_usize() {
+        freq = freq.mul(ratio)
+    }
+    return freq.add(0.5).to_i64()
+}
+
+micro_chromatic_note_label := func(use_letters: Bool, open_rel: I32, step: I32) returns Str {
+    q_from_c := (open_rel + 4) * 2 + step
+    lower_chrom := q_from_c / 2
+    chrom := lower_chrom % 12
+    octave := lower_chrom / 12 + 2
+    mut suffix := ""
+    if !q_from_c.mod(2).eq(0) { suffix = "t" }
+
+    if use_letters {
+        ref nn : Str = LETTER_NOTE_NAMES[chrom.to_usize()]
+        return format(nn, suffix, octave.to_str())
+    }
+
+    ref nn : Str = SOLFEGE_CHROMATIC_NAMES[chrom.to_usize()]
+    return format(nn, suffix, octave.to_str())
+}
+
+micro_five_note_label := func(open_rel: I32, step: I32) returns Str {
+    q := open_rel * 2 + step
+    lower_idx := q / 2
+    ref nn : Str = FIVE_NAMES[lower_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
+    hextave := lower_idx / FIVE_CYCLE.cast(I32) + 1
+    mut suffix := ""
+    if !q.mod(2).eq(0) { suffix = "t" }
+    return format(nn, suffix, hextave.to_str())
+}
+
+guitar_step_label := func(display_mode: I32, all_fourths: Bool, use_microtones: Bool, string_idx: USize, step: I32) returns Str {
+    open_rel := guitar_rel_note(all_fourths, string_idx, 0)
+    if !use_microtones {
+        return guitar_note_label(display_mode, open_rel + step)
+    }
+    if display_mode.eq(DISPLAY_MODE_LETTERS) { return micro_chromatic_note_label(true, open_rel, step) }
+    if display_mode.eq(DISPLAY_MODE_SOLFEGE) { return micro_chromatic_note_label(false, open_rel, step) }
+    return micro_five_note_label(open_rel, step)
+}
+
+song_note_count := func(song_id: I32) returns USize {
+    if song_id.eq(SONG_HAPPY_BIRTHDAY).or(song_id.eq(SONG_MICRO_HAPPY)) { return HAPPY_BIRTHDAY_NOTE_COUNT }
+    return FABIENK_NOTE_COUNT
+}
+
+song_note_duration := func(song_id: I32, idx: USize) returns ref I64 {
+    if song_id.eq(SONG_HAPPY_BIRTHDAY).or(song_id.eq(SONG_MICRO_HAPPY)) {
+        ref ms : I64 = HAPPY_BIRTHDAY_DURATIONS[idx]
+        return ms
+    }
+    ref ms : I64 = FABIENK_DURATIONS[idx]
+    return ms
+}
+
+happy_birthday_micro_step := func(all_fourths: Bool, rel: I32) returns I32 {
+    for string_idx : USize in 0..STRING_COUNT {
+        open_rel := guitar_rel_note(all_fourths, string_idx, 0)
+        fret := rel - open_rel
+        if fret.gt(0).and(fret.lte(STANDARD_FRET_MAX)) {
+            return open_rel * 2 + fret
+        }
+    }
+    panic("happy birthday note not playable on guitar: ", rel.to_str())
+    return 0
+}
+
+song_note_step := func(song_id: I32, idx: USize, all_fourths: Bool, use_microtones: Bool) returns I32 {
+    if song_id.eq(SONG_HAPPY_BIRTHDAY) {
+        ref rel : I32 = HAPPY_BIRTHDAY_FREQ_NOTES[idx]
+        if use_microtones { return rel * 2 }
+        return rel.clone()
+    }
+    if song_id.eq(SONG_MICRO_HAPPY) {
+        ref rel : I32 = HAPPY_BIRTHDAY_FREQ_NOTES[idx]
+        return happy_birthday_micro_step(all_fourths, rel)
+    }
+    if song_id.eq(SONG_FABIENK_CLIMB) {
+        ref step : I32 = FABIENK_CLIMB_STEPS[idx]
+        return step.clone()
+    }
+    ref step : I32 = FABIENK_HOOK_STEPS[idx]
+    return step.clone()
+}
+
+song_uses_microtones := func(song_id: I32) returns Bool {
+    return song_id.eq(SONG_FABIENK_CLIMB).or(song_id.eq(SONG_FABIENK_HOOK)).or(song_id.eq(SONG_MICRO_HAPPY))
+}
+
+song_string_for_note := func(all_fourths: Bool, use_nathex: Bool, use_microtones: Bool, note_step: I32) returns USize {
+    max_step := active_step_max(use_nathex, use_microtones)
+    for string_idx : USize in 0..STRING_COUNT {
+        open_rel := guitar_rel_note(all_fourths, string_idx, 0)
+        mut fret := note_step - open_rel
+        if use_microtones { fret = note_step - open_rel * 2 }
+        if fret.gt(0).and(fret.lte(max_step)).and(is_fret_step(use_nathex, use_microtones, fret)) { return string_idx }
+    }
+    panic("song note not playable on guitar: ", note_step.to_str())
+    return 0
+}
+
+song_fret_for_note := func(all_fourths: Bool, use_microtones: Bool, string_idx: USize, note_step: I32) returns I32 {
+    open_rel := guitar_rel_note(all_fourths, string_idx, 0)
+    if use_microtones { return note_step - open_rel * 2 }
+    return note_step - open_rel
 }
 
 draw_toggle := proc(fnt: Font, x: I32, y: I32, label: Str, active: Bool, active_color: Color, inactive_color: Color, text_color: Color) {
@@ -110,6 +298,11 @@ main := proc() {
     mut active_string : I32 = -1
     mut active_fret : I32 = -1
     mut active_timer : I32 = 0
+    mut song_playing := false
+    mut song_id : I32 = SONG_NONE
+    mut song_idx : USize = 0
+    mut song_timer : I64 = 0
+    mut use_microtones := false
 
     BG_COLOR := Color(r = 20, g = 20, b = 30, a = 255)
     BOARD_COLOR := Color(r = 80, g = 55, b = 35, a = 255)
@@ -126,8 +319,8 @@ main := proc() {
     while !WindowShouldClose() {
         dt : I32 = (GetFrameTime() * 1000.to_f32()).to_i64().to_i32()
         use_nathex := display_mode.eq(DISPLAY_MODE_NATHEX)
-        max_fret := active_fret_max(use_nathex)
-        board_end := fret_x(use_nathex, max_fret)
+        max_step := active_step_max(use_nathex, use_microtones)
+        board_end := fret_x(use_nathex, use_microtones, max_step)
 
         if IsMouseButtonPressed(0) {
             mx := GetMouseX()
@@ -143,21 +336,81 @@ main := proc() {
                 if mx >= nx && mx < nx + BTN_W { display_mode = DISPLAY_MODE_NATHEX }
 
                 tx := MARGIN + (BTN_W + BTN_GAP) * 5
+                if mx >= tx && mx < tx + BTN_W { use_microtones = false }
+                mx2 := tx + BTN_W + BTN_GAP
+                if mx >= mx2 && mx < mx2 + BTN_W { use_microtones = true }
+            }
+
+            if my >= ROW2_Y && my < ROW2_Y + BTN_H {
+                tx := MARGIN
                 if mx >= tx && mx < tx + BTN_W { all_fourths = false }
                 fx := tx + BTN_W + BTN_GAP
                 if mx >= fx && mx < fx + BTN_W { all_fourths = true }
+                if mx >= SONG_BTN_X && mx < SONG_BTN_X + BTN_W {
+                    song_playing = true
+                    song_id = SONG_HAPPY_BIRTHDAY
+                    song_idx = 0
+                    song_timer = 0
+                }
+                climb_x := SONG_BTN_X + BTN_W + BTN_GAP
+                if mx >= climb_x && mx < climb_x + BTN_W {
+                    use_microtones = true
+                    song_playing = true
+                    song_id = SONG_FABIENK_CLIMB
+                    song_idx = 0
+                    song_timer = 0
+                }
+                hook_x := climb_x + BTN_W + BTN_GAP
+                if mx >= hook_x && mx < hook_x + BTN_W {
+                    use_microtones = true
+                    song_playing = true
+                    song_id = SONG_FABIENK_HOOK
+                    song_idx = 0
+                    song_timer = 0
+                }
+                micro_happy_x := hook_x + BTN_W + BTN_GAP
+                if mx >= micro_happy_x && mx < micro_happy_x + BTN_W {
+                    use_microtones = true
+                    song_playing = true
+                    song_id = SONG_MICRO_HAPPY
+                    song_idx = 0
+                    song_timer = 0
+                }
             }
 
             if mx >= BOARD_X && mx < board_end && my >= BOARD_Y && my < BOARD_Y + BOARD_H {
-                fret := hit_fret(use_nathex, mx)
+                fret := hit_fret(use_nathex, use_microtones, mx)
                 string_idx : USize = (my - BOARD_Y).div(STRING_H).to_usize()
-                if string_idx.lt(STRING_COUNT).and(fret.gt(0)).and(fret.lte(max_fret)) {
-                    rel := guitar_rel_note(all_fourths, string_idx, fret)
-                    ref freq : I64 = guitar_freq(use_nathex, rel)
+                if string_idx.lt(STRING_COUNT).and(fret.gt(0)).and(fret.lte(max_step)) {
+                    freq := guitar_step_freq(all_fourths, use_nathex, use_microtones, string_idx, fret)
                     play_tone(freq, 450)
                     active_string = string_idx.cast(I32)
                     active_fret = fret
                     active_timer = 450
+                }
+            }
+        }
+
+        if song_playing {
+            if song_uses_microtones(song_id) { use_microtones = true }
+            ref note_ms : I64 = song_note_duration(song_id, song_idx)
+            if song_timer.eq(0) {
+                note_step := song_note_step(song_id, song_idx, all_fourths, use_microtones)
+                string_idx := song_string_for_note(all_fourths, use_nathex, use_microtones, note_step)
+                fret := song_fret_for_note(all_fourths, use_microtones, string_idx, note_step)
+                freq := guitar_step_freq(all_fourths, use_nathex, use_microtones, string_idx, fret)
+                play_tone(freq, note_ms)
+                active_string = string_idx.cast(I32)
+                active_fret = fret
+                active_timer = note_ms.to_i32()
+            }
+            song_timer = song_timer + dt.cast(I64)
+            if song_timer.gte(note_ms + HAPPY_BIRTHDAY_GAP_MS) {
+                song_timer = 0
+                song_idx = song_idx + 1
+                if song_idx.gte(song_note_count(song_id)) {
+                    song_playing = false
+                    song_id = SONG_NONE
                 }
             }
         }
@@ -177,37 +430,60 @@ main := proc() {
         draw_toggle(fnt, MARGIN + BTN_W + BTN_GAP, TOP_Y, "Letters", display_mode.eq(DISPLAY_MODE_LETTERS), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
         draw_toggle(fnt, MARGIN + (BTN_W + BTN_GAP) * 2, TOP_Y, "Hextaves", display_mode.eq(DISPLAY_MODE_HEXTAVES), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
         draw_toggle(fnt, MARGIN + (BTN_W + BTN_GAP) * 3, TOP_Y, "Nathex", use_nathex, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
-        tuning_x := MARGIN + (BTN_W + BTN_GAP) * 5
-        draw_toggle(fnt, tuning_x, TOP_Y, "Standard", !all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
-        draw_toggle(fnt, tuning_x + BTN_W + BTN_GAP, TOP_Y, "All-fourths", all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        micro_x := MARGIN + (BTN_W + BTN_GAP) * 5
+        draw_toggle(fnt, micro_x, TOP_Y, "Tones", !use_microtones, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, micro_x + BTN_W + BTN_GAP, TOP_Y, "Microtones", use_microtones, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+
+        tuning_x := MARGIN
+        draw_toggle(fnt, tuning_x, ROW2_Y, "Standard", !all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, tuning_x + BTN_W + BTN_GAP, ROW2_Y, "All-fourths", all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, SONG_BTN_X, ROW2_Y, "Happy Birthday", song_id.eq(SONG_HAPPY_BIRTHDAY), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, SONG_BTN_X + BTN_W + BTN_GAP, ROW2_Y, "Fabienk climb", song_id.eq(SONG_FABIENK_CLIMB), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, SONG_BTN_X + (BTN_W + BTN_GAP) * 2, ROW2_Y, "Fabienk hook", song_id.eq(SONG_FABIENK_HOOK), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, SONG_BTN_X + (BTN_W + BTN_GAP) * 3, ROW2_Y, "Micro Happy", song_id.eq(SONG_MICRO_HAPPY), BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
 
         mut fret_hint := "24 frets; click a string/fret to play"
         if use_nathex { fret_hint = "Nathex: 16 wider frets, same open-string names" }
-        DrawTextEx(fnt, fret_hint.c_str, Vector2(x = MARGIN.to_f32(), y = (TOP_Y + BTN_H + 18).to_f32()), FONT, 1.to_f32(), MUTED_TEXT)
+        if use_microtones.and(!use_nathex) { fret_hint = "Microtones: 24-TET quarter frets, partial Khn-style upper range" }
+        if use_microtones.and(use_nathex) { fret_hint = "Nathex microtones: full 32 half-nathex frets" }
+        if song_id.eq(SONG_HAPPY_BIRTHDAY) { fret_hint = "Playing Happy Birthday" }
+        if song_id.eq(SONG_FABIENK_CLIMB) { fret_hint = "Fabienk climb: Re Ret Re# Re#t Mi Mit Fa" }
+        if song_id.eq(SONG_FABIENK_HOOK) { fret_hint = "Fabienk hook: Sol Lab Lap La Sib Sip Si" }
+        if song_id.eq(SONG_MICRO_HAPPY) { fret_hint = "Micro Happy: Happy Birthday intervals as micro-fret steps" }
+        DrawTextEx(fnt, fret_hint.c_str, Vector2(x = MARGIN.to_f32(), y = (ROW2_Y + BTN_H + 18).to_f32()), FONT, 1.to_f32(), MUTED_TEXT)
 
         DrawRectangle(BOARD_X, BOARD_Y, board_end - BOARD_X, BOARD_H, BOARD_COLOR)
 
         // Physical fret positions. Fretted note N is between frets N-1 and N.
-        for fret : USize in 0..(max_fret + 1).to_usize() {
-            x := fret_x(use_nathex, fret.cast(I32))
-            DrawRectangle(x, BOARD_Y, 2, BOARD_H, FRET_COLOR)
+        for step : USize in 0..(max_step + 1).to_usize() {
+            step_i := step.cast(I32)
+            if is_fret_step(use_nathex, use_microtones, step_i) {
+                x := fret_x(use_nathex, use_microtones, step_i)
+                DrawRectangle(x, BOARD_Y, 2, BOARD_H, FRET_COLOR)
+            }
         }
 
-        for fret : USize in 1..(max_fret + 1).to_usize() {
-            fret_i := fret.cast(I32)
-            left := fret_x(use_nathex, fret_i - 1)
-            right := fret_x(use_nathex, fret_i)
-            cx := left + (right - left) / 2
-            flabel := fret.to_str()
-            DrawTextEx(fnt, flabel.c_str, Vector2(x = (cx - 8).to_f32(), y = (BOARD_Y - 30).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
+        for step : USize in 1..(max_step + 1).to_usize() {
+            step_i := step.cast(I32)
+            if is_fret_step(use_nathex, use_microtones, step_i) {
+                prev_step := prev_fret_step(use_nathex, use_microtones, step_i)
+                left := fret_x(use_nathex, use_microtones, prev_step)
+                right := fret_x(use_nathex, use_microtones, step_i)
+                cx := left + (right - left) / 2
+                if (!use_microtones).or(step_i.mod(2).eq(0)) {
+                    mut flabel := step.to_str()
+                    if use_microtones { flabel = (step_i / 2).to_str() }
+                    DrawTextEx(fnt, flabel.c_str, Vector2(x = (cx - 8).to_f32(), y = (BOARD_Y - 30).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
+                }
 
-            marker_style := fret_marker_style(use_nathex, fret_i)
-            if marker_style.eq(2) {
-                DrawCircle(cx, BOARD_Y + BOARD_H / 3, 8.to_f32(), DOT_COLOR)
-                DrawCircle(cx, BOARD_Y + BOARD_H * 2 / 3, 8.to_f32(), DOT_COLOR)
-            }
-            if marker_style.eq(1) {
-                DrawCircle(cx, BOARD_Y + BOARD_H / 2, 8.to_f32(), DOT_COLOR)
+                marker_style := fret_marker_style(use_nathex, use_microtones, step_i)
+                if marker_style.eq(2) {
+                    DrawCircle(cx, BOARD_Y + BOARD_H / 3, 8.to_f32(), DOT_COLOR)
+                    DrawCircle(cx, BOARD_Y + BOARD_H * 2 / 3, 8.to_f32(), DOT_COLOR)
+                }
+                if marker_style.eq(1) {
+                    DrawCircle(cx, BOARD_Y + BOARD_H / 2, 8.to_f32(), DOT_COLOR)
+                }
             }
         }
 
@@ -219,25 +495,30 @@ main := proc() {
             open_label := guitar_note_label(display_mode, open_rel)
             DrawTextEx(fnt, open_label.c_str, Vector2(x = MARGIN.to_f32(), y = (sy - 10).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
 
-            for fret : USize in 1..(max_fret + 1).to_usize() {
-                fret_i := fret.cast(I32)
-                left := fret_x(use_nathex, fret_i - 1)
-                right := fret_x(use_nathex, fret_i)
-                cell_w := right - left
-                rel := guitar_rel_note(all_fourths, string_idx, fret_i)
-                label := guitar_note_label(display_mode, rel)
-                lx := left + 6
-                ly := BOARD_Y + string_idx.cast(I32) * STRING_H + 8
-                if active_string.eq(string_idx.cast(I32)).and(active_fret.eq(fret_i)) {
-                    DrawRectangle(left + 2, BOARD_Y + string_idx.cast(I32) * STRING_H + 2, cell_w - 4, STRING_H - 4, CELL_ACTIVE)
+            for step : USize in 1..(max_step + 1).to_usize() {
+                step_i := step.cast(I32)
+                if is_fret_step(use_nathex, use_microtones, step_i) {
+                    prev_step := prev_fret_step(use_nathex, use_microtones, step_i)
+                    left := fret_x(use_nathex, use_microtones, prev_step)
+                    right := fret_x(use_nathex, use_microtones, step_i)
+                    cell_w := right - left
+                    label := guitar_step_label(display_mode, all_fourths, use_microtones, string_idx, step_i)
+                    lx := left + 4
+                    ly := BOARD_Y + string_idx.cast(I32) * STRING_H + 8
+                    if active_string.eq(string_idx.cast(I32)).and(active_fret.eq(step_i)) {
+                        DrawRectangle(left + 2, BOARD_Y + string_idx.cast(I32) * STRING_H + 2, cell_w - 4, STRING_H - 4, CELL_ACTIVE)
+                    }
+                    mut cell_font := FONT_SM
+                    if use_microtones { cell_font = FONT_MICRO }
+                    DrawTextEx(fnt, label.c_str, Vector2(x = lx.to_f32(), y = ly.to_f32()), cell_font, 1.to_f32(), LABEL_COLOR)
                 }
-                DrawTextEx(fnt, label.c_str, Vector2(x = lx.to_f32(), y = ly.to_f32()), FONT_SM, 1.to_f32(), LABEL_COLOR)
             }
         }
 
         mut tuning_label := "Standard E A D G B E"
         if all_fourths { tuning_label = "All-fourths E A D G C F" }
         if use_nathex { tuning_label = format(tuning_label, " on nathex frets") }
+        if use_microtones { tuning_label = format(tuning_label, " with microtones") }
         DrawTextEx(fnt, tuning_label.c_str, Vector2(x = MARGIN.to_f32(), y = (BOARD_Y + BOARD_H + 35).to_f32()), FONT, 1.to_f32(), TEXT_COLOR)
 
         EndDrawing()
