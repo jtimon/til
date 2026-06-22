@@ -141,6 +141,139 @@ priv struct_deep_free := func(struct_name: Str, sdef: Expr, data: Dynamic, ctx: 
     }
 }
 
+// #286 commit 2: byte-level deep-free of a struct value at `data` of type
+// `struct_name`. Frees the nested owned heap (Str c_strs, owned struct /
+// container fields) via struct_deep_free, then the struct buffer itself --
+// the offset+type+ctx form of StructInstance.delete's payload path, so eval
+// can free a struct by its heap_index pointer without a StructInstance
+// wrapper. Callers must skip a NULL `data` (a moved-out binding):
+// struct_deep_free would dereference it.
+priv heap_free := func(struct_name: Str, struct_def: Expr, own data: Dynamic, ctx: Context) {
+    struct_deep_free(struct_name, struct_def, data, ctx)
+    free(own data)
+}
+
+// #286 commit 2: byte-level deep-CLONE of a struct value at `data` of type
+// `struct_name`. Returns a fresh malloc'd buffer with an independent copy of
+// every owned-pointer field (Str c_strs, owned struct / container fields) --
+// the offset+type+ctx form of StructInstance.clone's body, so eval can clone
+// a struct by its heap_index pointer. The nested recursions still build a
+// temporary StructInstance and call .clone(), which now delegates back here.
+priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: Context) returns Dynamic {
+    switch struct_def.node_type {
+    case NodeType.StructDef(sdef_data):
+        sz := ctx_total_size(struct_name, ctx)
+        dst_data : Dynamic = malloc(sz.cast(U64))
+        memcpy(dst_data, data, sz.cast(U64))
+        if struct_name.eq("Str") {
+            ref s : Str = to_ptr(data)
+            if s.count.gt(0) {
+                if s.c_str.is_null().not() {
+                    cloned_str := s.clone()
+                    write_ptr(dst_data, cloned_str.c_str)
+                    ref mut dst_cap : U32 = ptr_add(dst_data, 12)
+                    dst_cap = s.count.clone()
+                    memset(cloned_str, 0, Str.size().cast(U64))
+                }
+            }
+        } else if container_elem_type(struct_name).eq("Str") {
+            clone_container_str_buffer(struct_name, data, dst_data, ctx)
+        } else if struct_def_shallow_safe(sdef_data, ctx) {
+        } else {
+            for dd : Declaration in sdef_data.fields {
+                foff := ctx_field_layout(struct_name, dd.name, ctx).offset
+                ref ftype : Str = dd.explicit_type
+                ref nested_def : Expr = field_nested_def(dd, ctx)
+                if dd.own_type.is(OwnType.Own) {
+                    ref src_ptr : Dynamic = deref(ptr_add(data, foff.cast(U64)))
+                    if src_ptr.is_null().not() {
+                        if nested_def.is_null().not() {
+                            ref stable_ftype : Str = stable_type_name(ftype, ctx)
+                            mut tmp := StructInstance(struct_name = stable_ftype, struct_def = nested_def, ctx = ctx, data = to_ptr(src_ptr), borrowed = true)
+                            mut cloned := tmp.clone()
+                            tmp.data = NULL
+                            write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned.data)
+                            cloned.data = NULL
+                        }
+                    }
+                    continue
+                }
+                if dd.own_type.is(OwnType.Ref) { continue }
+                if ftype.eq("Str") {
+                    ref s : Str = ptr_add(data, foff.cast(U64))
+                    if s.count.gt(0) {
+                        if s.c_str.is_null().not() {
+                            cloned_str := s.clone()
+                            write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
+                            ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.cast(U64)), 12)
+                            dst_cap = s.count.clone()
+                            memset(cloned_str, 0, Str.size().cast(U64))
+                        }
+                    }
+                    continue
+                }
+                if nested_def.is_null().not() {
+                    if nested_def.node_type.is(NodeType.EnumDef) {
+                        if enum_has_payloads(nested_def) {
+                            if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+                                ref ei_ref : Dynamic = deref(ptr_add(data, foff.cast(U64)))
+                                if ei_ref.is_null().not() {
+                                    ref ei : EnumInstance = ei_ref
+                                    cloned_ei := ei.clone()
+                                    heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+                                    move(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
+                                    write_ptr(ptr_add(dst_data, foff.cast(U64)), heap_ei)
+                                }
+                            } else {
+                                mut temp_decl := dd
+                                temp_decl.own_type = OwnType.Shallow
+                                val := read_field(data, temp_decl, foff, ctx)
+                                mut cloned_val := val.clone()
+                                switch cloned_val {
+                                case Value.Enum(cei):
+                                    memcpy(ptr_add(dst_data, foff.cast(U64)), cei.data, cei.data_size.cast(U64))
+                                    free(own cei.data)
+                                    cei.data = NULL
+                                case:
+                                }
+                                switch val {
+                                case Value.Enum(cei):
+                                    if cei.borrowed.not() {
+                                        free(own cei.data)
+                                    }
+                                    cei.data = NULL
+                                case:
+                                }
+                            }
+                            continue
+                        }
+                    }
+                }
+                if nested_def.is_null().not() {
+                    if nested_def.node_type.is(NodeType.EnumDef).not() {
+                        switch nested_def.node_type {
+                        case NodeType.StructDef:
+                            ref stable_ftype2 : Str = stable_type_name(ftype, ctx)
+                            mut tmp := StructInstance(struct_name = stable_ftype2, struct_def = nested_def, ctx = ctx, data = ptr_add(data, foff.cast(U64)), borrowed = true)
+                            mut cloned := tmp.clone()
+                            tmp.data = NULL
+                            memcpy(ptr_add(dst_data, foff.cast(U64)), cloned.data, ctx_total_size(ftype, ctx).cast(U64))
+                            free(own cloned.data)
+                            cloned.data = NULL
+                        case:
+                            UNREACHABLE()
+                        }
+                    }
+                }
+            }
+        }
+        return dst_data
+    case:
+        UNREACHABLE()
+        return NULL
+    }
+}
+
 StructInstance := struct {
     ref struct_name : Str = NULL
     // Issue #239: struct_name is a `ref` into the AST and dangles once the
@@ -170,136 +303,8 @@ namespace:
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
-        switch self.struct_def.node_type {
-        case NodeType.StructDef(sdef_data):
-            sz := ctx_total_size(self.struct_name, self.ctx)
-            dst_data : Dynamic = malloc(sz.cast(U64))
-            memcpy(dst_data, self.data, sz.cast(U64))
-            if self.struct_name.eq("Str") {
-                ref s : Str = to_ptr(self.data)
-                if s.count.gt(0) {
-                    if s.c_str.is_null().not() {
-                        cloned_str := s.clone()
-                        // Replace c_str with the freshly malloc'd clone
-                        // and update cap so the clone OWNS its buffer.
-                        // Preserving the original cap (e.g. CAP_VIEW from
-                        // a view-typed value) leaked the new buffer
-                        // because cleanup_value_payload / Str.delete
-                        // skip free for cap >= CAP_VIEW.
-                        write_ptr(dst_data, cloned_str.c_str)
-                        ref mut dst_cap : U32 = ptr_add(dst_data, 12)
-                        dst_cap = s.count.clone()
-                        // Prevent cloned_str destructor from freeing the new c_str
-                        memset(cloned_str, 0, Str.size().cast(U64))
-                    }
-                }
-            } else if container_elem_type(self.struct_name).eq("Str") {
-                // Issue #275: deep-copy the Str container's `own data` buffer so
-                // the clone owns it (the outer memcpy only copied the pointer);
-                // dual of struct_deep_free's free_container_str_data.
-                clone_container_str_buffer(self.struct_name, self.data, dst_data, self.ctx)
-            } else if struct_def_shallow_safe(sdef_data, self.ctx) {
-                // POD shortcut: every field is either a primitive,
-                // a ref (skipped anyway), or a nested shallow-safe
-                // struct stored inline.  The outer memcpy already
-                // cloned the bytes correctly; no per-field work
-                // needed.
-            } else {
-                for dd : Declaration in sdef_data.fields {
-                    foff := ctx_field_layout(self.struct_name, dd.name, self.ctx).offset
-                    ref ftype : Str = dd.explicit_type
-                    ref nested_def : Expr = field_nested_def(dd, self.ctx)
-                    if dd.own_type.is(OwnType.Own) {
-                        ref src_ptr : Dynamic = deref(ptr_add(self.data, foff.cast(U64)))
-                        if src_ptr.is_null().not() {
-                            if nested_def.is_null().not() {
-                                ref stable_ftype : Str = stable_type_name(ftype, self.ctx)
-                                mut tmp := StructInstance(struct_name = stable_ftype, struct_def = nested_def, ctx = self.ctx, data = to_ptr(src_ptr), borrowed = true)
-                                mut cloned := tmp.clone()
-                                tmp.data = NULL
-                                write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned.data)
-                                cloned.data = NULL
-                            }
-                        }
-                        continue
-                    }
-                    if dd.own_type.is(OwnType.Ref) { continue }
-                    if ftype.eq("Str") {
-                        ref s : Str = ptr_add(self.data, foff.cast(U64))
-                        if s.count.gt(0) {
-                            if s.c_str.is_null().not() {
-                                cloned_str := s.clone()
-                                write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
-                                // Update cap to count so the clone owns
-                                // its freshly malloc'd buffer (mirrors
-                                // the Str-payload branch above).
-                                ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.cast(U64)), 12)
-                                dst_cap = s.count.clone()
-                                memset(cloned_str, 0, Str.size().cast(U64))
-                            }
-                        }
-                        continue
-                    }
-                    if nested_def.is_null().not() {
-                        if nested_def.node_type.is(NodeType.EnumDef) {
-                            if enum_has_payloads(nested_def) {
-                                if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-                                    ref ei_ref : Dynamic = deref(ptr_add(self.data, foff.cast(U64)))
-                                    if ei_ref.is_null().not() {
-                                        ref ei : EnumInstance = ei_ref
-                                        cloned_ei := ei.clone()
-                                        heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
-                                        move(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
-                                        write_ptr(ptr_add(dst_data, foff.cast(U64)), heap_ei)
-                                    }
-                                } else {
-                                    mut temp_decl := dd
-                                    temp_decl.own_type = OwnType.Shallow
-                                    val := read_field(self.data, temp_decl, foff, self.ctx)
-                                    mut cloned_val := val.clone()
-                                    switch cloned_val {
-                                    case Value.Enum(cei):
-                                        memcpy(ptr_add(dst_data, foff.cast(U64)), cei.data, cei.data_size.cast(U64))
-                                        free(own cei.data)
-                                        cei.data = NULL
-                                    case:
-                                    }
-                                    switch val {
-                                    case Value.Enum(cei):
-                                        if cei.borrowed.not() {
-                                            free(own cei.data)
-                                        }
-                                        cei.data = NULL
-                                    case:
-                                    }
-                                }
-                                continue
-                            }
-                        }
-                    }
-                    if nested_def.is_null().not() {
-                        if nested_def.node_type.is(NodeType.EnumDef).not() {
-                            switch nested_def.node_type {
-                            case NodeType.StructDef:
-                                ref stable_ftype2 : Str = stable_type_name(ftype, self.ctx)
-                                mut tmp := StructInstance(struct_name = stable_ftype2, struct_def = nested_def, ctx = self.ctx, data = ptr_add(self.data, foff.cast(U64)), borrowed = true)
-                                mut cloned := tmp.clone()
-                                tmp.data = NULL
-                                memcpy(ptr_add(dst_data, foff.cast(U64)), cloned.data, ctx_total_size(ftype, self.ctx).cast(U64))
-                                free(own cloned.data)
-                                cloned.data = NULL
-                            case:
-                                UNREACHABLE()
-                            }
-                        }
-                    }
-                }
-            }
-            return StructInstance(struct_name = self.struct_name, is_str = self.is_str, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
-        case:
-            UNREACHABLE()
-            return StructInstance()
-        }
+        dst_data : Dynamic = heap_clone(self.struct_name, self.struct_def, self.data, self.ctx)
+        return StructInstance(struct_name = self.struct_name, is_str = self.is_str, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
         // Deep delete: free the struct payload buffer (and, for a Str
@@ -318,14 +323,16 @@ namespace:
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
+                    free(own self.data)
                 } else if self.ctx.is_null().not() {
-                    // Issue #275: free nested Str-field heap that clone/write_field
-                    // deep-copied -- the shallow delete leaked it. struct_deep_free
-                    // reads struct_def, so this assumes the AST is live (true at a
+                    // Issue #275: free nested Str-field heap (clone/write_field
+                    // deep-copied it) plus the buffer itself. heap_free reads
+                    // struct_def, so this assumes the AST is live (true at a
                     // value's last-use delete during execution).
-                    struct_deep_free(self.struct_name, self.struct_def, self.data, self.ctx)
+                    heap_free(self.struct_name, self.struct_def, own self.data, self.ctx)
+                } else {
+                    free(own self.data)
                 }
-                free(own self.data)
             }
         }
         if call_free { free(own self) }
