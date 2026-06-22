@@ -44,14 +44,15 @@ namespace:
     /// Ref to the key slot at sorted index `i`. Unchecked: callers
     /// guarantee `i < self.keys.count` (DynMap's binary-search consumers
     /// always validate before calling). Bypasses DynVec.get's throwing
-    /// bounds check.
-    key_ptr := func(self: DynMap, i: USize) returns ref Dynamic {
+    /// bounds check. priv (#287): indexed key access is a binary-search
+    /// internal; consumers walk entries via for-in instead.
+    priv key_ptr := func(self: DynMap, i: USize) returns ref Dynamic {
         return ptr_add(self.keys.data, i.mul(self.keys.elem_size).cast(U64))
     }
 
     /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr.
-    val_ptr := func(self: DynMap, i: USize) returns ref Dynamic {
+    /// contract as key_ptr; likewise priv (#287).
+    priv val_ptr := func(self: DynMap, i: USize) returns ref Dynamic {
         return ptr_add(self.values.data, i.mul(self.values.elem_size).cast(U64))
     }
 

@@ -1,0 +1,77 @@
+# priority: medium
+# category: features
+** FIXED #287 Key-value for-in over maps: `for k, v in map`
+
+*** Post-mortem
+
+  Added a two-variable for-in that binds a map's key and value in
+  lockstep, then used it (plus #284's single-variable form) to delete the
+  hand-rolled counting loops that reached into the maps' internal indexed
+  accessors, so those accessors could finally go ~priv~.
+
+      for k, v in m { ... }          // ref bindings, both read
+      for k, mut v in m { v = ... }  // mutate values in place
+      for _, v in m { ... }          // ignore the key
+
+  Shipped as TWO commits, a staged migration (doc/self.org "Staged
+  migration across master merges"): the syntax had to land on master
+  first so ~til_boot~ could parse `for k, v` before any compiler source
+  used it -- a single commit that both added the parser rule and used it
+  in src/self would have failed pass 1 (HEAD's til_boot rejects the new
+  call sites).
+
+  Commit 1 -- the language feature:
+  - ~src/core/ast.til~: ~ForInData~ gains ~name2~ / ~is_mut2~ (empty
+    name2 == ordinary single-variable for-in); ~node_head_str~ renders
+    the pair form.
+  - ~src/self/parser.til~: a comma after the loop var parses the second
+    binding -- `for [mut] k, [mut] v in <expr>`.
+  - ~src/self/typer.til~ ~desugar_for_in_kv_stmt~ (dispatched ahead of
+    the range / single-variable collection desugars): lowers the pair
+    form to one lockstep index walk over the map's public ~keys~ /
+    ~values~ Vecs via ~unsafe_get~ -- no map-level accessor in the loop:
+        _fc := ref map
+        _fi := 0
+        while _fi < _fc.keys.len() {
+            ref k : K = _fc.keys.unsafe_get(_fi)
+            ref v : V = _fc.values.unsafe_get(_fi)
+            _fi++
+            <body>
+        }
+    Key subtlety: the K/V element types are resolved off each backing
+    Vec's unsafe_get return and set *explicitly* on the element decls. A
+    typeless ref decl makes the interpreter copy the value instead of
+    aliasing the slot, so a `for k, mut v` write would not persist
+    (the first build caught exactly this -- interp failed while compile
+    passed). Protocol detection requires the iterated type to expose
+    ~keys~ and ~values~ fields (Map, HashMap, and the dyn variants).
+  - ~src/self/constfolder.til~: count name2 as a body-local.
+
+  Commit 2 -- the payoff (this commit): converted all 13 consumer
+  counting-loops to for-in and made the now-internal accessors ~priv~:
+  - value-only (8) -> ~for v in map.values~ / ~for mut v~: typer.til
+    check_unused_locals / check_unused_mut_locals /
+    check_unused_priv_top_level, the two set_struct_def/set_func_def
+    loops, normalize_scope_bindings (`for mut b`), interpreter.til
+    scope_free, garbager.til collect_scope_locals.
+  - key-only (2) -> ~for k in map.keys~: loader.til wildcard-method
+    expansion (top, core_top).
+  - key+value (3) -> ~for k, v in map~: interpreter.til ns_fields walk,
+    garbager.til imported walk, initer.til generic_funcs walk.
+  - ~key_ptr~ / ~val_ptr~ are now ~priv~ in src/core/map.til and
+    src/std/dyn_map.til; their only remaining callers are each map's own
+    binary-search has/get/set/delete, which need O(1) indexed access and
+    cannot be for-in loops. They are NOT deleted -- only de-leaked from
+    consumers and hidden.
+
+  Regression tests (interp + compile): ~test_map_for_in_kv~ /
+  ~test_map_for_in_kv_mut~ / ~test_map_for_in_kv_ignore_key~ in
+  test/maps.til and ~test_hashmap_for_in_kv~ / ~test_hashmap_for_in_kv_mut~
+  in test/hashmaps.til assert pairing, sorted (Map) / dense (HashMap)
+  order, a `for k, mut v` in-place mutation, and the `for _, v`
+  key-ignore form. The 13 converted compiler loops are themselves
+  exercised by the whole `make test` suite running through the rebuilt
+  self-hosted compiler.
+
+Related: builds on [[../fixed/284.org][#284]] (collection for-in via
+  unchecked unsafe_get).

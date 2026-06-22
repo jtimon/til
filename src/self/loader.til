@@ -551,12 +551,10 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // then walks each kept method's body normally.
         if name.starts_with("*.") {
             wc_method := name.substr(2, name.len().sub(2))
-            for wi in 0..top.len() {
-                ref wk : Str = top.key_ptr(wi)
+            for wk in top.keys {
                 push_qn(worklist, wk, wc_method)
             }
-            for wi2 in 0..core_top.len() {
-                ref wk2 : Str = core_top.key_ptr(wi2)
+            for wk2 in core_top.keys {
                 push_qn(worklist, wk2, wc_method)
             }
             continue

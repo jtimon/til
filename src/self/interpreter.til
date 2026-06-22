@@ -1681,9 +1681,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 UNREACHABLE()
             }
             if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
-                for ki in 0..c.ns_fields.len() {
-                    ref qn : Str = c.ns_fields.key_ptr(ki)
-                    ref nsv : Value = c.ns_fields.val_ptr(ki)
+                for qn, nsv in c.ns_fields {
                     switch nsv {
                     case Value.Func(nsv_fptr):
                         ref nsv_fdef : Expr = deref(nsv_fptr)
@@ -2690,8 +2688,7 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     s.bindings.set(name, own v)
 }
 scope_free := func(own s: Scope) {
-    for i in 0..s.bindings.len() {
-        ref b : Binding = s.bindings.val_ptr(i)
+    for b in s.bindings.values {
         if b.cell_is_local {
             // Issue #275: deep teardown for ALL scopes -- reclaim every
             // non-borrowed Struct/Str/Enum payload. Block/if/while/catch cells

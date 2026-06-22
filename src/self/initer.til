@@ -3454,10 +3454,8 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
     // (recorded at seed time). A call here to a generic defined elsewhere
     // (e.g. core `assert_eq`) is monomorphized against the imported decl.
     // A local decl of the same name already in `generics` wins.
-    for gi in 0..ctx.generic_funcs.len() {
-        ref gname : Str = ctx.generic_funcs.key_ptr(gi)
+    for gname, gdef in ctx.generic_funcs {
         if generics.has(gname) { continue }
-        ref gdef : Expr = ctx.generic_funcs.val_ptr(gi)
         generics.set(gname.clone(), own gdef.clone())
     }
     if generics.len().eq(0) { return }

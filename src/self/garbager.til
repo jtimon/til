@@ -121,8 +121,7 @@ priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec(LocalInfo)) {
-    for i in 0..scope.bindings.len() {
-        ref b : TypeBinding = scope.bindings.val_ptr(i)
+    for b in scope.bindings.values {
         // main()'s non-Own params are heap-allocated by the builder's CLI
         // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
         // main itself; skip the usual is_param filter so they get a
@@ -1024,9 +1023,7 @@ garbager_destroy := proc(mut ctx: Context) {
     saved_in_shallow := ctx.typer_in_shallow_return
     ctx.typer_in_main_func = false
     ctx.typer_in_shallow_return = false
-    for i in 0..ctx.imported.len() {
-        ref path : Str = ctx.imported.key_ptr(i)
-        ref iu : ImportUnit = ctx.imported.val_ptr(i)
+    for path, iu in ctx.imported {
         ctx.path = path.clone()
         insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }

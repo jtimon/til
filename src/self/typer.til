@@ -3338,8 +3338,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
 }
 
 check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
-    for bi in 0..scope.bindings.len() {
-        ref b : TypeBinding = scope.bindings.val_ptr(bi)
+    for b in scope.bindings.values {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
@@ -3369,8 +3368,7 @@ check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
 // to distinguish "rebindable local pointer" from "write-through ref
 // mut"; tracked separately on #164).
 check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
-    for bi in 0..scope.bindings.len() {
-        ref b : TypeBinding = scope.bindings.val_ptr(bi)
+    for b in scope.bindings.values {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
@@ -3398,8 +3396,7 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
 // count into its overall type_errors total.
 check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 {
     mut found : I32 = 0
-    for bi in 0..scope.bindings.len() {
-        ref b : TypeBinding = scope.bindings.val_ptr(bi)
+    for b in scope.bindings.values {
         if b.is_priv.not() { continue }
         if b.is_builtin { continue }
         if b.used { continue }
@@ -4778,8 +4775,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                 if rb_old_sd.is_null().not().and(
                     rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef))) {
                         scope.set_struct_def(rb.name, rstmt.children[0])
-                        for bi in 0..scope.bindings.len() {
-                            ref b : TypeBinding = scope.bindings.val_ptr(bi)
+                        for b in scope.bindings.values {
                             if b.ptr_eq(rb).not().and(scope.struct_def_of(b.name).ptr_eq(rb_old_sd)) {
                                 scope.set_struct_def(b.name, rstmt.children[0])
                             }
@@ -4788,8 +4784,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                 ref rb_old_fd : Expr = scope.lookup_func(rb.name)
                 if rb_old_fd.is_null().not().and(rfirst.node_type.is(NodeType.FuncDef)) {
                     scope.set_func_def(rb.name, rstmt.children[0])
-                    for bi in 0..scope.bindings.len() {
-                        ref b : TypeBinding = scope.bindings.val_ptr(bi)
+                    for b in scope.bindings.values {
                         if b.ptr_eq(rb).not().and(scope.lookup_func(b.name).ptr_eq(rb_old_fd)) {
                             scope.set_func_def(b.name, rstmt.children[0])
                         }
@@ -4867,8 +4862,7 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
 // not resolve are left as ~Custom~ and surface as undefined-symbol
 // errors during type_check (same as today).
 normalize_scope_bindings := func(scope: TypeScope) {
-    for bi in 0..scope.bindings.len() {
-        ref mut b : TypeBinding = scope.bindings.val_ptr(bi)
+    for mut b in scope.bindings.values {
         switch b.type {
         case Type.Custom(name):
             ref alias_b : TypeBinding = scope.get_binding(name)
