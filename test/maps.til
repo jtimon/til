@@ -110,6 +110,23 @@ test_map_for_in_kv_mut := test() {
     assert_eq(I64, vy, 40)
 }
 
+// `for k, mut v in <mut map>`: read the key and mutate the paired value in
+// place (the key drives a different update per entry). Confirms the key/value
+// pairing holds during a value-mutating walk and that `mut m` is accepted.
+test_map_for_in_kv_mut_uses_key := test() {
+    mut m := Map(Str, I64).new()
+    m.set("a", own 1)
+    m.set("b", own 2)
+    for k, mut v in m {
+        if k.eq("a") { v = v.mul(100) }
+        else { v = v.mul(10) }
+    }
+    ref a : I64 = m["a"]
+    ref b : I64 = m["b"]
+    assert_eq(I64, a, 100)
+    assert_eq(I64, b, 20)
+}
+
 // The key binding may be `_` when only values are needed.
 test_map_for_in_kv_ignore_key := test() {
     m := Map(I64, I64).new()
