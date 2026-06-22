@@ -1,0 +1,58 @@
+# priority: medium
+# category: bugs
+** FIXED #285 Macro arguments reject foldable function-call expressions
+
+   POST-MORTEM
+
+   Root cause: ~expr_is_comptime~ (src/self/typer.til), the gate that decides
+   whether a macro argument is compile-time known, resolved an FCall's callee
+   only through ~scope.get_binding(<flat-name>)~. For a FieldAccess callee it
+   built a flat name like ~I64_to_f32~ and looked that up. But a primitive
+   conversion such as ~2.to_f32()~ is lowered by ~infer_field_access_fcall~ to
+   the namespace call ~I64.to_f32(2)~, and namespace/UFCS methods live in their
+   type's namespace -- they are NOT registered as flat ~Type_method~ bindings.
+   So the lookup always missed, ~cb.is_null()~ was true, and the arg was wrongly
+   rejected with "macro argument must be known at compile time". The constfolder
+   would have folded the call fine; the typer never let it get that far.
+
+   Fix: in ~expr_is_comptime~'s FCall branch, split callee resolution by node
+   shape. An Ident callee still resolves via ~scope.get_binding~ (free funcs).
+   A FieldAccess callee now resolves the FuncDef through the receiver type's
+   namespace (~scope.get_struct(sname)~ + ~find_namespace_func~) and reads the
+   ~FuncType~ off the FuncDef node directly. The downstream classification is
+   unchanged: Macro/Func/ExtFunc are comptime iff all their args are comptime
+   (so the receiver-as-arg and any nested calls recurse), Proc/ExtProc are not.
+   This matches the constfolder, which already treats ext_funcs as foldable.
+
+   Regression test: ~test_macro_to_f32_arg~ and ~test_macro_nested_foldable_args~
+   in test/macros.til (the latter is the exact nested
+   ~calculate_sqrt(calculate_sqrt(calculate_sqrt(2.to_f32())))~ case).
+
+   Macro calls currently reject arguments whose values are statically known via
+   foldable function calls. This came up while building a compile-time nathex
+   frequency table in ~lib/music.til~.
+
+*** Reproduction
+
+    A macro call like this fails:
+
+    : calculate_sqrt(calculate_sqrt(calculate_sqrt(2.to_f32())))
+
+    Observed diagnostic:
+
+    : ./lib/music.til:28:59: error: macro argument must be known at compile time
+    : ./lib/music.til:28:42: error: macro argument must be known at compile time
+    : ./lib/music.til:28:27: error: macro argument must be known at compile time
+
+*** Expected
+
+    The argument should be accepted because ~2.to_f32()~ has compile-time-known
+    inputs and should be constfolded before macro argument validation, just like
+    an equivalent macro result.
+
+*** Acceptance
+
+    - Macro arguments accept expressions that constfold to compile-time-known
+      values, including primitive conversion calls such as ~2.to_f32()~.
+    - Nested macro calls whose arguments are foldable also work.
+    - Add a regression test covering the nested-call case above.

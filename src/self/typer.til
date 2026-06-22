@@ -302,31 +302,44 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
             return true
         }
         ref callee : Expr = e.children[0]
-        mut callee_name := ""
+        mut cb_ft := FuncType.Proc
         switch callee.node_type {
         case NodeType.Ident(cn):
-            callee_name = cn.ident_name()
+            ref cb : TypeBinding = scope.get_binding(cn.ident_name())
+            if cb.is_null() { return false }
+            if cb.is_func_decl.not() { return false }
+            cb_ft = binding_func_type(cb)
         case NodeType.FieldAccess(mn):
-            if callee.children.len().gt(0) {
-                ref recv : Expr = callee.children[0]
-                mut sname := til_type_name(recv.expr_til_type())
-                if sname.len().eq(0) {
-                    switch recv.node_type {
-                    case NodeType.Ident(rn):
-                        sname = rn.ident_name()
-                    case:
-                    }
+            // A namespace/UFCS method call (`recv.method(...)`) is lowered
+            // by infer_field_access_fcall to `Type.method(recv, ...)`, with
+            // the receiver's type as a leading arg. Those methods live in the
+            // type's namespace -- they are NOT registered as flat `Type_method`
+            // bindings, so a `scope.get_binding(...)` lookup always misses
+            // (issue #285: that miss wrongly rejected `2.to_f32()`). Resolve
+            // the FuncDef through the namespace and read its FuncType directly.
+            if callee.children.len().eq(0) { return false }
+            ref recv : Expr = callee.children[0]
+            mut sname := til_type_name(recv.expr_til_type())
+            if sname.len().eq(0) {
+                switch recv.node_type {
+                case NodeType.Ident(rn):
+                    sname = rn.ident_name()
+                case:
                 }
-                callee_name = sname.format("_", mn.field_access_name())
+            }
+            if sname.len().eq(0) { return false }
+            ref sdef : Expr = scope.get_struct(sname)
+            ref ns_func : Expr = find_namespace_func(sdef, mn.field_access_name(), scope)
+            if ns_func.is_null() { return false }
+            switch ns_func.node_type {
+            case NodeType.FuncDef(nfd):
+                cb_ft = nfd.func_type
+            case:
+                return false
             }
         case:
             return false
         }
-        if callee_name.len().eq(0) { return false }
-        ref cb : TypeBinding = scope.get_binding(callee_name)
-        if cb.is_null() { return false }
-        if cb.is_func_decl.not() { return false }
-        cb_ft := binding_func_type(cb)
         if cb_ft.is(FuncType.Proc).or(cb_ft.is(FuncType.ExtProc)) {
             return false
         }
