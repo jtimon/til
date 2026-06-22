@@ -2749,6 +2749,18 @@ scope_free := func(own s: Scope) {
     // them untouched is exactly right -- do NOT free them here.
     own s.ref_primitive_ptrs.delete(false)
     memset(s.ref_primitive_ptrs, 0, Map(Str, Dynamic).size().cast(U64))
+    // #286 commit 1 follow-up: same treatment for heap_index (the EvalHeap
+    // name->pointer index). Every scope_new() defaults it to an empty
+    // Map(Str, Dynamic).new() -- two malloc'd Vec backing buffers that
+    // scope_free must reclaim, else ~2 allocs leak per scope (the 7d2a08c
+    // interpret/translate ASAN regression, identical to the #211 / #227
+    // misses above). Empty until eval stores values here; delete(false)
+    // frees the Str keys and both backing Vecs and leaves any stored
+    // Dynamic block pointers untouched (those are reclaimed by heap_free at
+    // the value's own delete, exactly like ref_primitive_ptrs' borrowed
+    // pointers above).
+    own s.heap_index.delete(false)
+    memset(s.heap_index, 0, Map(Str, Dynamic).size().cast(U64))
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // stores owning pointer boxes so the raw heap pointer can be passed to
