@@ -155,6 +155,38 @@ combined (CPU profiling still works). The call stack is per-thread but the
 counters are not locked, so the numbers are exact only for the single-threaded
 self-host build.
 
+** One-command driver: ~examples/profile.til~
+
+The recipes above are a few steps each (build the instrumented compiler, set
+TIL_PROF_TOP, run it; or run valgrind then ms_print). ~examples/profile.til~
+wraps them so a profile is one command:
+
+  : bin/til run examples/profile.til [--prof|--massif] [target.til] [top_n]
+
+Defaults: method ~--prof~, target ~test/maps.til~, top_n 25. It is the
+allocation/CPU companion to ~examples/prof_selfhost.til~ (the build-TIME
+regression harness behind ~make profile~).
+
+~--prof~ (default) builds the instrumented compiler and runs it, printing the
+per-function call/self-time and bytes-allocated tables -- the churn ranking that
+found the Type_Primitive allocator. The instrument build is the slow step, so
+~bin/til_prof~ is CACHED: it is rebuilt only when missing or older than
+~bin/til~. Build it once, then profile many targets fast:
+
+  : bin/til run examples/profile.til                # test/maps.til, top 25
+  : bin/til run examples/profile.til src/til.til 40 # full self-host front end, top 40
+
+~--massif~ runs valgrind massif on the EXISTING ~bin/til~ -- no instrumented
+rebuild, so it is fast -- and prints the peak-heap snapshot's allocation tree
+(the full ms_print report is saved to ~tmp/profile_massif.txt~):
+
+  : bin/til run examples/profile.til --massif test/maps.til
+
+Massif ranks PEAK/LIVE heap (what is held at once), not churn. Use it for "what
+is held live"; use ~--prof~ for churny allocators that allocate and free fast
+and so never dominate a peak snapshot -- the class Type_Primitive belonged to.
+The ~--massif~ mode needs ~valgrind~ and ~ms_print~ on PATH.
+
 ** Hot functions snapshot
 
 From ~bin/til_prof translate test/maps.til~ on the current compiler -- the ten

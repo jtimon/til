@@ -1,0 +1,161 @@
+mode cli
+
+import("../src/std/sys")
+
+// Sample-profile driver for the self-host compiler (issue #237). Companion to
+// examples/prof_selfhost.til, which is the build-TIME regression harness; this
+// one answers "where do the allocations / CPU go?". It drives the two sample
+// profilers documented in doc/profiling.org and prints their top-N, so you do
+// not have to remember the multi-step recipe.
+//
+//   bin/til run examples/profile.til [--prof|--massif] [target.til] [top_n]
+//
+// Defaults: method=--prof, target=test/maps.til, top_n=25.
+//
+//   --prof   (default) builds an instrumented compiler (bin/til_prof) with
+//            gcc -finstrument-functions and runs it on the target. Prints the
+//            exact per-function call/self-time table AND the bytes-allocated
+//            table -- the churn ranking (this is how the Type_Primitive
+//            allocator was found). Instrumenting the whole compiler as one
+//            translation unit is the slow step, so bin/til_prof is CACHED: it
+//            is rebuilt only when missing or older than bin/til. Build once,
+//            profile many targets fast.
+//
+//   --massif runs valgrind massif on the EXISTING bin/til -- no instrumented
+//            rebuild, so it is fast, but it ranks PEAK/LIVE heap, not churn.
+//            Good for "what is held live"; use --prof for churny allocators
+//            (alloc+free fast) that never show up in a peak snapshot.
+
+TIL_BIN := "bin/til"
+PROF_BIN := "bin/til_prof"
+COMPILER_SRC := "src/til.til"
+DEFAULT_TARGET := "test/maps.til"
+DEFAULT_TOP := 25
+
+BUILD_LOG := "tmp/profile_build.log"
+PROF_LOG := "tmp/profile_prof.log"
+MASSIF_OUT := "tmp/profile_massif.out"
+MASSIF_REPORT := "tmp/profile_massif.txt"
+
+// Build bin/til_prof (the --prof instrumented compiler) when it is missing or
+// older than bin/til. gcc -finstrument-functions over the whole compiler as one
+// translation unit is the slow step; caching it means you pay it once.
+ensure_prof_bin := proc() returns Bool {
+    prof_m := file_mtime(PROF_BIN)
+    bin_m := file_mtime(TIL_BIN)
+    if prof_m.gte(0).and(prof_m.gte(bin_m)) {
+        println("reusing ", PROF_BIN, " (up to date vs ", TIL_BIN, ")")
+        return true
+    }
+    println("building ", PROF_BIN, " with --prof (one-time, slow: instruments every function) ...")
+    start := clock_ms()
+    cmd := format(TIL_BIN, " build --prof -o ", PROF_BIN, " ", COMPILER_SRC, " > ", BUILD_LOG, " 2>&1")
+    status := wait_cmd(spawn_cmd(cmd))
+    if status.neq(0) {
+        println("FAIL: --prof build exited ", status.to_str(), " (see ", BUILD_LOG, ")")
+        return false
+    }
+    println("  built in ", clock_ms().sub(start).to_str(), " ms")
+    return true
+}
+
+run_prof := proc(target: Str, top: I64) {
+    if ensure_prof_bin().not() { exit(1) }
+    println("profiling (--prof): ", PROF_BIN, " translate ", target, "  [TIL_PROF_TOP=", top.to_str(), "]")
+    // The two --prof tables print to stderr at exit; capture stdout+stderr.
+    cmd := format("TIL_PROF_TOP=", top.to_str(), " ", PROF_BIN, " translate ", target, " > ", PROF_LOG, " 2>&1")
+    status := wait_cmd(spawn_cmd(cmd))
+    println(File.readfile(PROF_LOG))
+    if status.neq(0) {
+        println("note: translate exited ", status.to_str(), " (the --prof tables above are still valid)")
+    }
+}
+
+// Pull the peak-heap snapshot's allocation tree out of an ms_print report.
+// ms_print's header lists "Detailed snapshots: [.., N (peak), ..]"; we read N,
+// then echo the rows from snapshot N's summary line up to snapshot N+1's.
+print_massif_peak := proc(report: Str) {
+    // ms_print's header carries "Detailed snapshots: [.., N (peak), ..]". Read N
+    // as the token right before the "(peak)" marker.
+    mut peak_n := ""
+    for ln : Str in report.split("\n") {
+        if ln.contains("(peak)") {
+            mut prev := ""
+            for tk : Str in ln.split(" ") {
+                tt := tk.trim()
+                if tt.is_empty() { continue }
+                if tt.starts_with("(peak)") { peak_n = prev.clone() }
+                prev = tt.clone()
+            }
+        }
+    }
+    if peak_n.is_empty() {
+        println("(could not parse peak snapshot index; see ", MASSIF_REPORT, ")")
+        return
+    }
+    row_pfx := format(peak_n, " ")
+    next_pfx := format(peak_n.to_i64().add(1).to_str(), " ")
+    mut printing := false
+    for ln : Str in report.split("\n") {
+        t := ln.trim()
+        if printing {
+            if t.starts_with(next_pfx) { return }   // next snapshot's summary row
+            println(ln)
+        } else if t.starts_with(row_pfx) {
+            printing = true
+            println(ln)
+        }
+    }
+}
+
+run_massif := proc(target: Str) {
+    println("profiling (massif): valgrind on ", TIL_BIN, " translate ", target)
+    println("  peak/live heap, runs on the existing ", TIL_BIN, " (no instrumented rebuild)")
+    cmd := format("valgrind --tool=massif --time-unit=B --massif-out-file=", MASSIF_OUT,
+                  " ", TIL_BIN, " translate ", target, " > ", BUILD_LOG, " 2>&1")
+    status := wait_cmd(spawn_cmd(cmd))
+    if status.neq(0) {
+        println("FAIL: valgrind exited ", status.to_str(), " -- is valgrind installed? (see ", BUILD_LOG, ")")
+        exit(1)
+    }
+    mut report : Str = ""
+    rc := run_cmd(report, "ms_print", MASSIF_OUT)
+    if rc.neq(0) {
+        println("FAIL: ms_print exited ", rc.to_str(), " (massif out: ", MASSIF_OUT, ")")
+        exit(1)
+    }
+    File.writefile(MASSIF_REPORT, report)
+    println("peak-heap allocation tree (full report -> ", MASSIF_REPORT, "):")
+    println("")
+    print_massif_peak(report)
+}
+
+main := proc(args: ..Str) {
+    mut method := "prof"
+    mut target := DEFAULT_TARGET.clone()
+    mut top := DEFAULT_TOP
+    mut pos := 0
+    mut i : USize = 0
+    while i.lt(args.len()) {
+        ref a : Str = args[i]
+        if a.eq("--massif") {
+            method = "massif"
+        } else if a.eq("--prof") {
+            method = "prof"
+        } else if pos.eq(0) {
+            target = a.clone()
+            pos = pos.add(1)
+        } else {
+            top = a.to_i64()
+            pos = pos.add(1)
+        }
+        i = i.add(1)
+    }
+    if top.lt(1) { top = DEFAULT_TOP }
+
+    if method.eq("massif") {
+        run_massif(target)
+    } else {
+        run_prof(target, top)
+    }
+}
