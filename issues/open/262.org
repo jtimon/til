@@ -95,32 +95,118 @@ Open questions / honest caveats (these are why this is its own issue, not a
     re-evaluate its argument unless we bind it once; decide whether lazy means
     call-by-name (re-eval) or call-by-need (memoized once).
 
-Possible next designs for repeated and variadic lazy args:
-  - Keep v1 call-by-name, Lisp-macro style. A parameter use is a splice site,
-    so using ~x~ twice clones the argument expression twice and may evaluate it
-    twice. This is simple and predictable for macro-like control forms, but it
-    must be documented as "lazy, not memoized".
-  - Add call-by-need for fixed-arity lazy params. During expansion, introduce a
-    hidden temp/thunk per parameter and force it at first use, so repeated uses
-    share one evaluation. This is closer to Haskell's sharing semantics, but it
-    needs a representation for "not forced yet" and careful ownership/lifetime
-    rules for the cached value.
-  - Special-case variadic ~and~ / ~or~ as syntactic folds. Because ordinary
-    variadic args currently become an ~Array(Bool)~, building that array would
-    eagerly evaluate every operand and destroy short-circuiting. Instead,
-    desugar ~and(a, b, c)~ directly to nested ~match~ / ~if~ expressions, and
-    desugar ~or~ with the opposite polarity. This matches Lisp's treatment of
-    ~and~ / ~or~ as special forms, not ordinary variadic functions.
-  - General variadic lazy callables need a different model: either a tuple/array
-    of thunks, or a compiler-only "lazy rest arg" that can be consumed only by
-    known fold-like constructs. The thunk-array route is more general and
-    first-class, but it pulls in closures, allocation, memoization choices, and
-    proc/ownership semantics. The compiler-only route is smaller but much less
-    expressive.
-  - A reasonable staged path is: keep fixed-arity call-by-name; add hard errors
-    for unsupported lazy shapes; add dedicated variadic ~and~ / ~or~ folding;
-    postpone first-class thunks and call-by-need until there is a concrete
-    user-visible need.
+Possible next designs for repeated and variadic lazy args (documenting the
+options in detail; no decision made yet):
+
+  Core constraint. Ordinary variadic args become a runtime collection of
+  VALUES (today an ~Array(Bool)~ built in ~desugar_user_func_fcall_args~).
+  Building that collection evaluates every operand, which destroys
+  short-circuiting. Switching ~Array~ -> ~Vec~ does NOT help: the trap is
+  storing values, not the container. To defer evaluation an operand must be
+  stored as something that is not yet the value -- either no runtime
+  collection at all (compile-time expansion, Design 1) or a collection of
+  thunks (Design 2).
+
+  Design 1 -- compile-time unroll (generalize the current fold; zero runtime
+  cost). Keep the variadic as a compile-time list of argument ASTs; the
+  author writes the fold as head/tail recursion and the desugarer unrolls it
+  by the call's known arity:
+      and := lazy_func(xs: ..Bool) returns Bool {
+          return match xs {
+          case []:        true                                  // identity
+          case [x, ..tl]: match x { case true: and(tl...) case: false }
+          }
+      }
+  ~and(a, b, c)~ expands to nested ~match~es bottoming at ~true~: no
+  allocation, full short-circuit, and the AUTHOR (not the compiler) defines
+  the fold shape and base case, so associativity is no longer assumed.
+  Needs new surface features: (a) a spread in arg position (~and(tl...)~),
+  (b) compile-time head/tail list patterns (~[]~, ~[x, ..tl]~), (c)
+  recursion-unrolling in the expander. Could stay a pre-typer structural
+  pass. Limits: arity must be statically known (fine for direct calls, not
+  first-class); generated code grows ~linearly with operand count. Cannot be
+  done with ~match~/~switch~ today -- the patterns and spread are genuinely
+  new features (worth their own issue, useful beyond lazy_func).
+
+  Design 2 -- array of thunks (call-by-name; first-class; runtime cost).
+  Make the variadic ~Array(() -> T)~: each operand is wrapped in a zero-arg
+  closure at the call site (no evaluation, just closure construction), and
+  the body forces on demand:
+      and := lazy_func(xs: ..Bool) returns Bool {
+          for x in xs { if x.not() { return false } }   // x auto-forced
+          return true
+      }
+  Fully general: runtime arity, first-class (storable/passable), no
+  recursion needed. Reuses til closures (#54; ~typer_lift_lambdas~ in
+  src/self/desugarer.til). Costs: one closure allocation per operand plus
+  indirect calls; must live in desugarer.til (type-directed -- it builds
+  typed closures). Needs auto-force (the compiler inserts the call at each
+  use of a lazy param so the body reads ~x~, not ~force(x)~) and a thunk
+  ownership/lifetime story (who owns the closure + captured env, when freed).
+
+  Design 3 -- recursion with pop. Same REPRESENTATION as Design 2, just a
+  recursive body instead of a loop: ~match force(xs.pop()) { case true:
+  and(xs) case: false }~ with ~xs~ a ~Vec~ of thunks. NOT a separate option:
+  a ~Vec~ of VALUES would be eager (see core constraint); only a ~Vec~ of
+  thunks works, which is Design 2 with a different body shape.
+
+  Promises vs thunks. A Scheme-style ~promise~ (~delay~ / ~force~) is exactly
+  a MEMOIZED thunk (call-by-need): the first force caches the result, later
+  forces reuse it. So "array of promises" = Design 2 + memoization, not a
+  separate mechanism. (JS / std::future async promises are orthogonal AND
+  wrong here: they start eagerly and defer only delivery, giving no
+  short-circuit.) Memoization only pays off when a lazy param is used MORE
+  THAN ONCE in a body; ~and~/~or~ use each operand at most once, so plain
+  call-by-name thunks already evaluate each operand 0-or-1 times and a
+  promise's cache cell would never earn its keep there. Call-by-need also
+  adds the "not-forced-yet" representation + cached-value ownership cost.
+
+  Recommended hybrid (pending decision) -- "inline when possible, thunk
+  otherwise", with semantics = call-by-name:
+    - Pick call-by-name. Under it, inline-splice and thunk-call are
+      OBSERVATIONALLY IDENTICAL (an unused arg never runs; an arg used N
+      times runs N times), so the compiler may choose either lowering per
+      call site invisibly to the user. Call-by-need would break this
+      equivalence (inline re-evaluates per use, a promise evaluates once),
+      which is a further reason to defer it.
+    - Mental model: a lazy_func IS a function whose args are thunks (the
+      always-correct general lowering); INLINING is a pure optimization
+      applied where the body is inlinable and arity is statically known.
+      ~and~/~or~ keep the zero-cost inline path; everything else falls back
+      to thunks (still lazy, still short-circuit).
+    - Benefits: (a) generic lazy_func / lazy_proc with no user-visible
+      special cases; (b) ~and~/~or~ stay binary and inlined -- no
+      ~var_and~/~var_or~ split needed; (c) it fixes the silent-eager bug
+      below for free (a non-inlinable body falls back to THUNKS, not eager).
+    - Gotchas to nail down: thunk ownership/lifetime in til's manual model;
+      auto-force insertion; and capture-by-REFERENCE so a thunk that reads a
+      variable the body mutates before forcing agrees with the inline splice
+      (matters only for side-effecting / mutating captures; moot for pure
+      args like and/or operands). The mechanism spans two phases: inline
+      stays pre-typer (needs raw bodies), thunk-lowering is type-directed
+      (desugarer.til).
+
+  Silent-eager fallback bug (confirmed empirically). Today a lazy_func whose
+  body is NOT a single ~return <expr>~ (e.g. an ~if~ body) is silently left
+  un-inlined and degrades to an EAGER call: it returns the right value but
+  evaluates all args, with no diagnostic. Verified -- with
+  ~my_and := lazy_func(a: Bool, b: Bool) returns Bool { if a { return b }
+  else { return false } }~, the call ~my_and(false, bump())~ runs ~bump()~
+  (no short-circuit), whereas the ~match~-body version does not. This
+  violates the fail-loud rule and can be a correctness bug (a guarded
+  throwing / out-of-bounds operand would panic). Two fixes, depending on
+  direction: emit a HARD ERROR at the lazy definition when the body is not
+  inlinable (until multi-statement bodies are supported), OR -- under the
+  recommended hybrid -- fall back to THUNKS instead of eager, which removes
+  the failure mode entirely.
+
+  Staged path (one reasonable ordering): (1) stop the silent-eager fallback
+  (hard error now, or thunk fallback once Design 2 lands); (2) implement
+  Design 2 thunks as the generic mechanism, keeping the binary ~and~/~or~
+  inline as the fast path; (3) treat Design 1's compile-time list-patterns
+  + spread as a separate, deferred performance feature, justified only if
+  N-ary lazy calls turn out to be hot (unlikely -- they are rare); (4)
+  postpone call-by-need / promises until a concrete need for shared reuse.
 
 Note: the binary short-circuit ~and~/~or~ from #117 could also be done as a
   narrow, special-cased desugar rewrite (~a.and(b)~ -> ~if a { b } else
