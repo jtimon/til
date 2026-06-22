@@ -3969,6 +3969,49 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 // repeated find_*_fcall scans. #186 / #188 / #189 all came from the
 // same root cause (single-pass-per-stmt instead of full traversal).
 //
+// Wrap one variadic FCall `e` into its build region (Array.new + err-slots +
+// per-element Array.set), prepending the temp setups to `new_ch` and rewriting
+// `e`'s args to the single array. Extracted from process_call_desugars so the
+// same lowering can run as a standalone post-constfold pass (see loader.til):
+// the constfolder folds comptime variadic calls while they are still raw, and
+// only the survivors reach this lowering. Resolves everything via `scope`
+// (callee FuncDef, OutOfBounds struct, Array.set ns func), which works against
+// either the per-body TypeScope (typecheck-time) or the global one (post-fold).
+priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) {
+    mut skip := false
+    switch e.children[0].node_type {
+    case NodeType.Ident(cn):
+        cn_str := cn.ident_name()
+        if cn_str.eq("array").or(cn_str.eq("vec")) { skip = true }
+    case:
+    }
+    if skip { return }
+    // Resolve callee once via scope to derive the per-call variadic block
+    // position and arg count; thread them into both the pure-splat detector
+    // and the array-wrapping rewrite so neither needs to re-resolve.
+    vi := fcall_variadic_index_via_scope(e, scope)
+    vc := fcall_variadic_count_via_scope(e, scope)
+    ref elem_type : Str = resolve_variadic_elem_type(e, scope)
+    // elem_type-null here means the typer already reported an error upstream;
+    // just leave the fcall raw rather than emit a half-formed wrap.
+    if elem_type.is_null() { return }
+    array_type := variadic_array_type_name(scope, elem_type)
+    if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
+    line := e.line
+    col := e.col
+    va_name := format("_va_Array_", ctx.va_counter.to_str())
+    ctx.va_counter++
+    mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
+    scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, line, col, false, OwnType.Own)
+    new_ch.push(own va_decl)
+    build_variadic_err_slots(va_name, new_ch, scope, ctx, line, col)
+    for j in 0..vc {
+        mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi, j, ctx)
+        new_ch.push(own setter)
+    }
+    rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc)
+}
+
 // Note: the traversal mirrors the recursion guards used by
 // find_array_vec_fcall / find_variadic_fcall / find_kwargs_fcall (FuncDef / StructDef /
 // EnumDef / Body) so a body-level walk doesn't dive into a nested
@@ -3991,43 +4034,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
             if desugar_array_vec_fcall(ctx, e, new_ch, scope) { return }
         }
         if has_variadic.and(fcall_callee_has_variadic_via_scope(e, scope)) {
-            mut skip := false
-            switch e.children[0].node_type {
-            case NodeType.Ident(cn):
-                cn_str := cn.ident_name()
-                if cn_str.eq("array").or(cn_str.eq("vec")) { skip = true }
-            case:
-            }
-            if skip.not() {
-                // Resolve callee once via scope to derive the per-call
-                // variadic block position and arg count; thread them
-                // into both the pure-splat detector and the
-                // array-wrapping rewrite so neither needs to re-resolve.
-                vi := fcall_variadic_index_via_scope(e, scope)
-                vc := fcall_variadic_count_via_scope(e, scope)
-                ref elem_type : Str = resolve_variadic_elem_type(e, scope)
-                // elem_type-null here means the typer already reported an
-                // error upstream; just leave the fcall raw rather than emit a
-                // half-formed wrap.
-                if elem_type.is_null().not() {
-                    array_type := variadic_array_type_name(scope, elem_type)
-                    if desugar_pure_splat_variadic_call(e, array_type, vi, vc).not() {
-                        line := e.line
-                        col := e.col
-                        va_name := format("_va_Array_", ctx.va_counter.to_str())
-                        ctx.va_counter++
-                        mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
-                        scope.set(va_name, Type.Struct(array_type.clone()), false, ctx.path, line, col, false, OwnType.Own)
-                        new_ch.push(own va_decl)
-                        build_variadic_err_slots(va_name, new_ch, scope, ctx, line, col)
-                        for j in 0..vc {
-                            mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi, j, ctx)
-                            new_ch.push(own setter)
-                        }
-                        rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc)
-                    }
-                }
-            }
+            desugar_one_variadic_fcall(ctx, e, new_ch, scope)
         }
         if has_kwargs {
             ki := fcall_kwargs_index_via_scope(e, scope)
