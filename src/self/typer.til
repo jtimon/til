@@ -2211,10 +2211,9 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         return
     }
     // Idempotency: if the typer has already processed this cast (e.g. a
-    // for-range desugar re-infers an already-typed FCall), child(2) is
-    // no longer the bare Ident but a Type-value expr from
-    // make_til_type_expr. Re-infer args for safety but skip the rewrite
-    // / target-type derivation.
+    // for-range desugar re-infers an already-typed FCall), re-infer the
+    // value arg for safety but skip re-deriving the target type. child(2)
+    // stays the bare type-token Ident either way.
     if e.expr_til_type().is(Type.Unknown).not() {
         infer_expr(scope, e.children[1], in_func, ctx)
         return
@@ -2246,20 +2245,20 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         e.set_expr_til_type(Type.Unknown)
         return
     }
-    // Issue #58: for Dynamic -> FuncPtr (user FuncSig like BinaryOp),
-    // leave child(2) as the original Ident so a parent FCall can look
-    // up the FuncSig (param types, return type) to validate the call
-    // and pick the right C function-pointer cast in codegen. The
-    // integer-cast path needs the Type-value rewrite; the FuncPtr path
-    // intentionally skips it.
-    if target_type.is_funcptr().and(src_type.is_funcptr().not()) {
-        e.children[2].set_expr_til_type(Type.Enum("Type"))
-        e.set_expr_til_type(target_type)
-        return
-    }
-    replacement := e.children[2].make_til_type_expr(target_type)
-    e.children[2.to_usize()] = replacement
-    infer_expr(scope, e.children[2], in_func, ctx)
+    // Codegen never reads child(2), the type-token arg, so leave it as the
+    // bare Ident it was parsed as and just tag it Type.Enum("Type"):
+    //   * integer reinterpret / widening takes the target C type from the
+    //     cast FCall's own til_type (til_type_name_c(e.expr_til_type())) in
+    //     the builder, never from child(2);
+    //   * Issue #58's cast(value, FuncSig)(args) resolves the signature by
+    //     NAME from this Ident (fcall_fn_sig / infer_funcptr_call_via_cast),
+    //     which needs the bare Ident, not a rewritten Type value.
+    // Materialising a runtime Type here (make_til_type_expr would build
+    // Type.Primitive(Primitive.X) with an owned heap payload) only produced a
+    // temp the hoister boxes with malloc and then deletes unused -- that dead
+    // Type_Primitive box was the largest single allocation source in the
+    // self-host --prof run.
+    e.children[2].set_expr_til_type(Type.Enum("Type"))
     e.set_expr_til_type(target_type)
 }
 
