@@ -63,9 +63,8 @@ priv from_source_form := func(s: Str) returns Str {
     // Fast path: no backslash means no escape sequence to process,
     // source-form bytes already equal post-escape bytes.
     mut has_bs := false
-    nn := s.len()
-    for ii in 0..nn {
-        if s.unsafe_get(ii).eq(92) { has_bs = true; break }
+    for b : I8 in s {
+        if b.eq(92) { has_bs = true; break }
     }
     if has_bs.not() { return s }
     n := s.len()
@@ -417,8 +416,8 @@ priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         // matching buffer leak (no caller frees Value.Struct payloads
         // on the constfolder hot path).
         mut has_bs := false
-        for bi in 0..s.len() {
-            if s.unsafe_get(bi).eq(92) { has_bs = true; break }
+        for b : I8 in s {
+            if b.eq(92) { has_bs = true; break }
         }
         if has_bs.not() {
             return make_str_value_view(s.c_str, s.count, ctx)

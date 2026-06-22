@@ -326,10 +326,13 @@ namespace:
     /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
     /// Bare digit runs are base-10. Panics on invalid input.
     to_i64 := func(self: Str) returns I64 {
+        // All byte access below is unchecked (unsafe_get); every index is
+        // kept < self.count by an explicit guard (the empty/no-digit panics,
+        // the `start.add(1).lt(self.count)` condition, and the loop bound).
         if self.count.eq(0) { panic("Str.to_i64: empty string") }
         mut start : USize = 0
         mut neg := false
-        ref first : I8 = self.get(0)
+        ref first : I8 = self.unsafe_get(0)
         if first.eq(45) {
             neg = true
             start = 1
@@ -337,8 +340,8 @@ namespace:
         if start.eq(self.count) { panic("Str.to_i64: no digits") }
         // Base prefix: 0x (hex), 0b (binary), 0o (octal).
         mut base : I64 = 10
-        if self.get(start).eq('0').and(start.add(1).lt(self.count)) {
-            ref pch : I8 = self.get(start.add(1))
+        if self.unsafe_get(start).eq('0').and(start.add(1).lt(self.count)) {
+            ref pch : I8 = self.unsafe_get(start.add(1))
             if pch.eq('x').or(pch.eq('X')) {
                 base = 16
                 start = start.add(2)
@@ -354,7 +357,7 @@ namespace:
         mut result := 0
         mut any := false
         for i in start..self.count {
-            ref ch : I8 = self.get(i)
+            ref ch : I8 = self.unsafe_get(i)
             if ch.eq('_') { continue }
             d := digit_value(ch)
             if d.lt(0).or(d.gte(base)) {
