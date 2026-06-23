@@ -6,7 +6,7 @@ import("dyn")
 import("str")
 import("u8")
 
-array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
+array := ext_func(T: Type, elements: ..Dynamic) returns Array {}
 
 /// Fixed-capacity array of typed elements.
 Array := struct<T: Type> {

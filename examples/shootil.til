@@ -121,7 +121,7 @@ exit_god_mode := func() { god_mode = false; reset_camera() }
 
 mut shootil_done := false
 cube_size := v3(2, 2, 2)
-cube_positions := array("Vector3",
+cube_positions := array(Vector3,
     v3(0, 1, 0),
     v3(8, 1, -3),
     v3(-7, 1, -2),
@@ -129,7 +129,7 @@ cube_positions := array("Vector3",
     v3(-4, 1, -8),
 )
 tall_size := v3(2, 4, 2)
-tall_positions := array("Vector3",
+tall_positions := array(Vector3,
     v3(5, 2, -5),
     v3(-9, 2, -4),
     v3(0, 2, -12),
@@ -137,7 +137,7 @@ tall_positions := array("Vector3",
 small_s := 1.to_f32()
 small_y := small_s / 2.to_f32()
 small_size := Vector3(x = small_s, y = small_s, z = small_s)
-small_positions := array("Vector3",
+small_positions := array(Vector3,
     Vector3(x = 2,  y = small_y, z = -1),
     Vector3(x = -3, y = small_y, z = -4),
     Vector3(x = 10, y = small_y, z = -8),

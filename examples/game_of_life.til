@@ -28,8 +28,8 @@ main := proc() {
     mut next : Array(I64) = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
 
     // Conway rules: B3/S23
-    born := array("I64", 3)
-    survive := array("I64", 2, 3)
+    born := array(I64, 3)
+    survive := array(I64, 2, 3)
 
     mut running := false
     mut frame := 0

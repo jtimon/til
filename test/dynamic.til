@@ -87,7 +87,7 @@ test_dyn_has_method := test() {
 
 // Dynamic arg narrowing (#20): pass Dynamic where concrete type expected
 test_dynamic_narrowing := test() {
-    my_vec := vec("I64", 10, 20, 30)
+    my_vec := vec(I64, 10, 20, 30)
     ref x2 : I64 = my_vec[0]
     assert_eq(I64, x2, 10)
     // Dynamic value as typed argument
@@ -111,7 +111,7 @@ test_dynamic_narrowing := test() {
 // representative; per-container regressions belong in those containers'
 // own tests, not here.
 test_bool_vec_get_chain := test() {
-    v := vec("Bool", true, false)
+    v := vec(Bool, true, false)
     // ref-binding path: narrow Vec.get's Dynamic result via the ref
     // Decl's explicit type. Chained UFCS on a bang-hoisted Dynamic
     // temp isn't supported yet (the temp Decl can't store Dynamic);
@@ -147,7 +147,7 @@ test_dynamic_local := test() {
 // reinterpret saw a Value.Struct and bailed via shallow_copy_value, so
 // the byte at the slot was never read.
 test_dynamic_ref_keeps_ptr := test() {
-    v := vec("Bool", true, false)
+    v := vec(Bool, true, false)
     ref x : Dynamic = v[1]
     ref b : Bool = x
     assert(b.not())
@@ -159,7 +159,7 @@ test_dynamic_ref_keeps_ptr := test() {
 // type (Bool/U8/etc.); emit_deref now typed-casts via the ref_dyn_locals
 // set instead of falling into the generic ref-local path.
 bug185_bool_dyn_arg_chain := test() {
-    v := vec("Bool", true, false)
+    v := vec(Bool, true, false)
     ref x : Dynamic = v[1]
     ref y : Dynamic = v[0]
     // Top-level Bool helpers via UFCS receiver (Dynamic-typed receiver).
@@ -174,7 +174,7 @@ bug185_bool_dyn_arg_chain := test() {
 }
 
 bug185_u8_dyn_arg := test() {
-    v := vec("U8", 1, 2, 3)
+    v := vec(U8, 1, 2, 3)
     ref x : Dynamic = v[1]
     y : U8 = 10
     // Mixed typed/Dynamic args to a typed-primitive method.

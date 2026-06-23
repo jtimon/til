@@ -369,7 +369,7 @@ main := proc(args: ..Str) {
 
     // === GUI build tests (slowest: build + run under xvfb with timeout) ===
     if en_gui.eq(1) {
-        gui_files := array("Str",
+        gui_files := array(Str,
             "examples/music_modes.til",
             "examples/piano.til",
             "examples/guitar.til",
@@ -559,7 +559,7 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 151,
+    add_count(tests, "typer_errors", "typer", "error:", 153,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "capture_block_error", "typer",
         "is not captured", 2,

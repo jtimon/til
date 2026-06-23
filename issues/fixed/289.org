@@ -1,0 +1,52 @@
+# priority: medium
+# category: cleanups
+** FIXED #289 array()/vec() should take a Type first arg, not a Str
+
+   Post-mortem (fixed):
+
+   The `array(...)` / `vec(...)` pseudo-literals took the element type as a
+   STRING literal (`array("I64", 1, 2, 3)`), inconsistent with the rest of
+   the language, where a type is passed as a bare type token exactly like
+   `assert_eq(T: Type, ...)` -> `assert_eq(I64, a, b)`. The element type of
+   a collection is a type, so it should be written as one:
+
+       arr := array(I64, 1, 2, 3)      // was array("I64", 1, 2, 3)
+       v   := vec(Str, "a", "b")        // was vec("Str", "a", "b")
+       xs  := array(Array__Str, a, b)   // synthesized container names work too
+
+   What changed:
+
+   - src/core/array.til, src/core/vec.til: the `ext_func` first param went
+     from `type_name: Str` to `T: Type`. (array/vec are pseudo-builtins that
+     the desugarer inlines into Array__T/Vec__T `new` + push/set, so the
+     ext_func is scavenged before C emission -- the `Type` param never
+     reaches codegen.)
+   - src/self/typer.til: new `infer_array_vec_fcall` types array/vec BEFORE
+     the generic FCall arg machinery, so the type token in child(1) is NOT
+     rewritten into a runtime `Type` expression by `rewrite_til_type_arg`.
+     array/vec are monomorphized at compile time, so the later passes need
+     the type NAME, not a runtime Type value -- leaving child(1) a bare
+     Ident lets them read it. The old "type_name argument must be a string
+     literal" check was removed from `resolve_fcall_return_type`.
+   - src/self/context.til: new `array_vec_elem_type_name(fcall)` helper reads
+     the element type name straight off child(1)'s Ident.
+   - src/self/initer.til, src/self/desugarer.til, src/self/builder.til: read
+     the element type name through the helper instead of matching a Str
+     literal.
+   - All call sites under test/, examples/, lib/, src/ updated (102 calls).
+
+   Robustness: writing the OLD string form (`array("I64", ...)`) now yields a
+   clean, user-located type error ("array/vec element type must be a type
+   name, e.g. array(I64, 1, 2, 3)") from `infer_array_vec_fcall`; the
+   desugarer returns false on an empty element type instead of panicking, so
+   the typer's diagnostic is what surfaces.
+
+   Regression tests: test/typer_errors.til (`terr_arr_str_type`,
+   `terr_vec_str_type`) reject the old string-first-arg form; the positive
+   path is covered by test/arrays.til, test/loops.til, test/dynamic.til,
+   test/errors.til, test/kwargs.til and test/variadic.til, all now using the
+   `array(I64, ...)` / `vec(I64, ...)` token form. All 161 tests pass.
+
+   The broader "real `[...]` literal syntax for Array/Vec" design discussion
+   lives in #243 and is separate; this issue only swapped the first argument
+   from a string to a type token.

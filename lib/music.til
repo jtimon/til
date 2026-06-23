@@ -45,14 +45,14 @@ calculate_nathex_freqs := macro() returns Array(I64) {
 }
 
 // Raylib key codes for three chromatic octaves, left-to-right low-to-high.
-PIANO_KEYCODES := array("I32",
+PIANO_KEYCODES := array(I32,
     49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
     81, 87, 69, 82, 84, 89, 85, 73, 79, 80,
     65, 83, 68, 70, 71, 72, 74, 75, 76,
     90, 88, 67, 86, 66, 78, 77
 )
 
-PIANO_KEY_LABELS := array("Str",
+PIANO_KEY_LABELS := array(Str,
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
     "A", "S", "D", "F", "G", "H", "J", "K", "L",
@@ -62,13 +62,13 @@ PIANO_KEY_LABELS := array("Str",
 // Happy Birthday as FREQS/NATHEX_FREQS indices. Reference melody: Wikipedia's
 // G major score, d d | e d g | fis2 ... Starting on D4 keeps it visible in
 // both piano and guitar examples.
-HAPPY_BIRTHDAY_FREQ_NOTES := array("I32",
+HAPPY_BIRTHDAY_FREQ_NOTES := array(I32,
     22, 22, 24, 22, 27, 26,
     22, 22, 24, 22, 29, 27,
     22, 22, 34, 31, 27, 26, 24,
     32, 32, 31, 27, 29, 27,
 )
-HAPPY_BIRTHDAY_DURATIONS := array("I64",
+HAPPY_BIRTHDAY_DURATIONS := array(I64,
     360, 120, 480, 480, 480, 960,
     360, 120, 480, 480, 480, 960,
     360, 120, 480, 480, 480, 480, 720,
@@ -78,7 +78,7 @@ HAPPY_BIRTHDAY_DURATIONS := array("I64",
 // Frequencies for 56 chromatic notes E2-B6. PIANO_KEY_COUNT stays at 36 so
 // piano.til keeps its original QWERTY range; guitar and music_modes use the
 // wider table for E2 strings and two-octave music_modes endpoints.
-FREQS := array("I64",
+FREQS := array(I64,
     82, 87, 92, 98, 104, 110, 117, 123,
     131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
     262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
@@ -87,15 +87,15 @@ FREQS := array("I64",
 )
 
 // Frequencies for chromatic notes C4..B4.
-CHROMATIC_FREQS_C4 := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+CHROMATIC_FREQS_C4 := array(I64, 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
 
 NATHEX_FREQS := calculate_nathex_freqs()
 
 // Piano key layout helpers.
-NATURALS := array("I32", 0, 2, 4, 5, 7, 9, 11)
-BLACK_CHROMS := array("I32", 1, 3, 6, 8, 10)
-BLACK_KEY_POS := array("I32", 0, 1, 3, 4, 5)
-IS_BLACK := array("I32", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
+NATURALS := array(I32, 0, 2, 4, 5, 7, 9, 11)
+BLACK_CHROMS := array(I32, 1, 3, 6, 8, 10)
+BLACK_KEY_POS := array(I32, 0, 1, 3, 4, 5)
+IS_BLACK := array(I32, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
 
 // Experimental 5-name / 8-semitone layout helpers.
 //
@@ -122,14 +122,14 @@ FIVE_NATURAL_COUNT : USize = 5
 FIVE_SCALE_NOTES : USize = 6
 FIVE_BASE_HEXTAVE : I32 = 4
 NATHEX_BASE_HEXTAVE : I32 = 4
-FIVE_NAMES := array("Str", "ca", "#ca", "de", "fi", "#fi", "go", "#go", "lu")
-FIVE_NATURAL_NAMES := array("Str", "ca", "de", "fi", "go", "lu")
-FIVE_NATURALS := array("I32", 0, 2, 3, 5, 7)
-FIVE_BLACKS := array("I32", 1, 4, 6)
-FIVE_BLACK_KEY_POS := array("I32", 0, 2, 3)
-FIVE_IS_BLACK := array("I32", 0, 1, 0, 0, 1, 0, 1, 0)
-FIVE_DIATONIC_BY_CHROM := array("I32", 0, 0, 1, 2, 2, 3, 3, 4)
-FIVE_ACC_BY_CHROM := array("I32", 0, 1, 0, 0, 1, 0, 1, 0)
+FIVE_NAMES := array(Str, "ca", "#ca", "de", "fi", "#fi", "go", "#go", "lu")
+FIVE_NATURAL_NAMES := array(Str, "ca", "de", "fi", "go", "lu")
+FIVE_NATURALS := array(I32, 0, 2, 3, 5, 7)
+FIVE_BLACKS := array(I32, 1, 4, 6)
+FIVE_BLACK_KEY_POS := array(I32, 0, 2, 3)
+FIVE_IS_BLACK := array(I32, 0, 1, 0, 0, 1, 0, 1, 0)
+FIVE_DIATONIC_BY_CHROM := array(I32, 0, 0, 1, 2, 2, 3, 3, 4)
+FIVE_ACC_BY_CHROM := array(I32, 0, 1, 0, 0, 1, 0, 1, 0)
 
 five_abs_note_name := func(chrom_idx: I32) returns Str {
     ref nn : Str = FIVE_NAMES[chrom_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
@@ -171,7 +171,7 @@ guitar_freq := func(use_nathex: Bool, rel: I32) returns ref I64 {
     return freq
 }
 
-SOLFEGE_CHROMATIC_NAMES := array("Str", "Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
+SOLFEGE_CHROMATIC_NAMES := array(Str, "Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si")
 
 solfege_abs_note_name := func(chrom_idx: I32) returns Str {
     ref nn : Str = SOLFEGE_CHROMATIC_NAMES[chrom_idx.mod(12).to_usize()]
@@ -197,15 +197,15 @@ solfege_abs_note_name := func(chrom_idx: I32) returns Str {
 ///
 /// This maps scale-degree names directly; it is not a 7-note-to-5-note
 /// pitch-preserving transcription.
-FIVE_MODE_INTERVALS := array("I32",
+FIVE_MODE_INTERVALS := array(I32,
     2, 2, 1, 2, 1,
     2, 1, 2, 2, 1,
     2, 1, 2, 1, 2,
     1, 2, 2, 1, 2,
     1, 2, 1, 2, 2,
 )
-FIVE_MODE_NAMES := array("Str", "America", "Europa", "Africa", "Asia", "Oceania")
-FIVE_MODE_NAMES_EN := array("Str", "America", "Europe", "Africa", "Asia", "Oceania")
+FIVE_MODE_NAMES := array(Str, "America", "Europa", "Africa", "Asia", "Oceania")
+FIVE_MODE_NAMES_EN := array(Str, "America", "Europe", "Africa", "Asia", "Oceania")
 
 five_acc_text := func(acc: I64) returns Str {
     if acc.eq(1) { return "#" }
@@ -269,9 +269,9 @@ five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode:
     }
 }
 
-SOLFEGE_NOTE_NAMES := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
-LETTER_DIATONIC_NOTE_NAMES := array("Str", "C", "D", "E", "F", "G", "A", "B")
-LETTER_NOTE_NAMES := array("Str", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+SOLFEGE_NOTE_NAMES := array(Str, "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
+LETTER_DIATONIC_NOTE_NAMES := array(Str, "C", "D", "E", "F", "G", "A", "B")
+LETTER_NOTE_NAMES := array(Str, "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 freqs_letter_note_name := func(freq_idx: I32) returns Str {
     chrom := (freq_idx + 4) % 12

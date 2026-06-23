@@ -66,7 +66,7 @@ BLACK_H : I32 = WHITE_H * 2 / 3
 HINT_Y : I32 = PIANO_Y + WHITE_H + GAP
 
 // Mode INTERVALS (7 modes x 7 steps = 49), brightest to darkest.
-SEVEN_MODE_INTERVALS := array("I32",
+SEVEN_MODE_INTERVALS := array(I32,
     2, 2, 2, 1, 2, 2, 1,
     2, 2, 1, 2, 2, 2, 1,
     2, 2, 1, 2, 2, 1, 2,
@@ -82,13 +82,13 @@ SEVEN_MODE_INTERVALS := array("I32",
 // All-natural roots are ca Europe, de Asia, fi America, go Africa, lu Oceania.
 
 // Chord symbol suffixes for major, minor, diminished, augmented triads.
-TRIAD_SUFFIXES := array("Str", "", "m", "dim", "aug")
+TRIAD_SUFFIXES := array(Str, "", "m", "dim", "aug")
 
 // Language data: [name, mode0..mode6]
-LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio")
-LANG_ES := array("Str", "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio")
-LANG_EN := array("Str", "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian")
-LANGS := array("Array__Str", LANG_PT, LANG_ES, LANG_EN)
+LANG_PT := array(Str, "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio")
+LANG_ES := array(Str, "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio")
+LANG_EN := array(Str, "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian")
+LANGS := array(Array__Str, LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
 

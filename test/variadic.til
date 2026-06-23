@@ -142,7 +142,7 @@ test_splat_forward := test() {
 
 // Splat an array into a variadic call
 test_splat_array := test() {
-    a := array("I64", 1, 2, 3)
+    a := array(I64, 1, 2, 3)
     assert_eq(I64, sum(..a), 6)
 }
 
