@@ -34,10 +34,10 @@ namespace:
         mut lo : USize = 0
         mut hi := self.count
         while lo < hi {
-            mid := lo.add(hi.sub(lo).div(2))
+            mid := lo.add(hi.sub(lo) / 2)
             ref cur : T = ptr_add(self.data, mid.mul(T.size()).cast(U64))
             c : I64 = T.cmp(cur, val)
-            if c < 0 { lo = mid.add(1) }
+            if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else { return true }
@@ -53,10 +53,10 @@ namespace:
         mut hi := self.count
         mut found := false
         while lo < hi {
-            mid := lo.add(hi.sub(lo).div(2))
+            mid := lo.add(hi.sub(lo) / 2)
             ref cur : T = ptr_add(self.data, mid.mul(T.size()).cast(U64))
             c : I64 = T.cmp(cur, val)
-            if c < 0 { lo = mid.add(1) }
+            if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else { found = true; lo = mid; hi = mid }
@@ -68,7 +68,7 @@ namespace:
             free(own val)
         } else {
             if self.count == self.cap {
-                new_cap := self.cap.mul(2)
+                new_cap := self.cap * 2
                 self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
                 self.cap = new_cap
             }
@@ -78,7 +78,7 @@ namespace:
             memcpy(ptr_add(self.data, lo.mul(T.size()).cast(U64)), val, T.size().cast(U64))
             memset(val, 0, T.size().cast(U64))
             free(own val)
-            self.count = self.count.add(1)
+            self.count = self.count + 1
         }
     }
 

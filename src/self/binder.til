@@ -57,7 +57,7 @@ priv skip_word := func(s: Str, from: USize) returns USize {
 priv trim_right := func(s: Str, from: USize, to: USize) returns USize {
     mut end := to
     while end > from {
-        if bind_is_ws(s.unsafe_get(end.sub(1))).not() { break }
+        if bind_is_ws(s.unsafe_get(end - 1)).not() { break }
         end--
     }
     return end
@@ -66,10 +66,10 @@ priv trim_right := func(s: Str, from: USize, to: USize) returns USize {
 priv range_eq_lit := func(s: Str, start: USize, end: USize, lit: Str) returns Bool {
     if start > s.len() { return false }
     if end > s.len() { return false }
-    if end.sub(start) != lit.len() { return false }
+    if end - start != lit.len() { return false }
     mut i : USize = 0
     while i < lit.len() {
-        if s.unsafe_get(start.add(i)) != lit.unsafe_get(i) { return false }
+        if s.unsafe_get(start + i) != lit.unsafe_get(i) { return false }
         i++
     }
     return true
@@ -84,22 +84,22 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
     success = true
     mut p := from
     mut negate := false
-    if p.lt(to).and(s.unsafe_get(p).eq('-')) { negate = true; p = p.add(1) }
-    else if p.lt(to).and(s.unsafe_get(p).eq('+')) { p = p.add(1) }
+    if p.lt(to).and(s.unsafe_get(p).eq('-')) { negate = true; p = p + 1 }
+    else if p.lt(to).and(s.unsafe_get(p).eq('+')) { p = p + 1 }
     // Trim a trailing `L`/`LL`/`U`/`UL`/`LU` suffix.
     mut e := to
     while e > p {
-        ref c : I8 = s.unsafe_get(e.sub(1))
-        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { e = e.sub(1); continue }
+        ref c : I8 = s.unsafe_get(e - 1)
+        if c.eq('L').or(c.eq('l')).or(c.eq('U')).or(c.eq('u')) { e = e - 1; continue }
         break
     }
     if p >= e { success = false; return 0 }
     // Hex?
     mut hex := false
-    if p.add(2) <= e {
+    if p + 2 <= e {
         if s.unsafe_get(p) == '0' {
-            ref c1 : I8 = s.unsafe_get(p.add(1))
-            if c1.eq('x').or(c1.eq('X')) { hex = true; p = p.add(2) }
+            ref c1 : I8 = s.unsafe_get(p + 1)
+            if c1.eq('x').or(c1.eq('X')) { hex = true; p = p + 2 }
         }
     }
     if p >= e { success = false; return 0 }
@@ -109,10 +109,10 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
             ref c : I8 = s.unsafe_get(p)
             mut digit : I64 = -1
             if c.gte('0').and(c.lte('9')) { digit = c.sub('0').cast(I64) }
-            else if c.gte('a').and(c.lte('f')) { digit = c.sub('a').cast(I64).add(10) }
-            else if c.gte('A').and(c.lte('F')) { digit = c.sub('A').cast(I64).add(10) }
+            else if c.gte('a').and(c.lte('f')) { digit = c.sub('a').cast(I64) + 10 }
+            else if c.gte('A').and(c.lte('F')) { digit = c.sub('A').cast(I64) + 10 }
             else { success = false; return 0 }
-            val = val.mul(16).add(digit)
+            val = val.mul(16) + digit
             p++
         }
     } else {
@@ -123,7 +123,7 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
             p++
         }
     }
-    if negate { val = 0.sub(val) }
+    if negate { val = 0 - val }
     return val
 }
 
@@ -303,20 +303,20 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         // Single useful word (e.g. a macro placeholder like FFI_EXTRA_CIF_FIELDS).
         // Skip silently so the surrounding struct can still emit.
         out.push_str("    // SKIP (macro placeholder): ")
-        out.push_str(line.substr(name_start, name_end.sub(name_start)))
+        out.push_str(line.substr(name_start, name_end - name_start))
         out.push_str("\n")
         return true
     }
-    word_len := name_end.sub(name_start)
+    word_len := name_end - name_start
     // Strip a leading `struct ` / `enum ` from the base view -- those
     // reference the named tag rather than a separate type.
     mut base_off := base_first
-    if base_first.add(7).lte(prev_end).and(range_eq_lit(line, base_first, base_first.add(7), "struct ")) {
-        base_off = base_first.add(7)
-    } else if base_first.add(5).lte(prev_end).and(range_eq_lit(line, base_first, base_first.add(5), "enum ")) {
-        base_off = base_first.add(5)
+    if base_first.add(7).lte(prev_end).and(range_eq_lit(line, base_first, base_first + 7, "struct ")) {
+        base_off = base_first + 7
+    } else if base_first.add(5).lte(prev_end).and(range_eq_lit(line, base_first, base_first + 5, "enum ")) {
+        base_off = base_first + 5
     }
-    base_view := line.substr(base_off, prev_end.sub(base_off))
+    base_view := line.substr(base_off, prev_end - base_off)
 
     out.push_str("    ")
     if ptrs.eq(0).and(is_alias_to_dynamic(bs, base_view)) {
@@ -402,18 +402,18 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
         mut found_line_cmt := false
         mut found_blk := false
         mut k := lead
-        while k.add(1) < end {
+        while k + 1 < end {
             if line.unsafe_get(k) == '/' {
-                if line.unsafe_get(k.add(1)) == '/' {
+                if line.unsafe_get(k + 1) == '/' {
                     code_end = k
-                    comment_start = k.add(2)
+                    comment_start = k + 2
                     comment_end = end
                     found_line_cmt = true
                     break
                 }
-                if line.unsafe_get(k.add(1)) == '*' {
+                if line.unsafe_get(k + 1) == '*' {
                     code_end = k
-                    comment_start = k.add(2)
+                    comment_start = k + 2
                     found_blk = true
                     break
                 }
@@ -423,7 +423,7 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
         // Now drop a trailing `;` from the code-only span.
         code_end = trim_right(line, lead, code_end)
         if code_end > lead {
-            if line.unsafe_get(code_end.sub(1)) == ';' {
+            if line.unsafe_get(code_end - 1) == ';' {
                 code_end--
                 code_end = trim_right(line, lead, code_end)
             }
@@ -431,8 +431,8 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
         mut new_code_end := code_end
         if found_blk {
             mut m := comment_start
-            while m.add(1) < end {
-                if line.unsafe_get(m).eq('*').and(line.unsafe_get(m.add(1)).eq('/')) {
+            while m + 1 < end {
+                if line.unsafe_get(m).eq('*').and(line.unsafe_get(m + 1).eq('/')) {
                     comment_end = m
                     break
                 }
@@ -453,11 +453,11 @@ priv emit_struct_body := func(bs: BinderState, mut out: Str, lines: Vec(Str), op
         }
         mut ce := comment_end
         while ce > cs {
-            if bind_is_ws(line.unsafe_get(ce.sub(1))).not() { break }
+            if bind_is_ws(line.unsafe_get(ce - 1)).not() { break }
             ce--
         }
-        comment_view := line.substr(cs, ce.sub(cs))
-        code_view := line.substr(lead, new_code_end.sub(lead))
+        comment_view := line.substr(cs, ce - cs)
+        code_view := line.substr(lead, new_code_end - lead)
         if bind_emit_field(bs, out, code_view, comment_view).not() {
             return false
         }
@@ -471,27 +471,27 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
     ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
-    if clead.gte(cn).or(close_line.unsafe_get(clead).neq('}')) { return start.add(1) }
-    mut cp := clead.add(1)
+    if clead.gte(cn).or(close_line.unsafe_get(clead).neq('}')) { return start + 1 }
+    mut cp := clead + 1
     cp = skip_ws(close_line, cp)
     mut cright := trim_right(close_line, cp, cn)
-    if cright.gt(cp).and(close_line.unsafe_get(cright.sub(1)).eq(';')) {
+    if cright.gt(cp).and(close_line.unsafe_get(cright - 1).eq(';')) {
         cright--
         cright = trim_right(close_line, cp, cright)
     }
-    if cp >= cright { return start.add(1) }
+    if cp >= cright { return start + 1 }
     // Name is the LAST whitespace-separated token in [cp, cright).
     mut name_start := cp
     mut nk := cp
     while nk < cright {
-        if bind_is_ws(close_line.unsafe_get(nk)) { name_start = nk.add(1) }
+        if bind_is_ws(close_line.unsafe_get(nk)) { name_start = nk + 1 }
         nk++
     }
     while name_start.lt(cright).and(bind_is_ws(close_line.unsafe_get(name_start))) {
         name_start++
     }
-    name_len := cright.sub(name_start)
-    if name_len == 0 { return start.add(1) }
+    name_len := cright - name_start
+    if name_len == 0 { return start + 1 }
 
     // Tag: walk [start, open] looking for the bytes between "typedef struct"
     // and `{`. Two-line variants (`typedef struct\n{` / `typedef struct X\n{`)
@@ -500,16 +500,16 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
     mut tag_line_idx := start
     mut t_start : USize = 0
     mut t_end : USize = 0
-    for i in start..open.add(1) {
+    for i in start..open + 1 {
         ref line : Str = lines[i]
         n := line.len()
         lead := skip_ws(line, 0)
         mut p := lead
         if i == start {
-            if range_eq_lit(line, p, p.add(14), "typedef struct").not() {
-                return start.add(1)
+            if range_eq_lit(line, p, p + 14, "typedef struct").not() {
+                return start + 1
             }
-            p = p.add(14)
+            p = p + 14
             p = skip_ws(line, p)
         }
         mut q := p
@@ -541,16 +541,16 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
         } else {
             out.push_str(" := ext_struct(\"\") {}  // opaque: unsupported field shape\n\n")
         }
-        return close.add(1)
+        return close + 1
     }
     // Detect tag == name by byte compare against the right source line.
-    tag_len := t_end.sub(t_start)
+    tag_len := t_end - t_start
     mut tag_eq_name := tag_len == name_len
     if tag_eq_name {
         ref tline : Str = lines[tag_line_idx]
         mut m : USize = 0
         while m < name_len {
-            if tline.unsafe_get(t_start.add(m)) != close_line.unsafe_get(name_start.add(m)) {
+            if tline.unsafe_get(t_start + m) != close_line.unsafe_get(name_start + m) {
                 tag_eq_name = false
                 break
             }
@@ -567,7 +567,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
             out.push_str(close_line.substr(name_start, name_len))
             out.push_str("\") {}  // opaque: unsupported field shape\n\n")
         }
-        return close.add(1)
+        return close + 1
     }
     out.push_str(" := ext_struct(\"")
     out.push_str(lines[tag_line_idx].substr(t_start, tag_len))
@@ -578,7 +578,7 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
     } else {
         out.push_str("\") {}  // opaque: unsupported field shape\n\n")
     }
-    return close.add(1)
+    return close + 1
 }
 
 // --- typedef enum -----------------------------------------------------
@@ -587,20 +587,20 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
     ref close_line : Str = lines[close]
     cn := close_line.len()
     clead := skip_ws(close_line, 0)
-    if clead.gte(cn).or(close_line.unsafe_get(clead).neq('}')) { return start.add(1) }
-    mut cp := clead.add(1)
+    if clead.gte(cn).or(close_line.unsafe_get(clead).neq('}')) { return start + 1 }
+    mut cp := clead + 1
     cp = skip_ws(close_line, cp)
     mut cright := trim_right(close_line, cp, cn)
-    if cright.gt(cp).and(close_line.unsafe_get(cright.sub(1)).eq(';')) {
+    if cright.gt(cp).and(close_line.unsafe_get(cright - 1).eq(';')) {
         cright--
         cright = trim_right(close_line, cp, cright)
     }
     // Emit the enum type as an I32 alias so downstream uses of the
     // typedef name as a C type resolve cleanly.
     if cp < cright {
-        out.push_str(close_line.substr(cp, cright.sub(cp)))
+        out.push_str(close_line.substr(cp, cright - cp))
         out.push_str(" := I32\n\n")
-        register_alias(bs, close_line.substr(cp, cright.sub(cp)))
+        register_alias(bs, close_line.substr(cp, cright - cp))
     }
 
     mut next_val : I64 = 0
@@ -637,7 +637,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
         mut p := skip_ws(line, tok_end)
         mut val : I64 = next_val
         if p.lt(end).and(line.unsafe_get(p).eq('=')) {
-            p = skip_ws(line, p.add(1))
+            p = skip_ws(line, p + 1)
             mut v_end := p
             while v_end < end {
                 ref c : I8 = line.unsafe_get(v_end)
@@ -653,16 +653,16 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
                 } else {
                     // Identifier reference -- look up by name in earlier
                     // members of THIS enum block.
-                    ref_len := v_end.sub(p)
+                    ref_len := v_end - p
                     mut k : USize = 0
                     while k < prev_line.len() {
                         ref ks : USize = prev_start[k]
-                        if prev_end[k].sub(ks) == ref_len {
+                        if prev_end[k] - ks == ref_len {
                             ref klin : Str = lines[prev_line[k]]
                             mut m : USize = 0
                             mut eq := true
                             while m < ref_len {
-                                if klin.unsafe_get(ks.add(m)) != line.unsafe_get(p.add(m)) {
+                                if klin.unsafe_get(ks + m) != line.unsafe_get(p + m) {
                                     eq = false
                                     break
                                 }
@@ -678,7 +678,7 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
                 }
             }
         }
-        out.push_str(line.substr(member_start, member_end.sub(member_start)))
+        out.push_str(line.substr(member_start, member_end - member_start))
         out.push_str(" : I32 = ")
         out.push_str(val.to_str())
         out.push_str(".to_i32()\n")
@@ -686,10 +686,10 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
         prev_start.push(own member_start.clone())
         prev_end.push(own member_end.clone())
         prev_val.push(own val.clone())
-        next_val = val.add(1)
+        next_val = val + 1
     }
     out.push_str("\n")
-    return close.add(1)
+    return close + 1
 }
 
 // --- typedef alias (single line) --------------------------------------
@@ -697,20 +697,20 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
 priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) returns Bool {
     mut n := line.len()
     lead := skip_ws(line, 0)
-    if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
+    if range_eq_lit(line, lead, lead + 8, "typedef ").not() { return false }
     // Trim trailing `// ...` or `/* ... */` so the token walk doesn't trip
     // on the comment body (e.g. raylib: `typedef Camera3D Camera; // ...`).
     mut q : USize = lead
-    while q.add(1) < n {
+    while q + 1 < n {
         if line.unsafe_get(q) == '/' {
-            ref c1 : I8 = line.unsafe_get(q.add(1))
+            ref c1 : I8 = line.unsafe_get(q + 1)
             if c1.eq('/').or(c1.eq('*')) { n = q; break }
         }
         q++
     }
-    body_start := skip_ws(line, lead.add(8))
+    body_start := skip_ws(line, lead + 8)
     mut body_end := trim_right(line, body_start, n)
-    if body_end.gt(body_start).and(line.unsafe_get(body_end.sub(1)).eq(';')) {
+    if body_end.gt(body_start).and(line.unsafe_get(body_end - 1).eq(';')) {
         body_end--
         body_end = trim_right(line, body_start, body_end)
     }
@@ -727,8 +727,8 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
     while p < body_end {
         ref c : I8 = line.unsafe_get(p)
         if c.eq('(').or(c.eq('[')) { return false }
-        if bind_is_ws(c) { p = p.add(1); continue }
-        if c == '*' { ptrs = ptrs.add(1); p = p.add(1); continue }
+        if bind_is_ws(c) { p = p + 1; continue }
+        if c == '*' { ptrs = ptrs + 1; p = p + 1; continue }
         word_end := skip_word(line, p)
         if word_end == p { return false }
         if range_eq_lit(line, p, word_end, "const")
@@ -750,27 +750,27 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
     }
     if name_set.not().or(base_set.not()) { return false }
     mut base_off := base_first
-    if base_off.add(7).lte(prev_end).and(range_eq_lit(line, base_off, base_off.add(7), "struct ")) {
-        base_off = base_off.add(7)
-    } else if base_off.add(5).lte(prev_end).and(range_eq_lit(line, base_off, base_off.add(5), "enum ")) {
-        base_off = base_off.add(5)
+    if base_off.add(7).lte(prev_end).and(range_eq_lit(line, base_off, base_off + 7, "struct ")) {
+        base_off = base_off + 7
+    } else if base_off.add(5).lte(prev_end).and(range_eq_lit(line, base_off, base_off + 5, "enum ")) {
+        base_off = base_off + 5
     }
-    base_len := prev_end.sub(base_off)
-    out.push_str(line.substr(name_start, name_end.sub(name_start)))
+    base_len := prev_end - base_off
+    out.push_str(line.substr(name_start, name_end - name_start))
     out.push_str(" := ")
     if ptrs > 0 {
         out.push_str("Dynamic")
-        register_dynamic_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+        register_dynamic_alias(bs, line.substr(name_start, name_end - name_start))
     } else {
         // If the base resolves to a known primitive (or a previously-emitted
         // primitive alias), the new alias is also primitive-shaped.
         c := line.substr(base_off, base_len)
         if push_til_base(out, c) {
-            register_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+            register_alias(bs, line.substr(name_start, name_end - name_start))
         } else if is_alias_to_primitive(bs, c) {
-            register_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+            register_alias(bs, line.substr(name_start, name_end - name_start))
         } else if is_alias_to_dynamic(bs, c) {
-            register_dynamic_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+            register_dynamic_alias(bs, line.substr(name_start, name_end - name_start))
         }
     }
     out.push_str("\n\n")
@@ -783,21 +783,21 @@ priv emit_typedef_fnptr := func(mut bs: BinderState, mut out: Str, line: Str) re
     // `typedef RET (*NAME)(ARGS);` -> emit `NAME := Dynamic`.
     n := line.len()
     lead := skip_ws(line, 0)
-    if range_eq_lit(line, lead, lead.add(8), "typedef ").not() { return false }
+    if range_eq_lit(line, lead, lead + 8, "typedef ").not() { return false }
     // Find `(*`.
-    mut p := lead.add(8)
-    while p.add(1) < n {
-        if line.unsafe_get(p).eq('(').and(line.unsafe_get(p.add(1)).eq('*')) { break }
+    mut p := lead + 8
+    while p + 1 < n {
+        if line.unsafe_get(p).eq('(').and(line.unsafe_get(p + 1).eq('*')) { break }
         p++
     }
-    if p.add(1) >= n { return false }
-    name_start := p.add(2)
+    if p + 1 >= n { return false }
+    name_start := p + 2
     mut name_end := name_start
-    while name_end.lt(n).and(line.unsafe_get(name_end).neq(')')) { name_end = name_end.add(1) }
+    while name_end.lt(n).and(line.unsafe_get(name_end).neq(')')) { name_end = name_end + 1 }
     if name_end == name_start { return false }
-    out.push_str(line.substr(name_start, name_end.sub(name_start)))
+    out.push_str(line.substr(name_start, name_end - name_start))
     out.push_str(" := Dynamic\n\n")
-    register_dynamic_alias(bs, line.substr(name_start, name_end.sub(name_start)))
+    register_dynamic_alias(bs, line.substr(name_start, name_end - name_start))
     return true
 }
 
@@ -806,8 +806,8 @@ priv emit_typedef_fnptr := func(mut bs: BinderState, mut out: Str, line: Str) re
 priv emit_define := func(mut out: Str, line: Str) returns Bool {
     n := line.len()
     lead := skip_ws(line, 0)
-    if range_eq_lit(line, lead, lead.add(8), "#define ").not() { return false }
-    p := skip_ws(line, lead.add(8))
+    if range_eq_lit(line, lead, lead + 8, "#define ").not() { return false }
+    p := skip_ws(line, lead + 8)
     mut name_end := p
     while name_end < n {
         ref c : I8 = line.unsafe_get(name_end)
@@ -822,7 +822,7 @@ priv emit_define := func(mut out: Str, line: Str) returns Bool {
     mut ok := true
     val := parse_c_int_literal(line, val_start, val_end, ok)
     if ok.not() { return false }
-    out.push_str(line.substr(p, name_end.sub(p)))
+    out.push_str(line.substr(p, name_end - p))
     out.push_str(" : I64 = ")
     out.push_str(val.to_str())
     out.push_str("\n")
@@ -836,15 +836,15 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     // signature is a `);` on `lines.get(end)`. Use Str.with_capacity +
     // push_str so we never re-bind a function-returning Str to a local.
     mut sig := Str.with_capacity(16384)
-    for i in start..end.add(1) {
+    for i in start..end + 1 {
         ref line : Str = lines[i]
         ln := line.len()
         lead := skip_ws(line, 0)
         right := trim_right(line, lead, ln)
         mut piece_end := right
         mut s := lead
-        while s.add(1) < right {
-            if line.unsafe_get(s).eq('/').and(line.unsafe_get(s.add(1)).eq('/')) {
+        while s + 1 < right {
+            if line.unsafe_get(s).eq('/').and(line.unsafe_get(s + 1).eq('/')) {
                 piece_end = s
                 break
             }
@@ -853,7 +853,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
         piece_end = trim_right(line, lead, piece_end)
         if piece_end > lead {
             if sig.len() > 0 { sig.push_str(" ") }
-            sig.push_str(line.substr(lead, piece_end.sub(lead)))
+            sig.push_str(line.substr(lead, piece_end - lead))
         }
     }
     // Drop every `/* ... */` chunk from `sig`. tinyfiledialogs.h decorates
@@ -861,16 +861,16 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     // param splitter / tokenizer below would choke on those. Done after
     // we've located the end-of-sig because the closing `);` already lives
     // on `end_out`.
-    mut sig_no_blk := Str.with_capacity(sig.len().add(8))
+    mut sig_no_blk := Str.with_capacity(sig.len() + 8)
     mut sk : USize = 0
     while sk < sig.len() {
         mut handled := false
-        if sk.add(1) < sig.len() {
-            if sig.unsafe_get(sk).eq('/').and(sig.unsafe_get(sk.add(1)).eq('*')) {
-                mut sm := sk.add(2)
-                while sm.add(1) < sig.len() {
-                    if sig.unsafe_get(sm).eq('*').and(sig.unsafe_get(sm.add(1)).eq('/')) {
-                        sm = sm.add(2)
+        if sk + 1 < sig.len() {
+            if sig.unsafe_get(sk).eq('/').and(sig.unsafe_get(sk + 1).eq('*')) {
+                mut sm := sk + 2
+                while sm + 1 < sig.len() {
+                    if sig.unsafe_get(sm).eq('*').and(sig.unsafe_get(sm + 1).eq('/')) {
+                        sm = sm + 2
                         break
                     }
                     sm++
@@ -911,20 +911,20 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     cp_u := cp.to_usize()
     mut before_end := op_u
     while before_end > 0 {
-        if bind_is_ws(sig.unsafe_get(before_end.sub(1))).not() { break }
+        if bind_is_ws(sig.unsafe_get(before_end - 1)).not() { break }
         before_end--
     }
     if before_end == 0 { return false }
     mut name_start := before_end
     while name_start > 0 {
-        ref c : I8 = sig.unsafe_get(name_start.sub(1))
+        ref c : I8 = sig.unsafe_get(name_start - 1)
         if is_alnum(c).not() { break }
         name_start--
     }
     if name_start == before_end { return false }
     mut ret_end := name_start
     while ret_end > 0 {
-        if bind_is_ws(sig.unsafe_get(ret_end.sub(1))).not() { break }
+        if bind_is_ws(sig.unsafe_get(ret_end - 1)).not() { break }
         ret_end--
     }
     // Walk [0, ret_end) of sig for the return-type's base + pointer depth.
@@ -935,8 +935,8 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     mut rt : USize = 0
     while rt < ret_end {
         ref rc : I8 = sig.unsafe_get(rt)
-        if rc == '*' { ret_ptrs = ret_ptrs.add(1); rt = rt.add(1); continue }
-        if bind_is_ws(rc) { rt = rt.add(1); continue }
+        if rc == '*' { ret_ptrs = ret_ptrs + 1; rt = rt + 1; continue }
+        if bind_is_ws(rc) { rt = rt + 1; continue }
         rw := skip_word(sig, rt)
         if rw == rt { return false }
         if range_eq_lit(sig, rt, rw, "const")
@@ -950,13 +950,13 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
         rt = rw
     }
     if ret_base_set.not() { return false }
-    ret_base_len := ret_base_end.sub(ret_base_start)
+    ret_base_len := ret_base_end - ret_base_start
     ret_is_void := range_eq_lit(sig, ret_base_start, ret_base_end, "void")
 
     // Render params into a tmp buffer so a mid-signature failure can return
     // false without leaving a dangling `ext_func(` head.
     mut params_buf := Str.with_capacity(8192)
-    params_view := sig.substr(op_u.add(1), cp_u.sub(op_u).sub(1))
+    params_view := sig.substr(op_u + 1, cp_u.sub(op_u) - 1)
     pn := params_view.len()
     mut pp : USize = 0
     mut emitted_any := false
@@ -967,13 +967,13 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
         mut dep := depth
         while e < pn {
             ref c : I8 = params_view.unsafe_get(e)
-            if c == '(' { dep = dep.add(1) }
-            else if c == ')' { dep = dep.sub(1) }
+            if c == '(' { dep = dep + 1 }
+            else if c == ')' { dep = dep - 1 }
             else if c.eq(',').and(dep.eq(0)) { break }
             e++
         }
         mut a := pp
-        while a.lt(e).and(bind_is_ws(params_view.unsafe_get(a))) { a = a.add(1) }
+        while a.lt(e).and(bind_is_ws(params_view.unsafe_get(a))) { a = a + 1 }
         b := trim_right(params_view, a, e)
         if a < b {
             if range_eq_lit(params_view, a, b, "void").not() {
@@ -981,19 +981,19 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                 if emitted_any { params_buf.push_str(", ") }
                 mut has_fnptr := false
                 mut s := a
-                while s.add(1) < b {
-                    if params_view.unsafe_get(s).eq('(').and(params_view.unsafe_get(s.add(1)).eq('*')) {
+                while s + 1 < b {
+                    if params_view.unsafe_get(s).eq('(').and(params_view.unsafe_get(s + 1).eq('*')) {
                         has_fnptr = true
                         break
                     }
                     s++
                 }
                 if has_fnptr {
-                    name_a := s.add(2)
+                    name_a := s + 2
                     mut name_b := name_a
-                    while name_b.lt(b).and(params_view.unsafe_get(name_b).neq(')')) { name_b = name_b.add(1) }
+                    while name_b.lt(b).and(params_view.unsafe_get(name_b).neq(')')) { name_b = name_b + 1 }
                     if name_b > name_a {
-                        params_buf.push_str(params_view.substr(name_a, name_b.sub(name_a)))
+                        params_buf.push_str(params_view.substr(name_a, name_b - name_a))
                         params_buf.push_str(" : Dynamic")
                     } else {
                         failed = true
@@ -1020,12 +1020,12 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                     mut t := a
                     while t < b {
                         ref c : I8 = params_view.unsafe_get(t)
-                        if bind_is_ws(c) { t = t.add(1); continue }
-                        if c == '*' { p_ptrs = p_ptrs.add(1); t = t.add(1); continue }
+                        if bind_is_ws(c) { t = t + 1; continue }
+                        if c == '*' { p_ptrs = p_ptrs + 1; t = t + 1; continue }
                         if c == '[' {
                             p_ptrs++
-                            while t.lt(b).and(params_view.unsafe_get(t).neq(']')) { t = t.add(1) }
-                            if t < b { t = t.add(1) }
+                            while t.lt(b).and(params_view.unsafe_get(t).neq(']')) { t = t + 1 }
+                            if t < b { t = t + 1 }
                             continue
                         }
                         word_end := skip_word(params_view, t)
@@ -1065,13 +1065,13 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         p_base_off = p_base_first
                     }
                     if p_base_off.add(7).lte(p_prev_end)
-                    .and(range_eq_lit(params_view, p_base_off, p_base_off.add(7), "struct ")) {
-                        p_base_off = p_base_off.add(7)
+                    .and(range_eq_lit(params_view, p_base_off, p_base_off + 7, "struct ")) {
+                        p_base_off = p_base_off + 7
                     } else if p_base_off.add(5).lte(p_prev_end)
-                    .and(range_eq_lit(params_view, p_base_off, p_base_off.add(5), "enum ")) {
-                        p_base_off = p_base_off.add(5)
+                    .and(range_eq_lit(params_view, p_base_off, p_base_off + 5, "enum ")) {
+                        p_base_off = p_base_off + 5
                     }
-                    p_base_len := p_prev_end.sub(p_base_off)
+                    p_base_len := p_prev_end - p_base_off
                     p_is_void := range_eq_lit(params_view, p_base_off, p_prev_end, "void")
 
                     if p_ptrs == 0 {
@@ -1083,7 +1083,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         if is_alias_to_dynamic(bs, p_base_view).not() {
                             params_buf.push_str("shallow ")
                         }
-                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
+                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end - p_name_start)) }
                         params_buf.push_str(" : ")
                         push_til_base(params_buf, p_base_view)
                     } else if p_ptrs.eq(1).and(p_is_void) {
@@ -1094,18 +1094,18 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         // (e.g. an output buffer the callee writes) becomes
                         // `mut`, a `const void *` stays the read-only default.
                         if p_pointee_const.not() { params_buf.push_str("mut ") }
-                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
+                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end - p_name_start)) }
                         params_buf.push_str(" : Dynamic")
                     } else if p_ptrs == 1 {
                         if p_pointee_const.not() { params_buf.push_str("mut ") }
-                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
+                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end - p_name_start)) }
                         params_buf.push_str(" : ")
                         push_til_base(params_buf, params_view.substr(p_base_off, p_base_len))
                     } else {
                         // Multi-level pointer (`T **`, ...) also maps to the
                         // Dynamic Ref; same const-driven mut rule as above.
                         if p_pointee_const.not() { params_buf.push_str("mut ") }
-                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end.sub(p_name_start))) }
+                        if anon { params_buf.push_str("_arg") } else { params_buf.push_str(params_view.substr(p_name_start, p_name_end - p_name_start)) }
                         params_buf.push_str(" : Dynamic")
                     }
                 }
@@ -1113,15 +1113,15 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
             }
         }
         if e == pn { break }
-        pp = e.add(1)
+        pp = e + 1
     }
     if failed { return false }
 
     if ret_ptrs.eq(0).and(ret_is_void) {
-        out.push_str(sig.substr(name_start, before_end.sub(name_start)))
+        out.push_str(sig.substr(name_start, before_end - name_start))
         out.push_str(" := ext_proc(")
     } else {
-        out.push_str(sig.substr(name_start, before_end.sub(name_start)))
+        out.push_str(sig.substr(name_start, before_end - name_start))
         out.push_str(" := ext_func(")
     }
     out.push_str(params_buf)
@@ -1184,14 +1184,14 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
         mut had_block_prefix := false
         mut stuck_in_block := false
         while true {
-            if lead.add(1) >= ln { break }
+            if lead + 1 >= ln { break }
             if line.unsafe_get(lead) != '/' { break }
-            if line.unsafe_get(lead.add(1)) != '*' { break }
+            if line.unsafe_get(lead + 1) != '*' { break }
             // Scan for the closing `*/`.
-            mut q := lead.add(2)
+            mut q := lead + 2
             mut closed := false
-            while q.add(1) < ln {
-                if line.unsafe_get(q).eq('*').and(line.unsafe_get(q.add(1)).eq('/')) {
+            while q + 1 < ln {
+                if line.unsafe_get(q).eq('*').and(line.unsafe_get(q + 1).eq('/')) {
                     closed = true
                     break
                 }
@@ -1204,9 +1204,9 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                 break
             }
             had_block_prefix = true
-            lead = skip_ws(line, q.add(2))
+            lead = skip_ws(line, q + 2)
         }
-        if stuck_in_block { i = i.add(1); continue }
+        if stuck_in_block { i = i + 1; continue }
         if lead == ln {
             if had_block_prefix { emit_comment_line(out, line) }
             else { out.push_str("\n") }
@@ -1217,8 +1217,8 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
         // Line comment (`// ...`) -- copy as-is.
         mut is_line_comment := false
         if b == '/' {
-            if lead.add(1) < ln {
-                if line.unsafe_get(lead.add(1)) == '/' { is_line_comment = true }
+            if lead + 1 < ln {
+                if line.unsafe_get(lead + 1) == '/' { is_line_comment = true }
             }
         }
         if is_line_comment {
@@ -1235,21 +1235,21 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
         }
         // Preprocessor.
         if b == '#' {
-            if range_eq_lit(line, lead, lead.add(8), "#define ") {
+            if range_eq_lit(line, lead, lead + 8, "#define ") {
                 emit_define(out, line)
             }
             i++
             continue
         }
         // typedef ...
-        if range_eq_lit(line, lead, lead.add(8), "typedef ") {
+        if range_eq_lit(line, lead, lead + 8, "typedef ") {
             // Locate end-of-statement, ignoring trailing `//` or `/*` comments
             // so e.g. `typedef void (*Foo)(...); // doc` still ends at `;`.
             mut stmt_end := ln
             mut sp : USize = lead
-            while sp.add(1) < ln {
+            while sp + 1 < ln {
                 if line.unsafe_get(sp) == '/' {
-                    ref nc : I8 = line.unsafe_get(sp.add(1))
+                    ref nc : I8 = line.unsafe_get(sp + 1)
                     if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
                 }
                 sp++
@@ -1257,8 +1257,8 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
             // Function-pointer typedef?
             mut has_fnptr := false
             mut s := lead
-            while s.add(1) < stmt_end {
-                if line.unsafe_get(s).eq('(').and(line.unsafe_get(s.add(1)).eq('*')) {
+            while s + 1 < stmt_end {
+                if line.unsafe_get(s).eq('(').and(line.unsafe_get(s + 1).eq('*')) {
                     has_fnptr = true
                     break
                 }
@@ -1266,14 +1266,14 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
             }
             stmt_right := trim_right(line, lead, stmt_end)
             if has_fnptr.and(stmt_right.gt(0))
-            .and(line.unsafe_get(stmt_right.sub(1)).eq(';')) {
+            .and(line.unsafe_get(stmt_right - 1).eq(';')) {
                 emit_typedef_fnptr(bs, out, line)
                 i++
                 continue
             }
             // Discriminate by the word after "typedef ".
-            tp := skip_ws(line, lead.add(8))
-            if range_eq_lit(line, tp, tp.add(6), "struct") {
+            tp := skip_ws(line, lead + 8)
+            if range_eq_lit(line, tp, tp + 6, "struct") {
                 // typedef struct ...
                 end := trim_right(line, lead, ln)
                 mut has_brace := false
@@ -1287,7 +1287,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                 }
                 if has_brace.not().and(has_semi) {
                     // Forward decl: `typedef struct X X;`.
-                    mut p := skip_ws(line, tp.add(6))
+                    mut p := skip_ws(line, tp + 6)
                     tag_a := p
                     tag_b := skip_word(line, p)
                     p = skip_ws(line, tag_b)
@@ -1295,9 +1295,9 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         alias_a := p
                         alias_b := skip_word(line, p)
                         if alias_b > alias_a {
-                            out.push_str(line.substr(alias_a, alias_b.sub(alias_a)))
+                            out.push_str(line.substr(alias_a, alias_b - alias_a))
                             out.push_str(" := ext_struct(\"")
-                            out.push_str(line.substr(tag_a, tag_b.sub(tag_a)))
+                            out.push_str(line.substr(tag_a, tag_b - tag_a))
                             out.push_str("\") {}\n\n")
                         }
                     }
@@ -1307,7 +1307,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                 // Find `{` line (current or subsequent) then matching `}`.
                 mut open := i
                 if has_brace.not() {
-                    mut j := i.add(1)
+                    mut j := i + 1
                     while j < n_lines {
                         ref l2 : Str = lines[j]
                         l2n := l2.len()
@@ -1327,20 +1327,20 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     mut k2 : USize = 0
                     while k2 < l3n {
                         ref cc : I8 = l3.unsafe_get(k2)
-                        if cc == '{' { depth = depth.add(1); found_open = true }
+                        if cc == '{' { depth = depth + 1; found_open = true }
                         else if cc == '}' {
                             depth--
                             if found_open.and(depth.eq(0)) { close = j2; done = true; break }
                         }
                         k2++
                     }
-                    if done.not() { j2 = j2.add(1) }
+                    if done.not() { j2 = j2 + 1 }
                 }
-                if done.not() { i = i.add(1); continue }
+                if done.not() { i = i + 1; continue }
                 i = emit_typedef_struct(bs, out, lines, i, open, close)
                 continue
             }
-            if range_eq_lit(line, tp, tp.add(4), "enum") {
+            if range_eq_lit(line, tp, tp + 4, "enum") {
                 mut open := i
                 end := trim_right(line, lead, ln)
                 mut has_brace := false
@@ -1350,7 +1350,7 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     k++
                 }
                 if has_brace.not() {
-                    mut j := i.add(1)
+                    mut j := i + 1
                     while j < n_lines {
                         ref l2 : Str = lines[j]
                         l2n := l2.len()
@@ -1370,20 +1370,20 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     mut k2 : USize = 0
                     while k2 < l3n {
                         ref cc : I8 = l3.unsafe_get(k2)
-                        if cc == '{' { depth = depth.add(1); found_open = true }
+                        if cc == '{' { depth = depth + 1; found_open = true }
                         else if cc == '}' {
                             depth--
                             if found_open.and(depth.eq(0)) { close = j2; done = true; break }
                         }
                         k2++
                     }
-                    if done.not() { j2 = j2.add(1) }
+                    if done.not() { j2 = j2 + 1 }
                 }
-                if done.not() { i = i.add(1); continue }
+                if done.not() { i = i + 1; continue }
                 i = emit_typedef_enum(bs, out, lines, i, open, close)
                 continue
             }
-            if range_eq_lit(line, tp, tp.add(5), "union") {
+            if range_eq_lit(line, tp, tp + 5, "union") {
                 // Drop the union body but emit `NAME := Dynamic` so any
                 // subsequent function declaration that takes the typedef
                 // name still type-checks (libffi's `ffi_raw_call` takes
@@ -1399,14 +1399,14 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     mut k2 : USize = 0
                     while k2 < l3n {
                         ref cc : I8 = l3.unsafe_get(k2)
-                        if cc == '{' { depth = depth.add(1); found_open = true }
+                        if cc == '{' { depth = depth + 1; found_open = true }
                         else if cc == '}' {
                             depth--
                             if found_open.and(depth.eq(0)) { done = true; break }
                         }
                         k2++
                     }
-                    if done.not() { j2 = j2.add(1) }
+                    if done.not() { j2 = j2 + 1 }
                 }
                 // The close line carries `} NAME;`. Extract NAME and emit
                 // `NAME := Dynamic` so referencing functions still resolve.
@@ -1415,11 +1415,11 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                     cln := close_l.len()
                     cl_lead := skip_ws(close_l, 0)
                     if cl_lead.lt(cln).and(close_l.unsafe_get(cl_lead).eq('}')) {
-                        mut cl_p := cl_lead.add(1)
+                        mut cl_p := cl_lead + 1
                         cl_p = skip_ws(close_l, cl_p)
                         mut cl_right := trim_right(close_l, cl_p, cln)
                         if cl_right > cl_p {
-                            if close_l.unsafe_get(cl_right.sub(1)) == ';' {
+                            if close_l.unsafe_get(cl_right - 1) == ';' {
                                 cl_right--
                                 cl_right = trim_right(close_l, cl_p, cl_right)
                             }
@@ -1428,22 +1428,22 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                         mut name_a := cl_p
                         mut nk := cl_p
                         while nk < cl_right {
-                            if bind_is_ws(close_l.unsafe_get(nk)) { name_a = nk.add(1) }
+                            if bind_is_ws(close_l.unsafe_get(nk)) { name_a = nk + 1 }
                             nk++
                         }
                         while name_a.lt(cl_right).and(bind_is_ws(close_l.unsafe_get(name_a))) {
                             name_a++
                         }
                         if name_a < cl_right {
-                            out.push_str(close_l.substr(name_a, cl_right.sub(name_a)))
+                            out.push_str(close_l.substr(name_a, cl_right - name_a))
                             out.push_str(" := Dynamic  // typedef union from C, opaque here\n\n")
-                            register_dynamic_alias(bs, close_l.substr(name_a, cl_right.sub(name_a)))
+                            register_dynamic_alias(bs, close_l.substr(name_a, cl_right - name_a))
                         }
                     }
                 } else {
                     out.push_str("// SKIP: typedef union (no til equivalent)\n\n")
                 }
-                i = j2.add(1)
+                i = j2 + 1
                 continue
             }
             // Plain alias on one line.
@@ -1465,8 +1465,8 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
             mut k : USize = 0
             while k < l2n {
                 ref c : I8 = l2.unsafe_get(k)
-                if c == '(' { paren_depth = paren_depth.add(1); saw_paren = true }
-                else if c == ')' { paren_depth = paren_depth.sub(1) }
+                if c == '(' { paren_depth = paren_depth + 1; saw_paren = true }
+                else if c == ')' { paren_depth = paren_depth - 1 }
                 else if c.eq(';').and(paren_depth.eq(0)) {
                     found_end = true
                     is_func = saw_paren
@@ -1474,13 +1474,13 @@ priv walk_header := func(mut bs: BinderState, mut out: Str, lines: Vec(Str)) {
                 }
                 k++
             }
-            if found_end.not() { j = j.add(1) }
+            if found_end.not() { j = j + 1 }
         }
-        if found_end.not() { i = i.add(1); continue }
+        if found_end.not() { i = i + 1; continue }
         if is_func {
             emit_function(bs, out, lines, i, j)
         }
-        i = j.add(1)
+        i = j + 1
     }
 }
 
@@ -1501,7 +1501,7 @@ priv path_in_dir := func(marker_path: Str, incdir: Str) returns Bool {
         // Everything passes -- caller didn't restrict.
         return true
     }
-    if marker_path.len() < incdir.len().add(1) { return false }
+    if marker_path.len() < incdir.len() + 1 { return false }
     mut i : USize = 0
     while i < incdir.len() {
         if marker_path.unsafe_get(i) != incdir.unsafe_get(i) { return false }
@@ -1551,7 +1551,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
             if n.gte(2).and(line.unsafe_get(1).eq(' ')) {
                 q1 := line.find("\"")
                 if q1 != -1 {
-                    rest := line.substr(q1.to_usize().add(1), n.sub(q1.to_usize().add(1)))
+                    rest := line.substr(q1.to_usize() + 1, n.sub(q1.to_usize() + 1))
                     q2 := rest.find("\"")
                     if q2 != -1 {
                         marker_path := rest.substr(0, q2.to_usize())
@@ -1560,16 +1560,16 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
                         // text is system-header content (a macro from
                         // <stdbool.h> etc. expanded inside the user header).
                         from_sys = false
-                        flags_view := rest.substr(q2.to_usize().add(1), rest.len().sub(q2.to_usize().add(1)))
+                        flags_view := rest.substr(q2.to_usize() + 1, rest.len().sub(q2.to_usize() + 1))
                         mut fi : USize = 0
-                        while fi.add(2) <= flags_view.len() {
-                            if flags_view.unsafe_get(fi).eq(' ').and(flags_view.unsafe_get(fi.add(1)).eq('3')) {
-                                ref nxt : I8 = flags_view.unsafe_get(fi.add(2))
+                        while fi + 2 <= flags_view.len() {
+                            if flags_view.unsafe_get(fi).eq(' ').and(flags_view.unsafe_get(fi + 1).eq('3')) {
+                                ref nxt : I8 = flags_view.unsafe_get(fi + 2)
                                 if nxt.eq(' ').or(nxt.eq('\t')).or(nxt.eq('\r')).or(nxt.eq('\n')) {
                                     from_sys = true
                                     break
                                 }
-                                if fi.add(2) == flags_view.len() {
+                                if fi + 2 == flags_view.len() {
                                     from_sys = true
                                     break
                                 }
@@ -1610,7 +1610,7 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
         ref tagged : Str = raw[ri]
         tn := tagged.len()
         sys := tn.gt(0).and(tagged.unsafe_get(0).eq('S'))
-        line := tagged.substr(2, tn.sub(2))
+        line := tagged.substr(2, tn - 2)
         ln := line.len()
         // Walk the line to update in_block for the NEXT iteration: every
         // unmatched `/*` opens the block, every `*/` closes it (the
@@ -1618,13 +1618,13 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
         // change).
         was_in_block := in_block
         mut scan : USize = 0
-        while scan.add(1) < ln {
+        while scan + 1 < ln {
             ref c0 : I8 = line.unsafe_get(scan)
-            ref c1 : I8 = line.unsafe_get(scan.add(1))
+            ref c1 : I8 = line.unsafe_get(scan + 1)
             if in_block {
-                if c0.eq('*').and(c1.eq('/')) { in_block = false; scan = scan.add(2); continue }
+                if c0.eq('*').and(c1.eq('/')) { in_block = false; scan = scan + 2; continue }
             } else {
-                if c0.eq('/').and(c1.eq('*')) { in_block = true; scan = scan.add(2); continue }
+                if c0.eq('/').and(c1.eq('*')) { in_block = true; scan = scan + 2; continue }
                 // A `//` line-comment terminates the scan -- nothing on
                 // the rest of the line can open a block.
                 if c0.eq('/').and(c1.eq('/')) { break }
@@ -1635,16 +1635,16 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
         // last meaningful byte.
         mut stmt_end := ln
         mut sp : USize = 0
-        while sp.add(1) < ln {
+        while sp + 1 < ln {
             if line.unsafe_get(sp) == '/' {
-                ref nc : I8 = line.unsafe_get(sp.add(1))
+                ref nc : I8 = line.unsafe_get(sp + 1)
                 if nc.eq('/').or(nc.eq('*')) { stmt_end = sp; break }
             }
             sp++
         }
         right := trim_right(line, 0, stmt_end)
         mut last : I8 = ' '
-        if right > 0 { last = line.unsafe_get(right.sub(1)) }
+        if right > 0 { last = line.unsafe_get(right - 1) }
         // Treat `,` as a statement terminator too -- enum members end with
         // a comma and should not be glued onto the following member.
         ends_with_term := last.eq(';').or(last.eq('{')).or(last.eq('}')).or(last.eq(','))
@@ -1660,8 +1660,8 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
             ref c0 : I8 = line.unsafe_get(first_idx)
             if c0 == '#' { is_comment_line = true }
             else if c0 == '*' { is_comment_line = true }
-            else if first_idx.add(1) < ln {
-                ref c1 : I8 = line.unsafe_get(first_idx.add(1))
+            else if first_idx + 1 < ln {
+                ref c1 : I8 = line.unsafe_get(first_idx + 1)
                 if c0.eq('/').and(c1.eq('/')) { is_comment_line = true }
                 else if c0.eq('/').and(c1.eq('*')) { is_comment_line = true }
             }
@@ -1669,17 +1669,17 @@ priv filter_preprocessed := func(pre: Str, incdir: Str) returns Vec(Str) {
         // A continuation line of a multi-line `/* ... */` block: ends in
         // `*/` and doesn't start with code we care about. Avoid merging.
         if right >= 2 {
-            if line.unsafe_get(right.sub(2)).eq('*').and(line.unsafe_get(right.sub(1)).eq('/')) {
+            if line.unsafe_get(right - 2).eq('*').and(line.unsafe_get(right - 1).eq('/')) {
                 is_comment_line = true
             }
         }
         // Peek the next line's first non-ws byte.
         mut next_starts_close := false
-        if ri.add(1) < n_raw {
-            ref nxt_tagged : Str = raw[ri.add(1)]
+        if ri + 1 < n_raw {
+            ref nxt_tagged : Str = raw[ri + 1]
             ntn := nxt_tagged.len()
             if ntn > 2 {
-                nxt := nxt_tagged.substr(2, ntn.sub(2))
+                nxt := nxt_tagged.substr(2, ntn - 2)
                 nl := skip_ws(nxt, 0)
                 if nl.lt(nxt.len()).and(nxt.unsafe_get(nl).eq('}')) {
                     next_starts_close = true
@@ -1723,9 +1723,9 @@ priv collapse_blank_runs := func(s: Str) returns Str {
         ref c : I8 = s.unsafe_get(i)
         if c == '\n' {
             // Find the end of this newline run.
-            mut j := i.add(1)
-            while j.lt(n).and(s.unsafe_get(j).eq('\n')) { j = j.add(1) }
-            run := j.sub(i)
+            mut j := i + 1
+            while j.lt(n).and(s.unsafe_get(j).eq('\n')) { j = j + 1 }
+            run := j - i
             if run >= 2 {
                 out.push_str("\n\n")
             } else {

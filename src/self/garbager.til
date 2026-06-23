@@ -487,7 +487,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         if stmt.node_type.is(NodeType.Switch) {
             for ci in 1..stmt.children.len() {
                 if stmt.children[ci].node_type.is(NodeType.Case) {
-                    cbi := stmt.children[ci].children.len().sub(1)
+                    cbi := stmt.children[ci].children.len() - 1
                     insert_exit_deletes(stmt.children[ci].children[cbi], live, return_only)
                 }
             }
@@ -572,7 +572,7 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
             // on those edges -- pass return_only=false like the Body arm.
             for ci in 1..stmt.children.len() {
                 if stmt.children[ci].node_type.is(NodeType.Case) {
-                    cbi := stmt.children[ci].children.len().sub(1)
+                    cbi := stmt.children[ci].children.len() - 1
                     insert_exit_deletes(stmt.children[ci].children[cbi], live_vec, false)
                 }
             }

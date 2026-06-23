@@ -35,13 +35,13 @@ namespace:
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec(T), own val: T) {
         if self.count == self.cap {
-            new_cap := self.cap.mul(2)
+            new_cap := self.cap * 2
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
         memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), val, T.size().cast(U64))
         memset(val, 0, T.size().cast(U64))
-        self.count = self.count.add(1)
+        self.count = self.count + 1
     }
 
     /// Consume the contents of `other` by appending them to `self`.
@@ -50,11 +50,11 @@ namespace:
         if other.count == 0 {
             return
         }
-        needed := self.count.add(other.count)
+        needed := self.count + other.count
         if needed > self.cap {
             mut new_cap := self.cap
             while needed > new_cap {
-                new_cap = new_cap.mul(2)
+                new_cap = new_cap * 2
             }
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
@@ -78,7 +78,7 @@ namespace:
         if needed > self.cap {
             mut new_cap := self.cap
             while needed > new_cap {
-                new_cap = new_cap.mul(2)
+                new_cap = new_cap * 2
             }
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
@@ -117,7 +117,7 @@ namespace:
         if self.count == 0 {
             panic("Vec.pop: empty vec")
         }
-        last := self.count.sub(1)
+        last := self.count - 1
         out : T = malloc(T.size().cast(U64))
         memcpy(out, ptr_add(self.data, last.mul(T.size()).cast(U64)), T.size().cast(U64))
         memset(ptr_add(self.data, last.mul(T.size()).cast(U64)), 0, T.size().cast(U64))
@@ -139,7 +139,7 @@ namespace:
         if n > 0 {
             memcpy(prefix_data, self.data, n.mul(T.size()).cast(U64))
         }
-        tail_count := self.count.sub(n)
+        tail_count := self.count - n
         if tail_count > 0 {
             memmove(self.data, ptr_add(self.data, n.mul(T.size()).cast(U64)), tail_count.mul(T.size()).cast(U64))
         }
@@ -178,14 +178,14 @@ namespace:
             panic("Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
         if self.count == self.cap {
-            new_cap := self.cap.mul(2)
+            new_cap := self.cap * 2
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
         memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)),
                ptr_add(src.data, i.mul(T.size()).cast(U64)), T.size().cast(U64))
         memset(ptr_add(src.data, i.mul(T.size()).cast(U64)), 0, T.size().cast(U64))
-        self.count = self.count.add(1)
+        self.count = self.count + 1
     }
 
     /// Drop each element via elem_delete, free storage, then free self

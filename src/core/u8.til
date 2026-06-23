@@ -22,8 +22,8 @@ namespace:
     mul := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     div := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     mod := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    inc := func(mut self: U8) { self = self.add(1) }
-    dec := func(mut self: U8) { self = self.sub(1) }
+    inc := func(mut self: U8) { self = self + 1 }
+    dec := func(mut self: U8) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U8) returns U8 { return 1 }
     eq := ext_func(shallow a: U8, shallow b: U8) returns shallow Bool {}
@@ -50,7 +50,7 @@ namespace:
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U8.add for the wrapping variant.
     safe_add := func(a: U8, b: U8, loc: Str = __LOC__) returns U8 throws IntegerOverflow {
-        result := a.add(b)
+        result := a + b
         if result < a {
             throw IntegerOverflow(msg = format(loc, ":U8.safe_add: ",
                 a.to_str(), " + ", b.to_str(), " overflows"))
@@ -65,13 +65,13 @@ namespace:
             throw IntegerOverflow(msg = format(loc, ":U8.safe_sub: ",
                 a.to_str(), " - ", b.to_str(), " underflows"))
         }
-        return a.sub(b)
+        return a - b
     }
 
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U8.mul for the wrapping variant.
     safe_mul := func(a: U8, b: U8, loc: Str = __LOC__) returns U8 throws IntegerOverflow {
-        result := a.mul(b)
+        result := a * b
         if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(loc, ":U8.safe_mul: ",

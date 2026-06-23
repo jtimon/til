@@ -974,7 +974,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
         mut ret := Expr.new(NodeType.Return, line, col)
         ret.add_child(own ctor_expr)
 
-        emit_guard := guard_every.or(j.lt(variant_names.len().sub(1)))
+        emit_guard := guard_every.or(j.lt(variant_names.len() - 1))
         if emit_guard {
             mut cond := Expr.new(NodeType.Literal(Literal.Null), line, col)
             if has_payloads {
@@ -1882,7 +1882,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             offset = align_up(offset, falign)
             sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name))
             if falign > max_align { max_align = falign }
-            offset = offset.add(fsz)
+            offset = offset + fsz
         }
 
         sl.total_size = align_up(offset, max_align)
@@ -1946,7 +1946,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
         mut total : USize = tag_size
         if max_payload_size > 0 {
             total = align_up(tag_size, max_payload_align)
-            total = total.add(max_payload_size)
+            total = total + max_payload_size
         }
         total = align_up(total, max_payload_align)
         ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align))
@@ -2373,9 +2373,9 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
     marker := name.find("__")
     if marker < 0 { return "" }
     marker_u : USize = marker.to_usize()
-    if marker_u.add(2) >= name.len() { return "" }
-    prefix := name.substr(0, marker_u.add(2))
-    args := name.substr(marker_u.add(2), name.len().sub(marker_u).sub(2)).split("_")
+    if marker_u + 2 >= name.len() { return "" }
+    prefix := name.substr(0, marker_u + 2)
+    args := name.substr(marker_u + 2, name.len().sub(marker_u) - 2).split("_")
     mut changed := false
     mut out := prefix.clone()
     for i in 0..args.len() {
@@ -2846,7 +2846,7 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
         mut is_type_arg := false
         switch macro_fdef.node_type {
         case NodeType.FuncDef(mfd):
-            pidx := k.sub(1)
+            pidx := k - 1
             if pidx < mfd.params.len() {
                 is_type_arg = mfd.params[pidx].explicit_type == "Type"
             }
@@ -3302,7 +3302,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             // a missing value-arg (the old behaviour) left the generic call
             // un-monomorphized and tripped desugar's UNREACHABLE.
             if p.explicit_type.eq("Type").not() { continue }
-            argidx := i.add(1)
+            argidx := i + 1
             if argidx >= call.children.len() { ok = false; break }
             ref arg : Expr = call.children[argidx]
             switch arg.node_type {
@@ -3366,7 +3366,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
         mut new_arg_pos := 1
         for j in 0..gfd.params.len() {
             if gfd.params[j].explicit_type == "Type" { continue }
-            vargidx := j.add(1)
+            vargidx := j + 1
             if vargidx < call.children.len() {
                 src_own := get_own_arg(call, vargidx)
                 newcall.add_child(own call.children[vargidx].clone())
@@ -3566,9 +3566,9 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             switch macro_fdef.node_type {
             case NodeType.FuncDef(mfd):
                 for j in 0..mfd.params.len() {
-                    if j.add(1) >= rhs.children.len() { break }
+                    if j + 1 >= rhs.children.len() { break }
                     ref param : Declaration = mfd.params[j]
-                    ref arg : Expr = rhs.children[j.add(1)]
+                    ref arg : Expr = rhs.children[j + 1]
                     if param.explicit_type.eq("Type").and(arg.node_type.is(NodeType.Ident)) {
                         switch arg.node_type {
                         case NodeType.Ident(an):
@@ -3636,9 +3636,9 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
 
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
-            errors = errors.add(register_struct_def_for_stmt(ctx, stmt, scope))
+            errors = errors + register_struct_def_for_stmt(ctx, stmt, scope)
         } else if rhs.node_type.is(NodeType.EnumDef) {
-            errors = errors.add(register_enum_def_for_stmt(ctx, stmt, scope))
+            errors = errors + register_enum_def_for_stmt(ctx, stmt, scope)
         } else if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len() == 0 {
                 register_funcsig_alias_for_stmt(ctx, stmt, scope)
@@ -3775,9 +3775,9 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
-            errors = errors.add(register_struct_def_for_stmt(ctx, stmt, scope))
+            errors = errors + register_struct_def_for_stmt(ctx, stmt, scope)
         } else if rhs.node_type.is(NodeType.EnumDef) {
-            errors = errors.add(register_enum_def_for_stmt(ctx, stmt, scope))
+            errors = errors + register_enum_def_for_stmt(ctx, stmt, scope)
             enum_idxs.push(own i)
         } else if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len() == 0 {
@@ -4174,7 +4174,7 @@ count_ast_imports := func(body: Expr) returns USize {
                 }
             }
         }
-        if is_imp { n = n.add(1) }
+        if is_imp { n = n + 1 }
     }
     return n
 }
@@ -4199,7 +4199,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
     // `mode gui` -> gui.til) ahead of the AST-extracted imports, so process
     // those leading entries first before walking. #165 step 5.
     ast_count : USize = count_ast_imports(iu.ast)
-    auto_count : USize = iu.imports.len().sub(ast_count)
+    auto_count : USize = iu.imports.len() - ast_count
     for i in 0..auto_count {
         init_file(iu.imports[i], ctx)
     }

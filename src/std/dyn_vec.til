@@ -57,7 +57,7 @@ namespace:
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: DynVec, own val: Dynamic) {
         if self.count == self.cap {
-            new_cap := self.cap.mul(2)
+            new_cap := self.cap * 2
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
         }
@@ -66,12 +66,12 @@ namespace:
         // value itself into the slot and skip the free.
         if self.elem_kind == ELEM_FN {
             write_ptr(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val)
-            self.count = self.count.add(1)
+            self.count = self.count + 1
             return
         }
         memcpy(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
         free(own val)
-        self.count = self.count.add(1)
+        self.count = self.count + 1
     }
 
     /// Consume the contents of `other` by appending them to `self`.
@@ -83,11 +83,11 @@ namespace:
         if other.count == 0 {
             return
         }
-        needed := self.count.add(other.count)
+        needed := self.count + other.count
         if needed > self.cap {
             mut new_cap := self.cap
             while needed > new_cap {
-                new_cap = new_cap.mul(2)
+                new_cap = new_cap * 2
             }
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
@@ -116,7 +116,7 @@ namespace:
         if needed > self.cap {
             mut new_cap := self.cap
             while needed > new_cap {
-                new_cap = new_cap.mul(2)
+                new_cap = new_cap * 2
             }
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
@@ -153,7 +153,7 @@ namespace:
         if self.count == 0 {
             panic("DynVec.pop: empty vec")
         }
-        last := self.count.sub(1)
+        last := self.count - 1
         out : Dynamic = malloc(self.elem_size.cast(U64))
         memcpy(out, ptr_add(self.data, last.mul(self.elem_size).cast(U64)), self.elem_size.cast(U64))
         self.count = last
@@ -174,7 +174,7 @@ namespace:
         if n > 0 {
             memcpy(prefix_data, self.data, n.mul(self.elem_size).cast(U64))
         }
-        tail_count := self.count.sub(n)
+        tail_count := self.count - n
         if tail_count > 0 {
             memmove(self.data, ptr_add(self.data, n.mul(self.elem_size).cast(U64)), tail_count.mul(self.elem_size).cast(U64))
         }
@@ -225,14 +225,14 @@ namespace:
             panic("DynVec.push_take: incompatible vecs")
         }
         if self.count == self.cap {
-            new_cap := self.cap.mul(2)
+            new_cap := self.cap * 2
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
         }
         memcpy(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)),
                ptr_add(src.data, i.mul(src.elem_size).cast(U64)), self.elem_size.cast(U64))
         memset(ptr_add(src.data, i.mul(src.elem_size).cast(U64)), 0, src.elem_size.cast(U64))
-        self.count = self.count.add(1)
+        self.count = self.count + 1
     }
 
     /// Drop each element via elem_delete, free storage, then free self

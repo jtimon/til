@@ -27,11 +27,11 @@ namespace:
     /// Internal helper that keeps tuple metadata as string type names.
     push_type_name := func(mut self: Tuple, own elem_type: Str, own val: Dynamic) {
         elem_size : USize = dyn_size_of(elem_type)
-        new_total := self.total_size.add(elem_size)
+        new_total := self.total_size + elem_size
         if new_total > self.cap {
-            mut new_cap := self.cap.mul(2)
+            mut new_cap := self.cap * 2
             while new_cap < new_total {
-                new_cap = new_cap.mul(2)
+                new_cap = new_cap * 2
             }
             self.data = realloc(own self.data, new_cap)
             self.cap = new_cap
@@ -56,7 +56,7 @@ namespace:
         }
         mut offset : USize = 0
         for j in 0..i {
-            offset = offset.add(self.type_sizes[j])
+            offset = offset + self.type_sizes[j]
         }
         return ptr_add(self.data, offset)
     }
@@ -79,7 +79,7 @@ namespace:
             ref tn : Str = self.type_names[i]
             ref ts : USize = self.type_sizes[i]
             dyn_call(tn, "delete", 2, ptr_add(self.data, offset), false)
-            offset = offset.add(ts)
+            offset = offset + ts
         }
         free(own self.data)
         self.type_names.clear()
@@ -100,7 +100,7 @@ namespace:
             cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)
             free(own cloned)
-            offset = offset.add(ts)
+            offset = offset + ts
         }
         return Tuple(data = new_data, total_size = self.total_size, cap = new_cap,
                      type_names = self.type_names.clone(),

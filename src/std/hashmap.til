@@ -97,7 +97,7 @@ namespace:
         if existing >= 0 {
             // Key already present: keep the stored key and replace value.
             slot_idx : USize = existing.to_usize()
-            slot_off : USize = slot_idx.mul(V.size())
+            slot_off : USize = slot_idx * V.size()
             V.delete(own ptr_add(self.values.data, slot_off.cast(U64)), false)
             memcpy(ptr_add(self.values.data, slot_off.cast(U64)), val, V.size().cast(U64))
             memset(val, 0, V.size().cast(U64))
@@ -108,7 +108,7 @@ namespace:
             self.nexts.push(own head_val)
 
             if self.keys.count == self.keys.cap {
-                new_cap : USize = self.keys.cap.mul(2)
+                new_cap : USize = self.keys.cap * 2
                 self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()).cast(U64))
                 self.values.data = realloc(own self.values.data, new_cap.mul(V.size()).cast(U64))
                 self.keys.cap = new_cap
@@ -121,19 +121,19 @@ namespace:
             memcpy(ptr_add(self.values.data, self.values.count.mul(V.size()).cast(U64)), val, V.size().cast(U64))
             memset(val, 0, V.size().cast(U64))
             free(own val)
-            self.keys.count = self.keys.count.add(1)
-            self.values.count = self.values.count.add(1)
+            self.keys.count = self.keys.count + 1
+            self.values.count = self.values.count + 1
 
             self.buckets.unsafe_set(bi, own new_idx)
             // Load factor 0.75 = count * 4 > buckets * 3.
-            if self.keys.count.mul(4) > self.buckets.count.mul(3) {
+            if self.keys.count * 4 > self.buckets.count * 3 {
                 self.rehash()
             }
         }
     }
 
     rehash := func(mut self: HashMap(K, V)) {
-        new_count : USize = self.buckets.count.mul(2)
+        new_count : USize = self.buckets.count * 2
         // Zero out existing buckets and grow to new_count.
         for i in 0..self.buckets.count {
             self.buckets.unsafe_set(i, own -1)
@@ -193,8 +193,8 @@ namespace:
         if found.not() { return }
 
         idx_u : USize = entry.to_usize()
-        keys_off : USize = idx_u.mul(K.size())
-        values_off : USize = idx_u.mul(V.size())
+        keys_off : USize = idx_u * K.size()
+        values_off : USize = idx_u * V.size()
 
         // Drop the entry's owned key/value inner heap. Inline the
         // slot pointer via ptr_add to avoid the nested-bang-on-Dynamic
@@ -210,7 +210,7 @@ namespace:
             self.nexts.unsafe_set(prev.to_usize(), own nxt_val)
         }
 
-        last_idx : I64 = self.keys.count.to_i64().sub(1)
+        last_idx : I64 = self.keys.count.to_i64() - 1
         if entry.eq(last_idx).not() {
             last_u : USize = last_idx.to_usize()
             // Rewrite whatever pointer in `last_idx`'s chain referenced
@@ -233,8 +233,8 @@ namespace:
             }
 
             // Move bytes for keys, values, and the chain link.
-            last_keys_off : USize = last_u.mul(K.size())
-            last_values_off : USize = last_u.mul(V.size())
+            last_keys_off : USize = last_u * K.size()
+            last_values_off : USize = last_u * V.size()
             memcpy(ptr_add(self.keys.data, keys_off.cast(U64)),
                    ptr_add(self.keys.data, last_keys_off.cast(U64)), K.size().cast(U64))
             memcpy(ptr_add(self.values.data, values_off.cast(U64)),
@@ -246,8 +246,8 @@ namespace:
         // rather than going through Vec.pop -- pop mallocs a copy of
         // the trailing bytes and hands ownership to the caller, which
         // here would alias the inner heap we just moved into idx_u.
-        self.keys.count = self.keys.count.sub(1)
-        self.values.count = self.values.count.sub(1)
-        self.nexts.count = self.nexts.count.sub(1)
+        self.keys.count = self.keys.count - 1
+        self.values.count = self.values.count - 1
+        self.nexts.count = self.nexts.count - 1
     }
 }

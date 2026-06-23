@@ -581,7 +581,7 @@ scope_target_uptr_pname := func(scope: TypeScope) returns ref Str {
 }
 
 priv_c_name := func(path: Str, name: Str) returns Str {
-    mut buf := Str.with_capacity(path.len().add(name.len()).add(16))
+    mut buf := Str.with_capacity(path.len().add(name.len()) + 16)
     buf.push_str("priv__")
     mut last_was_underscore := false
     mut i : USize = 0

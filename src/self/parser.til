@@ -52,7 +52,7 @@ priv tok_text := func(p: Parser, t: Token) returns Str {
 priv advance := func(mut p: Parser) returns ref Token {
     ref t : Token = p.tokens[p.pos]
     if t.type.is(TokenType.Eof).not() {
-        p.pos = p.pos.add(1)
+        p.pos = p.pos + 1
     }
     return t
 }
@@ -1202,7 +1202,7 @@ priv set_fcall_splat := func(mut fcall: Expr) {
 priv parse_named_arg := proc(mut p: Parser, mut call: Expr) returns Bool {
     if check(p, TokenType.Ident).not() { return false }
     if p.pos.add(1).lt(p.tokens.len()).not() { return false }
-    if p.tokens[p.pos.add(1)].type.is(TokenType.Eq).not() { return false }
+    if p.tokens[p.pos + 1].type.is(TokenType.Eq).not() { return false }
     na_line := peek_line(p)
     na_col := peek_col(p)
     aname := expect_text(p, TokenType.Ident)
@@ -1394,8 +1394,8 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // literal so it narrows like any other literal (args, decls, assigns,
         // returns); -expr desugars to expr.neg(). A trailing '-' with no
         // following token leaves e_set false and hits the panic below.
-        if p.pos.add(1) < p.tokens.len() {
-            if p.tokens[p.pos.add(1)].type.is(TokenType.Number) {
+        if p.pos + 1 < p.tokens.len() {
+            if p.tokens[p.pos + 1].type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
                 e = Expr.new(literal_num_node(format("-", tok_text(p, num_tok))), t_line, t_col)
@@ -1632,7 +1632,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // statement (`[a, b] { ... }`), not a postfix index on the
             // previous expression. Only treat '[' as an index when it sits
             // on the same line as the operand it would index.
-            if peek_line(p) != p.tokens[p.pos.sub(1)].line { break }
+            if peek_line(p) != p.tokens[p.pos - 1].line { break }
             b_line := peek_line(p)
             b_col := peek_col(p)
             advance(p) // consume '['
@@ -1757,7 +1757,7 @@ priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
         op_col := op.col
         method := binop_method(op.type)
         advance(p)
-        rhs := parse_binop(p, prec.add(1))
+        rhs := parse_binop(p, prec + 1)
         e = make_binop_call(e, method, op_line, op_col, own rhs)
     }
     return e
@@ -2180,8 +2180,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         return parse_statement_ident(p, false, OwnType.Shallow)
     }
     if t.type.is(TokenType.KwTest) {
-        if p.pos.add(1) < p.tokens.len() {
-            ref nt : Token = p.tokens[p.pos.add(1)]
+        if p.pos + 1 < p.tokens.len() {
+            ref nt : Token = p.tokens[p.pos + 1]
             if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon))
             .or(nt.type.is(TokenType.Eq)).or(nt.type.is(TokenType.Dot)) {
                 return parse_statement_ident(p, false, OwnType.Shallow)
@@ -2331,8 +2331,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             mut own_mut := false
             if check(p, TokenType.KwMut) { advance(p); own_mut = true }
             if check(p, TokenType.Ident) {
-                if p.pos.add(1) < p.tokens.len() {
-                    ref nt : Token = p.tokens[p.pos.add(1)]
+                if p.pos + 1 < p.tokens.len() {
+                    ref nt : Token = p.tokens[p.pos + 1]
                     if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, OwnType.Own)
                     }

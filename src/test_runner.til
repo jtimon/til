@@ -23,7 +23,7 @@ test_basename := func(path: Str) returns Str {
     }
     mut name := path
     if has_slash == 1 {
-        name = path.substr(last_slash.add(1), path.len().sub(last_slash).sub(1))
+        name = path.substr(last_slash + 1, path.len().sub(last_slash) - 1)
     }
     if name.ends_with(".til") {
         name = name.strip_suffix(".til")
@@ -35,12 +35,12 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
     mut start : USize = 0
-    while start <= haystack.len().sub(needle.len()) {
-        pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
+    while start <= haystack.len() - needle.len() {
+        pos := haystack.substr(start, haystack.len() - start).find(needle)
         if pos == -1 { return count }
         count++
         pos_u : USize = pos.to_usize()
-        start = start.add(pos_u).add(needle.len())
+        start = start.add(pos_u) + needle.len()
     }
     return count
 }
@@ -60,7 +60,7 @@ run_phase := proc(cmd: Str) returns PhaseResult {
         if rss > mem { mem = rss }
         status := check_cmd_status(pid)
         if status != -1 {
-            return PhaseResult(status = status, ms = clock_ms().sub(start), mem = mem)
+            return PhaseResult(status = status, ms = clock_ms() - start, mem = mem)
         }
         sleep_ms(10)
     }
@@ -94,7 +94,7 @@ main := proc(args: ..Str) {
             if arg == "-no-match" { en_match = 0 }
             if arg == "--asan" { asan_flag = " --asan" }
             if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
-                ref val : Str = args[i.add(1)]
+                ref val : Str = args[i + 1]
                 til_bin = val.clone()
             }
         }
@@ -180,7 +180,7 @@ main := proc(args: ..Str) {
         mut both_ok := 1
         if fail != 0 { both_ok = 0 }
         if out_match == 0 { both_ok = 0 }
-        total_ms := interp_ms.add(compile_ms).add(run_ms)
+        total_ms := interp_ms.add(compile_ms) + run_ms
 
         println("RESULT ok=", both_ok.to_str(), " ms=", total_ms.to_str(),
                 " interp_ms=", interp_ms.to_str(), " interp_ok=", interp_ok.to_str(),
@@ -225,7 +225,7 @@ main := proc(args: ..Str) {
         // Join args after "--" as command
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
-            if ci > dd.add(1) { cmd = format(cmd, " ") }
+            if ci > dd + 1 { cmd = format(cmd, " ") }
             ref carg : Str = args[ci]
             cmd = format(cmd, carg)
         }
@@ -281,7 +281,7 @@ main := proc(args: ..Str) {
         // Join args after "--" as command
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
-            if ci > dd.add(1) { cmd = format(cmd, " ") }
+            if ci > dd + 1 { cmd = format(cmd, " ") }
             ref carg : Str = args[ci]
             cmd = format(cmd, carg)
         }

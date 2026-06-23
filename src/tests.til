@@ -12,12 +12,12 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
     mut start : USize = 0
-    while start <= haystack.len().sub(needle.len()) {
-        pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
+    while start <= haystack.len() - needle.len() {
+        pos := haystack.substr(start, haystack.len() - start).find(needle)
         if pos == -1 { return count }
         count++
         pos_u : USize = pos.to_usize()
-        start = start.add(pos_u).add(needle.len())
+        start = start.add(pos_u) + needle.len()
     }
     return count
 }
@@ -31,8 +31,8 @@ run := proc(cmd: Str) returns I64 {
 // --- Helpers ---
 
 ms_to_str := func(ms: I64) returns Str {
-    secs := ms.div(1000)
-    frac := ms.mod(1000).div(10)
+    secs := ms / 1000
+    frac := ms.mod(1000) / 10
     mut frac_str := frac.to_str()
     if frac < 10 { frac_str = format("0", frac_str) }
     return format(secs.to_str(), ".", frac_str, "s")
@@ -57,7 +57,7 @@ test_basename := func(path: Str) returns Str {
     }
     mut name := path
     if has_slash == 1 {
-        name = path.substr(last_slash.add(1), path.len().sub(last_slash).sub(1))
+        name = path.substr(last_slash + 1, path.len().sub(last_slash) - 1)
     }
     if name.ends_with(".til") {
         name = name.strip_suffix(".til")
@@ -70,12 +70,12 @@ parse_kv := func(line: Str, key: Str) returns I64 {
     pos := line.find(needle)
     if pos < 0 { return 0 }
     pos_u : USize = pos.to_usize()
-    start := pos_u.add(needle.len())
+    start := pos_u + needle.len()
     mut end := start
     while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
         end++
     }
-    return line.substr(start, end.sub(start)).to_i64()
+    return line.substr(start, end - start).to_i64()
 }
 
 mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
@@ -253,7 +253,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                     if result_pos >= 0 {
                         result_pos_u : USize = result_pos.to_usize()
                         result_line = runner_out.substr(result_pos_u,
-                            runner_out.len().sub(result_pos_u))
+                            runner_out.len() - result_pos_u)
                     }
 
                     // Parse common fields
@@ -330,7 +330,7 @@ main := proc(args: ..Str) {
     while i < args.len() {
         ref arg : Str = args[i]
         if arg.starts_with("-j") {
-            j = arg.substr(2, arg.len().sub(2)).to_usize()
+            j = arg.substr(2, arg.len() - 2).to_usize()
             if j < 1 { j = 1 }
         }
         if arg == "-no-interp" { en_interp = 0 }
@@ -668,13 +668,13 @@ main := proc(args: ..Str) {
     mut fbi := 1
     while fbi <= 100 {
         mut fb_line := ""
-        if fbi.mod(15) == 0 {
+        if fbi % 15 == 0 {
             fb_line = "FizzBuzz"
         } else {
-            if fbi.mod(3) == 0 {
+            if fbi % 3 == 0 {
                 fb_line = "Fizz"
             } else {
-                if fbi.mod(5) == 0 {
+                if fbi % 5 == 0 {
                     fb_line = "Buzz"
                 } else {
                     fb_line = fbi.to_str()
@@ -766,14 +766,14 @@ main := proc(args: ..Str) {
         case TestKind.Both(md):
             both_total++
             if t.has_interp == 1 {
-                total_interp_ms = total_interp_ms.add(md.interp_ms)
-                total_mem_inte = total_mem_inte.add(md.interp_mem)
+                total_interp_ms = total_interp_ms + md.interp_ms
+                total_mem_inte = total_mem_inte + md.interp_mem
             }
             if t.has_run == 1 {
-                total_compile_ms = total_compile_ms.add(md.compile_ms)
-                total_run_ms = total_run_ms.add(md.run_ms)
-                total_mem_comp = total_mem_comp.add(md.compile_mem)
-                total_mem_run = total_mem_run.add(md.run_mem)
+                total_compile_ms = total_compile_ms + md.compile_ms
+                total_run_ms = total_run_ms + md.run_ms
+                total_mem_comp = total_mem_comp + md.compile_mem
+                total_mem_run = total_mem_run + md.run_mem
             }
             if t.ok == 1 { both_passed++ }
         case:
@@ -796,12 +796,12 @@ main := proc(args: ..Str) {
         if t.kind.is(TestKind.Both).not() {
             other_total++
             if t.ok == 1 { other_passed++ }
-            if t.category == "ffi" { ffi_ms = ffi_ms.add(t.ms) }
-            if t.category == "typer" { typer_ms = typer_ms.add(t.ms) }
-            if t.category == "cli" { cli_ms = cli_ms.add(t.ms) }
+            if t.category == "ffi" { ffi_ms = ffi_ms + t.ms }
+            if t.category == "typer" { typer_ms = typer_ms + t.ms }
+            if t.category == "cli" { cli_ms = cli_ms + t.ms }
             if t.category == "build" {
-                build_ms = build_ms.add(t.ms)
-                build_mem = build_mem.add(t.mem)
+                build_ms = build_ms + t.ms
+                build_mem = build_mem + t.mem
             }
         }
         pi++
@@ -842,14 +842,14 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    plot_ms := clock_ms().sub(plot_start)
+    plot_ms := clock_ms() - plot_start
 
     // --- Summary ---
 
-    total_passed := both_passed.add(other_passed).add(plot_ok.to_usize())
-    total_tests := both_total.add(other_total).add(1)
+    total_passed := both_passed.add(other_passed) + plot_ok.to_usize()
+    total_tests := both_total.add(other_total) + 1
 
-    wall_ms := clock_ms().sub(wall_start)
+    wall_ms := clock_ms() - wall_start
     println("")
     println("=== Summary ===")
     if en_interp == 1 { println("interp:       ", ms_to_str(total_interp_ms)) }
@@ -898,7 +898,7 @@ main := proc(args: ..Str) {
 
     // doc/totals.csv — all test totals (skip on failure)
     if fail == 0 {
-        total_mem_total := total_mem_inte.add(total_mem_comp).add(total_mem_run).add(build_mem)
+        total_mem_total := total_mem_inte.add(total_mem_comp).add(total_mem_run) + build_mem
         totals_line := format(commit, ",",
             total_interp_ms.to_str(), ",",
             total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
@@ -914,7 +914,7 @@ main := proc(args: ..Str) {
         existing := File.readfile(totals_path)
         mut totals_content := ""
         lines := existing.split(NL)
-        mut last_data_idx := lines.len().sub(1)
+        mut last_data_idx := lines.len() - 1
         while last_data_idx > 0 {
             ref last_line : Str = lines[last_data_idx]
             if last_line.len() > 0 { break }
@@ -932,13 +932,13 @@ main := proc(args: ..Str) {
                 }
             } else {
                 totals_content = existing
-                if existing.substr(existing.len().sub(1), 1) != NL {
+                if existing.substr(existing.len() - 1, 1) != NL {
                     totals_content = format(totals_content, NL)
                 }
             }
         } else {
             totals_content = existing
-            if existing.len().gt(0).and(existing.substr(existing.len().sub(1), 1).neq(NL)) {
+            if existing.len().gt(0).and(existing.substr(existing.len() - 1, 1).neq(NL)) {
                 totals_content = format(totals_content, NL)
             }
         }

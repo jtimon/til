@@ -302,7 +302,7 @@ set_own_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit.mul(2) }
+        for _ in 0..arg_index { bit = bit * 2 }
         fcd.own_args = fcd.own_args.bor(bit)
     case:
         UNREACHABLE()
@@ -313,7 +313,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
         mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit.mul(2) }
+        for _ in 0..arg_index { bit = bit * 2 }
         return fcd.own_args.band(bit) > 0
     case:
         UNREACHABLE()
@@ -711,11 +711,11 @@ namespace:
     /// Zeroes other's count so it no longer owns the moved items.
     take_children := func(mut self: Expr, mut other: Expr) {
         if other.children.count == 0 { return }
-        needed := self.children.count.add(other.children.count)
+        needed := self.children.count + other.children.count
         if needed > self.children.cap {
             mut new_cap := self.children.cap
             while needed > new_cap {
-                new_cap = new_cap.mul(2)
+                new_cap = new_cap * 2
             }
             self.children.data = realloc(own self.children.data, new_cap.mul(Expr.size()).cast(U64))
             self.children.cap = new_cap
@@ -924,7 +924,7 @@ expr_to_str_indent := func(self: Expr, indent: U32) returns Str {
     }
     out = format(out, "((", head, ")")
     for c : Expr in self.children {
-        out = format(out, "\n", expr_to_str_indent(c, indent.add(1)))
+        out = format(out, "\n", expr_to_str_indent(c, indent + 1))
     }
     return format(out, ")")
 }
@@ -1012,7 +1012,7 @@ lazy_body_inlinable := func(body: Expr) returns Bool {
     if body.node_type.is(NodeType.Body).not() { return false }
     n := body.children.len()
     if n == 0 { return false }
-    ref last : Expr = body.children[n.sub(1)]
+    ref last : Expr = body.children[n - 1]
     if n == 1 {
         switch last.node_type {
         case NodeType.Return:
@@ -1028,7 +1028,7 @@ lazy_body_inlinable := func(body: Expr) returns Bool {
     // n >= 2: a guard chain ends in `return Y`, preceded by `if c { return X }`
     // guards.
     if last.node_type.is(NodeType.Return).not().or(last.children.len() < 1) { return false }
-    for i in 0..n.sub(1) {
+    for i in 0..n - 1 {
         if lazy_is_guard(body.children[i]).not() { return false }
     }
     return true
@@ -1063,7 +1063,7 @@ ast_print := proc(e: Expr, indent: U32) {
     if e.children.len() > 0 {
         println("")
         for e_i : Expr in e.children {
-            ast_print(e_i, indent.add(1))
+            ast_print(e_i, indent + 1)
         }
         for _ in 0..indent.cast(U64) {
             print("  ")
@@ -1125,9 +1125,9 @@ fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool
     case NodeType.FCall:
         if callee_has_kwargs {
             kc := fcall_kwargs_count(fcall)
-            return fcall.children.len().add(1).sub(nparam).sub(kc)
+            return fcall.children.len().add(1).sub(nparam) - kc
         }
-        return fcall.children.len().sub(nparam)
+        return fcall.children.len() - nparam
     case:
         UNREACHABLE()
         return 0

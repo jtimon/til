@@ -75,20 +75,20 @@ priv from_source_form := func(s: Str) returns Str {
     while i < n {
         ref b : I8 = s.unsafe_get(i)
         if b.eq(92).and(i.add(one).lt(n)) {
-            ref nx : I8 = s.unsafe_get(i.add(one))
-            if nx == 110 { out = format(out, "\n"); i = i.add(two); continue }
-            if nx == 114 { out = format(out, "\r"); i = i.add(two); continue }
-            if nx == 116 { out = format(out, "\t"); i = i.add(two); continue }
-            if nx == 34  { out = format(out, "\""); i = i.add(two); continue }
-            if nx == 92  { out = format(out, "\\"); i = i.add(two); continue }
-            if nx == 39  { out = format(out, "'"); i = i.add(two); continue }
-            if nx == 48  { out = format(out, "\0"); i = i.add(two); continue }
+            ref nx : I8 = s.unsafe_get(i + one)
+            if nx == 110 { out = format(out, "\n"); i = i + two; continue }
+            if nx == 114 { out = format(out, "\r"); i = i + two; continue }
+            if nx == 116 { out = format(out, "\t"); i = i + two; continue }
+            if nx == 34  { out = format(out, "\""); i = i + two; continue }
+            if nx == 92  { out = format(out, "\\"); i = i + two; continue }
+            if nx == 39  { out = format(out, "'"); i = i + two; continue }
+            if nx == 48  { out = format(out, "\0"); i = i + two; continue }
             if nx.eq(120).and(i.add(3).lt(n)) {
-                ref h1 : I8 = s.unsafe_get(i.add(two))
-                ref h2 : I8 = s.unsafe_get(i.add(3))
-                val : U8 = hex_digit_value(h1).mul(16).add(hex_digit_value(h2))
+                ref h1 : I8 = s.unsafe_get(i + two)
+                ref h2 : I8 = s.unsafe_get(i + 3)
+                val : U8 = hex_digit_value(h1).mul(16) + hex_digit_value(h2)
                 out = format(out, Str.from_byte(val))
-                i = i.add(4)
+                i = i + 4
                 continue
             }
         }
@@ -98,9 +98,9 @@ priv from_source_form := func(s: Str) returns Str {
         // carries no byte; skip it so re-reading a folded binary literal
         // round-trips losslessly. A real quote byte is stored as `\"` and
         // handled by the backslash branch above.
-        if b == 34 { i = i.add(one); continue }
+        if b == 34 { i = i + one; continue }
         out = format(out, s.substr(i, one))
-        i = i.add(one)
+        i = i + one
     }
     return out
 }
@@ -149,8 +149,8 @@ priv str_to_source_form := func(s: Str) returns Str {
             // arithmetic the wrong way around for hex display.
             ub : U8 = b.cast(U8)
             out = format(out, "\\x")
-            hi : U8 = ub.div(16)
-            lo : U8 = ub.mod(16)
+            hi : U8 = ub / 16
+            lo : U8 = ub % 16
             hex := "0123456789abcdef"
             out = format(out, hex.substr(hi.cast(U32), 1))
             out = format(out, hex.substr(lo.cast(U32), 1))
@@ -653,9 +653,9 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
         ref b : I8 = name.unsafe_get(i)
         if b.eq(95).not() { continue }
         sname := name.substr(0, i)
-        rest_start := i.add(1)
+        rest_start := i + 1
         if rest_start >= n { continue }
-        mname := name.substr(rest_start, n.sub(rest_start))
+        mname := name.substr(rest_start, n - rest_start)
         ref nv : Value = ns_get(sname, mname, ctx)
         if nv.is_null() { continue }
         switch nv {
@@ -809,13 +809,13 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     }
 
     // Build a call with literal args for the interpreter
-    nargs := fcall.children.len().sub(1)
+    nargs := fcall.children.len() - 1
     mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
     ec.set_expr_til_type(fcall.expr_til_type())
     ec.add_child(own fcall.children[0].clone())
 
     for i in 0..nargs {
-        ref arg : Expr = fcall.children[i.add(1)]
+        ref arg : Expr = fcall.children[i + 1]
         mut arg_val := val_none()
         mut arg_is_known := is_known(ctx, arg, arg_val)
         // Issue #191: also check interpreter scope for arg values. Skip
@@ -1116,7 +1116,7 @@ priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
 // format(self.field, ...)), and eval_expr would raise "undefined variable
 // 'self'". This mirrors the all_comptime gate the wrapper-form fold uses.
 priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
-    mut k := decl_idx.add(1)
+    mut k := decl_idx + 1
     while k < body.children.len() {
         ref s : Expr = body.children[k]
         // Stop at the consumer: first use of va that is not a build stmt.
@@ -1127,7 +1127,7 @@ priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Contex
             if s.children.len() < 4 { return false }
             if is_known_check(ctx, s.children[3]).not() { return false }
         }
-        k = k.add(1)
+        k = k + 1
     }
     return true
 }
@@ -1190,7 +1190,7 @@ priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, 
         }
         interp_va_build_stmt(scope, s, va, ek, eo, ctx)
         if ctx.constfold_aborted { break }
-        k = k.add(1)
+        k = k + 1
     }
     ctx.constfold_active = false
     if ctx.constfold_aborted {

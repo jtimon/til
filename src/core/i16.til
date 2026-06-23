@@ -21,8 +21,8 @@ namespace:
     mul := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     div := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     mod := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
-    inc := func(mut self: I16) { self = self.add(1) }
-    dec := func(mut self: I16) { self = self.sub(1) }
+    inc := func(mut self: I16) { self = self + 1 }
+    dec := func(mut self: I16) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I16) returns I16 { return 1 }
     eq := ext_func(shallow a: I16, shallow b: I16) returns shallow Bool {}
@@ -50,7 +50,7 @@ namespace:
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I16.add for the wrapping variant.
     safe_add := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
-        result := a.add(b)
+        result := a + b
         if b > 0 {
             if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_add: ",
@@ -69,7 +69,7 @@ namespace:
     /// Subtraction that throws IntegerOverflow on signed wrap.
     /// Use I16.sub for the wrapping variant.
     safe_sub := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
-        result := a.sub(b)
+        result := a - b
         if b > 0 {
             if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_sub: ",
@@ -88,7 +88,7 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I16.mul for the wrapping variant.
     safe_mul := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
-        result := a.mul(b)
+        result := a * b
         if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_mul: ",

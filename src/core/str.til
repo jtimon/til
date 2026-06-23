@@ -16,7 +16,7 @@ CAP_VIEW : USize = -2.to_usize()
 format := func(parts: ..Str) returns Str {
     mut total : USize = 0
     for s : Str in parts {
-        total = total.add(s.len())
+        total = total + s.len()
     }
     mut out := Str.with_capacity(total)
     for s : Str in parts {
@@ -65,7 +65,7 @@ namespace:
 
     /// Create an empty Str pre-allocated for up to `n` bytes.
     with_capacity := func(n: USize) returns Str {
-        buf : Dynamic = malloc(n.add(1))
+        buf : Dynamic = malloc(n + 1)
         memset(buf, 0, 1)
         return Str(c_str = buf, count = 0, cap = n)
     }
@@ -82,7 +82,7 @@ namespace:
         if self.cap >= CAP_VIEW {
             panic("Str.push_str: cannot mutate a string view or literal")
         }
-        new_len := self.count.add(s.count)
+        new_len := self.count + s.count
         if new_len > self.cap {
             panic("Str.push_str: capacity exceeded")
         }
@@ -93,7 +93,7 @@ namespace:
 
     /// Deep-copy the string into a new owned Str.
     clone := func(val: Str) returns Str {
-        new_data : Dynamic = malloc(val.count.add(1))
+        new_data : Dynamic = malloc(val.count + 1)
         memcpy(new_data, val.c_str, val.count)
         memset(ptr_add(new_data, val.count), 0, 1)
         return Str(c_str = new_data, count = val.count, cap = val.count)
@@ -119,7 +119,7 @@ namespace:
         mut st := start
         mut ln := n
         if st > s.count { st = s.count }
-        if st.add(ln) > s.count { ln = s.count.sub(st) }
+        if st + ln > s.count { ln = s.count - st }
         return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
 
@@ -135,7 +135,7 @@ namespace:
                 break
             }
         }
-        return s.substr(st, s.count.sub(st))
+        return s.substr(st, s.count - st)
     }
 
     /// Return a view of `s` with leading and trailing ASCII whitespace
@@ -152,24 +152,24 @@ namespace:
         }
         mut en := s.count
         while en > st {
-            ref c : I8 = s.unsafe_get(en.sub(1))
+            ref c : I8 = s.unsafe_get(en - 1)
             if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
                 en--
             } else {
                 break
             }
         }
-        return s.substr(st, en.sub(st))
+        return s.substr(st, en - st)
     }
 
     /// True if `a` contains `b` as a substring.
     contains := func(a: Str, b: Str) returns Bool {
         if b.count == 0 { return true }
         if b.count > a.count { return false }
-        for i in 0..a.count.sub(b.count).add(1) {
+        for i in 0..a.count.sub(b.count) + 1 {
             mut found := true
             for j in 0..b.count {
-                ref ac : I8 = a.unsafe_get(i.add(j))
+                ref ac : I8 = a.unsafe_get(i + j)
                 ref bc : I8 = b.unsafe_get(j)
                 if ac != bc { found = false }
             }
@@ -192,9 +192,9 @@ namespace:
     /// True if `a` ends with suffix `b`.
     ends_with := func(a: Str, b: Str) returns Bool {
         if b.count > a.count { return false }
-        offset := a.count.sub(b.count)
+        offset := a.count - b.count
         for i in 0..b.count {
-            ref ac : I8 = a.unsafe_get(offset.add(i))
+            ref ac : I8 = a.unsafe_get(offset + i)
             ref bc : I8 = b.unsafe_get(i)
             if ac != bc { return false }
         }
@@ -210,11 +210,11 @@ namespace:
     find := func(self: Str, needle: Str) returns I64 {
         if needle.count == 0 { return -1 }
         if needle.count > self.count { return -1 }
-        for i in 0..self.count.sub(needle.count).add(1) {
+        for i in 0..self.count.sub(needle.count) + 1 {
             mut found := true
             mut j : USize = 0
             while j < needle.count {
-                ref ac : I8 = self.unsafe_get(i.add(j))
+                ref ac : I8 = self.unsafe_get(i + j)
                 ref bc : I8 = needle.unsafe_get(j)
                 if ac != bc { found = false; break }
                 j++
@@ -229,10 +229,10 @@ namespace:
         if needle.count == 0 { return -1 }
         if needle.count > self.count { return -1 }
         mut last := -1
-        for i in 0..self.count.sub(needle.count).add(1) {
+        for i in 0..self.count.sub(needle.count) + 1 {
             mut found := true
             for j in 0..needle.count {
-                ref ac : I8 = self.unsafe_get(i.add(j))
+                ref ac : I8 = self.unsafe_get(i + j)
                 ref bc : I8 = needle.unsafe_get(j)
                 if ac != bc { found = false }
             }
@@ -251,23 +251,23 @@ namespace:
         if from.count > self.count { return self.clone() }
         mut matches : USize = 0
         mut start : USize = 0
-        while start <= self.count.sub(from.count) {
-            rest := self.substr(start, self.count.sub(start))
+        while start <= self.count - from.count {
+            rest := self.substr(start, self.count - start)
             pos := rest.find(from)
             if pos == -1 {
                 break
             }
             pos_u : USize = pos.to_usize()
-            start = start.add(pos_u).add(from.count)
+            start = start.add(pos_u) + from.count
             matches++
         }
         if matches == 0 { return self.clone() }
-        removed := matches.mul(from.count)
-        added := matches.mul(to.count)
-        mut out := Str.with_capacity(self.count.sub(removed).add(added))
+        removed := matches * from.count
+        added := matches * to.count
+        mut out := Str.with_capacity(self.count.sub(removed) + added)
         start = 0
-        while start <= self.count.sub(from.count) {
-            rest := self.substr(start, self.count.sub(start))
+        while start <= self.count - from.count {
+            rest := self.substr(start, self.count - start)
             pos := rest.find(from)
             if pos == -1 {
                 break
@@ -275,10 +275,10 @@ namespace:
             pos_u : USize = pos.to_usize()
             out.push_str(self.substr(start, pos_u))
             out.push_str(to)
-            start = start.add(pos_u).add(from.count)
+            start = start.add(pos_u) + from.count
         }
         if start < self.count {
-            out.push_str(self.substr(start, self.count.sub(start)))
+            out.push_str(self.substr(start, self.count - start))
         }
         return out
     }
@@ -301,7 +301,7 @@ namespace:
     /// If self starts with `prefix`, return the rest; otherwise clone.
     strip_prefix := func(self: Str, prefix: Str) returns Str {
         if self.starts_with(prefix) {
-            return self.substr(prefix.count, self.count.sub(prefix.count))
+            return self.substr(prefix.count, self.count - prefix.count)
         }
         return self.clone()
     }
@@ -309,7 +309,7 @@ namespace:
     /// If self ends with `suffix`, return the part before it; otherwise clone.
     strip_suffix := func(self: Str, suffix: Str) returns Str {
         if self.ends_with(suffix) {
-            return self.substr(0, self.count.sub(suffix.count))
+            return self.substr(0, self.count - suffix.count)
         }
         return self.clone()
     }
@@ -341,16 +341,16 @@ namespace:
         // Base prefix: 0x (hex), 0b (binary), 0o (octal).
         mut base : I64 = 10
         if self.unsafe_get(start).eq('0').and(start.add(1).lt(self.count)) {
-            ref pch : I8 = self.unsafe_get(start.add(1))
+            ref pch : I8 = self.unsafe_get(start + 1)
             if pch.eq('x').or(pch.eq('X')) {
                 base = 16
-                start = start.add(2)
+                start = start + 2
             } else if pch.eq('b').or(pch.eq('B')) {
                 base = 2
-                start = start.add(2)
+                start = start + 2
             } else if pch.eq('o').or(pch.eq('O')) {
                 base = 8
-                start = start.add(2)
+                start = start + 2
             }
         }
         if start == self.count { panic("Str.to_i64: no digits in '", self, "'") }
@@ -363,11 +363,11 @@ namespace:
             if d.lt(0).or(d.gte(base)) {
                 panic("Str.to_i64: invalid char in '", self, "'")
             }
-            result = result.mul(base).add(d)
+            result = result.mul(base) + d
             any = true
         }
         if any.not() { panic("Str.to_i64: no digits in '", self, "'") }
-        if neg { return 0.sub(result) }
+        if neg { return 0 - result }
         return result
     }
 
@@ -432,16 +432,16 @@ namespace:
         }
         mut start : USize = 0
         mut pos : USize = 0
-        while pos <= self.len().sub(delim.len()) {
+        while pos <= self.len() - delim.len() {
             if self.substr(pos, delim.len()) == delim {
-                parts.push(own self.substr(start, pos.sub(start)).clone())
-                start = pos.add(delim.len())
+                parts.push(own self.substr(start, pos - start).clone())
+                start = pos + delim.len()
                 pos = start
             } else {
                 pos++
             }
         }
-        parts.push(own self.substr(start, self.len().sub(start)).clone())
+        parts.push(own self.substr(start, self.len() - start).clone())
         return parts
     }
 }
@@ -450,9 +450,9 @@ join := func(parts: Vec(Str), sep: Str) returns Str {
     if parts.len() == 0 { return "" }
     mut total : USize = 0
     for p : Str in parts {
-        total = total.add(p.len())
+        total = total + p.len()
     }
-    total = total.add(sep.len().mul(parts.len().sub(1)))
+    total = total.add(sep.len().mul(parts.len() - 1))
     mut out := Str.with_capacity(total)
     for i in 0..parts.len() {
         if i > 0 { out.push_str(sep) }
@@ -466,9 +466,9 @@ join := func(parts: Vec(Str), sep: Str) returns Str {
 // Returns -1 for any other byte. Shared by Str.to_i64's base parsing.
 digit_value := func(ch: I8) returns I64 {
     v := ch.cast(I64)
-    if v.gte(48).and(v.lte(57)) { return v.sub(48) }
-    if v.gte(97).and(v.lte(102)) { return v.sub(97).add(10) }
-    if v.gte(65).and(v.lte(70)) { return v.sub(65).add(10) }
+    if v.gte(48).and(v.lte(57)) { return v - 48 }
+    if v.gte(97).and(v.lte(102)) { return v.sub(97) + 10 }
+    if v.gte(65).and(v.lte(70)) { return v.sub(65) + 10 }
     return -1
 }
 

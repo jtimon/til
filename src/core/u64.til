@@ -24,8 +24,8 @@ namespace:
     mul := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     div := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     mod := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
-    inc := func(mut self: U64) { self = self.add(1) }
-    dec := func(mut self: U64) { self = self.sub(1) }
+    inc := func(mut self: U64) { self = self + 1 }
+    dec := func(mut self: U64) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U64) returns U64 { return 1 }
     eq := ext_func(shallow a: U64, shallow b: U64) returns shallow Bool {}
@@ -41,8 +41,8 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : U64 = a
         ref bu : U64 = b
-        if au <= bu { return bu.sub(au) }
-        return au.sub(bu)
+        if au <= bu { return bu - au }
+        return au - bu
     }
     delete := func(own self: U64, call_free: Bool = true) {
         if call_free { free(own self) }
@@ -52,7 +52,7 @@ namespace:
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U64.add for the wrapping variant.
     safe_add := func(a: U64, b: U64, loc: Str = __LOC__) returns U64 throws IntegerOverflow {
-        result := a.add(b)
+        result := a + b
         if result < a {
             throw IntegerOverflow(msg = format(loc, ":U64.safe_add: ",
                 a.to_str(), " + ", b.to_str(), " overflows"))
@@ -67,13 +67,13 @@ namespace:
             throw IntegerOverflow(msg = format(loc, ":U64.safe_sub: ",
                 a.to_str(), " - ", b.to_str(), " underflows"))
         }
-        return a.sub(b)
+        return a - b
     }
 
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U64.mul for the wrapping variant.
     safe_mul := func(a: U64, b: U64, loc: Str = __LOC__) returns U64 throws IntegerOverflow {
-        result := a.mul(b)
+        result := a * b
         if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(loc, ":U64.safe_mul: ",

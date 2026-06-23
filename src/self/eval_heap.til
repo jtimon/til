@@ -48,7 +48,7 @@ namespace:
         if sz == 0 { sz = 1 }
         p : Dynamic = calloc(1, sz.cast(U64))
         if p.is_null() { panic("EvalHeap.heap_alloc: allocation failed") }
-        self.live_blocks = self.live_blocks.add(1)
+        self.live_blocks = self.live_blocks + 1
         return p
     }
 
@@ -57,7 +57,7 @@ namespace:
     heap_free := func(mut self: EvalHeap, own ptr: Dynamic) {
         if self.live_blocks == 0 { panic("EvalHeap.heap_free: no live blocks") }
         free(own ptr)
-        self.live_blocks = self.live_blocks.sub(1)
+        self.live_blocks = self.live_blocks - 1
     }
 
     delete := func(own self: EvalHeap, call_free: Bool = true) {

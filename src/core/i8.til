@@ -19,8 +19,8 @@ namespace:
     mul := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     div := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     mod := ext_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
-    inc := func(mut self: I8) { self = self.add(1) }
-    dec := func(mut self: I8) { self = self.sub(1) }
+    inc := func(mut self: I8) { self = self + 1 }
+    dec := func(mut self: I8) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I8) returns I8 { return 1 }
     eq := ext_func(shallow a: I8, shallow b: I8) returns shallow Bool {}

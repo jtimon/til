@@ -46,9 +46,9 @@ namespace:
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo < hi {
-            mid : USize = lo.add(hi.sub(lo).div(2))
+            mid : USize = lo.add(hi.sub(lo) / 2)
             c : I64 = self.key_cmp(self.keys.unsafe_get(mid), key)
-            if c < 0 { lo = mid.add(1) }
+            if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else { return true }
@@ -64,9 +64,9 @@ namespace:
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo < hi {
-            mid : USize = lo.add(hi.sub(lo).div(2))
+            mid : USize = lo.add(hi.sub(lo) / 2)
             c : I64 = self.key_cmp(self.keys.unsafe_get(mid), key)
-            if c < 0 { lo = mid.add(1) }
+            if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else { return self.values.unsafe_get(mid) }
@@ -81,9 +81,9 @@ namespace:
         mut hi : USize = self.keys.count
         mut found := false
         while lo < hi {
-            mid : USize = lo.add(hi.sub(lo).div(2))
+            mid : USize = lo.add(hi.sub(lo) / 2)
             c : I64 = self.key_cmp(self.keys.unsafe_get(mid), key)
-            if c < 0 { lo = mid.add(1) }
+            if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
                 else { found = true; lo = mid; hi = mid }
@@ -95,7 +95,7 @@ namespace:
             self.values.unsafe_set(lo, own val)
         } else {
             if self.keys.count == self.keys.cap {
-                new_cap : USize = self.keys.cap.mul(2)
+                new_cap : USize = self.keys.cap * 2
                 self.keys.data = realloc(own self.keys.data, new_cap.mul(self.keys.elem_size).cast(U64))
                 self.values.data = realloc(own self.values.data, new_cap.mul(self.values.elem_size).cast(U64))
                 self.keys.cap = new_cap
@@ -119,8 +119,8 @@ namespace:
             memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size).cast(U64)), val, self.values.elem_size.cast(U64))
             free(own cloned_key)
             free(own val)
-            self.keys.count = self.keys.count.add(1)
-            self.values.count = self.values.count.add(1)
+            self.keys.count = self.keys.count + 1
+            self.values.count = self.values.count + 1
         }
     }
 
