@@ -113,7 +113,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
 //     but the Decl's til_type is still the expression's type, so the
 //     check works uniformly.
 repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
-    if peek_ast.children.len().eq(0) { return false }
+    if peek_ast.children.len() == 0 { return false }
     ref puser : Expr = peek_ast.children[peek_ast.children.len().sub(1)]
     switch puser.node_type {
     case NodeType.Decl:        return false
@@ -133,7 +133,7 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     case NodeType.Body:        return false
     case:
     }
-    if typed_ast.children.len().eq(0) { return false }
+    if typed_ast.children.len() == 0 { return false }
     ref tlast : Expr = typed_ast.children[typed_ast.children.len().sub(1)]
     tlast_t := tlast.expr_til_type()
     if tlast_t.is(Type.None) { return false }
@@ -154,7 +154,7 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
 // stays fully consistent with the rest of the compiler.
 run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec(Str)) {
     mut mode_str := mode_name_in.clone()
-    if mode_str.len().eq(0) { mode_str = "script" }
+    if mode_str.len() == 0 { mode_str = "script" }
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
@@ -179,7 +179,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 
     while true {
         block := repl_read_line(mode_str)
-        if block.len().eq(0) {
+        if block.len() == 0 {
             println("")
             break
         }
@@ -214,7 +214,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         typer_errs := repl_typecheck(typed_lp)
 
         mut block_eff := block.clone()
-        if typer_errs.eq(0) {
+        if typer_errs == 0 {
             // Build user-only packed blobs every turn (cheap -- only the
             // user's accumulated decls).
             mut user_merged := Expr.new(NodeType.Body, 0, 0)
@@ -287,7 +287,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 run_repl := proc(initial_mode: Str, extra_modes: Vec(Str)) {
     println(format("til ", VERSION, " REPL -- Ctrl-D to exit"))
     mut next_mode := initial_mode.clone()
-    if next_mode.len().eq(0) { next_mode = "script" }
+    if next_mode.len() == 0 { next_mode = "script" }
     while next_mode.len() > 0 {
         cur := next_mode.clone()
         next_mode = ""
@@ -334,7 +334,7 @@ CliArgs := struct {
 
 parse_args := proc(args: Array(Str)) returns CliArgs {
     mut cli := CliArgs()
-    if args.len().eq(0) {
+    if args.len() == 0 {
         run_repl("script", cli.extra_modes)
         cli.early_return = true
         return cli
@@ -343,8 +343,8 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
     ref cmd_ref : Str = args[0]
     cli.command = cmd_ref.clone()
 
-    if cli.command.eq("--") {
-        if args.len().eq(1) {
+    if cli.command == "--" {
+        if args.len() == 1 {
             println("error: missing source path after --")
             usage()
             exit(1)
@@ -356,7 +356,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         return cli
     }
 
-    if args.len().eq(1) {
+    if args.len() == 1 {
         if cli.command.eq("--version").or(cli.command.eq("-v")) {
             println(VERSION)
             cli.early_return = true
@@ -367,7 +367,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.early_return = true
             return cli
         }
-        if cli.command.eq("repl") {
+        if cli.command == "repl" {
             run_repl("script", cli.extra_modes)
             cli.early_return = true
             return cli
@@ -377,7 +377,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         return cli
     }
 
-    if cli.command.eq("repl") {
+    if cli.command == "repl" {
         mut mode_arg := "script"
         while cli.path_idx < args.len() {
             ref flag : Str = args[cli.path_idx]
@@ -420,7 +420,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
     // Scan for -o/-c/--target/--cc/--prefix flags before source file
     while cli.path_idx < args.len() {
         ref flag : Str = args[cli.path_idx]
-        if flag.eq("--") {
+        if flag == "--" {
             cli.path_idx++
             break
         } else if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
@@ -454,10 +454,10 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             // later in cmd_install, so the moved-in borrow would dangle.
             cli.install_prefix = format(flag.strip_prefix("--prefix="))
             cli.path_idx++
-        } else if flag.eq("--asan") {
+        } else if flag == "--asan" {
             cli.asan = true
             cli.path_idx++
-        } else if flag.eq("--prof") {
+        } else if flag == "--prof" {
             cli.prof = true
             cli.path_idx++
         } else if flag.starts_with("--extra-modes=") {
@@ -514,8 +514,8 @@ main := proc(args: ..Str) {
     // `bindings` runs the C-header -> til translator (src/self/binder.til).
     // Skip the load_program pipeline -- the input is a .h, not a .til, and
     // -o carries the output path.
-    if cli.command.eq("bindings") {
-        if cli.custom_bin.len().eq(0) {
+    if cli.command == "bindings" {
+        if cli.custom_bin.len() == 0 {
             println("error: bindings requires -o <output.til>")
             usage()
             exit(1)
@@ -538,23 +538,23 @@ main := proc(args: ..Str) {
     // `ast` prints the raw parsed AST -- skip init/typecheck/constfolder/scavenge
     // so output matches the parser's direct output and stays cheap on large
     // programs (full pipeline on src/til.til takes minutes).
-    if cli.command.eq("ast") {
+    if cli.command == "ast" {
         cmd_ast(lp)
         return
     }
 
     // `doc` only needs a typed AST; constfolder + scavenge are codegen prep.
-    if cli.command.eq("doc") {
+    if cli.command == "doc" {
         init_and_type_program(lp, false)
         result := cmd_doc(lp)
-        if result.neq(0) { exit(result.cast(I64)) }
+        if result != 0 { exit(result.cast(I64)) }
         return
     }
 
-    if cli.command.eq("doc-cache") {
+    if cli.command == "doc-cache" {
         init_and_type_program(lp, false)
         result := cmd_doc_cache(lp)
-        if result.neq(0) { exit(result.cast(I64)) }
+        if result != 0 { exit(result.cast(I64)) }
         return
     }
 
@@ -566,28 +566,28 @@ main := proc(args: ..Str) {
         .and(cli.command.eq("ast").not())
         .and(cli.command.eq("doc").not())
 
-    prepare_program(lp, cli.command.eq("test"))
+    prepare_program(lp, cli.command == "test")
 
     mut result : I32 = 0
-    if cli.command.eq("interpret") {
+    if cli.command == "interpret" {
         if lp.cur_mode.is_library {
             panic("cannot interpret a library -- use translate or build")
         }
         result = cmd_interpret(lp, user_argv)
-    } else if cli.command.eq("test") {
+    } else if cli.command == "test" {
         eprint_single("=== interpret ===\n")
         result = cmd_interpret(lp, user_argv)
-        if result.eq(0) {
+        if result == 0 {
             eprint_single("=== compile + run ===\n")
             result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
         }
-    } else if cli.command.eq("translate") {
+    } else if cli.command == "translate" {
         result = cmd_translate(lp, cli.custom_c, target)
-    } else if cli.command.eq("build") {
+    } else if cli.command == "build" {
         result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
-    } else if cli.command.eq("install") {
+    } else if cli.command == "install" {
         result = cmd_install(lp, cli.install_prefix, target, cli.cc, cli.asan, cli.prof)
-    } else if cli.command.eq("run") {
+    } else if cli.command == "run" {
         result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof)
     } else {
         println(format("error: unknown command '", cli.command, "'"))
@@ -596,5 +596,5 @@ main := proc(args: ..Str) {
     }
 
     ffi_cleanup(lp.ctx)
-    if result.neq(0) { exit(result.cast(I64)) }
+    if result != 0 { exit(result.cast(I64)) }
 }

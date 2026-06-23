@@ -64,7 +64,7 @@ priv from_source_form := func(s: Str) returns Str {
     // source-form bytes already equal post-escape bytes.
     mut has_bs := false
     for b : I8 in s {
-        if b.eq(92) { has_bs = true; break }
+        if b == 92 { has_bs = true; break }
     }
     if has_bs.not() { return s }
     n := s.len()
@@ -76,13 +76,13 @@ priv from_source_form := func(s: Str) returns Str {
         ref b : I8 = s.unsafe_get(i)
         if b.eq(92).and(i.add(one).lt(n)) {
             ref nx : I8 = s.unsafe_get(i.add(one))
-            if nx.eq(110) { out = format(out, "\n"); i = i.add(two); continue }
-            if nx.eq(114) { out = format(out, "\r"); i = i.add(two); continue }
-            if nx.eq(116) { out = format(out, "\t"); i = i.add(two); continue }
-            if nx.eq(34)  { out = format(out, "\""); i = i.add(two); continue }
-            if nx.eq(92)  { out = format(out, "\\"); i = i.add(two); continue }
-            if nx.eq(39)  { out = format(out, "'"); i = i.add(two); continue }
-            if nx.eq(48)  { out = format(out, "\0"); i = i.add(two); continue }
+            if nx == 110 { out = format(out, "\n"); i = i.add(two); continue }
+            if nx == 114 { out = format(out, "\r"); i = i.add(two); continue }
+            if nx == 116 { out = format(out, "\t"); i = i.add(two); continue }
+            if nx == 34  { out = format(out, "\""); i = i.add(two); continue }
+            if nx == 92  { out = format(out, "\\"); i = i.add(two); continue }
+            if nx == 39  { out = format(out, "'"); i = i.add(two); continue }
+            if nx == 48  { out = format(out, "\0"); i = i.add(two); continue }
             if nx.eq(120).and(i.add(3).lt(n)) {
                 ref h1 : I8 = s.unsafe_get(i.add(two))
                 ref h2 : I8 = s.unsafe_get(i.add(3))
@@ -98,7 +98,7 @@ priv from_source_form := func(s: Str) returns Str {
         // carries no byte; skip it so re-reading a folded binary literal
         // round-trips losslessly. A real quote byte is stored as `\"` and
         // handled by the backslash branch above.
-        if b.eq(34) { i = i.add(one); continue }
+        if b == 34 { i = i.add(one); continue }
         out = format(out, s.substr(i, one))
         i = i.add(one)
     }
@@ -111,8 +111,8 @@ priv needs_source_escape := func(s: Str) returns Bool {
     n := s.len()
     for i in 0..n {
         ref b : I8 = s.unsafe_get(i)
-        if b.eq(34) { return true }
-        if b.eq(92) { return true }
+        if b == 34 { return true }
+        if b == 92 { return true }
         if b < 32 { return true }
         if b.lt(0).or(b.gt(126)) { return true }
     }
@@ -130,11 +130,11 @@ priv str_to_source_form := func(s: Str) returns Str {
     mut out := ""
     for i in 0..n {
         ref b : I8 = s.unsafe_get(i)
-        if b.eq(34)  { out = format(out, "\\\""); continue }
-        if b.eq(92)  { out = format(out, "\\\\"); continue }
-        if b.eq(10)  { out = format(out, "\\n"); continue }
-        if b.eq(13)  { out = format(out, "\\r"); continue }
-        if b.eq(9)   { out = format(out, "\\t"); continue }
+        if b == 34  { out = format(out, "\\\""); continue }
+        if b == 92  { out = format(out, "\\\\"); continue }
+        if b == 10  { out = format(out, "\\n"); continue }
+        if b == 13  { out = format(out, "\\r"); continue }
+        if b == 9   { out = format(out, "\\t"); continue }
         if b.lt(32).or(b.gt(126)) {
             // Hex escape with explicit terminator -- "" between escape
             // and following digits prevents greedy hex consumption.
@@ -319,7 +319,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         e.set_expr_til_type(Type.Primitive(Primitive.F32))
         return e
     case Value.Struct(si):
-        if si.to_str().eq("Str") {
+        if si.to_str() == "Str" {
             // A folded Str with reserved capacity beyond its content
             // (cap > count, and cap is a real allocation -- below the
             // CAP_VIEW/CAP_LIT sentinels) is a mutable builder buffer, e.g.
@@ -417,7 +417,7 @@ priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
         // on the constfolder hot path).
         mut has_bs := false
         for b : I8 in s {
-            if b.eq(92) { has_bs = true; break }
+            if b == 92 { has_bs = true; break }
         }
         if has_bs.not() {
             return make_str_value_view(s.c_str, s.count, ctx)
@@ -469,9 +469,9 @@ priv is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
 priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        if fd.return_type.eq("Dynamic") { return true }
+        if fd.return_type == "Dynamic" { return true }
         for p : Declaration in fd.params {
-            if p.explicit_type.eq("Dynamic") { return true }
+            if p.explicit_type == "Dynamic" { return true }
         }
     case:
     }
@@ -497,15 +497,15 @@ priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
 priv body_has_local := proc(body: Expr, name: Str) returns Bool {
     switch body.node_type {
     case NodeType.Decl(dd):
-        if dd.name.eq(name) { return true }
+        if dd.name == name { return true }
     case NodeType.ForIn(fd):
         // for-in loop variables live in the ForIn payload, not as a Decl
         // child. The interpreter binds them when it walks the loop, so
         // they are body-locals just like a Decl name -- don't flag them
         // as unknown globals. The two-variable `for k, v in map` form
         // binds name2 as well.
-        if fd.name.eq(name) { return true }
-        if fd.name2.eq(name) { return true }
+        if fd.name == name { return true }
+        if fd.name2 == name { return true }
     case NodeType.FuncDef:
         return false
     case:
@@ -537,7 +537,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
         switch func_def.node_type {
         case NodeType.FuncDef(fd):
             for p : Declaration in fd.params {
-                if p.name.eq(name.ident_name()) { return false }
+                if p.name == name.ident_name() { return false }
             }
         case:
         }
@@ -584,7 +584,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
         if mname.field_access_name().eq("new").and(e.children.len().gt(0)) {
             switch e.children[0].node_type {
             case NodeType.Ident(type_name):
-                if type_name.ident_name().eq("Vec") { return true }
+                if type_name.ident_name() == "Vec" { return true }
             case:
             }
         }
@@ -600,13 +600,13 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
 // reference to that literal Expr. Handles both `return <lit>` and the
 // typer-hoisted `_t := <lit>; return _t` form. Returns NULL otherwise.
 priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
-    if fdef.children.len().eq(0) { return NULL }
+    if fdef.children.len() == 0 { return NULL }
     ref body : Expr = fdef.children[0]
     n := body.children.len()
-    if n.eq(1) {
+    if n == 1 {
         ref ret : Expr = body.children[0]
         if ret.node_type.is(NodeType.Return).not() { return NULL }
-        if ret.children.len().eq(0) { return NULL }
+        if ret.children.len() == 0 { return NULL }
         ref rv : Expr = ret.children[0]
         if rv.node_type.is_literal_num()
             .or(rv.node_type.is_literal_str())
@@ -615,12 +615,12 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
         }
         return NULL
     }
-    if n.eq(2) {
+    if n == 2 {
         ref decl : Expr = body.children[0]
         ref ret : Expr = body.children[1]
         if ret.node_type.is(NodeType.Return).not() { return NULL }
-        if decl.children.len().eq(0) { return NULL }
-        if ret.children.len().eq(0) { return NULL }
+        if decl.children.len() == 0 { return NULL }
+        if ret.children.len() == 0 { return NULL }
         switch decl.node_type {
         case NodeType.Decl(dd):
             ref ret_val : Expr = ret.children[0]
@@ -673,7 +673,7 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
 // `Str.size`), use the Ident text. Otherwise fall back to recv.expr_til_type()
 // so method calls on values (`x.add(y)` where x: I64) still resolve.
 priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
-    if callee.children.len().eq(0) { return "" }
+    if callee.children.len() == 0 { return "" }
     ref recv : Expr = callee.children[0]
     switch recv.node_type {
     case NodeType.Ident(ident):
@@ -1027,7 +1027,7 @@ priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
 
 is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().eq(0) { return false }
+    if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cname):
@@ -1044,7 +1044,7 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
 
 priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().eq(0) { return false }
+    if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
     switch callee.node_type {
     case NodeType.Ident(cname):
@@ -1077,7 +1077,7 @@ priv is_va_array_decl := func(stmt: Expr) returns Bool {
     case NodeType.Decl(dd):
         if dd.is_mut { return false }
         if dd.name.starts_with("_va_Array_").not() { return false }
-        if stmt.children.len().eq(0) { return false }
+        if stmt.children.len() == 0 { return false }
         return stmt.children[0].node_type.is(NodeType.FCall)
     case:
         return false
@@ -1096,7 +1096,7 @@ priv is_va_set := func(stmt: Expr, va: Str) returns Bool {
     }
     switch stmt.children[1].node_type {
     case NodeType.Ident(id):
-        return id.ident_name().eq(va)
+        return id.ident_name() == va
     case:
         return false
     }
@@ -1104,7 +1104,7 @@ priv is_va_set := func(stmt: Expr, va: Str) returns Bool {
 
 priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
     for k in 0..names.len() {
-        if names[k].eq(name) { return true }
+        if names[k] == name { return true }
     }
     return false
 }
@@ -1212,7 +1212,7 @@ priv va_consumer_args_ok := func(call: Expr, va: Str, ctx: Context) returns Bool
         if is_known_check(ctx, a) { continue }
         switch a.node_type {
         case NodeType.Ident(id):
-            if id.ident_name().eq(va) { continue }
+            if id.ident_name() == va { continue }
         case:
         }
         return false
@@ -1263,7 +1263,7 @@ priv is_delete_call_on := func(s: Expr, name: Str) returns Bool {
     }
     switch s.children[1].node_type {
     case NodeType.Ident(id):
-        return id.ident_name().eq(name)
+        return id.ident_name() == name
     case:
         return false
     }
@@ -1303,7 +1303,7 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
         eo := format(va, "_eo")
         mut safe := true
         for r in 0..body.children.len() {
-            if va_stmt_class(body.children[r], va, ek, eo, ctx).eq(-1) { safe = false; break }
+            if va_stmt_class(body.children[r], va, ek, eo, ctx) == -1 { safe = false; break }
         }
         if safe { dead.push(own va.clone()) }
     }
@@ -1315,7 +1315,7 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
                 ref va : Str = dead[di]
                 ek := format(va, "_ek")
                 eo := format(va, "_eo")
-                if va_stmt_class(body.children[r], va, ek, eo, ctx).eq(1) { drop = true; break }
+                if va_stmt_class(body.children[r], va, ek, eo, ctx) == 1 { drop = true; break }
             }
             if drop.not() { keep.push_take(body.children, r) }
         }
@@ -1457,7 +1457,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         ref stmt : Expr = body.children[i]
         fold_subtree(scope, stmt, ctx)
         if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
+        if stmt.children.len() == 0 { continue }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FuncDef) {
             if rhs.children.len() > 0 { process_body(scope, stmt.children[0].children[0], ctx, false) }
@@ -1471,7 +1471,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
                 ref nsd : Declaration = nsd_e
                 if nsd.default_value.is_null() { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                if nsd.default_value.children.len().eq(0) { continue }
+                if nsd.default_value.children.len() == 0 { continue }
                 fold_subtree(scope, nsd.default_value.children[0], ctx)
             }
             continue
@@ -1508,7 +1508,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
                     if is_lit {
                         mut used_elsewhere := false
                         for ui in 0..body.children.len() {
-                            if ui.eq(di) { continue }
+                            if ui == di { continue }
                             if expr_uses_var_p(body.children[ui], dd.name, ctx) {
                                 used_elsewhere = true
                                 break
@@ -1529,7 +1529,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
     expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(eid):
-        if eid.ident_name().eq(name) { return true }
+        if eid.ident_name() == name { return true }
     case:
     }
     for child : Expr in e.children {
@@ -1551,7 +1551,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
 constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
+        if stmt.children.len() == 0 { continue }
         ref rhs : Expr = stmt.children[0]
         is_def := rhs.node_type.is(NodeType.FuncDef)
             .or(rhs.node_type.is(NodeType.StructDef))

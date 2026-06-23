@@ -16,13 +16,13 @@ test_basename := func(path: Str) returns Str {
     mut last_slash : USize = 0
     mut has_slash := 0
     for si in 0..path.len() {
-        if path.get(si).eq('/') {
+        if path.get(si) == '/' {
             last_slash = si
             has_slash = 1
         }
     }
     mut name := path
-    if has_slash.eq(1) {
+    if has_slash == 1 {
         name = path.substr(last_slash.add(1), path.len().sub(last_slash).sub(1))
     }
     if name.ends_with(".til") {
@@ -37,7 +37,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     mut start : USize = 0
     while start <= haystack.len().sub(needle.len()) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
-        if pos.eq(-1) { return count }
+        if pos == -1 { return count }
         count++
         pos_u : USize = pos.to_usize()
         start = start.add(pos_u).add(needle.len())
@@ -59,7 +59,7 @@ run_phase := proc(cmd: Str) returns PhaseResult {
         rss := current_rss_bytes(pid).cast(I64)
         if rss > mem { mem = rss }
         status := check_cmd_status(pid)
-        if status.neq(-1) {
+        if status != -1 {
             return PhaseResult(status = status, ms = clock_ms().sub(start), mem = mem)
         }
         sleep_ms(10)
@@ -75,7 +75,7 @@ main := proc(args: ..Str) {
     ref subcmd : Str = args[0]
 
     // both subcommand: compare interpret output with compiled-run output.
-    if subcmd.eq("both") {
+    if subcmd == "both" {
         if args.len() < 2 {
             println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan]")
             exit(1)
@@ -89,10 +89,10 @@ main := proc(args: ..Str) {
         mut til_bin := TIL
         for i in 2..args.len() {
             ref arg : Str = args[i]
-            if arg.eq("-no-interp") { en_interp = 0 }
-            if arg.eq("-no-run") { en_run = 0 }
-            if arg.eq("-no-match") { en_match = 0 }
-            if arg.eq("--asan") { asan_flag = " --asan" }
+            if arg == "-no-interp" { en_interp = 0 }
+            if arg == "-no-run" { en_run = 0 }
+            if arg == "-no-match" { en_match = 0 }
+            if arg == "--asan" { asan_flag = " --asan" }
             if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
                 ref val : Str = args[i.add(1)]
                 til_bin = val.clone()
@@ -116,12 +116,12 @@ main := proc(args: ..Str) {
         mut run_mem := 0
         mut fail := 0
 
-        if en_interp.eq(1) {
+        if en_interp == 1 {
             cmd := til_bin.format(" interpret '", file, "' > ", interp_outfile, " 2>/dev/null")
             phase := run_phase(cmd)
             interp_ms = phase.ms
             interp_mem = phase.mem
-            if phase.status.eq(0) {
+            if phase.status == 0 {
                 interp_ok = 1
             } else {
                 println("FAIL (interp): ", file)
@@ -129,20 +129,20 @@ main := proc(args: ..Str) {
             }
         }
 
-        if en_run.eq(1) {
+        if en_run == 1 {
             // Compile
             build_cmd := til_bin.format(" build", asan_flag, " -o ", bin_path, " '", file, "' 2>/dev/null")
             phase := run_phase(build_cmd)
             compile_ms = phase.ms
             compile_mem = phase.mem
-            if phase.status.eq(0) {
+            if phase.status == 0 {
                 compile_ok = 1
                 // Run the compiled binary
                 run_cmd := bin_path.format(" > ", run_outfile, " 2>/dev/null")
                 run_phase_result := run_phase(run_cmd)
                 run_ms = run_phase_result.ms
                 run_mem = run_phase_result.mem
-                if run_phase_result.status.eq(0) {
+                if run_phase_result.status == 0 {
                     run_ok = 1
                 } else {
                     println("FAIL (run): ", file)
@@ -165,7 +165,7 @@ main := proc(args: ..Str) {
         }
         if en_run.eq(1).and(run_ok.eq(1)) {
             run_out := File.readfile(run_outfile)
-            if has_ref.eq(0) {
+            if has_ref == 0 {
                 ref_out = run_out
                 has_ref = 1
             } else {
@@ -178,8 +178,8 @@ main := proc(args: ..Str) {
         }
 
         mut both_ok := 1
-        if fail.neq(0) { both_ok = 0 }
-        if out_match.eq(0) { both_ok = 0 }
+        if fail != 0 { both_ok = 0 }
+        if out_match == 0 { both_ok = 0 }
         total_ms := interp_ms.add(compile_ms).add(run_ms)
 
         println("RESULT ok=", both_ok.to_str(), " ms=", total_ms.to_str(),
@@ -195,7 +195,7 @@ main := proc(args: ..Str) {
     }
 
     // single subcommand
-    if subcmd.eq("single") {
+    if subcmd == "single" {
         if args.len() < 4 {
             println("Usage: test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>")
             exit(1)
@@ -209,7 +209,7 @@ main := proc(args: ..Str) {
         mut dd : USize = 3
         while dd < args.len() {
             ref a : Str = args[dd]
-            if a.eq("--") { break }
+            if a == "--" { break }
             dd++
         }
 
@@ -240,7 +240,7 @@ main := proc(args: ..Str) {
 
         phase := run_phase(cmd.format(" > ", outfile, " 2>&1"))
         mut ok := 1
-        if phase.status.neq(expected_exit) {
+        if phase.status != expected_exit {
             println("FAIL: ", label, " exit=", phase.status.to_str(), " expected=", expected_exit.to_str())
             ok = 0
         }
@@ -248,18 +248,18 @@ main := proc(args: ..Str) {
         if ok.eq(1).and(has_expected.eq(1)) {
             actual := File.readfile(outfile)
             expected := File.readfile(expected_out_file)
-            if actual.neq(expected) {
+            if actual != expected {
                 println("FAIL: ", label, " output mismatch")
                 ok = 0
             }
         }
 
         println("RESULT ms=", phase.ms.to_str(), " mem=", phase.mem.to_str(), " ok=", ok.to_str())
-        if ok.eq(1) { exit(0) } else { exit(1) }
+        if ok == 1 { exit(0) } else { exit(1) }
     }
 
     // count subcommand
-    if subcmd.eq("count") {
+    if subcmd == "count" {
         if args.len() < 5 {
             println("Usage: test_runner count <label> <needle> <expected_count> -- <cmd...>")
             exit(1)
@@ -274,7 +274,7 @@ main := proc(args: ..Str) {
         mut dd : USize = 4
         while dd < args.len() {
             ref a : Str = args[dd]
-            if a.eq("--") { break }
+            if a == "--" { break }
             dd++
         }
 
@@ -299,13 +299,13 @@ main := proc(args: ..Str) {
         actual_count := count_matches(actual_out, needle)
 
         mut ok := 1
-        if actual_count.neq(expected_count) {
+        if actual_count != expected_count {
             println("FAIL: ", label, " count=", actual_count.to_str(), " expected=", expected_count.to_str())
             ok = 0
         }
 
         println("RESULT ms=", phase.ms.to_str(), " mem=", phase.mem.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
-        if ok.eq(1) { exit(0) } else { exit(1) }
+        if ok == 1 { exit(0) } else { exit(1) }
     }
 
     println("Unknown subcommand: ", subcmd)

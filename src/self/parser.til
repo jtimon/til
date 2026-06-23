@@ -58,7 +58,7 @@ priv advance := func(mut p: Parser) returns ref Token {
 }
 
 priv check := func(p: Parser, type: TokenType) returns Bool {
-    return peek(p).type.eq(type)
+    return peek(p).type == type
 }
 
 priv expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
@@ -94,16 +94,16 @@ priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
 // Builtin target-independent primitive names. Target-dependent names
 // (USize/UPtr) and scope-resolved user types are handled by each caller.
 builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool {
-    if name.eq("I64")  { out = Primitive.I64; return true }
-    if name.eq("U8")   { out = Primitive.U8; return true }
-    if name.eq("I8")   { out = Primitive.I8; return true }
-    if name.eq("I16")  { out = Primitive.I16; return true }
-    if name.eq("U16")  { out = Primitive.U16; return true }
-    if name.eq("I32")  { out = Primitive.I32; return true }
-    if name.eq("U32")  { out = Primitive.U32; return true }
-    if name.eq("U64")  { out = Primitive.U64; return true }
-    if name.eq("F32")  { out = Primitive.F32; return true }
-    if name.eq("Bool") { out = Primitive.Bool; return true }
+    if name == "I64"  { out = Primitive.I64; return true }
+    if name == "U8"   { out = Primitive.U8; return true }
+    if name == "I8"   { out = Primitive.I8; return true }
+    if name == "I16"  { out = Primitive.I16; return true }
+    if name == "U16"  { out = Primitive.U16; return true }
+    if name == "I32"  { out = Primitive.I32; return true }
+    if name == "U32"  { out = Primitive.U32; return true }
+    if name == "U64"  { out = Primitive.U64; return true }
+    if name == "F32"  { out = Primitive.F32; return true }
+    if name == "Bool" { out = Primitive.Bool; return true }
     return false
 }
 
@@ -129,18 +129,18 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
         out = Type.Primitive(prim)
         return true
     }
-    if name.eq("Str") { out = Type.Struct("Str"); return true }
-    if name.eq("StructDef") { out = Type.Struct("StructDef"); return true }
-    if name.eq("EnumDef") { out = Type.Struct("EnumDef"); return true }
-    if name.eq("Fn") { out = Type.FuncPtr; return true }
-    if name.eq("Dynamic") { out = Type.Dynamic; return true }
+    if name == "Str" { out = Type.Struct("Str"); return true }
+    if name == "StructDef" { out = Type.Struct("StructDef"); return true }
+    if name == "EnumDef" { out = Type.Struct("EnumDef"); return true }
+    if name == "Fn" { out = Type.FuncPtr; return true }
+    if name == "Dynamic" { out = Type.Dynamic; return true }
     return false
 }
 
 til_type_from_explicit_type := func(name: Str) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
-    if name.len().eq(0)   { return Type.Unknown }
+    if name.len() == 0   { return Type.Unknown }
     return Type.Custom(name.clone())
 }
 
@@ -267,7 +267,7 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), mangled: St
 
 priv parser_has_active_type_param := func(p: Parser, name: Str) returns Bool {
     for i in 0..p.active_type_params.len() {
-        if p.active_type_params[i].eq(name) { return true }
+        if p.active_type_params[i] == name { return true }
     }
     return false
 }
@@ -294,7 +294,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     if check(p, TokenType.LParen).not() {
         return name
     }
-    if name.eq("Fn") {
+    if name == "Fn" {
         return name
     }
     advance(p) // consume '('
@@ -552,7 +552,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": kwargs parameter cannot be own/mut/shallow")
                 }
-                if fd.kwargs_index.neq(-1) {
+                if fd.kwargs_index != -1 {
                     panic("only one kwargs parameter is allowed")
                 }
                 fd.kwargs_index = fd.params.len().cast(I32)
@@ -576,7 +576,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 if own_type.is(OwnType.Own) { panic("variadic param cannot be 'own'") }
                 if is_mut { panic("variadic param cannot be 'mut'") }
                 if own_type.is(OwnType.Shallow) { panic("variadic param cannot be 'shallow'") }
-                if fd.variadic_index.neq(-1) { panic("only one variadic param allowed") }
+                if fd.variadic_index != -1 { panic("only one variadic param allowed") }
                 fd.variadic_index = fd.params.len().cast(I32)
                 is_variadic = true
                 // Same as kwargs above: regular til funcs get auto-cleanup
@@ -599,7 +599,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         }
 
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
-        if param_decl.explicit_type.eq("Fn") {
+        if param_decl.explicit_type == "Fn" {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
             if syn_name.len() > 0 {
                 set_decl_type(param_decl, syn_name)
@@ -1278,12 +1278,12 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     case:
     }
     if is_bang.not() { return lhs }
-    if lhs.children.len().neq(2) { return lhs }
+    if lhs.children.len() != 2 { return lhs }
     ref mut callee : Expr = lhs.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return lhs }
     mut is_get := false
     switch callee.node_type {
-    case NodeType.FieldAccess(fad): is_get = fad.name.eq("get")
+    case NodeType.FieldAccess(fad): is_get = fad.name == "get"
     case:
     }
     if is_get.not() { return lhs }
@@ -1426,12 +1426,12 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         if ch.len().gt(0).and(ch.get(0).eq('\\')) {
             if ch.len() > 1 {
                 ref c2 : I8 = ch.get(1)
-                if c2.eq('n') { byte_val = 10 }
-                else if c2.eq('t') { byte_val = 9 }
-                else if c2.eq('r') { byte_val = 13 }
-                else if c2.eq('\\') { byte_val = 92 }
-                else if c2.eq('\'') { byte_val = 39 }
-                else if c2.eq('0') { byte_val = 0 }
+                if c2 == 'n' { byte_val = 10 }
+                else if c2 == 't' { byte_val = 9 }
+                else if c2 == 'r' { byte_val = 13 }
+                else if c2 == '\\' { byte_val = 92 }
+                else if c2 == '\'' { byte_val = 39 }
+                else if c2 == '0' { byte_val = 0 }
                 else { byte_val = c2.cast(I64) }
             }
         } else {
@@ -1456,7 +1456,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         advance(p)
         name := tok_text(p, t).clone()
         // Compile-time directives
-        if name.eq("__LOC__") {
+        if name == "__LOC__" {
             // Issue #281: do NOT expand here. Emit a sentinel that survives to
             // the typer (infer_expr resolves a direct use to this token's own
             // line/col; the default-fill resolves a `loc: Str = __LOC__` param/
@@ -1465,13 +1465,13 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // never report the caller.
             e = Expr.new(NodeType.Loc, t_line, t_col)
             e_set = true
-        } else if name.eq("__FILE__") {
+        } else if name == "__FILE__" {
             e = Expr.new(NodeType.Literal(Literal.Str(p.path.clone())), t_line, t_col)
             e_set = true
-        } else if name.eq("__LINE__") {
+        } else if name == "__LINE__" {
             e = Expr.new(literal_num_node(t_line.to_str()), t_line, t_col)
             e_set = true
-        } else if name.eq("__COL__") {
+        } else if name == "__COL__" {
             e = Expr.new(literal_num_node(t_col.to_str()), t_line, t_col)
             e_set = true
         } else if check(p, TokenType.LParen) {
@@ -1517,7 +1517,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // An empty tag is the same as no tag at all; reject the
             // redundant `ext_struct("")` spelling and steer to bare
             // `ext_struct {}` (#263).
-            if tag.len().eq(0) {
+            if tag.len() == 0 {
                 panic(p.path, ":", es_line.to_str(), ":", es_col.to_str(),
                     ": empty ext_struct tag: write 'ext_struct {' instead of 'ext_struct(\"\") {'")
             }
@@ -1628,7 +1628,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // statement (`[a, b] { ... }`), not a postfix index on the
             // previous expression. Only treat '[' as an index when it sits
             // on the same line as the operand it would index.
-            if peek_line(p).neq(p.tokens[p.pos.sub(1)].line) { break }
+            if peek_line(p) != p.tokens[p.pos.sub(1)].line { break }
             b_line := peek_line(p)
             b_col := peek_col(p)
             advance(p) // consume '['
@@ -1853,7 +1853,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         mut type_name := parse_type_ref(p)
 
         // If type is Fn, parse optional Fn(T1, T2) returns T signature
-        if type_name.eq("Fn") {
+        if type_name == "Fn" {
             syn_name := parse_fn_signature(p, t_line, t_col)
             if syn_name.len() > 0 { type_name = syn_name }
         }

@@ -94,7 +94,7 @@ namespace:
             // key is unchanged; lo came from the search, so it is in bounds.
             self.values.unsafe_set(lo, own val)
         } else {
-            if self.keys.count.eq(self.keys.cap) {
+            if self.keys.count == self.keys.cap {
                 new_cap : USize = self.keys.cap.mul(2)
                 self.keys.data = realloc(own self.keys.data, new_cap.mul(self.keys.elem_size).cast(U64))
                 self.values.data = realloc(own self.values.data, new_cap.mul(self.values.elem_size).cast(U64))
@@ -108,7 +108,7 @@ namespace:
                     ptr_add(self.values.data, lo.mul(self.values.elem_size).cast(U64)),
                     self.values.count.sub(lo).mul(self.values.elem_size).cast(U64))
             cloned_key : Dynamic = malloc(self.keys.elem_size.cast(U64))
-            if self.keys.elem_kind.eq(ELEM_BOXED) {
+            if self.keys.elem_kind == ELEM_BOXED {
                 key_copy : Dynamic = self.keys.elem_clone(key)
                 memcpy(cloned_key, key_copy, self.keys.elem_size.cast(U64))
                 free(own key_copy)

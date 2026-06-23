@@ -16,7 +16,7 @@ namespace:
         if elem_type.is_empty() {
             panic("DynVec.new: elem_type required")
         }
-        if elem_type.eq("Dynamic") {
+        if elem_type == "Dynamic" {
             return DynVec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_kind = ELEM_POD)
         }
@@ -24,7 +24,7 @@ namespace:
         // boxes. Use the same path as Dynamic so push/get/delete are
         // byte-copy + no-op clone/delete instead of trying to dispatch
         // through a non-existent FuncSig.clone/delete.
-        if elem_type.eq("Fn") {
+        if elem_type == "Fn" {
             return DynVec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_kind = ELEM_FN)
         }
@@ -45,7 +45,7 @@ namespace:
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the DynVec can be reused.
     clear := func(mut self: DynVec) {
-        if self.elem_kind.eq(ELEM_BOXED) {
+        if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
             }
@@ -56,7 +56,7 @@ namespace:
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: DynVec, own val: Dynamic) {
-        if self.count.eq(self.cap) {
+        if self.count == self.cap {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
@@ -64,7 +64,7 @@ namespace:
         // Issue #58: function pointers arrive as a direct pointer value
         // (the code address), not a heap box of one. Store the pointer
         // value itself into the slot and skip the free.
-        if self.elem_kind.eq(ELEM_FN) {
+        if self.elem_kind == ELEM_FN {
             write_ptr(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val)
             self.count = self.count.add(1)
             return
@@ -80,7 +80,7 @@ namespace:
         if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
             panic("DynVec.append: incompatible vecs")
         }
-        if other.count.eq(0) {
+        if other.count == 0 {
             return
         }
         needed := self.count.add(other.count)
@@ -107,7 +107,7 @@ namespace:
         if self.elem_size.eq(other.elem_size).not().or(self.elem_kind.eq(other.elem_kind).not()) {
             panic("DynVec.move_from: incompatible vecs")
         }
-        if self.elem_kind.eq(ELEM_BOXED) {
+        if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
             }
@@ -150,7 +150,7 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     pop := func(mut self: DynVec) returns Dynamic {
-        if self.count.eq(0) {
+        if self.count == 0 {
             panic("DynVec.pop: empty vec")
         }
         last := self.count.sub(1)
@@ -188,7 +188,7 @@ namespace:
     /// the old value. Caller guarantees `i < self.count`; the write-side
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(mut self: DynVec, i: USize, own val: Dynamic) {
-        if self.elem_kind.eq(ELEM_BOXED) {
+        if self.elem_kind == ELEM_BOXED {
             self.elem_delete(self.unsafe_get(i), false)
         }
         memcpy(self.unsafe_get(i), val, self.elem_size.cast(U64))
@@ -203,7 +203,7 @@ namespace:
             // val is not stored on the error path: drop its element
             // content (if boxed) and free the box so it does not leak.
             // (if/else so the owned `val` is consumed on exactly one path.)
-            if self.elem_kind.eq(ELEM_BOXED) {
+            if self.elem_kind == ELEM_BOXED {
                 self.elem_delete(val, false)
             }
             free(own val)
@@ -224,7 +224,7 @@ namespace:
         if self.elem_size.eq(src.elem_size).not().or(self.elem_kind.eq(src.elem_kind).not()) {
             panic("DynVec.push_take: incompatible vecs")
         }
-        if self.count.eq(self.cap) {
+        if self.count == self.cap {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
@@ -246,7 +246,7 @@ namespace:
     /// Deep-copy the DynVec and all its elements via elem_clone.
     clone := func(self: DynVec) returns DynVec {
         new_data : Dynamic = malloc(self.cap.mul(self.elem_size).cast(U64))
-        if self.elem_kind.eq(ELEM_BOXED) {
+        if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
                 memcpy(ptr_add(new_data, i.mul(self.elem_size).cast(U64)), cloned, self.elem_size.cast(U64))

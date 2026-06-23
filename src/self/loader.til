@@ -64,7 +64,7 @@ forward_header_path := func(path: Str) returns Str {
 
 // Directory part of an absolute path (no trailing slash).
 priv dir_of := func(abs: Str) returns Str {
-    if abs.len().eq(0) { return "." }
+    if abs.len() == 0 { return "." }
     mut last_slash := abs.len().sub(1)
     while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
         last_slash--
@@ -107,7 +107,7 @@ priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir
             try_path = lib_dir.format("/", import_path)
             abs = realpath_str(try_path)
         }
-        if abs.eq("") { continue }
+        if abs == "" { continue }
         out.push(own display_path(abs, cwd))
     }
     return out
@@ -120,7 +120,7 @@ priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(St
     if imp_stmt.children.len() >= 2 {
         switch imp_stmt.children[0].node_type {
         case NodeType.Ident(c0id):
-            if c0id.ident_name().eq("import") {
+            if c0id.ident_name() == "import" {
                 switch imp_stmt.children[1].node_type {
                 case NodeType.Literal(Literal.Str(p)):
                     if p.ends_with(".til") {
@@ -176,7 +176,7 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
                 try_path = lib_dir.format("/", import_path)
                 abs = realpath_str(try_path)
             }
-            if abs.eq("") {
+            if abs == "" {
                 println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
                 return 1
             }
@@ -392,7 +392,7 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
     ref ns : Vec(Declaration) = def_ns_decls(tdecl.children[0])
     for nsd : Declaration in ns {
-        if nsd.name.eq(method_part) {
+        if nsd.name == method_part {
             if nsd.default_value.is_null().not() {
                 return nsd.default_value
             }
@@ -664,11 +664,11 @@ priv validate_cli_main := func(lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         for stmt : Expr in lp.ctx.imported[u.path].ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
-            if stmt.children.len().eq(0) { continue }
+            if stmt.children.len() == 0 { continue }
             mut is_main_decl := false
             switch stmt.node_type {
             case NodeType.Decl(d):
-                if d.name.eq("main") { is_main_decl = true }
+                if d.name == "main" { is_main_decl = true }
             case:
             }
             if is_main_decl.not() { continue }
@@ -738,7 +738,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                 case NodeType.Ident(fname):
                     switch stmt.children[1].node_type {
                     case NodeType.Literal(Literal.Str(arg)):
-                        if fname.ident_name().eq("link") {
+                        if fname.ident_name() == "link" {
                             keep = false
                             if arg.find("/") >= 0 {
                                 resolved := resolve_link_path(base_dir, root_dir, arg)
@@ -755,7 +755,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                             } else {
                                 lp.link_flags = lp.link_flags.format(" -l", arg)
                             }
-                        } else if fname.ident_name().eq("link_c") {
+                        } else if fname.ident_name() == "link_c" {
                             keep = false
                             if lp.link_c_paths.len() > 0 {
                                 lp.link_c_paths = format(lp.link_c_paths, " ")
@@ -776,7 +776,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
 
 priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     abs_path := realpath_str(path)
-    if abs_path.eq("") { return }
+    if abs_path == "" { return }
     disp := display_path(abs_path, cwd)
     source := File.readfile(abs_path)
     tokens := tokenize(source, disp)
@@ -797,7 +797,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                         ref callee : Expr = val.children[0]
                         switch callee.node_type {
                         case NodeType.Ident(id):
-                            if id.ident_name().eq("Mode") {
+                            if id.ident_name() == "Mode" {
                                 is_valid = true
                                 mut m := Mode()
                                 for i in 1..val.children.len() {
@@ -806,15 +806,15 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
                                     case NodeType.NamedArg(arg_name):
                                         switch arg.children[0].node_type {
                                         case NodeType.Literal(Literal.Bool(b)):
-                                            if arg_name.eq("needs_main") { m.needs_main = b }
-                                            else if arg_name.eq("decls_only") { m.decls_only = b }
-                                            else if arg_name.eq("is_library") { m.is_library = b }
-                                            else if arg_name.eq("is_pure") { m.is_pure = b }
-                                            else if arg_name.eq("run_tests") { m.run_tests = b }
-                                            else if arg_name.eq("debug_prints") { m.debug_prints = b }
+                                            if arg_name == "needs_main" { m.needs_main = b }
+                                            else if arg_name == "decls_only" { m.decls_only = b }
+                                            else if arg_name == "is_library" { m.is_library = b }
+                                            else if arg_name == "is_pure" { m.is_pure = b }
+                                            else if arg_name == "run_tests" { m.run_tests = b }
+                                            else if arg_name == "debug_prints" { m.debug_prints = b }
                                             else { panic(": unknown bool argument '", arg_name, "'", loc = disp) }
                                         case NodeType.Literal(Literal.Str(s)):
-                                            if arg_name.eq("auto_import") { m.auto_import = s.clone() }
+                                            if arg_name == "auto_import" { m.auto_import = s.clone() }
                                             else { panic(": unknown string argument '", arg_name, "'", loc = disp) }
                                         case:
                                             panic(": argument '", arg_name, "' must be a literal", loc = disp)
@@ -881,7 +881,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         mut auto_disp := ""
         if miu_temp.mode.auto_import.len() > 0 {
             mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
-            if realpath_str(auto_path).eq("") {
+            if realpath_str(auto_path) == "" {
                 // If it fails relative to bin_dir, maybe it's relative to the CWD (for custom modes in other projects)
                 auto_path = cwd.format("/", miu_temp.mode.auto_import, ".til")
             }
@@ -1004,10 +1004,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut mode_disp := ""
     if auto_import.len() > 0 {
         mut mode_til_path := bin_dir.format("/", auto_import, ".til")
-        if realpath_str(mode_til_path).eq("") {
+        if realpath_str(mode_til_path) == "" {
             mode_til_path = user_dir.format("/", auto_import, ".til")
         }
-        if realpath_str(mode_til_path).eq("") {
+        if realpath_str(mode_til_path) == "" {
             mode_til_path = bin_dir.format("/src/modes/", auto_import, ".til")
         }
         mode_disp = display_path(mode_til_path, cwd)
@@ -1093,13 +1093,13 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 priv escape_doc_for_literal_str := func(raw: Str) returns Str {
     mut out := ""
     for c : I8 in raw {
-        if c.eq('\\') {
+        if c == '\\' {
             out = format(out, "\\\\")
-        } else if c.eq('"') {
+        } else if c == '"' {
             out = format(out, "\\\"")
-        } else if c.eq(10) {
+        } else if c == 10 {
             out = format(out, "\\n")
-        } else if c.eq(9) {
+        } else if c == 9 {
             out = format(out, "\\t")
         } else {
             out = format(out, Str.from_byte(c.cast(U8)))
@@ -1175,7 +1175,7 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     for i in 0..fd.params.len() {
         if i > 0 { out.push_str(", ") }
         ref p : Declaration = fd.params[i]
-        is_variadic := i.to_i64().eq(var_idx_i64)
+        is_variadic := i.to_i64() == var_idx_i64
         if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
         out.push_str(p.name)
         if p.explicit_type.len() > 0 {
@@ -1202,7 +1202,7 @@ priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
     mut start : USize = 0
     for i in 0..doc.len() {
         ref c : I8 = doc.unsafe_get(i)
-        if c.eq(10) {
+        if c == 10 {
             out.push_str(indent)
             out.push_str("/// ")
             if i > start { out.push_str(doc.substr(start, i.sub(start))) }
@@ -1263,7 +1263,7 @@ parse_doc_meta := func(doc: Str) returns DocMeta {
     mut start : USize = 0
     for i in 0..doc.len() {
         ref c : I8 = doc.unsafe_get(i)
-        if c.eq(10) {
+        if c == 10 {
             line := doc.substr(start, i.sub(start))
             if doc_meta_line(line, meta).not() {
                 if body.is_empty().not() { body.push_str("\n") }
@@ -1443,7 +1443,7 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
 format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
     switch stmt.node_type {
     case NodeType.Decl(dd):
-        if stmt.children.len().eq(0) {
+        if stmt.children.len() == 0 {
             return format_var_info(dd.name, dd, scope)
         }
         ref rhs : Expr = stmt.children[0]
@@ -1627,7 +1627,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
     if imp_stmt.children.len() >= 1 {
         switch imp_stmt.children[0].node_type {
         case NodeType.Ident(id):
-            if id.ident_name().eq("import") {
+            if id.ident_name() == "import" {
                 if imp_stmt.children.len() > 1 {
                     mut path := ""
                     switch imp_stmt.children[1].node_type {
@@ -1676,7 +1676,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                                         for dd : Expr in iu.ast.children {
                                             switch dd.node_type {
                                             case NodeType.Decl(cd):
-                                                if cd.name.eq(sym) {
+                                                if cd.name == sym {
                                                     switch def.node_type {
                                                     case NodeType.StructDef(sdd):
                                                         mut cloned_cd := cd.clone()
@@ -1755,7 +1755,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 if imp_stmt_ref.children.len() >= 2 {
                     switch imp_stmt_ref.children[0].node_type {
                     case NodeType.Ident(id):
-                        if id.ident_name().eq("import") {
+                        if id.ident_name() == "import" {
                             switch imp_stmt_ref.children[1].node_type {
                             case NodeType.Literal(Literal.Str(_p)):
                                 is_valid_import = true
@@ -1770,7 +1770,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 if imp_stmt_ref.children.len() >= 2 {
                     switch imp_stmt_ref.children[0].node_type {
                     case NodeType.Ident(id):
-                        if id.ident_name().eq("import") {
+                        if id.ident_name() == "import" {
                             switch imp_stmt_ref.children[1].node_type {
                             case NodeType.Literal(Literal.Str(_p)):
                                 is_valid_import = true
@@ -1907,7 +1907,7 @@ priv lazy_body_as_expr := func(body: Expr) returns Expr {
 // types as an ordinary eager call.
 priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) returns Bool {
     ref call : Expr = parent.children[call_idx]
-    if fdef.children.len().eq(0) { return false }
+    if fdef.children.len() == 0 { return false }
     ref body : Expr = fdef.children[0]
 
     mut subs := Map(Str, Expr).new()
@@ -1916,7 +1916,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     ref call_callee : Expr = call.children[0]
     switch call_callee.node_type {
     case NodeType.FieldAccess:
-        is_method_call = call_callee.children.len().eq(1)
+        is_method_call = call_callee.children.len() == 1
     case:
     }
     switch fdef.node_type {
@@ -1924,7 +1924,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
         if fd.variadic_index < 0 {
             mut nargs := call.children.len().sub(1)
             if is_method_call { nargs = call.children.len() }
-            if nargs.eq(fd.params.len()) {
+            if nargs == fd.params.len() {
                 for j in 0..fd.params.len() {
                     ref param : Declaration = fd.params[j]
                     if is_method_call.and(j.eq(0)) {
@@ -1966,7 +1966,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
 // bare call the explicit args are the effective args.
 priv lazy_eff_arg_clone := func(call: Expr, is_method: Bool, k: USize) returns Expr {
     if is_method {
-        if k.eq(0) { return call.children[0].children[0].clone() }
+        if k == 0 { return call.children[0].children[0].clone() }
         return call.children[k].clone()
     }
     return call.children[k.add(1)].clone()
@@ -1977,7 +1977,7 @@ priv lazy_eff_arg_clone := func(call: Expr, is_method: Bool, k: USize) returns E
 // loop-carried ownership transfer is needed.
 priv lazy_build_fold := func(call: Expr, is_method: Bool, lo: USize, hi: USize,
     name: Str, line: U32, col: U32) returns Expr {
-    if lo.eq(hi) { return lazy_eff_arg_clone(call, is_method, lo) }
+    if lo == hi { return lazy_eff_arg_clone(call, is_method, lo) }
     mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
     nc.add_child(own Expr.new(ident_node(name), line, col))
     nc.add_child(own lazy_eff_arg_clone(call, is_method, lo))
@@ -2008,7 +2008,7 @@ priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: 
     ref call : Expr = parent.children[idx]
     mut is_method := false
     switch call.children[0].node_type {
-    case NodeType.FieldAccess: is_method = call.children[0].children.len().eq(1)
+    case NodeType.FieldAccess: is_method = call.children[0].children.len() == 1
     case:
     }
     mut n := call.children.len().sub(1)

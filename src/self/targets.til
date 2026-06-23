@@ -138,7 +138,7 @@ priv default_lang_for_target := func(target: Target) returns Lang {
 priv is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
     // TIL is always supported (for debugging)
     if lang.is(Lang.TIL) { return true }
-    return default_lang_for_target(target).eq(lang)
+    return default_lang_for_target(target) == lang
 }
 
 priv validate_lang_for_target := func(lang: Lang, target: Target) {
@@ -261,13 +261,13 @@ detect_current_target := proc() returns Target {
     os := uname_s.replace("\n", "")
     arch := uname_m.replace("\n", "")
 
-    if os.eq("Darwin") {
-        if arch.eq("arm64") { return Target.MacosArm64 }
+    if os == "Darwin" {
+        if arch == "arm64" { return Target.MacosArm64 }
         return Target.MacosX64
     }
-    if os.eq("Linux") {
-        if arch.eq("aarch64") { return Target.LinuxArm64 }
-        if arch.eq("riscv64") { return Target.LinuxRiscv64 }
+    if os == "Linux" {
+        if arch == "aarch64" { return Target.LinuxArm64 }
+        if arch == "riscv64" { return Target.LinuxRiscv64 }
         if arch.eq("armv7l").or(arch.eq("armv6l")).or(arch.eq("armv8l")) { return Target.LinuxArm32 }
         return Target.LinuxX64
     }

@@ -45,7 +45,7 @@ namespace:
     // (mirrors rstil: distinct empty structs must not alias).
     heap_alloc := func(mut self: EvalHeap, size: USize) returns Dynamic {
         mut sz := size
-        if sz.eq(0) { sz = 1 }
+        if sz == 0 { sz = 1 }
         p : Dynamic = calloc(1, sz.cast(U64))
         if p.is_null() { panic("EvalHeap.heap_alloc: allocation failed") }
         self.live_blocks = self.live_blocks.add(1)
@@ -55,7 +55,7 @@ namespace:
     // Free a block returned by heap_alloc, taking ownership of the pointer
     // (the caller must not use it afterwards).
     heap_free := func(mut self: EvalHeap, own ptr: Dynamic) {
-        if self.live_blocks.eq(0) { panic("EvalHeap.heap_free: no live blocks") }
+        if self.live_blocks == 0 { panic("EvalHeap.heap_free: no live blocks") }
         free(own ptr)
         self.live_blocks = self.live_blocks.sub(1)
     }

@@ -32,7 +32,7 @@ namespace:
     /// Reuses the DivideByZero type from src/core/i64.til.
     /// Use F32.div for the silent (NaN/Inf) variant.
     safe_div := func(a: F32, b: F32, loc: Str = __LOC__) returns F32 throws DivideByZero {
-        if b.eq(F32.from_i64(0)) {
+        if b == F32.from_i64(0) {
             throw DivideByZero(msg = format(loc, ":F32.safe_div: divide by zero"))
         }
         return a.div(b)

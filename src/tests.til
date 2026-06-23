@@ -14,7 +14,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     mut start : USize = 0
     while start <= haystack.len().sub(needle.len()) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
-        if pos.eq(-1) { return count }
+        if pos == -1 { return count }
         count++
         pos_u : USize = pos.to_usize()
         start = start.add(pos_u).add(needle.len())
@@ -50,13 +50,13 @@ test_basename := func(path: Str) returns Str {
     mut last_slash : USize = 0
     mut has_slash := 0
     for si in 0..path.len() {
-        if path.get(si).eq('/') {
+        if path.get(si) == '/' {
             last_slash = si
             has_slash = 1
         }
     }
     mut name := path
-    if has_slash.eq(1) {
+    if has_slash == 1 {
         name = path.substr(last_slash.add(1), path.len().sub(last_slash).sub(1))
     }
     if name.ends_with(".til") {
@@ -80,8 +80,8 @@ parse_kv := func(line: Str, key: Str) returns I64 {
 
 mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
     mut f := ""
-    if en_interp.eq(0) { f = format(f, " -no-interp") }
-    if en_run.eq(0) { f = format(f, " -no-run") }
+    if en_interp == 0 { f = format(f, " -no-interp") }
+    if en_run == 0 { f = format(f, " -no-run") }
     if asan_flag.len() > 0 { f = format(f, " ", asan_flag) }
     return f
 }
@@ -144,12 +144,12 @@ print_test_result := proc(t: Test) {
     switch t.kind {
     case TestKind.Both(md):
         mut line := pad_right(t.label, 42)
-        if t.has_interp.eq(1) { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
-        if t.has_run.eq(1) { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
-        if md.output_match.eq(0) { line = format(line, " MISMATCH") }
+        if t.has_interp == 1 { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
+        if t.has_run == 1 { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
+        if md.output_match == 0 { line = format(line, " MISMATCH") }
         println(line)
     case:
-        if t.ok.eq(1) {
+        if t.ok == 1 {
             println(pad_right(t.label, 42), ms_to_str(t.ms))
         }
     }
@@ -243,7 +243,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
             ref slot : Slot = slots[i]
             if slot.pid > 0 {
                 status := check_cmd_status(slot.pid)
-                if status.neq(-1) {
+                if status != -1 {
                     ref t : Test = tests[slot.test_idx]
                     runner_out := File.readfile(t.outfile)
 
@@ -279,7 +279,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
 
                     print_test_result(t)
 
-                    if status.neq(0) {
+                    if status != 0 {
                         runner_lines := runner_out.split(NL)
                         mut li : USize = 0
                         while li < runner_lines.len() {
@@ -333,15 +333,15 @@ main := proc(args: ..Str) {
             j = arg.substr(2, arg.len().sub(2)).to_usize()
             if j < 1 { j = 1 }
         }
-        if arg.eq("-no-interp") { en_interp = 0 }
-        if arg.eq("-no-run") { en_run = 0 }
-        if arg.eq("--no-gui") { en_gui = 0 }
+        if arg == "-no-interp" { en_interp = 0 }
+        if arg == "-no-run" { en_run = 0 }
+        if arg == "--no-gui" { en_gui = 0 }
         if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
             i++
             ref val : Str = args[i]
             til_bin = val.clone()
         }
-        if arg.eq("--asan") { asan = 1 }
+        if arg == "--asan" { asan = 1 }
         i++
     }
 
@@ -350,7 +350,7 @@ main := proc(args: ..Str) {
     // binary. Compiled binaries built this way run under ASAN and report
     // their own leaks when executed.
     mut asan_flag := ""
-    if asan.eq(1) { asan_flag = " --asan" }
+    if asan == 1 { asan_flag = " --asan" }
 
     mut fail := 0
 
@@ -359,7 +359,7 @@ main := proc(args: ..Str) {
 
     tests := Vec(Test).new()
     mut flags := mode_flags(en_interp, en_run, asan_flag)
-    if til_bin.neq(TIL) { flags = format(" --til-bin ", til_bin, flags) }
+    if til_bin != TIL { flags = format(" --til-bin ", til_bin, flags) }
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
@@ -368,7 +368,7 @@ main := proc(args: ..Str) {
     // a full `make test` run.
 
     // === GUI build tests (slowest: build + run under xvfb with timeout) ===
-    if en_gui.eq(1) {
+    if en_gui == 1 {
         gui_files := array(Str,
             "examples/music_modes.til",
             "examples/piano.til",
@@ -390,7 +390,7 @@ main := proc(args: ..Str) {
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""
-            if bn.eq("popcorn") { run_args = " --mute" }
+            if bn == "popcorn" { run_args = " --mute" }
             add_single(tests, format("build_", bn), "build", 124, "",
                 format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
         }
@@ -661,13 +661,13 @@ main := proc(args: ..Str) {
     mut fbi := 1
     while fbi <= 100 {
         mut fb_line := ""
-        if fbi.mod(15).eq(0) {
+        if fbi.mod(15) == 0 {
             fb_line = "FizzBuzz"
         } else {
-            if fbi.mod(3).eq(0) {
+            if fbi.mod(3) == 0 {
                 fb_line = "Fizz"
             } else {
-                if fbi.mod(5).eq(0) {
+                if fbi.mod(5) == 0 {
                     fb_line = "Buzz"
                 } else {
                     fb_line = fbi.to_str()
@@ -758,17 +758,17 @@ main := proc(args: ..Str) {
         switch t.kind {
         case TestKind.Both(md):
             both_total++
-            if t.has_interp.eq(1) {
+            if t.has_interp == 1 {
                 total_interp_ms = total_interp_ms.add(md.interp_ms)
                 total_mem_inte = total_mem_inte.add(md.interp_mem)
             }
-            if t.has_run.eq(1) {
+            if t.has_run == 1 {
                 total_compile_ms = total_compile_ms.add(md.compile_ms)
                 total_run_ms = total_run_ms.add(md.run_ms)
                 total_mem_comp = total_mem_comp.add(md.compile_mem)
                 total_mem_run = total_mem_run.add(md.run_mem)
             }
-            if t.ok.eq(1) { both_passed++ }
+            if t.ok == 1 { both_passed++ }
         case:
         }
         pi++
@@ -788,11 +788,11 @@ main := proc(args: ..Str) {
         ref t : Test = tests[pi]
         if t.kind.is(TestKind.Both).not() {
             other_total++
-            if t.ok.eq(1) { other_passed++ }
-            if t.category.eq("ffi") { ffi_ms = ffi_ms.add(t.ms) }
-            if t.category.eq("typer") { typer_ms = typer_ms.add(t.ms) }
-            if t.category.eq("cli") { cli_ms = cli_ms.add(t.ms) }
-            if t.category.eq("build") {
+            if t.ok == 1 { other_passed++ }
+            if t.category == "ffi" { ffi_ms = ffi_ms.add(t.ms) }
+            if t.category == "typer" { typer_ms = typer_ms.add(t.ms) }
+            if t.category == "cli" { cli_ms = cli_ms.add(t.ms) }
+            if t.category == "build" {
                 build_ms = build_ms.add(t.ms)
                 build_mem = build_mem.add(t.mem)
             }
@@ -810,7 +810,7 @@ main := proc(args: ..Str) {
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
     mut plot_ok := 1
-    if count_matches(plot_svg, "<svg").eq(0) {
+    if count_matches(plot_svg, "<svg") == 0 {
         println("FAIL: plot.til missing <svg tag")
         plot_ok = 0
         fail = 1
@@ -820,17 +820,17 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "abc1234").eq(0) {
+    if count_matches(plot_svg, "abc1234") == 0 {
         println("FAIL: plot.til missing commit label abc1234")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "inte").eq(0) {
+    if count_matches(plot_svg, "inte") == 0 {
         println("FAIL: plot.til missing legend label inte")
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "mem-total").eq(0) {
+    if count_matches(plot_svg, "mem-total") == 0 {
         println("FAIL: plot.til missing legend label mem-total")
         plot_ok = 0
         fail = 1
@@ -845,8 +845,8 @@ main := proc(args: ..Str) {
     wall_ms := clock_ms().sub(wall_start)
     println("")
     println("=== Summary ===")
-    if en_interp.eq(1) { println("interp:       ", ms_to_str(total_interp_ms)) }
-    if en_run.eq(1) {
+    if en_interp == 1 { println("interp:       ", ms_to_str(total_interp_ms)) }
+    if en_run == 1 {
         println("compile:      ", ms_to_str(total_compile_ms))
         println("run:          ", ms_to_str(total_run_ms))
     }
@@ -859,7 +859,7 @@ main := proc(args: ..Str) {
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
     println("")
 
-    if fail.eq(0) {
+    if fail == 0 {
         println("all tests passed")
     }
 
@@ -890,7 +890,7 @@ main := proc(args: ..Str) {
     File.writefile("gen/benchmark.csv", bench)
 
     // doc/totals.csv — all test totals (skip on failure)
-    if fail.eq(0) {
+    if fail == 0 {
         total_mem_total := total_mem_inte.add(total_mem_comp).add(total_mem_run).add(build_mem)
         totals_line := format(commit, ",",
             total_interp_ms.to_str(), ",",
@@ -916,7 +916,7 @@ main := proc(args: ..Str) {
         if last_data_idx > 0 {
             ref last_data : Str = lines[last_data_idx]
             last_commit := last_data.substr(0, last_data.find(",").to_usize())
-            if last_commit.eq(commit) {
+            if last_commit == commit {
                 mut li : USize = 0
                 while li < last_data_idx {
                     ref ln : Str = lines[li]
@@ -925,7 +925,7 @@ main := proc(args: ..Str) {
                 }
             } else {
                 totals_content = existing
-                if existing.substr(existing.len().sub(1), 1).neq(NL) {
+                if existing.substr(existing.len().sub(1), 1) != NL {
                     totals_content = format(totals_content, NL)
                 }
             }

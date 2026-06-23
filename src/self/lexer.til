@@ -291,7 +291,7 @@ priv lookup_keyword := func(word: Str, kw: Map(Str, TokenType)) returns TokenTyp
 priv scan_to_eol := func(src: Str, from: USize, src_len: USize) returns USize {
     mut p := from
     while p < src_len {
-        if src.unsafe_get(p).eq('\n') { break }
+        if src.unsafe_get(p) == '\n' { break }
         p++
     }
     return p
@@ -396,7 +396,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
         case '/':
             if pos.add(1) < src_len {
                 ref c2 : I8 = src.unsafe_get(pos.add(1))
-                if c2.eq('/') {
+                if c2 == '/' {
                     // Check for /// doc comment
                     is_doc := pos.add(2).lt(src_len).and(src.unsafe_get(pos.add(2)).eq('/'))
                     if is_doc {
@@ -416,7 +416,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 // (but not the empty /**/) is a doc-block comment (issue
                 // #182): its content lines become DocComment tokens. Both
                 // kinds nest the same way, so /** /* */ */ is one comment.
-                if c2.eq('*') {
+                if c2 == '*' {
                     is_doc := pos.add(2).lt(src_len)
                         .and(src.unsafe_get(pos.add(2)).eq('*'))
                         .and(pos.add(3).lt(src_len))
@@ -444,7 +444,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                                 continue
                             }
                         }
-                        if src.unsafe_get(pos).eq('\n') {
+                        if src.unsafe_get(pos) == '\n' {
                             line++
                             line_start = pos.add(1)
                         }
@@ -468,11 +468,11 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
         case '"':
             pos++
             while pos < src_len {
-                if src.unsafe_get(pos).eq('"') { break }
+                if src.unsafe_get(pos) == '"' { break }
                 if src.unsafe_get(pos).eq('\\').and(pos.add(1).lt(src_len)) {
                     pos++
                 }
-                if src.unsafe_get(pos).eq('\n') {
+                if src.unsafe_get(pos) == '\n' {
                     line++
                     line_start = pos.add(1)
                 }
@@ -597,7 +597,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
                 // Check for ... (three dots) before the two-char dispatch below
                 if c.eq('.').and(c2.eq('.')).and(pos.add(2).lt(src_len)) {
                     ref c3 : I8 = src.unsafe_get(pos.add(2))
-                    if c3.eq('.') {
+                    if c3 == '.' {
                         push_tok(tokens, TokenType.DotDotDot, start, 3, line, col)
                         pos = pos.add(3)
                         continue

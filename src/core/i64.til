@@ -15,7 +15,7 @@ import("u8")
 I64 : StructDef = struct {
 namespace:
     to_str := func(val: I64) returns Str {
-        if val.eq(0) {
+        if val == 0 {
             buf : Dynamic = malloc(2)
             memcpy(buf, 48, 1)
             memset(ptr_add(buf, 1), 0, 1)
@@ -96,7 +96,7 @@ namespace:
     /// Issue #198: division that throws DivideByZero when dividing by
     /// zero. Use I64.div for the panicking variant.
     safe_div := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws DivideByZero {
-        if b.eq(0) {
+        if b == 0 {
             throw DivideByZero(msg = format(loc, ":I64.safe_div: divide by zero"))
         }
         return a.div(b)

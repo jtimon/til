@@ -160,7 +160,7 @@ Declaration := struct {
     // in source terms instead of leaking the synthetic mangled name.
     orig_name := ""
 namespace:
-    eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
+    eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }
 }
 
@@ -194,7 +194,7 @@ FunctionDef := struct {
     // Empty until the typer assigns one to a capturing FuncDef.
     closure_name := ""
 namespace:
-    eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
+    eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type == b.return_type }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
 }
 
@@ -245,7 +245,7 @@ LiteralNumData := struct {
     text := ""
     til_type := Type.Unknown
 namespace:
-    eq := func(a: LiteralNumData, b: LiteralNumData) returns Bool { return a.text.eq(b.text) }
+    eq := func(a: LiteralNumData, b: LiteralNumData) returns Bool { return a.text == b.text }
     to_str := func(self: LiteralNumData) returns Str { return self.text }
     to_i64 := func(self: LiteralNumData) returns I64 { return self.text.to_i64() }
     to_u8 := func(self: LiteralNumData) returns U8 { return self.text.to_u8() }
@@ -263,7 +263,7 @@ IdentData := struct {
     name := ""
     til_type := Type.Unknown
 namespace:
-    eq := func(a: IdentData, b: IdentData) returns Bool { return a.name.eq(b.name) }
+    eq := func(a: IdentData, b: IdentData) returns Bool { return a.name == b.name }
     to_str := func(self: IdentData) returns Str { return self.name }
     len := func(self: IdentData) returns U32 { return self.name.len() }
     is_empty := func(self: IdentData) returns Bool { return self.name.is_empty() }
@@ -279,7 +279,7 @@ FieldAccessData := struct {
     name := ""
     til_type := Type.Unknown
 namespace:
-    eq := func(a: FieldAccessData, b: FieldAccessData) returns Bool { return a.name.eq(b.name) }
+    eq := func(a: FieldAccessData, b: FieldAccessData) returns Bool { return a.name == b.name }
     to_str := func(self: FieldAccessData) returns Str { return self.name }
     len := func(self: FieldAccessData) returns U32 { return self.name.len() }
     is_empty := func(self: FieldAccessData) returns Bool { return self.name.is_empty() }
@@ -319,17 +319,17 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 // recognise a `case lo..hi:` arm (emitted as a C case range `lo ... hi`).
 is_range_new_call := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len().neq(3) { return false }
+    if e.children.len() != 3 { return false }
     ref callee : Expr = e.children[0]
     // Pre-inference the callee is `Range.new` (FieldAccess); the constructor
     // rewrite later collapses it to a bare `Range` (Ident). Accept both.
     switch callee.node_type {
-    case NodeType.Ident(id): return id.ident_name().eq("Range")
+    case NodeType.Ident(id): return id.ident_name() == "Range"
     case NodeType.FieldAccess(fa):
         if fa.field_access_name().eq("new").not() { return false }
-        if callee.children.len().eq(0) { return false }
+        if callee.children.len() == 0 { return false }
         switch callee.children[0].node_type {
-        case NodeType.Ident(bid): return bid.ident_name().eq("Range")
+        case NodeType.Ident(bid): return bid.ident_name() == "Range"
         case: return false
         }
     case: return false
@@ -362,7 +362,7 @@ StructDef : StructDef = struct {
     implements_name := ""
 namespace:
     eq := func(a: StructDef, b: StructDef) returns Bool {
-        return a.fields.len().eq(b.fields.len())
+        return a.fields.len() == b.fields.len()
     }
     to_str := func(_self: StructDef) returns Str { return "StructDef" }
 }
@@ -392,7 +392,7 @@ EnumDef : StructDef = struct {
     tag_type := ""
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
-        return a.variants.len().eq(b.variants.len())
+        return a.variants.len() == b.variants.len()
     }
     to_str := func(_self: EnumDef) returns Str { return "EnumDef" }
 }
@@ -440,7 +440,7 @@ struct_def_of := func(type_name: Str) returns StructDef {
     for i in 0..n {
         mut decl := Declaration()
         decl.name = struct_field_name(type_name, i)
-        decl.is_mut = struct_field_is_mut(type_name, i).eq(1)
+        decl.is_mut = struct_field_is_mut(type_name, i) == 1
         decl.explicit_type = struct_field_type(type_name, i)
         def.fields.push(own decl)
     }
@@ -456,7 +456,7 @@ enum_def_of := func(type_name: Str) returns EnumDef {
     n := enum_variant_count(type_name)
     for i in 0..n {
         def.variants.push(own enum_variant_name(type_name, i))
-        if enum_variant_has_payload(type_name, i).eq(1) {
+        if enum_variant_has_payload(type_name, i) == 1 {
             pt := enum_variant_payload_type(type_name, i)
             def.payload_types.set(i, own pt)
         }
@@ -477,7 +477,7 @@ func_sig_of := func(type_name: Str) returns FunctionDef {
         decl.explicit_type = func_sig_param_type(type_name, i)
         sig.params.push(own decl)
     }
-    if func_sig_return_count(type_name).eq(1) {
+    if func_sig_return_count(type_name) == 1 {
         sig.return_type = func_sig_return_type(type_name, 0)
     }
     tn := func_sig_throw_count(type_name)
@@ -496,7 +496,7 @@ AssignData := struct {
     is_payload_alias := false
     swap_replace := false
 namespace:
-    eq := func(a: AssignData, b: AssignData) returns Bool { return a.name.eq(b.name) }
+    eq := func(a: AssignData, b: AssignData) returns Bool { return a.name == b.name }
     to_str := func(self: AssignData) returns Str { return self.name }
 }
 
@@ -504,7 +504,7 @@ FieldAssignData := struct {
     name := ""
     save_old_delete := false
 namespace:
-    eq := func(a: FieldAssignData, b: FieldAssignData) returns Bool { return a.name.eq(b.name) }
+    eq := func(a: FieldAssignData, b: FieldAssignData) returns Bool { return a.name == b.name }
     to_str := func(self: FieldAssignData) returns Str { return self.name }
 }
 
@@ -518,7 +518,7 @@ ForInData := struct {
     name2 := ""
     is_mut2 := false
 namespace:
-    eq := func(a: ForInData, b: ForInData) returns Bool { return a.name.eq(b.name) }
+    eq := func(a: ForInData, b: ForInData) returns Bool { return a.name == b.name }
     to_str := func(self: ForInData) returns Str { return self.name }
 }
 
@@ -543,7 +543,7 @@ MatchData := struct {
     // knows what to assign each arm's value to. Empty on a bare/user match.
     result_temp := ""
 namespace:
-    eq := func(a: MatchData, b: MatchData) returns Bool { return a.til_type.eq(b.til_type) }
+    eq := func(a: MatchData, b: MatchData) returns Bool { return a.til_type == b.til_type }
     to_str := func(_self: MatchData) returns Str { return "" }
 }
 
@@ -557,7 +557,7 @@ CaptureBlockData := struct {
     captures := Vec(Declaration).new()
 namespace:
     eq := func(a: CaptureBlockData, b: CaptureBlockData) returns Bool {
-        return a.captures.len().eq(b.captures.len())
+        return a.captures.len() == b.captures.len()
     }
     to_str := func(_self: CaptureBlockData) returns Str { return "CaptureBlock" }
 }
@@ -703,7 +703,7 @@ namespace:
     /// Append other's children into self via raw memcpy (no cloning).
     /// Zeroes other's count so it no longer owns the moved items.
     take_children := func(mut self: Expr, mut other: Expr) {
-        if other.children.count.eq(0) { return }
+        if other.children.count == 0 { return }
         needed := self.children.count.add(other.children.count)
         if needed > self.children.cap {
             mut new_cap := self.children.cap
@@ -759,12 +759,12 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.Ident(id):   return id.til_type.clone()
     case NodeType.Decl(dd):    return dd.til_type.clone()
     case NodeType.Assign:
-        if e.children.len().eq(0) { return Type.Unknown }
+        if e.children.len() == 0 { return Type.Unknown }
         return e.children[0].expr_til_type()
     case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
     case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
     case NodeType.NamedArg:
-        if e.children.len().eq(0) { return Type.Unknown }
+        if e.children.len() == 0 { return Type.Unknown }
         return e.children[0].expr_til_type()
     case NodeType.FCall(fcd):  return fcd.til_type.clone()
     case NodeType.FuncDef:     return Type.FuncPtr
@@ -773,7 +773,7 @@ expr_til_type := func(e: Expr) returns Type {
     case NodeType.FieldAccess(fd): return fd.til_type.clone()
     case NodeType.FieldAssign: return Type.None
     case NodeType.Return:
-        if e.children.len().eq(0) { return Type.None }
+        if e.children.len() == 0 { return Type.None }
         return e.children[0].expr_til_type()
     case NodeType.If:          return Type.None
     case NodeType.While:       return Type.None
@@ -788,7 +788,7 @@ expr_til_type := func(e: Expr) returns Type {
     // until infer_expr / the default-fill resolves it, so it types as Str.
     case NodeType.Loc:         return Type.Struct("Str")
     case NodeType.Throw:
-        if e.children.len().eq(0) { return Type.None }
+        if e.children.len() == 0 { return Type.None }
         return e.children[0].expr_til_type()
     case NodeType.Catch:       return Type.None
     case NodeType.RestPattern: return Type.Unknown
@@ -910,7 +910,7 @@ expr_to_str_indent := func(self: Expr, indent: U32) returns Str {
         out = format(out, "  ")
     }
     head := node_head_str(self.node_type)
-    if self.children.len().eq(0) {
+    if self.children.len() == 0 {
         return format(out, "(", head, ")")
     }
     out = format(out, "((", head, ")")

@@ -4,7 +4,7 @@ import("context")
 // Check if a FieldAccess is a namespace access (type-level, not instance).
 // The typer marks type-name idents with StructDef/EnumDef til_type.
 priv scav_fa_is_ns := func(e: Expr) returns Bool {
-    if e.children.len().eq(0) { return false }
+    if e.children.len() == 0 { return false }
     ref obj : Expr = e.children[0]
     switch obj.node_type {
     case NodeType.Ident(id):
@@ -46,7 +46,7 @@ priv children_filter_expr := func(mut v: Vec(Expr), marks: Dynamic, n: USize) {
     while r < n {
         ref mark : Bool = ptr_add(marks, r.cast(U64))
         if mark.not() {
-            if w.neq(r) {
+            if w != r {
                 memcpy(ptr_add(v.data, w.mul(Expr.size()).cast(U64)), ptr_add(v.data, r.mul(Expr.size()).cast(U64)), Expr.size().cast(U64))
             }
             w++
@@ -71,7 +71,7 @@ priv children_filter_decl := func(mut v: Vec(Declaration), marks: Dynamic, n: US
     while r < n {
         ref mark : Bool = ptr_add(marks, r.cast(U64))
         if mark.not() {
-            if w.neq(r) {
+            if w != r {
                 memcpy(ptr_add(v.data, w.mul(Declaration.size()).cast(U64)), ptr_add(v.data, r.mul(Declaration.size()).cast(U64)), Declaration.size().cast(U64))
             }
             w++
@@ -116,7 +116,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                             // the underlying type name only survives as the string
                             // literal arg. Without recording it here the scavenger
                             // would prune the enum/struct decl as unused.
-                            if type_name.ident_name().eq("Type") {
+                            if type_name.ident_name() == "Type" {
                                 mn := method.field_access_name()
                                 is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
                                 if is_named_type_ctor.and(e.children.len().gte(2)) {
@@ -148,9 +148,9 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             if e.children[0].node_type.is(NodeType.Ident) {
                 switch e.children[0].node_type {
                 case NodeType.Ident(cn):
-                    if cn.ident_name().eq("array") {
+                    if cn.ident_name() == "array" {
                         push_builtin_methods(refs, "Array", "new", "set", "delete")
-                    } else if cn.ident_name().eq("vec") {
+                    } else if cn.ident_name() == "vec" {
                         push_builtin_methods(refs, "Vec", "new", "push", "delete")
                     } else if cn.ident_name().eq("struct_def_of").or(cn.ident_name().eq("enum_def_of")) {
                         // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
@@ -403,7 +403,7 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
 // Returns the target Ident name on match, "" otherwise.
 priv match_trivial_delete := func(stmt: Expr) returns Str {
     if stmt.node_type.is(NodeType.FCall).not() { return "" }
-    if stmt.children.len().neq(3) { return "" }
+    if stmt.children.len() != 3 { return "" }
     ref callee : Expr = stmt.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
@@ -412,7 +412,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     case:
     }
     if method.eq("delete").not() { return "" }
-    if callee.children.len().neq(1) { return "" }
+    if callee.children.len() != 1 { return "" }
     if callee.children[0].node_type.is(NodeType.Ident).not() { return "" }
     ref arg0 : Expr = stmt.children[1]
     if arg0.node_type.is(NodeType.Ident).not() { return "" }
@@ -470,7 +470,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
             mut any := false
             for i in 0..n {
                 target := match_trivial_delete(e.children[i])
-                if target.len().eq(0) { continue }
+                if target.len() == 0 { continue }
                 if dropped.has(target).not() { continue }
                 memset(ptr_add(marks, i.cast(U64)), 1, 1)
                 any = true
@@ -491,7 +491,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
 // outside this body's view.
 priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     n := body.children.len()
-    if n.eq(0) { return false }
+    if n == 0 { return false }
 
     // Phase 1: identify candidate temp Decls. Two flavors:
     //   - literal-RHS by-value temps (LiteralNum/Bool/Null/Str): the
@@ -506,7 +506,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     candidates_replace := Set(Str).new()
     for stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
+        if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if dd.is_mut { continue }
@@ -575,7 +575,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     if any {
         for j in 0..n {
             target := match_trivial_delete(body.children[j])
-            if target.len().eq(0) { continue }
+            if target.len() == 0 { continue }
             if dropped.has(target).not() { continue }
             memset(ptr_add(marks, j.cast(U64)), MARK_DELETE.to_i32(), 1)
         }
@@ -587,8 +587,8 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         mut new_ch := Vec(Expr).new()
         for k in 0..n {
             ref mark : U8 = ptr_add(marks, k.cast(U64))
-            if mark.eq(MARK_DELETE) { continue }
-            if mark.eq(MARK_REPLACE_RHS) {
+            if mark == MARK_DELETE { continue }
+            if mark == MARK_REPLACE_RHS {
                 mut decl_children := Vec(Expr).new()
                 decl_children.move_from(old[k].children)
                 new_ch.push_take(decl_children, 0)
@@ -617,22 +617,22 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
 // call_free flag may still carry the typer's pre-constfolder `true`.
 priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
     if stmt.node_type.is(NodeType.FCall).not() { return false }
-    if stmt.children.len().neq(3) { return false }
+    if stmt.children.len() != 3 { return false }
     ref callee : Expr = stmt.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return false }
     mut method_eq := false
     switch callee.node_type {
-    case NodeType.FieldAccess(m): method_eq = m.field_access_name().eq("delete")
+    case NodeType.FieldAccess(m): method_eq = m.field_access_name() == "delete"
     case:
     }
     if method_eq.not() { return false }
-    if callee.children.len().neq(1) { return false }
+    if callee.children.len() != 1 { return false }
     if callee.children[0].node_type.is(NodeType.Ident).not() { return false }
     ref arg0 : Expr = stmt.children[1]
     if arg0.node_type.is(NodeType.Ident).not() { return false }
     mut name_eq := false
     switch arg0.node_type {
-    case NodeType.Ident(n): name_eq = n.ident_name().eq(name)
+    case NodeType.Ident(n): name_eq = n.ident_name() == name
     case:
     }
     if name_eq.not() { return false }
@@ -649,11 +649,11 @@ priv match_named_delete := func(stmt: Expr, name: Str) returns Bool {
 // delete with call_free=false) so DCE can drop them.
 priv fix_stale_litstr_in_body := func(mut body: Expr) {
     n := body.children.len()
-    if n.eq(0) { return }
+    if n == 0 { return }
     for i in 0..n {
         ref stmt : Expr = body.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
-        if stmt.children.len().eq(0) { continue }
+        if stmt.children.len() == 0 { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Own).not() { continue }
@@ -699,7 +699,7 @@ priv body_dce_ns := proc(rhs: Expr) {
         ref nsd : Declaration = nsd_e
         if nsd.default_value.is_null() { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-        if nsd.default_value.children.len().eq(0) { continue }
+        if nsd.default_value.children.len() == 0 { continue }
         body_dce_walk(nsd.default_value.children[0], false)
     }
 }

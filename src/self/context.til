@@ -52,7 +52,7 @@ TypeBinding := struct {
     orig_name := ""
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
-        return a.name.eq(b.name)
+        return a.name == b.name
     }
     to_str := func(self: TypeBinding) returns Str {
         expect(self.name.is_null().not(), "self.name is null")
@@ -691,7 +691,7 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: 
 // 1- or 2-byte enum struct. tag_size comes from enum_tag_size(enum_def).
 make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size: USize, line: U32, col: U32) returns Expr {
     mut builtin := "is"
-    if tag_size.neq(4) { builtin = "is_n" }
+    if tag_size != 4 { builtin = "is_n" }
     mut iv := Expr.new(ident_node(builtin), line, col)
     mut arg_id := Expr.new(ident_node(arg_name), line, col)
     mut et := Expr.new(ident_node(ename), line, col)
@@ -701,7 +701,7 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     is_call.add_child(own iv)
     is_call.add_child(own arg_id)
     is_call.add_child(own vr)
-    if tag_size.neq(4) {
+    if tag_size != 4 {
         mut sz_lit := Expr.new(literal_num_node(tag_size.to_str()), line, col)
         is_call.add_child(own sz_lit)
     }
@@ -734,7 +734,7 @@ type_is_primitive := func(t: Type, p: Primitive) returns Bool {
 // so those correctly compare false. Replaces the cross-variant
 // `t.eq(Type.Enum("Type"))` comparisons that needed the bespoke Type.eq.
 is_type_metatype := func(t: Type) returns Bool {
-    return til_type_name(t).eq("Type")
+    return til_type_name(t) == "Type"
 }
 
 // Issue #58 / #147 step 5: two FuncPtr-family types are call-compatible
@@ -751,7 +751,7 @@ funcptr_eq := func(a: Type, b: Type) returns Bool {
     an := til_type_name(a)
     bn := til_type_name(b)
     if an.is_empty().or(bn.is_empty()) { return true }
-    return an.eq(bn)
+    return an == bn
 }
 
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
@@ -760,8 +760,8 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     // #192: USize/UPtr resolve to the loader-stamped per-target primitive
     // names stored on the root TypeScope, so init agrees with the typer
     // regardless of the source-alias width.
-    if name.eq("USize") { return type_from_name_init(scope_target_usize_pname(scope), scope) }
-    if name.eq("UPtr") { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
+    if name == "USize" { return type_from_name_init(scope_target_usize_pname(scope), scope) }
+    if name == "UPtr" { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
     if scope.is_null().not() {
         ref b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {
@@ -818,7 +818,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     case NodeType.Literal(Literal.Bool): return "Bool"
     case NodeType.Literal(Literal.Str):  return "Str"
     case NodeType.FCall:
-        if def_val.children.len().eq(0) { return "" }
+        if def_val.children.len() == 0 { return "" }
         switch def_val.children[0].node_type {
         case NodeType.Ident(cn): return cn.ident_name()
         case:
@@ -846,7 +846,7 @@ array_vec_elem_type_name := func(fcall: Expr) returns Str {
 }
 
 is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
-    if type_name.len().eq(0) { return false }
+    if type_name.len() == 0 { return false }
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
     if t.is_funcptr() { return true }
@@ -855,7 +855,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if sdef.is_null() { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
-        if sdd.fields.len().eq(0) { return false }
+        if sdd.fields.len() == 0 { return false }
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { continue }
@@ -941,9 +941,9 @@ enum_tag_type := func(enum_def: Expr) returns Str {
 // #264: size in bytes of the enum's discriminant.
 enum_tag_size := func(enum_def: Expr) returns USize {
     tt := enum_tag_type(enum_def)
-    if tt.eq("U8") { return 1 }
-    if tt.eq("U16") { return 2 }
-    if tt.eq("U64") { return 8 }
+    if tt == "U8" { return 1 }
+    if tt == "U16" { return 2 }
+    if tt == "U64" { return 8 }
     return 4
 }
 
@@ -951,7 +951,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
-            if edd.variants[i].eq(variant_name) { return i.cast(I32) }
+            if edd.variants[i] == variant_name { return i.cast(I32) }
         }
     case:
         UNREACHABLE()

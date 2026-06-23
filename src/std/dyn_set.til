@@ -75,7 +75,7 @@ namespace:
             self.elem_delete(val, false)
             free(own val)
         } else {
-            if self.count.eq(self.cap) {
+            if self.count == self.cap {
                 new_cap := self.cap.mul(2)
                 self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
                 self.cap = new_cap

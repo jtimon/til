@@ -39,7 +39,7 @@ priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) return
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
                 switch d.children[0].node_type {
                 case NodeType.Ident(di):
-                    if di.ident_name().eq(name) {
+                    if di.ident_name() == name {
                         if expr_uses_var(expr, dd.name) { return true }
                     }
                 case:
@@ -81,7 +81,7 @@ priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(
             }
             if hname.starts_with("hoisted__").not() { continue }
             mut already := false
-            for t : Str in tainted { if t.eq(hname) { already = true } }
+            for t : Str in tainted { if t == hname { already = true } }
             if already { continue }
             ref init : Expr = pst.children[0]
             mut dep := expr_uses_var(init, target)
@@ -107,7 +107,7 @@ priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr))
     if varname.starts_with("hoisted__").not() { return false }
     tainted := collect_hoist_taint(target, preceding)
     for t : Str in tainted {
-        if t.eq(varname) { return true }
+        if t == varname { return true }
     }
     return false
 }
@@ -116,7 +116,7 @@ priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr))
 // via TypeScope instead of Context.
 priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
     tname := clone_call_type_name(e)
-    if tname.len().eq(0) { return false }
+    if tname.len() == 0 { return false }
     return is_pod_enum_clone_of(e, scope.get_struct(tname))
 }
 
@@ -135,14 +135,14 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             ref s : Expr = body.children[j]
             switch s.node_type {
             case NodeType.Decl(dd):
-                if dd.name.eq(b.name) {
+                if dd.name == b.name {
                     decl_idx = j.cast(I32)
                     break
                 }
             case:
             }
         }
-        if decl_idx.eq(-1) {
+        if decl_idx == -1 {
             for j in 0..body.children.len() {
                 if expr_contains_decl(body.children[j], b.name) {
                     decl_idx = j.cast(I32)
@@ -163,7 +163,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             if expr_uses_var(stmt, b.name) {
                 last_use = j.cast(I32)
             }
-            if own_transfer.eq(-1) {
+            if own_transfer == -1 {
                 if expr_transfers_own(stmt, b.name, scope, ctx) {
                     own_transfer = j.cast(I32)
                 }
@@ -287,7 +287,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             case NodeType.Ident(hn): holder_name = hn.ident_name()
             case:
             }
-            if holder_name.len().eq(0) { continue }
+            if holder_name.len() == 0 { continue }
             // source side: the FieldAssign RHS, if an Ident, names the
             // local whose lifetime we extend.
             ref value : Expr = stmt.children[1]
@@ -296,7 +296,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             case NodeType.Ident(sn): src_name = sn.ident_name()
             case:
             }
-            if src_name.len().eq(0) { continue }
+            if src_name.len() == 0 { continue }
             // Extend src's last_use to the body's final stmt. Conservative:
             // the borrow could be propagated through shallow clones of the
             // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
@@ -351,7 +351,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
                     ref_last = j.cast(I32)
                 }
             }
-            if ref_last.eq(-1) { ref_last = i.cast(I32) }
+            if ref_last == -1 { ref_last = i.cast(I32) }
             for local : LocalInfo in locals {
                 if local.name.eq(dd_name).and(local.last_use.gt(ref_last)) {
                     ref_last = local.last_use
@@ -427,7 +427,7 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
         tainted := collect_hoist_taint(local.name, body.children)
-        if tainted.len().eq(0) { continue }
+        if tainted.len() == 0 { continue }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
             if is_compile_directive(body.children[j]) { continue }
@@ -650,7 +650,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
             if local.is_heap.and(is_aggregate(local.type)) {
-                if local.own_transfer.eq(stmt_idx.cast(I32)) {
+                if local.own_transfer == stmt_idx.cast(I32) {
                     if type_to_name(local.type).len() > 0 {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
@@ -669,7 +669,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             }
             continue
         }
-        if local.last_use.eq(stmt_idx.cast(I32)) {
+        if local.last_use == stmt_idx.cast(I32) {
             // FieldAssign with auto-cloned Ident RHS at the local's last use:
             // the clone allocates a deep copy, the field stores the copy, and
             // the local's contents would then be deleted by the normal
@@ -688,7 +688,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                         ref clone_arg : Expr = fa_rhs.children[1]
                         switch clone_arg.node_type {
                         case NodeType.Ident(clone_arg_name):
-                            if clone_arg_name.ident_name().eq(local.name) {
+                            if clone_arg_name.ident_name() == local.name {
                                 mut bare := Expr.new(ident_node(local.name), fa_rhs.line, fa_rhs.col)
                                 bare.set_expr_til_type(local.type.clone())
                                 stmt.children[1] = bare
@@ -848,7 +848,7 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
                     if last_stmt.children.len() > 0 {
                         switch last_stmt.children[0].node_type {
                         case NodeType.Ident(rname):
-                            if rname.ident_name().eq(local.name) { continue }
+                            if rname.ident_name() == local.name { continue }
                         case:
                         }
                     }
@@ -942,7 +942,7 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
         if local.own_transfer < 0 { continue }
         if local.is_heap.not() { continue }
         if is_aggregate(local.type).not() { continue }
-        if type_to_name(local.type).len().eq(0) { continue }
+        if type_to_name(local.type).len() == 0 { continue }
         if local.last_use > local.own_transfer { continue }
         if local.own_transfer >= body.children.len().cast(I32) { continue }
         ref tstmt : Expr = body.children[local.own_transfer.cast(U32)]
@@ -952,12 +952,12 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
 }
 
 priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
-    if scope_exit.eq(0) { return false }
+    if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_null()
 
     mut locals_vec := Vec(LocalInfo).new()
     collect_scope_locals(ctx, body, scope, is_program_scope, locals_vec)
-    if locals_vec.len().eq(0) { return false }
+    if locals_vec.len() == 0 { return false }
 
     extend_ref_local_lifetimes(body, locals_vec, scope)
     check_use_after_own_transfer(body, locals_vec, ctx)

@@ -34,7 +34,7 @@ namespace:
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec(T), own val: T) {
-        if self.count.eq(self.cap) {
+        if self.count == self.cap {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
@@ -47,7 +47,7 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     append := func(mut self: Vec(T), own other: Vec(T)) {
-        if other.count.eq(0) {
+        if other.count == 0 {
             return
         }
         needed := self.count.add(other.count)
@@ -114,7 +114,7 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     pop := func(mut self: Vec(T)) returns T {
-        if self.count.eq(0) {
+        if self.count == 0 {
             panic("Vec.pop: empty vec")
         }
         last := self.count.sub(1)
@@ -177,7 +177,7 @@ namespace:
         if i >= src.count {
             panic("Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
-        if self.count.eq(self.cap) {
+        if self.count == self.cap {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap

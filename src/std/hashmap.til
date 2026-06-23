@@ -48,13 +48,13 @@ namespace:
     }
 
     keys_equal := func(a: K, b: K) returns Bool {
-        return K.cmp(a, b).eq(0)
+        return K.cmp(a, b) == 0
     }
 
     // Walk the chain at the key's bucket. Returns the entry index in the
     // dense keys/values arrays, or -1 if not found.
     find := func(self: HashMap(K, V), key: K) returns I64 {
-        if self.keys.count.eq(0) { return -1 }
+        if self.keys.count == 0 { return -1 }
         bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
@@ -107,7 +107,7 @@ namespace:
             head_val : I64 = self.buckets.unsafe_get(bi).clone()
             self.nexts.push(own head_val)
 
-            if self.keys.count.eq(self.keys.cap) {
+            if self.keys.count == self.keys.cap {
                 new_cap : USize = self.keys.cap.mul(2)
                 self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()).cast(U64))
                 self.values.data = realloc(own self.values.data, new_cap.mul(V.size()).cast(U64))
@@ -171,7 +171,7 @@ namespace:
     // the new index. Walk the swapped entry's own bucket chain to
     // find that pointer.
     remove := func(mut self: HashMap(K, V), key: K) {
-        if self.keys.count.eq(0) { return }
+        if self.keys.count == 0 { return }
         bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
 
         // Find the entry and its predecessor in the chain.
@@ -217,14 +217,14 @@ namespace:
             // last_idx; it must now reference idx_u.
             last_bi := bucket(HashMap(K, V).hash_key(self.keys.unsafe_get(last_u)), self.buckets.count)
             ref last_head : I64 = self.buckets.unsafe_get(last_bi)
-            if last_head.eq(last_idx) {
+            if last_head == last_idx {
                 self.buckets.unsafe_set(last_bi, own entry.clone())
             } else {
                 mut walker : I64 = last_head.clone()
                 while walker >= 0 {
                     walker_u : USize = walker.to_usize()
                     ref walker_nxt : I64 = self.nexts.unsafe_get(walker_u)
-                    if walker_nxt.eq(last_idx) {
+                    if walker_nxt == last_idx {
                         self.nexts.unsafe_set(walker_u, own entry.clone())
                         break
                     }

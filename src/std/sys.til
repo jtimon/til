@@ -22,7 +22,7 @@ copy_tree := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 wait_cmd := proc(pid: I64) returns I64 {
     while true {
         status := check_cmd_status(pid)
-        if status.neq(-1) { return status }
+        if status != -1 { return status }
         sleep_ms(50)
     }
 }
@@ -39,7 +39,7 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
         }
         i++
     }
-    if host_os().eq("windows") {
+    if host_os() == "windows" {
         _mk := spawn_cmd("if not exist tmp mkdir tmp >NUL 2>&1")
         _ec := wait_cmd(_mk)
         if _ec < 0 { }

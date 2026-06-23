@@ -67,7 +67,7 @@ namespace:
             memset(val, 0, T.size().cast(U64))
             free(own val)
         } else {
-            if self.count.eq(self.cap) {
+            if self.count == self.cap {
                 new_cap := self.cap.mul(2)
                 self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
                 self.cap = new_cap
