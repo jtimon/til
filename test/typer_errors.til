@@ -164,7 +164,7 @@ terr_redundant_mut_param := func(mut redundant_p: I64) returns I64 {
 }
 
 // cannot return ref variable from non-ref function; use .clone() or 'returns ref'
-TERR_ARR := array("I64", 1, 2, 3)
+TERR_ARR := array(I64, 1, 2, 3)
 bad_ret_ref := func(i: I64) returns I64 {
     ref v : I64 = TERR_ARR[i]
     return v
@@ -175,7 +175,7 @@ good_ref_fn := func(a: I64) returns ref I64 { return a }
 bad_own := good_ref_fn(42)
 
 // cannot own result of ref-returning function (Vec.get returns ref Dynamic)
-ref_vec := vec("I64", 10, 20)
+ref_vec := vec(I64, 10, 20)
 bad_vec_own : I64 = ref_vec[0]
 
 // #282 follow-up: a by-value return of a ref-returning ?-call is rejected the
@@ -219,7 +219,7 @@ str_va := proc(_parts: ..Str) { print_flush() }
 str_va(NoToStr())
 
 // cannot call method on Dynamic value (namespace UFCS ambiguous)
-dyn_vec := vec("I64", 10, 20)
+dyn_vec := vec(I64, 10, 20)
 dyn_bad := dyn_vec.get(0).add(35)
 
 // map literal: key type must implement cmp
@@ -230,7 +230,7 @@ bad_map := {NoCmp(x=1): "one"}
 bad_set := {NoCmp(x=1), NoCmp(x=2)}
 
 // for-in: Dynamic collection without explicit type
-forin_vec := vec("I64", 1, 2, 3)
+forin_vec := vec(I64, 1, 2, 3)
 for x in forin_vec { }
 
 // for-in: type has no get method
@@ -655,6 +655,12 @@ terr_match_arms := match TErrMatchColor.Red {
 case TErrMatchColor.Red:   1
 case TErrMatchColor.Green: "two"
 }
+
+// #289: array/vec take a bare type token (like assert_eq's `T: Type`), not a
+// Str literal. The old array("I64", ...) / vec("Str", ...) string-first-arg
+// form is rejected with a type error.
+terr_arr_str_type := array("I64", 1, 2, 3)
+terr_vec_str_type := vec("Str", "a")
 
 // #244: a non-enum match with no `case:` default is non-exhaustive.
 terr_match_nonexhaustive := match 9 {

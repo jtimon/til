@@ -635,7 +635,7 @@ test_i16_safe_mul_overflow := test() {
 // ==========================================================
 
 test_array_get_ok := test() {
-    arr := array("I64", 10, 20, 30)
+    arr := array(I64, 10, 20, 30)
     ref v : I64 = arr.get(1)?
     catch (err: OutOfBounds) {
         assert(false)
@@ -644,7 +644,7 @@ test_array_get_ok := test() {
 }
 
 test_array_get_oob := test() {
-    arr := array("I64", 10, 20, 30)
+    arr := array(I64, 10, 20, 30)
     mut caught := false
     mut emsg := ""
     ref _v : I64 = arr.get(99)?
@@ -659,7 +659,7 @@ test_array_get_oob := test() {
 // The bang form panics on OOB (same as the old behavior). The
 // success path returns the element normally.
 test_array_get_bang_ok := test() {
-    arr := array("I64", 5, 6, 7)
+    arr := array(I64, 5, 6, 7)
     ref v : I64 = arr.get(2)!
     assert(v.eq(7))
 }
@@ -668,7 +668,7 @@ test_array_get_bang_ok := test() {
 // so its OutOfBounds names the CALL site, not vec.til's throw line. This is the
 // motivating example from the issue, proven on the real core accessor.
 test_vec_get_oob_reports_caller := test() {
-    mut v := vec("I64")
+    mut v := vec(I64)
     v.push(own 10)
     v.push(own 20)
     mut caught := ""

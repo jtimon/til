@@ -828,6 +828,23 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     return ""
 }
 
+// Issue #289: the element type name of an `array(T, ...)` / `vec(T, ...)`
+// pseudo-literal -- the bare type token in child(1) (e.g. `I64` in
+// `array(I64, 1, 2, 3)`, or the synthesized `Array__Str` in
+// `array(Array__Str, ...)`). array/vec take a type token, like assert_eq's
+// `T: Type`, not a Str. The token is deliberately left un-rewritten by the
+// typer so the initer/desugarer/builder can read the type NAME at compile
+// time and monomorphize into Array__T / Vec__T. Returns "" when child(1) is
+// missing or is not a plain type Ident.
+array_vec_elem_type_name := func(fcall: Expr) returns Str {
+    if fcall.children.len().lt(2) { return "" }
+    switch fcall.children[1].node_type {
+    case NodeType.Ident(tn): return tn.ident_name()
+    case:
+        return ""
+    }
+}
+
 is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if type_name.len().eq(0) { return false }
     t := type_from_name_init(type_name, scope)

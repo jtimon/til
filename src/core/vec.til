@@ -6,7 +6,7 @@ import("dyn")
 import("str")
 import("u8")
 
-vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
+vec := ext_func(T: Type, elements: ..Dynamic) returns Vec {}
 
 /// Dynamic array of typed elements.
 Vec := struct<T: Type> {

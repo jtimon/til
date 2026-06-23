@@ -37,9 +37,9 @@ DIFF_LABEL_X : I32 = 535
 DIFF_X : I32 = 665
 DIFF_BTN_W : I32 = 25
 
-COLOR_LABELS := array("Str", "White", "Black")
-MODE_LABELS := array("Str", "1P", "2P")
-SIZE_LABELS := array("Str", "9x9", "13x13", "19x19")
+COLOR_LABELS := array(Str, "White", "Black")
+MODE_LABELS := array(Str, "1P", "2P")
+SIZE_LABELS := array(Str, "9x9", "13x13", "19x19")
 
 // Copy board
 copy_board := func(mut dst: Array(I64), mut src: Array(I64), total: I64) {
@@ -821,7 +821,7 @@ main := proc() {
 
         // Star points (hoshi)
         if board_size == 9 {
-            HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
+            HOSHI := array(I64, 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
             mut hi : I32 = 0
             while hi < 10 {
                 ref hr : I64 = HOSHI[hi.cast(U32)]
@@ -831,7 +831,7 @@ main := proc() {
             }
         }
         if board_size == 13 {
-            HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
+            HOSHI := array(I64, 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
             mut hi : I32 = 0
             while hi < 10 {
                 ref hr : I64 = HOSHI[hi.cast(U32)]
@@ -841,7 +841,7 @@ main := proc() {
             }
         }
         if board_size == 19 {
-            HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
+            HOSHI := array(I64, 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
             mut hi : I32 = 0
             while hi < 18 {
                 ref hr : I64 = HOSHI[hi.cast(U32)]
@@ -852,7 +852,7 @@ main := proc() {
         }
 
         // Coordinate labels
-        COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
+        COL_LABELS := array(Str, "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
         mut ci : I32 = 0
         while ci < board_size.to_i32() {
             ref cl : Str = COL_LABELS[ci.cast(U32)]

@@ -49,14 +49,14 @@ FABIENK_NOTE_COUNT : USize = 7
 
 // 24-TET steps from E2. These are the two Angine de Poitrine style examples
 // from the prompt: Re Ret Re# Re#t Mi Mit Fa, and Sol Lab Lap La Sib Sip Si.
-FABIENK_CLIMB_STEPS := array("I32", 44, 45, 46, 47, 48, 49, 50)
-FABIENK_HOOK_STEPS := array("I32", 54, 56, 57, 58, 60, 61, 62)
-FABIENK_DURATIONS := array("I64", 180, 180, 180, 180, 180, 180, 360)
+FABIENK_CLIMB_STEPS := array(I32, 44, 45, 46, 47, 48, 49, 50)
+FABIENK_HOOK_STEPS := array(I32, 54, 56, 57, 58, 60, 61, 62)
+FABIENK_DURATIONS := array(I64, 180, 180, 180, 180, 180, 180, 360)
 
 // Top-to-bottom string order, semitones above E2.
-STANDARD_OPEN := array("I32", 24, 19, 15, 10, 5, 0)
-ALL_FOURTHS_OPEN := array("I32", 25, 20, 15, 10, 5, 0)
-FRET_MARKERS := array("I32", 3, 5, 7, 9, 12, 15, 17, 19, 24)
+STANDARD_OPEN := array(I32, 24, 19, 15, 10, 5, 0)
+ALL_FOURTHS_OPEN := array(I32, 25, 20, 15, 10, 5, 0)
+FRET_MARKERS := array(I32, 3, 5, 7, 9, 12, 15, 17, 19, 24)
 
 guitar_rel_note := func(all_fourths: Bool, string_idx: USize, fret: I32) returns I32 {
     if all_fourths {

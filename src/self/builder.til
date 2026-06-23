@@ -1056,12 +1056,12 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)
         if e.children.len().gte(2) {
             switch e.children[0].node_type {
             case NodeType.Ident(name):
-                switch e.children[1].node_type {
-                case NodeType.Literal(Literal.Str(type_name)):
-                    mut is_vec : I32 = -1
-                    if name.ident_name().eq("array") { is_vec = 0 }
-                    else if name.ident_name().eq("vec") { is_vec = 1 }
-                    if is_vec.gte(0) {
+                mut is_vec : I32 = -1
+                if name.ident_name().eq("array") { is_vec = 0 }
+                else if name.ident_name().eq("vec") { is_vec = 1 }
+                if is_vec.gte(0) {
+                    type_name := array_vec_elem_type_name(e)
+                    if type_name.len().gt(0) {
                         mut found := false
                         for existing : CollectionInfo in infos {
                             if existing.type_name.eq(type_name) {
@@ -1073,7 +1073,6 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)
                             infos.push(own info)
                         }
                     }
-                case:
                 }
             case:
             }

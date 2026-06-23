@@ -32,11 +32,11 @@ DIFF_LABEL_X : I32 = 360
 DIFF_X : I32 = 480
 DIFF_BTN_W : I32 = 30
 
-COLOR_LABELS := array("Str", "Red", "Black")
-MODE_LABELS := array("Str", "1P", "2P")
+COLOR_LABELS := array(Str, "Red", "Black")
+MODE_LABELS := array(Str, "1P", "2P")
 
 // Initial board: black on rows 0-2, red on rows 5-7 (dark squares only)
-INIT_BOARD := array("I64",
+INIT_BOARD := array(I64,
     0, 3, 0, 3, 0, 3, 0, 3,
     3, 0, 3, 0, 3, 0, 3, 0,
     0, 3, 0, 3, 0, 3, 0, 3,
@@ -97,8 +97,8 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
 
     // Red (side=1) moves up (dr=-1), Black (side=2) moves down (dr=+1).
     // Men capture forward only; kings capture in all 4 diagonal directions.
-    DIAG_R := array("I64", -1, -1, 1, 1)
-    DIAG_C := array("I64", -1, 1, -1, 1)
+    DIAG_R := array(I64, -1, -1, 1, 1)
+    DIAG_C := array(I64, -1, 1, -1, 1)
 
     mut di := 0
     while di.lt(4) {
@@ -145,8 +145,8 @@ gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
     c := idx.mod(8)
     mut count := 0
 
-    DIAG_R := array("I64", -1, -1, 1, 1)
-    DIAG_C := array("I64", -1, 1, -1, 1)
+    DIAG_R := array(I64, -1, -1, 1, 1)
+    DIAG_C := array(I64, -1, 1, -1, 1)
 
     mut di := 0
     while di.lt(4) {

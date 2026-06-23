@@ -29,18 +29,18 @@ DIFF_LABEL_X : I32 = 360
 DIFF_X : I32 = 480
 DIFF_BTN_W : I32 = 30
 
-COLOR_LABELS := array("Str", "White", "Black")
-MODE_LABELS := array("Str", "1P", "2P")
+COLOR_LABELS := array(Str, "White", "Black")
+MODE_LABELS := array(Str, "1P", "2P")
 
 // Piece encoding: 0=empty
 // White: 1=pawn 2=knight 3=bishop 4=rook 5=queen 6=king
 // Black: 7=pawn 8=knight 9=bishop 10=rook 11=queen 12=king
 // Color: pieces 1-6 are white, 7-12 are black
 
-PIECE_NAMES := array("Str", ".", "P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k")
+PIECE_NAMES := array(Str, ".", "P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k")
 
 // Initial board (row 0 = top = rank 8, black side)
-INIT_BOARD := array("I64",
+INIT_BOARD := array(I64,
     10, 8, 9, 11, 12, 9, 8, 10,
      7, 7, 7,  7,  7, 7, 7,  7,
      0, 0, 0,  0,  0, 0, 0,  0,
@@ -90,8 +90,8 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
 is_attacked := func(mut board: Array(I64), r: I64, c: I64, by_side: I64) returns Bool {
     // Check knight attacks
     mut ki := 0
-    KN_DR := array("I64", -2, -2, -1, -1, 1, 1, 2, 2)
-    KN_DC := array("I64", -1, 1, -2, 2, -2, 2, -1, 1)
+    KN_DR := array(I64, -2, -2, -1, -1, 1, 1, 2, 2)
+    KN_DC := array(I64, -1, 1, -2, 2, -2, 2, -1, 1)
     while ki.lt(8) {
         ref dr : I64 = KN_DR[ki.to_u32()]
         ref dc : I64 = KN_DC[ki.to_u32()]
@@ -143,8 +143,8 @@ is_attacked := func(mut board: Array(I64), r: I64, c: I64, by_side: I64) returns
     }
 
     // Check rook/queen attacks (straight lines)
-    DIRS_R := array("I64", -1, 1, 0, 0)
-    DIRS_C := array("I64", 0, 0, -1, 1)
+    DIRS_R := array(I64, -1, 1, 0, 0)
+    DIRS_C := array(I64, 0, 0, -1, 1)
     mut di := 0
     while di.lt(4) {
         ref sdr : I64 = DIRS_R[di.to_u32()]
@@ -170,8 +170,8 @@ is_attacked := func(mut board: Array(I64), r: I64, c: I64, by_side: I64) returns
     }
 
     // Check bishop/queen attacks (diagonals)
-    DIAG_R := array("I64", -1, -1, 1, 1)
-    DIAG_C := array("I64", -1, 1, -1, 1)
+    DIAG_R := array(I64, -1, -1, 1, 1)
+    DIAG_C := array(I64, -1, 1, -1, 1)
     mut bi := 0
     while bi.lt(4) {
         ref bdr : I64 = DIAG_R[bi.to_u32()]
@@ -335,8 +335,8 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
 
     if pt.eq(2) {
         // Knight
-        KN_DR := array("I64", -2, -2, -1, -1, 1, 1, 2, 2)
-        KN_DC := array("I64", -1, 1, -2, 2, -2, 2, -1, 1)
+        KN_DR := array(I64, -2, -2, -1, -1, 1, 1, 2, 2)
+        KN_DC := array(I64, -1, 1, -2, 2, -2, 2, -1, 1)
         mut ki := 0
         while ki.lt(8) {
             ref dr : I64 = KN_DR[ki.to_u32()]
@@ -358,8 +358,8 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
 
     if pt.eq(3).or(pt.eq(5)) {
         // Bishop or Queen (diagonals)
-        DIAG_R := array("I64", -1, -1, 1, 1)
-        DIAG_C := array("I64", -1, 1, -1, 1)
+        DIAG_R := array(I64, -1, -1, 1, 1)
+        DIAG_C := array(I64, -1, 1, -1, 1)
         mut di := 0
         while di.lt(4) {
             ref sdr : I64 = DIAG_R[di.to_u32()]
@@ -395,8 +395,8 @@ gen_moves := func(mut board: Array(I64), mut tmp: Array(I64), idx: I64, side: I6
 
     if pt.eq(4).or(pt.eq(5)) {
         // Rook or Queen (straight lines)
-        DIRS_R := array("I64", -1, 1, 0, 0)
-        DIRS_C := array("I64", 0, 0, -1, 1)
+        DIRS_R := array(I64, -1, 1, 0, 0)
+        DIRS_C := array(I64, 0, 0, -1, 1)
         mut di := 0
         while di.lt(4) {
             ref sdr : I64 = DIRS_R[di.to_u32()]
@@ -652,7 +652,7 @@ chess_unpack_cf := func(b: Board) returns Array(I64) {
 chess_heuristic : Heuristic = (b) {
     ref cb : Board = b
     side := chess_unpack_side(cb)
-    WEIGHTS := array("I64", 0, 1, 3, 3, 5, 10, 0)
+    WEIGHTS := array(I64, 0, 1, 3, 3, 5, 10, 0)
     mut score := 0
     mut i := 0
     while i.lt(64) {
@@ -1192,7 +1192,7 @@ main := proc() {
         }
 
         // File labels (a-h)
-        FILE_LABELS := array("Str", "a", "b", "c", "d", "e", "f", "g", "h")
+        FILE_LABELS := array(Str, "a", "b", "c", "d", "e", "f", "g", "h")
         mut fi : I32 = 0
         while fi < 8 {
             ref fl : Str = FILE_LABELS[fi.cast(U32)]

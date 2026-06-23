@@ -20,7 +20,7 @@ main := proc(args: ..Str) {
 
     // Popcorn melody (Gershon Kingsley, 1969)
     // Frequencies in Hz, 0 = rest
-    mut notes := array("I64",
+    mut notes := array(I64,
         // Phrase 1
         523, 587, 622, 587, 622, 523, 415, 0,
         // Phrase 1 repeat

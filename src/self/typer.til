@@ -1334,26 +1334,6 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
             }
         }
     }
-    if name.eq("array").or(name.eq("vec")) {
-        if e.children.len().gte(2) {
-            ref type_arg : Expr = e.children[1]
-            if type_arg.node_type.is_literal_str().not() {
-                type_arg.type_error("array/vec type_name argument must be a string literal", ctx)
-            } else {
-                switch type_arg.node_type {
-                case NodeType.Literal(Literal.Str(elem_type)):
-                    if name.eq("array") {
-                        e.set_expr_til_type(Type.Struct(variadic_array_type_name(scope, elem_type)))
-                    } else {
-                        e.set_expr_til_type(Type.Struct(variadic_vec_type_name(scope, elem_type)))
-                    }
-                    return
-                case:
-                    UNREACHABLE()
-                }
-            }
-        }
-    }
     mut fn_type := scope.get_type(name)
     if fn_type.is(Type.Unknown) {
         e.type_error(format("undefined function '", name, "'"), ctx)
@@ -2330,6 +2310,30 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
     }
 }
 
+// Issue #289: type an array(T, ...) / vec(T, ...) call. The element args are
+// inferred normally; child(1) is the element TYPE token and is intentionally
+// left un-inferred (its name -- a primitive like I64, a struct like Vector3,
+// or a synthesized container name like Array__Str -- is all the later
+// monomorphization passes need, and inferring a synthesized name as a value
+// could spuriously fail symbol resolution). The token is NOT rewritten into a
+// runtime Type expression, so the bare Ident survives for those passes.
+priv infer_array_vec_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_func: I32, ctx: Context) {
+    for i in 2..e.children.len() {
+        infer_expr(scope, e.children[i], in_func, ctx)
+    }
+    elem_type := array_vec_elem_type_name(e)
+    if elem_type.len().eq(0) {
+        e.type_error("array/vec element type must be a type name, e.g. array(I64, 1, 2, 3)", ctx)
+        e.set_expr_til_type(Type.Unknown)
+        return
+    }
+    if name.eq("array") {
+        e.set_expr_til_type(Type.Struct(variadic_array_type_name(scope, elem_type)))
+    } else {
+        e.set_expr_til_type(Type.Struct(variadic_vec_type_name(scope, elem_type)))
+    }
+}
+
 priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
     // #164: a UFCS receiver `obj.method(args)` is conservatively treated
     // as "written" -- the namespace method may mutate it via `mut self`
@@ -2406,6 +2410,16 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         if scope.lookup_func(callee_bind.name).is_null().not() {
             desugar_user_func_fcall_args(scope, e, name, callee_bind, ctx)
         }
+    }
+    // Issue #289: array(T, ...) / vec(T, ...) carry the element type as a bare
+    // type token in child(1) (like assert_eq's `T: Type`), not a Str. Handle
+    // them before the generic arg machinery so the token is NOT rewritten into
+    // a runtime Type expression by rewrite_til_type_arg -- array/vec are
+    // monomorphized into Array__T / Vec__T at compile time, so the initer and
+    // desugarer read the type NAME straight off this Ident.
+    if name.eq("array").or(name.eq("vec")) {
+        infer_array_vec_fcall(scope, e, name, in_func, ctx)
+        return
     }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)
     if name.eq("free") { check_free_managed_local(scope, e, ctx) }

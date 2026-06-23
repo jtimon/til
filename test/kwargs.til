@@ -140,7 +140,7 @@ test_combo_variadic_and_kwargs := test() {
 // so kwargs_index needs no shift. Lock in that the splat path
 // composes with kwargs.
 test_combo_splat_with_kwargs := test() {
-    arr := array("I64", 10, 20, 30)
+    arr := array(I64, 10, 20, 30)
     assert_eq(I64, combo_sum("x", ..arr, bias = 100), 160)
 }
 
@@ -171,7 +171,7 @@ test_combo_default_between_variadic_and_kwargs := test() {
     // Override label by name.
     assert_eq(Str, combo_label("x", 1, 2, 3, label = "override", bias = 100), "override:106")
     // Splat + override + kwargs, all composed.
-    arr := array("I64", 10, 20, 30)
+    arr := array(I64, 10, 20, 30)
     assert_eq(Str, combo_label("x", ..arr, label = "splat", bias = 100), "splat:160")
 }
 

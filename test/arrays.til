@@ -132,7 +132,7 @@ test_array_overwrite := test() {
 // --- merged from test/array_lit.til ---
 
 test_i64_array_literal := test() {
-    arr := array("I64", 1, 2, 3)
+    arr := array(I64, 1, 2, 3)
     assert_eq(USize, arr.len(), 3)
     ref a0 : I64 = arr[0]
     ref a1 : I64 = arr[1]
@@ -143,7 +143,7 @@ test_i64_array_literal := test() {
 }
 
 test_i64_vec_literal := test() {
-    myvec := vec("I64", 10, 20, 30)
+    myvec := vec(I64, 10, 20, 30)
     assert_eq(USize, myvec.len(), 3)
     ref v0 : I64 = myvec[0]
     ref v1 : I64 = myvec[1]
@@ -154,7 +154,7 @@ test_i64_vec_literal := test() {
 }
 
 test_str_array_literal := test() {
-    sarr := array("Str", "hello", "world")
+    sarr := array(Str, "hello", "world")
     assert_eq(USize, sarr.len(), 2)
     ref s0 : Str = sarr[0]
     ref s1 : Str = sarr[1]
@@ -163,7 +163,7 @@ test_str_array_literal := test() {
 }
 
 test_str_vec_literal := test() {
-    svec := vec("Str", "foo", "bar", "baz")
+    svec := vec(Str, "foo", "bar", "baz")
     assert_eq(USize, svec.len(), 3)
     ref sv0 : Str = svec[0]
     ref sv1 : Str = svec[1]
