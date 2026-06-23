@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * TypeBinding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.TypeBinding
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct TypeBinding {
     mut name : Str
@@ -34,6 +39,11 @@ namespace:
 #+end_src
 
 * ScopeFind
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.ScopeFind
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 enum ScopeFind {
     NotFound
@@ -51,6 +61,11 @@ namespace:
 #+end_src
 
 * TypeScope
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.TypeScope
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct TypeScope {
     mut bindings : Map__Str_TypeBinding
@@ -78,16 +93,31 @@ namespace:
 #+end_src
 
 * binding_func_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.binding_func_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func binding_func_type(b: TypeBinding) returns shallow FuncType
 #+end_src
 
 * func_def_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.func_def_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func func_def_type(fdef: Expr) returns shallow FuncType
 #+end_src
 
 * ImportUnit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.ImportUnit
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct ImportUnit {
     mut mode_str : Str
@@ -102,6 +132,11 @@ namespace:
 #+end_src
 
 * BuilderFuncScratch
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.BuilderFuncScratch
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct BuilderFuncScratch {
     mut local_fn_sigs : Map__Str_Dynamic
@@ -122,12 +157,18 @@ namespace:
 #+end_src
 
 * Context
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Context
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Context {
     mut mode : Mode
     mut path : Str
     mut path_modes : Map__Str_Mode
     mut mode_registry : Map__Str_Mode
+    mut eval_heap : EvalHeap
     mut target_usize_pname : Str
     mut target_uptr_pname : Str
     mut anon_type_counter : I64
@@ -187,6 +228,7 @@ struct Context {
     mut auto_gen_depth : I32
     mut throw_used_local_names : Set__Str
     mut builder_func : BuilderFuncScratch
+    mut builder_file_static_str_lits : Set__Str
     mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
@@ -212,146 +254,301 @@ namespace:
 #+end_src
 
 * context_register_target_int_alias_types
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.context_register_target_int_alias_types
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func context_register_target_int_alias_types(mut ctx: Context, usize_name: Str, uptr_name: Str)
 #+end_src
 
 * context_reset_type_scope
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.context_reset_type_scope
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func context_reset_type_scope(mut ctx: Context)
 #+end_src
 
 * scope_target_usize_pname
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.scope_target_usize_pname
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func scope_target_usize_pname(scope: TypeScope) returns ref Str
 #+end_src
 
 * scope_target_uptr_pname
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.scope_target_uptr_pname
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func scope_target_uptr_pname(scope: TypeScope) returns ref Str
 #+end_src
 
 * priv_c_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.priv_c_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func priv_c_name(path: Str, name: Str) returns Str
 #+end_src
 
 * align_up
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.align_up
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func align_up(shallow offset: U32, shallow align: U32) returns shallow U32
 #+end_src
 
 * constfolder_classify_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.constfolder_classify_stmt
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func constfolder_classify_stmt(stmt: Expr, ctx: Context)
 #+end_src
 
 * make_method_call_fcall
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.make_method_call_fcall
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_method_call_fcall(own recv: Expr, method: Str, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * make_get_payload_fcall
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.make_get_payload_fcall
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_get_payload_fcall(own arg: Expr, shallow payload_type: Type, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * make_is_tag_check_fcall
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.make_is_tag_check_fcall
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_is_tag_check_fcall(arg_name: Str, ename: Str, vname: Str, shallow tag_size: U32, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * make_payload_ref_decl
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.make_payload_ref_decl
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_payload_ref_decl(own arg: Expr, bind_name: Str, vtype: Str, shallow line: U32, shallow col: U32, shallow is_mut: Bool) returns Expr
 #+end_src
 
 * type_is_primitive
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.type_is_primitive
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func type_is_primitive(t: Type, p: Primitive) returns shallow Bool
 #+end_src
 
 * is_type_metatype
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_type_metatype
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_type_metatype(t: Type) returns shallow Bool
 #+end_src
 
 * funcptr_eq
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.funcptr_eq
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func funcptr_eq(a: Type, b: Type) returns shallow Bool
 #+end_src
 
 * type_from_name_init
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.type_from_name_init
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func type_from_name_init(name: Str, scope: TypeScope) returns Type
 #+end_src
 
 * init_type_from_explicit_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.init_type_from_explicit_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func init_type_from_explicit_type(name: Str, scope: TypeScope) returns Type
 #+end_src
 
 * field_inferred_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.field_inferred_type_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func field_inferred_type_name(fd: Declaration) returns Str
 #+end_src
 
+* array_vec_elem_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.array_vec_elem_type_name
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func array_vec_elem_type_name(fcall: Expr) returns Str
+#+end_src
+
 * is_pod_type_for_clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_pod_type_for_clone
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_pod_type_for_clone(type_name: Str, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * is_struct_or_enum
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_struct_or_enum
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_struct_or_enum(stmt: Expr) returns shallow Bool
 #+end_src
 
 * is_func_decl
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_func_decl
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_func_decl(stmt: Expr) returns shallow Bool
 #+end_src
 
 * is_def
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_def
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_def(stmt: Expr) returns shallow Bool
 #+end_src
 
 * def_ns_decls
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.def_ns_decls
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func def_ns_decls(sdef: Expr) returns ref Vec__Declaration
 #+end_src
 
 * enum_has_payloads
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_has_payloads
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func enum_has_payloads(enum_def: Expr) returns shallow Bool
 #+end_src
 
 * enum_tag_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_tag_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func enum_tag_type(enum_def: Expr) returns Str
 #+end_src
 
 * enum_tag_size
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_tag_size
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func enum_tag_size(enum_def: Expr) returns shallow U32
 #+end_src
 
 * enum_variant_tag
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_variant_tag
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
 #+end_src
 
 * enum_variant_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_variant_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
 #+end_src
 
 * enum_variant_payload_const
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_variant_payload_const
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func enum_variant_payload_const(enum_def: Expr, shallow tag: I32) returns shallow Bool
 #+end_src
 
 * Map__Str_TypeBinding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_TypeBinding
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_TypeBinding {
     mut keys : Vec__Str
@@ -363,16 +560,6 @@ namespace:
     func len(self: Map__Str_TypeBinding) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_TypeBinding)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_TypeBinding, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_TypeBinding, i: U32) returns ref TypeBinding
     /// True if a value exists for the given key.
     func has(self: Map__Str_TypeBinding, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -389,6 +576,11 @@ namespace:
 #+end_src
 
 * Map__Str_Mode
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Mode
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_Mode {
     mut keys : Vec__Str
@@ -400,16 +592,6 @@ namespace:
     func len(self: Map__Str_Mode) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Mode)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Mode, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Mode, i: U32) returns ref Mode
     /// True if a value exists for the given key.
     func has(self: Map__Str_Mode, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -426,6 +608,11 @@ namespace:
 #+end_src
 
 * Map__Str_ImportUnit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_ImportUnit
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_ImportUnit {
     mut keys : Vec__Str
@@ -437,16 +624,6 @@ namespace:
     func len(self: Map__Str_ImportUnit) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_ImportUnit)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_ImportUnit, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_ImportUnit, i: U32) returns ref ImportUnit
     /// True if a value exists for the given key.
     func has(self: Map__Str_ImportUnit, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -463,6 +640,11 @@ namespace:
 #+end_src
 
 * Map__Str_Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Expr
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_Expr {
     mut keys : Vec__Str
@@ -474,16 +656,6 @@ namespace:
     func len(self: Map__Str_Expr) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Expr)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Expr, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Expr, i: U32) returns ref Expr
     /// True if a value exists for the given key.
     func has(self: Map__Str_Expr, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -500,6 +672,11 @@ namespace:
 #+end_src
 
 * Map__Str_StructLayout
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_StructLayout
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_StructLayout {
     mut keys : Vec__Str
@@ -511,16 +688,6 @@ namespace:
     func len(self: Map__Str_StructLayout) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_StructLayout)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_StructLayout, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_StructLayout, i: U32) returns ref StructLayout
     /// True if a value exists for the given key.
     func has(self: Map__Str_StructLayout, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -537,6 +704,11 @@ namespace:
 #+end_src
 
 * Map__Str_FuncType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_FuncType
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_FuncType {
     mut keys : Vec__Str
@@ -548,16 +720,6 @@ namespace:
     func len(self: Map__Str_FuncType) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_FuncType)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_FuncType, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_FuncType, i: U32) returns ref FuncType
     /// True if a value exists for the given key.
     func has(self: Map__Str_FuncType, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -574,6 +736,11 @@ namespace:
 #+end_src
 
 * Map__Str_Value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Value
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_Value {
     mut keys : Vec__Str
@@ -585,16 +752,6 @@ namespace:
     func len(self: Map__Str_Value) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Value)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Value, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Value, i: U32) returns ref Value
     /// True if a value exists for the given key.
     func has(self: Map__Str_Value, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -611,6 +768,11 @@ namespace:
 #+end_src
 
 * Vec__Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__Dynamic
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__Dynamic {
     own mut data : U8
@@ -653,6 +815,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Dynamic, shallow n: U32) returns Vec__Dynamic
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Dynamic, shallow i: U32, own val: Dynamic)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -671,6 +837,11 @@ namespace:
 #+end_src
 
 * Map__Str_call_Vec_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_call_Vec_Str {
     mut keys : Vec__Str
@@ -682,16 +853,6 @@ namespace:
     func len(self: Map__Str_call_Vec_Str) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_call_Vec_Str)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_call_Vec_Str, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_call_Vec_Str, i: U32) returns ref Vec__Str
     /// True if a value exists for the given key.
     func has(self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -708,6 +869,11 @@ namespace:
 #+end_src
 
 * Map__Str_Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_Dynamic
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_Dynamic {
     mut keys : Vec__Str
@@ -719,16 +885,6 @@ namespace:
     func len(self: Map__Str_Dynamic) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Dynamic)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Dynamic, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Dynamic, i: U32) returns ref Dynamic
     /// True if a value exists for the given key.
     func has(self: Map__Str_Dynamic, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -745,6 +901,11 @@ namespace:
 #+end_src
 
 * Map__Str_FFIEntry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_FFIEntry
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_FFIEntry {
     mut keys : Vec__Str
@@ -756,16 +917,6 @@ namespace:
     func len(self: Map__Str_FFIEntry) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_FFIEntry)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_FFIEntry, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_FFIEntry, i: U32) returns ref FFIEntry
     /// True if a value exists for the given key.
     func has(self: Map__Str_FFIEntry, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -782,6 +933,11 @@ namespace:
 #+end_src
 
 * Map__Str_ExprPtrBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Map__Str_ExprPtrBox
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_ExprPtrBox {
     mut keys : Vec__Str
@@ -793,16 +949,6 @@ namespace:
     func len(self: Map__Str_ExprPtrBox) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_ExprPtrBox)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_ExprPtrBox, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_ExprPtrBox, i: U32) returns ref ExprPtrBox
     /// True if a value exists for the given key.
     func has(self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -819,6 +965,11 @@ namespace:
 #+end_src
 
 * Vec__FFITypePtrBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__FFITypePtrBox
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__FFITypePtrBox {
     own mut data : U8
@@ -861,6 +1012,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FFITypePtrBox, shallow n: U32) returns Vec__FFITypePtrBox
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__FFITypePtrBox, shallow i: U32, own val: FFITypePtrBox)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -879,6 +1034,11 @@ namespace:
 #+end_src
 
 * Vec__TypeBinding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__TypeBinding
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__TypeBinding {
     own mut data : U8
@@ -921,6 +1081,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__TypeBinding, shallow n: U32) returns Vec__TypeBinding
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__TypeBinding, shallow i: U32, own val: TypeBinding)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -939,6 +1103,11 @@ namespace:
 #+end_src
 
 * Vec__Mode
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__Mode
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__Mode {
     own mut data : U8
@@ -981,6 +1150,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Mode, shallow n: U32) returns Vec__Mode
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Mode, shallow i: U32, own val: Mode)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -999,6 +1172,11 @@ namespace:
 #+end_src
 
 * Vec__ImportUnit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ImportUnit
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__ImportUnit {
     own mut data : U8
@@ -1041,6 +1219,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ImportUnit, shallow n: U32) returns Vec__ImportUnit
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__ImportUnit, shallow i: U32, own val: ImportUnit)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1059,6 +1241,11 @@ namespace:
 #+end_src
 
 * Vec__StructLayout
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__StructLayout
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__StructLayout {
     own mut data : U8
@@ -1101,6 +1288,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__StructLayout, shallow n: U32) returns Vec__StructLayout
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__StructLayout, shallow i: U32, own val: StructLayout)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1119,6 +1310,11 @@ namespace:
 #+end_src
 
 * Vec__FuncType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__FuncType
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__FuncType {
     own mut data : U8
@@ -1161,6 +1357,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FuncType, shallow n: U32) returns Vec__FuncType
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__FuncType, shallow i: U32, own val: FuncType)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1179,6 +1379,11 @@ namespace:
 #+end_src
 
 * Vec__Value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__Value
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__Value {
     own mut data : U8
@@ -1221,6 +1426,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Value, shallow n: U32) returns Vec__Value
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Value, shallow i: U32, own val: Value)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1239,6 +1448,11 @@ namespace:
 #+end_src
 
 * Vec__call_Vec_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__call_Vec_Str
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__call_Vec_Str {
     own mut data : U8
@@ -1281,6 +1495,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__call_Vec_Str, shallow n: U32) returns Vec__call_Vec_Str
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__call_Vec_Str, shallow i: U32, own val: Vec__Str)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1299,6 +1517,11 @@ namespace:
 #+end_src
 
 * Vec__FFIEntry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__FFIEntry
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__FFIEntry {
     own mut data : U8
@@ -1341,6 +1564,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FFIEntry, shallow n: U32) returns Vec__FFIEntry
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__FFIEntry, shallow i: U32, own val: FFIEntry)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1359,6 +1586,11 @@ namespace:
 #+end_src
 
 * Vec__ExprPtrBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Vec__ExprPtrBox
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__ExprPtrBox {
     own mut data : U8
@@ -1401,6 +1633,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ExprPtrBox, shallow n: U32) returns Vec__ExprPtrBox
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__ExprPtrBox, shallow i: U32, own val: ExprPtrBox)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

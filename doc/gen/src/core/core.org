@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * noop_proc
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.core.noop_proc
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc noop_proc()
 #+end_src

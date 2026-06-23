@@ -7499,6 +7499,7 @@ cmd_test_build_run := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, ta
 
 DocEntry := struct {
     name := ""
+    id := ""
     unit_path := ""
     group := ""
     page := ""
@@ -7524,6 +7525,59 @@ priv doc_index_link_path := func(out_path: Str) returns Str {
     return out_path.clone()
 }
 
+priv doc_unit_path_normalized := func(unit_path: Str) returns Str {
+    mut path := unit_path.clone()
+    if path.starts_with("./") { path = path.strip_prefix("./").clone() }
+    return path
+}
+
+priv doc_unit_key := func(unit_path: Str) returns Str {
+    mut key := doc_unit_path_normalized(unit_path)
+    if key.ends_with(".til") { key = key.strip_suffix(".til").clone() }
+    key = key.replace("/", ".")
+    return key
+}
+
+priv doc_entry_id := func(unit_path: Str, name: Str) returns Str {
+    return format("til.", doc_unit_key(unit_path), ".", name)
+}
+
+priv doc_default_group := func(unit_path: Str) returns Str {
+    path := doc_unit_path_normalized(unit_path)
+    if path.starts_with("src/core/") { return "Core" }
+    if path.starts_with("src/std/") { return "Standard library" }
+    if path.eq("src/til.til") { return "CLI" }
+    if path.starts_with("vendor/bindings/") { return "Vendor bindings" }
+    if path.eq("src/self/lexer.til")
+        .or(path.eq("src/self/parser.til"))
+        .or(path.eq("src/self/context.til"))
+        .or(path.eq("src/self/modes.til"))
+        .or(path.eq("src/self/loader.til"))
+        .or(path.eq("src/self/initer.til"))
+        .or(path.eq("src/self/desugarer.til"))
+        .or(path.eq("src/self/typer.til")) {
+        return "Compiler frontend"
+    }
+    if path.eq("src/self/garbager.til")
+        .or(path.eq("src/self/constfolder.til"))
+        .or(path.eq("src/self/scavenger.til"))
+        .or(path.eq("src/self/targets.til"))
+        .or(path.eq("src/self/builder.til")) {
+        return "Compiler backend"
+    }
+    if path.eq("src/self/interpreter.til")
+        .or(path.eq("src/self/binder.til"))
+        .or(path.eq("src/self/eval_heap.til")) {
+        return "Compiler tools"
+    }
+    return ""
+}
+
+priv doc_effective_group := func(unit_path: Str, meta: DocMeta) returns Str {
+    if meta.group.is_empty().not() { return meta.group.clone() }
+    return doc_default_group(unit_path)
+}
+
 priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog: DocCatalog) {
     ref iu : ImportUnit = ctx.imported[u.path]
     page := doc_index_link_path(til_doc_out_path(u.path))
@@ -7536,8 +7590,9 @@ priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog:
                     info := format_decl_info(stmt, ctx.scope)
                     catalog.entries.push(own DocEntry(
                         name = dd.name.clone(),
+                        id = doc_entry_id(u.path, dd.name),
                         unit_path = u.path.clone(),
-                        group = meta.group.clone(),
+                        group = doc_effective_group(u.path, meta),
                         page = page.clone(),
                         body = meta.body.clone(),
                         info = info.clone(),
@@ -7560,10 +7615,14 @@ priv build_doc_catalog := func(lp: LoadedProgram) returns DocCatalog {
     return catalog
 }
 
-priv append_doc_properties := func(mut out: Str, e: DocEntry, include_group: Bool) {
+priv append_doc_properties := func(mut out: Str, e: DocEntry, include_group: Bool, include_id: Bool) {
     has_group := include_group.and(e.group.is_empty().not())
-    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(has_group) {
+    has_id := include_id.and(e.id.is_empty().not())
+    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(has_group).or(has_id) {
         out.push_str(":PROPERTIES:\n")
+        if has_id {
+            out.push_str(":CUSTOM_ID: "); out.push_str(e.id); out.push_str("\n")
+        }
         if e.since.is_empty().not() {
             out.push_str(":since: "); out.push_str(e.since); out.push_str("\n")
         }
@@ -7579,6 +7638,7 @@ priv append_doc_properties := func(mut out: Str, e: DocEntry, include_group: Boo
 
 priv doc_unit_entry_capacity := func(e: DocEntry) returns USize {
     return e.name.len()
+        .add(e.id.len())
         .add(e.body.len())
         .add(e.since.len())
         .add(e.deprecated.len())
@@ -7591,8 +7651,8 @@ priv append_doc_unit_entry := func(mut out: Str, e: DocEntry) {
     out.push_str("* ")
     out.push_str(e.name)
     out.push_str("\n")
-    append_doc_properties(out, e, true)
-    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(e.group.is_empty().not()) {
+    append_doc_properties(out, e, true, true)
+    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(e.group.is_empty().not()).or(e.id.is_empty().not()) {
         out.push_str("\n")
     }
     if e.body.is_empty().not() {
@@ -7644,12 +7704,12 @@ priv doc_index_has_group := func(groups: Vec(Str), group: Str) returns Bool {
 priv append_doc_index_entry := func(mut out: Str, e: DocEntry) {
     out.push_str("** [[file:")
     out.push_str(e.page)
-    out.push_str("::*")
-    out.push_str(e.name)
+    out.push_str("::#")
+    out.push_str(e.id)
     out.push_str("][")
     out.push_str(e.name)
     out.push_str("]]\n")
-    append_doc_properties(out, e, false)
+    append_doc_properties(out, e, false, false)
     if e.info.is_empty().not() {
         out.push_str("#+begin_src til\n")
         out.push_str(e.info)
@@ -7662,23 +7722,49 @@ priv append_doc_index_entry := func(mut out: Str, e: DocEntry) {
 priv doc_index_entry_capacity := func(e: DocEntry) returns USize {
     return e.name.len().mul(2)
         .add(e.page.len())
+        .add(e.id.len())
         .add(e.info.len())
         .add(e.since.len())
         .add(e.deprecated.len())
         .add(160)
 }
 
-priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
+priv doc_index_add_group_if_present := func(mut groups: Vec(Str), catalog: DocCatalog, group: Str) {
+    if doc_index_has_group(groups, group) { return }
+    for e : DocEntry in catalog.entries {
+        if e.group.eq(group) {
+            groups.push(own group.clone())
+            return
+        }
+    }
+}
+
+priv doc_index_collect_groups := func(catalog: DocCatalog) returns Vec(Str) {
     groups := Vec(Str).new()
+    doc_index_add_group_if_present(groups, catalog, "Core")
+    doc_index_add_group_if_present(groups, catalog, "Standard library")
+    doc_index_add_group_if_present(groups, catalog, "Compiler frontend")
+    doc_index_add_group_if_present(groups, catalog, "Compiler backend")
+    doc_index_add_group_if_present(groups, catalog, "Compiler tools")
+    doc_index_add_group_if_present(groups, catalog, "CLI")
+    doc_index_add_group_if_present(groups, catalog, "Vendor bindings")
+    for e : DocEntry in catalog.entries {
+        if e.group.is_empty().not().and(doc_index_has_group(groups, e.group).not()) {
+            groups.push(own e.group.clone())
+        }
+    }
+    return groups
+}
+
+priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
+    groups := doc_index_collect_groups(catalog)
     mut has_ungrouped := false
     mut total : USize = 128
+    for group : Str in groups { total = total.add(group.len()).add(8) }
     for e : DocEntry in catalog.entries {
         total = total.add(doc_index_entry_capacity(e))
         if e.group.is_empty() {
             has_ungrouped = true
-        } else if doc_index_has_group(groups, e.group).not() {
-            total = total.add(e.group.len()).add(8)
-            groups.push(own e.group.clone())
         }
     }
     if has_ungrouped { total = total.add(16) }

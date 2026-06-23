@@ -2,61 +2,121 @@
 #+OPTIONS: toc:t
 
 * BASE_VERSION
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.BASE_VERSION
+:group: CLI
+:END:
+
 #+begin_src til
 BASE_VERSION is a Str
 #+end_src
 
 * get_version
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.get_version
+:group: CLI
+:END:
+
 #+begin_src til
 macro get_version() returns shallow Str
 #+end_src
 
 * VERSION
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.VERSION
+:group: CLI
+:END:
+
 #+begin_src til
 VERSION is a Str
 #+end_src
 
 * get_bin_dir
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.get_bin_dir
+:group: CLI
+:END:
+
 #+begin_src til
 ext_proc get_bin_dir() returns Str
 #+end_src
 
 * get_cwd_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.get_cwd_str
+:group: CLI
+:END:
+
 #+begin_src til
 ext_proc get_cwd_str() returns Str
 #+end_src
 
 * repl_read_line
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_read_line
+:group: CLI
+:END:
+
 #+begin_src til
 proc repl_read_line(mode_name: Str) returns Str
 #+end_src
 
 * repl_typecheck
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_typecheck
+:group: CLI
+:END:
+
 #+begin_src til
 proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 #+end_src
 
 * repl_should_wrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_should_wrap
+:group: CLI
+:END:
+
 #+begin_src til
 func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns shallow Bool
 #+end_src
 
 * run_repl_session
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.run_repl_session
+:group: CLI
+:END:
+
 #+begin_src til
 proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
 #+end_src
 
 * run_repl
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.run_repl
+:group: CLI
+:END:
+
 #+begin_src til
 proc run_repl(initial_mode: Str, extra_modes: Vec__Str)
 #+end_src
 
 * usage
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.usage
+:group: CLI
+:END:
+
 #+begin_src til
 proc usage()
 #+end_src
 
 * CliArgs
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.CliArgs
+:group: CLI
+:END:
+
 #+begin_src til
 struct CliArgs {
     mut command : Str
@@ -79,16 +139,31 @@ namespace:
 #+end_src
 
 * parse_args
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.parse_args
+:group: CLI
+:END:
+
 #+begin_src til
 proc parse_args(args: Array__Str) returns CliArgs
 #+end_src
 
 * collect_user_argv
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.collect_user_argv
+:group: CLI
+:END:
+
 #+begin_src til
 func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U32) returns Vec__Str
 #+end_src
 
 * main
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.main
+:group: CLI
+:END:
+
 #+begin_src til
 proc main(args: ..Str)
 #+end_src

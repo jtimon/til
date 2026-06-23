@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.i64.I64
+:group: Core
+:END:
+
 Signed 64-bit integer.
 
 #+begin_src til
@@ -67,6 +72,11 @@ namespace:
 #+end_src
 
 * DivideByZero
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.i64.DivideByZero
+:group: Core
+:END:
+
 Error thrown by I64.safe_div / F32.safe_div when dividing by zero.
 Carries a "file:line:col:<method>: divide by zero" msg pointing at
 the caller (loc defaults to the call site, like IntegerOverflow).
@@ -85,6 +95,11 @@ namespace:
 #+end_src
 
 * IntegerOverflow
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.i64.IntegerOverflow
+:group: Core
+:END:
+
 Error thrown by safe_add / safe_sub / safe_mul on the integer
 types when the operation would wrap. Carries a
 "file:line:col:<method>: a OP b overflows/underflows" msg. One

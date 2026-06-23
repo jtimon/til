@@ -2,76 +2,151 @@
 #+OPTIONS: toc:t
 
 * collect_enum_variants
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.collect_enum_variants
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
 #+end_src
 
 * gen_struct_size_method_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.gen_struct_size_method_for_stmt
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func gen_struct_size_method_for_stmt(stmt: Expr, ctx: Context)
 #+end_src
 
 * gen_enum_size_method_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.gen_enum_size_method_for_stmt
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc gen_enum_size_method_for_stmt(stmt: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * gen_unity_derived_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.gen_unity_derived_for_stmt
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func gen_unity_derived_for_stmt(stmt: Expr)
 #+end_src
 
 * gen_cmp_derived_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.gen_cmp_derived_for_stmt
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func gen_cmp_derived_for_stmt(stmt: Expr)
 #+end_src
 
 * compute_struct_layout
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.compute_struct_layout
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc compute_struct_layout(name: Str, mut struct_def: Expr, scope: TypeScope, ctx: Context)
 #+end_src
 
 * compute_enum_layout
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.compute_enum_layout
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns shallow U32
 #+end_src
 
 * ctx_total_size
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.ctx_total_size
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func ctx_total_size(name: Str, ctx: Context) returns shallow U32
 #+end_src
 
 * ctx_field_layout
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.ctx_field_layout
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns FieldLayout
 #+end_src
 
 * init_declarations_global
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_declarations_global
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func init_declarations_global(ctx: Context, program: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * count_ast_imports
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.count_ast_imports
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func count_ast_imports(body: Expr) returns shallow U32
 #+end_src
 
 * init_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_file
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc init_file(path: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * clone_call_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.clone_call_type_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func clone_call_type_name(e: Expr) returns Str
 #+end_src
 
 * is_pod_enum_clone_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.is_pod_enum_clone_of
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_pod_enum_clone_of(e: Expr, edef: Expr) returns shallow Bool
 #+end_src
 
 * Vec__I32
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.Vec__I32
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__I32 {
     own mut data : U8
@@ -114,6 +189,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__I32, shallow n: U32) returns Vec__I32
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__I32, shallow i: U32, own val: I32)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -132,6 +211,11 @@ namespace:
 #+end_src
 
 * Map__Str_I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.Map__Str_I64
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_I64 {
     mut keys : Vec__Str
@@ -143,16 +227,6 @@ namespace:
     func len(self: Map__Str_I64) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_I64)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_I64, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_I64, i: U32) returns ref I64
     /// True if a value exists for the given key.
     func has(self: Map__Str_I64, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if

@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.usize.USize
+:group: Core
+:END:
+
 #+begin_src til
 USize
 #+end_src

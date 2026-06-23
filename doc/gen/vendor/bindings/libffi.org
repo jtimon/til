@@ -2,161 +2,321 @@
 #+OPTIONS: toc:t
 
 * FFI_TYPE_VOID
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_VOID
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_VOID is a I64
 #+end_src
 
 * FFI_TYPE_INT
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_INT
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_INT is a I64
 #+end_src
 
 * FFI_TYPE_FLOAT
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_FLOAT
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_FLOAT is a I64
 #+end_src
 
 * FFI_TYPE_DOUBLE
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_DOUBLE
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_DOUBLE is a I64
 #+end_src
 
 * FFI_TYPE_LONGDOUBLE
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_LONGDOUBLE
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_LONGDOUBLE is a I64
 #+end_src
 
 * FFI_TYPE_UINT8
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_UINT8
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_UINT8 is a I64
 #+end_src
 
 * FFI_TYPE_SINT8
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_SINT8
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_SINT8 is a I64
 #+end_src
 
 * FFI_TYPE_UINT16
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_UINT16
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_UINT16 is a I64
 #+end_src
 
 * FFI_TYPE_SINT16
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_SINT16
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_SINT16 is a I64
 #+end_src
 
 * FFI_TYPE_UINT32
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_UINT32
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_UINT32 is a I64
 #+end_src
 
 * FFI_TYPE_SINT32
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_SINT32
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_SINT32 is a I64
 #+end_src
 
 * FFI_TYPE_UINT64
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_UINT64
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_UINT64 is a I64
 #+end_src
 
 * FFI_TYPE_SINT64
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_SINT64
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_SINT64 is a I64
 #+end_src
 
 * FFI_TYPE_STRUCT
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_STRUCT
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_STRUCT is a I64
 #+end_src
 
 * FFI_TYPE_POINTER
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_POINTER
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_POINTER is a I64
 #+end_src
 
 * FFI_TYPE_COMPLEX
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_COMPLEX
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TYPE_COMPLEX is a I64
 #+end_src
 
 * ffi_arg
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_arg
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ffi_arg
 #+end_src
 
 * ffi_sarg
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_sarg
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ffi_sarg
 #+end_src
 
 * ffi_abi
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_abi
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ffi_abi
 #+end_src
 
 * FFI_FIRST_ABI
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_FIRST_ABI
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_FIRST_ABI is a I32
 #+end_src
 
 * FFI_UNIX64
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_UNIX64
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_UNIX64 is a I32
 #+end_src
 
 * FFI_WIN64
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_WIN64
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_WIN64 is a I32
 #+end_src
 
 * FFI_EFI64
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_EFI64
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_EFI64 is a I32
 #+end_src
 
 * FFI_GNUW64
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_GNUW64
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_GNUW64 is a I32
 #+end_src
 
 * FFI_LAST_ABI
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_LAST_ABI
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_LAST_ABI is a I32
 #+end_src
 
 * FFI_DEFAULT_ABI
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_DEFAULT_ABI
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_DEFAULT_ABI is a I32
 #+end_src
 
 * FFI_CLOSURES
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_CLOSURES
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_CLOSURES is a I64
 #+end_src
 
 * FFI_GO_CLOSURES
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_GO_CLOSURES
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_GO_CLOSURES is a I64
 #+end_src
 
 * FFI_TRAMPOLINE_SIZE
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TRAMPOLINE_SIZE
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_TRAMPOLINE_SIZE is a I64
 #+end_src
 
 * FFI_NATIVE_RAW_API
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_NATIVE_RAW_API
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_NATIVE_RAW_API is a I64
 #+end_src
 
 * FFI_64_BIT_MAX
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_64_BIT_MAX
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_64_BIT_MAX is a I64
 #+end_src
 
 * ffi_type
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_type
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 struct ffi_type {
     mut size : U32
@@ -171,31 +331,61 @@ namespace:
 #+end_src
 
 * ffi_status
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_status
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ffi_status
 #+end_src
 
 * FFI_OK
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_OK
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_OK is a I32
 #+end_src
 
 * FFI_BAD_TYPEDEF
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_BAD_TYPEDEF
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_BAD_TYPEDEF is a I32
 #+end_src
 
 * FFI_BAD_ABI
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_BAD_ABI
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_BAD_ABI is a I32
 #+end_src
 
 * FFI_BAD_ARGTYPE
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_BAD_ARGTYPE
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_BAD_ARGTYPE is a I32
 #+end_src
 
 * ffi_cif
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_cif
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 struct ffi_cif {
     mut abi : I32
@@ -212,61 +402,121 @@ namespace:
 #+end_src
 
 * FFI_SIZEOF_ARG
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_SIZEOF_ARG
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 FFI_SIZEOF_ARG is a I64
 #+end_src
 
 * ffi_raw
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_raw
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ffi_raw
 #+end_src
 
 * ffi_java_raw
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_java_raw
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ffi_java_raw
 #+end_src
 
 * ffi_raw_call
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_raw_call
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_raw_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
 #+end_src
 
 * ffi_ptrarray_to_raw
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_ptrarray_to_raw
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_ptrarray_to_raw(mut cif: ffi_cif, mut args: Dynamic, mut raw: Dynamic)
 #+end_src
 
 * ffi_raw_to_ptrarray
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_raw_to_ptrarray
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_raw_to_ptrarray(mut cif: ffi_cif, mut raw: Dynamic, mut args: Dynamic)
 #+end_src
 
 * ffi_raw_size
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_raw_size
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_raw_size(mut cif: ffi_cif) returns shallow U32
 #+end_src
 
 * ffi_java_raw_call
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_java_raw_call
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_java_raw_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
 #+end_src
 
 * ffi_java_ptrarray_to_raw
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_java_ptrarray_to_raw
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_java_ptrarray_to_raw(mut cif: ffi_cif, mut args: Dynamic, mut raw: Dynamic)
 #+end_src
 
 * ffi_java_raw_to_ptrarray
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_java_raw_to_ptrarray
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_java_raw_to_ptrarray(mut cif: ffi_cif, mut raw: Dynamic, mut args: Dynamic)
 #+end_src
 
 * ffi_java_raw_size
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_java_raw_size
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_java_raw_size(mut cif: ffi_cif) returns shallow U32
 #+end_src
 
 * ffi_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 struct ffi_closure {
 namespace:
@@ -280,21 +530,41 @@ namespace:
 #+end_src
 
 * ffi_closure_alloc
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_closure_alloc
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_closure_alloc(shallow size: U32, mut code: Dynamic) returns Dynamic
 #+end_src
 
 * ffi_closure_free
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_closure_free
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_closure_free(mut _arg: Dynamic)
 #+end_src
 
 * ffi_prep_closure_loc
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_closure_loc
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_closure_loc(mut _arg: ffi_closure, mut _arg: ffi_cif, fun: Dynamic, mut user_data: Dynamic, mut codeloc: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_raw_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_raw_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 struct ffi_raw_closure {
 namespace:
@@ -308,6 +578,11 @@ namespace:
 #+end_src
 
 * ffi_java_raw_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_java_raw_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 struct ffi_java_raw_closure {
 namespace:
@@ -321,26 +596,51 @@ namespace:
 #+end_src
 
 * ffi_prep_raw_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_raw_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_raw_closure(mut _arg: ffi_raw_closure, mut cif: ffi_cif, fun: Dynamic, mut user_data: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_prep_raw_closure_loc
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_raw_closure_loc
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_raw_closure_loc(mut _arg: ffi_raw_closure, mut cif: ffi_cif, fun: Dynamic, mut user_data: Dynamic, mut codeloc: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_prep_java_raw_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_java_raw_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_java_raw_closure(mut _arg: ffi_java_raw_closure, mut cif: ffi_cif, fun: Dynamic, mut user_data: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_prep_java_raw_closure_loc
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_java_raw_closure_loc
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_java_raw_closure_loc(mut _arg: ffi_java_raw_closure, mut cif: ffi_cif, fun: Dynamic, mut user_data: Dynamic, mut codeloc: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_go_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_go_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 struct ffi_go_closure {
 namespace:
@@ -354,31 +654,61 @@ namespace:
 #+end_src
 
 * ffi_prep_go_closure
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_go_closure
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_go_closure(mut _arg: ffi_go_closure, mut _arg: ffi_cif, fun: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_call_go
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_call_go
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_call_go(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic, mut closure: Dynamic)
 #+end_src
 
 * ffi_prep_cif
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_cif
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_cif(mut cif: ffi_cif, shallow abi: I32, shallow nargs: U32, mut rtype: ffi_type, mut atypes: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_prep_cif_var
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_prep_cif_var
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_prep_cif_var(mut cif: ffi_cif, shallow abi: I32, shallow nfixedargs: U32, shallow ntotalargs: U32, mut rtype: ffi_type, mut atypes: Dynamic) returns shallow I32
 #+end_src
 
 * ffi_call
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_call
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
 #+end_src
 
 * ffi_get_struct_offsets
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_get_struct_offsets
+:group: Vendor bindings
+:END:
+
 #+begin_src til
 ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: U32) returns shallow I32
 #+end_src

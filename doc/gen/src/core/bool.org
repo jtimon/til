@@ -2,21 +2,41 @@
 #+OPTIONS: toc:t
 
 * and
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.bool.and
+:group: Core
+:END:
+
 #+begin_src til
 func and(shallow a: Bool, shallow b: Bool) returns shallow Bool
 #+end_src
 
 * or
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.bool.or
+:group: Core
+:END:
+
 #+begin_src til
 func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
 #+end_src
 
 * not
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.bool.not
+:group: Core
+:END:
+
 #+begin_src til
 ext_func not(shallow a: Bool) returns shallow Bool
 #+end_src
 
 * Bool
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.bool.Bool
+:group: Core
+:END:
+
 Boolean value: true or false.
 
 #+begin_src til

@@ -2,11 +2,21 @@
 #+OPTIONS: toc:t
 
 * vec
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.vec.vec
+:group: Core
+:END:
+
 #+begin_src til
-ext_func vec(type_name: Str, elements: ..Dynamic) returns Vec
+ext_func vec(T: Type, elements: ..Dynamic) returns Vec
 #+end_src
 
 * Vec
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.vec.Vec
+:group: Core
+:END:
+
 Dynamic array of typed elements.
 
 #+begin_src til
@@ -14,6 +24,11 @@ macro Vec(T: Type) returns StructDef
 #+end_src
 
 * Array__Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.vec.Array__Dynamic
+:group: Core
+:END:
+
 #+begin_src til
 struct Array__Dynamic {
     own mut data : U8
@@ -31,6 +46,10 @@ namespace:
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
     func get(self: Array__Dynamic, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Dynamic
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.cap`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(self: Array__Dynamic, shallow i: U32, own val: Dynamic)
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.

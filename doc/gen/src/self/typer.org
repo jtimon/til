@@ -2,291 +2,581 @@
 #+OPTIONS: toc:t
 
 * fa_is_ns
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fa_is_ns
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * make_til_type_expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.make_til_type_expr
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_til_type_expr(src: Expr, t: Type) returns Expr
 #+end_src
 
 * fa_own_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fa_own_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
 #+end_src
 
 * I64Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.I64Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 I64Name is a Str
 #+end_src
 
 * U8Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.U8Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 U8Name is a Str
 #+end_src
 
 * I8Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.I8Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 I8Name is a Str
 #+end_src
 
 * I16Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.I16Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 I16Name is a Str
 #+end_src
 
 * U16Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.U16Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 U16Name is a Str
 #+end_src
 
 * I32Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.I32Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 I32Name is a Str
 #+end_src
 
 * U32Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.U32Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 U32Name is a Str
 #+end_src
 
 * U64Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.U64Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 U64Name is a Str
 #+end_src
 
 * F32Name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.F32Name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 F32Name is a Str
 #+end_src
 
 * BoolName
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.BoolName
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 BoolName is a Str
 #+end_src
 
 * type_error
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_error
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc type_error(e: Expr, msg: Str, ctx: Context)
 #+end_src
 
 * type_error_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_error_at
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx: Context)
 #+end_src
 
 * find_namespace_func
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.find_namespace_func
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr
 #+end_src
 
 * find_ns_decl
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.find_ns_decl
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func find_ns_decl(sdef: Expr, method: Str) returns ref Declaration
 #+end_src
 
 * resolve_fn_sig
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.resolve_fn_sig
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns ref Expr
 #+end_src
 
 * fcall_returns_own
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fcall_returns_own
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * is_clone_fcall
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.is_clone_fcall
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_clone_fcall(e: Expr) returns shallow Bool
 #+end_src
 
 * resolve_default_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.resolve_default_value
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func resolve_default_value(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr
 #+end_src
 
 * infer_expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.infer_expr
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc infer_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
 #+end_src
 
 * PTR_SIZE_BYTES
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.PTR_SIZE_BYTES
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 PTR_SIZE_BYTES is a U32
 #+end_src
 
 * check_unused_locals
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.check_unused_locals
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc check_unused_locals(scope: TypeScope, path: Str, ctx: Context)
 #+end_src
 
 * check_unused_mut_locals
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.check_unused_mut_locals
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc check_unused_mut_locals(scope: TypeScope, path: Str, ctx: Context)
 #+end_src
 
 * check_unused_priv_top_level
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.check_unused_priv_top_level
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow I32
 #+end_src
 
 * check_unused_priv_members_in_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.check_unused_priv_members_in_program
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * is_simple_lvalue_expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.is_simple_lvalue_expr
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_simple_lvalue_expr(e: Expr) returns shallow Bool
 #+end_src
 
 * is_compile_directive
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.is_compile_directive
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_compile_directive(e: Expr) returns shallow Bool
 #+end_src
 
 * infer_body_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.infer_body_stmt
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc infer_body_stmt(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
 #+end_src
 
 * infer_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.infer_body
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc infer_body(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
 #+end_src
 
 * normalize_scope_bindings
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.normalize_scope_bindings
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func normalize_scope_bindings(scope: TypeScope)
 #+end_src
 
 * type_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_file
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc type_file(path: Str, ctx: Context) returns shallow I32
 #+end_src
 
 * rhs_is_clone_fcall
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.rhs_is_clone_fcall
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
 #+end_src
 
 * is_numeric_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.is_numeric_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_numeric_type(t: Type) returns shallow Bool
 #+end_src
 
 * is_integral_numeric_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.is_integral_numeric_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_integral_numeric_type(t: Type) returns shallow Bool
 #+end_src
 
 * literal_in_range
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.literal_in_range
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func literal_in_range(val_str: Str, target: Type) returns shallow Bool
 #+end_src
 
 * type_from_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_from_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func type_from_name(name: Str, scope: TypeScope, ctx: Context) returns Type
 #+end_src
 
 * resolve_type_alias
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.resolve_type_alias
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
 #+end_src
 
 * usize_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.usize_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func usize_type(scope: TypeScope, ctx: Context) returns Type
 #+end_src
 
 * type_has_cmp
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_has_cmp
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
 #+end_src
 
 * expr_uses_var
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.expr_uses_var
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func expr_uses_var(e: Expr, name: Str) returns shallow Bool
 #+end_src
 
 * expr_contains_decl
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.expr_contains_decl
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func expr_contains_decl(e: Expr, name: Str) returns shallow Bool
 #+end_src
 
 * expr_used_in_nested_func
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.expr_used_in_nested_func
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
 #+end_src
 
 * type_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_prefix
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func type_prefix(t: Type) returns Str
 #+end_src
 
 * type_to_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.type_to_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func type_to_name(t: Type) returns Str
 #+end_src
 
 * make_closure_delete_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.make_closure_delete_call
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_closure_delete_call(var_name: Str, src: Expr) returns Expr
 #+end_src
 
 * make_delete_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.make_delete_call
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr
 #+end_src
 
 * transfer_is_shallow_field_value_copy
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.transfer_is_shallow_field_value_copy
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
 #+end_src
 
 * make_free_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.make_free_call
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
 #+end_src
 
 * make_clone_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.make_clone_call
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
 #+end_src
 
 * make_ns_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.make_ns_call
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
 #+end_src
 
 * variadic_array_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.variadic_array_type_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
 #+end_src
 
 * expr_transfers_own
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.expr_transfers_own
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
 #+end_src
 
 * fcall_is_get_method
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fcall_is_get_method
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func fcall_is_get_method(fcall: Expr) returns shallow Bool
 #+end_src
 
 * fcall_returns_ref
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fcall_returns_ref
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * fcall_returns_shallow
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fcall_returns_shallow
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func fcall_returns_shallow(fcall: Expr, scope: TypeScope) returns shallow I32
 #+end_src
 
 * Vec__CtorArg
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.Vec__CtorArg
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__CtorArg {
     own mut data : U8
@@ -329,6 +619,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CtorArg, shallow n: U32) returns Vec__CtorArg
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -347,6 +641,11 @@ namespace:
 #+end_src
 
 * Vec__CoverageNode
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.Vec__CoverageNode
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__CoverageNode {
     own mut data : U8
@@ -389,6 +688,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CoverageNode, shallow n: U32) returns Vec__CoverageNode
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * U64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.u64.U64
+:group: Core
+:END:
+
 Unsigned 64-bit integer.
 
 #+begin_src til

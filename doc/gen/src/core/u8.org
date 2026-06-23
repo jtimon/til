@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * U8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.u8.U8
+:group: Core
+:END:
+
 Unsigned 8-bit integer.
 
 #+begin_src til

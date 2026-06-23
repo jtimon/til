@@ -918,6 +918,7 @@ typedef struct priv___src_self_builder_til__BuildPaths {
 
 typedef struct DocEntry {
     Str name;
+    Str id;
     Str unit_path;
     Str group;
     Str page;
@@ -3573,15 +3574,22 @@ U64 DocCatalog_hash(DocCatalog * self, HashFn hasher);
 U32 DocCatalog_size(void);
 Bool priv___src_self_builder_til__doc_decl_hidden(Declaration * dd, DocMeta * meta);
 Str * priv___src_self_builder_til__doc_index_link_path(Str * out_path);
+Str * priv___src_self_builder_til__doc_unit_path_normalized(Str * unit_path);
+Str * priv___src_self_builder_til__doc_unit_key(Str * unit_path);
+Str * priv___src_self_builder_til__doc_entry_id(Str * unit_path, Str * name);
+Str * priv___src_self_builder_til__doc_default_group(Str * unit_path);
+Str * priv___src_self_builder_til__doc_effective_group(Str * unit_path, DocMeta * meta);
 void priv___src_self_builder_til__collect_unit_doc_catalog(ProgramUnit * u, Context * ctx, DocCatalog * catalog);
 DocCatalog * priv___src_self_builder_til__build_doc_catalog(LoadedProgram * lp);
-void priv___src_self_builder_til__append_doc_properties(Str * out, DocEntry * e, Bool include_group);
+void priv___src_self_builder_til__append_doc_properties(Str * out, DocEntry * e, Bool include_group, Bool include_id);
 U32 priv___src_self_builder_til__doc_unit_entry_capacity(DocEntry * e);
 void priv___src_self_builder_til__append_doc_unit_entry(Str * out, DocEntry * e);
 Str * priv___src_self_builder_til__format_unit_doc_org(Str * unit_path, DocCatalog * catalog);
 Bool priv___src_self_builder_til__doc_index_has_group(Vec__Str * groups, Str * group);
 void priv___src_self_builder_til__append_doc_index_entry(Str * out, DocEntry * e);
 U32 priv___src_self_builder_til__doc_index_entry_capacity(DocEntry * e);
+void priv___src_self_builder_til__doc_index_add_group_if_present(Vec__Str * groups, DocCatalog * catalog, Str * group);
+Vec__Str * priv___src_self_builder_til__doc_index_collect_groups(DocCatalog * catalog);
 Str * priv___src_self_builder_til__format_doc_index_org(DocCatalog * catalog);
 void priv___src_self_builder_til__emit_doc_index(DocCatalog * catalog);
 Str * priv___src_self_builder_til__til_doc_out_path(Str * unit_path);

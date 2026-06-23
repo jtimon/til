@@ -2,16 +2,31 @@
 #+OPTIONS: toc:t
 
 * CAP_LIT
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.CAP_LIT
+:group: Core
+:END:
+
 #+begin_src til
 CAP_LIT is a U32
 #+end_src
 
 * CAP_VIEW
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.CAP_VIEW
+:group: Core
+:END:
+
 #+begin_src til
 CAP_VIEW is a U32
 #+end_src
 
 * format
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.format
+:group: Core
+:END:
+
 Concatenate multiple strings into one.
 
 #+begin_src til
@@ -19,6 +34,11 @@ func format(parts: ..Str) returns Str
 #+end_src
 
 * Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Str
+:group: Core
+:END:
+
 UTF-8 string with owned heap storage. The byte buffer is typed as
 I8 (= C `char`) so direct FFI bindings against `const char *` APIs
 can pass `s.c_str` without an intermediate pointer-cast helper.
@@ -131,26 +151,51 @@ namespace:
 #+end_src
 
 * join
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.join
+:group: Core
+:END:
+
 #+begin_src til
 func join(parts: Vec__Str, sep: Str) returns Str
 #+end_src
 
 * digit_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.digit_value
+:group: Core
+:END:
+
 #+begin_src til
 func digit_value(shallow ch: I8) returns shallow I64
 #+end_src
 
 * str_parse_f32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.str_parse_f32
+:group: Core
+:END:
+
 #+begin_src til
 ext_func str_parse_f32(s: Str) returns shallow F32
 #+end_src
 
 * c_str_len
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.c_str_len
+:group: Core
+:END:
+
 #+begin_src til
 func c_str_len(s: Dynamic) returns shallow U32
 #+end_src
 
 * OutOfBounds
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.OutOfBounds
+:group: Core
+:END:
+
 Error thrown by the indexed collection accessors (Array.get,
 Vec.get, ...) when the index is past the end. The msg field
 carries a "file:line:col:<method>: index N out of bounds (len M)"
@@ -170,6 +215,11 @@ namespace:
 #+end_src
 
 * KeyNotFound
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.KeyNotFound
+:group: Core
+:END:
+
 Error type for keyed accessors (Map.get, HashMap.get, ...) when
 the key is not present. The msg field carries a
 "file:line:col:<method>: key not found" description set at the
@@ -189,6 +239,11 @@ namespace:
 #+end_src
 
 * Array__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Array__Str
+:group: Core
+:END:
+
 #+begin_src til
 struct Array__Str {
     own mut data : U8
@@ -206,6 +261,10 @@ namespace:
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
     func get(self: Array__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.cap`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(self: Array__Str, shallow i: U32, own val: Str)
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
@@ -217,6 +276,11 @@ namespace:
 #+end_src
 
 * Vec__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.Vec__Str
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__Str {
     own mut data : U8
@@ -259,6 +323,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Str, shallow n: U32) returns Vec__Str
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Str, shallow i: U32, own val: Str)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

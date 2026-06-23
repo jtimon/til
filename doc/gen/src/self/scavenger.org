@@ -2,26 +2,51 @@
 #+OPTIONS: toc:t
 
 * vec_push_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.vec_push_str
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func vec_push_str(mut v: Vec__Str, s: Str)
 #+end_src
 
 * push_qn
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.push_qn
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func push_qn(mut v: Vec__Str, type_name: Str, method: Str)
 #+end_src
 
 * collect_refs
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.collect_refs
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func collect_refs(e: Expr, mut refs: Vec__Str)
 #+end_src
 
 * scavenge_filter
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scavenge_filter
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func scavenge_filter(mut program: Expr, visited: Set__Str)
 #+end_src
 
 * dce_program_bodies
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.dce_program_bodies
+:group: Compiler backend
+:END:
+
 #+begin_src til
 proc dce_program_bodies(mut program: Expr)
 #+end_src

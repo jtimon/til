@@ -2,11 +2,21 @@
 #+OPTIONS: toc:t
 
 * system_cmd
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.system_cmd
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc system_cmd(cmd: Str) returns shallow I32
 #+end_src
 
 * StructInstance
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.StructInstance
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct StructInstance {
     ref mut struct_name : Str
@@ -25,6 +35,11 @@ namespace:
 #+end_src
 
 * EnumInstance
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.EnumInstance
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct EnumInstance {
     ref mut enum_name : Str
@@ -42,6 +57,11 @@ namespace:
 #+end_src
 
 * Value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Value
+:group: Compiler tools
+:END:
+
 #+begin_src til
 enum Value {
     None
@@ -87,6 +107,11 @@ namespace:
 #+end_src
 
 * Cell
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Cell
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct Cell {
     mut val : Value
@@ -99,6 +124,11 @@ namespace:
 #+end_src
 
 * Binding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Binding
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct Binding {
     ref mut name : Str
@@ -112,9 +142,15 @@ namespace:
 #+end_src
 
 * Scope
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Scope
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct Scope {
     mut bindings : Map__Str_Binding
+    mut heap_index : Map__Str_Dynamic
     ref mut parent : Scope
     mut payload_aliases : Map__Str_Str
     mut ref_primitive_ptrs : Map__Str_Dynamic
@@ -127,91 +163,201 @@ namespace:
 #+end_src
 
 * lookup_interp_type_def
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.lookup_interp_type_def
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
 #+end_src
 
 * val_none
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.val_none
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func val_none() returns shallow Value
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ENUM_PAYLOAD_OFFSET
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
 * eval_expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.eval_expr
+:group: Compiler tools
+:END:
+
 #+begin_src til
 proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 #+end_src
 
 * scope_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_get
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func scope_get(mut s: Scope, name: Str) returns ref Cell
 #+end_src
 
 * scope_new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_new
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func scope_new(parent: Scope) returns Scope
 #+end_src
 
+* scope_lookup_offset
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_lookup_offset
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scope_lookup_offset(mut s: Scope, name: Str) returns ref Dynamic
+#+end_src
+
+* scope_insert_offset
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_insert_offset
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scope_insert_offset(mut s: Scope, name: Str, own ptr: Dynamic)
+#+end_src
+
 * scope_set_owned
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_set_owned
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func scope_set_owned(mut s: Scope, name: Str, mut val: Value)
 #+end_src
 
 * scope_free
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_free
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func scope_free(own s: Scope)
 #+end_src
 
 * populate_cached_aggregate_defs
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.populate_cached_aggregate_defs
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func populate_cached_aggregate_defs(mut ctx: Context, program: Expr)
 #+end_src
 
 * interpreter_init_ns
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interpreter_init_ns
+:group: Compiler tools
+:END:
+
 #+begin_src til
 proc interpreter_init_ns(mut ctx: Context, global: Scope, program: Expr)
 #+end_src
 
 * ns_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ns_get
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Value
 #+end_src
 
 * make_str_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.make_str_value
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func make_str_value(data: Dynamic, shallow len: U32, ctx: Context) returns shallow Value
 #+end_src
 
 * make_str_value_view
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.make_str_value_view
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func make_str_value_view(data: Dynamic, shallow len: U32, ctx: Context) returns shallow Value
 #+end_src
 
 * str_view
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.str_view
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func str_view(shallow v: Value) returns shallow Str
 #+end_src
 
 * ENUM_PAYLOAD_OFFSET
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ENUM_PAYLOAD_OFFSET
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
 * read_field
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.read_field
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, ctx: Context) returns shallow Value
 #+end_src
 
 * cmd_interpret
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.cmd_interpret
+:group: Compiler tools
+:END:
+
 #+begin_src til
 proc cmd_interpret(lp: LoadedProgram, user_argv: Vec__Str) returns shallow I32
 #+end_src
 
 * FFIEntry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.FFIEntry
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct FFIEntry {
     ref mut fn : U8
@@ -230,6 +376,11 @@ namespace:
 #+end_src
 
 * ExprPtrBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ExprPtrBox
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct ExprPtrBox {
     ref mut ptr : Expr
@@ -241,6 +392,11 @@ namespace:
 #+end_src
 
 * FFITypePtrBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.FFITypePtrBox
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct FFITypePtrBox {
     ref mut ptr : ffi_type
@@ -252,71 +408,141 @@ namespace:
 #+end_src
 
 * ffi_reset
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_reset
+:group: Compiler tools
+:END:
+
 #+begin_src til
 proc ffi_reset(ctx: Context)
 #+end_src
 
 * ffi_load_global_lib
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_load_global_lib
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc ffi_load_global_lib(soname: Str) returns shallow Bool
 #+end_src
 
 * ffi_open_user_so
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_open_user_so
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc ffi_open_user_so(path: Str) returns shallow Bool
 #+end_src
 
 * ffi_close_user_so
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_close_user_so
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc ffi_close_user_so()
 #+end_src
 
 * ffi_user_symbol
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_user_symbol
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_func ffi_user_symbol(name: Str) returns ref U8
 #+end_src
 
 * ffi_global_symbol
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_global_symbol
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_func ffi_global_symbol(name: Str) returns ref U8
 #+end_src
 
 * ffi_last_error
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_last_error
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc ffi_last_error() returns Str
 #+end_src
 
 * stderr_print
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.stderr_print
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc stderr_print(msg: Str) returns shallow I32
 #+end_src
 
 * unlink_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.unlink_path
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc unlink_path(path: Str)
 #+end_src
 
 * process_id
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.process_id
+:group: Compiler tools
+:END:
+
 #+begin_src til
 ext_proc process_id() returns shallow I32
 #+end_src
 
 * ffi_init_struct_defs_append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_init_struct_defs_append
+:group: Compiler tools
+:END:
+
 #+begin_src til
 func ffi_init_struct_defs_append(program: Expr, ctx: Context)
 #+end_src
 
 * ffi_init_scan_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_init_scan_program
+:group: Compiler tools
+:END:
+
 #+begin_src til
 proc ffi_init_scan_program(program: Expr, ctx: Context)
 #+end_src
 
 * ffi_cleanup
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.ffi_cleanup
+:group: Compiler tools
+:END:
+
 #+begin_src til
 proc ffi_cleanup(ctx: Context)
 #+end_src
 
 * Map__Str_Binding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Map__Str_Binding
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct Map__Str_Binding {
     mut keys : Vec__Str
@@ -328,16 +554,6 @@ namespace:
     func len(self: Map__Str_Binding) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Binding)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Binding, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Binding, i: U32) returns ref Binding
     /// True if a value exists for the given key.
     func has(self: Map__Str_Binding, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -354,6 +570,11 @@ namespace:
 #+end_src
 
 * Vec__DynPtrBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Vec__DynPtrBox
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct Vec__DynPtrBox {
     own mut data : U8
@@ -396,6 +617,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynPtrBox, shallow n: U32) returns Vec__DynPtrBox
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__DynPtrBox, shallow i: U32, own val: priv___src_self_interpreter_til__DynPtrBox)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -414,6 +639,11 @@ namespace:
 #+end_src
 
 * Vec__Binding
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Vec__Binding
+:group: Compiler tools
+:END:
+
 #+begin_src til
 struct Vec__Binding {
     own mut data : U8
@@ -456,6 +686,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Binding, shallow n: U32) returns Vec__Binding
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Binding, shallow i: U32, own val: Binding)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

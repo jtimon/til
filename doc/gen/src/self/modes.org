@@ -2,26 +2,51 @@
 #+OPTIONS: toc:t
 
 * context_register_path_mode
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.context_register_path_mode
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func context_register_path_mode(mut ctx: Context, path: Str, mode: Mode)
 #+end_src
 
 * context_set_mode_from_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.context_set_mode_from_path
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func context_set_mode_from_path(mut ctx: Context, path: Str)
 #+end_src
 
 * context_enter_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.context_enter_file
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func context_enter_file(mut ctx: Context, path: Str)
 #+end_src
 
 * context_init_mode_registry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.context_init_mode_registry
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func context_init_mode_registry(mut ctx: Context)
 #+end_src
 
 * mode_resolve
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.modes.mode_resolve
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func mode_resolve(ctx: Context, name: Str) returns ref Mode
 #+end_src

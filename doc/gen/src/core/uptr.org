@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * UPtr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.uptr.UPtr
+:group: Core
+:END:
+
 UPtr is the target-native unsigned integer for raw pointer arithmetic,
 address calculations, and byte counts that must match pointer width.
 The source alias defaults to U64; the loader retargets it to U32 for

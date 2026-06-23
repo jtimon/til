@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.Dynamic
+:group: Core
+:END:
+
 #+begin_src til
 struct Dynamic {
 namespace:
@@ -12,191 +17,381 @@ namespace:
 #+end_src
 
 * is
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.is
+:group: Core
+:END:
+
 #+begin_src til
 ext_func is(self: Dynamic, other: Dynamic) returns shallow Bool
 #+end_src
 
 * is_n
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.is_n
+:group: Core
+:END:
+
 #+begin_src til
 ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow Bool
 #+end_src
 
 * get_payload
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.get_payload
+:group: Core
+:END:
+
 #+begin_src til
 ext_func get_payload(self: Dynamic) returns ref Dynamic
 #+end_src
 
 * dyn_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_call
+:group: Core
+:END:
+
 #+begin_src til
 ext_func dyn_call(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic)
 #+end_src
 
 * dyn_call_ret
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_call_ret
+:group: Core
+:END:
+
 #+begin_src til
 ext_func dyn_call_ret(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic) returns Dynamic
 #+end_src
 
 * dyn_fn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_fn
+:group: Core
+:END:
+
 #+begin_src til
 ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
 #+end_src
 
 * dyn_size_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_size_of
+:group: Core
+:END:
+
 #+begin_src til
 ext_func dyn_size_of(type_name: Str) returns shallow U32
 #+end_src
 
 * struct_field_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.struct_field_count
+:group: Core
+:END:
+
 #+begin_src til
 ext_func struct_field_count(type_name: Str) returns shallow I64
 #+end_src
 
 * struct_field_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.struct_field_name
+:group: Core
+:END:
+
 #+begin_src til
 ext_func struct_field_name(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * struct_field_is_mut
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.struct_field_is_mut
+:group: Core
+:END:
+
 #+begin_src til
 ext_func struct_field_is_mut(type_name: Str, shallow index: I64) returns shallow I64
 #+end_src
 
 * struct_field_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.struct_field_type
+:group: Core
+:END:
+
 #+begin_src til
 ext_func struct_field_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * enum_variant_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.enum_variant_count
+:group: Core
+:END:
+
 #+begin_src til
 ext_func enum_variant_count(type_name: Str) returns shallow I64
 #+end_src
 
 * enum_variant_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.enum_variant_name
+:group: Core
+:END:
+
 #+begin_src til
 ext_func enum_variant_name(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * enum_variant_has_payload
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.enum_variant_has_payload
+:group: Core
+:END:
+
 #+begin_src til
 ext_func enum_variant_has_payload(type_name: Str, shallow index: I64) returns shallow I64
 #+end_src
 
 * enum_variant_payload_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.enum_variant_payload_type
+:group: Core
+:END:
+
 #+begin_src til
 ext_func enum_variant_payload_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * func_sig_param_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_param_count
+:group: Core
+:END:
+
 #+begin_src til
 ext_func func_sig_param_count(type_name: Str) returns shallow I64
 #+end_src
 
 * func_sig_param_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_param_type
+:group: Core
+:END:
+
 #+begin_src til
 ext_func func_sig_param_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * func_sig_return_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_return_count
+:group: Core
+:END:
+
 #+begin_src til
 ext_func func_sig_return_count(type_name: Str) returns shallow I64
 #+end_src
 
 * func_sig_return_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_return_type
+:group: Core
+:END:
+
 #+begin_src til
 ext_func func_sig_return_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * func_sig_throw_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_throw_count
+:group: Core
+:END:
+
 #+begin_src til
 ext_func func_sig_throw_count(type_name: Str) returns shallow I64
 #+end_src
 
 * func_sig_throw_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_throw_type
+:group: Core
+:END:
+
 #+begin_src til
 ext_func func_sig_throw_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
 * CloneFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.CloneFn
+:group: Core
+:END:
+
 #+begin_src til
 func CloneFn(: Dynamic) returns Dynamic
 #+end_src
 
 * DeleteFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.DeleteFn
+:group: Core
+:END:
+
 #+begin_src til
 func DeleteFn(: Dynamic, shallow : Bool)
 #+end_src
 
 * CmpFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.CmpFn
+:group: Core
+:END:
+
 #+begin_src til
 func CmpFn(: Dynamic, : Dynamic) returns shallow I64
 #+end_src
 
 * IncFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.IncFn
+:group: Core
+:END:
+
 #+begin_src til
 func IncFn(: Dynamic)
 #+end_src
 
 * DistanceFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.DistanceFn
+:group: Core
+:END:
+
 #+begin_src til
 func DistanceFn(: Dynamic, : Dynamic) returns shallow U32
 #+end_src
 
 * HashFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.HashFn
+:group: Core
+:END:
+
 #+begin_src til
 func HashFn(: Dynamic, shallow : U32) returns shallow U64
 #+end_src
 
 * TypeHashFn
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.TypeHashFn
+:group: Core
+:END:
+
 #+begin_src til
 func TypeHashFn(: Dynamic, shallow : HashFn) returns shallow U64
 #+end_src
 
 * default_clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.default_clone
+:group: Core
+:END:
+
 #+begin_src til
 func default_clone(v: Dynamic) returns Dynamic
 #+end_src
 
 * default_delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.default_delete
+:group: Core
+:END:
+
 #+begin_src til
 func default_delete(_v: Dynamic, shallow _cf: Bool)
 #+end_src
 
 * default_cmp
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.default_cmp
+:group: Core
+:END:
+
 #+begin_src til
 func default_cmp(_a: Dynamic, _b: Dynamic) returns shallow I64
 #+end_src
 
 * default_inc
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.default_inc
+:group: Core
+:END:
+
 #+begin_src til
 func default_inc(_v: Dynamic)
 #+end_src
 
 * default_distance
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.default_distance
+:group: Core
+:END:
+
 #+begin_src til
 func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U32
 #+end_src
 
 * default_type_hash
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.default_type_hash
+:group: Core
+:END:
+
 #+begin_src til
 func default_type_hash(_v: Dynamic, _h: HashFn) returns shallow U64
 #+end_src
 
 * dyn_has_method
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_has_method
+:group: Core
+:END:
+
 #+begin_src til
 ext_func dyn_has_method(type_name: Str, method: Str) returns shallow Bool
 #+end_src
 
 * ELEM_POD
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.ELEM_POD
+:group: Core
+:END:
+
 #+begin_src til
 ELEM_POD is a U32
 #+end_src
 
 * ELEM_BOXED
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.ELEM_BOXED
+:group: Core
+:END:
+
 #+begin_src til
 ELEM_BOXED is a U32
 #+end_src
 
 * ELEM_FN
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.ELEM_FN
+:group: Core
+:END:
+
 #+begin_src til
 ELEM_FN is a U32
 #+end_src

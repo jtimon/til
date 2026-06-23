@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * cast
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.cast.cast
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cast(e: Dynamic, T: Type) returns shallow Dynamic
 #+end_src

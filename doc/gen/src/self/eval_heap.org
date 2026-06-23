@@ -1,0 +1,36 @@
+#+TITLE: src/self/eval_heap.til
+#+OPTIONS: toc:t
+
+* EvalHeap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.EvalHeap
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct EvalHeap {
+    mut live_blocks : U32
+namespace:
+    func new() returns shallow EvalHeap
+    func heap_alloc(mut self: EvalHeap, shallow size: U32) returns Dynamic
+    func heap_free(mut self: EvalHeap, own ptr: Dynamic)
+    func delete(own self: EvalHeap, shallow call_free: Bool)
+    func set_bytes(ptr: Dynamic, src: Dynamic, shallow n: U32)
+    func get_bytes(ptr: Dynamic, dst: Dynamic, shallow n: U32)
+    func set_i64(ptr: Dynamic, shallow val: I64)
+    func get_i64(ptr: Dynamic) returns shallow I64
+    func set_u64(ptr: Dynamic, shallow val: U64)
+    func get_u64(ptr: Dynamic) returns shallow U64
+    func set_u8(ptr: Dynamic, shallow val: U8)
+    func get_u8(ptr: Dynamic) returns shallow U8
+    func set_f32(ptr: Dynamic, shallow val: F32)
+    func get_f32(ptr: Dynamic) returns shallow F32
+    func set_bool(ptr: Dynamic, shallow val: Bool)
+    func get_bool(ptr: Dynamic) returns shallow Bool
+    func clone(shallow self: EvalHeap) returns shallow EvalHeap
+    func hash(shallow self: EvalHeap, hasher: HashFn) returns shallow U64
+    func eq(shallow self: EvalHeap, shallow other: EvalHeap) returns shallow Bool
+    func to_str(shallow self: EvalHeap) returns Str
+    func size() returns shallow U32
+}
+#+end_src

@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * KwargsMap
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.kwargs_map.KwargsMap
+:group: Core
+:END:
+
 String-keyed map of dynamically-typed kwargs values.
 
 #+begin_src til
@@ -29,6 +34,11 @@ namespace:
 #+end_src
 
 * Map__Str_Tuple
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.kwargs_map.Map__Str_Tuple
+:group: Core
+:END:
+
 #+begin_src til
 struct Map__Str_Tuple {
     mut keys : Vec__Str
@@ -40,16 +50,6 @@ namespace:
     func len(self: Map__Str_Tuple) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Tuple)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Tuple, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Tuple, i: U32) returns ref Tuple
     /// True if a value exists for the given key.
     func has(self: Map__Str_Tuple, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -66,6 +66,11 @@ namespace:
 #+end_src
 
 * Vec__Tuple
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.kwargs_map.Vec__Tuple
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__Tuple {
     own mut data : U8
@@ -108,6 +113,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Tuple, shallow n: U32) returns Vec__Tuple
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Tuple, shallow i: U32, own val: Tuple)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

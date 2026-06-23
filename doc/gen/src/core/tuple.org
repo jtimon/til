@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * Tuple
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Tuple
+:group: Core
+:END:
+
 Heterogeneous sequence of values with mixed types.
 
 #+begin_src til
@@ -34,6 +39,11 @@ namespace:
 #+end_src
 
 * Vec__U32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.tuple.Vec__U32
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__U32 {
     own mut data : U8
@@ -76,6 +86,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__U32, shallow n: U32) returns Vec__U32
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__U32, shallow i: U32, own val: U32)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

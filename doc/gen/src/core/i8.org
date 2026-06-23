@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * I8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.i8.I8
+:group: Core
+:END:
+
 Signed 8-bit integer.
 
 #+begin_src til

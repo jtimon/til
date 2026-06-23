@@ -2,31 +2,61 @@
 #+OPTIONS: toc:t
 
 * exit
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.exit.exit
+:group: Core
+:END:
+
 #+begin_src til
 ext_func exit(shallow code: I64)
 #+end_src
 
 * panic
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.exit.panic
+:group: Core
+:END:
+
 #+begin_src til
 func panic(parts: ..Str, loc: Str)
 #+end_src
 
 * TODO
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.exit.TODO
+:group: Core
+:END:
+
 #+begin_src til
 func TODO(parts: ..Str, loc: Str)
 #+end_src
 
 * UNREACHABLE
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.exit.UNREACHABLE
+:group: Core
+:END:
+
 #+begin_src til
 func UNREACHABLE(loc: Str)
 #+end_src
 
 * assert
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.exit.assert
+:group: Core
+:END:
+
 #+begin_src til
 func assert(shallow cond: Bool, loc: Str)
 #+end_src
 
 * expect
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.exit.expect
+:group: Core
+:END:
+
 #+begin_src til
 func expect(shallow cond: Bool, parts: ..Str, loc: Str)
 #+end_src

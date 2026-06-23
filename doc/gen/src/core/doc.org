@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * __til_docs_blob__
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.__til_docs_blob__
+:group: Core
+:END:
+
 Packed runtime registry of /// doc comments collected by the loader.
 Encoded as `name<0x01>doc<0x02>...`. Use help(name) for lookup.
 
@@ -10,6 +15,11 @@ __til_docs_blob__ is a Str
 #+end_src
 
 * __til_info_blob__
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.__til_info_blob__
+:group: Core
+:END:
+
 Packed runtime registry of human-readable info strings (kind +
 signature/fields/methods/var type) for every top-level Decl and
 struct/enum member. Encoded as `name<0x01>info<0x02>...`. Use
@@ -20,6 +30,11 @@ __til_info_blob__ is a Str
 #+end_src
 
 * __doc_init__
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.__doc_init__
+:group: Core
+:END:
+
 Loader-emitted entry point that hands the packed registry blobs to
 the runtime. Not intended for direct user calls.
 
@@ -28,11 +43,21 @@ func __doc_init__(info_data: Str, docs_data: Str)
 #+end_src
 
 * __doc_lookup__
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.__doc_lookup__
+:group: Core
+:END:
+
 #+begin_src til
 func __doc_lookup__(blob: Str, name: Str) returns Str
 #+end_src
 
 * help
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.help
+:group: Core
+:END:
+
 Print the doc comment and the kind/signature info for a top-level
 declaration or struct/enum member (`Type.method`). When both are
 registered, print the doc first then the info. If neither is

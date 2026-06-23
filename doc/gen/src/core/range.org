@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * Range
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.range.Range
+:group: Core
+:END:
+
 Integer interval from start (inclusive) to end (exclusive).
 
 #+begin_src til

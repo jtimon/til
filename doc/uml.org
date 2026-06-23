@@ -258,6 +258,7 @@
 *** path := ""
 *** path_modes := Map(Str, Mode).new()
 *** mode_registry := Map(Str, Mode).new()
+*** eval_heap := EvalHeap.new()
 *** target_usize_pname := "U32"
 *** target_uptr_pname := "U64"
 *** anon_type_counter : I64 = 0
@@ -280,8 +281,7 @@
 *** has_return := false
 *** has_break := false
 *** has_continue := false
-*** return_value := Value.None
-*** ... (53 more)
+*** ... (55 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -367,6 +367,7 @@
 *** do_lib := false
 ** DocEntry: StructDef
 *** name := ""
+*** id := ""
 *** unit_path := ""
 *** group := ""
 *** page := ""
@@ -415,6 +416,7 @@
 *** cell_is_local := false
 ** Scope: StructDef
 *** bindings := Map(Str, Binding).new()
+*** heap_index := Map(Str, Dynamic).new()
 *** ref parent : Scope = NULL
 *** payload_aliases := Map(Str, Str).new()
 *** ref_primitive_ptrs := Map(Str, Dynamic).new()
@@ -444,8 +446,4 @@
 *** alias_to_dynamic := "|"
 * eval_heap
 ** EvalHeap: StructDef
-*** own data : U8 = 0
-*** len : USize = 0
-*** cap : USize = 0
 *** live_blocks : USize = 0
-*** live_bytes : USize = 0

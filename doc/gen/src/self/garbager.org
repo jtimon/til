@@ -2,16 +2,31 @@
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.garbager_destroy_body
+:group: Compiler backend
+:END:
+
 #+begin_src til
 proc garbager_destroy_body(ctx: Context, mut body: Expr, mut scope: TypeScope) returns shallow Bool
 #+end_src
 
 * garbager_destroy
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.garbager_destroy
+:group: Compiler backend
+:END:
+
 #+begin_src til
 proc garbager_destroy(mut ctx: Context)
 #+end_src
 
 * Vec__LocalInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Vec__LocalInfo
+:group: Compiler backend
+:END:
+
 #+begin_src til
 struct Vec__LocalInfo {
     own mut data : U8
@@ -54,6 +69,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__LocalInfo, shallow n: U32) returns Vec__LocalInfo
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__LocalInfo, shallow i: U32, own val: priv___src_self_garbager_til__LocalInfo)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

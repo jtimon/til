@@ -2,11 +2,21 @@
 #+OPTIONS: toc:t
 
 * array
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.array.array
+:group: Core
+:END:
+
 #+begin_src til
-ext_func array(type_name: Str, elements: ..Dynamic) returns Array
+ext_func array(T: Type, elements: ..Dynamic) returns Array
 #+end_src
 
 * Array
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.array.Array
+:group: Core
+:END:
+
 Fixed-capacity array of typed elements.
 
 #+begin_src til

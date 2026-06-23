@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * Primitive
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Primitive
+:group: Core
+:END:
+
 Real primitive types. Issue #203 migrates them one at a time;
 I16 first because it has the smallest call-site surface.
 
@@ -38,6 +43,11 @@ namespace:
 #+end_src
 
 * Type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Type
+:group: Core
+:END:
+
 Type representation for the til compiler. Carries payload for named
 types (Struct/Enum/Custom) and is tag-only for builtins.
 
@@ -78,36 +88,71 @@ namespace:
 #+end_src
 
 * til_type_name_c
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.til_type_name_c
+:group: Core
+:END:
+
 #+begin_src til
 func til_type_name_c(t: Type) returns Str
 #+end_src
 
 * til_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.til_type_name
+:group: Core
+:END:
+
 #+begin_src til
 func til_type_name(t: Type) returns Str
 #+end_src
 
 * is_primitive
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.is_primitive
+:group: Core
+:END:
+
 #+begin_src til
 func is_primitive(t: Type) returns shallow Bool
 #+end_src
 
 * is_funcptr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.is_funcptr
+:group: Core
+:END:
+
 #+begin_src til
 func is_funcptr(t: Type) returns shallow Bool
 #+end_src
 
 * is_aggregate
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.is_aggregate
+:group: Core
+:END:
+
 #+begin_src til
 func is_aggregate(t: Type) returns shallow Bool
 #+end_src
 
 * dyn_type_to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.dyn_type_to_str
+:group: Core
+:END:
+
 #+begin_src til
 ext_func dyn_type_to_str(type: Type) returns Str
 #+end_src
 
 * FuncType
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FuncType
+:group: Core
+:END:
+
 Classifies a til function declaration: func, proc, test, macro, or external.
 
 #+begin_src til
@@ -139,6 +184,11 @@ namespace:
 #+end_src
 
 * OwnType
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.OwnType
+:group: Core
+:END:
+
 Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
 
 #+begin_src til
@@ -160,6 +210,11 @@ namespace:
 #+end_src
 
 * Declaration
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Declaration
+:group: Core
+:END:
+
 Variable/field/parameter declaration node.
 
 #+begin_src til
@@ -185,6 +240,11 @@ namespace:
 #+end_src
 
 * FunctionDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FunctionDef
+:group: Core
+:END:
+
 Function signature metadata: params, return type, variadic info.
 
 #+begin_src til
@@ -211,6 +271,11 @@ namespace:
 #+end_src
 
 * FCallData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FCallData
+:group: Core
+:END:
+
 Per-callsite data for function calls: parse-time flags (is_splat,
 does_throw, is_bang), own_args bitmap, result type. The variadic
 and kwargs block positions and counts are not stored -- they all
@@ -243,6 +308,11 @@ namespace:
 #+end_src
 
 * LiteralNumData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.LiteralNumData
+:group: Core
+:END:
+
 #+begin_src til
 struct LiteralNumData {
     mut text : Str
@@ -268,6 +338,11 @@ namespace:
 #+end_src
 
 * IdentData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.IdentData
+:group: Core
+:END:
+
 #+begin_src til
 struct IdentData {
     mut name : Str
@@ -291,6 +366,11 @@ namespace:
 #+end_src
 
 * FieldAccessData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FieldAccessData
+:group: Core
+:END:
+
 #+begin_src til
 struct FieldAccessData {
     mut name : Str
@@ -310,36 +390,71 @@ namespace:
 #+end_src
 
 * literal_num_text
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.literal_num_text
+:group: Core
+:END:
+
 #+begin_src til
 func literal_num_text(n: LiteralNumData) returns Str
 #+end_src
 
 * ident_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.ident_name
+:group: Core
+:END:
+
 #+begin_src til
 func ident_name(id: IdentData) returns Str
 #+end_src
 
 * field_access_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.field_access_name
+:group: Core
+:END:
+
 #+begin_src til
 func field_access_name(fa: FieldAccessData) returns Str
 #+end_src
 
 * set_own_arg
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.set_own_arg
+:group: Core
+:END:
+
 #+begin_src til
 func set_own_arg(mut fcall: Expr, shallow arg_index: U32)
 #+end_src
 
 * get_own_arg
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.get_own_arg
+:group: Core
+:END:
+
 #+begin_src til
 func get_own_arg(fcall: Expr, shallow arg_index: U32) returns shallow Bool
 #+end_src
 
 * is_range_new_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.is_range_new_call
+:group: Core
+:END:
+
 #+begin_src til
 func is_range_new_call(e: Expr) returns shallow Bool
 #+end_src
 
 * StructDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.StructDef
+:group: Core
+:END:
+
 Struct definition: field declarations, namespace methods, c_tag.
 Issue #147 step 4: total_struct_size dropped from the AST in favour
 of ctx.struct_layouts[name].total_size, populated by
@@ -364,6 +479,11 @@ namespace:
 #+end_src
 
 * EnumDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.EnumDef
+:group: Core
+:END:
+
 Enum definition: variants, payload types, namespace methods.
 Issue #147 step 4: total_enum_size dropped from the AST in favour
 of ctx.struct_layouts[name].total_size, populated by
@@ -388,6 +508,11 @@ namespace:
 #+end_src
 
 * FieldLayout
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FieldLayout
+:group: Core
+:END:
+
 #+begin_src til
 struct FieldLayout {
     mut offset : U32
@@ -404,6 +529,11 @@ namespace:
 #+end_src
 
 * StructLayout
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.StructLayout
+:group: Core
+:END:
+
 #+begin_src til
 struct StructLayout {
     mut total_size : U32
@@ -420,21 +550,41 @@ namespace:
 #+end_src
 
 * struct_def_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.struct_def_of
+:group: Core
+:END:
+
 #+begin_src til
 func struct_def_of(type_name: Str) returns StructDef
 #+end_src
 
 * enum_def_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.enum_def_of
+:group: Core
+:END:
+
 #+begin_src til
 func enum_def_of(type_name: Str) returns EnumDef
 #+end_src
 
 * func_sig_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.func_sig_of
+:group: Core
+:END:
+
 #+begin_src til
 func func_sig_of(type_name: Str) returns FunctionDef
 #+end_src
 
 * AssignData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.AssignData
+:group: Core
+:END:
+
 Payload for assignment nodes: which name is being assigned to.
 
 #+begin_src til
@@ -454,6 +604,11 @@ namespace:
 #+end_src
 
 * FieldAssignData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.FieldAssignData
+:group: Core
+:END:
+
 #+begin_src til
 struct FieldAssignData {
     mut name : Str
@@ -469,6 +624,11 @@ namespace:
 #+end_src
 
 * ForInData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.ForInData
+:group: Core
+:END:
+
 Payload for `for name in range` loop nodes. The two-variable
 key/value form `for k, v in map` fills name2/is_mut2; name2 is
 empty for the ordinary single-variable form.
@@ -491,6 +651,11 @@ namespace:
 #+end_src
 
 * Literal
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Literal
+:group: Core
+:END:
+
 Literal (constant) node kinds: the leaf values written directly in
 source. Grouped under NodeType.Literal so "is this any literal?"
 is a single check (NodeType.Literal) instead of a four-way chain.
@@ -520,6 +685,11 @@ namespace:
 #+end_src
 
 * MatchData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.MatchData
+:group: Core
+:END:
+
 Payload for NodeType.Match: a `match` expression yields a value, so
 the typer records the common arm type here (mirrors FCallData.til_type).
 
@@ -538,6 +708,11 @@ namespace:
 #+end_src
 
 * CaptureBlockData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.CaptureBlockData
+:group: Core
+:END:
+
 Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
 block carrying an explicit capture list. The captures restrict which
 outer-scope locals the block body may reference -- a compile-time
@@ -559,6 +734,11 @@ namespace:
 #+end_src
 
 * NodeType
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.NodeType
+:group: Core
+:END:
+
 AST node kind. Each variant carries an optional payload (struct, string, bool).
 
 #+begin_src til
@@ -635,6 +815,11 @@ namespace:
 #+end_src
 
 * Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Expr
+:group: Core
+:END:
+
 AST expression node with line/col, type, children, and node-specific payload.
 
 #+begin_src til
@@ -674,76 +859,161 @@ namespace:
 #+end_src
 
 * ident_node
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.ident_node
+:group: Core
+:END:
+
 #+begin_src til
 func ident_node(name: Str) returns NodeType
 #+end_src
 
 * literal_num_node
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.literal_num_node
+:group: Core
+:END:
+
 #+begin_src til
 func literal_num_node(text: Str) returns NodeType
 #+end_src
 
 * field_access_node
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.field_access_node
+:group: Core
+:END:
+
 #+begin_src til
 func field_access_node(name: Str) returns NodeType
 #+end_src
 
 * expr_til_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.expr_til_type
+:group: Core
+:END:
+
 #+begin_src til
 func expr_til_type(e: Expr) returns Type
 #+end_src
 
 * set_expr_til_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.set_expr_til_type
+:group: Core
+:END:
+
 #+begin_src til
 func set_expr_til_type(mut e: Expr, shallow t: Type)
 #+end_src
 
 * set_fcall_til_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.set_fcall_til_type
+:group: Core
+:END:
+
 #+begin_src til
 func set_fcall_til_type(mut fcall: Expr, shallow t: Type)
 #+end_src
 
 * func_type_variant_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.func_type_variant_name
+:group: Core
+:END:
+
 #+begin_src til
 func func_type_variant_name(ft: FuncType) returns Str
 #+end_src
 
 * node_head_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.node_head_str
+:group: Core
+:END:
+
 #+begin_src til
 func node_head_str(data: NodeType) returns Str
 #+end_src
 
 * expr_to_str_indent
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.expr_to_str_indent
+:group: Core
+:END:
+
 #+begin_src til
 func expr_to_str_indent(self: Expr, shallow indent: U32) returns Str
 #+end_src
 
 * node_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.node_name
+:group: Core
+:END:
+
 #+begin_src til
 func node_name(data: NodeType) returns Str
 #+end_src
 
 * func_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.func_type_name
+:group: Core
+:END:
+
 #+begin_src til
 func func_type_name(ft: FuncType) returns Str
 #+end_src
 
+* lazy_body_inlinable
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.lazy_body_inlinable
+:group: Core
+:END:
+
+#+begin_src til
+func lazy_body_inlinable(body: Expr) returns shallow Bool
+#+end_src
+
 * ast_print
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.ast_print
+:group: Core
+:END:
+
 #+begin_src til
 proc ast_print(e: Expr, shallow indent: U32)
 #+end_src
 
 * fcall_kwargs_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.fcall_kwargs_count
+:group: Core
+:END:
+
 #+begin_src til
 func fcall_kwargs_count(fcall: Expr) returns shallow U32
 #+end_src
 
 * fcall_variadic_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.fcall_variadic_count
+:group: Core
+:END:
+
 #+begin_src til
 func fcall_variadic_count(fcall: Expr, shallow nparam: U32, shallow callee_has_kwargs: Bool) returns shallow U32
 #+end_src
 
 * Map__I64_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Map__I64_Str
+:group: Core
+:END:
+
 #+begin_src til
 struct Map__I64_Str {
     mut keys : Vec__I64
@@ -755,16 +1025,6 @@ namespace:
     func len(self: Map__I64_Str) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__I64_Str)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__I64_Str, i: U32) returns ref I64
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__I64_Str, i: U32) returns ref Str
     /// True if a value exists for the given key.
     func has(self: Map__I64_Str, shallow key: I64) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -781,6 +1041,11 @@ namespace:
 #+end_src
 
 * Vec__Bool
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__Bool
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__Bool {
     own mut data : U8
@@ -823,6 +1088,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Bool, shallow n: U32) returns Vec__Bool
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Bool, shallow i: U32, own val: Bool)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -841,6 +1110,11 @@ namespace:
 #+end_src
 
 * Vec__FieldLayout
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__FieldLayout
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__FieldLayout {
     own mut data : U8
@@ -883,6 +1157,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FieldLayout, shallow n: U32) returns Vec__FieldLayout
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__FieldLayout, shallow i: U32, own val: FieldLayout)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -901,6 +1179,11 @@ namespace:
 #+end_src
 
 * Vec__Declaration
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__Declaration
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__Declaration {
     own mut data : U8
@@ -943,6 +1226,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Declaration, shallow n: U32) returns Vec__Declaration
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Declaration, shallow i: U32, own val: Declaration)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -961,6 +1248,11 @@ namespace:
 #+end_src
 
 * Vec__Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__Expr
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__Expr {
     own mut data : U8
@@ -1003,6 +1295,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Expr, shallow n: U32) returns Vec__Expr
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Expr, shallow i: U32, own val: Expr)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -1021,6 +1317,11 @@ namespace:
 #+end_src
 
 * Vec__I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__I64
+:group: Core
+:END:
+
 #+begin_src til
 struct Vec__I64 {
     own mut data : U8
@@ -1063,6 +1364,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__I64, shallow i: U32, own val: I64)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

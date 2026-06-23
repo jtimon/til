@@ -2,31 +2,61 @@
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.constfolder_clear_known
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func constfolder_clear_known(mut ctx: Context)
 #+end_src
 
 * constfolder_reset_state
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.constfolder_reset_state
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func constfolder_reset_state(mut ctx: Context)
 #+end_src
 
 * is_macro_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.is_macro_call
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func is_macro_call(e: Expr, ctx: Context) returns shallow Bool
 #+end_src
 
 * process_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.process_body
+:group: Compiler backend
+:END:
+
 #+begin_src til
 proc process_body(scope: Scope, body: Expr, ctx: Context, shallow at_global: Bool)
 #+end_src
 
 * constfolder_register_fold_scope
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.constfolder_register_fold_scope
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func constfolder_register_fold_scope(mut global: Scope, prog: Expr, ctx: Context)
 #+end_src
 
 * constfolder_register_core_constants
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.constfolder_register_core_constants
+:group: Compiler backend
+:END:
+
 #+begin_src til
 func constfolder_register_core_constants(mut global: Scope)
 #+end_src

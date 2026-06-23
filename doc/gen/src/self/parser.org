@@ -2,36 +2,71 @@
 #+OPTIONS: toc:t
 
 * builtin_primitive_from_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.builtin_primitive_from_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func builtin_primitive_from_name(name: Str, mut out: Primitive) returns shallow Bool
 #+end_src
 
 * builtin_primitive_size_align
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.builtin_primitive_size_align
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func builtin_primitive_size_align(prim: Primitive, mut sz: U32, mut al: U32)
 #+end_src
 
 * builtin_type_from_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.builtin_type_from_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
 #+end_src
 
 * til_type_from_explicit_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.til_type_from_explicit_type
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func til_type_from_explicit_type(name: Str) returns Type
 #+end_src
 
 * decl_typed
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.decl_typed
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
 #+end_src
 
 * parse
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.parse
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64) returns Expr
 #+end_src
 
 * Set__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Set__Str
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Set__Str {
     own mut data : U8
@@ -55,6 +90,11 @@ namespace:
 #+end_src
 
 * Map__Str_Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.Map__Str_Str
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_Str {
     mut keys : Vec__Str
@@ -66,16 +106,6 @@ namespace:
     func len(self: Map__Str_Str) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Str)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_Str, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_Str, i: U32) returns ref Str
     /// True if a value exists for the given key.
     func has(self: Map__Str_Str, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if

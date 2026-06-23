@@ -2,26 +2,51 @@
 #+OPTIONS: toc:t
 
 * realpath_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.realpath_str
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 ext_proc realpath_str(path: Str) returns Str
 #+end_src
 
 * REPL_CORE_INFO_CACHE
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.REPL_CORE_INFO_CACHE
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 REPL_CORE_INFO_CACHE is a Str
 #+end_src
 
 * REPL_CORE_DOCS_CACHE
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.REPL_CORE_DOCS_CACHE
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 REPL_CORE_DOCS_CACHE is a Str
 #+end_src
 
 * forward_header_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.forward_header_path
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func forward_header_path(path: Str) returns Str
 #+end_src
 
 * ProgramUnit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.ProgramUnit
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct ProgramUnit {
     mut path : Str
@@ -36,6 +61,11 @@ namespace:
 #+end_src
 
 * LoadedProgram
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.LoadedProgram
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct LoadedProgram {
     own mut core_units
@@ -60,16 +90,31 @@ namespace:
 #+end_src
 
 * retarget_loaded_aliases
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.retarget_loaded_aliases
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func retarget_loaded_aliases(lp: LoadedProgram)
 #+end_src
 
 * load_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.load_program
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str) returns LoadedProgram
 #+end_src
 
 * DocMeta
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.DocMeta
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct DocMeta {
     mut body : Str
@@ -88,51 +133,101 @@ namespace:
 #+end_src
 
 * doc_keyword_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.doc_keyword_value
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func doc_keyword_value(line: Str, key: Str) returns Str
 #+end_src
 
 * doc_false_value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.doc_false_value
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func doc_false_value(value: Str) returns shallow Bool
 #+end_src
 
 * doc_meta_line
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.doc_meta_line
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func doc_meta_line(line: Str, mut meta: DocMeta) returns shallow Bool
 #+end_src
 
 * parse_doc_meta
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.parse_doc_meta
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func parse_doc_meta(doc: Str) returns DocMeta
 #+end_src
 
 * format_doc_for_help
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.format_doc_for_help
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func format_doc_for_help(doc: Str) returns Str
 #+end_src
 
 * format_decl_info
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.format_decl_info
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func format_decl_info(stmt: Expr, scope: TypeScope) returns Str
 #+end_src
 
 * collect_decl_packed
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.collect_decl_packed
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func collect_decl_packed(body: Expr, scope: TypeScope, mut info: Str, mut docs: Str)
 #+end_src
 
 * build_doc_init_line
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.build_doc_init_line
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func build_doc_init_line(packed_info: Str, packed_docs: Str) returns Str
 #+end_src
 
 * build_doc_init_line_cached
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.build_doc_init_line_cached
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func build_doc_init_line_cached(escaped_core_info: Str, escaped_core_docs: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
 #+end_src
 
 * ReplCoreDocCache
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.ReplCoreDocCache
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct ReplCoreDocCache {
     mut escaped_info : Str
@@ -148,26 +243,51 @@ namespace:
 #+end_src
 
 * build_repl_core_doc_cache
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.build_repl_core_doc_cache
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func build_repl_core_doc_cache(lp: LoadedProgram) returns ReplCoreDocCache
 #+end_src
 
 * init_and_type_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.init_and_type_program
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
 #+end_src
 
 * prepare_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.prepare_program
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc prepare_program(mut lp: LoadedProgram, shallow run_tests: Bool)
 #+end_src
 
 * cmd_ast
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.cmd_ast
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc cmd_ast(lp: LoadedProgram)
 #+end_src
 
 * Map__Str_DeclRef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.Map__Str_DeclRef
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_DeclRef {
     mut keys : Vec__Str
@@ -179,16 +299,6 @@ namespace:
     func len(self: Map__Str_DeclRef) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_DeclRef)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_DeclRef, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_DeclRef, i: U32) returns ref priv___src_self_loader_til__DeclRef
     /// True if a value exists for the given key.
     func has(self: Map__Str_DeclRef, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -205,6 +315,11 @@ namespace:
 #+end_src
 
 * Vec__ProgramUnit
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.Vec__ProgramUnit
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__ProgramUnit {
     own mut data : U8
@@ -247,6 +362,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ProgramUnit, shallow n: U32) returns Vec__ProgramUnit
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__ProgramUnit, shallow i: U32, own val: ProgramUnit)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -265,6 +384,11 @@ namespace:
 #+end_src
 
 * Vec__DeclRef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.Vec__DeclRef
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__DeclRef {
     own mut data : U8
@@ -307,6 +431,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DeclRef, shallow n: U32) returns Vec__DeclRef
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__DeclRef, shallow i: U32, own val: priv___src_self_loader_til__DeclRef)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * TokenType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.TokenType
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 enum TokenType {
     Eof
@@ -175,6 +180,11 @@ namespace:
 #+end_src
 
 * Token
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.Token
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Token {
     type : TokenType
@@ -191,21 +201,41 @@ namespace:
 #+end_src
 
 * is_alnum
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.is_alnum
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func is_alnum(shallow c: I8) returns shallow Bool
 #+end_src
 
 * tok_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.tok_name
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 func tok_name(type: TokenType) returns Str
 #+end_src
 
 * tokenize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.tokenize
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 proc tokenize(src: Str, path: Str) returns Vec__Token
 #+end_src
 
 * Map__Str_TokenType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.Map__Str_TokenType
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Map__Str_TokenType {
     mut keys : Vec__Str
@@ -217,16 +247,6 @@ namespace:
     func len(self: Map__Str_TokenType) returns shallow U32
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_TokenType)
-    /// Ref to the key slot at sorted index `i`. Unchecked: callers
-    /// guarantee `i < self.keys.count` (Map's binary-search consumers
-    /// always validate before calling). Bypasses Vec.get's throwing
-    /// bounds check. priv (#287): only the binary-search has/get/set
-    /// need indexed key access; consumers walk entries via for-in over
-    /// the public keys/values Vecs instead.
-    func key_ptr(self: Map__Str_TokenType, i: U32) returns ref Str
-    /// Ref to the value slot at sorted index `i`. Same caller-validated
-    /// contract as key_ptr; likewise priv (#287).
-    func val_ptr(self: Map__Str_TokenType, i: U32) returns ref TokenType
     /// True if a value exists for the given key.
     func has(self: Map__Str_TokenType, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
@@ -243,6 +263,11 @@ namespace:
 #+end_src
 
 * Vec__Token
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.Vec__Token
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__Token {
     own mut data : U8
@@ -285,6 +310,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Token, shallow n: U32) returns Vec__Token
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Token, shallow i: U32, own val: Token)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
@@ -303,6 +332,11 @@ namespace:
 #+end_src
 
 * Vec__TokenType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.Vec__TokenType
+:group: Compiler frontend
+:END:
+
 #+begin_src til
 struct Vec__TokenType {
     own mut data : U8
@@ -345,6 +379,10 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__TokenType, shallow n: U32) returns Vec__TokenType
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__TokenType, shallow i: U32, own val: TokenType)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.

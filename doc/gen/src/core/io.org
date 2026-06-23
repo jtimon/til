@@ -2,26 +2,51 @@
 #+OPTIONS: toc:t
 
 * print_single
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.print_single
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc print_single(s: Str)
 #+end_src
 
 * eprint_single
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.eprint_single
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc eprint_single(s: Str)
 #+end_src
 
 * print_flush
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.print_flush
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc print_flush()
 #+end_src
 
 * in_read_line
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.in_read_line
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc in_read_line(mut line: Str) returns shallow Bool
 #+end_src
 
 * println
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.println
+:group: Core
+:END:
+
 Print strings to stdout followed by a newline.
 
 #+begin_src til
@@ -29,6 +54,11 @@ proc println(parts: ..Str)
 #+end_src
 
 * print
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.print
+:group: Core
+:END:
+
 Print strings to stdout without a newline.
 
 #+begin_src til
@@ -36,56 +66,111 @@ proc print(parts: ..Str)
 #+end_src
 
 * cfile_open
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_open
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cfile_open(path: Str, shallow is_write: Bool) returns ref Dynamic
 #+end_src
 
 * cfile_open_update
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_open_update
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cfile_open_update(path: Str) returns ref Dynamic
 #+end_src
 
 * cfile_close
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_close
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cfile_close(handle: Dynamic)
 #+end_src
 
 * cfile_write_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_write_str
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc cfile_write_str(handle: Dynamic, s: Str)
 #+end_src
 
 * cfile_read_all
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_read_all
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cfile_read_all(handle: Dynamic) returns Str
 #+end_src
 
 * cfile_tell
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_tell
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cfile_tell(handle: Dynamic) returns shallow I64
 #+end_src
 
 * cfile_seek
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_seek
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc cfile_seek(handle: Dynamic, shallow pos: I64)
 #+end_src
 
 * cfile_seek_cur
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_seek_cur
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc cfile_seek_cur(handle: Dynamic, shallow delta: I64)
 #+end_src
 
 * cfile_seek_end
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_seek_end
+:group: Core
+:END:
+
 #+begin_src til
 ext_proc cfile_seek_end(handle: Dynamic, shallow delta: I64)
 #+end_src
 
 * cfile_read_n
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.cfile_read_n
+:group: Core
+:END:
+
 #+begin_src til
 ext_func cfile_read_n(handle: Dynamic, shallow count: I64) returns Str
 #+end_src
 
 * File
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.io.File
+:group: Core
+:END:
+
 File handle for reading or writing on disk.
 
 #+begin_src til

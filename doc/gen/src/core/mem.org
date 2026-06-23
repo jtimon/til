@@ -2,131 +2,261 @@
 #+OPTIONS: toc:t
 
 * free
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.free
+:group: Core
+:END:
+
 #+begin_src til
 ext_func free(own elem: Dynamic)
 #+end_src
 
 * til_closure_delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.til_closure_delete
+:group: Core
+:END:
+
 #+begin_src til
 ext_func til_closure_delete(closure: Fn)
 #+end_src
 
 * malloc
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.malloc
+:group: Core
+:END:
+
 #+begin_src til
 ext_func malloc(shallow count: U64) returns Dynamic
 #+end_src
 
 * calloc
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.calloc
+:group: Core
+:END:
+
 #+begin_src til
 ext_func calloc(shallow nmemb: U64, shallow size: U64) returns Dynamic
 #+end_src
 
 * realloc
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.realloc
+:group: Core
+:END:
+
 #+begin_src til
 ext_func realloc(own buf: Dynamic, shallow count: U64) returns Dynamic
 #+end_src
 
 * ptr_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.ptr_add
+:group: Core
+:END:
+
 #+begin_src til
 ext_func ptr_add(buf: Dynamic, shallow offset: U64) returns ref Dynamic
 #+end_src
 
 * deref
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.deref
+:group: Core
+:END:
+
 #+begin_src til
 ext_func deref(slot: Dynamic) returns ref Dynamic
 #+end_src
 
 * write_ptr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_ptr
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_ptr(dest: Dynamic, val: Dynamic)
 #+end_src
 
 * write_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_i64
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_i64(dest: Dynamic, shallow val: I64)
 #+end_src
 
 * write_u8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_u8
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_u8(dest: Dynamic, shallow val: U8)
 #+end_src
 
 * write_i8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_i8
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_i8(dest: Dynamic, shallow val: I8)
 #+end_src
 
 * write_i16
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_i16
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_i16(dest: Dynamic, shallow val: I16)
 #+end_src
 
 * write_u16
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_u16
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_u16(dest: Dynamic, shallow val: U16)
 #+end_src
 
 * write_i32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_i32
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_i32(dest: Dynamic, shallow val: I32)
 #+end_src
 
 * write_u32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_u32
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_u32(dest: Dynamic, shallow val: U32)
 #+end_src
 
 * write_u64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_u64
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_u64(dest: Dynamic, shallow val: U64)
 #+end_src
 
 * write_f32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_f32
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_f32(dest: Dynamic, shallow val: F32)
 #+end_src
 
 * write_bool
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.write_bool
+:group: Core
+:END:
+
 #+begin_src til
 ext_func write_bool(dest: Dynamic, shallow val: Bool)
 #+end_src
 
 * memcpy
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.memcpy
+:group: Core
+:END:
+
 #+begin_src til
 ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)
 #+end_src
 
 * memmove
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.memmove
+:group: Core
+:END:
+
 #+begin_src til
 ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
 #+end_src
 
 * memset
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.memset
+:group: Core
+:END:
+
 #+begin_src til
 ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
 #+end_src
 
 * ptr_eq
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.ptr_eq
+:group: Core
+:END:
+
 #+begin_src til
 ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
 #+end_src
 
 * is_null
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.is_null
+:group: Core
+:END:
+
 #+begin_src til
 func is_null(p: Dynamic) returns shallow Bool
 #+end_src
 
 * to_ptr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.to_ptr
+:group: Core
+:END:
+
 #+begin_src til
 ext_func to_ptr(a: Dynamic) returns ref Dynamic
 #+end_src
 
 * swap
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.swap
+:group: Core
+:END:
+
 #+begin_src til
 func swap(a: Dynamic, b: Dynamic, shallow size: U64)
 #+end_src
 
 * move
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.move
+:group: Core
+:END:
+
 #+begin_src til
 func move(dest: Dynamic, src: Dynamic, shallow size: U64)
 #+end_src

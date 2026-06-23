@@ -2,6 +2,11 @@
 #+OPTIONS: toc:t
 
 * F32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.f32.F32
+:group: Core
+:END:
+
 32-bit floating-point number.
 
 #+begin_src til
