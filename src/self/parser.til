@@ -208,7 +208,7 @@ priv anon_def_key := func(def: Expr) returns Str {
     case NodeType.EnumDef(edd):
         mut k := "enum"
         // #264: tag width is part of the type identity.
-        if edd.tag_type.len().gt(0) { k = format(k, "(", edd.tag_type, ")") }
+        if edd.tag_type.len() > 0 { k = format(k, "(", edd.tag_type, ")") }
         k = format(k, "{")
         for j in 0..edd.variants.len() {
             ref vn : Str = edd.variants[j]
@@ -302,7 +302,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     mut args := Vec(Str).new()
     mut argi := 0
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-        if argi.gt(0) { mangled = format(mangled, "_") }
+        if argi > 0 { mangled = format(mangled, "_") }
         argname := expect_text(p, TokenType.Ident)
         mangled = format(mangled, argname)
         args.push(own argname.clone())
@@ -365,14 +365,14 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
         ref t : Str = ptypes[i]
         name = format(name, t)
     }
-    if return_type.len().gt(0) {
+    if return_type.len() > 0 {
         name = format(name, "_ret_")
         name = format(name, return_type)
     }
 
     // Build synthetic func_def (bodyless — same as named FuncSig types)
     mut fd := FunctionDef()
-    if return_type.len().gt(0) { fd.func_type = FuncType.Func }
+    if return_type.len() > 0 { fd.func_type = FuncType.Func }
     else { fd.func_type = FuncType.Proc }
     fd.return_type = return_type
     fd.return_own_type = OwnType.Own
@@ -601,7 +601,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
         if param_decl.explicit_type.eq("Fn") {
             syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
-            if syn_name.len().gt(0) {
+            if syn_name.len() > 0 {
                 set_decl_type(param_decl, syn_name)
             }
         }
@@ -686,7 +686,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             mut pi : USize = 0
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 pn := expect_text(p, TokenType.Ident)
-                if pi.gte(sfd.params.len()) {
+                if pi >= sfd.params.len() {
                     panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
                 }
@@ -696,7 +696,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect_token(p, TokenType.RParen)
-            if pi.lt(sfd.params.len()) {
+            if pi < sfd.params.len() {
                 panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                     ": FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
             }
@@ -721,7 +721,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     // Issue #58: angle-bracket generic params wrap the def into a type-gen
     // macro now that the inner FuncDef is fully parsed. Mirrors the wrap
     // parse_struct_def does for struct<T: Type>.
-    if gparams.len().gt(0) {
+    if gparams.len() > 0 {
         return wrap_func_def_in_macro(own def.clone(), gparams, kw_line, kw_col)
     }
 
@@ -842,7 +842,7 @@ priv wrap_func_def_in_macro := func(own fdef: Expr, gparams: Vec(Declaration), l
 priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     kw_line := peek_line(p)
     kw_col := peek_col(p)
-    is_ext := c_tag.len().gt(0)
+    is_ext := c_tag.len() > 0
     if is_ext.not() { advance(p) }
 
     def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
@@ -951,7 +951,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     }
     expect_token(p, TokenType.RBrace)
     p.pending_doc = saved_doc.clone()
-    while p.active_type_params.len().gt(active_type_params_start) {
+    while p.active_type_params.len() > active_type_params_start {
         mut dropped : Str = p.active_type_params.pop()
         own dropped.delete(true)
     }
@@ -1137,7 +1137,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
                 vtype = expect_text(p, TokenType.Ident)
             }
             edd.variants.push(own vname.clone())
-            if vtype.len().gt(0) {
+            if vtype.len() > 0 {
                 edd.payload_types.set(variant_idx, own vtype.clone())
             }
             // payload_consts is dense, parallel to variants: push one
@@ -1392,7 +1392,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // literal so it narrows like any other literal (args, decls, assigns,
         // returns); -expr desugars to expr.neg(). A trailing '-' with no
         // following token leaves e_set false and hits the panic below.
-        if p.pos.add(1).lt(p.tokens.len()) {
+        if p.pos.add(1) < p.tokens.len() {
             if p.tokens[p.pos.add(1)].type.is(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
@@ -1424,7 +1424,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         ch := tok_text(p, t)
         mut byte_val := 0
         if ch.len().gt(0).and(ch.get(0).eq('\\')) {
-            if ch.len().gt(1) {
+            if ch.len() > 1 {
                 ref c2 : I8 = ch.get(1)
                 if c2.eq('n') { byte_val = 10 }
                 else if c2.eq('t') { byte_val = 9 }
@@ -1435,7 +1435,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
                 else { byte_val = c2.cast(I64) }
             }
         } else {
-            if ch.len().gt(0) { byte_val = ch.get(0).cast(I64) }
+            if ch.len() > 0 { byte_val = ch.get(0).cast(I64) }
         }
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
         e.set_expr_til_type(Type.Primitive(Primitive.U8))
@@ -1748,7 +1748,7 @@ priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
     while true {
         ref op : Token = peek(p)
         prec := binop_prec(op.type)
-        if prec.lt(min_prec) { break }
+        if prec < min_prec { break }
         op_line := op.line
         op_col := op.col
         method := binop_method(op.type)
@@ -1809,7 +1809,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 case NodeType.Decl(dd):
                     mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
                         explicit_type = dd.explicit_type.clone(), til_type = dd.til_type.clone(), own_type = dd.own_type)
-                    if stmt.children.len().gt(0) {
+                    if stmt.children.len() > 0 {
                         ns_dd.default_value = stmt.children[0].clone()
                     }
                     switch def.node_type {
@@ -1855,7 +1855,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         // If type is Fn, parse optional Fn(T1, T2) returns T signature
         if type_name.eq("Fn") {
             syn_name := parse_fn_signature(p, t_line, t_col)
-            if syn_name.len().gt(0) { type_name = syn_name }
+            if syn_name.len() > 0 { type_name = syn_name }
         }
 
         expect_token(p, TokenType.Eq)
@@ -2176,7 +2176,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         return parse_statement_ident(p, false, OwnType.Shallow)
     }
     if t.type.is(TokenType.KwTest) {
-        if p.pos.add(1).lt(p.tokens.len()) {
+        if p.pos.add(1) < p.tokens.len() {
             ref nt : Token = p.tokens[p.pos.add(1)]
             if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon))
             .or(nt.type.is(TokenType.Eq)).or(nt.type.is(TokenType.Dot)) {
@@ -2327,7 +2327,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             mut own_mut := false
             if check(p, TokenType.KwMut) { advance(p); own_mut = true }
             if check(p, TokenType.Ident) {
-                if p.pos.add(1).lt(p.tokens.len()) {
+                if p.pos.add(1) < p.tokens.len() {
                     ref nt : Token = p.tokens[p.pos.add(1)]
                     if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, OwnType.Own)
@@ -2344,7 +2344,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         // as a signal. UFCS desugaring converts this to own on self (bit 1).
         mut expr := parse_expression(p)
         if expr.node_type.is(NodeType.FCall) {
-            if expr.children.len().gt(0) {
+            if expr.children.len() > 0 {
                 if expr.children[0].node_type.is(NodeType.FieldAccess) {
                     set_own_arg(expr, 0)
                 }

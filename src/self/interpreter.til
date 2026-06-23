@@ -167,7 +167,7 @@ priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: 
         memcpy(dst_data, data, sz.cast(U64))
         if struct_name.eq("Str") {
             ref s : Str = to_ptr(data)
-            if s.count.gt(0) {
+            if s.count > 0 {
                 if s.c_str.is_null().not() {
                     cloned_str := s.clone()
                     write_ptr(dst_data, cloned_str.c_str)
@@ -201,7 +201,7 @@ priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: 
                 if dd.own_type.is(OwnType.Ref) { continue }
                 if ftype.eq("Str") {
                     ref s : Str = ptr_add(data, foff.cast(U64))
-                    if s.count.gt(0) {
+                    if s.count > 0 {
                         if s.c_str.is_null().not() {
                             cloned_str := s.clone()
                             write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
@@ -611,14 +611,14 @@ priv enum_free_str_payload := func(data: Dynamic) {
 
 priv val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, str_payload: Bool, move_src: Bool, ctx: Context) returns shallow Value {
     mut alloc_size : USize = total_enum_size
-    if alloc_size.lt(8) {
+    if alloc_size < 8 {
         alloc_size = 8
     }
     data : Dynamic = calloc(1, alloc_size.cast(U64))
     memcpy(data, etag, 4)
     mut is_str := false
     if payload_data.is_null().not() {
-        if payload_size.gt(0) {
+        if payload_size > 0 {
             memcpy(ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64)), payload_data, payload_size.cast(U64))
             if str_payload {
                 is_str = true
@@ -721,10 +721,10 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         buf : Dynamic = malloc(raw.count.add(1).cast(U64))
         mut j : USize = 0
         mut i : USize = 0
-        while i.lt(raw.count) {
+        while i < raw.count {
             ref ch : I8 = raw.unsafe_get(i)
             if ch.eq(92) {
-                if i.add(1).lt(raw.count) {
+                if i.add(1) < raw.count {
                     ref next : I8 = raw.unsafe_get(i.add(1))
                     if next.eq(110) { memset(ptr_add(buf, j.cast(U64)), 10, 1); j = j.add(1); i = i.add(2); continue }
                     if next.eq(116) { memset(ptr_add(buf, j.cast(U64)), 9, 1); j = j.add(1); i = i.add(2); continue }
@@ -818,7 +818,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                         if edef.node_type.is(NodeType.EnumDef) {
                                             total_size : USize = ctx_total_size(sname, ctx)
                                             tag := enum_variant_tag(edef, fname.field_access_name())
-                                            if tag.gte(0) {
+                                            if tag >= 0 {
                                                 if enum_has_payloads(edef) {
                                                     return val_enum_flat(sname, tag, NULL, 0, total_size, false, false, ctx)
                                                 } else {
@@ -955,7 +955,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                     total_size : USize = ctx_total_size(type_name, ctx)
                     ref inline_etag : I32 = p
                     mut inline_psz : USize = 0
-                    if total_size.gte(ENUM_PAYLOAD_OFFSET) {
+                    if total_size >= ENUM_PAYLOAD_OFFSET {
                         inline_psz = total_size.sub(ENUM_PAYLOAD_OFFSET)
                     }
                     return val_enum_flat(type_name, inline_etag, ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, enum_variant_is_str(type_name, inline_etag, ctx), false, ctx)
@@ -984,7 +984,7 @@ priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns
     case NodeType.FuncDef(fd):
         if fd.params.len().eq(0) { return false }
         if fd.params[0].own_type.is(OwnType.Own).not() { return false }
-        if e.children.len().lte(1) { return false }
+        if e.children.len() <= 1 { return false }
         switch e.children[1].node_type {
         case NodeType.Ident(arg_ident):
             ref fc : Cell = scope_get(scope, arg_ident.ident_name())
@@ -1084,7 +1084,7 @@ priv clike_case_variant_name := func(pat: Expr) returns Str {
     switch pat.node_type {
     case NodeType.FieldAccess(fa): return fa.field_access_name()
     case NodeType.FCall:
-        if pat.children.len().gt(0) {
+        if pat.children.len() > 0 {
             switch pat.children[0].node_type {
             case NodeType.FieldAccess(fa2): return fa2.field_access_name()
             case:
@@ -1190,7 +1190,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         // so a value-rhs ref leaked the owned clone (the cell skipped it
         // as "borrowed") -- the dominant constfolder ref-binding leak.
         if is_value_ptr(val) {
-            if dd.explicit_type.len().gt(0) {
+            if dd.explicit_type.len() > 0 {
                 // #227: for ref-mut bindings to primitive scalars at a
                 // raw pointer, save the source ptr so a later Assign
                 // can write back through it. reinterpret_ptr_value
@@ -1299,7 +1299,7 @@ priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         eval_body(then_scope, stmt.children[1], ctx)
         if c.has_return { c.return_value = c.return_value.clone() }
         scope_free(own then_scope)
-    } else if stmt.children.len().gt(2) {
+    } else if stmt.children.len() > 2 {
         else_scope := scope_new(scope)
         eval_body(else_scope, stmt.children[2], ctx)
         if c.has_return { c.return_value = c.return_value.clone() }
@@ -1376,7 +1376,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             // is safe: the typed AST's value semantics make any rhs that
             // reads the old value a clone by the time it gets here.
             cell.val = val_none()
-            assign_is_alias := scope_get_payload_alias(scope, ad.name).len().gt(0)
+            assign_is_alias := scope_get_payload_alias(scope, ad.name).len() > 0
             // Issue #275: value semantics -- a normal owning cell must OWN its
             // payload. read_field returns a BORROW for inline-struct/Str fields
             // (e.g. a caught error's `err.msg`); storing that borrow aliases the
@@ -1429,9 +1429,9 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             // struct payloads memcpy the struct bytes (same shape as
             // write_field). Nested-enum payloads are still TODO.
             payload_alias := scope_get_payload_alias(scope, ad.name)
-            if payload_alias.len().gt(0) {
+            if payload_alias.len() > 0 {
                 pipe_pos := payload_alias.find("|")
-                if pipe_pos.gte(0) {
+                if pipe_pos >= 0 {
                     pipe_u := pipe_pos.to_u32()
                     enum_var_name := payload_alias.substr(0, pipe_u)
                     type_name := payload_alias.substr(pipe_u.add(1), payload_alias.len().sub(pipe_u).sub(1))
@@ -1482,7 +1482,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                             }
                                         }
                                     }
-                                    if sz.gt(0) {
+                                    if sz > 0 {
                                         // #221 paired: for Str payloads the old payload's
                                         // c_str may own heap (cap < CAP_VIEW && count > 0);
                                         // free it before overwriting the bytes so the
@@ -1514,8 +1514,8 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                     // representation for later payload extraction.
                                     if new_ei.data.is_null().not() {
                                         mut copy_sz := ctx_total_size(type_name, ctx)
-                                        if new_ei.data_size.lt(copy_sz) { copy_sz = new_ei.data_size }
-                                        if copy_sz.gt(0) { memcpy(dest, new_ei.data, copy_sz.cast(U64)) }
+                                        if new_ei.data_size < copy_sz { copy_sz = new_ei.data_size }
+                                        if copy_sz > 0 { memcpy(dest, new_ei.data, copy_sz.cast(U64)) }
                                     }
                                 case:
                                 }
@@ -1657,7 +1657,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         case NodeType.Continue:
             c.has_continue = true
         case NodeType.Return:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 c.return_value = eval_expr(scope, stmt.children[0], ctx)
             } else {
                 c.return_value = val_none()
@@ -1780,7 +1780,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 // If the receiver type is unknown (eg Dynamic), fall back to
                 // the unqualified top-level name. Required for and/or/not.
                 mut flat_str := fn_name.field_access_name()
-                if sn.len().gt(0) {
+                if sn.len() > 0 {
                     flat_str = sn.format("_", fn_name.field_access_name())
                 }
                 orig_callee_val := callee_expr.clone()
@@ -1828,7 +1828,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 // Only the top-level call_free=true delete frees the buffer (what
                 // free_temp_arg_value does); a call_free=false call must keep it.
                 mut call_free := true
-                if e.children.len().gt(2) {
+                if e.children.len() > 2 {
                     cf_v := eval_expr(scope, e.children[2], ctx)
                     switch cf_v {
                     case Value.Boolean(cfb): call_free = cfb
@@ -2006,13 +2006,13 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 case NodeType.FCall(fcd_ctor):
                     switch fcd_ctor.til_type {
                     case Type.Struct(es):
-                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
+                        if es.len() > 0 { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
                         else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
                     case Type.Enum(es):
-                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
+                        if es.len() > 0 { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
                         else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
                     case Type.Custom(es):
-                        if es.len().gt(0) { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
+                        if es.len() > 0 { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
                         else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
                     case:
                         inst = make_struct_value(name.name, si_edef, inst_data, false, ctx)
@@ -2819,9 +2819,9 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
             switch obj_expr.node_type {
             case NodeType.Ident(ident):
                 if ident.ident_name().eq(sname) { return true }
-                if ident.len().gt(0) {
-                    if ident.unsafe_get(0).gte(65) {
-                        if ident.unsafe_get(0).lte(90) { return true }
+                if ident.len() > 0 {
+                    if ident.unsafe_get(0) >= 65 {
+                        if ident.unsafe_get(0) <= 90 { return true }
                     }
                 }
             case:
@@ -2834,9 +2834,9 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
             switch obj_expr.node_type {
             case NodeType.Ident(ident):
                 if ident.ident_name().eq(sname) { return true }
-                if ident.len().gt(0) {
-                    if ident.unsafe_get(0).gte(65) {
-                        if ident.unsafe_get(0).lte(90) { return true }
+                if ident.len() > 0 {
+                    if ident.unsafe_get(0) >= 65 {
+                        if ident.unsafe_get(0) <= 90 { return true }
                     }
                 }
             case:
@@ -2886,7 +2886,7 @@ priv field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns
 priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
     ref obj_expr : Expr = e.children[0]
     sname := til_type_name(obj_expr.expr_til_type())
-    if sname.len().gt(0) { return interp_fa_is_ns_inner(scope, e, sname) }
+    if sname.len() > 0 { return interp_fa_is_ns_inner(scope, e, sname) }
     switch obj_expr.node_type {
     case NodeType.Ident(ident): return interp_fa_is_ns_inner(scope, e, ident.ident_name())
     case:
@@ -3213,7 +3213,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
     ref ptr2 : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
-    if ftype.len().gt(0) {
+    if ftype.len() > 0 {
         ref stored : Dynamic = deref(ptr2)
         if stored.is_null().not() { return Value.Func(stored) }
     }
@@ -3303,7 +3303,7 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         }
     case Value.Enum(ei):
         mut total : USize = ei.data_size
-        if total.lt(8) { total = 8 }
+        if total < 8 { total = 8 }
         if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
             heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
             memcpy(heap_ei, ei, EnumInstance.size().cast(U64))
@@ -3606,11 +3606,11 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 ref body : Expr = func_def.children[0]
                 main_scope := scope_new(global)
 
-                if nparam.gt(0) {
+                if nparam > 0 {
                     mut fixed := nparam
-                    if vi.gte(0) {
+                    if vi >= 0 {
                         fixed = nparam.sub(1)
-                        if user_argc.lt(fixed) {
+                        if user_argc < fixed {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
                             eprint_single(" argument(s), got ")
@@ -3642,7 +3642,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             argi++
                         }
                     }
-                } else if user_argc.gt(0) {
+                } else if user_argc > 0 {
                     eprint_single("error: main expects no arguments, got ")
                     eprint_single(user_argc.to_str())
                     eprint_single("\n")
@@ -3668,7 +3668,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
 cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
-    if lp.link_c_paths.len().gt(0) {
+    if lp.link_c_paths.len() > 0 {
         system_cmd("mkdir -p tmp")
         interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
         result = build_forward_header_lp(interpret_fwd_path, lp)
@@ -3772,17 +3772,17 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
         return
     }
     mut i : USize = 0
-    while i.add(1).lt(link_flags.len()) {
+    while i.add(1) < link_flags.len() {
         if link_flags.unsafe_get(i).eq(45).and(link_flags.unsafe_get(i.add(1)).eq(108)) {
             i = i.add(2)
             start := i
-            while i.lt(link_flags.len()) {
+            while i < link_flags.len() {
                 if link_flags.unsafe_get(i).eq(32) {
                     break
                 }
                 i++
             }
-            if i.gt(start) {
+            if i > start {
                 lib := link_flags.substr(start, i.sub(start))
                 soname := format("lib", lib, ".so")
                 ffi_load_global_lib(soname)
@@ -3801,7 +3801,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     dot_str := "."
     slash := ext_c_path.rfind("/")
     mut ext_dir := dot_str
-    if slash.gte(0) {
+    if slash >= 0 {
         ext_dir = ext_c_path.substr(0, slash.to_usize())
     }
 
@@ -4316,7 +4316,7 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx.gte(sd.fields.len()) {
+        if idx >= sd.fields.len() {
             interp_error(e, "struct_field_name: index out of bounds", ctx)
             exit(1)
         }
@@ -4334,7 +4334,7 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx.gte(sd.fields.len()) {
+        if idx >= sd.fields.len() {
             interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
             exit(1)
         }
@@ -4352,7 +4352,7 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx.gte(sd.fields.len()) {
+        if idx >= sd.fields.len() {
             interp_error(e, "struct_field_type: index out of bounds", ctx)
             exit(1)
         }
@@ -4406,7 +4406,7 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        if idx.gte(ed.variants.len()) {
+        if idx >= ed.variants.len() {
             interp_error(e, "enum_variant_name: index out of bounds", ctx)
             exit(1)
         }
@@ -4424,13 +4424,13 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Co
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        if idx.gte(ed.variants.len()) {
+        if idx >= ed.variants.len() {
             interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
             exit(1)
         }
         if ed.payload_types.has(idx.to_i64()) {
             ref pt : Str = ed.payload_types[idx.to_i64()]
-            if pt.len().gt(0) { r = Value.Int(1) } else { r = Value.Int(0) }
+            if pt.len() > 0 { r = Value.Int(1) } else { r = Value.Int(0) }
         } else {
             r = Value.Int(0)
         }
@@ -4446,7 +4446,7 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: C
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
     switch node.node_type {
     case NodeType.EnumDef(ed):
-        if idx.gte(ed.variants.len()) {
+        if idx >= ed.variants.len() {
             interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
             exit(1)
         }
@@ -4504,7 +4504,7 @@ priv h_func_sig_param_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        if idx.gte(fd.params.len()) {
+        if idx >= fd.params.len() {
             interp_error(e, "func_sig_param_type: index out of bounds", ctx)
             exit(1)
         }
@@ -4521,7 +4521,7 @@ priv h_func_sig_return_count := proc(s: Scope, e: Expr, mut r: Value, ctx: Conte
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        if fd.return_type.len().gt(0) { r = Value.Int(1) } else { r = Value.Int(0) }
+        if fd.return_type.len() > 0 { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
         UNREACHABLE()
     }
@@ -4563,7 +4563,7 @@ priv h_func_sig_throw_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
     switch node.node_type {
     case NodeType.FuncDef(fd):
-        if idx.gte(fd.throw_types.len()) {
+        if idx >= fd.throw_types.len() {
             interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
             exit(1)
         }
@@ -5120,9 +5120,9 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
 priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if enum_has_payloads(enum_def) {
         ctor_tag := enum_variant_tag(enum_def, method)
-        if ctor_tag.gte(0) {
+        if ctor_tag >= 0 {
             vtype := enum_variant_type(enum_def, ctor_tag)
-            has_payload := vtype.len().gt(0)
+            has_payload := vtype.len() > 0
             if has_payload {
                 mut payload := eval_expr(scope, e.children[1], ctx)
                 mut pdata : Dynamic = 0
@@ -5510,7 +5510,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         // Build FFIEntry
         mut entry := FFIEntry()
         entry.fn = fn
-        if fd.return_type.len().gt(0) { entry.return_type = fd.return_type }
+        if fd.return_type.len() > 0 { entry.return_type = fd.return_type }
         entry.nparam = np
         entry.param_shallows = pshallows
         entry.return_is_shallow = ret_shallow
@@ -5644,7 +5644,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     ffi_init_struct_defs(program, ctx)
     ffi_init_scan_program(program, ctx)
     ctx.ffi_loaded = true
-    if so_path.len().gt(0) { unlink_path(so_path) }
+    if so_path.len() > 0 { unlink_path(so_path) }
     return 0
 }
 ffi_cleanup := proc(ctx: Context) {

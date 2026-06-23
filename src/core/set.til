@@ -33,13 +33,13 @@ namespace:
     has := func(self: Set(T), val: T) returns Bool {
         mut lo : USize = 0
         mut hi := self.count
-        while lo.lt(hi) {
+        while lo < hi {
             mid := lo.add(hi.sub(lo).div(2))
             ref cur : T = ptr_add(self.data, mid.mul(T.size()).cast(U64))
             c : I64 = T.cmp(cur, val)
-            if c.lt(0) { lo = mid.add(1) }
+            if c < 0 { lo = mid.add(1) }
             else {
-                if c.gt(0) { hi = mid }
+                if c > 0 { hi = mid }
                 else { return true }
             }
         }
@@ -52,13 +52,13 @@ namespace:
         mut lo : USize = 0
         mut hi := self.count
         mut found := false
-        while lo.lt(hi) {
+        while lo < hi {
             mid := lo.add(hi.sub(lo).div(2))
             ref cur : T = ptr_add(self.data, mid.mul(T.size()).cast(U64))
             c : I64 = T.cmp(cur, val)
-            if c.lt(0) { lo = mid.add(1) }
+            if c < 0 { lo = mid.add(1) }
             else {
-                if c.gt(0) { hi = mid }
+                if c > 0 { hi = mid }
                 else { found = true; lo = mid; hi = mid }
             }
         }

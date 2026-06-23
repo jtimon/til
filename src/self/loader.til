@@ -25,7 +25,7 @@ REPL_CORE_INFO_CACHE := "doc/repl_core_info.esc"
 REPL_CORE_DOCS_CACHE := "doc/repl_core_docs.esc"
 
 priv normalize_mode_name := func(mode_name: Str) returns Str {
-    if mode_name.len().gt(0) {
+    if mode_name.len() > 0 {
         return mode_name
     }
     return "script"
@@ -56,7 +56,7 @@ priv require_mode := func(ctx: Context, path: Str, mode_name: Str) returns ref M
 forward_header_path := func(path: Str) returns Str {
     slash := path.rfind("/")
     dot := path.rfind(".")
-    if dot.gt(slash) {
+    if dot > slash {
         return format(path.substr(0, dot.to_u32()), "_forward.h")
     }
     return format(path, "_forward.h")
@@ -77,12 +77,12 @@ priv resolve_link_path := proc(base_dir: Str, root_dir: Str, path: Str) returns 
         return path
     }
     rel_candidate := base_dir.format("/", path)
-    if realpath_str(rel_candidate).len().gt(0) {
+    if realpath_str(rel_candidate).len() > 0 {
         return rel_candidate
     }
-    if root_dir.len().gt(0) {
+    if root_dir.len() > 0 {
         root_candidate := root_dir.format("/", path)
-        if realpath_str(root_candidate).len().gt(0) {
+        if realpath_str(root_candidate).len() > 0 {
             return root_candidate
         }
     }
@@ -117,7 +117,7 @@ priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir
 // The .til suffix is appended internally; paths already ending in ".til" are
 // rejected with a helpful error suggesting the bare-name form.
 priv extract_one_import := func(mut imp_stmt: Expr, path: Str, mut paths: Vec(Str)) {
-    if imp_stmt.children.len().gte(2) {
+    if imp_stmt.children.len() >= 2 {
         switch imp_stmt.children[0].node_type {
         case NodeType.Ident(c0id):
             if c0id.ident_name().eq("import") {
@@ -207,10 +207,10 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             sub_import_disps := resolve_import_disps(sub_imports, sub_dir, lib_dir, cwd)
 
             // Recurse for sub-imports
-            if sub_imports.len().gt(0) {
+            if sub_imports.len() > 0 {
                 err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, units, lib_dir,
                     ctx, default_mode, cwd)
-                if err.gt(0) {
+                if err > 0 {
                     return err
                 }
             }
@@ -317,7 +317,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // (near-empty) scope built above via the single cleanup at the end.
     // til's ownership checker is flow-insensitive, so we keep exactly one
     // scope_free(own global) rather than an early-return that moves it.
-    has_fold := lp.ctx.constfolder_foldables.len().gt(0)
+    has_fold := lp.ctx.constfolder_foldables.len() > 0
     if has_fold {
         // Issue #191: core constants registered after the defs walk so they
         // win over any like-named definition (e.g. CAP_VIEW for Str ops).
@@ -380,7 +380,7 @@ priv DeclRef := struct {
 
 priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns ref Expr {
     dot := name.find(".")
-    if dot.lt(0) { return NULL }
+    if dot < 0 { return NULL }
     type_part := name.substr(0, dot.to_u32())
     if top.has(type_part).not() { return NULL }
     ref dr : DeclRef = top[type_part]
@@ -477,7 +477,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         for u : ProgramUnit in lp.units {
             for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
-                    if stmt.children.len().gt(0) {
+                    if stmt.children.len() > 0 {
                         switch stmt.children[0].node_type {
                         case NodeType.FuncDef(fdef):
                             if fdef.func_type.is(FuncType.Test) {
@@ -493,7 +493,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     // Seed namespace test() decls so emit_test_main's
                     // Type_test_name() calls don't get scavenged out.
                     mut is_type_decl := false
-                    if stmt.children.len().gt(0) {
+                    if stmt.children.len() > 0 {
                         ref decl_value : Expr = stmt.children[0]
                         is_type_decl = decl_value.node_type.is(NodeType.StructDef)
                             .or(decl_value.node_type.is(NodeType.EnumDef))
@@ -538,7 +538,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     // 3) BFS
     mut visited := Set(Str).new()
     mut cursor : U32 = 0
-    while cursor.lt(worklist.len()) {
+    while cursor < worklist.len() {
         name := Str.clone(worklist[cursor])
         cursor++
         if visited.has(name) { continue }
@@ -571,7 +571,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         if bfs_fd.default_value.is_null().not() {
                             collect_refs(bfs_fd.default_value, worklist)
                         }
-                        if bfs_fd.explicit_type.len().gt(0) {
+                        if bfs_fd.explicit_type.len() > 0 {
                             vec_push_str(worklist, bfs_fd.explicit_type)
                         }
                     }
@@ -605,7 +605,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         if bfs_fd2.default_value.is_null().not() {
                             collect_refs(bfs_fd2.default_value, worklist)
                         }
-                        if bfs_fd2.explicit_type.len().gt(0) {
+                        if bfs_fd2.explicit_type.len() > 0 {
                             vec_push_str(worklist, bfs_fd2.explicit_type)
                         }
                     }
@@ -740,14 +740,14 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                     case NodeType.Literal(Literal.Str(arg)):
                         if fname.ident_name().eq("link") {
                             keep = false
-                            if arg.find("/").gte(0) {
+                            if arg.find("/") >= 0 {
                                 resolved := resolve_link_path(base_dir, root_dir, arg)
                                 lp.link_flags = lp.link_flags.format(" ", resolved)
                                 last_slash := resolved.rfind("/")
-                                if last_slash.gte(0) {
+                                if last_slash >= 0 {
                                     parent_dir := resolved.substr(0, last_slash.to_usize())
                                     parent_slash := parent_dir.rfind("/")
-                                    if parent_slash.gte(0) {
+                                    if parent_slash >= 0 {
                                         inc_dir := parent_dir.substr(0, parent_slash.to_usize()).format("/include")
                                         lp.include_flags = lp.include_flags.format(" -I", inc_dir)
                                     }
@@ -757,7 +757,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                             }
                         } else if fname.ident_name().eq("link_c") {
                             keep = false
-                            if lp.link_c_paths.len().gt(0) {
+                            if lp.link_c_paths.len() > 0 {
                                 lp.link_c_paths = format(lp.link_c_paths, " ")
                             }
                             lp.link_c_paths = format(lp.link_c_paths, resolve_link_path(base_dir, root_dir, arg))
@@ -791,7 +791,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
         if stmt.node_type.is(NodeType.Decl) {
             switch stmt.node_type {
             case NodeType.Decl(decl):
-                if stmt.children.len().gt(0) {
+                if stmt.children.len() > 0 {
                     ref val : Expr = stmt.children[0]
                     if val.node_type.is(NodeType.FCall).and(val.children.len().gt(0)) {
                         ref callee : Expr = val.children[0]
@@ -879,14 +879,14 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         ref miu_temp : ImportUnit = lp.ctx.imported[mode_file]
         mut mode_imports := extract_imports(miu_temp.ast, mode_file)
         mut auto_disp := ""
-        if miu_temp.mode.auto_import.len().gt(0) {
+        if miu_temp.mode.auto_import.len() > 0 {
             mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
             if realpath_str(auto_path).eq("") {
                 // If it fails relative to bin_dir, maybe it's relative to the CWD (for custom modes in other projects)
                 auto_path = cwd.format("/", miu_temp.mode.auto_import, ".til")
             }
             abs_auto := realpath_str(auto_path)
-            if abs_auto.len().gt(0) {
+            if abs_auto.len() > 0 {
                 if resolved.has(abs_auto).not() {
                     resolved.add(own abs_auto.clone())
                     disp_auto := display_path(abs_auto, cwd)
@@ -909,17 +909,17 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
                 auto_disp = display_path(abs_auto, cwd)
             }
         }
-        if mode_imports.len().gt(0) {
+        if mode_imports.len() > 0 {
             mode_dir := dir_of(realpath_str(mode_file))
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
                 core_units, "", lp.ctx, "lib", cwd)
-            if err.gt(0) {
+            if err > 0 {
                 panic("failed to resolve imports for mode file ", mode_file)
             }
             ref miu : ImportUnit = lp.ctx.imported[mode_file]
             miu.imports = resolve_import_disps(mode_imports, mode_dir, "", cwd)
         }
-        if auto_disp.len().gt(0) {
+        if auto_disp.len() > 0 {
             lp.ctx.imported[mode_file].imports.push(own auto_disp)
         }
     }
@@ -927,7 +927,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     abs_path := realpath_str(path)
     mut user_dir := "."
-    if abs_path.len().gt(0) {
+    if abs_path.len() > 0 {
         user_dir = dir_of(abs_path)
         resolved.add(own abs_path.clone())
     }
@@ -943,7 +943,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Add core.til to resolved set; skip prepending if user file IS core.til
     mut skip_core := false
     core_abs := realpath_str(core_path)
-    if core_abs.len().gt(0) {
+    if core_abs.len() > 0 {
         if resolved.has(core_abs) {
             skip_core = true
         }
@@ -956,7 +956,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         core_dir := format(bin_dir, "/src/core")
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
             core_units, "", lp.ctx, "lib", cwd)
-        if err.gt(0) {
+        if err > 0 {
             panic("failed to resolve core imports")
         }
     }
@@ -980,10 +980,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     units := Vec(ProgramUnit).new()
     lib_dir := format(bin_dir, "/lib")
     user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
-    if imports.len().gt(0) {
+    if imports.len() > 0 {
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
             units, lib_dir, lp.ctx, "", cwd)
-        if err.gt(0) {
+        if err > 0 {
             panic("failed to resolve imports")
         }
     }
@@ -1002,7 +1002,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Mode auto-import is represented as the first unit (if present),
     // followed by imported files, with the user entrypoint unit last.
     mut mode_disp := ""
-    if auto_import.len().gt(0) {
+    if auto_import.len() > 0 {
         mut mode_til_path := bin_dir.format("/", auto_import, ".til")
         if realpath_str(mode_til_path).eq("") {
             mode_til_path = user_dir.format("/", auto_import, ".til")
@@ -1022,10 +1022,10 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
         // Resolve the auto-import file's own imports (mirrors core.til).
         mode_imports := extract_imports(mode_ast, mode_disp)
         mode_dir := dir_of(realpath_str(mode_til_path))
-        if mode_imports.len().gt(0) {
+        if mode_imports.len() > 0 {
             err := resolve_imports(mode_imports, mode_dir, resolved, resolve_stack,
                 units, lib_dir, lp.ctx, "", cwd)
-            if err.gt(0) {
+            if err > 0 {
                 panic("failed to resolve mode auto-import imports")
             }
         }
@@ -1048,7 +1048,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     user_iu.ast.take_children(user_ast)
     // Ensure mode auto-import runs before the file's explicit imports.
     // This matches the merged AST order and keeps per-file init/type in sync.
-    if mode_disp.len().gt(0) {
+    if mode_disp.len() > 0 {
         mut all_imports := Vec(Str).new()
         all_imports.push(own mode_disp.clone())
         for dep : Str in user_import_disps { all_imports.push(own dep.clone()) }
@@ -1060,7 +1060,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 
     // User entrypoint unit.
     mut user_unit := ProgramUnit(path = path.clone(), mode = cur_mode.clone())
-    if mode_disp.len().gt(0) {
+    if mode_disp.len() > 0 {
         mut all_imports2 := Vec(Str).new()
         all_imports2.push(own mode_disp)
         for dep : Str in user_import_disps { all_imports2.push(own dep.clone()) }
@@ -1173,19 +1173,19 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef) {
     out.push_str("(")
     var_idx_i64 : I64 = fd.variadic_index.cast(I64)
     for i in 0..fd.params.len() {
-        if i.gt(0) { out.push_str(", ") }
+        if i > 0 { out.push_str(", ") }
         ref p : Declaration = fd.params[i]
         is_variadic := i.to_i64().eq(var_idx_i64)
         if is_variadic.not() { append_qualifier_prefix(out, p, OwnType.Ref) }
         out.push_str(p.name)
-        if p.explicit_type.len().gt(0) {
+        if p.explicit_type.len() > 0 {
             out.push_str(": ")
             if is_variadic { out.push_str("..") }
             out.push_str(p.explicit_type)
         }
     }
     out.push_str(")")
-    if fd.return_type.len().gt(0) {
+    if fd.return_type.len() > 0 {
         out.push_str(" returns ")
         switch fd.return_own_type {
         case OwnType.Shallow: out.push_str("shallow ")
@@ -1205,14 +1205,14 @@ priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
         if c.eq(10) {
             out.push_str(indent)
             out.push_str("/// ")
-            if i.gt(start) { out.push_str(doc.substr(start, i.sub(start))) }
+            if i > start { out.push_str(doc.substr(start, i.sub(start))) }
             out.push_str("\n")
             start = i.add(1)
         }
     }
     out.push_str(indent)
     out.push_str("/// ")
-    if start.lt(doc.len()) { out.push_str(doc.substr(start, doc.len().sub(start))) }
+    if start < doc.len() { out.push_str(doc.substr(start, doc.len().sub(start))) }
     out.push_str("\n")
 }
 
@@ -1272,7 +1272,7 @@ parse_doc_meta := func(doc: Str) returns DocMeta {
             start = i.add(1)
         }
     }
-    if start.lt(doc.len()) {
+    if start < doc.len() {
         line := doc.substr(start, doc.len().sub(start))
         if doc_meta_line(line, meta).not() {
             if body.is_empty().not() { body.push_str("\n") }
@@ -1302,7 +1302,7 @@ priv append_field_indented := func(mut out: Str, d: Declaration) {
     out.push_str("    ")
     append_qualifier_prefix(out, d, OwnType.Shallow)
     out.push_str(d.name)
-    if d.explicit_type.len().gt(0) {
+    if d.explicit_type.len() > 0 {
         out.push_str(" : ")
         out.push_str(d.explicit_type)
     }
@@ -1326,7 +1326,7 @@ priv append_ns_method_indented := func(mut out: Str, d: Declaration) {
     }
     if handled.not() {
         out.push_str(d.name)
-        if d.explicit_type.len().gt(0) {
+        if d.explicit_type.len() > 0 {
             out.push_str(" : ")
             out.push_str(d.explicit_type)
         }
@@ -1340,7 +1340,7 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) retur
     if type_str.is_empty().not() {
         return name.format(" is a ", type_str)
     }
-    if dd.explicit_type.len().gt(0) {
+    if dd.explicit_type.len() > 0 {
         return format(name, " is a ", dd.explicit_type)
     }
     return name
@@ -1386,7 +1386,7 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
         out.push_str("\n")
         append_field_indented(out, f)
     }
-    if sdef.ns_decls.len().gt(0) {
+    if sdef.ns_decls.len() > 0 {
         out.push_str("\nnamespace:")
         for d : Declaration in sdef.ns_decls {
             out.push_str("\n")
@@ -1428,7 +1428,7 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
             out.push_str(edef.payload_types[i.to_i64()])
         }
     }
-    if edef.ns_decls.len().gt(0) {
+    if edef.ns_decls.len() > 0 {
         out.push_str("\nnamespace:")
         for d : Declaration in edef.ns_decls {
             out.push_str("\n")
@@ -1490,7 +1490,7 @@ priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut in
     } else {
         method_info.push_str("member ")
         method_info.push_str(qual)
-        if d.explicit_type.len().gt(0) {
+        if d.explicit_type.len() > 0 {
             method_info.push_str(" : ")
             method_info.push_str(d.explicit_type)
         }
@@ -1513,7 +1513,7 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
         field_info.push_str("field ")
         append_qualifier_prefix(field_info, f, OwnType.Shallow)
         field_info.push_str(qual)
-        if f.explicit_type.len().gt(0) {
+        if f.explicit_type.len() > 0 {
             field_info.push_str(" : ")
             field_info.push_str(f.explicit_type)
         }
@@ -1566,7 +1566,7 @@ collect_decl_packed := func(body: Expr, scope: TypeScope, mut info: Str, mut doc
                     append_packed_entry(docs, dd.name, help_doc)
                 }
             }
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 switch stmt.children[0].node_type {
                 case NodeType.StructDef(sdef):
                     collect_struct_members_packed(dd.name, sdef, info, docs)
@@ -1624,11 +1624,11 @@ build_repl_core_doc_cache := func(lp: LoadedProgram) returns ReplCoreDocCache {
 // the codegen-prep cost.
 priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_decl_rhs: Bool, decl_name: Str, is_mut: Bool, decl_line: U32, decl_col: U32, ctx: Context, resolved_path: Str) returns Bool {
     mut handled := false
-    if imp_stmt.children.len().gte(1) {
+    if imp_stmt.children.len() >= 1 {
         switch imp_stmt.children[0].node_type {
         case NodeType.Ident(id):
             if id.ident_name().eq("import") {
-                if imp_stmt.children.len().gt(1) {
+                if imp_stmt.children.len() > 1 {
                     mut path := ""
                     switch imp_stmt.children[1].node_type {
                     case NodeType.Literal(Literal.Str(p)):
@@ -1636,9 +1636,9 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                     case:
                     }
 
-                    if path.len().gt(0) {
+                    if path.len() > 0 {
                         mut exp_symbols := Vec(Str).new()
-                        if imp_stmt.children.len().gt(2) {
+                        if imp_stmt.children.len() > 2 {
                             for arg_i in 2..imp_stmt.children.len() {
                                 switch imp_stmt.children[arg_i].node_type {
                                 case NodeType.Ident(sym_id):
@@ -1680,7 +1680,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                                                     switch def.node_type {
                                                     case NodeType.StructDef(sdd):
                                                         mut cloned_cd := cd.clone()
-                                                        if dd.children.len().gt(0) {
+                                                        if dd.children.len() > 0 {
                                                             cloned_cd.default_value = dd.children[0].clone()
                                                         }
                                                         sdd.ns_decls.push(own cloned_cd)
@@ -1752,7 +1752,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
             mut is_valid_import := false
             if is_decl_rhs {
                 ref imp_stmt_ref : Expr = stmt.children[0]
-                if imp_stmt_ref.children.len().gte(2) {
+                if imp_stmt_ref.children.len() >= 2 {
                     switch imp_stmt_ref.children[0].node_type {
                     case NodeType.Ident(id):
                         if id.ident_name().eq("import") {
@@ -1767,7 +1767,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 }
             } else {
                 ref imp_stmt_ref : Expr = stmt
-                if imp_stmt_ref.children.len().gte(2) {
+                if imp_stmt_ref.children.len() >= 2 {
                     switch imp_stmt_ref.children[0].node_type {
                     case NodeType.Ident(id):
                         if id.ident_name().eq("import") {
@@ -1784,7 +1784,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
 
             if is_valid_import {
                 mut resolved := ""
-                if imp_idx.lt(iu.imports.len()) {
+                if imp_idx < iu.imports.len() {
                     resolved = iu.imports[imp_idx].clone()
                 }
                 imp_idx++
@@ -1851,7 +1851,7 @@ priv lazy_single_return_value := func(body: Expr) returns Expr {
     if body.children.len().eq(1).not() { return NULL }
     ref ret : Expr = body.children[0]
     if ret.node_type.is(NodeType.Return).not() { return NULL }
-    if ret.children.len().lt(1) { return NULL }
+    if ret.children.len() < 1 { return NULL }
     return ret.children[0].clone()
 }
 
@@ -1870,11 +1870,11 @@ priv lazy_body_as_expr := func(body: Expr) returns Expr {
     ref stmt : Expr = body.children[0]
     switch stmt.node_type {
     case NodeType.Return:
-        if stmt.children.len().lt(1) { return NULL }
+        if stmt.children.len() < 1 { return NULL }
         return stmt.children[0].clone()
     case NodeType.If:
         // Need an explicit else branch: [cond, then-Body, else-Body].
-        if stmt.children.len().lt(3) { return NULL }
+        if stmt.children.len() < 3 { return NULL }
         x := lazy_single_return_value(stmt.children[1])
         if x.is_null() { return NULL }
         y := lazy_single_return_value(stmt.children[2])
@@ -1921,7 +1921,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        if fd.variadic_index.lt(0) {
+        if fd.variadic_index < 0 {
             mut nargs := call.children.len().sub(1)
             if is_method_call { nargs = call.children.len() }
             if nargs.eq(fd.params.len()) {
@@ -2000,7 +2000,7 @@ priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: 
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         nparams = fd.params.len()
-        variadic = fd.variadic_index.gte(0)
+        variadic = fd.variadic_index >= 0
     case:
     }
     if variadic.or(nparams.eq(2).not()) { return }
@@ -2021,7 +2021,7 @@ priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: 
 
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     expect(e.is_null().not(), "e is null")
-    if depth.gt(256) { return }
+    if depth > 256 { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
         mut inlined := false
@@ -2032,7 +2032,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
             case NodeType.FieldAccess(fa): lname = fa.field_access_name()
             case:
             }
-            if lname.len().gt(0) {
+            if lname.len() > 0 {
                 ref fdef : Expr = scope.lookup_func(lname)
                 if fdef.is_null().not() {
                     ft := func_def_type(fdef)
@@ -2125,7 +2125,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     retarget_loaded_aliases(lp)
 
     // Ensure ctx.path is set to the user entrypoint by default.
-    if lp.units.len().gt(0) {
+    if lp.units.len() > 0 {
         context_enter_file(lp.ctx, lp.units[lp.units.len().sub(1)].path)
     }
 
@@ -2163,7 +2163,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
         type_errors = type_errors.add(type_file(mode_file, lp.ctx))
     }
 
-    if type_errors.gt(0) {
+    if type_errors > 0 {
         println(type_errors.to_str(), " type error(s) found")
         exit(1)
     }

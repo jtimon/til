@@ -34,17 +34,17 @@ __doc_lookup__ := func(blob: Str, name: Str) returns Str {
     n := blob.len()
     nm_len := name.len()
     mut i : USize = 0
-    while i.lt(n) {
+    while i < n {
         mut sep1 := i
         while sep1.lt(n).and(blob.unsafe_get(sep1).neq(1)) {
             sep1++
         }
-        if sep1.gte(n) { return "" }
+        if sep1 >= n { return "" }
         mut sep2 := sep1.add(1)
         while sep2.lt(n).and(blob.unsafe_get(sep2).neq(2)) {
             sep2++
         }
-        if sep2.gt(n) { return "" }
+        if sep2 > n { return "" }
         if sep1.sub(i).eq(nm_len) {
             mut hit := true
             for k in 0..nm_len {

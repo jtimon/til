@@ -84,9 +84,9 @@ namespace:
             return
         }
         needed := self.count.add(other.count)
-        if needed.gt(self.cap) {
+        if needed > self.cap {
             mut new_cap := self.cap
-            while needed.gt(new_cap) {
+            while needed > new_cap {
                 new_cap = new_cap.mul(2)
             }
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
@@ -113,15 +113,15 @@ namespace:
             }
         }
         needed := other.count
-        if needed.gt(self.cap) {
+        if needed > self.cap {
             mut new_cap := self.cap
-            while needed.gt(new_cap) {
+            while needed > new_cap {
                 new_cap = new_cap.mul(2)
             }
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
         }
-        if needed.gt(0) {
+        if needed > 0 {
             memcpy(self.data, other.data, needed.mul(self.elem_size).cast(U64))
         }
         self.count = needed
@@ -140,7 +140,7 @@ namespace:
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
     get := func(self: DynVec, i: USize, loc: Str = __LOC__) returns ref Dynamic throws OutOfBounds {
-        if i.gte(self.count) {
+        if i >= self.count {
             throw OutOfBounds(msg = format(loc, ":DynVec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
@@ -163,19 +163,19 @@ namespace:
     /// Split off the first `n` elements into a new DynVec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: DynVec, n: USize) returns DynVec {
-        if n.gt(self.count) {
+        if n > self.count {
             panic("DynVec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         mut prefix_cap : USize = 1
-        if n.gt(0) {
+        if n > 0 {
             prefix_cap = n
         }
         prefix_data : Dynamic = malloc(prefix_cap.mul(self.elem_size).cast(U64))
-        if n.gt(0) {
+        if n > 0 {
             memcpy(prefix_data, self.data, n.mul(self.elem_size).cast(U64))
         }
         tail_count := self.count.sub(n)
-        if tail_count.gt(0) {
+        if tail_count > 0 {
             memmove(self.data, ptr_add(self.data, n.mul(self.elem_size).cast(U64)), tail_count.mul(self.elem_size).cast(U64))
         }
         self.count = tail_count
@@ -199,7 +199,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `dynvec[i] = val`
     /// (or `dynvec.set(i, own val)!`) to panic on a bad index.
     set := func(mut self: DynVec, i: USize, own val: Dynamic, loc: Str = __LOC__) throws OutOfBounds {
-        if i.gte(self.count) {
+        if i >= self.count {
             // val is not stored on the error path: drop its element
             // content (if boxed) and free the box so it does not leak.
             // (if/else so the owned `val` is consumed on exactly one path.)
@@ -218,7 +218,7 @@ namespace:
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and DynVec.delete).
     push_take := func(mut self: DynVec, mut src: DynVec, i: USize) {
-        if i.gte(src.count) {
+        if i >= src.count {
             panic("DynVec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
         if self.elem_size.eq(src.elem_size).not().or(self.elem_kind.eq(src.elem_kind).not()) {

@@ -29,12 +29,12 @@ namespace:
     has := func(self: Map(K, V), key: K) returns Bool {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
-        while lo.lt(hi) {
+        while lo < hi {
             mid : USize = lo.add(hi.sub(lo).div(2))
             c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
-            if c.lt(0) { lo = mid.add(1) }
+            if c < 0 { lo = mid.add(1) }
             else {
-                if c.gt(0) { hi = mid }
+                if c > 0 { hi = mid }
                 else { return true }
             }
         }
@@ -47,12 +47,12 @@ namespace:
     get := func(self: Map(K, V), key: K, loc: Str = __LOC__) returns ref V throws KeyNotFound {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
-        while lo.lt(hi) {
+        while lo < hi {
             mid : USize = lo.add(hi.sub(lo).div(2))
             c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
-            if c.lt(0) { lo = mid.add(1) }
+            if c < 0 { lo = mid.add(1) }
             else {
-                if c.gt(0) { hi = mid }
+                if c > 0 { hi = mid }
                 else { return self.values.unsafe_get(mid) }
             }
         }
@@ -64,12 +64,12 @@ namespace:
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         mut found := false
-        while lo.lt(hi) {
+        while lo < hi {
             mid : USize = lo.add(hi.sub(lo).div(2))
             c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
-            if c.lt(0) { lo = mid.add(1) }
+            if c < 0 { lo = mid.add(1) }
             else {
-                if c.gt(0) { hi = mid }
+                if c > 0 { hi = mid }
                 else { found = true; lo = mid; hi = mid }
             }
         }

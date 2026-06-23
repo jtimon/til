@@ -84,7 +84,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
     }
 
     retarget_loaded_aliases(lp)
-    if lp.units.len().gt(0) {
+    if lp.units.len() > 0 {
         ref last : ProgramUnit = lp.units[lp.units.len().sub(1)]
         context_enter_file(lp.ctx, last.path)
     }
@@ -192,7 +192,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         peek_tokens := tokenize(kept, "<repl>")
         mut peek_mode_out := ""
         peek_ast := parse(peek_tokens, kept, "<repl>", peek_mode_out, repl_anon_type_counter)
-        if peek_mode_out.len().gt(0) {
+        if peek_mode_out.len() > 0 {
             next_mode_out = peek_mode_out.clone()
             return
         }
@@ -202,7 +202,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         mut combined := ""
         combined = combined.format("mode ", mode_str, "\n")
         combined = combined.format(accum)
-        if accum.len().gt(0) { combined = combined.format("\n") }
+        if accum.len() > 0 { combined = combined.format("\n") }
         combined = combined.format(block)
         File.writefile(tmp_path, combined)
 
@@ -234,7 +234,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             combined = combined.format("mode ", mode_str, "\n")
             combined = combined.format(doc_line)
             combined = combined.format(accum)
-            if accum.len().gt(0) { combined = combined.format("\n") }
+            if accum.len() > 0 { combined = combined.format("\n") }
             combined = combined.format(block_eff)
             File.writefile(tmp_path, combined)
 
@@ -244,7 +244,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 combined = combined.format("mode ", mode_str, "\n")
                 combined = combined.format(doc_line)
                 combined = combined.format(accum)
-                if accum.len().gt(0) { combined = combined.format("\n") }
+                if accum.len() > 0 { combined = combined.format("\n") }
                 combined = combined.format(block_eff)
                 File.writefile(tmp_path, combined)
             }
@@ -259,7 +259,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             // comparing against prev_out.
             full_out := File.readfile(out_path)
             mut new_chunk := ""
-            if prev_out.len().lt(full_out.len()) {
+            if prev_out.len() < full_out.len() {
                 prefix_match := full_out.starts_with(prev_out)
                 if prefix_match {
                     start_idx : USize = prev_out.len()
@@ -270,13 +270,13 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             } else if prev_out.len().eq(full_out.len()).not() {
                 new_chunk = full_out.clone()
             }
-            if new_chunk.len().gt(0) { print_single(new_chunk) }
+            if new_chunk.len() > 0 { print_single(new_chunk) }
             prev_out = full_out.clone()
 
             // Only commit good lines to accumulated source. If typecheck
             // failed, drop the line so it doesn't pollute future turns
             // (the typer would replay the same error on every input).
-            if accum.len().gt(0) { accum = accum.format("\n") }
+            if accum.len() > 0 { accum = accum.format("\n") }
             accum = accum.format(block_eff)
         }
         ffi_cleanup(typed_lp.ctx)
@@ -288,7 +288,7 @@ run_repl := proc(initial_mode: Str, extra_modes: Vec(Str)) {
     println(format("til ", VERSION, " REPL -- Ctrl-D to exit"))
     mut next_mode := initial_mode.clone()
     if next_mode.len().eq(0) { next_mode = "script" }
-    while next_mode.len().gt(0) {
+    while next_mode.len() > 0 {
         cur := next_mode.clone()
         next_mode = ""
         run_repl_session(cur, next_mode, extra_modes)
@@ -379,7 +379,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
 
     if cli.command.eq("repl") {
         mut mode_arg := "script"
-        while cli.path_idx.lt(args.len()) {
+        while cli.path_idx < args.len() {
             ref flag : Str = args[cli.path_idx]
             if flag.starts_with("--extra-modes=") {
                 cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
@@ -418,7 +418,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
     }
 
     // Scan for -o/-c/--target/--cc/--prefix flags before source file
-    while cli.path_idx.lt(args.len()) {
+    while cli.path_idx < args.len() {
         ref flag : Str = args[cli.path_idx]
         if flag.eq("--") {
             cli.path_idx++
@@ -467,7 +467,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             break
         }
     }
-    if cli.path_idx.gte(args.len()) {
+    if cli.path_idx >= args.len() {
         println("error: missing source path")
         usage()
         exit(1)
@@ -482,7 +482,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
 collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: USize) returns Vec(Str) {
     mut user_argv := Vec(Str).new()
     mut ai := start_idx
-    while ai.lt(args.len()) {
+    while ai < args.len() {
         ref arg : Str = args[ai]
         if arg.starts_with("-l") {
             mut lib := arg.strip_prefix("-l")
@@ -529,7 +529,7 @@ main := proc(args: ..Str) {
     ext_c_path := bin_dir.format("/src/c/ext.c")
 
     mut target := detect_current_target()
-    if cli.target_str.len().gt(0) { target = target_from_str(cli.target_str) }
+    if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
     lp.target = target

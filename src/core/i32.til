@@ -31,7 +31,7 @@ namespace:
     /// Negate the value.
     neg := func(a: I32) returns I32 { return 0.sub(a.cast(I64)).to_i32() }
     /// Absolute value.
-    abs := func(a: I32) returns I32 { if a.lt(0) { return I32.neg(a) } return a }
+    abs := func(a: I32) returns I32 { if a < 0 { return I32.neg(a) } return a }
     band := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     bor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     bxor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
@@ -43,7 +43,7 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I32 = a
         ref bu : I32 = b
-        if au.lte(bu) { return bu.sub(au).to_u64() }
+        if au <= bu { return bu.sub(au).to_u64() }
         return au.sub(bu).to_u64()
     }
     delete := func(own self: I32, call_free: Bool = true) {
@@ -55,14 +55,14 @@ namespace:
     /// Use I32.add for the wrapping variant.
     safe_add := func(a: I32, b: I32, loc: Str = __LOC__) returns I32 throws IntegerOverflow {
         result := a.add(b)
-        if b.gt(0) {
-            if result.lt(a) {
+        if b > 0 {
+            if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I32.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " overflows"))
             }
         }
-        if b.lt(0) {
-            if result.gt(a) {
+        if b < 0 {
+            if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I32.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " underflows"))
             }
@@ -74,14 +74,14 @@ namespace:
     /// Use I32.sub for the wrapping variant.
     safe_sub := func(a: I32, b: I32, loc: Str = __LOC__) returns I32 throws IntegerOverflow {
         result := a.sub(b)
-        if b.gt(0) {
-            if result.gt(a) {
+        if b > 0 {
+            if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I32.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " underflows"))
             }
         }
-        if b.lt(0) {
-            if result.lt(a) {
+        if b < 0 {
+            if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I32.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " overflows"))
             }

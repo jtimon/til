@@ -307,7 +307,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     case NodeType.FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit.mul(2) }
-        return fcd.own_args.band(bit).gt(0)
+        return fcd.own_args.band(bit) > 0
     case:
         UNREACHABLE()
         return false
@@ -705,9 +705,9 @@ namespace:
     take_children := func(mut self: Expr, mut other: Expr) {
         if other.children.count.eq(0) { return }
         needed := self.children.count.add(other.children.count)
-        if needed.gt(self.children.cap) {
+        if needed > self.children.cap {
             mut new_cap := self.children.cap
-            while needed.gt(new_cap) {
+            while needed > new_cap {
                 new_cap = new_cap.mul(2)
             }
             self.children.data = realloc(own self.children.data, new_cap.mul(Expr.size()).cast(U64))
@@ -814,7 +814,7 @@ set_expr_til_type := func(mut e: Expr, shallow t: Type) {
     case NodeType.Match(md):
         md.til_type = t
     case NodeType.Throw:
-        if e.children.len().gt(0) {
+        if e.children.len() > 0 {
             e.children[0].set_expr_til_type(t)
         }
     case:
@@ -876,7 +876,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.ForIn(fi):
         mut head := "ForIn "
         if fi.is_mut { head = "ForIn mut " }
-        if fi.name2.len().gt(0) {
+        if fi.name2.len() > 0 {
             mut tail := format(", ", fi.name2)
             if fi.is_mut2 { tail = format(", mut ", fi.name2) }
             return format(head, fi.name, tail)
@@ -991,9 +991,9 @@ lazy_body_inlinable := func(body: Expr) returns Bool {
     ref stmt : Expr = body.children[0]
     switch stmt.node_type {
     case NodeType.Return:
-        return stmt.children.len().gte(1)
+        return stmt.children.len() >= 1
     case NodeType.If:
-        if stmt.children.len().lt(3) { return false }
+        if stmt.children.len() < 3 { return false }
         return lazy_single_return_body(stmt.children[1])
             .and(lazy_single_return_body(stmt.children[2]))
     case:
@@ -1027,7 +1027,7 @@ ast_print := proc(e: Expr, indent: U32) {
     case NodeType.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
     case: // nothing
     }
-    if e.children.len().gt(0) {
+    if e.children.len() > 0 {
         println("")
         for e_i : Expr in e.children {
             ast_print(e_i, indent.add(1))
@@ -1054,7 +1054,7 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
         mut count : USize = 0
         ref ch : Vec(Expr) = fcall.children
         mut i : USize = ch.len()
-        while i.gt(0) {
+        while i > 0 {
             i--
             ref c : Expr = ch[i]
             if c.node_type.is(NodeType.NamedArg).not() { break }

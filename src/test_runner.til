@@ -35,7 +35,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
     mut start : USize = 0
-    while start.lte(haystack.len().sub(needle.len())) {
+    while start <= haystack.len().sub(needle.len()) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
         count++
@@ -57,7 +57,7 @@ run_phase := proc(cmd: Str) returns PhaseResult {
     mut mem := 0
     while true {
         rss := current_rss_bytes(pid).cast(I64)
-        if rss.gt(mem) { mem = rss }
+        if rss > mem { mem = rss }
         status := check_cmd_status(pid)
         if status.neq(-1) {
             return PhaseResult(status = status, ms = clock_ms().sub(start), mem = mem)
@@ -67,7 +67,7 @@ run_phase := proc(cmd: Str) returns PhaseResult {
 }
 
 main := proc(args: ..Str) {
-    if args.len().lt(1) {
+    if args.len() < 1 {
         println("Usage: test_runner <both|single|count> ...")
         exit(1)
     }
@@ -76,7 +76,7 @@ main := proc(args: ..Str) {
 
     // both subcommand: compare interpret output with compiled-run output.
     if subcmd.eq("both") {
-        if args.len().lt(2) {
+        if args.len() < 2 {
             println("Usage: test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>] [--asan]")
             exit(1)
         }
@@ -196,7 +196,7 @@ main := proc(args: ..Str) {
 
     // single subcommand
     if subcmd.eq("single") {
-        if args.len().lt(4) {
+        if args.len() < 4 {
             println("Usage: test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>")
             exit(1)
         }
@@ -207,7 +207,7 @@ main := proc(args: ..Str) {
 
         // Find "--" starting from index 3
         mut dd : USize = 3
-        while dd.lt(args.len()) {
+        while dd < args.len() {
             ref a : Str = args[dd]
             if a.eq("--") { break }
             dd++
@@ -216,7 +216,7 @@ main := proc(args: ..Str) {
         // If there's an arg between expected_exit and "--", it's the expected output file
         mut expected_out_file := ""
         mut has_expected := 0
-        if dd.gt(3) {
+        if dd > 3 {
             ref eof : Str = args[3]
             expected_out_file = eof.clone()
             has_expected = 1
@@ -225,7 +225,7 @@ main := proc(args: ..Str) {
         // Join args after "--" as command
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
-            if ci.gt(dd.add(1)) { cmd = format(cmd, " ") }
+            if ci > dd.add(1) { cmd = format(cmd, " ") }
             ref carg : Str = args[ci]
             cmd = format(cmd, carg)
         }
@@ -260,7 +260,7 @@ main := proc(args: ..Str) {
 
     // count subcommand
     if subcmd.eq("count") {
-        if args.len().lt(5) {
+        if args.len() < 5 {
             println("Usage: test_runner count <label> <needle> <expected_count> -- <cmd...>")
             exit(1)
         }
@@ -272,7 +272,7 @@ main := proc(args: ..Str) {
 
         // Find "--" starting from index 4
         mut dd : USize = 4
-        while dd.lt(args.len()) {
+        while dd < args.len() {
             ref a : Str = args[dd]
             if a.eq("--") { break }
             dd++
@@ -281,7 +281,7 @@ main := proc(args: ..Str) {
         // Join args after "--" as command
         mut cmd := ""
         for ci in dd.add(1)..args.len() {
-            if ci.gt(dd.add(1)) { cmd = format(cmd, " ") }
+            if ci > dd.add(1) { cmd = format(cmd, " ") }
             ref carg : Str = args[ci]
             cmd = format(cmd, carg)
         }

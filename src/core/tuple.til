@@ -28,9 +28,9 @@ namespace:
     push_type_name := func(mut self: Tuple, own elem_type: Str, own val: Dynamic) {
         elem_size : USize = dyn_size_of(elem_type)
         new_total := self.total_size.add(elem_size)
-        if new_total.gt(self.cap) {
+        if new_total > self.cap {
             mut new_cap := self.cap.mul(2)
-            while new_cap.lt(new_total) {
+            while new_cap < new_total {
                 new_cap = new_cap.mul(2)
             }
             self.data = realloc(own self.data, new_cap)
@@ -51,7 +51,7 @@ namespace:
 
     /// Ref to element at index `i`. Panics if out of bounds.
     get := func(self: Tuple, i: USize) returns ref Dynamic {
-        if i.gte(self.type_names.len()) {
+        if i >= self.type_names.len() {
             panic("Tuple.get: index ", i.to_str(), " out of bounds (len ", self.type_names.len().to_str(), ")")
         }
         mut offset : USize = 0

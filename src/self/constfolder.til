@@ -53,8 +53,8 @@ priv constfolder_has_func := func(ctx: Context, name: Str) returns Bool {
 // (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
 priv hex_digit_value := func(b: I8) returns U8 {
     if b.lt(48).or(b.gt(102)) { return 0 }
-    if b.lte(57) { return b.sub(48).cast(U8) }
-    if b.gte(97) { return b.sub(97).add(10).cast(U8) }
+    if b <= 57 { return b.sub(48).cast(U8) }
+    if b >= 97 { return b.sub(97).add(10).cast(U8) }
     if b.gte(65).and(b.lte(70)) { return b.sub(65).add(10).cast(U8) }
     return 0
 }
@@ -72,7 +72,7 @@ priv from_source_form := func(s: Str) returns Str {
     mut i : U32 = 0
     one : U32 = 1
     two : U32 = 2
-    while i.lt(n) {
+    while i < n {
         ref b : I8 = s.unsafe_get(i)
         if b.eq(92).and(i.add(one).lt(n)) {
             ref nx : I8 = s.unsafe_get(i.add(one))
@@ -113,7 +113,7 @@ priv needs_source_escape := func(s: Str) returns Bool {
         ref b : I8 = s.unsafe_get(i)
         if b.eq(34) { return true }
         if b.eq(92) { return true }
-        if b.lt(32) { return true }
+        if b < 32 { return true }
         if b.lt(0).or(b.gt(126)) { return true }
     }
     return false
@@ -184,7 +184,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         case Value.Uint32(uv): etag = uv.cast(I32)
         case:
         }
-        if etag.gte(0) {
+        if etag >= 0 {
             ename := til_type_name(src_t)
             ref edef : Expr = lookup_interp_type_def(ename, ctx)
             if edef.is_null().not() {
@@ -234,13 +234,13 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             expect(etag_ptr2.is_null().not(), "etag_ptr2 is null")
             ref etag_ref2 : I32 = etag_ptr2
             etag2 := etag_ref2
-            if etag2.lt(0) { return NULL }
+            if etag2 < 0 { return NULL }
             ename2 := til_type_name(src_t)
             ref edef2 : Expr = lookup_interp_type_def(ename2, ctx)
             if edef2.is_null() { return NULL }
             switch edef2.node_type {
             case NodeType.EnumDef(edd2):
-                if etag2.to_usize().gte(edd2.variants.len()) { return NULL }
+                if etag2.to_usize() >= edd2.variants.len() { return NULL }
                 if edd2.payload_types.has(etag2.cast(I64)).not() { return NULL }
                 ref payload_type_name : Str = edd2.payload_types[etag2.cast(I64)]
                 // Fabricate a Declaration whose explicit_type matches the
@@ -559,7 +559,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
                     visiting.add(own name.ident_name())
                     switch fdef.node_type {
                     case NodeType.FuncDef:
-                        if fdef.children.len().gt(0) {
+                        if fdef.children.len() > 0 {
                             ref called_body : Expr = fdef.children[0]
                             if func_uses_unknown_globals(called_body, fdef, constfolder_scope, called_body, lenient, visiting, ctx) {
                                 return true
@@ -654,7 +654,7 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
         if b.eq(95).not() { continue }
         sname := name.substr(0, i)
         rest_start := i.add(1)
-        if rest_start.gte(n) { continue }
+        if rest_start >= n { continue }
         mname := name.substr(rest_start, n.sub(rest_start))
         ref nv : Value = ns_get(sname, mname, ctx)
         if nv.is_null() { continue }
@@ -705,7 +705,7 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
         // (`Str_size()` instead of `Str.size()`).
         if fc_fp.is_null() { fc_fp = ns_lookup_flat(ci.ident_name(), ctx) }
     case NodeType.FieldAccess(mn):
-        if fc_callee.children.len().gt(0) {
+        if fc_callee.children.len() > 0 {
             sn := fa_recv_type_name(fc_callee, ctx)
             if sn.is_empty().not() {
                 ref nv : Value = ns_get(sn, mn.field_access_name(), ctx)
@@ -755,7 +755,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             }
         }
     case NodeType.FieldAccess(mname):
-        if callee.children.len().gt(0) {
+        if callee.children.len() > 0 {
             ref recv : Expr = callee.children[0]
             switch recv.node_type {
             case NodeType.Ident(ri):
@@ -793,7 +793,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             // constfolder time is undispatchable and the interpreter returns
             // val_none() for it, so try_eval_call bails cleanly below
             // (can_convert.not()) rather than baking a bad value.
-            if fdef.children.len().gt(0) {
+            if fdef.children.len() > 0 {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
                     mut fuug_visiting := Set(Str).new()
@@ -1087,7 +1087,7 @@ priv is_va_array_decl := func(stmt: Expr) returns Bool {
 // True if `stmt` is `Array.set(va, ...)` -- one of va's build statements.
 priv is_va_set := func(stmt: Expr, va: Str) returns Bool {
     if stmt.node_type.is(NodeType.FCall).not() { return false }
-    if stmt.children.len().lt(2) { return false }
+    if stmt.children.len() < 2 { return false }
     switch stmt.children[0].node_type {
     case NodeType.FieldAccess(m):
         if m.field_access_name().eq("set").not() { return false }
@@ -1117,14 +1117,14 @@ priv va_name_in := func(names: Vec(Str), name: Str) returns Bool {
 // 'self'". This mirrors the all_comptime gate the wrapper-form fold uses.
 priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
     mut k := decl_idx.add(1)
-    while k.lt(body.children.len()) {
+    while k < body.children.len() {
         ref s : Expr = body.children[k]
         // Stop at the consumer: first use of va that is not a build stmt.
         if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va).not()).and(is_va_array_decl(s).not()) {
             break
         }
         if is_va_set(s, va) {
-            if s.children.len().lt(4) { return false }
+            if s.children.len() < 4 { return false }
             if is_known_check(ctx, s.children[3]).not() { return false }
         }
         k = k.add(1)
@@ -1157,7 +1157,7 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, eo
     switch stmt.node_type {
     case NodeType.Decl(dd):
         if dd.name.eq(va).or(dd.name.eq(ek)).or(dd.name.eq(eo)) {
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 bind_known_idents_in(scope, stmt.children[0], ctx)
                 mut v := eval_expr(scope, stmt.children[0], ctx).clone()
                 scope_set_owned(scope, dd.name, v)
@@ -1181,7 +1181,7 @@ priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, 
     ctx.constfold_active = true
     ctx.constfold_aborted = false
     mut k := decl_idx
-    while k.lt(body.children.len()) {
+    while k < body.children.len() {
         ref s : Expr = body.children[k]
         // Stop at the consumer: a statement using `va` that is not one of its
         // build statements (its Array.new decl or an Array.set on it).
@@ -1254,7 +1254,7 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
 // ... ]. So children[0] is a FieldAccess "delete" and children[1] is Ident(name).
 priv is_delete_call_on := func(s: Expr, name: Str) returns Bool {
     if s.node_type.is(NodeType.FCall).not() { return false }
-    if s.children.len().lt(2) { return false }
+    if s.children.len() < 2 { return false }
     switch s.children[0].node_type {
     case NodeType.FieldAccess(m):
         if m.field_access_name().eq("delete").not() { return false }
@@ -1307,7 +1307,7 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
         }
         if safe { dead.push(own va.clone()) }
     }
-    if dead.len().gt(0) {
+    if dead.len() > 0 {
         mut keep := Vec(Expr).new()
         for r in 0..body.children.len() {
             mut drop := false
@@ -1434,7 +1434,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             }
         }
     }
-    if va_done.len().gt(0) {
+    if va_done.len() > 0 {
         va_build_dce(e, va_done, ctx)
     }
     own va_done.delete(true)
@@ -1460,7 +1460,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         if stmt.children.len().eq(0) { continue }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len().gt(0) { process_body(scope, stmt.children[0].children[0], ctx, false) }
+            if rhs.children.len() > 0 { process_body(scope, stmt.children[0].children[0], ctx, false) }
             continue
         }
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
@@ -1502,7 +1502,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         switch dstmt.node_type {
         case NodeType.Decl(dd):
             if dd.name.starts_with("hoisted__") {
-                if dstmt.children.len().gt(0) {
+                if dstmt.children.len() > 0 {
                     ref drhs : Expr = dstmt.children[0]
                     is_lit := drhs.node_type.is(NodeType.Literal)
                     if is_lit {

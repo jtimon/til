@@ -63,7 +63,7 @@ namespace:
         bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
-        while entry.gte(0) {
+        while entry >= 0 {
             entry_u : USize = entry.to_usize()
             ref k : Dynamic = self.keys.unsafe_get(entry_u)
             if self.keys_equal(to_ptr(key), to_ptr(k)) { return entry }
@@ -74,12 +74,12 @@ namespace:
     }
 
     has := func(self: DynHashMap, key: Dynamic) returns Bool {
-        return self.find(key).gte(0)
+        return self.find(key) >= 0
     }
 
     get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic {
         idx := self.find(key)
-        if idx.lt(0) { panic("DynHashMap.get: key not found") }
+        if idx < 0 { panic("DynHashMap.get: key not found") }
         return self.values.unsafe_get(idx.to_usize())
     }
 
@@ -88,7 +88,7 @@ namespace:
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
         mut existing : I64 = -1
-        while entry.gte(0) {
+        while entry >= 0 {
             entry_u : USize = entry.to_usize()
             ref k : Dynamic = self.keys.unsafe_get(entry_u)
             if self.keys_equal(to_ptr(key), to_ptr(k)) {
@@ -98,7 +98,7 @@ namespace:
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
-        if existing.gte(0) {
+        if existing >= 0 {
             slot_idx : USize = existing.to_usize()
             slot_off : USize = slot_idx.mul(self.values.elem_size)
             self.values.elem_delete(ptr_add(self.values.data, slot_off.cast(U64)), false)
@@ -120,7 +120,7 @@ namespace:
             self.keys.push(own cloned_key)
             self.values.push(own val)
             self.buckets.unsafe_set(bi, own new_idx)
-            if self.keys.count.mul(4).gt(self.buckets.count.mul(3)) {
+            if self.keys.count.mul(4) > self.buckets.count.mul(3) {
                 self.rehash()
             }
         }
@@ -131,7 +131,7 @@ namespace:
         for i in 0..self.buckets.count {
             self.buckets.unsafe_set(i, own -1)
         }
-        while self.buckets.count.lt(new_count) {
+        while self.buckets.count < new_count {
             self.buckets.push(own -1)
         }
         for i in 0..self.keys.count {
@@ -160,7 +160,7 @@ namespace:
         mut prev : I64 = -1
         mut entry : I64 = head.clone()
         mut found := false
-        while entry.gte(0) {
+        while entry >= 0 {
             entry_u : USize = entry.to_usize()
             ref k : Dynamic = self.keys.unsafe_get(entry_u)
             if self.keys_equal(key, k) {
@@ -182,7 +182,7 @@ namespace:
 
         ref nxt_of_idx : I64 = self.nexts.unsafe_get(idx_u)
         nxt_val : I64 = nxt_of_idx.clone()
-        if prev.lt(0) {
+        if prev < 0 {
             self.buckets.unsafe_set(bi, own nxt_val)
         } else {
             self.nexts.unsafe_set(prev.to_usize(), own nxt_val)
@@ -198,7 +198,7 @@ namespace:
                 self.buckets.unsafe_set(last_bi, own entry.clone())
             } else {
                 mut walker : I64 = last_head.clone()
-                while walker.gte(0) {
+                while walker >= 0 {
                     walker_u : USize = walker.to_usize()
                     ref walker_nxt : I64 = self.nexts.unsafe_get(walker_u)
                     if walker_nxt.eq(last_idx) {

@@ -15,13 +15,13 @@ namespace:
     }
 
     len := func(self: Range) returns U64 {
-        if self.start.lte(self.end) { return self.end.sub(self.start) }
+        if self.start <= self.end { return self.end.sub(self.start) }
         return self.start.sub(self.end)
     }
 
     /// The i-th value in the range (start+i or start-i for reverse).
     get := func(self: Range, i: U64) returns U64 {
-        if self.start.lte(self.end) {
+        if self.start <= self.end {
             return self.start.add(i)
         }
         return self.start.sub(i)

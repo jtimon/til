@@ -23,13 +23,13 @@ namespace:
         }
         mut is_neg := false
         mut v := val
-        if val.lt(0) {
+        if val < 0 {
             is_neg = true
             v = 0.sub(val)
         }
         mut ndigits : U64 = 0
         mut tmp := v
-        while tmp.gt(0) {
+        while tmp > 0 {
             ndigits++
             tmp = tmp.div(10)
         }
@@ -40,7 +40,7 @@ namespace:
             memcpy(buf, 45, 1)
         }
         mut i := total.sub(1)
-        while v.gt(0) {
+        while v > 0 {
             memcpy(ptr_add(buf, i), v.mod(10).add(48).to_u8(), 1)
             v = v.div(10)
             i--
@@ -73,7 +73,7 @@ namespace:
     /// Negate the value.
     neg := func(a: I64) returns I64 { return 0.sub(a) }
     /// Absolute value.
-    abs := func(a: I64) returns I64 { if a.lt(0) { return 0.sub(a) } return a }
+    abs := func(a: I64) returns I64 { if a < 0 { return 0.sub(a) } return a }
     band := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     bor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     bxor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
@@ -85,7 +85,7 @@ namespace:
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
         ref au : I64 = a
         ref bu : I64 = b
-        if au.lte(bu) { return bu.sub(au).cast(U64) }
+        if au <= bu { return bu.sub(au).cast(U64) }
         return au.sub(bu).cast(U64)
     }
     delete := func(own self: I64, call_free: Bool = true) {
@@ -106,14 +106,14 @@ namespace:
     /// Use I64.add for the wrapping variant.
     safe_add := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow {
         result := a.add(b)
-        if b.gt(0) {
-            if result.lt(a) {
+        if b > 0 {
+            if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " overflows"))
             }
         }
-        if b.lt(0) {
-            if result.gt(a) {
+        if b < 0 {
+            if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " underflows"))
             }
@@ -125,14 +125,14 @@ namespace:
     /// Use I64.sub for the wrapping variant.
     safe_sub := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow {
         result := a.sub(b)
-        if b.gt(0) {
-            if result.gt(a) {
+        if b > 0 {
+            if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " underflows"))
             }
         }
-        if b.lt(0) {
-            if result.lt(a) {
+        if b < 0 {
+            if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " overflows"))
             }

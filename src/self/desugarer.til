@@ -22,7 +22,7 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
         vi := fdef_data.variadic_index
         kwi := fdef_data.kwargs_index
         mut fixed_count : U32 = nparam
-        if vi.gte(0) {
+        if vi >= 0 {
             fixed_count = vi.cast(U32)
         }
         mut va_args := Vec(Expr).new()
@@ -48,8 +48,8 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                         break
                     }
                 }
-                if slot.lt(0) {
-                    if kwi.gte(0) {
+                if slot < 0 {
+                    if kwi >= 0 {
                         kw_args.push(own arg.clone())
                     } else {
                         arg.type_error(format("'", name, "' has no parameter '", aname, "'"), ctx)
@@ -66,13 +66,13 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                 if seen_named {
                     arg.type_error("positional argument after named argument", ctx)
                 }
-                if vi.gte(0) {
-                    if pos_idx.gte(fixed_count) {
+                if vi >= 0 {
+                    if pos_idx >= fixed_count {
                         va_args.push(own arg.clone())
-                    } else if pos_idx.lt(nparam) {
+                    } else if pos_idx < nparam {
                         new_args[pos_idx] = arg.clone()
                     }
-                } else if pos_idx.lt(nparam) {
+                } else if pos_idx < nparam {
                     new_args[pos_idx] = arg.clone()
                 }
                 pos_idx++
@@ -92,11 +92,11 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
             }
         }
         mut max_pos : U32 = nparam
-        if kwi.gte(0) {
+        if kwi >= 0 {
             max_pos--
         }
-        if vi.lt(0) {
-            if pos_idx.gt(max_pos) {
+        if vi < 0 {
+            if pos_idx > max_pos {
                 e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
             }
         }
@@ -142,7 +142,7 @@ priv typer_is_lambda_target := func(e: Expr) returns Bool {
     // its func scope chains to the enclosing scope where the captures live.
     switch e.node_type {
     case NodeType.FuncDef(litfd):
-        if litfd.captures.len().gt(0) { return false }
+        if litfd.captures.len() > 0 { return false }
     case:
     }
     return true
@@ -300,7 +300,7 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, scope: TypeSco
             ref b : TypeBinding = scope.get_binding(nm)
             if b.is_null().not() {
                 tn := til_type_name(b.type)
-                if tn.len().gt(0) { ctx.lowering_param_types.set(nm, own tn) }
+                if tn.len() > 0 { ctx.lowering_param_types.set(nm, own tn) }
             }
         }
     case:
@@ -353,7 +353,7 @@ priv guess_expr_type_name := func(e: Expr) returns Str {
     case NodeType.Literal(Literal.Num): return "I64"
     case NodeType.Literal(Literal.Bool): return "Bool"
     case NodeType.FieldAccess:
-        if e.children.len().gt(0) {
+        if e.children.len() > 0 {
             switch e.children[0].node_type {
             case NodeType.Ident(type_name): return type_name.ident_name().clone()
             case:
@@ -374,25 +374,25 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
         switch e.node_type {
         case NodeType.Decl(dn):
             if dn.name.eq(var_name) {
-                if dn.explicit_type.len().gt(0) { return dn.explicit_type.clone() }
-                if e.children.len().gt(0) {
+                if dn.explicit_type.len() > 0 { return dn.explicit_type.clone() }
+                if e.children.len() > 0 {
                     ref rhs : Expr = e.children[0]
                     switch rhs.node_type {
                     case NodeType.FCall:
-                        if rhs.children.len().gt(0) {
+                        if rhs.children.len() > 0 {
                             switch rhs.children[0].node_type {
                             case NodeType.Ident(rhsn):
                                 if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
                                     et := array_vec_elem_type_name(rhs)
-                                    if et.len().gt(0) { return format("Array__", et) }
+                                    if et.len() > 0 { return format("Array__", et) }
                                 }
                                 if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
                                     et := array_vec_elem_type_name(rhs)
-                                    if et.len().gt(0) { return format("Vec__", et) }
+                                    if et.len() > 0 { return format("Vec__", et) }
                                 }
                                 return rhsn.name.clone()
                             case NodeType.FieldAccess(_rhsfa):
-                                if rhs.children[0].children.len().gt(0) {
+                                if rhs.children[0].children.len() > 0 {
                                     switch rhs.children[0].children[0].node_type {
                                     case NodeType.Ident(rhsty): return rhsty.ident_name()
                                     case:
@@ -404,7 +404,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                     case NodeType.Literal(Literal.Str): return "Str"
                     case NodeType.Literal(Literal.Num): return "I64"
                     case NodeType.Literal(Literal.MapLit):
-                        if rhs.children.len().gte(2) {
+                        if rhs.children.len() >= 2 {
                             key_type := guess_expr_type_name(rhs.children[0])
                             val_type := guess_expr_type_name(rhs.children[1])
                             if key_type.len().gt(0).and(val_type.len().gt(0)) {
@@ -420,7 +420,7 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
     }
     for c : Expr in e.children {
         guess := guess_local_type(c, var_name)
-        if guess.len().gt(0) { return guess }
+        if guess.len() > 0 { return guess }
     }
     return ""
 }
@@ -428,14 +428,14 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
 priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_name: Str) returns Str {
     if stmts.len().eq(0) { return "" }
     mut limit := upto
-    if limit.gte(stmts.len()) {
+    if limit >= stmts.len() {
         limit = stmts.len().sub(1)
     }
     mut i : USize = 0
-    while i.lte(limit) {
+    while i <= limit {
         ref stmt : Expr = stmts[i]
         guess := guess_local_type(stmt, var_name)
-        if guess.len().gt(0) { return guess }
+        if guess.len() > 0 { return guess }
         i++
     }
     return ""
@@ -444,11 +444,11 @@ priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_na
 priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: USize) {
     if stmts.len().eq(0) { return }
     mut limit := upto
-    if limit.gte(stmts.len()) {
+    if limit >= stmts.len() {
         limit = stmts.len().sub(1)
     }
     mut i : USize = 0
-    while i.lte(limit) {
+    while i <= limit {
         ref stmt : Expr = stmts[i]
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -457,15 +457,15 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                 ref rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case NodeType.FCall:
-                    if rhs.children.len().gt(0) {
+                    if rhs.children.len() > 0 {
                         switch rhs.children[0].node_type {
                         case NodeType.Ident(rhsn):
                             if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
                                 et := array_vec_elem_type_name(rhs)
-                                if et.len().gt(0) { tn = format("Array__", et) }
+                                if et.len() > 0 { tn = format("Array__", et) }
                             } else if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
                                 et := array_vec_elem_type_name(rhs)
-                                if et.len().gt(0) { tn = format("Vec__", et) }
+                                if et.len() > 0 { tn = format("Vec__", et) }
                             } else {
                                 ref fdef_expr : Expr = ctx.scope.lookup_func(rhsn.name)
                                 if fdef_expr.is_null().not() {
@@ -476,9 +476,9 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                                 }
                             }
                         case NodeType.FieldAccess(fa):
-                            if rhs.children[0].children.len().gt(0) {
+                            if rhs.children[0].children.len() > 0 {
                                 owner := resolve_value_type(ctx, rhs.children[0].children[0], stmt)
-                                if owner.len().gt(0) {
+                                if owner.len() > 0 {
                                     ref sdef : Expr = ctx.scope.get_struct(owner)
                                     if sdef.is_null().not() {
                                         ref mdef : Expr = find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
@@ -497,7 +497,7 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                 case NodeType.Literal(Literal.Str): tn = "Str"
                 case NodeType.Literal(Literal.Num): tn = "I64"
                 case NodeType.Literal(Literal.MapLit):
-                    if rhs.children.len().gte(2) {
+                    if rhs.children.len() >= 2 {
                         key_type := guess_expr_type_name(rhs.children[0])
                         val_type := guess_expr_type_name(rhs.children[1])
                         if key_type.len().gt(0).and(val_type.len().gt(0)) {
@@ -536,7 +536,7 @@ priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
         switch e.children[0].node_type {
         case NodeType.Ident(idn):
             tn := guess_local_type(root_body, idn.name)
-            if tn.len().gt(0) {
+            if tn.len() > 0 {
                 e.children[0].set_expr_til_type(Type.Custom(tn.clone()))
             }
         case:
@@ -555,7 +555,7 @@ priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, befo
             case NodeType.Ident(idn):
                 thrown_name = guess_local_type(root_body, idn.name)
             case NodeType.FCall:
-                if e.children[0].children.len().gt(0) {
+                if e.children[0].children.len() > 0 {
                     switch e.children[0].children[0].node_type {
                     case NodeType.Ident(name): thrown_name = name.name.clone()
                     case:
@@ -583,7 +583,7 @@ priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) re
         case NodeType.Ident(idn):
             thrown_name = guess_local_type(root_body, idn.name)
         case NodeType.FCall:
-            if e.children[0].children.len().gt(0) {
+            if e.children[0].children.len() > 0 {
                 switch e.children[0].children[0].node_type {
                 case NodeType.Ident(name): thrown_name = name.name.clone()
                 case:
@@ -606,9 +606,9 @@ priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) re
 priv has_prior_throw_type_in_vec := proc(stmts: Vec(Expr), root_body: Expr, upto: USize, type_name: Str) returns Bool {
     if stmts.len().eq(0).or(upto.eq(0)) { return false }
     mut limit := upto
-    if limit.gt(stmts.len()) { limit = stmts.len() }
+    if limit > stmts.len() { limit = stmts.len() }
     mut i : USize = 0
-    while i.lt(limit) {
+    while i < limit {
         ref stmt : Expr = stmts[i]
         if subtree_has_throw_type(stmt, root_body, type_name) { return true }
         i++
@@ -719,16 +719,16 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
                                 switch prior_stmt.node_type {
                                 case NodeType.Decl(dd):
                                     if dd.name.eq(idn.name) {
-                                        if dd.explicit_type.len().gt(0) {
+                                        if dd.explicit_type.len() > 0 {
                                             tn = dd.explicit_type.clone()
-                                        } else if prior_stmt.children.len().gt(0) {
+                                        } else if prior_stmt.children.len() > 0 {
                                             switch prior_stmt.children[0].node_type {
                                             case NodeType.FCall:
-                                                if prior_stmt.children[0].children.len().gt(0) {
+                                                if prior_stmt.children[0].children.len() > 0 {
                                                     switch prior_stmt.children[0].children[0].node_type {
                                                     case NodeType.Ident(rhsn): tn = rhsn.ident_name()
                                                     case NodeType.FieldAccess(_rhsfa3):
-                                                        if prior_stmt.children[0].children[0].children.len().gt(0) {
+                                                        if prior_stmt.children[0].children[0].children.len() > 0 {
                                                             switch prior_stmt.children[0].children[0].children[0].node_type {
                                                             case NodeType.Ident(rhsty3): tn = rhsty3.ident_name()
                                                             case:
@@ -753,7 +753,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
                         }
                     case:
                     }
-                    if tn.len().gt(0) {
+                    if tn.len() > 0 {
                         stmt.set_expr_til_type(Type.Custom(tn.clone()))
                     }
                 }
@@ -765,7 +765,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
     if e.node_type.is(NodeType.Throw) {
         if e.children.len().eq(1) {
             tn := throw_type_name_for_with_body(e.children[0], root_body)
-            if tn.len().gt(0) {
+            if tn.len() > 0 {
                 e.set_expr_til_type(Type.Custom(tn.clone()))
             }
         }
@@ -778,7 +778,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
 priv collect_throw_types_in := proc(e: Expr, mut out: Vec(Str)) {
     if e.node_type.is(NodeType.Throw) {
         tn := til_type_name(e.expr_til_type())
-        if tn.len().gt(0) {
+        if tn.len() > 0 {
             mut already := false
             for existing : Str in out {
                 if existing.eq(tn) { already = true }
@@ -819,7 +819,7 @@ priv err_slot_name := func(t: Str) returns Str {
 append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str)) {
     // Locate where the trailing run of defaulted params begins.
     mut split : USize = params.len()
-    while split.gt(0) {
+    while split > 0 {
         ref pp : Declaration = params[split.sub(1)]
         if pp.default_value.is_null() { break }
         if pp.default_value.node_type.is(NodeType.NoDefaultArg) { break }
@@ -827,7 +827,7 @@ append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str
     }
     // Pop the trailing defaults off (this reverses their order).
     mut tail := Vec(Declaration).new()
-    while params.len().gt(split) {
+    while params.len() > split {
         tail.push(own params.pop())
     }
     params.push(own Declaration(name = "_err_kind", explicit_type = "I64",
@@ -837,7 +837,7 @@ append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str
             is_mut = true, own_type = OwnType.Ref, used = true))
     }
     // Restore the trailing defaults (popping again undoes the reversal).
-    while tail.len().gt(0) {
+    while tail.len() > 0 {
         params.push(own tail.pop())
     }
 }
@@ -989,7 +989,7 @@ priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec(
 extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // Register Decl(name) -> FuncDef in the global throws map.
     if e.node_type.is(NodeType.Decl) {
-        if e.children.len().gt(0) {
+        if e.children.len() > 0 {
             switch e.node_type {
             case NodeType.Decl(dn):
                 ref rhs : Expr = e.children[0]
@@ -1040,7 +1040,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
             for tn : Str in efd.throw_types {
                 register_throw_type(ctx, tn)
             }
-            if efd.throw_types.len().gt(0) {
+            if efd.throw_types.len() > 0 {
                 mut already := false
                 for p : Declaration in efd.params {
                     if p.name.eq("_err_kind") { already = true }
@@ -1057,7 +1057,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     if e.node_type.is(NodeType.Throw) {
         if e.children.len().eq(1) {
             tn := throw_type_name_for_with_body(e.children[0], e)
-            if tn.len().gt(0) { register_throw_type(ctx, tn) }
+            if tn.len() > 0 { register_throw_type(ctx, tn) }
         }
     }
     if e.node_type.is(NodeType.Catch) {
@@ -1249,9 +1249,9 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
     case NodeType.StructDef(sd):
         for fd : Declaration in sd.fields {
             if fd.name.eq(field_name) {
-                if fd.explicit_type.len().gt(0) { return fd.explicit_type.clone() }
+                if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
                 tn := til_type_name(fd.til_type)
-                if tn.len().gt(0) { return tn }
+                if tn.len() > 0 { return tn }
                 // Field declared without an explicit type AND its
                 // til_type hasn't been inferred yet (extend_throwing_func_sigs
                 // runs before infer_body, so init expressions like
@@ -1264,7 +1264,7 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
                     ref dv_callee : Expr = dv.children[0]
                     switch dv_callee.node_type {
                     case NodeType.FieldAccess:
-                        if dv_callee.children.len().gt(0) {
+                        if dv_callee.children.len() > 0 {
                             switch dv_callee.children[0].node_type {
                             case NodeType.Ident(dv_recv): return dv_recv.ident_name()
                             case:
@@ -1296,7 +1296,7 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
             return normalize_ctor_type(pt)
         }
         g := guess_local_type(body, nm)
-        if g.len().gt(0) {
+        if g.len() > 0 {
             ng := normalize_ctor_type(g)
             // guess_local_type can return the base receiver of an FCall
             // (eg. `files := uc.split(" ")` -> "uc"), which isn't a real
@@ -1312,7 +1312,7 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
                 if fb_fd.is_null().not() {
                     switch fb_fd.node_type {
                     case NodeType.FuncDef(fdef):
-                        if fdef.return_type.len().gt(0) {
+                        if fdef.return_type.len() > 0 {
                             return normalize_ctor_type(fdef.return_type)
                         }
                     case:
@@ -1372,17 +1372,17 @@ priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, met
     if mdef.is_null() { return "" }
     switch mdef.node_type {
     case NodeType.FuncDef(fd):
-        if fd.throw_types.len().gt(0) {
+        if fd.throw_types.len() > 0 {
             register_func_throws(ctx, key, fd.throw_types)
             return key
         }
         mut derived := Vec(Str).new()
         for p : Declaration in fd.params {
             if p.name.starts_with("_err_").and(p.name.eq("_err_kind").not()) {
-                if p.explicit_type.len().gt(0) { derived.push(own p.explicit_type.clone()) }
+                if p.explicit_type.len() > 0 { derived.push(own p.explicit_type.clone()) }
             }
         }
-        if derived.len().gt(0) {
+        if derived.len() > 0 {
             register_func_throws(ctx, key, derived)
             return key
         }
@@ -1418,18 +1418,18 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
     case NodeType.FieldAccess(fname):
         method := fname.field_access_name()
         owner := callee_owning_type(ctx, fcall, body)
-        if owner.len().gt(0) {
+        if owner.len() > 0 {
             exact_key := registry_exact_key(ctx, format(owner, ".", method))
-            if exact_key.len().gt(0) { return exact_key }
+            if exact_key.len() > 0 { return exact_key }
             scoped_key := register_method_throws_from_scope(ctx, owner, method)
-            if scoped_key.len().gt(0) { return scoped_key }
+            if scoped_key.len() > 0 { return scoped_key }
             marker := owner.find("__")
-            if marker.gt(0) {
+            if marker > 0 {
                 base_owner := owner.substr(0, marker.to_usize())
                 base_key := registry_exact_key(ctx, format(base_owner, ".", method))
-                if base_key.len().gt(0) { return base_key }
+                if base_key.len() > 0 { return base_key }
                 base_scoped_key := register_method_throws_from_scope(ctx, base_owner, method)
-                if base_scoped_key.len().gt(0) { return base_scoped_key }
+                if base_scoped_key.len() > 0 { return base_scoped_key }
             }
             return ""
         }
@@ -1521,7 +1521,7 @@ priv validate_one_fcall_consolidated := proc(
         }
     }
     key := find_callee_throws_key(ctx, e, body)
-    callee_is_throwing := key.len().gt(0)
+    callee_is_throwing := key.len() > 0
     if does_throw {
         if callee_is_throwing.not() {
             type_error_at(path, e.line, e.col, "function does not throw, remove the '?' after the call", ctx)
@@ -1543,7 +1543,7 @@ priv validate_one_fcall_consolidated := proc(
             mut tlist := ""
             for jj in 0..tts2.len() {
                 ref tn2 : Str = tts2[jj]
-                if jj.gt(0) { tlist = format(tlist, ", ") }
+                if jj > 0 { tlist = format(tlist, ", ") }
                 tlist = format(tlist, tn2)
             }
             type_error_at(path, e.line, e.col, format("function throws ", tlist, ", missing '?' after the call"), ctx)
@@ -1813,7 +1813,7 @@ priv register_bang_guard_throws := proc(
         }
         if is_b.and(guard.children.len().gt(0)) {
             key := find_callee_throws_key(ctx, guard, root_body)
-            if key.len().gt(0) {
+            if key.len() > 0 {
                 ref tts : Vec(Str) = ctx.throws_global[key]
                 for tn : Str in tts {
                     register_throw_type(ctx, tn)
@@ -1936,7 +1936,7 @@ priv process_throw_catch_in_body := proc(
         // Those bodies get processed when the typer visits them.
         mut is_nested_def := false
         if stmt.node_type.is(NodeType.Decl) {
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref dr : Expr = stmt.children[0]
                 if dr.node_type.is(NodeType.FuncDef)
                     .or(dr.node_type.is(NodeType.StructDef))
@@ -1973,12 +1973,12 @@ priv process_throw_catch_in_body := proc(
                 }
             }
         case NodeType.While:
-            if stmt.children.len().gte(2) {
+            if stmt.children.len() >= 2 {
                 ref mut wb : Expr = stmt.children[1]
                 process_throw_catch_in_body(ctx, wb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
         case NodeType.ForIn:
-            if stmt.children.len().gte(2) {
+            if stmt.children.len() >= 2 {
                 ref mut fb : Expr = stmt.children[1]
                 process_throw_catch_in_body(ctx, fb, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
             }
@@ -2019,7 +2019,7 @@ priv process_throw_catch_in_body := proc(
         mut root_bang_throws := Vec(Str).new()
         if bang_fc.is_null().not() {
             found_key_root := find_callee_throws_key(ctx, bang_fc, root_body)
-            if found_key_root.len().gt(0) {
+            if found_key_root.len() > 0 {
                 ref tts_root : Vec(Str) = ctx.throws_global[found_key_root]
                 for tn : Str in tts_root {
                     root_bang_throws.push(own tn.clone())
@@ -2048,29 +2048,29 @@ priv process_throw_catch_in_body := proc(
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.Return:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.FCall:
             validate_and_inject_expr_consolidated(ctx, stmt, root_body, pending, seen, types_to_declare, path)
         case NodeType.If:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.While:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.ForIn:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
         case NodeType.Switch:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
@@ -2091,7 +2091,7 @@ priv process_throw_catch_in_body := proc(
                 }
             }
         case NodeType.Throw:
-            if stmt.children.len().gt(0) {
+            if stmt.children.len() > 0 {
                 ref mut sub : Expr = stmt.children[0]
                 validate_and_inject_expr_consolidated(ctx, sub, root_body, pending, seen, types_to_declare, path)
             }
@@ -2121,16 +2121,16 @@ priv process_throw_catch_in_body := proc(
                             switch prior_stmt.node_type {
                             case NodeType.Decl(dd):
                                 if dd.name.eq(idn.name) {
-                                    if dd.explicit_type.len().gt(0) {
+                                    if dd.explicit_type.len() > 0 {
                                         tn = dd.explicit_type.clone()
-                                    } else if prior_stmt.children.len().gt(0) {
+                                    } else if prior_stmt.children.len() > 0 {
                                         switch prior_stmt.children[0].node_type {
                                         case NodeType.FCall:
-                                            if prior_stmt.children[0].children.len().gt(0) {
+                                            if prior_stmt.children[0].children.len() > 0 {
                                                 switch prior_stmt.children[0].children[0].node_type {
                                                 case NodeType.Ident(rhsn): tn = rhsn.ident_name()
                                                 case NodeType.FieldAccess(_rhsfa2):
-                                                    if prior_stmt.children[0].children[0].children.len().gt(0) {
+                                                    if prior_stmt.children[0].children[0].children.len() > 0 {
                                                         switch prior_stmt.children[0].children[0].children[0].node_type {
                                                         case NodeType.Ident(rhsty2): tn = rhsty2.ident_name()
                                                         case:
@@ -2153,10 +2153,10 @@ priv process_throw_catch_in_body := proc(
                         if tn.len().gt(0).or(scan.eq(0)) { break }
                         scan--
                     }
-                    if tn.len().gt(0) {
+                    if tn.len() > 0 {
                         register_throw_type(ctx, tn)
                         tag_direct := tag_for_type(ctx, tn, Vec(Str).new())
-                        if tag_direct.gt(0) {
+                        if tag_direct > 0 {
                             new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
                             new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag_direct, stmt_line, stmt_col), stmt_line, stmt_col))
                             vec_str_push_uniq(types_to_declare, tn)
@@ -2168,23 +2168,23 @@ priv process_throw_catch_in_body := proc(
                     }
                     ctx.throw_used_local_names.add(own idn.name.clone())
                     mut scan_decl : I32 = new_ch.len().cast(I32)
-                    if scan_decl.gt(0) {
+                    if scan_decl > 0 {
                         scan_decl--
                     }
-                    while scan_decl.gte(0) {
+                    while scan_decl >= 0 {
                         ref prior_stmt : Expr = new_ch[scan_decl.cast(U32)]
                         switch prior_stmt.node_type {
                         case NodeType.Decl(prior_dd):
                             if prior_dd.name.eq(idn.name.clone()) {
                                 prior_dd.used = true
                                 if tn.len().eq(0) {
-                                    if prior_dd.explicit_type.len().gt(0) {
+                                    if prior_dd.explicit_type.len() > 0 {
                                         tn = prior_dd.explicit_type.clone()
-                                    } else if prior_stmt.children.len().gt(0) {
+                                    } else if prior_stmt.children.len() > 0 {
                                         ref prior_rhs : Expr = prior_stmt.children[0]
                                         switch prior_rhs.node_type {
                                         case NodeType.FCall:
-                                            if prior_rhs.children.len().gt(0) {
+                                            if prior_rhs.children.len() > 0 {
                                                 switch prior_rhs.children[0].node_type {
                                                 case NodeType.Ident(rhsn): tn = rhsn.name.clone()
                                                 case:
@@ -2223,7 +2223,7 @@ priv process_throw_catch_in_body := proc(
                     case:
                     }
                 }
-                if tn.len().gt(0) { register_throw_type(ctx, tn) }
+                if tn.len() > 0 { register_throw_type(ctx, tn) }
                 tag := tag_for_type(ctx, tn, Vec(Str).new())
                 if tn.len().gt(0).and(tag.gt(0)) {
                     new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
@@ -2248,7 +2248,7 @@ priv process_throw_catch_in_body := proc(
                 case NodeType.Ident(n): ctype = n.ident_name()
                 case:
                 }
-                if ctype.len().gt(0) {
+                if ctype.len() > 0 {
                     mut matched := pending_remove_all_matching(pending, ctype)
                     if matched.not().and(has_prior_throw_type_in_vec(old_snapshot, root_body, j, ctype)) {
                         matched = true
@@ -2272,7 +2272,7 @@ priv process_throw_catch_in_body := proc(
         // 7. Stmt-root bang: emit the (?-call) stmt then lowered checks.
         // For `return f()!`, hoist into a temp so checks run BEFORE the
         // return (otherwise unreachable).
-        if root_bang_throws.len().gt(0) {
+        if root_bang_throws.len() > 0 {
             if stmt.node_type.is(NodeType.Return) {
                 tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
                 ctx.bang_counter = ctx.bang_counter.add(1)
@@ -2282,7 +2282,7 @@ priv process_throw_catch_in_body := proc(
                 // errors with "cannot store Dynamic". The return position's
                 // expected type is the function's return_type, so use it.
                 mut tmp_decl_data := Declaration(name = tmp_name.clone())
-                if return_type.len().gt(0) {
+                if return_type.len() > 0 {
                     tmp_decl_data.explicit_type = return_type.clone()
                     tmp_decl_data.til_type = til_type_from_explicit_type(return_type)
                     // Locals are owned by default; only mark Ref-returning
@@ -2347,7 +2347,7 @@ process_throw_catch_in_func_body := proc(
     return_own_type: OwnType
 ) {
     has_body_throw_catch := subtree_has_throw_catch(body)
-    has_fdef_throws := fdef_throws.len().gt(0)
+    has_fdef_throws := fdef_throws.len() > 0
     has_body_bang := subtree_has_bang(body)
     if has_body_throw_catch.not()
         .and(has_fdef_throws.not())
@@ -2524,7 +2524,7 @@ collect_switch_case_bindings := proc(mut ctx: Context, e: Expr) {
                         switch bind.node_type {
                         case NodeType.Ident(b_id):
                             payload_type := lookup_variant_payload_type(ctx.scope, en_id.ident_name(), fa.field_access_name())
-                            if payload_type.len().gt(0) {
+                            if payload_type.len() > 0 {
                                 ctx.lowering_param_types.set(b_id.ident_name(), own payload_type)
                             }
                         case:
@@ -2570,7 +2570,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
             switch match_expr.children[0].node_type {
             case NodeType.FieldAccess(method_name):
                 if method_name.field_access_name().eq("new") {
-                    if match_expr.children[0].children.len().gt(0) {
+                    if match_expr.children[0].children.len() > 0 {
                         switch match_expr.children[0].children[0].node_type {
                         case NodeType.Ident(range_name):
                             if range_name.ident_name().eq("Range") {
@@ -2602,7 +2602,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
         if match_expr.node_type.is(NodeType.FCall) {
             if match_expr.children.len().eq(2) {
                 if match_expr.children[0].node_type.is(NodeType.FieldAccess) {
-                    if match_expr.children[0].children.len().gt(0) {
+                    if match_expr.children[0].children.len() > 0 {
                         if match_expr.children[0].children[0].node_type.is(NodeType.Ident) {
                             if match_expr.children[1].node_type.is(NodeType.Ident) {
                                 ref callee : Expr = match_expr.children[0]
@@ -2633,10 +2633,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 if enum_def.node_type.is(NodeType.EnumDef) {
                                     vt_tag := enum_variant_tag(enum_def, variant_name)
                                     mut payload_type := ""
-                                    if vt_tag.gte(0) {
+                                    if vt_tag >= 0 {
                                         payload_type = enum_variant_type(enum_def, vt_tag)
                                     }
-                                    if payload_type.len().gt(0) {
+                                    if payload_type.len() > 0 {
                                         // #264: width-correct tag comparison.
                                         sw_tag_sz := enum_tag_size(enum_def)
                                         mut sw_builtin := "is"
@@ -2715,7 +2715,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
         if match_expr.node_type.is(NodeType.FCall) {
             if match_expr.children.len().eq(2) {
                 if match_expr.children[0].node_type.is(NodeType.FieldAccess) {
-                    if match_expr.children[0].children.len().gt(0) {
+                    if match_expr.children[0].children.len() > 0 {
                         if match_expr.children[0].children[0].node_type.is(NodeType.Ident) {
                             ref inner_pat : Expr = match_expr.children[1]
                             if inner_pat.node_type.is(NodeType.Ident).not() {
@@ -2738,10 +2738,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 if enum_def3.node_type.is(NodeType.EnumDef) {
                                     vt_tag3 := enum_variant_tag(enum_def3, variant_name3)
                                     mut payload_type3 := ""
-                                    if vt_tag3.gte(0) {
+                                    if vt_tag3 >= 0 {
                                         payload_type3 = enum_variant_type(enum_def3, vt_tag3)
                                     }
-                                    if payload_type3.len().gt(0) {
+                                    if payload_type3.len() > 0 {
                                         // outer condition: sw_ref.is(Type.Variant)
                                         // #264: width-correct tag comparison.
                                         sw_tag_sz3 := enum_tag_size(enum_def3)
@@ -2786,7 +2786,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
     if has_condition.not() {
         if match_expr.node_type.is(NodeType.FieldAccess) {
-            if match_expr.children.len().gt(0) {
+            if match_expr.children.len() > 0 {
                 if match_expr.children[0].node_type.is(NodeType.Ident) {
                     mut type_name := ""
                     mut variant_name := ""
@@ -2806,7 +2806,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     if enum_def.is_null().not() {
                     if enum_def.node_type.is(NodeType.EnumDef) {
                         vt_tag2 := enum_variant_tag(enum_def, variant_name)
-                        if vt_tag2.gte(0) {
+                        if vt_tag2 >= 0 {
                             // `case Variant` (no payload binding) -> sw.is(Type.Variant).
                             // Use .is rather than .eq so the desugared check is a
                             // tag-only comparison and never recurses through a
@@ -2848,7 +2848,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     // silently leave a field unconstrained.
     if has_condition.not() {
         if match_expr.node_type.is(NodeType.FCall) {
-            if match_expr.children.len().gt(0) {
+            if match_expr.children.len() > 0 {
                 if match_expr.children[0].node_type.is(NodeType.Ident) {
                     mut sp_type_name := ""
                     switch match_expr.children[0].node_type {
@@ -2911,7 +2911,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         // case_body statements -- including bindings that
                         // recursive value-match calls may have prepended for
                         // their own nested patterns.
-                        if sp_bindings.len().gt(0) {
+                        if sp_bindings.len() > 0 {
                             mut old_body := Vec(Expr).new()
                             old_body.move_from(case_body.children)
                             mut new_body := Vec(Expr).new()
@@ -2945,9 +2945,9 @@ replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block:
 }
 
 append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
-    if root_if.children.len().gt(2) {
+    if root_if.children.len() > 2 {
         ref mut else_body : Expr = root_if.children[2]
-        if else_body.children.len().gt(0) {
+        if else_body.children.len() > 0 {
             if else_body.children[0].node_type.is(NodeType.If) {
                 append_switch_else_if(else_body.children[0], if_node)
                 return
@@ -2960,9 +2960,9 @@ append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
 }
 
 attach_switch_default_body := proc(mut root_if: Expr, default_body: Expr) {
-    if root_if.children.len().gt(2) {
+    if root_if.children.len() > 2 {
         ref mut else_body : Expr = root_if.children[2]
-        if else_body.children.len().gt(0) {
+        if else_body.children.len() > 0 {
             if else_body.children[0].node_type.is(NodeType.If) {
                 attach_switch_default_body(else_body.children[0], default_body)
                 return
@@ -3043,7 +3043,7 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
             switch pat.node_type {
             case NodeType.FieldAccess(fa):
                 vname = fa.field_access_name()
-                if pat.children.len().gt(0) {
+                if pat.children.len() > 0 {
                     switch pat.children[0].node_type {
                     case NodeType.Ident(bn): base_ok = bn.ident_name().eq(sw_sname)
                     case:
@@ -3058,7 +3058,7 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
                 case NodeType.FieldAccess(fa2): vname = fa2.field_access_name()
                 case:
                 }
-                if callee.children.len().gt(0) {
+                if callee.children.len() > 0 {
                     switch callee.children[0].node_type {
                     case NodeType.Ident(bn2): base_ok = bn2.ident_name().eq(sw_sname)
                     case:
@@ -3070,7 +3070,7 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
             if base_ok.not() { return false }
             ref edef1 : Expr = scope.get_struct(sw_sname)
             vtag := enum_variant_tag(edef1, vname)
-            if vtag.lt(0) { return false }
+            if vtag < 0 { return false }
             if needs_payload.and(enum_variant_type(edef1, vtag).len().eq(0)) { return false }
             lit_text = vname
         } else if is_bool {
@@ -3140,7 +3140,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     ref enum_def : Expr = scope.get_struct(sw_sname)
     if enum_def.is_null() { return }
     vt_tag := enum_variant_tag(enum_def, variant_name)
-    if vt_tag.lt(0) { return }
+    if vt_tag < 0 { return }
     payload_type := enum_variant_type(enum_def, vt_tag)
     if payload_type.len().eq(0) { return }
     mut source_mut := false
@@ -3159,7 +3159,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     // param/local is not wrongly flagged redundant-mut. Only mut roots are
     // marked -- an immutable root can't be written and keeps its own checks.
     root_name := lvalue_root_name(sw_expr)
-    if root_name.len().gt(0) {
+    if root_name.len() > 0 {
         ref mut rb : TypeBinding = scope.get_binding(root_name)
         if is_null(rb).not() {
             if rb.is_mut { rb.written = true }
@@ -3252,7 +3252,7 @@ priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
     if e.node_type.is(NodeType.Body) { return NULL }
     switch e.node_type {
     case NodeType.FCall:
-        if fcall_kwargs_index_via_scope(e, scope).gte(0) { return e }
+        if fcall_kwargs_index_via_scope(e, scope) >= 0 { return e }
     case:
     }
     for e_i : Expr in e.children {
@@ -3270,7 +3270,7 @@ priv find_array_vec_fcall := func(e: Expr) returns ref Expr {
     if e.node_type.is(NodeType.Body) { return NULL }
     switch e.node_type {
     case NodeType.FCall:
-        if e.children.len().gt(0) {
+        if e.children.len() > 0 {
             switch e.children[0].node_type {
             case NodeType.Ident(cn):
                 cn_str := cn.ident_name()
@@ -3648,7 +3648,7 @@ priv rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, 
 priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall:
-        if fcall.children.len().lt(2) { return false }
+        if fcall.children.len() < 2 { return false }
         ref callee : Expr = fcall.children[0]
         switch callee.node_type {
         case NodeType.Ident(cn):
@@ -3714,7 +3714,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
     switch callee.node_type {
     case NodeType.Ident(cn):
         if cn.ident_name().eq("vec") {
-            if rhs.children.len().lt(2) { return false }
+            if rhs.children.len() < 2 { return false }
             elem_type := array_vec_elem_type_name(rhs)
             if elem_type.len().eq(0) { return false }
             count : U32 = rhs.children.len().sub(2)
@@ -3735,7 +3735,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             return true
         }
         if cn.ident_name().eq("array") {
-            if rhs.children.len().lt(2) { return false }
+            if rhs.children.len() < 2 { return false }
             elem_type := array_vec_elem_type_name(rhs)
             if elem_type.len().eq(0) { return false }
             count : U32 = rhs.children.len().sub(2)
@@ -4010,7 +4010,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
         }
         if has_kwargs {
             ki := fcall_kwargs_index_via_scope(e, scope)
-            if ki.gte(0) {
+            if ki >= 0 {
                 kc := fcall_kwargs_count(e)
                 kw_name := format("_kw", ctx.kw_counter.to_str())
                 ctx.kw_counter++
@@ -4077,7 +4077,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {
             if field_assign_needs_delete(stmt, scope) {
                 ref fa_rhs : Expr = stmt.children[1]
-                if type_to_name(fa_rhs.expr_til_type()).len().gt(0) {
+                if type_to_name(fa_rhs.expr_til_type()).len() > 0 {
                     needs_delete = true
                 }
             }
@@ -4192,7 +4192,7 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
         if field_assign_needs_delete(stmt, scope) {
             ref rhs : Expr = stmt.children[1]
-            if type_to_name(rhs.expr_til_type()).len().gt(0) {
+            if type_to_name(rhs.expr_til_type()).len() > 0 {
                 switch stmt.node_type {
                 case NodeType.FieldAssign(fad):
                     fad.save_old_delete = true
@@ -4254,7 +4254,7 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
 // reached on a synthesized/hoisted call).
 priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope) returns Bool {
     if expr.node_type.is(NodeType.FCall).not() { return false }
-    if expr.children.len().lt(2) { return false }
+    if expr.children.len() < 2 { return false }
     ref callee : Expr = expr.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return false }
     if callee.children.len().eq(0) { return false }
@@ -4281,7 +4281,7 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope)
         case NodeType.FuncDef(vfd):
             if vfd.is_enum_variant_ctor.not() { return false }
             pidx := i.sub(1)
-            if pidx.gte(vfd.params.len()) { return false }
+            if pidx >= vfd.params.len() { return false }
             ref vp : Declaration = vfd.params[pidx]
             return vp.own_type.is(OwnType.Own)
         case: return false
@@ -4336,7 +4336,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     mut is_dyn_call := false
     mut is_array_vec := false
     mut is_ctor_call := false
-    if expr.children.len().gt(0) {
+    if expr.children.len() > 0 {
         ref callee : Expr = expr.children[0]
         switch callee.node_type {
         case NodeType.Ident(cn):
@@ -4383,7 +4383,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         case NodeType.StructDef(h_sdd):
             mut fld_own := OwnType.Shallow
             mut field_type := Type.None
-            if hoist_fi.lt(h_sdd.fields.len()) {
+            if hoist_fi < h_sdd.fields.len() {
                 ref h_fd : Declaration = h_sdd.fields[hoist_fi]
                 fld_own = h_fd.own_type
                 field_type = h_fd.til_type
@@ -4582,7 +4582,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             // Transfer own bit from old position j to new position
             mut old_bit : U64 = 1
             for _ in 0..j { old_bit = old_bit.mul(2) }
-            if old_own.band(old_bit).gt(0) {
+            if old_own.band(old_bit) > 0 {
                 mut nb : U64 = 1
                 for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
                 new_own = new_own.bor(nb)
@@ -4630,7 +4630,7 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
             if cb_fd.is_null().not() {
                 switch cb_fd.node_type {
                 case NodeType.FuncDef(cb_fdef):
-                    return fcall_variadic_count(fcall, cb_fdef.params.len(), cb_fdef.kwargs_index.gte(0))
+                    return fcall_variadic_count(fcall, cb_fdef.params.len(), cb_fdef.kwargs_index >= 0)
                 case:
                 }
             }
@@ -4648,7 +4648,7 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
                         if nd.default_value.is_null() { break }
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
-                            return fcall_variadic_count(fcall, ffd.params.len(), ffd.kwargs_index.gte(0))
+                            return fcall_variadic_count(fcall, ffd.params.len(), ffd.kwargs_index >= 0)
                         case:
                         }
                         break
@@ -4680,7 +4680,7 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
             if cb_fd.is_null().not() {
                 switch cb_fd.node_type {
                 case NodeType.FuncDef(cb_fdef):
-                    return cb_fdef.variadic_index.gte(0)
+                    return cb_fdef.variadic_index >= 0
                 case:
                 }
             }
@@ -4698,7 +4698,7 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
                         if nd.default_value.is_null() { break }
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
-                            return ffd.variadic_index.gte(0)
+                            return ffd.variadic_index >= 0
                         case:
                         }
                         break
@@ -4733,7 +4733,7 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
                 switch cb_fd.node_type {
                 case NodeType.FuncDef(cb_fdef):
                     fvi := cb_fdef.variadic_index
-                    if fvi.lt(0) { return -1 }
+                    if fvi < 0 { return -1 }
                     return fvi.add(1)
                 case:
                 }
@@ -4753,7 +4753,7 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
-                            if fvi.lt(0) { return -1 }
+                            if fvi < 0 { return -1 }
                             return fvi.add(1)
                         case:
                         }
@@ -4834,7 +4834,7 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
 // pre-variadic-rewrite "position would be different" is irrelevant
 // there.
 priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) returns I32 {
-    if fdef_data.kwargs_index.lt(0) { return -1 }
+    if fdef_data.kwargs_index < 0 { return -1 }
     return fdef_data.params.len().cast(I32)
 }
 
@@ -4849,7 +4849,7 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
                 switch cb_fd.node_type {
                 case NodeType.FuncDef(cb_fdef):
                     fvi := cb_fdef.variadic_index
-                    if fvi.gte(0) {
+                    if fvi >= 0 {
                         ref param : Declaration = cb_fdef.params[fvi.to_usize()]
                         return param.explicit_type
                     }
@@ -4871,7 +4871,7 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
-                            if fvi.gte(0) {
+                            if fvi >= 0 {
                                 ref param : Declaration = ffd.params[fvi.to_usize()]
                                 return param.explicit_type
                             }
@@ -4960,7 +4960,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
             // Transfer own bit from old position j to new position
             mut old_bit : U64 = 1
             for _ in 0..j { old_bit = old_bit.mul(2) }
-            if old_own.band(old_bit).gt(0) {
+            if old_own.band(old_bit) > 0 {
                 mut nb : U64 = 1
                 for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
                 new_own = new_own.bor(nb)

@@ -38,7 +38,7 @@ namespace:
 
     /// Return a ref to byte `i`. Panics if `i` is out of bounds.
     get := func(self: Str, i: USize) returns ref I8 {
-        if i.gte(self.count) {
+        if i >= self.count {
             panic("Str.get: index out of bounds")
         }
         return ptr_add(self.c_str, i)
@@ -53,7 +53,7 @@ namespace:
     /// positive if a > b.
     cmp := func(a: Str, b: Str) returns I64 {
         mut min_len := a.count
-        if b.count.lt(a.count) { min_len = b.count }
+        if b.count < a.count { min_len = b.count }
         for i in 0..min_len {
             ref ab : I8 = a.unsafe_get(i)
             ref bb : I8 = b.unsafe_get(i)
@@ -79,11 +79,11 @@ namespace:
     /// Append `s` to `self`. Panics if `self` is a view/literal or if
     /// capacity is exceeded.
     push_str := func(mut self: Str, s: Str) {
-        if self.cap.gte(CAP_VIEW) {
+        if self.cap >= CAP_VIEW {
             panic("Str.push_str: cannot mutate a string view or literal")
         }
         new_len := self.count.add(s.count)
-        if new_len.gt(self.cap) {
+        if new_len > self.cap {
             panic("Str.push_str: capacity exceeded")
         }
         memcpy(ptr_add(self.c_str, self.count), s.c_str, s.count)
@@ -109,7 +109,7 @@ namespace:
     /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
     /// static literal wrapper, so call_free does not free that wrapper either.
     delete := func(own self: Str, call_free: Bool = true) {
-        if self.cap.lt(CAP_VIEW) { free(own self.c_str) }
+        if self.cap < CAP_VIEW { free(own self.c_str) }
         if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
     }
 
@@ -118,8 +118,8 @@ namespace:
     substr := func(s: Str, start: USize, n: USize) returns Str {
         mut st := start
         mut ln := n
-        if st.gt(s.count) { st = s.count }
-        if st.add(ln).gt(s.count) { ln = s.count.sub(st) }
+        if st > s.count { st = s.count }
+        if st.add(ln) > s.count { ln = s.count.sub(st) }
         return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
 
@@ -127,7 +127,7 @@ namespace:
     /// newline, carriage return) removed. View-only -- no allocation.
     trim_start := func(s: Str) returns Str {
         mut st : USize = 0
-        while st.lt(s.count) {
+        while st < s.count {
             ref c : I8 = s.unsafe_get(st)
             if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
                 st++
@@ -142,7 +142,7 @@ namespace:
     /// removed. View-only -- no allocation.
     trim := func(s: Str) returns Str {
         mut st : USize = 0
-        while st.lt(s.count) {
+        while st < s.count {
             ref c : I8 = s.unsafe_get(st)
             if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
                 st++
@@ -151,7 +151,7 @@ namespace:
             }
         }
         mut en := s.count
-        while en.gt(st) {
+        while en > st {
             ref c : I8 = s.unsafe_get(en.sub(1))
             if c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r')) {
                 en--
@@ -165,7 +165,7 @@ namespace:
     /// True if `a` contains `b` as a substring.
     contains := func(a: Str, b: Str) returns Bool {
         if b.count.eq(0) { return true }
-        if b.count.gt(a.count) { return false }
+        if b.count > a.count { return false }
         for i in 0..a.count.sub(b.count).add(1) {
             mut found := true
             for j in 0..b.count {
@@ -180,7 +180,7 @@ namespace:
 
     /// True if `a` starts with prefix `b`.
     starts_with := func(a: Str, b: Str) returns Bool {
-        if b.count.gt(a.count) { return false }
+        if b.count > a.count { return false }
         for i in 0..b.count {
             ref ac : I8 = a.unsafe_get(i)
             ref bc : I8 = b.unsafe_get(i)
@@ -191,7 +191,7 @@ namespace:
 
     /// True if `a` ends with suffix `b`.
     ends_with := func(a: Str, b: Str) returns Bool {
-        if b.count.gt(a.count) { return false }
+        if b.count > a.count { return false }
         offset := a.count.sub(b.count)
         for i in 0..b.count {
             ref ac : I8 = a.unsafe_get(offset.add(i))
@@ -209,11 +209,11 @@ namespace:
     /// Return the byte index of the first occurrence of `needle`, or -1.
     find := func(self: Str, needle: Str) returns I64 {
         if needle.count.eq(0) { return -1 }
-        if needle.count.gt(self.count) { return -1 }
+        if needle.count > self.count { return -1 }
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
             mut j : USize = 0
-            while j.lt(needle.count) {
+            while j < needle.count {
                 ref ac : I8 = self.unsafe_get(i.add(j))
                 ref bc : I8 = needle.unsafe_get(j)
                 if ac.neq(bc) { found = false; break }
@@ -227,7 +227,7 @@ namespace:
     /// Return the byte index of the last occurrence of `needle`, or -1.
     rfind := func(self: Str, needle: Str) returns I64 {
         if needle.count.eq(0) { return -1 }
-        if needle.count.gt(self.count) { return -1 }
+        if needle.count > self.count { return -1 }
         mut last := -1
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
@@ -248,10 +248,10 @@ namespace:
         // first: both loop bounds below compute `self.count.sub(from.count)`,
         // which would underflow USize to a huge value when from.count >
         // self.count.
-        if from.count.gt(self.count) { return self.clone() }
+        if from.count > self.count { return self.clone() }
         mut matches : USize = 0
         mut start : USize = 0
-        while start.lte(self.count.sub(from.count)) {
+        while start <= self.count.sub(from.count) {
             rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
             if pos.eq(-1) {
@@ -266,7 +266,7 @@ namespace:
         added := matches.mul(to.count)
         mut out := Str.with_capacity(self.count.sub(removed).add(added))
         start = 0
-        while start.lte(self.count.sub(from.count)) {
+        while start <= self.count.sub(from.count) {
             rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
             if pos.eq(-1) {
@@ -277,7 +277,7 @@ namespace:
             out.push_str(to)
             start = start.add(pos_u).add(from.count)
         }
-        if start.lt(self.count) {
+        if start < self.count {
             out.push_str(self.substr(start, self.count.sub(start)))
         }
         return out
@@ -432,7 +432,7 @@ namespace:
         }
         mut start : USize = 0
         mut pos : USize = 0
-        while pos.lte(self.len().sub(delim.len())) {
+        while pos <= self.len().sub(delim.len()) {
             if self.substr(pos, delim.len()).eq(delim) {
                 parts.push(own self.substr(start, pos.sub(start)).clone())
                 start = pos.add(delim.len())
@@ -455,7 +455,7 @@ join := func(parts: Vec(Str), sep: Str) returns Str {
     total = total.add(sep.len().mul(parts.len().sub(1)))
     mut out := Str.with_capacity(total)
     for i in 0..parts.len() {
-        if i.gt(0) { out.push_str(sep) }
+        if i > 0 { out.push_str(sep) }
         ref p : Str = parts[i]
         out.push_str(p)
     }

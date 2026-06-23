@@ -12,7 +12,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
     mut start : USize = 0
-    while start.lte(haystack.len().sub(needle.len())) {
+    while start <= haystack.len().sub(needle.len()) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
         count++
@@ -34,13 +34,13 @@ ms_to_str := func(ms: I64) returns Str {
     secs := ms.div(1000)
     frac := ms.mod(1000).div(10)
     mut frac_str := frac.to_str()
-    if frac.lt(10) { frac_str = format("0", frac_str) }
+    if frac < 10 { frac_str = format("0", frac_str) }
     return format(secs.to_str(), ".", frac_str, "s")
 }
 
 pad_right := func(s: Str, width: USize) returns Str {
     mut result := s.clone()
-    while result.len().lt(width) {
+    while result.len() < width {
         result = format(result, " ")
     }
     return result
@@ -68,7 +68,7 @@ test_basename := func(path: Str) returns Str {
 parse_kv := func(line: Str, key: Str) returns I64 {
     needle := format(key, "=")
     pos := line.find(needle)
-    if pos.lt(0) { return 0 }
+    if pos < 0 { return 0 }
     pos_u : USize = pos.to_usize()
     start := pos_u.add(needle.len())
     mut end := start
@@ -82,7 +82,7 @@ mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
     mut f := ""
     if en_interp.eq(0) { f = format(f, " -no-interp") }
     if en_run.eq(0) { f = format(f, " -no-run") }
-    if asan_flag.len().gt(0) { f = format(f, " ", asan_flag) }
+    if asan_flag.len() > 0 { f = format(f, " ", asan_flag) }
     return f
 }
 
@@ -172,7 +172,7 @@ add_both := func(tests: Vec(Test), file: Str, flags: Str) {
 add_single := func(tests: Vec(Test), label: Str, category: Str,
     expected_exit: I64, expected_out: Str, cmd_suffix: Str) {
         mut runner_cmd := format(RUNNER, " single ", label, " ", expected_exit.to_str())
-        if expected_out.len().gt(0) {
+        if expected_out.len() > 0 {
             runner_cmd = format(runner_cmd, " ", expected_out)
         }
         runner_cmd = format(runner_cmd, " -- ", cmd_suffix)
@@ -201,12 +201,12 @@ add_cli_pair := func(tests: Vec(Test), name: Str, file: Str,
     cli_args: Str, expected_exit: I64, expected_out: Str,
     til: Str, asan_flag: Str) {
         mut cmd_i := format(til, " interpret ", file)
-        if cli_args.len().gt(0) { cmd_i = format(cmd_i, " ", cli_args) }
+        if cli_args.len() > 0 { cmd_i = format(cmd_i, " ", cli_args) }
         add_single(tests, format(name, "_i"), "cli", expected_exit, expected_out, cmd_i)
         mut cmd_r := format(til, " run", asan_flag, " -o bin/c/", name,
             " -c gen/c/", name, ".c ",
             file)
-        if cli_args.len().gt(0) { cmd_r = format(cmd_r, " ", cli_args) }
+        if cli_args.len() > 0 { cmd_r = format(cmd_r, " ", cli_args) }
         add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
     }
 
@@ -218,7 +218,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
 
     slots := Array(Slot).new(j)
     mut si : USize = 0
-    while si.lt(j) {
+    while si < j {
         slots[si] = Slot()
         si++
     }
@@ -237,11 +237,11 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
     }
 
     // Poll loop
-    while active.gt(0) {
+    while active > 0 {
         mut i : USize = 0
-        while i.lt(j) {
+        while i < j {
             ref slot : Slot = slots[i]
-            if slot.pid.gt(0) {
+            if slot.pid > 0 {
                 status := check_cmd_status(slot.pid)
                 if status.neq(-1) {
                     ref t : Test = tests[slot.test_idx]
@@ -250,7 +250,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                     // Find RESULT line
                     mut result_line := ""
                     result_pos := runner_out.rfind("RESULT ")
-                    if result_pos.gte(0) {
+                    if result_pos >= 0 {
                         result_pos_u : USize = result_pos.to_usize()
                         result_line = runner_out.substr(result_pos_u,
                             runner_out.len().sub(result_pos_u))
@@ -282,7 +282,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                     if status.neq(0) {
                         runner_lines := runner_out.split(NL)
                         mut li : USize = 0
-                        while li.lt(runner_lines.len()) {
+                        while li < runner_lines.len() {
                             ref ln : Str = runner_lines[li]
                             if ln.starts_with("FAIL").or(ln.starts_with("MISMATCH")) {
                                 println(ln)
@@ -295,7 +295,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                     active--
                     slot.pid = 0
 
-                    if next.lt(tests.len()) {
+                    if next < tests.len() {
                         ref nt : Test = tests[next]
                         cmd := format(nt.cmd, " > ", nt.outfile, " 2>&1")
                         start := clock_ms()
@@ -308,7 +308,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
             }
             i++
         }
-        if active.gt(0) {
+        if active > 0 {
             sleep_ms(10)
         }
     }
@@ -327,11 +327,11 @@ main := proc(args: ..Str) {
     mut til_bin := TIL
     mut asan := 0
     mut i : USize = 0
-    while i.lt(args.len()) {
+    while i < args.len() {
         ref arg : Str = args[i]
         if arg.starts_with("-j") {
             j = arg.substr(2, arg.len().sub(2)).to_usize()
-            if j.lt(1) { j = 1 }
+            if j < 1 { j = 1 }
         }
         if arg.eq("-no-interp") { en_interp = 0 }
         if arg.eq("-no-run") { en_run = 0 }
@@ -659,7 +659,7 @@ main := proc(args: ..Str) {
 
     mut fb_out := ""
     mut fbi := 1
-    while fbi.lte(100) {
+    while fbi <= 100 {
         mut fb_line := ""
         if fbi.mod(15).eq(0) {
             fb_line = "FizzBuzz"
@@ -753,7 +753,7 @@ main := proc(args: ..Str) {
     mut both_passed : USize = 0
     mut both_total : USize = 0
     mut pi : USize = 0
-    while pi.lt(tests.len()) {
+    while pi < tests.len() {
         ref t : Test = tests[pi]
         switch t.kind {
         case TestKind.Both(md):
@@ -784,7 +784,7 @@ main := proc(args: ..Str) {
     mut other_passed : USize = 0
     mut other_total : USize = 0
     pi = 0
-    while pi.lt(tests.len()) {
+    while pi < tests.len() {
         ref t : Test = tests[pi]
         if t.kind.is(TestKind.Both).not() {
             other_total++
@@ -815,7 +815,7 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline").lt(8) {
+    if count_matches(plot_svg, "<polyline") < 8 {
         println("FAIL: plot.til expected 8 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
@@ -874,7 +874,7 @@ main := proc(args: ..Str) {
     bench.push_str("commit,file,interp_ms,compile_ms,run_ms,interp_ok,compile_ok,run_ok")
     bench.push_str(NL)
     mut bi : USize = 0
-    while bi.lt(tests.len()) {
+    while bi < tests.len() {
         ref bt : Test = tests[bi]
         switch bt.kind {
         case TestKind.Both(bmd):
@@ -908,17 +908,17 @@ main := proc(args: ..Str) {
         mut totals_content := ""
         lines := existing.split(NL)
         mut last_data_idx := lines.len().sub(1)
-        while last_data_idx.gt(0) {
+        while last_data_idx > 0 {
             ref last_line : Str = lines[last_data_idx]
-            if last_line.len().gt(0) { break }
+            if last_line.len() > 0 { break }
             last_data_idx--
         }
-        if last_data_idx.gt(0) {
+        if last_data_idx > 0 {
             ref last_data : Str = lines[last_data_idx]
             last_commit := last_data.substr(0, last_data.find(",").to_usize())
             if last_commit.eq(commit) {
                 mut li : USize = 0
-                while li.lt(last_data_idx) {
+                while li < last_data_idx {
                     ref ln : Str = lines[li]
                     totals_content = format(totals_content, ln, NL)
                     li++

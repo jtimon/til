@@ -51,9 +51,9 @@ namespace:
             return
         }
         needed := self.count.add(other.count)
-        if needed.gt(self.cap) {
+        if needed > self.cap {
             mut new_cap := self.cap
-            while needed.gt(new_cap) {
+            while needed > new_cap {
                 new_cap = new_cap.mul(2)
             }
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
@@ -75,15 +75,15 @@ namespace:
             T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
         }
         needed := other.count
-        if needed.gt(self.cap) {
+        if needed > self.cap {
             mut new_cap := self.cap
-            while needed.gt(new_cap) {
+            while needed > new_cap {
                 new_cap = new_cap.mul(2)
             }
             self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
             self.cap = new_cap
         }
-        if needed.gt(0) {
+        if needed > 0 {
             memcpy(self.data, other.data, needed.mul(T.size()).cast(U64))
         }
         self.count = needed
@@ -104,7 +104,7 @@ namespace:
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
     get := func(self: Vec(T), i: USize, loc: Str = __LOC__) returns ref T throws OutOfBounds {
-        if i.gte(self.count) {
+        if i >= self.count {
             throw OutOfBounds(msg = format(loc, ":Vec.get: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
@@ -128,22 +128,22 @@ namespace:
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: Vec(T), n: USize) returns Vec(T) {
-        if n.gt(self.count) {
+        if n > self.count {
             panic("Vec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         mut prefix_cap : USize = 1
-        if n.gt(0) {
+        if n > 0 {
             prefix_cap = n
         }
         prefix_data : Dynamic = malloc(prefix_cap.mul(T.size()).cast(U64))
-        if n.gt(0) {
+        if n > 0 {
             memcpy(prefix_data, self.data, n.mul(T.size()).cast(U64))
         }
         tail_count := self.count.sub(n)
-        if tail_count.gt(0) {
+        if tail_count > 0 {
             memmove(self.data, ptr_add(self.data, n.mul(T.size()).cast(U64)), tail_count.mul(T.size()).cast(U64))
         }
-        if n.gt(0) {
+        if n > 0 {
             memset(ptr_add(self.data, tail_count.mul(T.size()).cast(U64)), 0, n.mul(T.size()).cast(U64))
         }
         self.count = tail_count
@@ -163,7 +163,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
     set := func(mut self: Vec(T), i: USize, own val: T, loc: Str = __LOC__) throws OutOfBounds {
-        if i.gte(self.count) {
+        if i >= self.count {
             throw OutOfBounds(msg = format(loc, ":Vec.set: index ", i.to_str(),
                   " out of bounds (len ", self.count.to_str(), ")"))
         }
@@ -174,7 +174,7 @@ namespace:
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
     push_take := func(mut self: Vec(T), mut src: Vec(T), i: USize) {
-        if i.gte(src.count) {
+        if i >= src.count {
             panic("Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
         if self.count.eq(self.cap) {
