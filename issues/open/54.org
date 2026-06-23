@@ -44,14 +44,20 @@
       Progress: borrowed captures use parameter-like ref semantics, returned
       borrowed closures and borrowed closures passed to ~own~ parameters are
       rejected, and explicit ~own~ returned captures run through the closure
-      drop hook. Tests:
+      drop hook. The interpreter now gives captured functions explicit
+      closure environments; ref/mut captures borrow, shallow captures copy,
+      own captures move, and returned own-capture closures survive after the
+      defining call scope exits. Tests:
       test/capture_escape_error.til, test/capture_own_arg_escape_error.til,
       test/capture_mut_escape_error.til, and
       test/closures_compile_escape.til::test_closure_return_captures_local,
       test_closure_return_owns_str, and
+      test_closure_return_owns_struct_with_str, plus
+      test/closures_interp.til::test_closure_return_owns_i64,
+      test_closure_return_owns_str, and
       test_closure_return_owns_struct_with_str.
-      Remaining: interpreter closure environments and any broader stored-
-      closure escape paths not covered by return / own-arg checks.
+      Remaining: broader stored-closure escape paths not covered by return /
+      own-arg checks.
    - [ ] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]

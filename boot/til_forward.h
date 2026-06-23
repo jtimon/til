@@ -307,6 +307,7 @@ typedef struct Vec__DocEntry Vec__DocEntry;
 typedef struct _ffi_type ffi_type;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
+typedef struct InterpClosure InterpClosure;
 typedef enum {
     Value_TAG_None,
     Value_TAG_Int,
@@ -323,7 +324,8 @@ typedef enum {
     Value_TAG_Ref,
     Value_TAG_Dynamic,
     Value_TAG_Sbyte,
-    Value_TAG_Ushort
+    Value_TAG_Ushort,
+    Value_TAG_Closure
 } Value_tag;
 typedef struct Value Value;
 typedef struct Cell Cell;
@@ -1019,6 +1021,13 @@ typedef struct EnumInstance {
 } EnumInstance;
 
 
+typedef struct InterpClosure {
+    Expr *func_def;
+    Scope *env;
+    Bool borrowed;
+} InterpClosure;
+
+
 struct Value {
     Value_tag tag;
     union {
@@ -1037,6 +1046,7 @@ struct Value {
         void * Dynamic;
         I8 Sbyte;
         U16 Ushort;
+        InterpClosure Closure;
     } data;
 };
 
@@ -3675,6 +3685,9 @@ U32 StructInstance_size(void);
 EnumInstance * EnumInstance_clone(EnumInstance * self);
 void EnumInstance_delete(EnumInstance * self, Bool call_free);
 U32 EnumInstance_size(void);
+InterpClosure * InterpClosure_clone(InterpClosure * self);
+void InterpClosure_delete(InterpClosure * self, Bool call_free);
+U32 InterpClosure_size(void);
 Value * Value_clone(Value * self);
 Value * Value_None(void);
 Value * Value_Int(I64 * val);
@@ -3692,6 +3705,7 @@ Value * Value_Ref(void * val);
 Value * Value_Dynamic(void * val);
 Value * Value_Sbyte(I8 * val);
 Value * Value_Ushort(U16 * val);
+Value * Value_Closure(InterpClosure * val);
 Bool Value_is(Value * self, Value * other);
 void Value_delete(Value * self, Bool call_free);
 U32 Value_size(void);
@@ -3739,6 +3753,8 @@ void priv___src_self_interpreter_til__eval_fcall(Scope * scope, Expr * stmt, FCa
 void priv___src_self_interpreter_til__eval_if(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
+Value priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx);
+Value priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, Value * callable, Context * ctx);
 Value priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx);
 void priv___src_self_interpreter_til__free_value(Value v);
 priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__DynPtrBox_clone(priv___src_self_interpreter_til__DynPtrBox * self);
@@ -3759,12 +3775,18 @@ Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * priv___src_self_interpreter_til__widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
+Scope * priv___src_self_interpreter_til__scope_new_boxed(Scope * parent);
 Str * priv___src_self_interpreter_til__scope_get_payload_alias(Scope * s, Str * name);
 Bool priv___src_self_interpreter_til__interp_is_primitive_type_name(Str * name);
 void * priv___src_self_interpreter_til__scope_get_ref_primitive_ptr(Scope * s, Str * name);
 void scope_set_owned(Scope * s, Str * name, Value * val);
 void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, Cell * cell);
 void scope_free(Scope * s);
+Scope * priv___src_self_interpreter_til__scope_root_ref(Scope * s);
+Scope * priv___src_self_interpreter_til__closure_env_clone(Scope * env);
+InterpClosure * priv___src_self_interpreter_til__interp_closure_clone(InterpClosure * cl);
+void priv___src_self_interpreter_til__interp_closure_free(InterpClosure * cl);
+Value * priv___src_self_interpreter_til__make_interp_closure(Expr * func_def, Scope * scope);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(Expr * obj_expr, Str * sname, Expr * sdef, Str * fname);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_inner(Scope * scope, Expr * e, Str * sname);
 Cell * priv___src_self_interpreter_til__field_assign_dyn_move_src(Scope * scope, Expr * val_expr);
@@ -4315,6 +4337,7 @@ Value *Value_Ref(void *);
 Value *Value_Dynamic(void *);
 Value *Value_Sbyte(I8 *);
 Value *Value_Ushort(U16 *);
+Value *Value_Closure(InterpClosure *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;

@@ -386,6 +386,12 @@ namespace:
     }
 }
 
+InterpClosure := struct {
+    ref func_def : Expr = NULL
+    ref env : Scope = NULL
+    borrowed := false
+}
+
 Value := enum {
     None,
     Int: I64,
@@ -407,7 +413,8 @@ Value := enum {
     // inserting a variant in the middle would mis-decode Value tags
     // during bootstrap.
     Sbyte: I8,
-    Ushort: U16
+    Ushort: U16,
+    Closure: InterpClosure
 namespace:
     eq := func(a: Value, b: Value) returns Bool {
         switch a {
@@ -468,6 +475,8 @@ namespace:
             // void* payload reinterpreted via U64 (both 8 bytes)
             ref raw : U64 = payload
             return Value.Func(ptr_add(NULL, raw))
+        case Value.Closure(cl):
+            return Value.Closure(interp_closure_clone(cl))
         case Value.Ref(payload):
             ref raw : U64 = payload
             return Value.Ref(ptr_add(NULL, raw))
@@ -767,7 +776,8 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         return borrow_value(cell.val)
     case NodeType.FCall:
         return eval_call(scope, e, ctx)
-    case NodeType.FuncDef:
+    case NodeType.FuncDef(fd):
+        if fd.captures.len().gt(0) { return make_interp_closure(e, scope) }
         return Value.Func(e)
     case NodeType.StructDef:
         return Value.Func(e)
@@ -1673,14 +1683,152 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
 }
 
 
-priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value {
+priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context) returns shallow Value {
     ref mut c : Context = ctx
+    ref callee_expr : Expr = e.children[0]
+    if func_def.children.len().eq(0) {
+        interp_error(e, "cannot call an interface method through the interface: it has no implementation", ctx)
+        exit(1)
+    }
+    ref body : Expr = func_def.children[0]
+
+    // Issue #275: bypass an auto-generated struct delete's body and run the
+    // deep Value teardown directly. The generated body is
+    // `self.field.delete(false)` per field + `free(own self)`; in the
+    // interpreter the field-deletes dispatch onto a BORROWED view (Str.delete
+    // reads self.c_str as a Ref -> no-op) and `free(own self)` is a shallow
+    // box-only release, so a plain struct's nested Str-field c_strs leaked at
+    // its delete -- the dominant constfolder Str_clone leak (folding clones
+    // such values then deletes them). free_temp_arg_value reclaims them
+    // (is_str c_str / struct_deep_free + the buffer). Scoped to the top-level
+    // garbager delete `p.delete()` (call_free defaulted, so exactly the
+    // receiver Ident arg); explicit-arg / non-Ident (borrowed-view nested)
+    // calls fall through to the normal body. Custom deletes (Tuple/Vec/Map)
+    // are not auto_generated and are unaffected.
+    mut del_method := false
+    switch callee_expr.node_type {
+    case NodeType.FieldAccess(del_fn):
+        if del_fn.field_access_name().eq("delete") { del_method = true }
+    case:
+    }
+    if del_method {
+        switch e.children[1].node_type {
+        case NodeType.Ident(recv_id):
+            mut call_free := true
+            if e.children.len().gt(2) {
+                cf_v := eval_expr(caller_scope, e.children[2], ctx)
+                switch cf_v {
+                case Value.Boolean(cfb): call_free = cfb
+                case:
+                }
+            }
+            if call_free {
+                ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())
+                if recv_cell.is_null().not() {
+                    mut do_intercept := false
+                    switch func_def.node_type {
+                    case NodeType.FuncDef(fd_ag):
+                        if fd_ag.auto_generated { do_intercept = true }
+                    case:
+                    }
+                    switch recv_cell.val {
+                    case Value.Struct(rsi):
+                        if rsi.struct_name.eq("Str") { do_intercept = true }
+                    case:
+                    }
+                    if do_intercept {
+                        free_temp_arg_value(recv_cell.val)
+                        memcpy(recv_cell.val, val_none(), Value.size().cast(U64))
+                        return val_none()
+                    }
+                }
+            }
+        case:
+        }
+    }
+
+    if callee_expr.expr_til_type().is_funcptr().not() {
+        if guard_own_param_skip(caller_scope, e, func_def) { return val_none() }
+    }
+    call_scope := scope_new(parent_scope)
+    switch func_def.node_type {
+    case NodeType.FuncDef(fdef_params):
+        for pi in 0..fdef_params.params.len() {
+            ref param : Declaration = fdef_params.params[pi]
+            ref arg_expr : Expr = e.children[pi.add(1)]
+            switch arg_expr.node_type {
+            case NodeType.Ident(arg_ident):
+                ref arg_cell : Cell = scope_get(caller_scope, arg_ident.ident_name())
+                if arg_cell.is_null() {
+                    interp_error(arg_expr, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
+                    exit(1)
+                }
+                if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
+                    mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, caller_scope, ctx, false)
+                    arg = widen_numeric(arg, param.explicit_type, ctx)
+                    scope_set_owned(call_scope, param.name, arg)
+                } else if needs_widen(arg_cell.val, param.explicit_type) {
+                    mut arg := arg_cell.val.clone()
+                    arg = widen_numeric(arg, param.explicit_type, ctx)
+                    scope_set_owned(call_scope, param.name, arg)
+                } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
+                    arg := box_scalar_to_dynamic(call_scope, arg_cell.val, param.own_type.is(OwnType.Own).not())
+                    scope_set_owned(call_scope, param.name, arg)
+                } else {
+                    scope_set_borrowed(call_scope, param.name, arg_cell)
+                }
+            case:
+                mut arg := eval_expr(caller_scope, arg_expr, ctx)
+                if is_value_ptr(arg).and(param.explicit_type.len().gt(0)) {
+                    arg = reinterpret_ptr_value(arg, param.explicit_type, caller_scope, ctx, false)
+                }
+                arg = widen_numeric(arg, param.explicit_type, ctx)
+                if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
+                    arg = box_scalar_to_dynamic(call_scope, arg, param.own_type.is(OwnType.Own).not())
+                }
+                scope_set_owned(call_scope, param.name, arg)
+            }
+        }
+    case:
+        UNREACHABLE()
+    }
+    c.has_return = false
+    eval_body(call_scope, body, ctx)
+    mut result := val_none()
+    if c.has_return {
+        result = c.return_value.clone()
+        c.has_return = false
+    }
+    free_non_own_temp_args(call_scope, e, func_def)
+    scope_free(own call_scope)
+    return result
+}
+
+priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Value, mut ctx: Context) returns shallow Value {
+    switch callable {
+    case Value.Func(fp):
+        ref func_def : Expr = deref(fp)
+        return eval_user_func_call(caller_scope, e, func_def, caller_scope, ctx)
+    case Value.Closure(cl):
+        return eval_user_func_call(caller_scope, e, cl.func_def, cl.env, ctx)
+    case:
+        interp_error(e, "callee did not evaluate to a function", ctx)
+        exit(1)
+        return val_none()
+    }
+}
+
+
+priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value {
+    ref c : Context = ctx
     ref callee_expr : Expr = e.children[0]
 
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         fn_val := eval_expr(scope, callee_expr, ctx)
         switch fn_val {
+        case Value.Closure:
+            return eval_callable_call(scope, e, fn_val, ctx)
         case Value.Func(fn_ptr):
         ref func_def : Expr = deref(fn_ptr)
 
@@ -1795,147 +1943,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             }
         }
 
-        // Regular function body call
-        // A bodyless namespace signature (interface method, issue #251)
-        // has no implementation to execute.
-        if func_def.children.len().eq(0) {
-            interp_error(e, "cannot call an interface method through the interface: it has no implementation", ctx)
-            exit(1)
-        }
-        ref body_ns : Expr = func_def.children[0]
-        // Issue #275: bypass an auto-generated struct delete's body and run the
-        // deep Value teardown directly. The generated body is
-        // `self.field.delete(false)` per field + `free(own self)`; in the
-        // interpreter the field-deletes dispatch onto a BORROWED view (Str.delete
-        // reads self.c_str as a Ref -> no-op) and `free(own self)` is a shallow
-        // box-only release, so a plain struct's nested Str-field c_strs leaked at
-        // its delete -- the dominant constfolder Str_clone leak (folding clones
-        // such values then deletes them). free_temp_arg_value reclaims them
-        // (is_str c_str / struct_deep_free + the buffer). Scoped to the top-level
-        // garbager delete `p.delete()` (call_free defaulted, so exactly the
-        // receiver Ident arg); explicit-arg / non-Ident (borrowed-view nested)
-        // calls fall through to the normal body. Custom deletes (Tuple/Vec/Map)
-        // are not auto_generated and are unaffected.
-        mut del_method := false
-        switch callee_expr.node_type {
-        case NodeType.FieldAccess(del_fn):
-            if del_fn.field_access_name().eq("delete") { del_method = true }
-        case:
-        }
-        if del_method {
-            switch e.children[1].node_type {
-            case NodeType.Ident(recv_id):
-                // Only the top-level call_free=true delete frees the buffer (what
-                // free_temp_arg_value does); a call_free=false call must keep it.
-                mut call_free := true
-                if e.children.len() > 2 {
-                    cf_v := eval_expr(scope, e.children[2], ctx)
-                    switch cf_v {
-                    case Value.Boolean(cfb): call_free = cfb
-                    case:
-                    }
-                }
-                if call_free {
-                    ref recv_cell : Cell = scope_get(scope, recv_id.ident_name())
-                    if recv_cell.is_null().not() {
-                        // Intercept iff the deep teardown is equivalent to the
-                        // method body: an auto-generated struct delete (no-op
-                        // field deletes + shallow free(own self)), or Str.delete
-                        // (free c_str + buffer == free_temp_arg_value's is_str
-                        // path). The Str case is what leaked for `x := f()`
-                        // returning an owned Str then `x.delete()`: free(own
-                        // self.c_str) read self as a borrowed Ref -> no-op. Custom
-                        // deletes (Tuple/Vec/Map) have real bodies -> fall through.
-                        mut do_intercept := false
-                        switch func_def.node_type {
-                        case NodeType.FuncDef(fd_ag):
-                            if fd_ag.auto_generated { do_intercept = true }
-                        case:
-                        }
-                        switch recv_cell.val {
-                        case Value.Struct(rsi):
-                            if rsi.struct_name.eq("Str") { do_intercept = true }
-                        case:
-                        }
-                        if do_intercept {
-                            free_temp_arg_value(recv_cell.val)
-                            memcpy(recv_cell.val, val_none(), Value.size().cast(U64))
-                            return val_none()
-                        }
-                    }
-                }
-            case:
-            }
-        }
-        // Issue #218: when the callee is a function-pointer field
-        // (e.g. Vec.elem_delete dispatching to I64.delete), the
-        // resolved function may declare its first parameter `own`
-        // even though the call goes through a non-owning DeleteFn
-        // signature. guard_own_param_skip would then null a borrowed
-        // ref-Dynamic binding the user expects to keep alive. Compile
-        // mode doesn't apply own-semantics across the function-pointer
-        // bridge either, so skip the guard for FuncPtr callees.
-        if callee_expr.expr_til_type().is_funcptr().not() {
-            if guard_own_param_skip(scope, e, func_def) { return val_none() }
-        }
-        call_scope := scope_new(scope)
-        switch func_def.node_type {
-        case NodeType.FuncDef(fdef_params):
-            for pi in 0..fdef_params.params.len() {
-                ref param : Declaration = fdef_params.params[pi]
-                ref arg_expr : Expr = e.children[pi.add(1)]
-                switch arg_expr.node_type {
-                case NodeType.Ident(arg_ident):
-                    ref arg_cell : Cell = scope_get(scope, arg_ident.ident_name())
-                    if arg_cell.is_null() {
-                        interp_error(arg_expr, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
-                        exit(1)
-                    }
-                    if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
-                        mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, scope, ctx, false)
-                        arg = widen_numeric(arg, param.explicit_type, ctx)
-                        scope_set_owned(call_scope, param.name, arg)
-                    } else if needs_widen(arg_cell.val, param.explicit_type) {
-                        mut arg := arg_cell.val.clone()
-                        arg = widen_numeric(arg, param.explicit_type, ctx)
-                        scope_set_owned(call_scope, param.name, arg)
-                    } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
-                        // Issue #217: scalar Ident bound to a Dynamic
-                        // parameter needs a heap box so downstream
-                        // ptr-deref sees a valid pointer.
-                        arg := box_scalar_to_dynamic(call_scope, arg_cell.val, param.own_type.is(OwnType.Own).not())
-                        scope_set_owned(call_scope, param.name, arg)
-                    } else {
-                        scope_set_borrowed(call_scope, param.name, arg_cell)
-                    }
-                case:
-                    mut arg := eval_expr(scope, arg_expr, ctx)
-                    if is_value_ptr(arg).and(param.explicit_type.len().gt(0)) {
-                        arg = reinterpret_ptr_value(arg, param.explicit_type, scope, ctx, false)
-                    }
-                    arg = widen_numeric(arg, param.explicit_type, ctx)
-                    // Issue #217: scalar arg to a Dynamic param needs
-                    // a heap-allocated box so that ptr_add / memcpy /
-                    // anything-that-reads-bytes downstream sees a real
-                    // pointer instead of dereferencing the scalar.
-                    if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
-                        arg = box_scalar_to_dynamic(call_scope, arg, param.own_type.is(OwnType.Own).not())
-                    }
-                    scope_set_owned(call_scope, param.name, arg)
-                }
-            }
-        case:
-        }
-        c.has_return = false
-        eval_body(call_scope, body_ns, ctx)
-        mut result := val_none()
-        if c.has_return {
-            result = c.return_value.clone()
-            c.has_return = false
-        }
-        free_non_own_temp_args(call_scope, e, func_def)
-        scope_free(own call_scope)
-        return result
+        return eval_user_func_call(scope, e, func_def, scope, ctx)
         case:
             interp_error(e, "namespace field is not a function", ctx)
             exit(1)
@@ -2073,151 +2081,22 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     case:
     }
 
-    if fn_cell.val.is(Value.Func).not() {
+    if fn_cell.val.is(Value.Func).not().and(fn_cell.val.is(Value.Closure).not()) {
         interp_error(e, format(ident_name(name), " is not a function"), ctx)
         exit(1)
     }
 
-    switch fn_cell.val {
-    case Value.Func(fc_fptr):
-        ref func_def2 : Expr = deref(fc_fptr)
-        ref body2 : Expr = func_def2.children[0]
-
-        // Guard: skip call if first 'own' param is val_none, borrowed struct, or Ptr
-        switch func_def2.node_type {
-        case NodeType.FuncDef(fdef2):
-            if fdef2.params.len().gt(0).and(e.children.len().gt(1)) {
-                if fdef2.params[0].own_type.is(OwnType.Own) {
-                    switch e.children[1].node_type {
-                    case NodeType.Ident(fa_ident):
-                        ref fc : Cell = scope_get(scope, fa_ident.ident_name())
-                        if fc.is_null().not() {
-                            if fc.val.is(Value.None) { return val_none() }
-                            switch fc.val {
-                            case Value.Struct(fsi):
-                                if fsi.borrowed {
-                                    fc.val = val_none()
-                                    return val_none()
-                                }
-                            case:
-                            }
-                            if is_value_ptr(fc.val) {
-                                fc.val = val_none()
-                                return val_none()
-                            }
-                        }
-                    case:
-                    }
-                }
-            }
-
-            call_scope2 := scope_new(scope)
-            nparam2 := fdef2.params.len()
-            for pi in 0..nparam2 {
-                ref arg_expr : Expr = e.children[pi.add(1)]
-                ref param : Declaration = fdef2.params[pi]
-                switch arg_expr.node_type {
-                case NodeType.Ident(arg_ident):
-                    ref arg_cell : Cell = scope_get(scope, arg_ident.ident_name())
-                    if arg_cell.is_null() {
-                        interp_error(arg_expr, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
-                        exit(1)
-                    }
-                    if needs_widen(arg_cell.val, param.explicit_type) {
-                        mut arg := arg_cell.val.clone()
-                        arg = widen_numeric(arg, param.explicit_type, ctx)
-                        scope_set_owned(call_scope2, param.name, arg)
-                    } else if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg_cell.val).not()).and(arg_cell.val.is(Value.None).not()) {
-                        // Issue #217: scalar Ident bound to a Dynamic
-                        // parameter needs a heap box; see the Literal
-                        // branch below for context.
-                        arg := box_scalar_to_dynamic(call_scope2, arg_cell.val, param.own_type.is(OwnType.Own).not())
-                        scope_set_owned(call_scope2, param.name, arg)
-                    } else {
-                        scope_set_borrowed(call_scope2, param.name, arg_cell)
-                    }
-                case:
-                    mut arg := eval_expr(scope, arg_expr, ctx)
-                    arg = widen_numeric(arg, param.explicit_type, ctx)
-                    // Issue #217: see the namespace path above.
-                    if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
-                        arg = box_scalar_to_dynamic(call_scope2, arg, param.own_type.is(OwnType.Own).not())
-                    }
-                    scope_set_owned(call_scope2, param.name, arg)
-                }
-            }
-
-            c.has_return = false
-            eval_body(call_scope2, body2, ctx)
-            mut result := val_none()
-            if c.has_return {
-                result = c.return_value.clone()
-                c.has_return = false
-            }
-            free_non_own_temp_args(call_scope2, e, func_def2)
-            scope_free(own call_scope2)
-            return result
-        case:
-            UNREACHABLE()
-            return val_none()
-        }
-    case:
-        UNREACHABLE()
-        return val_none()
-    }
+    return eval_callable_call(scope, e, fn_cell.val, ctx)
     case NodeType.FCall:
         // Issue #58: postfix call on a sub-expression callee, e.g.
         // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
         // get the function pointer, then dispatch with the call's args.
         cast_val := eval_expr(scope, callee_expr, ctx)
-        if cast_val.is(Value.Func).not() {
+        if cast_val.is(Value.Func).not().and(cast_val.is(Value.Closure).not()) {
             interp_error(e, "function-pointer call: callee did not evaluate to a function", ctx)
             exit(1)
         }
-        switch cast_val {
-        case Value.Func(cv_fp):
-            ref fdef3 : Expr = deref(cv_fp)
-            switch fdef3.node_type {
-            case NodeType.FuncDef(fdef3_data):
-                ref body3 : Expr = fdef3.children[0]
-                call_scope3 := scope_new(scope)
-                nparam3 := fdef3_data.params.len()
-                for pi in 0..nparam3 {
-                    ref arg_expr3 : Expr = e.children[pi.add(1)]
-                    ref param3 : Declaration = fdef3_data.params[pi]
-                    mut arg3 := val_none()
-                    switch arg_expr3.node_type {
-                    case NodeType.Ident(arg_ident3):
-                        ref arg_cell3 : Cell = scope_get(scope, ident_name(arg_ident3))
-                        if is_null(arg_cell3).not() {
-                            scope_set_borrowed(call_scope3, param3.name, arg_cell3)
-                            continue
-                        }
-                        arg3 = eval_expr(scope, arg_expr3, ctx)
-                    case:
-                        arg3 = eval_expr(scope, arg_expr3, ctx)
-                    }
-                    arg3 = widen_numeric(arg3, param3.explicit_type, ctx)
-                    scope_set_owned(call_scope3, param3.name, arg3)
-                }
-                c.has_return = false
-                eval_body(call_scope3, body3, ctx)
-                mut result3 := val_none()
-                if c.has_return {
-                    result3 = c.return_value.clone()
-                    c.has_return = false
-                }
-                free_non_own_temp_args(call_scope3, e, fdef3)
-                scope_free(own call_scope3)
-                return result3
-            case:
-                UNREACHABLE()
-                return val_none()
-            }
-        case:
-            UNREACHABLE()
-            return val_none()
-        }
+        return eval_callable_call(scope, e, cast_val, ctx)
     case:
         UNREACHABLE()
         return val_none()
@@ -2232,6 +2111,8 @@ priv free_value := func(shallow v: Value) {
         }
     case Value.Enum(ei):
         if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
+    case Value.Closure(cl):
+        interp_closure_free(cl)
     case:
     }
 }
@@ -2374,6 +2255,8 @@ priv free_temp_arg_value := func(shallow v: Value) {
         }
     case Value.Enum(ei):
         if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
+    case Value.Closure(cl):
+        interp_closure_free(cl)
     case:
     }
 }
@@ -2434,6 +2317,7 @@ priv borrow_value := func(v: Value) returns shallow Value {
     switch r {
     case Value.Struct(si): si.borrowed = true
     case Value.Enum(ei):   ei.borrowed = true
+    case Value.Closure(cl): cl.borrowed = true
     case:
     }
     return r
@@ -2516,6 +2400,7 @@ priv value_is_borrowed := func(v: Value) returns Bool {
     switch v {
     case Value.Struct(si): return si.borrowed
     case Value.Enum(ei):   return ei.borrowed
+    case Value.Closure(cl): return cl.borrowed
     case:                  return false
     }
 }
@@ -2623,6 +2508,19 @@ scope_lookup_offset := func(mut s: Scope, name: Str) returns ref Dynamic {
 // #286 commit 1: bind `name` to a heap pointer in the current scope.
 scope_insert_offset := func(mut s: Scope, name: Str, own ptr: Dynamic) {
     s.heap_index.set(name, own ptr)
+}
+
+priv scope_new_boxed := func(parent: Scope) returns ref Scope {
+    raw : Dynamic = malloc(Scope.size().cast(U64))
+    memset(raw, 0, Scope.size().cast(U64))
+    ref s : Scope = to_ptr(raw)
+    s.bindings = Map(Str, Binding).new()
+    s.heap_index = Map(Str, Dynamic).new()
+    s.parent = parent
+    s.payload_aliases = Map(Str, Str).new()
+    s.ref_primitive_ptrs = Map(Str, Dynamic).new()
+    s.box_owned_dynamics = Vec(DynPtrBox).new()
+    return s
 }
 
 // #211 follow-up: walk the scope chain looking up a payload-alias entry
@@ -2779,6 +2677,56 @@ scope_free := func(own s: Scope) {
     memset(s.box_owned_dynamics, 0, Vec(DynPtrBox).size().cast(U64))
     free(own s)
 }
+
+priv scope_root_ref := func(s: Scope) returns ref Scope {
+    if s.parent.is_null() { return s }
+    return scope_root_ref(s.parent)
+}
+
+priv closure_env_clone := func(env: Scope) returns ref Scope {
+    ref cloned : Scope = scope_new_boxed(env.parent)
+    for b : Binding in env.bindings.values {
+        if b.cell_is_local {
+            mut cap_val := b.cell.val.clone()
+            scope_set_owned(cloned, b.name, cap_val)
+        } else {
+            scope_set_borrowed(cloned, b.name, b.cell)
+        }
+    }
+    return cloned
+}
+
+priv interp_closure_clone := func(cl: InterpClosure) returns InterpClosure {
+    return InterpClosure(func_def = cl.func_def, env = closure_env_clone(cl.env), borrowed = false)
+}
+
+priv interp_closure_free := func(cl: InterpClosure) {
+    if cl.borrowed.not() { scope_free(own cl.env) }
+}
+
+priv make_interp_closure := func(func_def: Expr, scope: Scope) returns Value {
+    ref env : Scope = scope_new_boxed(scope_root_ref(scope))
+    switch func_def.node_type {
+    case NodeType.FuncDef(fd):
+        for cap : Declaration in fd.captures {
+            ref src : Cell = scope_get(scope, cap.name)
+            if cap.own_type.is(OwnType.Ref) {
+                scope_set_borrowed(env, cap.name, src)
+            } else if cap.own_type.is(OwnType.Shallow) {
+                mut cap_val := src.val.clone()
+                scope_set_owned(env, cap.name, cap_val)
+            } else {
+                mut cap_val2 := shallow_copy_value(src.val)
+                if src.val.is(Value.Func).not() { memcpy(src.val, val_none(), Value.size().cast(U64)) }
+                scope_set_owned(env, cap.name, cap_val2)
+            }
+        }
+    case:
+        UNREACHABLE()
+    }
+    return Value.Closure(InterpClosure(func_def = func_def, env = env, borrowed = false))
+}
+
 // Body of interp_fa_is_ns_inner pulled out so both FieldAccess and
 // FieldAssign cases (which share an Str payload) can switch-destructure
 // `e.node_type` without duplicating ~50 lines of logic.
@@ -3919,6 +3867,7 @@ priv value_variant_name := func(v: Value) returns Str {
     if v.is(Value.Enum)    { return "Enum" }
     if v.is(Value.Ref)     { return "Ref" }
     if v.is(Value.Dynamic) { return "Dynamic" }
+    if v.is(Value.Closure) { return "Closure" }
     return "?"
 }
 

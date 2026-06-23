@@ -14,6 +14,13 @@ mode test
 GLOBAL_BASE := 100
 
 UnaryOp := func(I64) returns I64
+StrSupplier := func() returns Str
+
+WordBox := struct {
+    text := ""
+}
+
+BoxSupplier := func() returns WordBox
 
 apply_unary := func(op: UnaryOp, x: I64) returns I64 {
     return op(x)
@@ -53,4 +60,35 @@ test_closure_mut_capture := test() {
     assert_eq(I64, add_to_total(3), 3)
     assert_eq(I64, add_to_total(4), 7)
     assert_eq(I64, total, 7)
+}
+
+make_multiplier := func(factor: I64) returns UnaryOp {
+    local_factor := factor
+    return func(x: I64) returns I64 [own local_factor] { return x.mul(local_factor) }
+}
+
+test_closure_return_owns_i64 := test() {
+    triple := make_multiplier(3)
+    assert_eq(I64, triple(6), 18)
+}
+
+make_str_supplier := func() returns StrSupplier {
+    msg := "hello"
+    return func() returns Str [own msg] { return msg.clone() }
+}
+
+test_closure_return_owns_str := test() {
+    get_msg := make_str_supplier()
+    assert_eq(Str, get_msg(), "hello")
+}
+
+make_box_supplier := func() returns BoxSupplier {
+    box := WordBox(text = "boxed")
+    return func() returns WordBox [own box] { return box.clone() }
+}
+
+test_closure_return_owns_struct_with_str := test() {
+    get_box := make_box_supplier()
+    box := get_box()
+    assert_eq(Str, box.text, "boxed")
 }
