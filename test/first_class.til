@@ -164,9 +164,9 @@ test_vec_funcsig_call_through_ref := test() {
     mut ops := DynVec.new(BinaryOp)
     ops.push(own fn_add)
     ops.push(own fn_mul)
-    ref g : BinaryOp = ops[0.to_usize()]
+    ref g : BinaryOp = ops[0]
     assert_eq(I64, g(3, 4), 7)
-    ref h : BinaryOp = ops[1.to_usize()]
+    ref h : BinaryOp = ops[1]
     assert_eq(I64, h(3, 4), 12)
 }
 
@@ -182,8 +182,8 @@ test_vec_funcsig_cast_call_inline := test() {
     mut ops := DynVec.new(BinaryOp)
     ops.push(own fn_add)
     ops.push(own fn_mul)
-    ref raw0 : Dynamic = ops[0.to_usize()]
-    ref raw1 : Dynamic = ops[1.to_usize()]
+    ref raw0 : Dynamic = ops[0]
+    ref raw1 : Dynamic = ops[1]
     assert_eq(I64, cast(raw0, BinaryOp)(3, 4), 7)
     assert_eq(I64, cast(raw1, BinaryOp)(3, 4), 12)
 }
@@ -752,11 +752,11 @@ test_struct_field_primitives := test() {
 test_struct_def_of := test() {
     def := struct_def_of("Point56")
     assert_eq(USize, def.fields.len(), 2)
-    ref f0 : Declaration = def.fields[0.to_usize()]
+    ref f0 : Declaration = def.fields[0]
     assert_eq(Str, "x", f0.name)
     assert_eq(Str, "I64", f0.explicit_type)
     expect(f0.is_mut, "f0 is_mut")
-    ref f1 : Declaration = def.fields[1.to_usize()]
+    ref f1 : Declaration = def.fields[1]
     assert_eq(Str, "y", f1.name)
     assert_eq(Str, "I64", f1.explicit_type)
 }
@@ -793,11 +793,11 @@ test_enum_variant_primitives := test() {
 test_enum_def_of := test() {
     def := enum_def_of("Shape56")
     assert_eq(USize, def.variants.len(), 3)
-    ref v0 : Str = def.variants[0.to_usize()]
+    ref v0 : Str = def.variants[0]
     assert_eq(Str, "Circle", v0)
-    ref v1 : Str = def.variants[1.to_usize()]
+    ref v1 : Str = def.variants[1]
     assert_eq(Str, "Square", v1)
-    ref v2 : Str = def.variants[2.to_usize()]
+    ref v2 : Str = def.variants[2]
     assert_eq(Str, "Label", v2)
     ref def_pts : Map(I64, Str) = def.payload_types
     expect(def_pts.has(0), "Circle has payload")
@@ -835,9 +835,9 @@ test_func_sig_of := test() {
     assert_eq(I64, apply_bin58(add58, 1, 1), 2)  // keep BinaryOp live
     sig := func_sig_of("BinaryOp")
     assert_eq(USize, sig.params.len(), 2)
-    ref p0 : Declaration = sig.params[0.to_usize()]
+    ref p0 : Declaration = sig.params[0]
     assert_eq(Str, "I64", p0.explicit_type)
-    ref p1 : Declaration = sig.params[1.to_usize()]
+    ref p1 : Declaration = sig.params[1]
     assert_eq(Str, "I64", p1.explicit_type)
     assert_eq(Str, "I64", sig.return_type)
     assert_eq(USize, sig.throw_types.len(), 0)
@@ -907,7 +907,7 @@ test_generic_func_own_arg := test() {
     a := GItem58(n = 5)
     gstore58(vec, own a)
     assert_eq(USize, vec.len(), 1)
-    ref got : GItem58 = vec[0.to_usize()]
+    ref got : GItem58 = vec[0]
     assert_eq(USize, got.n, 5)
 }
 

@@ -68,10 +68,10 @@ main := proc() {
     mut nathex_sounds := Array(Sound).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
         ref freq : I64 = piano_key_freq(false, i)
-        s := make_tone(freq, 10000, 1.to_f32().div(10))
+        s := make_tone(freq, 10000, 0.1)
         sounds[i] = s
         ref nathex_freq : I64 = piano_key_freq(true, i)
-        ns := make_tone(nathex_freq, 10000, 1.to_f32().div(10))
+        ns := make_tone(nathex_freq, 10000, 0.1)
         nathex_sounds[i] = ns
     }
 
@@ -93,7 +93,7 @@ main := proc() {
     BUTTON_LABEL := Color(r = 220, g = 220, b = 220, a = 255)
 
     while !WindowShouldClose() {
-        dt := (GetFrameTime() * 1000.to_f32()).to_i64()
+        dt := (GetFrameTime() * 1000).to_i64()
         timer = timer + dt
 
         nathex_display := display_mode.eq(DISPLAY_MODE_NATHEX)
@@ -335,7 +335,7 @@ main := proc() {
         for i in 0..NUM_KEYS {
             ny := ROLL_H - (i.cast(I32) + 1) * note_h
             note_label := piano_note_label(display_mode, i.cast(I32))
-            DrawTextEx(fnt, note_label.c_str, Vector2(x = 4.to_f32(), y = ny.to_f32()), (note_h - 2).to_f32(), 1.to_f32(), LABEL_COLOR)
+            DrawTextEx(fnt, note_label.c_str, Vector2(x = 4, y = ny.to_f32()), (note_h - 2).to_f32(), 1, LABEL_COLOR)
         }
 
         // -- Piano keyboard --
@@ -354,7 +354,7 @@ main := proc() {
                 DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
                     ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
-                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
                 }
             }
             for cycle : USize in 0..HEXTAVE_DRAW_CYCLES {
@@ -371,7 +371,7 @@ main := proc() {
                     DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
                     if chrom.to_usize() < NUM_KEYS {
                         ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
-                        DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                        DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
                     }
                 }
             }
@@ -390,7 +390,7 @@ main := proc() {
                 DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
                     ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
-                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+                    DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
                 }
             }
             for oct : USize in 0..3 {
@@ -407,7 +407,7 @@ main := proc() {
                     DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
                     if chrom.to_usize() < NUM_KEYS {
                         ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
-                        DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                        DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
                     }
                 }
             }
@@ -436,11 +436,11 @@ main := proc() {
         mut song_color := BTN_INACTIVE
         if song_playing { song_color = BTN_ACTIVE }
         DrawRectangle(SONG_BTN_X, TOGGLE_Y, SONG_BTN_W, TOGGLE_H, song_color)
-        DrawTextEx(fnt, "Solfege".c_str, Vector2(x = (TOGGLE_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
-        DrawTextEx(fnt, "Letters".c_str, Vector2(x = (TOGGLE_X + TOGGLE_W + TOGGLE_GAP + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
-        DrawTextEx(fnt, "Hextaves".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
-        DrawTextEx(fnt, "Nathex".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 3 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
-        DrawTextEx(fnt, "Happy Birthday".c_str, Vector2(x = (SONG_BTN_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1.to_f32(), BUTTON_LABEL)
+        DrawTextEx(fnt, "Solfege".c_str, Vector2(x = (TOGGLE_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        DrawTextEx(fnt, "Letters".c_str, Vector2(x = (TOGGLE_X + TOGGLE_W + TOGGLE_GAP + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        DrawTextEx(fnt, "Hextaves".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        DrawTextEx(fnt, "Nathex".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 3 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        DrawTextEx(fnt, "Happy Birthday".c_str, Vector2(x = (SONG_BTN_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
 
         // Hint
         mut hint := "Solfege display: same keys and sounds"
@@ -456,7 +456,7 @@ main := proc() {
         if song_playing {
             hint = "Playing Happy Birthday"
         }
-        DrawTextEx(fnt, hint.c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1.to_f32(), KEY_LABEL_COLOR)
+        DrawTextEx(fnt, hint.c_str, Vector2(x = MARGIN, y = (PIANO_Y - 30).to_f32()), FONT, 1, KEY_LABEL_COLOR)
 
         EndDrawing()
     }

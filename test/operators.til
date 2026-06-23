@@ -92,8 +92,8 @@ test_bitwise := test() {
 }
 
 test_f32_arithmetic := test() {
-    a := 10.to_f32()
-    b := 3.to_f32()
+    a : F32 = 10
+    b : F32 = 3
 
     assert_eq(I64, a.add(b).to_i64(), 13)
     assert_eq(I64, a.sub(b).to_i64(), 7)

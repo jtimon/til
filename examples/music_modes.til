@@ -231,7 +231,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R * 2 }
         at := acc_text(na.cast(I64))
-        DrawTextEx(fnt, at.c_str, Vector2(x = (dnx - (FONT + aw)).to_f32(), y = (dny - FONT / 2).to_f32()), FONT.to_f32(), 1.to_f32(), WHITE)
+        DrawTextEx(fnt, at.c_str, Vector2(x = (dnx - (FONT + aw)).to_f32(), y = (dny - FONT / 2).to_f32()), FONT.to_f32(), 1, WHITE)
     }
 
     mut label := ""
@@ -254,7 +254,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
             }
         }
     }
-    DrawTextEx(fnt, label.c_str, Vector2(x = (dnx - NOTE_R).to_f32(), y = LABEL_Y.to_f32()), FONT_SM.to_f32(), 1.to_f32(), LIGHT_GRAY)
+    DrawTextEx(fnt, label.c_str, Vector2(x = (dnx - NOTE_R).to_f32(), y = LABEL_Y.to_f32()), FONT_SM.to_f32(), 1, LIGHT_GRAY)
 }
 
 recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
@@ -353,7 +353,7 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
                 ref key_lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
                 lbl = key_lbl.clone()
             }
-            DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + FIVE_WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+            DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + FIVE_WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
         }
 
         for cycle : USize in 0..FIVE_DRAW_CYCLES {
@@ -366,7 +366,7 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
                 if key_idx.eq(active_key_idx) { kb_color = KEY_BLACK_PRESSED }
                 DrawRectangle(bx, PIANO_Y, FIVE_BLACK_W, BLACK_H, kb_color)
                 ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
-                DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + FIVE_BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + FIVE_BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
             }
         }
     } else {
@@ -389,7 +389,7 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
                 ref key_lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
                 lbl = key_lbl.clone()
             }
-            DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + seven_white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18.to_f32(), 1.to_f32(), KEY_LABEL_COLOR)
+            DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + seven_white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
         }
 
         for oct : USize in 0..2 {
@@ -402,7 +402,7 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
                 if key_idx.eq(active_key_idx) { kb_color = KEY_BLACK_PRESSED }
                 DrawRectangle(bx, PIANO_Y, seven_black_w, BLACK_H, kb_color)
                 ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
-                DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + seven_black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14.to_f32(), 1.to_f32(), KEY_LABEL_BLACK)
+                DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + seven_black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
             }
         }
     }
@@ -454,7 +454,7 @@ main := proc() {
     TICK_LABEL := Color(r = 80, g = 80, b = 80, a = 255)
 
     while !WindowShouldClose() {
-        dt : I32 = (GetFrameTime() * 1000.to_f32()).to_i64().to_i32()
+        dt : I32 = (GetFrameTime() * 1000).to_i64().to_i32()
         mut five_system := active_five_system(use_five, use_nathex)
         mut note_count := active_note_count(use_five, use_nathex, full_span)
 
@@ -702,7 +702,7 @@ main := proc() {
             mut slabel := "7 Greek modes"
             if si.eq(1) { slabel = "5 Global modes" }
             if si.eq(2) { slabel = "5 Nathex modes" }
-            DrawTextEx(fnt, slabel.c_str, Vector2(x = (sx + PAD_X).to_f32(), y = (SYSTEM_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+            DrawTextEx(fnt, slabel.c_str, Vector2(x = (sx + PAD_X).to_f32(), y = (SYSTEM_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
 
         root_count := active_root_count(five_system)
@@ -739,7 +739,7 @@ main := proc() {
                     if row.eq(0) { label = format(ln, "b") }
                     if row.eq(2) { label = format(ln, "#") }
                 }
-                DrawTextEx(fnt, label.c_str, Vector2(x = (bx + PAD_X).to_f32(), y = (by + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+                DrawTextEx(fnt, label.c_str, Vector2(x = (bx + PAD_X).to_f32(), y = (by + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
             }
         }
 
@@ -759,7 +759,7 @@ main := proc() {
                 ref ml : Str = lang_str(sel_lang, mi + 1)
                 mlabel = ml.clone()
             }
-            DrawTextEx(fnt, mlabel.c_str, Vector2(x = (mbx + PAD_X).to_f32(), y = (mby + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+            DrawTextEx(fnt, mlabel.c_str, Vector2(x = (mbx + PAD_X).to_f32(), y = (mby + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
 
         // -- Language buttons --
@@ -782,7 +782,7 @@ main := proc() {
                 ref lang_label : Str = lang_str(li, 0)
                 ll = lang_label.clone()
             }
-            DrawTextEx(fnt, ll.c_str, Vector2(x = (lx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+            DrawTextEx(fnt, ll.c_str, Vector2(x = (lx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
 
         // -- Note-label buttons, only for 7 Greek modes --
@@ -795,7 +795,7 @@ main := proc() {
                 DrawRectangle(nx, RADIO_ROW_Y, NOTE_LABEL_BTN_W - 2, BTN_H - 2, nr_color)
                 mut nlabel := "Solfege"
                 if ni.eq(1) { nlabel = "Letters" }
-                DrawTextEx(fnt, nlabel.c_str, Vector2(x = (nx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+                DrawTextEx(fnt, nlabel.c_str, Vector2(x = (nx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
             }
         }
 
@@ -808,7 +808,7 @@ main := proc() {
             DrawRectangle(spx, RADIO_ROW_Y, SPAN_BTN_W - 2, BTN_H - 2, sp_color)
             mut sp_label := "Once"
             if spi.eq(1) { sp_label = "2 full octaves" }
-            DrawTextEx(fnt, sp_label.c_str, Vector2(x = (spx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1.to_f32(), BUTTON_LABEL)
+            DrawTextEx(fnt, sp_label.c_str, Vector2(x = (spx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
 
         // -- Pentagram --
@@ -822,8 +822,8 @@ main := proc() {
             ry := STAFF_BASE_Y - ri.cast(I32) * STAFF_SP
             rd := (ri + 2) % root_count
             ref rn : Str = active_note_name(five_system, use_letters, rd)
-            DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X - MARGIN * 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1.to_f32(), TICK_LABEL)
-            DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X + STAFF_W + MARGIN / 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1.to_f32(), TICK_LABEL)
+            DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X - MARGIN * 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1, TICK_LABEL)
+            DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X + STAFF_W + MARGIN / 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1, TICK_LABEL)
             if ri.mod(2).eq(1) {
                 DrawRectangle(STAFF_X - NOTE_R * 2, ry, NOTE_R * 2, 1, TICK_GRAY)
                 DrawRectangle(STAFF_X + STAFF_W, ry, NOTE_R * 2, 1, TICK_GRAY)
@@ -844,7 +844,7 @@ main := proc() {
         if use_nathex {
             hint = "5 Nathex modes: separate 8-step doubling table, ca1=do1"
         }
-        DrawTextEx(fnt, hint.c_str, Vector2(x = (WINDOW_WIDTH / 4).to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1.to_f32(), TICK_LABEL)
+        DrawTextEx(fnt, hint.c_str, Vector2(x = (WINDOW_WIDTH / 4).to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1, TICK_LABEL)
 
         EndDrawing()
     }

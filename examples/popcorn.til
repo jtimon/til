@@ -44,7 +44,7 @@ main := proc(args: ..Str) {
     mut done := false
 
     while !WindowShouldClose() {
-        dt := (GetFrameTime() * 1000.to_f32()).to_i64()
+        dt := (GetFrameTime() * 1000).to_i64()
 
         if !done {
             timer = timer + dt

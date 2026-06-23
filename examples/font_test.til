@@ -71,9 +71,9 @@ main := proc() {
             ref font : Font = fonts[i]
             if i == sel {
                 DrawRectangle(0, y - 2, 1200, 30, BG_BAR)
-                DrawTextEx(font, path.c_str, Vector2(x = 30.to_f32(), y = y.to_f32()), 24, 1.to_f32(), YELLOW)
+                DrawTextEx(font, path.c_str, Vector2(x = 30, y = y.to_f32()), 24, 1, YELLOW)
             } else {
-                DrawTextEx(font, path.c_str, Vector2(x = 30.to_f32(), y = y.to_f32()), 24, 1.to_f32(), LIGHT_GRAY)
+                DrawTextEx(font, path.c_str, Vector2(x = 30, y = y.to_f32()), 24, 1, LIGHT_GRAY)
             }
             y = y + 30
         }
@@ -81,8 +81,8 @@ main := proc() {
         // Selected font large preview
         ref cur_font : Font = fonts[sel]
         DrawRectangle(0, y + 10, 1200, 100, BG_PREVIEW)
-        DrawTextEx(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890".c_str, Vector2(x = 30.to_f32(), y = (y + 20).to_f32()), 36, 1.to_f32(), WHITE)
-        DrawTextEx(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim".c_str, Vector2(x = 30.to_f32(), y = (y + 62).to_f32()), 28, 1.to_f32(), OFF_WHITE)
+        DrawTextEx(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890".c_str, Vector2(x = 30, y = (y + 20).to_f32()), 36, 1, WHITE)
+        DrawTextEx(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim".c_str, Vector2(x = 30, y = (y + 62).to_f32()), 28, 1, OFF_WHITE)
 
         EndDrawing()
     }

@@ -102,9 +102,9 @@ test_templvec_i64_basic := test() {
     v.push(own 20)
     v.push(own 30)
     assert_eq(USize, v.len(), 3)
-    ref a : I64 = v[0.to_usize()]
-    ref b : I64 = v[1.to_usize()]
-    ref c : I64 = v[2.to_usize()]
+    ref a : I64 = v[0]
+    ref b : I64 = v[1]
+    ref c : I64 = v[2]
     assert_eq(I64, a, 10)
     assert_eq(I64, b, 20)
     assert_eq(I64, c, 30)
@@ -114,7 +114,7 @@ test_templvec_i64_index_bang := test() {
     mut v := TemplVec(I64).new()
     v.push(own 7)
     v.push(own 8)
-    ref x : I64 = v[1.to_usize()]
+    ref x : I64 = v[1]
     assert_eq(I64, x, 8)
 }
 
@@ -123,7 +123,7 @@ test_templvec_i64_set := test() {
     v.push(own 1)
     v.push(own 2)
     v.set(1, own 99)
-    ref y : I64 = v[1.to_usize()]
+    ref y : I64 = v[1]
     assert_eq(I64, y, 99)
 }
 
@@ -133,7 +133,7 @@ test_templvec_i64_grow := test() {
         v.push(own i)
     }
     assert_eq(USize, v.len(), 100)
-    ref last : I64 = v[99.to_usize()]
+    ref last : I64 = v[99]
     assert_eq(I64, last, 99)
 }
 
@@ -161,8 +161,8 @@ test_templvec_str_basic := test() {
     v.push(own format("alpha", ""))
     v.push(own format("beta", ""))
     assert_eq(USize, v.len(), 2)
-    ref a : Str = v[0.to_usize()]
-    ref b : Str = v[1.to_usize()]
+    ref a : Str = v[0]
+    ref b : Str = v[1]
     assert_eq(Str, a, "alpha")
     assert_eq(Str, b, "beta")
 }
@@ -171,7 +171,7 @@ test_templvec_str_set := test() {
     mut v := TemplVec(Str).new()
     v.push(own format("old", ""))
     v.set(0, own format("new", ""))
-    ref a : Str = v[0.to_usize()]
+    ref a : Str = v[0]
     assert_eq(Str, a, "new")
 }
 
@@ -182,8 +182,8 @@ test_templvec_str_clone_independent := test() {
     v.push(own format("two", ""))
     mut w := v.clone()
     w.set(0, own format("ONE", ""))
-    ref vo : Str = v[0.to_usize()]
-    ref wo : Str = w[0.to_usize()]
+    ref vo : Str = v[0]
+    ref wo : Str = w[0]
     assert_eq(Str, vo, "one")
     assert_eq(Str, wo, "ONE")
 }
@@ -196,9 +196,9 @@ test_templvec_bool := test() {
     v.push(own false)
     v.push(own true)
     assert_eq(USize, v.len(), 3)
-    ref a : Bool = v[0.to_usize()]
-    ref b : Bool = v[1.to_usize()]
-    ref c : Bool = v[2.to_usize()]
+    ref a : Bool = v[0]
+    ref b : Bool = v[1]
+    ref c : Bool = v[2]
     assert(a)
     assert(b.not())
     assert(c)
@@ -208,10 +208,10 @@ test_templvec_bool := test() {
 
 test_templvec_u8 := test() {
     mut v := TemplVec(U8).new()
-    v.push(own 65.to_u8())
-    v.push(own 66.to_u8())
+    v.push(own 65)
+    v.push(own 66)
     assert_eq(USize, v.len(), 2)
-    ref a : U8 = v[0.to_usize()]
+    ref a : U8 = v[0]
     assert_eq(U8, a, 65)
 }
 
@@ -230,7 +230,7 @@ test_templvec_type_annotation := test() {
     mut v : TemplVec(I64) = TemplVec(I64).new()
     fill_i64(v, 4)
     assert_eq(USize, v.len(), 4)
-    ref last : I64 = v[3.to_usize()]
+    ref last : I64 = v[3]
     assert_eq(I64, last, 3)
 }
 

@@ -317,10 +317,10 @@ main := proc(args: ..Str) {
     mut old_trans_allocs : I64 = trans_allocs
 
     asan_org := File.readfile("doc/bots/asan.org")
-    old_int_bytes = asan_org_value(asan_org, "interpret", 2.to_usize(), old_int_bytes)
-    old_int_allocs = asan_org_value(asan_org, "interpret", 3.to_usize(), old_int_allocs)
-    old_trans_bytes = asan_org_value(asan_org, "translate", 2.to_usize(), old_trans_bytes)
-    old_trans_allocs = asan_org_value(asan_org, "translate", 3.to_usize(), old_trans_allocs)
+    old_int_bytes = asan_org_value(asan_org, "interpret", 2, old_int_bytes)
+    old_int_allocs = asan_org_value(asan_org, "interpret", 3, old_int_allocs)
+    old_trans_bytes = asan_org_value(asan_org, "translate", 2, old_trans_bytes)
+    old_trans_allocs = asan_org_value(asan_org, "translate", 3, old_trans_allocs)
 
     print("=== ASAN delta ===\n")
     print("  interpret: ", old_int_bytes.to_str(), " -> ", int_bytes.to_str(),

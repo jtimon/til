@@ -245,7 +245,7 @@ main := proc() {
                     if dm == 1 {
                         // Mine
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
-                        DrawCircle(px + CELL / 2, py + CELL / 2, 8.to_f32(), RED)
+                        DrawCircle(px + CELL / 2, py + CELL / 2, 8, RED)
                     } else {
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
                         ref dc : I32 = counts[di_u]

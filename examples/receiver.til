@@ -4,21 +4,21 @@ println(format("nng version ", read_cstr(nng_version())))
 
 url := "tcp://127.0.0.1:5555"
 
-mut cli := nng_socket(id = 0.to_u32())
+mut cli := nng_socket(id = 0)
 check(nng_pair0_open(cli), "pair0_open cli")
 
 // Bound the receive so the demo can never hang.
-check(nng_socket_set_ms(cli, "recv-timeout".c_str, 3000.to_i32()), "set recv-timeout")
+check(nng_socket_set_ms(cli, "recv-timeout".c_str, 3000), "set recv-timeout")
 
-mut dlr := nng_dialer(id = 0.to_u32())
-check(nng_dial(cli, url.c_str, dlr, 0.to_i32()), "dial")
+mut dlr := nng_dialer(id = 0)
+check(nng_dial(cli, url.c_str, dlr, 0), "dial")
 
 // Receive into a Str's own heap buffer (freed when rbuf goes out of
 // scope), passing rbuf.c_str as the void* destination. nng writes the
 // actual byte count back through sz (a size_t out-param).
-mut rbuf := Str.with_capacity(256.to_usize())
-mut sz : USize = 256.to_usize()
-check(nng_recv(cli, rbuf.c_str, sz, 0.to_i32()), "recv")
+mut rbuf := Str.with_capacity(256)
+mut sz : USize = 256
+check(nng_recv(cli, rbuf.c_str, sz, 0), "recv")
 println(format("received: ", read_cstr(rbuf.c_str)))
 
 check(nng_close(cli), "close cli")

@@ -127,10 +127,10 @@ test_cast_widen_signed := test() {
 // width is asserted against its own native type -- no widening crutch.
 test_assert_eq_generic := test() {
     assert_eq(I64, -1, -1)
-    assert_eq(U8, 200.to_u8(), 200.to_u8())
-    assert_eq(U16, 65535.to_u16(), 65535.to_u16())
-    assert_eq(I32, 30000.to_i32(), 30000.to_i32())
-    assert_eq(U32, 4000000000.to_u32(), 4000000000.to_u32())
-    assert_eq(U64, 4000000000.cast(U64), 4000000000.cast(U64))
-    assert_eq(USize, 42.to_usize(), 42.to_usize())
+    assert_eq(U8, 200, 200)
+    assert_eq(U16, 65535, 65535)
+    assert_eq(I32, 30000, 30000)
+    assert_eq(U32, 4000000000, 4000000000)
+    assert_eq(U64, 4000000000, 4000000000)
+    assert_eq(USize, 42, 42)
 }

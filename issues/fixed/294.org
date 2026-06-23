@@ -1,6 +1,48 @@
 # priority: medium
 # category: cleanups
-** OPEN #294 Forbid redundant numeric conversions on literals (5.to_u32() / 5.cast(U32))
+** FIXED #294 Forbid redundant numeric conversions on literals (5.to_u32() / 5.cast(U32))
+
+*** Post-mortem
+
+  Root cause: the pre-existing `redundant_literal_conversion` check (wired
+  at four context sites -- arg / return / decl / assign) silently did
+  nothing for the `to_<X>()` form. By the time those sites validated a
+  value, `5.to_u32()` had already been UFCS-desugared from the 1-child
+  `FCall(FieldAccess(to_u32, 5))` it pattern-matched into the 2-child
+  namespace form `I64.to_u32(5)`, so its `to_` branch (expecting
+  children.len()==1) never matched. It also never reached operator
+  operands (`b > 0.to_i16()`, folded before the check ran), nested
+  literals in a typed decl, inferred decls, or generic-param args
+  (`assert_eq(U8, 200.to_u8(), ..)`).
+
+  Fix: replaced the four context-site checks plus the
+  `redundant_literal_conversion` / `redundant_conversion_error` helpers
+  with ONE broad check in `infer_field_access_fcall`, run on the raw
+  literal receiver BEFORE UFCS desugaring and constant folding. A
+  `<numlit>.to_<num>()` / `<numlit>.cast(<num>)` whose literal is in range
+  of the resolved target (new `numeric_conv_target_name` maps the suffix;
+  `to_usize`/`to_uptr` resolve through `type_from_name` to U32/U64 so the
+  range gate is correct) is rejected. The node keeps the conversion's
+  result type (not Unknown) so the diagnostic does not cascade into
+  spurious "got unknown" mismatches. Out-of-range conversions stay legal
+  -- they do real work: `300.to_u8()` truncation, `-1.to_usize()` /
+  `-1.to_u32()` / `-1.cast(U64)` wraparound -- gated by `literal_in_range`.
+
+  Codebase sweep: removed every redundant conversion the new check flags
+  across src/core, src/self, test/, examples/ and vendor/bindings/
+  (raylib/nng/libffi), value-preserving because the surrounding
+  declaration / argument / field / operator type coerces the bare literal.
+  Inference-establishing sites were hand-fixed by adding an explicit type
+  (`small_s : F32 = 1` not `small_s := 1.to_f32()`; `z : F32 = 1.div(10)`)
+  and load-bearing chains rewritten (`1.to_f32().div(10)` -> `0.1`,
+  `12345.to_i16().to_str()` -> a typed temp). macros.til's #285
+  regression (a `2.to_f32()` macro arg) was re-expressed as a foldable
+  namespace call on a comptime const (`MACRO_ONE_F.add(MACRO_ONE_F)`).
+
+  Regression test: the `terr_conv_*` group appended to
+  test/typer_errors.til covers the decl / cast / nested-in-decl / assign /
+  inferred / argument / operator-operand / return forms; the expected
+  `error:` count in src/tests.til moved 153 -> 162.
 
   We still write `to_<X>()` / `cast(X)` conversions directly on numeric
   literals in many places:

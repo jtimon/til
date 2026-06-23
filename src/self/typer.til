@@ -994,78 +994,6 @@ resolve_default_value := func(default_value: Expr, call_expr: Expr, ctx: Context
     return default_value.clone()
 }
 
-// Validate a single argument against its parameter's type. Narrows
-// numeric literals to fit the param type, applies implicit widen /
-// usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
-// args (the caller has already decided this arg is not constrained).
-// A numeric literal that is the receiver of a `to_<numeric>()` conversion
-// is a redundant conversion when the surrounding context already narrows
-// the bare literal to `expected` with the same value (literal_in_range
-// holds). Out-of-range cases stay legal because the conversion is then
-// doing real work: -1.to_usize() (wraparound to the max sentinel) and
-// 300.to_u8() (truncation) both return false here.
-priv redundant_literal_conversion := func(e: Expr, expected: Type) returns Bool {
-    if is_numeric_type(expected).not() { return false }
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if is_numeric_type(e.expr_til_type()).not() { return false }
-    // `<lit>.to_X()` form: FCall with 1 child (a FieldAccess callee).
-    if e.children.len() == 1 {
-        ref fa : Expr = e.children[0]
-        mut method := ""
-        switch fa.node_type {
-        case NodeType.FieldAccess(m):
-            method = m.field_access_name()
-        case:
-            return false
-        }
-        if method.starts_with("to_").not() { return false }
-        if fa.children.len() == 0 { return false }
-        switch fa.children[0].node_type {
-        case NodeType.Literal(Literal.Num(lit_str)):
-            return literal_in_range(lit_str.literal_num_text(), expected)
-        case:
-            return false
-        }
-    }
-    // `<lit>.cast(T)` UFCS form: FCall with FieldAccess(lit, "cast")
-    // callee plus the T arg as e.children[1].
-    if e.children.len() == 2 {
-        ref fa : Expr = e.children[0]
-        mut method := ""
-        switch fa.node_type {
-        case NodeType.FieldAccess(m):
-            method = m.field_access_name()
-        case:
-            return false
-        }
-        if method.eq("cast").not() { return false }
-        if fa.children.len() == 0 { return false }
-        // Literal receiver + target name matching `expected` -- same
-        // shape as the to_<X> case, with the target on the call side
-        // instead of the method name.
-        mut tgt_name := ""
-        switch e.children[1].node_type {
-        case NodeType.Ident(tn_id):
-            tgt_name = tn_id.ident_name()
-        case:
-            return false
-        }
-        if til_type_name_c(expected).eq(tgt_name).not() { return false }
-        switch fa.children[0].node_type {
-        case NodeType.Literal(Literal.Num(lit_str)):
-            return literal_in_range(lit_str.literal_num_text(), expected)
-        case:
-            return false
-        }
-    }
-    return false
-}
-
-priv redundant_conversion_error := proc(at: Expr, expected: Type, ctx: Context) {
-    at.type_error(format("redundant conversion: numeric literal already narrows to "
-        , type_to_name(expected), " in this context; drop the .to_* / .cast(T) conversion"), ctx)
-}
-
 // #269: is `name` an interface type (a StructDef flagged is_interface)?
 priv name_is_interface := func(name: Str, scope: TypeScope) returns Bool {
     ref d : Expr = scope.get_struct(name)
@@ -1092,6 +1020,10 @@ priv type_implements_iface := func(cname: Str, iface: Str, scope: TypeScope) ret
     }
 }
 
+// Validate a single argument against its parameter's type. Narrows
+// numeric literals to fit the param type, applies implicit widen /
+// usize-coerce, and emits a type_error on mismatch. Skips Dynamic-typed
+// args (the caller has already decided this arg is not constrained).
 priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, param_name: Str, ctx: Context) {
     // #269: accept a conforming concrete type where an interface is expected.
     // The #251 conformance check guarantees the methods exist; the runtime
@@ -1105,10 +1037,6 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     }
     if arg.expr_til_type().is(Type.Dynamic) { return }
     if arg.expr_til_type().is(Type.Unknown) { return }
-    if arg.redundant_literal_conversion(ptype) {
-        redundant_conversion_error(arg, ptype, ctx)
-        return
-    }
     switch arg.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(ptype) {
@@ -1482,6 +1410,28 @@ priv obj_method_type_name := func(obj: Expr) returns Str {
     return ""
 }
 
+// Canonical type name that a numeric `to_<X>` conversion method
+// converts TO, or "" when `method` is not such a conversion. `to_u32`
+// -> "U32", `to_usize` -> "USize" (which type_from_name then resolves
+// to the target's U32/U64). Drives the redundant-literal-conversion
+// check: `5.to_u32()` is redundant because a bare `5` already narrows
+// to U32 in any U32 context. Mirrors builtin_primitive_from_name's
+// shape; Bool and to_str/to_ptr (non-numeric) deliberately fall through.
+priv numeric_conv_target_name := func(method: Str) returns Str {
+    if method.eq("to_i64")   { return "I64" }
+    if method.eq("to_u8")    { return "U8" }
+    if method.eq("to_i8")    { return "I8" }
+    if method.eq("to_i16")   { return "I16" }
+    if method.eq("to_u16")   { return "U16" }
+    if method.eq("to_i32")   { return "I32" }
+    if method.eq("to_u32")   { return "U32" }
+    if method.eq("to_u64")   { return "U64" }
+    if method.eq("to_f32")   { return "F32" }
+    if method.eq("to_usize") { return "USize" }
+    if method.eq("to_uptr")  { return "UPtr" }
+    return ""
+}
+
 priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
     ref mut fa : Expr = e.children[0]
     ref mut obj : Expr = fa.children[0]
@@ -1502,6 +1452,55 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             e.type_error("redundant '' on a literal", ctx)
             e.set_expr_til_type( Type.Unknown)
             return true
+        }
+    }
+    // #294: a numeric conversion on a numeric literal is redundant. A
+    // bare literal already narrows to the target type through its
+    // declaration type, an argument/field type, or any numeric context
+    // (`x : U32 = 5`, `f(5)`, `b > 0`, `a / 2`), so `5.to_u32()` /
+    // `5.cast(U32)` does no work the surrounding code would not do
+    // anyway. Reject it: the fix is to drop the conversion, or -- where
+    // the value was otherwise inferred -- give the binding an explicit
+    // type (`x : U32 = 5`, not `x := 5.to_u32()`). Checked here, before
+    // UFCS desugaring and constant folding, so it fires uniformly at
+    // every literal receiver (arguments, operator operands, decls).
+    // Out-of-range conversions stay legal -- they do real work
+    // (300.to_u8() truncation, -1.to_usize() wraparound) -- gated by
+    // literal_in_range against the resolved target type.
+    if obj.node_type.is_literal_num() {
+        mut conv_target := Type.Unknown
+        if method.eq("cast") {
+            if e.children.len().eq(2) {
+                switch e.children[1].node_type {
+                case NodeType.Ident(cast_tn):
+                    conv_target = type_from_name(cast_tn.ident_name(), scope, ctx)
+                case:
+                }
+            }
+        } else {
+            conv_tgt_name := numeric_conv_target_name(method)
+            if conv_tgt_name.len() > 0 {
+                conv_target = type_from_name(conv_tgt_name, scope, ctx)
+            }
+        }
+        if is_numeric_type(conv_target) {
+            switch obj.node_type {
+            case NodeType.Literal(Literal.Num(conv_lit)):
+                if literal_in_range(conv_lit.literal_num_text(), conv_target) {
+                    e.type_error(format(
+                        "redundant conversion '", method,
+                        "' on a numeric literal: a bare literal already narrows to ",
+                        type_to_name(conv_target),
+                        " through its declaration or argument type; drop the conversion",
+                        " (give the binding an explicit type if it was inferred)"), ctx)
+                    // Keep the well-defined conversion result type (not
+                    // Unknown) so the diagnostic does not cascade into
+                    // spurious "got unknown" mismatches at the use site.
+                    e.set_expr_til_type(conv_target)
+                    return true
+                }
+            case:
+            }
         }
     }
     infer_expr(scope, obj, in_func, ctx)
@@ -3603,9 +3602,6 @@ priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context)
         }
         rv.set_expr_til_type(rt)
     case:
-        if rv.redundant_literal_conversion(rt) {
-            redundant_conversion_error(rv, rt, ctx)
-        }
     }
 }
 
@@ -4266,8 +4262,6 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
         }
         if declared.is(Type.Unknown) {
             stmt.type_error(format("undefined type '", sdecl.explicit_type, "'"), ctx)
-        } else if val.redundant_literal_conversion(declared) {
-            redundant_conversion_error(val, declared, ctx)
         } else if val.node_type.is_literal_num().and(is_numeric_type(declared).or(declared.is(Type.Dynamic))) {
             switch val.node_type {
             case NodeType.Literal(Literal.Num(lit_str)):
@@ -5232,8 +5226,6 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     existing := scope.get_type(aname)
     if existing.is(Type.Unknown) {
         stmt.type_error(format("undefined symbol '", aname, "'"), ctx)
-    } else if rhs.redundant_literal_conversion(existing) {
-        redundant_conversion_error(rhs, existing, ctx)
     } else if scope.is_mut(aname).not() {
         stmt.type_error(format("cannot assign to immutable variable '", aname, "'"), ctx)
         sf := scope.find(aname)
