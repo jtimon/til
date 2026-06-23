@@ -89,33 +89,38 @@ test_func_ns_method_size := test() {
 
 # --- #285: macro args accept foldable namespace-method calls ---
 
-# A primitive conversion call (`2.to_f32()`) is lowered to the namespace
-# method `I64.to_f32(2)`, whose FuncDef lives in the I64 namespace rather
-# than as a flat `I64_to_f32` binding. expr_is_comptime used to resolve the
-# callee only through scope.get_binding, so that flat-name miss wrongly
-# rejected the arg with "macro argument must be known at compile time".
+# A foldable namespace-method call on a comptime constant
+# (`MACRO_ONE_F.add(MACRO_ONE_F)`) resolves to the F32 namespace method
+# `F32.add`, whose FuncDef lives in the F32 namespace rather than as a flat
+# `F32_add` binding. expr_is_comptime used to resolve the callee only through
+# scope.get_binding, so that flat-name miss wrongly rejected the arg with
+# "macro argument must be known at compile time". (#294 forbids the original
+# `2.to_f32()` literal-conversion form this test used; a comptime const's
+# namespace-method call exercises the same callee-resolution path.)
+MACRO_ONE_F : F32 = 1
 macro_f32_id := macro(x: F32) returns F32 {
     return x
 }
 
 test_macro_to_f32_arg := test() {
-    assert_eq(I64, macro_f32_id(2.to_f32()).to_i64(), 2)
+    assert_eq(I64, macro_f32_id(MACRO_ONE_F.add(MACRO_ONE_F)).to_i64(), 2)
 }
 
 # Newton-sqrt macro reused from the lib/music.til case that surfaced #285.
 calculate_sqrt := macro(x: F32) returns F32 {
     mut guess := x
     for _ in 0..12 {
-        guess = guess.add(x.div(guess)).div(2.to_f32())
+        guess = guess.add(x.div(guess)).div(2)
     }
     return guess
 }
 
-# Nested macro calls whose innermost arg is the foldable `2.to_f32()`.
-# Folds to 2^(1/8); raising it to the 8th power recovers 2 exactly enough
-# that adding 0.5 and truncating lands on 2 regardless of F32 rounding.
+# Nested macro calls whose innermost arg is a foldable namespace call
+# (`MACRO_ONE_F.add(MACRO_ONE_F)` == 2.0). Folds to 2^(1/8); raising it to the
+# 8th power recovers 2 exactly enough that adding 0.5 and truncating lands on 2
+# regardless of F32 rounding.
 nathex_step_ratio := macro() returns F32 {
-    return calculate_sqrt(calculate_sqrt(calculate_sqrt(2.to_f32())))
+    return calculate_sqrt(calculate_sqrt(calculate_sqrt(MACRO_ONE_F.add(MACRO_ONE_F))))
 }
 
 test_macro_nested_foldable_args := test() {

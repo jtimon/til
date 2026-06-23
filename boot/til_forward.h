@@ -2882,8 +2882,6 @@ void priv___src_self_typer_til__validate_fcall_own_args(TypeScope * scope, Expr 
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall_impl(TypeScope * scope, Expr * sdef, Expr * e, Str * name, I32 in_func, Context * ctx);
 Expr * resolve_default_value(Expr * default_value, Expr * call_expr, Context * ctx);
-Bool priv___src_self_typer_til__redundant_literal_conversion(Expr * e, Type * expected);
-void priv___src_self_typer_til__redundant_conversion_error(Expr * at, Type * expected, Context * ctx);
 Bool priv___src_self_typer_til__name_is_interface(Str * name, TypeScope * scope);
 Bool priv___src_self_typer_til__type_implements_iface(Str * cname, Str * iface, TypeScope * scope);
 void priv___src_self_typer_til__validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name, Context * ctx);
@@ -2891,6 +2889,7 @@ void priv___src_self_typer_til__infer_and_validate_fcall_args(TypeScope * scope,
 void priv___src_self_typer_til__resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__is_self_conversion_method(Str * method, Str * type_name);
 Str * priv___src_self_typer_til__obj_method_type_name(Expr * obj);
+Str * priv___src_self_typer_til__numeric_conv_target_name(Str * method);
 Bool priv___src_self_typer_til__infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBinding * b, Context * ctx);
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);

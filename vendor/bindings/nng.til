@@ -204,10 +204,10 @@ nng_str_sockaddr := ext_proc(sa : nng_sockaddr, mut buf : I8, shallow bufsz : US
 // to retrieve the old value.
 nng_pipe_ev := I32
 
-NNG_PIPE_EV_ADD_PRE : I32 = 0.to_i32()
-NNG_PIPE_EV_ADD_POST : I32 = 1.to_i32()
-NNG_PIPE_EV_REM_POST : I32 = 2.to_i32()
-NNG_PIPE_EV_NUM : I32 = 3.to_i32()
+NNG_PIPE_EV_ADD_PRE : I32 = 0
+NNG_PIPE_EV_ADD_POST : I32 = 1
+NNG_PIPE_EV_REM_POST : I32 = 2
+NNG_PIPE_EV_NUM : I32 = 3
 
 nng_pipe_cb := Dynamic
 
@@ -1220,12 +1220,12 @@ nng_init_set_parameter := ext_proc(shallow _arg : nng_init_parameter, shallow _a
 // such messages, so this is a useful value to prevent logging altogether.
 nng_log_level := I32
 
-NNG_LOG_NONE : I32 = 0.to_i32()
-NNG_LOG_ERR : I32 = 3.to_i32()
-NNG_LOG_WARN : I32 = 4.to_i32()
-NNG_LOG_NOTICE : I32 = 5.to_i32()
-NNG_LOG_INFO : I32 = 6.to_i32()
-NNG_LOG_DEBUG : I32 = 7.to_i32()
+NNG_LOG_NONE : I32 = 0
+NNG_LOG_ERR : I32 = 3
+NNG_LOG_WARN : I32 = 4
+NNG_LOG_NOTICE : I32 = 5
+NNG_LOG_INFO : I32 = 6
+NNG_LOG_DEBUG : I32 = 7
 
 // Facilities.  Also from RFC 5424.
 // Not all values are enumerated here. Values not enumerated here
@@ -1233,17 +1233,17 @@ NNG_LOG_DEBUG : I32 = 7.to_i32()
 // NNG or general applications.
 nng_log_facility := I32
 
-NNG_LOG_USER : I32 = 1.to_i32()
-NNG_LOG_DAEMON : I32 = 3.to_i32()
-NNG_LOG_AUTH : I32 = 10.to_i32()
-NNG_LOG_LOCAL0 : I32 = 16.to_i32()
-NNG_LOG_LOCAL1 : I32 = 17.to_i32()
-NNG_LOG_LOCAL2 : I32 = 18.to_i32()
-NNG_LOG_LOCAL3 : I32 = 19.to_i32()
-NNG_LOG_LOCAL4 : I32 = 20.to_i32()
-NNG_LOG_LOCAL5 : I32 = 21.to_i32()
-NNG_LOG_LOCAL6 : I32 = 22.to_i32()
-NNG_LOG_LOCAL7 : I32 = 23.to_i32()
+NNG_LOG_USER : I32 = 1
+NNG_LOG_DAEMON : I32 = 3
+NNG_LOG_AUTH : I32 = 10
+NNG_LOG_LOCAL0 : I32 = 16
+NNG_LOG_LOCAL1 : I32 = 17
+NNG_LOG_LOCAL2 : I32 = 18
+NNG_LOG_LOCAL3 : I32 = 19
+NNG_LOG_LOCAL4 : I32 = 20
+NNG_LOG_LOCAL5 : I32 = 21
+NNG_LOG_LOCAL6 : I32 = 22
+NNG_LOG_LOCAL7 : I32 = 23
 
 // Logging function, which may be supplied by application code.  Only
 // one logging function may be registered.  The level and facility are

@@ -152,10 +152,10 @@ bench_hashmap_str := func(n: I64) returns Vec(I64) {
 }
 
 print_row := proc(label: Str, r: Vec(I64)) {
-    ref t_ins : I64 = r.get(0.to_usize())!
-    ref t_has : I64 = r.get(1.to_usize())!
-    ref t_get : I64 = r.get(2.to_usize())!
-    ref hits  : I64 = r.get(3.to_usize())!
+    ref t_ins : I64 = r.get(0)!
+    ref t_has : I64 = r.get(1)!
+    ref t_get : I64 = r.get(2)!
+    ref hits  : I64 = r.get(3)!
     println(label, " ins=", t_ins.to_str(), "ms has=", t_has.to_str(), "ms get=", t_get.to_str(), "ms hits=", hits.to_str())
 }
 

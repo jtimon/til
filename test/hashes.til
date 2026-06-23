@@ -48,14 +48,14 @@ test_hash_i64_negative_does_not_panic := test() {
 }
 
 test_hash_u64_deterministic := test() {
-    a := hash_u64(99.cast(U64))
-    b := hash_u64(99.cast(U64))
+    a := hash_u64(99)
+    b := hash_u64(99)
     assert(a.eq(b))
 }
 
 test_hash_u64_distinct := test() {
-    a := hash_u64(0.cast(U64))
-    b := hash_u64(1.cast(U64))
+    a := hash_u64(0)
+    b := hash_u64(1)
     assert(a.eq(b).not())
 }
 
@@ -85,7 +85,7 @@ test_hash_str_empty := test() {
 }
 
 test_bucket_in_range := test() {
-    cap : USize = 16.to_usize()
+    cap : USize = 16
     for i in 0..100 {
         bi := bucket(hash_i64(i), cap)
         assert(bi.lt(cap))
@@ -96,7 +96,7 @@ test_bucket_covers_all_with_enough_keys := test() {
     // 1000 distinct I64 keys against 16 buckets should hit every bucket
     // if the hash spreads at all. Tracked in a 16-byte stack-style flag
     // vector built out of an I64 bitset to avoid pulling in Array here.
-    cap : USize = 16.to_usize()
+    cap : USize = 16
     mut seen : I64 = 0
     for i in 0..1000 {
         bi := bucket(hash_i64(i), cap)

@@ -51,13 +51,13 @@ namespace:
     /// Use I16.add for the wrapping variant.
     safe_add := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
         result := a.add(b)
-        if b > 0.to_i16() {
+        if b > 0 {
             if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " overflows"))
             }
         }
-        if b < 0.to_i16() {
+        if b < 0 {
             if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_add: ",
                     a.to_str(), " + ", b.to_str(), " underflows"))
@@ -70,13 +70,13 @@ namespace:
     /// Use I16.sub for the wrapping variant.
     safe_sub := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
         result := a.sub(b)
-        if b > 0.to_i16() {
+        if b > 0 {
             if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " underflows"))
             }
         }
-        if b < 0.to_i16() {
+        if b < 0 {
             if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_sub: ",
                     a.to_str(), " - ", b.to_str(), " overflows"))
@@ -89,7 +89,7 @@ namespace:
     /// Use I16.mul for the wrapping variant.
     safe_mul := func(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow {
         result := a.mul(b)
-        if a.eq(0.to_i16()).not() {
+        if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(loc, ":I16.safe_mul: ",
                     a.to_str(), " * ", b.to_str(), " overflows"))

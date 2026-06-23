@@ -110,12 +110,12 @@ fret_x := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
 
     ratio := active_step_ratio(use_nathex, use_microtones)
 
-    mut inv_pow := 1.to_f32()
+    mut inv_pow : F32 = 1
     for _ in 0..step.to_usize() {
         inv_pow = inv_pow.div(ratio)
     }
 
-    span := (1.to_f32() - inv_pow).div(FRETBOARD_END_FRACTION)
+    span : F32 = (1 - inv_pow).div(FRETBOARD_END_FRACTION)
     return BOARD_X + span.mul(BOARD_W.to_f32()).to_i64().to_i32()
 }
 
@@ -284,7 +284,7 @@ draw_toggle := proc(fnt: Font, x: I32, y: I32, label: Str, active: Bool, active_
     mut color := inactive_color
     if active { color = active_color }
     DrawRectangle(x, y, BTN_W, BTN_H, color)
-    DrawTextEx(fnt, label.c_str, Vector2(x = (x + 14).to_f32(), y = (y + 8).to_f32()), FONT, 1.to_f32(), text_color)
+    DrawTextEx(fnt, label.c_str, Vector2(x = (x + 14).to_f32(), y = (y + 8).to_f32()), FONT, 1, text_color)
 }
 
 main := proc() {
@@ -317,7 +317,7 @@ main := proc() {
     BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
 
     while !WindowShouldClose() {
-        dt : I32 = (GetFrameTime() * 1000.to_f32()).to_i64().to_i32()
+        dt : I32 = (GetFrameTime() * 1000).to_i64().to_i32()
         use_nathex := display_mode.eq(DISPLAY_MODE_NATHEX)
         max_step := active_step_max(use_nathex, use_microtones)
         board_end := fret_x(use_nathex, use_microtones, max_step)
@@ -450,7 +450,7 @@ main := proc() {
         if song_id.eq(SONG_FABIENK_CLIMB) { fret_hint = "Fabienk climb: Re Ret Re# Re#t Mi Mit Fa" }
         if song_id.eq(SONG_FABIENK_HOOK) { fret_hint = "Fabienk hook: Sol Lab Lap La Sib Sip Si" }
         if song_id.eq(SONG_MICRO_HAPPY) { fret_hint = "Micro Happy: Happy Birthday intervals as micro-fret steps" }
-        DrawTextEx(fnt, fret_hint.c_str, Vector2(x = MARGIN.to_f32(), y = (ROW2_Y + BTN_H + 18).to_f32()), FONT, 1.to_f32(), MUTED_TEXT)
+        DrawTextEx(fnt, fret_hint.c_str, Vector2(x = MARGIN.to_f32(), y = (ROW2_Y + BTN_H + 18).to_f32()), FONT, 1, MUTED_TEXT)
 
         DrawRectangle(BOARD_X, BOARD_Y, board_end - BOARD_X, BOARD_H, BOARD_COLOR)
 
@@ -473,16 +473,16 @@ main := proc() {
                 if (!use_microtones).or(step_i.mod(2).eq(0)) {
                     mut flabel := step.to_str()
                     if use_microtones { flabel = (step_i / 2).to_str() }
-                    DrawTextEx(fnt, flabel.c_str, Vector2(x = (cx - 8).to_f32(), y = (BOARD_Y - 30).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
+                    DrawTextEx(fnt, flabel.c_str, Vector2(x = (cx - 8).to_f32(), y = (BOARD_Y - 30).to_f32()), FONT_SM, 1, TEXT_COLOR)
                 }
 
                 marker_style := fret_marker_style(use_nathex, use_microtones, step_i)
                 if marker_style.eq(2) {
-                    DrawCircle(cx, BOARD_Y + BOARD_H / 3, 8.to_f32(), DOT_COLOR)
-                    DrawCircle(cx, BOARD_Y + BOARD_H * 2 / 3, 8.to_f32(), DOT_COLOR)
+                    DrawCircle(cx, BOARD_Y + BOARD_H / 3, 8, DOT_COLOR)
+                    DrawCircle(cx, BOARD_Y + BOARD_H * 2 / 3, 8, DOT_COLOR)
                 }
                 if marker_style.eq(1) {
-                    DrawCircle(cx, BOARD_Y + BOARD_H / 2, 8.to_f32(), DOT_COLOR)
+                    DrawCircle(cx, BOARD_Y + BOARD_H / 2, 8, DOT_COLOR)
                 }
             }
         }
@@ -493,7 +493,7 @@ main := proc() {
 
             open_rel := guitar_rel_note(all_fourths, string_idx, 0)
             open_label := guitar_note_label(display_mode, open_rel)
-            DrawTextEx(fnt, open_label.c_str, Vector2(x = MARGIN.to_f32(), y = (sy - 10).to_f32()), FONT_SM, 1.to_f32(), TEXT_COLOR)
+            DrawTextEx(fnt, open_label.c_str, Vector2(x = MARGIN.to_f32(), y = (sy - 10).to_f32()), FONT_SM, 1, TEXT_COLOR)
 
             for step : USize in 1..(max_step + 1).to_usize() {
                 step_i := step.cast(I32)
@@ -510,7 +510,7 @@ main := proc() {
                     }
                     mut cell_font := FONT_SM
                     if use_microtones { cell_font = FONT_MICRO }
-                    DrawTextEx(fnt, label.c_str, Vector2(x = lx.to_f32(), y = ly.to_f32()), cell_font, 1.to_f32(), LABEL_COLOR)
+                    DrawTextEx(fnt, label.c_str, Vector2(x = lx.to_f32(), y = ly.to_f32()), cell_font, 1, LABEL_COLOR)
                 }
             }
         }
@@ -519,7 +519,7 @@ main := proc() {
         if all_fourths { tuning_label = "All-fourths E A D G C F" }
         if use_nathex { tuning_label = format(tuning_label, " on nathex frets") }
         if use_microtones { tuning_label = format(tuning_label, " with microtones") }
-        DrawTextEx(fnt, tuning_label.c_str, Vector2(x = MARGIN.to_f32(), y = (BOARD_Y + BOARD_H + 35).to_f32()), FONT, 1.to_f32(), TEXT_COLOR)
+        DrawTextEx(fnt, tuning_label.c_str, Vector2(x = MARGIN.to_f32(), y = (BOARD_Y + BOARD_H + 35).to_f32()), FONT, 1, TEXT_COLOR)
 
         EndDrawing()
     }

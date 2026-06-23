@@ -2969,7 +2969,7 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
                     synthesized.push(own decl)
                 }
                 mut alias_target := Expr.new(ident_node(genname), stmt.line, stmt.col)
-                stmt.children[0.to_usize()] = alias_target
+                stmt.children[0] = alias_target
             case:
             }
         case:
@@ -3601,7 +3601,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             init_substitute_type_params(cloned, subs)
             mut nested_synthesized := Vec(Expr).new()
             init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, true)
-            stmt.children[0.to_usize()] = cloned
+            stmt.children[0] = cloned
             for nd : Expr in nested_synthesized {
                 program.children.push(own nd.clone())
             }

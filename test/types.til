@@ -73,7 +73,7 @@ test_typed_literal_coercion := test() {
     half : F32 = 1 / 2
     assert_eq(Str, half.to_str(), "0.5")
 
-    half_explicit : F32 = 1.to_f32() / 2
+    half_explicit : F32 = 1 / 2
     assert_eq(Str, half_explicit.to_str(), "0.5")
 }
 
@@ -108,8 +108,9 @@ test_i16 := test() {
     assert(c.lt(a))
 
     // to_str
-    assert_eq(Str, 12345.to_i16().to_str(), "12345")
-    assert_eq(Str, -100.to_i16().to_str(), "-100")
+    big : I16 = 12345
+    assert_eq(Str, big.to_str(), "12345")
+    assert_eq(Str, c.to_str(), "-100")
 
     // size
     assert_eq(USize, I16.size(), 2)
@@ -137,8 +138,9 @@ test_i32 := test() {
     assert(c.lt(a))
 
     // to_str
-    assert_eq(Str, 12345.to_i32().to_str(), "12345")
-    assert_eq(Str, -100.to_i32().to_str(), "-100")
+    big : I32 = 12345
+    assert_eq(Str, big.to_str(), "12345")
+    assert_eq(Str, c.to_str(), "-100")
 
     // size
     assert_eq(USize, I32.size(), 4)
@@ -170,7 +172,8 @@ test_u32 := test() {
     assert_eq(U32, x.bxor(y), 61680)
 
     // to_str
-    assert_eq(Str, 12345.to_u32().to_str(), "12345")
+    big : U32 = 12345
+    assert_eq(Str, big.to_str(), "12345")
 
     // size
     assert_eq(USize, U32.size(), 4)
@@ -178,17 +181,17 @@ test_u32 := test() {
 
 test_char_literals := test() {
     // Basic chars
-    assert_eq(I64, 'a'.to_i64(), 97)
-    assert_eq(I64, '0'.to_i64(), 48)
-    assert_eq(I64, '('.to_i64(), 40)
+    assert_eq(I64, 'a', 97)
+    assert_eq(I64, '0', 48)
+    assert_eq(I64, '(', 40)
 
     // Escape sequences
-    assert_eq(I64, '\n'.to_i64(), 10)
-    assert_eq(I64, '\t'.to_i64(), 9)
-    assert_eq(I64, '\r'.to_i64(), 13)
-    assert_eq(I64, '\\'.to_i64(), 92)
-    assert_eq(I64, '\''.to_i64(), 39)
-    assert_eq(I64, '\0'.to_i64(), 0)
+    assert_eq(I64, '\n', 10)
+    assert_eq(I64, '\t', 9)
+    assert_eq(I64, '\r', 13)
+    assert_eq(I64, '\\', 92)
+    assert_eq(I64, '\'', 39)
+    assert_eq(I64, '\0', 0)
 
     // Comparison
     assert('a'.eq('a'))

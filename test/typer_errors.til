@@ -518,7 +518,7 @@ terr_clone_lit_bool  := true.clone()
 // U32, no `to_str` on Str), so the check fires purely on the call
 // shape -- it works uniformly for primitives, Str, and user types.
 terr_self_conv_u32 := func() returns U32 {
-    val := 5.to_u32()
+    val : U32 = 5
     return val.to_u32()
 }
 terr_self_conv_i64 := func() returns I64 {
@@ -749,3 +749,21 @@ terr_bad_lazy := lazy_func(a: Bool, b: Bool) returns Bool {
     both := a.and(b)
     return both
 }
+
+// #294: a numeric conversion on a numeric literal is redundant -- the bare
+// literal already narrows to the target through its declaration type, an
+// argument/field type, or any numeric context. Every form below is rejected.
+// Out-of-range conversions (300.to_u8() truncation, -1.to_usize() wraparound)
+// stay legal and are deliberately NOT listed here.
+terr_conv_decl : U32 = 5.to_u32()                    // declaration type
+terr_conv_cast : U16 = 7.cast(U16)                   // cast form
+terr_conv_nested : F32 = 5.to_f32() / 100.to_f32()   // nested operands, typed decl
+mut terr_conv_assign : I32 = 0
+terr_conv_assign = 9.to_i32()                        // assignment target type
+terr_conv_infer := 5.to_u8()                         // inferred -- needs explicit type
+terr_conv_arg_fn := func(terr_cv: U16) returns U16 { return terr_cv }
+terr_conv_arg_fn(42.to_u16())                        // argument type
+terr_conv_op_fn := func(terr_b: I16) returns Bool { return terr_b > 0.to_i16() }
+terr_conv_op_fn(1)                                   // operator-operand type
+terr_conv_ret_fn := func() returns F32 { return 3.to_f32() }
+terr_conv_ret_fn()                                   // return type

@@ -32,12 +32,12 @@ WINDOW_H : I32 = 768
 
 // Per-second physics constants (anchored to the old 120 Hz "feel").
 PHYSICS_HZ : F32 = 120                 // simulation steps per second
-PHYSICS_DT : F32 = 1.to_f32() / PHYSICS_HZ      // simulation step length (s)
+PHYSICS_DT : F32 = 1 / PHYSICS_HZ      // simulation step length (s)
 MOVE_SPEED : F32 = 12                  // 12 u/s (was 0.1/frame @ 120 Hz)
 JUMP_SPEED : F32 = 36                  // 36 u/s
 GRAVITY    : F32 = 144                 // 144 u/s^2
-MOUSE_SENS : F32 = 5.to_f32() / 100.to_f32()    // pixel-based, framerate-independent
-FRAME_CAP  : F32 = 1.to_f32() / 4.to_f32()      // clamp frame_time to 0.25 s
+MOUSE_SENS : F32 = 5 / 100    // pixel-based, framerate-independent
+FRAME_CAP  : F32 = 1 / 4      // clamp frame_time to 0.25 s
 
 MENU_FULLSCREEN := 0
 MENU_QUIT := 1
@@ -48,7 +48,7 @@ v3 := func(x: I32, y: I32, z: I32) returns Vector3 {
 }
 
 v3_lerp := func(a: Vector3, b: Vector3, t: F32) returns Vector3 {
-    inv := 1.to_f32() - t
+    inv : F32 = 1 - t
     return Vector3(
         x = a.x * inv + b.x * t,
         y = a.y * inv + b.y * t,
@@ -134,8 +134,8 @@ tall_positions := array(Vector3,
     v3(-9, 2, -4),
     v3(0, 2, -12),
 )
-small_s := 1.to_f32()
-small_y := small_s / 2.to_f32()
+small_s : F32 = 1
+small_y := small_s / 2
 small_size := Vector3(x = small_s, y = small_s, z = small_s)
 small_positions := array(Vector3,
     Vector3(x = 2,  y = small_y, z = -1),
@@ -146,15 +146,15 @@ small_positions := array(Vector3,
 )
 floor_pos := v3(0, 0, 0)
 floor_size := Vector2(x = 50, y = 50)
-floor_half := floor_size.x / 2.to_f32()
+floor_half := floor_size.x / 2
 total_boxes := cube_positions.len() + tall_positions.len() + small_positions.len()
 mut aabbs := Array(BoundingBox).new(total_boxes)
-cam_radius := 1.to_f32() / 2.to_f32()
+cam_radius : F32 = 1 / 2
 TEAL := Color(r = 0, g = 200, b = 210, a = 255)
 WHITE := Color(r = 255, g = 255, b = 255, a = 255)
 BLACK := Color(r = 0, g = 0, b = 0, a = 255)
-zero_f := 0.to_f32()
-one_f := 1.to_f32()
+zero_f : F32 = 0
+one_f : F32 = 1
 mut vel_y := zero_f
 mut menu_open := false
 mut menu_sel := 0
@@ -317,7 +317,7 @@ shootil_frame := proc() {
             camera.target = sim_target
             mouse := GetMouseDelta()
             delta_mag := mouse.x * mouse.x + mouse.y * mouse.y
-            if delta_mag < 10000.to_f32() {
+            if delta_mag < 10000 {
                 yaw := mouse.x * MOUSE_SENS
                 pitch := mouse.y * MOUSE_SENS
                 rotation := Vector3(x = yaw, y = pitch, z = zero_f)

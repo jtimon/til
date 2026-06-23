@@ -282,7 +282,7 @@ typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
         // dangle as soon as the `top_level` Vec is freed on return,
         // causing a use-after-free when func_def_type later reads it.
         prog.children.push(own l.clone())
-        ref pushed : Expr = prog.children[prog.children.len().sub(1.to_usize())]
+        ref pushed : Expr = prog.children[prog.children.len().sub(1)]
         typer_register_lifted_lambda(scope, pushed, ctx)
     }
 }

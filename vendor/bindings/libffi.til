@@ -110,13 +110,13 @@ ffi_sarg := I64
 
 ffi_abi := I32
 
-FFI_FIRST_ABI : I32 = 1.to_i32()
-FFI_UNIX64 : I32 = 2.to_i32()
-FFI_WIN64 : I32 = 3.to_i32()
-FFI_EFI64 : I32 = 3.to_i32()
-FFI_GNUW64 : I32 = 4.to_i32()
-FFI_LAST_ABI : I32 = 5.to_i32()
-FFI_DEFAULT_ABI : I32 = 2.to_i32()
+FFI_FIRST_ABI : I32 = 1
+FFI_UNIX64 : I32 = 2
+FFI_WIN64 : I32 = 3
+FFI_EFI64 : I32 = 3
+FFI_GNUW64 : I32 = 4
+FFI_LAST_ABI : I32 = 5
+FFI_DEFAULT_ABI : I32 = 2
 
 /* ---- Definitions for closures ----------------------------------------- */
 
@@ -158,10 +158,10 @@ ffi_type := ext_struct("_ffi_type") {
 
 ffi_status := I32
 
-FFI_OK : I32 = 0.to_i32()
-FFI_BAD_TYPEDEF : I32 = 1.to_i32()
-FFI_BAD_ABI : I32 = 2.to_i32()
-FFI_BAD_ARGTYPE : I32 = 3.to_i32()
+FFI_OK : I32 = 0
+FFI_BAD_TYPEDEF : I32 = 1
+FFI_BAD_ABI : I32 = 2
+FFI_BAD_ARGTYPE : I32 = 3
 
 ffi_cif := ext_struct {
     abi : ffi_abi = 0

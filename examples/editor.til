@@ -48,7 +48,7 @@ main := proc(args: ..Str) {
     while !WindowShouldClose() {
         dt := GetFrameTime()
         if status_timer > 0 {
-            status_timer = status_timer - (dt * 1000.to_f32()).to_i64()
+            status_timer = status_timer - (dt * 1000).to_i64()
             if status_timer <= 0 {
                 status_msg = ""
                 status_timer = 0
