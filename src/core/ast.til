@@ -971,13 +971,17 @@ func_type_name := func(ft: FuncType) returns Str {
     }
 }
 
-// Issue #262: a lazy_func/lazy_proc body the inliner can splice. True for a
-// single-statement body that is `return <expr>` or `if cond { return X }
-// else { return Y }` (the if/else form is rewritten to a `match` when
-// inlined). The loader's lazy_body_as_expr constructs the inlined expression
-// for exactly these shapes; the typer uses this predicate to reject any
-// other shape (multi-statement, loops, ...) loudly instead of silently
-// degrading to an eager call. Keep the two in sync.
+// Issue #262: a lazy_func/lazy_proc body the inliner can splice into a single
+// expression. Inlinable shapes:
+//   { return <expr> }                          -> <expr>
+//   { if cond { return X } else { return Y } }  -> match cond { ... }
+//   { if c1 { return X1 } ... if ck { return Xk } return Y }   (guard chain)
+//        -> nested match (each guard is an `if cond { return X }` with no
+//           else; the chain ends in a bare `return Y`)
+// The loader's lazy_body_as_expr constructs the inlined expression for exactly
+// these shapes; the typer uses this predicate to reject any other shape
+// (locals, loops, ...) loudly instead of silently degrading to an eager call.
+// Keep the two in sync.
 priv lazy_single_return_body := func(body: Expr) returns Bool {
     if body.node_type.is(NodeType.Body).not() { return false }
     if body.children.len().eq(1).not() { return false }
@@ -985,20 +989,38 @@ priv lazy_single_return_body := func(body: Expr) returns Bool {
     return ret.node_type.is(NodeType.Return).and(ret.children.len().gte(1))
 }
 
+// An `if cond { return X }` guard: an If with exactly [cond, then-Body] (no
+// else) whose then-Body is a single `return X`.
+priv lazy_is_guard := func(stmt: Expr) returns Bool {
+    if stmt.node_type.is(NodeType.If).not() { return false }
+    if stmt.children.len().eq(2).not() { return false }
+    return lazy_single_return_body(stmt.children[1])
+}
+
 lazy_body_inlinable := func(body: Expr) returns Bool {
     if body.node_type.is(NodeType.Body).not() { return false }
-    if body.children.len().eq(1).not() { return false }
-    ref stmt : Expr = body.children[0]
-    switch stmt.node_type {
-    case NodeType.Return:
-        return stmt.children.len() >= 1
-    case NodeType.If:
-        if stmt.children.len() < 3 { return false }
-        return lazy_single_return_body(stmt.children[1])
-            .and(lazy_single_return_body(stmt.children[2]))
-    case:
-        return false
+    n := body.children.len()
+    if n == 0 { return false }
+    ref last : Expr = body.children[n.sub(1)]
+    if n == 1 {
+        switch last.node_type {
+        case NodeType.Return:
+            return last.children.len() >= 1
+        case NodeType.If:
+            if last.children.len() < 3 { return false }
+            return lazy_single_return_body(last.children[1])
+                .and(lazy_single_return_body(last.children[2]))
+        case:
+            return false
+        }
     }
+    // n >= 2: a guard chain ends in `return Y`, preceded by `if c { return X }`
+    // guards.
+    if last.node_type.is(NodeType.Return).not().or(last.children.len() < 1) { return false }
+    for i in 0..n.sub(1) {
+        if lazy_is_guard(body.children[i]).not() { return false }
+    }
+    return true
 }
 
 // --- ast_print ---

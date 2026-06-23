@@ -26,6 +26,14 @@ if_or := lazy_func(a: Bool, b: Bool) returns Bool {
     if a { return true } else { return b }
 }
 
+# A guard chain `if c1 { return X1 } ... if ck { return Xk } return Y` folds
+# into nested matches, so each clause short-circuits the ones after it.
+gchain := lazy_func(a: Bool, b: Bool, c: Bool) returns Bool {
+    if a { return b }
+    if b { return c }
+    return a
+}
+
 # --- functional correctness ---
 
 test_lazy_and := test() {
@@ -40,6 +48,27 @@ test_lazy_or := test() {
     expect(lazy_or(true, false), "T or F")
     expect(lazy_or(false, true), "F or T")
     expect(lazy_or(false, false).not(), "F or F")
+}
+
+# --- guard-chain body: multi-clause, clause-by-clause short-circuit ---
+
+test_guard_chain := test() {
+    expect(gchain(true, true, false), "a -> b (T)")
+    expect(gchain(true, false, true).not(), "a -> b (F)")
+    expect(gchain(false, true, true), "b -> c (T)")
+    expect(gchain(false, true, false).not(), "b -> c (F)")
+    expect(gchain(false, false, true).not(), "else -> a (F)")
+}
+
+test_guard_chain_short_circuits := test() {
+    eval_count = 0
+    r := gchain(true, true, bump())       # a true -> b; c (bump) never reached
+    expect(r, "a true skips c")
+    assert_eq(I64, eval_count, 0)
+    eval_count = 0
+    r2 := gchain(false, false, bump())    # a,b false -> a; c (bump) never reached
+    expect(r2.not(), "a,b false skips c")
+    assert_eq(I64, eval_count, 0)
 }
 
 # --- if/else-body lazy funcs: same results and same short-circuit as match ---

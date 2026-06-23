@@ -2,6 +2,28 @@
 # category: features
 ** WIP #262 lazy_func / lazy_proc: lazily-evaluated call arguments
 
+Numbering note: this issue was originally filed as #260 and renumbered to
+#262 when #260 was reassigned to "Add cursor-relative File seek helpers"
+(issues/fixed/260.org). Older chat / commit references to "the lazy issue as
+#260" predate the renumber -- the lazy work is #262, and #260 is an unrelated,
+already-fixed issue. They are NOT the same.
+
+Status summary (what is merged) and decision:
+  DONE: lazy_func/lazy_proc callables; a pre-typer inline pass with
+  call-by-name semantics; inlinable body shapes = single ~return <expr>~,
+  ~if/else~ with single returns, and N-clause guard chains; bare and UFCS
+  method-call inlining; Lisp-style N-ary ~and~/~or~ folding; core ~and~/~or~
+  migrated to ~lazy_func~ so ~.and~/~.or~/~&&~/~||~ short-circuit (#117, now
+  FIXED); throwing calls inside a lazy arg lower correctly into the match
+  arm; non-inlinable bodies HARD-ERROR (no silent eager fallback). Tests in
+  test/lazy.til and test/typer_errors.til.
+  DECIDED (now building): the "best of both worlds" hybrid -- inline where we
+  can (above), and a THUNK fallback for any body the inliner cannot handle
+  (local bindings, loops, first-class, recursion), so ~lazy_func~ is fully
+  general with no user-visible special cases. Semantics = call-by-name (makes
+  the inline and thunk lowerings observationally identical). Design 2 below is
+  the chosen approach; the detailed options are kept for the record.
+
 v1 status (implemented):
   - ~lazy_func~ / ~lazy_proc~ keywords parse to ~FuncType.LazyFunc~ /
     ~FuncType.LazyProc~ (lexer, parser, ~FuncType~ enum + name mappers).
@@ -38,45 +60,53 @@ v1 status (implemented):
     bare ~and(a, b, c)~ and method ~a.and(b, c)~ forms. Purely additive:
     N<=2 is unchanged, so the pervasive binary ~.and()~/~.or()~ path is
     untouched. Folding assumes associativity (true for ~and~/~or~).
-  - if/else body inlining (first step of the inline-when-possible side of
-    the hybrid): a lazy body shaped ~if cond { return X } else { return Y }~
-    also inlines -- ~lazy_body_as_expr~ (src/self/loader.til) rewrites it to
-    ~match cond { case true: X case: Y }~ and inlines that, so the if/else
-    form short-circuits at zero runtime cost just like the match form. (til's
-    ~if~ is a statement, not a value-expression, hence the rewrite to a
-    ~match~ expression.) This removes the if/else manifestation of the
-    silent-eager bug below.
-  - Non-inlinable lazy bodies now HARD-ERROR instead of silently degrading to
-    an eager call. ~lazy_body_inlinable~ (src/core/ast.til) is the shared
-    shape predicate (single ~return <expr>~, or ~if/else~ with single
-    returns); the typer rejects anything else in ~infer_func_def_expr~ before
-    the body is lowered. This makes the current limitation loud and is the
-    placeholder the thunk fallback will replace with a real lowering.
+  - Richer inlinable body shapes (the inline-when-possible side of the
+    hybrid). Beyond a single ~return <expr>~, ~lazy_body_as_expr~
+    (src/self/loader.til) now also inlines:
+      * ~if cond { return X } else { return Y }~ -> ~match cond { case true: X
+        case: Y }~; and
+      * a guard chain ~if c1 { return X1 } ... if ck { return Xk } return Y~
+        -> right-nested ~match~es, so each clause short-circuits the ones
+        after it.
+    til's ~if~ is a statement (not a value-expression), hence the rewrite to
+    ~match~. All these inline at zero runtime cost and short-circuit.
+  - Non-inlinable lazy bodies HARD-ERROR instead of silently degrading to an
+    eager call. ~lazy_body_inlinable~ (src/core/ast.til) is the shared shape
+    predicate; the typer rejects anything outside the shapes above in
+    ~infer_func_def_expr~ before the body is lowered. This makes the current
+    limitation loud and is the placeholder the thunk fallback will replace
+    with a real lowering. Bodies still needing thunks: those with local
+    bindings between/around the returns, loops, and first-class/recursive use.
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
     core Bool and/or, operator syntax, N-ary fold and its short-circuit,
-    if/else-body lazy funcs and their short-circuit, decisive short-circuit
-    proofs where an unused side-effecting argument must not run, and a
-    throwing call in a lazy and/or argument that must compile and
-    short-circuit).
+    if/else-body and guard-chain lazy funcs and their short-circuit, decisive
+    short-circuit proofs where an unused side-effecting argument must not run,
+    and a throwing call in a lazy and/or argument that must compile and
+    short-circuit). Negative: test/typer_errors.til (terr_bad_lazy, a body
+    with a local binding) checks the non-inlinable hard error.
 
-Remaining (deferred):
+Next, IN PROGRESS (decided -- the thunk fallback, Design 2 below):
+  - Build the thunk fallback so any non-inlinable lazy body works: a body
+    with local bindings, loops, or first-class/recursive use (each currently
+    a hard error) lowers by wrapping each arg in a ~() -> T~ closure at the
+    call site, forcing on use. Type-directed, in the typer/desugarer:
+    free-variable analysis (none exists yet -- captures are explicit, so it
+    must be written), synthesized capturing closures per arg, auto-force at
+    param uses, and thunk ownership. Additive: every existing lazy func
+    inlines, so the thunk path only activates for the bodies that currently
+    error -- it cannot regress the build. Staged: (1) free-variable analysis,
+    (2) thunk synthesis at non-inlinable call sites + the def becoming a real
+    closure-taking function, (3) auto-force, (4) ownership/lifetime.
+
+Remaining (deferred, after the thunk fallback):
   - General declared-variadic lazy callables (~lazy_func(xs: ..Bool)~): the
-    N-ary fold above special-cases binary associative callables; a true
-    variadic lazy param would need a thunk-array or a compiler-only lazy
-    rest-arg (an ordinary ~Array(Bool)~ would eagerly evaluate every operand
-    and destroy short-circuiting).
-  - First-class lazy callables (stored in a var / funcptr) and recursive
-    lazy callables, which cannot be inlined and need real thunks/closures
-    (currently a hard error).
-  - Multi-statement / loop lazy bodies (currently a hard error; the thunk
-    fallback would make them work).
-  - The thunk fallback itself (Design 2 below): type-directed, in the
-    typer/desugarer -- free-variable analysis (none exists yet; captures are
-    explicit), synthesized capturing closures per arg, auto-force at param
-    uses, and thunk ownership. Additive: every existing lazy func inlines, so
-    the thunk path only activates for the bodies that currently error.
-  - call-by-need (memoize a reused argument once) vs the current
-    call-by-name (re-evaluate on each use).
+    N-ary fold special-cases binary associative callables; a true variadic
+    lazy param needs the thunk-array (Design 2) or compile-time unroll
+    (Design 1). An ordinary ~Array(Bool)~ would eagerly evaluate every
+    operand and destroy short-circuiting.
+  - call-by-need (memoize a reused argument once) vs the chosen call-by-name
+    (re-evaluate on each use). Deferred: it would break the inline == thunk
+    equivalence and only helps params reused within a body.
 
 Introduce ~lazy_func~ and ~lazy_proc~ as new callable kinds (alongside
   ~func~/~proc~ and ~ext_func~/~ext_proc~). When you call a lazy callable,
@@ -115,8 +145,8 @@ Open questions / honest caveats (these are why this is its own issue, not a
     re-evaluate its argument unless we bind it once; decide whether lazy means
     call-by-name (re-eval) or call-by-need (memoized once).
 
-Possible next designs for repeated and variadic lazy args (documenting the
-options in detail; no decision made yet):
+Design options considered (the "inline + thunk fallback" hybrid, Design 2
+below, is the CHOSEN approach; the rest is kept for the record):
 
   Core constraint. Ordinary variadic args become a runtime collection of
   VALUES (today an ~Array(Bool)~ built in ~desugar_user_func_fcall_args~).
@@ -181,8 +211,8 @@ options in detail; no decision made yet):
   promise's cache cell would never earn its keep there. Call-by-need also
   adds the "not-forced-yet" representation + cached-value ownership cost.
 
-  Recommended hybrid (pending decision) -- "inline when possible, thunk
-  otherwise", with semantics = call-by-name:
+  CHOSEN approach -- "inline when possible, thunk otherwise", with semantics
+  = call-by-name (decided; now being built):
     - Pick call-by-name. Under it, inline-splice and thunk-call are
       OBSERVATIONALLY IDENTICAL (an unused arg never runs; an arg used N
       times runs N times), so the compiler may choose either lowering per
@@ -218,13 +248,13 @@ options in detail; no decision made yet):
   thunk fallback lands, this hard error becomes a THUNK lowering instead, so
   those bodies start working rather than erroring.
 
-  Staged path (one reasonable ordering): (1) stop the silent-eager fallback
-  (hard error now, or thunk fallback once Design 2 lands); (2) implement
-  Design 2 thunks as the generic mechanism, keeping the binary ~and~/~or~
-  inline as the fast path; (3) treat Design 1's compile-time list-patterns
-  + spread as a separate, deferred performance feature, justified only if
-  N-ary lazy calls turn out to be hot (unlikely -- they are rare); (4)
-  postpone call-by-need / promises until a concrete need for shared reuse.
+  Staged path: (1) DONE -- stopped the silent-eager fallback (hard error) and
+  widened the inline path (return-expr, if/else, guard chains, N-ary fold,
+  UFCS); (2) IN PROGRESS -- Design 2 thunks as the generic fallback, keeping
+  the inline path as the fast path; (3) DEFERRED -- Design 1's compile-time
+  list-patterns + spread, justified only if N-ary lazy calls turn out to be
+  hot (unlikely -- they are rare); (4) DEFERRED -- call-by-need / promises
+  until a concrete need for shared reuse.
 
 Note: the binary short-circuit ~and~/~or~ from #117 could also be done as a
   narrow, special-cased desugar rewrite (~a.and(b)~ -> ~if a { b } else

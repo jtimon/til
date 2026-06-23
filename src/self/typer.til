@@ -3059,15 +3059,15 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         is_func := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.LazyFunc))
         is_macro := fdef.func_type.is(FuncType.Macro)
         // Issue #262: until the thunk fallback exists, a lazy callable's body
-        // must be inlinable (a single `return <expr>` or an
-        // `if cond { return X } else { return Y }`). Reject other shapes
-        // loudly here -- they would otherwise be left un-inlined and silently
-        // degrade to an eager call (losing short-circuit). Checked before
-        // infer_body lowers the body (which would turn the `return match`
-        // into a multi-statement form that no longer matches the predicate).
+        // must be inlinable (see lazy_body_inlinable: single `return <expr>`,
+        // `if/else` with single returns, or a guard chain). Reject other
+        // shapes loudly here -- they would otherwise be left un-inlined and
+        // silently degrade to an eager call (losing short-circuit). Checked
+        // before infer_body lowers the body (which would turn the
+        // `return match` into a multi-statement form that no longer matches).
         if fdef.func_type.is(FuncType.LazyFunc).or(fdef.func_type.is(FuncType.LazyProc)) {
             if expr.children.len().gt(0).and(lazy_body_inlinable(expr.children[0]).not()) {
-                expr.type_error("lazy_func/lazy_proc body must be a single 'return <expr>' or 'if cond { return X } else { return Y }' for now (issue #262); other body shapes are not yet supported", ctx)
+                expr.type_error("lazy_func/lazy_proc body must be inlinable for now (issue #262): a single 'return <expr>', an 'if cond { return X } else { return Y }', or a guard chain 'if c1 { return X1 } ... return Y'; other body shapes (locals, loops, ...) are not yet supported", ctx)
             }
         }
         // Issue #57: macros that are pure templates (returning

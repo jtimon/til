@@ -2209,6 +2209,7 @@ Str * node_head_str(NodeType * data);
 Str * expr_to_str_indent(Expr * self, U32 indent);
 Str * func_type_name(FuncType * ft);
 Bool priv___src_core_ast_til__lazy_single_return_body(Expr * body);
+Bool priv___src_core_ast_til__lazy_is_guard(Expr * stmt);
 Bool lazy_body_inlinable(Expr * body);
 U32 fcall_kwargs_count(Expr * fcall);
 U32 fcall_variadic_count(Expr * fcall, U32 nparam, Bool callee_has_kwargs);
@@ -3328,6 +3329,8 @@ Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Vec__Expr *
 void priv___src_self_loader_til__desugar_namespace_imports(ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
 Expr * priv___src_self_loader_til__lazy_single_return_value(Expr * body);
+Expr * priv___src_self_loader_til__lazy_make_bool_match(Expr * cond, Expr * x, Expr * y, U32 line, U32 col);
+Expr * priv___src_self_loader_til__lazy_build_guard_chain(Expr * body, U32 i, U32 n);
 Expr * priv___src_self_loader_til__lazy_body_as_expr(Expr * body);
 Bool priv___src_self_loader_til__inline_lazy_call(Expr * parent, U32 call_idx, Expr * fdef);
 Expr * priv___src_self_loader_til__lazy_eff_arg_clone(Expr * call, Bool is_method, U32 k);
