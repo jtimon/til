@@ -1,0 +1,75 @@
+# priority: medium
+# category: cleanups
+** OPEN #294 Forbid redundant numeric conversions on literals (5.to_u32() / 5.cast(U32))
+
+  We still write `to_<X>()` / `cast(X)` conversions directly on numeric
+  literals in many places:
+
+      x : U32 = 5.to_u32()           // decl type U32 already coerces `5`
+      f(5.to_u32())                  // param type U32 already coerces `5`
+      if b > 0.to_i16() { ... }      // gt's arg type I16 already coerces `0`
+      nng_socket(id = 0.to_u32())    // field id:U32 already coerces `0`
+      MOUSE_SENS : F32 = 5.to_f32() / 100.to_f32()   // decl F32 propagates
+
+  In every one of these the literal is in a position whose type is
+  already known -- an explicit declaration type, a function argument
+  type, a struct-field type, an assignment target, or a return type. A
+  bare numeric literal coerces to that type on its own (a typed decl even
+  propagates the type into nested literals, so `x : F32 = 5 / 100` does
+  float division), so the `.to_*` / `.cast` does no work the surrounding
+  code would not do anyway. They are noise.
+
+  Goal: have the typer REJECT a `to_<num>()` / `cast(<num>)` conversion
+  whose receiver is a numeric literal, so the compiler points at every
+  redundant site and we delete them.
+
+*** What is already there (and why it does nothing)
+
+  src/self/typer.til already has `redundant_literal_conversion(e,
+  expected)` + `redundant_conversion_error`, wired at four context
+  sites: call args (validate_fcall_arg), return values, typed decls, and
+  assignments. But it SILENTLY NO-OPS for the `to_<X>()` form: by the
+  time those sites run, `5.to_u32()` has been UFCS-desugared from the
+  1-child `FCall(FieldAccess(to_u32, 5))` it pattern-matches into the
+  2-child namespace form `I64.to_u32(5)` (literal moved to children[1]),
+  which the function's `to_` branch (expecting children.len()==1) never
+  matches. Only the `cast` self-cast path fires today. Net effect: none
+  of `a : U32 = 5.to_u32()`, `f(5.to_u32())`, `d = 7.to_u32()` error.
+
+*** Plan
+
+  - Fix `redundant_literal_conversion` to also recognise the
+    post-desugar 2-child `to_<X>()` shape (method starts_with "to_",
+    receiver literal at children[1]). This makes the four existing
+    context sites actually fire for `to_*`.
+  - Extend `pre_coerce_decl_numeric_literals` so a typed declaration
+    flags the `to_*`/`cast` literal conversions it would have coerced
+    anyway -- this catches the NESTED ones inside a typed decl RHS
+    (`F32 = 5.to_f32() / 100.to_f32()`), not just the top-level value.
+  - Flag a direct inference-decl RHS that is a literal conversion
+    (`small_s := 1.to_f32()`): here removing the call would change the
+    inferred type (-> I64), so the fix is to give the binding an
+    explicit type (`small_s : F32 = 1`). This is the "specify some types
+    explicitly instead of relying on inference" case.
+  - Add cases to test/typer_errors.til covering the decl / arg / return
+    / assignment / nested-in-decl / inference-decl shapes.
+  - Sweep src/, test/ and examples/ removing every redundant conversion
+    the compiler now flags, adding explicit declaration types where an
+    inferred binding relied on the conversion for its type.
+
+*** Boundary: what stays legal (NOT redundant)
+
+  - Out-of-range conversions do real work and stay: `300.to_u8()`
+    (truncation), `-1.to_usize()` / `-1.to_u32()` (wraparound). Gated by
+    `literal_in_range`; USize/UPtr also fall outside `is_numeric_type`.
+  - Load-bearing conversions where NO context coerces the bare literal:
+    a conversion that is the receiver of a further method/operator in an
+    inferred position, e.g. `z := 1.to_f32().div(10)` (without `.to_f32`
+    it is `1.div(10)` == 0), or such a chain nested inside a call
+    argument (argument types do NOT propagate into nested literals the
+    way declaration types do). These are not "converted by the
+    declaration/arg type" and must keep their conversion (or be
+    rewritten with an explicitly typed temp). The check only fires where
+    the literal would coerce to the same type without it.
+  - A conversion whose receiver is NOT a literal (`y.to_f32()`) is
+    untouched.

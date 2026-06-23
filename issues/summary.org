@@ -29,6 +29,7 @@
 *** [[./open/286.org][#286]] Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
 ** Medium
 *** [[./open/231.org][#231]] Use UFCS for standalone functions throughout the codebase
+*** [[./open/294.org][#294]] Forbid redundant numeric conversions on literals (5.to_u32() / 5.cast(U32))
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
