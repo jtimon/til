@@ -619,7 +619,7 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
             if fd.func_type.is(FuncType.Macro) {
                 ctx.constfolder_foldables.set(dd.name, own FuncType.Macro)
             } else if fd.func_type.is(FuncType.Func)
-                .or(fd.func_type.is(FuncType.ExtFunc)) {
+                .or(fd.func_type.is(FuncType.ExtFunc)).or(fd.func_type.is(FuncType.CoreFunc)) {
                 ctx.constfolder_foldables.set(dd.name, own fd.func_type.clone())
             }
         case:
@@ -635,7 +635,7 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                     if ffd.func_type.is(FuncType.Macro) {
                         ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                     } else if ffd.func_type.is(FuncType.Func)
-                        .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
                         ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
                     }
                 case:
@@ -655,7 +655,7 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                     if ffd.func_type.is(FuncType.Macro) {
                         ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                     } else if ffd.func_type.is(FuncType.Func)
-                        .or(ffd.func_type.is(FuncType.ExtFunc)) {
+                        .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
                         ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
                     }
                 case:

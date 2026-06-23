@@ -1,0 +1,26 @@
+mode script
+
+// #288 enforcement: a core_func / core_proc is an inline-only primitive
+// intrinsic. Every backend lowers it natively, it emits NO symbol, and it
+// MUST NOT be indirected. dyn_fn is the one path that turns a (type, method)
+// pair into a callable funcptr (the FuncPtr fields CloneFn / CmpFn / HashFn /
+// ... are all populated through it), so the typer rejects dyn_fn on a
+// core_func or core_proc -- that is what makes a symbol-less intrinsic safe:
+// "never indirected" becomes a checked property, not a convention.
+//
+// dyn_fn takes the type NAME as a Str. Each dyn_fn below is rejected with a
+// "cannot be indirected via dyn_fn" diagnostic (the harness counts that exact
+// substring: two cases). The core_func / core_proc declarations themselves
+// type cleanly -- they are parsed and typed exactly like ext_func / ext_proc.
+
+PrimWrap := struct {
+    v := 0
+namespace:
+    cadd := core_func(self: PrimWrap, other: PrimWrap) returns PrimWrap {}
+    cbump := core_proc(self: PrimWrap) {}
+}
+
+// dyn_fn on the core_func -> rejected
+_ := dyn_fn("PrimWrap", "cadd")
+// dyn_fn on the core_proc -> rejected
+_ := dyn_fn("PrimWrap", "cbump")

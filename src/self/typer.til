@@ -340,10 +340,10 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         case:
             return false
         }
-        if cb_ft.is(FuncType.Proc).or(cb_ft.is(FuncType.ExtProc)) {
+        if cb_ft.is(FuncType.Proc).or(cb_ft.is(FuncType.ExtProc)).or(cb_ft.is(FuncType.CoreProc)) {
             return false
         }
-        if cb_ft.is(FuncType.Macro).or(cb_ft.is(FuncType.Func)).or(cb_ft.is(FuncType.ExtFunc)) {
+        if cb_ft.is(FuncType.Macro).or(cb_ft.is(FuncType.Func)).or(cb_ft.is(FuncType.ExtFunc)).or(cb_ft.is(FuncType.CoreFunc)) {
             for ai in 1..e.children.len() {
                 if e.children[ai].expr_is_comptime(scope).not() { return false }
             }
@@ -410,7 +410,9 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
                             top_ft.is(FuncType.Func)
                             .or(top_ft.is(FuncType.ExtFunc))
                             .or(top_ft.is(FuncType.Proc))
-                            .or(top_ft.is(FuncType.ExtProc)))
+                            .or(top_ft.is(FuncType.ExtProc))
+                            .or(top_ft.is(FuncType.CoreFunc))
+                            .or(top_ft.is(FuncType.CoreProc)))
                         if type_name.len() > 0 {
                             if first_param == type_name {
                                 ufcs_match = 1
@@ -1423,7 +1425,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
     if fn_type.is_funcptr().not() {
         if in_func != 0 {
             callee_ft := scope.get_func_type(name)
-            if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)) {
+            if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)).or(callee_ft.is(FuncType.CoreProc)) {
                 ctx.proc_calls_count = ctx.proc_calls_count.add(1)
                 if debug_exempt.not() {
                     e.type_error(format("func cannot call proc '", name, "'"), ctx)
@@ -1431,7 +1433,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
             }
         } else if ctx.proc_def_depth > 0 {
             callee_ft2 := scope.get_func_type(name)
-            if callee_ft2.is(FuncType.Proc).or(callee_ft2.is(FuncType.ExtProc)) {
+            if callee_ft2.is(FuncType.Proc).or(callee_ft2.is(FuncType.ExtProc)).or(callee_ft2.is(FuncType.CoreProc)) {
                 ctx.proc_calls_count = ctx.proc_calls_count.add(1)
             }
         }
@@ -1718,7 +1720,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     if ctx.proc_def_depth.gt(0).or(in_func.neq(0)) {
         switch ns_func2.node_type {
         case NodeType.FuncDef(ns_fdef0):
-            if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)) {
+            if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)).or(ns_fdef0.func_type.is(FuncType.CoreProc)) {
                 ctx.proc_calls_count = ctx.proc_calls_count.add(1)
             }
         case:
@@ -2421,6 +2423,39 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         infer_array_vec_fcall(scope, e, name, in_func, ctx)
         return
     }
+    // #288: a core_func / core_proc is an inline-only primitive intrinsic --
+    // every backend lowers it natively, it emits NO symbol, and it must never
+    // be indirected. dyn_fn is the one path that turns a (type, method) pair
+    // into a callable funcptr (the FuncPtr fields CloneFn/CmpFn/HashFn/... are
+    // all populated through it), so rejecting dyn_fn on a core_func also blocks
+    // the FuncPtr-field and function-pointer vectors. dyn_fn takes the type
+    // NAME as a Str (`dyn_fn("Type", "method")`); only that fully-literal shape
+    // is statically checkable -- a Str-valued type argument
+    // (`dyn_fn(elem_type, ...)`) is dynamic and skipped, and clone/cmp/hash
+    // stay ext_func anyway.
+    if name.eq("dyn_fn").and(e.children.len() >= 3) {
+        switch e.children[1].node_type {
+        case NodeType.Literal(Literal.Str(dyn_type_nm)):
+            ref dyn_tdef : Expr = scope.get_struct(dyn_type_nm)
+            if dyn_tdef.is_null().not() {
+                switch e.children[2].node_type {
+                case NodeType.Literal(Literal.Str(dyn_meth)):
+                    ref dyn_md : Declaration = find_ns_decl(dyn_tdef, dyn_meth)
+                    if dyn_md.is_null().not() {
+                        switch dyn_md.default_value.node_type {
+                        case NodeType.FuncDef(dyn_mfd):
+                            if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)) {
+                                e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
+                            }
+                        case:
+                        }
+                    }
+                case:
+                }
+            }
+        case:
+        }
+    }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)
     if name == "free" { check_free_managed_local(scope, e, ctx) }
     if name == "move" { check_move_managed_dest(scope, e, ctx) }
@@ -2820,7 +2855,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             inner.set_func_def(tc_nd.name, tc_nd.default_value)
             ref mut tc_fb : TypeBinding = inner.get_binding(tc_nd.name)
             tc_fb.is_func_decl = true
-            if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)) {
+            if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)).or(tc_fd.func_type.is(FuncType.CoreFunc)).or(tc_fd.func_type.is(FuncType.CoreProc)) {
                 tc_fb.is_builtin = true
             }
             infer_func_def_expr(inner, tc_nd.default_value, ctx)
@@ -3188,13 +3223,13 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 // ownership leaks the synthesized Array. Keep the parser's
                 // Ref setting for ext bindings; force Own elsewhere.
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
-                is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
+                is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
                 if is_ext_va.not() { param.own_type = OwnType.Own }
                 va_type := variadic_array_type_name(scope, param.explicit_type)
                 func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else if i.cast(I32) == fdef.kwargs_index {
                 // Same rationale as variadic above.
-                is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
+                is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("KwargsMap"), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else {
@@ -3329,6 +3364,8 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
     case NodeType.FuncDef(fdef):
         if fdef.func_type.is(FuncType.ExtFunc) { return }
         if fdef.func_type.is(FuncType.ExtProc) { return }
+        if fdef.func_type.is(FuncType.CoreFunc) { return }
+        if fdef.func_type.is(FuncType.CoreProc) { return }
         for param : Declaration in fdef.params {
             if param.name.len() == 0 { continue }
             if param.name.starts_with("_") { continue }
@@ -3355,6 +3392,8 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
     case NodeType.FuncDef(fdef):
         if fdef.func_type.is(FuncType.ExtFunc) { return }
         if fdef.func_type.is(FuncType.ExtProc) { return }
+        if fdef.func_type.is(FuncType.CoreFunc) { return }
+        if fdef.func_type.is(FuncType.CoreProc) { return }
         // Auto-generated bodies (clone/delete/size/enum eq/to_str/...) are
         // typer-emitted; the user cannot edit their signatures, so a
         // redundant `mut` there is not actionable.
@@ -4108,7 +4147,7 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
-            if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)) {
+            if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)) {
                 fb.is_builtin = true
             }
             return true

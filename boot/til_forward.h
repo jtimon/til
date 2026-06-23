@@ -54,7 +54,9 @@ typedef enum {
     FuncType_TAG_ExtFunc,
     FuncType_TAG_ExtProc,
     FuncType_TAG_LazyFunc,
-    FuncType_TAG_LazyProc
+    FuncType_TAG_LazyProc,
+    FuncType_TAG_CoreFunc,
+    FuncType_TAG_CoreProc
 } FuncType_tag;
 typedef struct FuncType FuncType;
 typedef enum {
@@ -190,6 +192,8 @@ typedef enum {
     TokenType_TAG_KwExtStruct,
     TokenType_TAG_KwLazyFunc,
     TokenType_TAG_KwLazyProc,
+    TokenType_TAG_KwCoreFunc,
+    TokenType_TAG_KwCoreProc,
     TokenType_TAG_KwReturns,
     TokenType_TAG_KwThrows,
     TokenType_TAG_KwIf,
@@ -4282,6 +4286,8 @@ TokenType *TokenType_KwExtProc();
 TokenType *TokenType_KwExtStruct();
 TokenType *TokenType_KwLazyFunc();
 TokenType *TokenType_KwLazyProc();
+TokenType *TokenType_KwCoreFunc();
+TokenType *TokenType_KwCoreProc();
 TokenType *TokenType_KwReturns();
 TokenType *TokenType_KwThrows();
 TokenType *TokenType_KwIf();

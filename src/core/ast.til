@@ -128,6 +128,13 @@ dyn_type_to_str := ext_func(type: Type) returns Str {}
 /// Classifies a til function declaration: func, proc, test, macro, or external.
 FuncType := enum {
     Func, Proc, Test, Macro, ExtFunc, ExtProc, LazyFunc, LazyProc,
+    // #288: core_func/core_proc -- primitive intrinsics. Parsed and typed
+    // exactly like ext_func/ext_proc, but every backend MUST lower them
+    // natively (no emitted symbol, no per-backend impl) and the typer
+    // FORBIDS indirecting them (dyn_fn / FuncPtr field / FFI). Appended at
+    // the END so existing tag values stay stable for til_boot's committed
+    // boot/ (same constraint that appended Sbyte/Ushort to Value).
+    CoreFunc, CoreProc,
 }
 
 /// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
@@ -843,6 +850,8 @@ func_type_variant_name := func(ft: FuncType) returns Str {
     case FuncType.ExtProc: return "ExtProc"
     case FuncType.LazyFunc: return "LazyFunc"
     case FuncType.LazyProc: return "LazyProc"
+    case FuncType.CoreFunc: return "CoreFunc"
+    case FuncType.CoreProc: return "CoreProc"
     }
 }
 
@@ -968,6 +977,8 @@ func_type_name := func(ft: FuncType) returns Str {
     case FuncType.ExtProc: return "ext_proc"
     case FuncType.LazyFunc: return "lazy_func"
     case FuncType.LazyProc: return "lazy_proc"
+    case FuncType.CoreFunc: return "core_func"
+    case FuncType.CoreProc: return "core_proc"
     }
 }
 

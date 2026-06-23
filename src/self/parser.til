@@ -481,6 +481,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     case TokenType.KwMacro: ft = FuncType.Macro
     case TokenType.KwExtFunc: ft = FuncType.ExtFunc
     case TokenType.KwExtProc: ft = FuncType.ExtProc
+    case TokenType.KwCoreFunc: ft = FuncType.CoreFunc
+    case TokenType.KwCoreProc: ft = FuncType.CoreProc
     case TokenType.KwLazyFunc: ft = FuncType.LazyFunc
     case TokenType.KwLazyProc: ft = FuncType.LazyProc
     case: panic("expected function keyword")
@@ -564,7 +566,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 // KwargsMap would leak if ownership were transferred. Keep the
                 // caller as owner for ext bindings -- its normal ASAP delete
                 // at last_use will free the temp.
-                if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
+                if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)).or(ft.is(FuncType.CoreFunc)).or(ft.is(FuncType.CoreProc)) {
                     param_decl.own_type = OwnType.Ref
                 } else {
                     param_decl.own_type = OwnType.Own
@@ -585,7 +587,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 // the synthesized Array. Keep the caller as owner for ext
                 // bindings (Issue #109 -- ffi_run was 228B/9 allocs from
                 // exactly this).
-                if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
+                if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)).or(ft.is(FuncType.CoreFunc)).or(ft.is(FuncType.CoreProc)) {
                     param_decl.own_type = OwnType.Ref
                 } else {
                     param_decl.own_type = OwnType.Own
@@ -1489,6 +1491,8 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     case TokenType.KwMacro:   return parse_func_def(p)
     case TokenType.KwExtFunc: return parse_func_def(p)
     case TokenType.KwExtProc: return parse_func_def(p)
+    case TokenType.KwCoreFunc: return parse_func_def(p)
+    case TokenType.KwCoreProc: return parse_func_def(p)
     case TokenType.KwLazyFunc: return parse_func_def(p)
     case TokenType.KwLazyProc: return parse_func_def(p)
     case TokenType.KwInterface: return parse_interface_def(p)

@@ -1329,7 +1329,7 @@ priv register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: Typ
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
-            if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)) {
+            if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)).or(ft.is(FuncType.CoreFunc)).or(ft.is(FuncType.CoreProc)) {
                 fb.is_builtin = true
             }
         case:
@@ -2113,6 +2113,8 @@ priv init_is_lift_target := func(stmt: Expr) returns Bool {
         case NodeType.FuncDef(rhs_fd):
             if rhs_fd.func_type.is(FuncType.ExtFunc) { return false }
             if rhs_fd.func_type.is(FuncType.ExtProc) { return false }
+            if rhs_fd.func_type.is(FuncType.CoreFunc) { return false }
+            if rhs_fd.func_type.is(FuncType.CoreProc) { return false }
             // Issue #54: a capturing nested function is a closure -- it
             // must stay nested so its body resolves the captured outer
             // locals (hoisting to file scope would strand them). The typer
@@ -3714,6 +3716,8 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         case NodeType.FuncDef(lift_fd):
             if lift_fd.func_type.is(FuncType.ExtFunc) { continue }
             if lift_fd.func_type.is(FuncType.ExtProc) { continue }
+            if lift_fd.func_type.is(FuncType.CoreFunc) { continue }
+            if lift_fd.func_type.is(FuncType.CoreProc) { continue }
         case:
             continue
         }

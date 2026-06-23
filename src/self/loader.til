@@ -1116,6 +1116,8 @@ priv func_kind := func(ft: FuncType) returns Str {
     case FuncType.Macro:   return "macro"
     case FuncType.ExtFunc: return "ext_func"
     case FuncType.ExtProc: return "ext_proc"
+    case FuncType.CoreFunc: return "core_func"
+    case FuncType.CoreProc: return "core_proc"
     case: return "func"
     }
 }

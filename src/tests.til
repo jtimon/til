@@ -567,6 +567,13 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_func_error", "typer",
         "cannot capture immutable", 1,
         format(til_bin, " interpret test/capture_func_error.til"))
+    // #288: a core_func / core_proc is an inline-only primitive intrinsic and
+    // cannot be indirected -- dyn_fn on one is a typer error (2 cases). Count
+    // the enforcement substring, not "error:", since dyn_fn's Dynamic result
+    // also (correctly) trips the "store Dynamic in '_'" diagnostic.
+    add_count(tests, "core_func_errors", "typer",
+        "cannot be indirected via dyn_fn", 2,
+        format(til_bin, " interpret test/core_func_errors.til"))
     // Issue #54: function closures run under both backends.
     add_single(tests, "closures_interp", "closures", 0, "",
         format(til_bin, " interpret test/closures_interp.til"))

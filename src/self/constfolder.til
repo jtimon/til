@@ -42,7 +42,7 @@ priv constfolder_has_macro := func(ctx: Context, name: Str) returns Bool {
 priv constfolder_has_func := func(ctx: Context, name: Str) returns Bool {
     if ctx.constfolder_foldables.has(name).not() { return false }
     ref ft : FuncType = ctx.constfolder_foldables[name]
-    return ft.is(FuncType.Func).or(ft.is(FuncType.ExtFunc))
+    return ft.is(FuncType.Func).or(ft.is(FuncType.ExtFunc)).or(ft.is(FuncType.CoreFunc))
 }
 
 
