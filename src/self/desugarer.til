@@ -282,7 +282,7 @@ typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
         // dangle as soon as the `top_level` Vec is freed on return,
         // causing a use-after-free when func_def_type later reads it.
         prog.children.push(own l.clone())
-        ref pushed : Expr = prog.children[prog.children.len().sub(1)]
+        ref pushed : Expr = prog.children[prog.children.len() - 1]
         typer_register_lifted_lambda(scope, pushed, ctx)
     }
 }
@@ -429,7 +429,7 @@ priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_na
     if stmts.len() == 0 { return "" }
     mut limit := upto
     if limit >= stmts.len() {
-        limit = stmts.len().sub(1)
+        limit = stmts.len() - 1
     }
     mut i : USize = 0
     while i <= limit {
@@ -445,7 +445,7 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
     if stmts.len() == 0 { return }
     mut limit := upto
     if limit >= stmts.len() {
-        limit = stmts.len().sub(1)
+        limit = stmts.len() - 1
     }
     mut i : USize = 0
     while i <= limit {
@@ -820,10 +820,10 @@ append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str
     // Locate where the trailing run of defaulted params begins.
     mut split : USize = params.len()
     while split > 0 {
-        ref pp : Declaration = params[split.sub(1)]
+        ref pp : Declaration = params[split - 1]
         if pp.default_value.is_null() { break }
         if pp.default_value.node_type.is(NodeType.NoDefaultArg) { break }
-        split = split.sub(1)
+        split = split - 1
     }
     // Pop the trailing defaults off (this reverses their order).
     mut tail := Vec(Declaration).new()
@@ -889,7 +889,7 @@ priv tag_for_type := func(ctx: Context, type_name: Str, _type_to_tag_names: Vec(
     // longer consulted.
     for i in 0..ctx.throw_type_registry.len() {
         ref n : Str = ctx.throw_type_registry[i]
-        if n == type_name { return i.to_i64().add(1) }
+        if n == type_name { return i.to_i64() + 1 }
     }
     return 0
 }
@@ -1697,7 +1697,7 @@ priv hoist_walk_consolidated := proc(
     line := child.line
     col := child.col
     tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
-    ctx.bang_counter = ctx.bang_counter.add(1)
+    ctx.bang_counter = ctx.bang_counter + 1
     mut cloned := child.clone()
     clear_bang_flag(cloned)
     // The hoisted call won't pass through the main loop's per-stmt
@@ -2275,7 +2275,7 @@ priv process_throw_catch_in_body := proc(
         if root_bang_throws.len() > 0 {
             if stmt.node_type.is(NodeType.Return) {
                 tmp_name := format("_bang_ret_", ctx.bang_counter.to_str())
-                ctx.bang_counter = ctx.bang_counter.add(1)
+                ctx.bang_counter = ctx.bang_counter + 1
                 // Carry the function's declared return type/ownership onto
                 // the hoisted temp Decl. Vec.get / Array.get return
                 // ref Dynamic; without an explicit type the temp Decl
@@ -3341,7 +3341,7 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
         for i in 0..fd.params.len() {
             ref p : Declaration = fd.params[i]
             if p.own_type.is(OwnType.Own) {
-                set_own_arg(call, i.add(1))
+                set_own_arg(call, i + 1)
             }
         }
     case:
@@ -3614,7 +3614,7 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: St
     self_id.set_expr_til_type(Type.Struct(vec_type))
     push_call.add_child(own self_id)
 
-    ref val_in : Expr = fcall.children[j.add(2)]
+    ref val_in : Expr = fcall.children[j + 2]
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.expr_til_type())
@@ -3659,7 +3659,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             // call raw rather than panic from inside the desugar.
             elem_type := array_vec_elem_type_name(fcall)
             if elem_type.len() == 0 { return false }
-            count : U32 = fcall.children.len().sub(2)
+            count : U32 = fcall.children.len() - 2
             if cn_str == "vec" {
                 vec_name := format("_vec_", ctx.coll_counter.to_str())
                 ctx.coll_counter++
@@ -3717,7 +3717,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             if rhs.children.len() < 2 { return false }
             elem_type := array_vec_elem_type_name(rhs)
             if elem_type.len() == 0 { return false }
-            count : U32 = rhs.children.len().sub(2)
+            count : U32 = rhs.children.len() - 2
             mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
             vec_type := format("Vec__", elem_type)
             vec_decl.set_expr_til_type(Type.Struct(vec_type.clone()))
@@ -3738,7 +3738,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             if rhs.children.len() < 2 { return false }
             elem_type := array_vec_elem_type_name(rhs)
             if elem_type.len() == 0 { return false }
-            count : U32 = rhs.children.len().sub(2)
+            count : U32 = rhs.children.len() - 2
             array_type := variadic_array_type_name(scope, elem_type)
             mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
             arr_decl.set_expr_til_type(Type.Struct(array_type.clone()))
@@ -3840,7 +3840,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         UNREACHABLE()
         return false
     }
-    n_pairs := map_lit.children.len().div(2)
+    n_pairs := map_lit.children.len() / 2
 
     if map_lit.children.len() == 0 {
         map_lit.type_error("map literal must have at least one entry", ctx)
@@ -3870,7 +3870,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     for j in 2..map_lit.children.len() {
-        if j.mod(2) == 0 {
+        if j % 2 == 0 {
             ref k : Expr = map_lit.children[j]
             kt := type_to_name(k.expr_til_type())
             if kt.len().eq(0).or(kt.eq(key_type).not()) {
@@ -3914,9 +3914,9 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         mut self_id := Expr.new(ident_node(var_name), map_lit.line, map_lit.col)
         self_id.set_expr_til_type(Type.Struct(map_type.clone()))
         set_call.add_child(own self_id)
-        mut key := map_lit.children[j.mul(2)].clone()
+        mut key := map_lit.children[j * 2].clone()
         set_call.add_child(own key)
-        mut mval := map_lit.children[j.mul(2).add(1)].clone()
+        mut mval := map_lit.children[j.mul(2) + 1].clone()
         set_call.add_child(own mval)
         sync_own_args_from_callee(set_call, scope)
         new_ch.push(own set_call)
@@ -4280,7 +4280,7 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope)
         switch fd.default_value.node_type {
         case NodeType.FuncDef(vfd):
             if vfd.is_enum_variant_ctor.not() { return false }
-            pidx := i.sub(1)
+            pidx := i - 1
             if pidx >= vfd.params.len() { return false }
             ref vp : Declaration = vfd.params[pidx]
             return vp.own_type.is(OwnType.Own)
@@ -4558,12 +4558,12 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         mut va_inserted := false
         mut new_own : U64 = 0
         for j in 0..old_args.len() {
-            if j.cast(I32).gte(vi).and(j.cast(I32).lt(vi.add(vc.cast(I32)))) {
+            if j.cast(I32).gte(vi).and(j.cast(I32).lt(vi + vc.cast(I32))) {
                 if va_inserted.not() {
                     mut va_id := Expr.new(ident_node(va_name), line, col)
                     va_id.set_expr_til_type(Type.Struct(array_type.clone()))
                     mut bit : U64 = 1
-                    for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+                    for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                     new_own = new_own.bor(bit)
                     fcall_new_ch.push(own va_id)
                     va_inserted = true
@@ -4574,17 +4574,17 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
                 mut va_id := Expr.new(ident_node(va_name), line, col)
                 va_id.set_expr_til_type(Type.Struct(array_type.clone()))
                 mut bit : U64 = 1
-                for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+                for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                 new_own = new_own.bor(bit)
                 fcall_new_ch.push(own va_id)
                 va_inserted = true
             }
             // Transfer own bit from old position j to new position
             mut old_bit : U64 = 1
-            for _ in 0..j { old_bit = old_bit.mul(2) }
+            for _ in 0..j { old_bit = old_bit * 2 }
             if old_own.band(old_bit) > 0 {
                 mut nb : U64 = 1
-                for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
+                for _ in 0..fcall_new_ch.len() { nb = nb * 2 }
                 new_own = new_own.bor(nb)
             }
             fcall_new_ch.push_take(old_args, j)
@@ -4593,7 +4593,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             mut va_id := Expr.new(ident_node(va_name), line, col)
             va_id.set_expr_til_type(Type.Struct(array_type.clone()))
             mut bit : U64 = 1
-            for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+            for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
             new_own = new_own.bor(bit)
             fcall_new_ch.push(own va_id)
         }
@@ -4734,7 +4734,7 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
                 case NodeType.FuncDef(cb_fdef):
                     fvi := cb_fdef.variadic_index
                     if fvi < 0 { return -1 }
-                    return fvi.add(1)
+                    return fvi + 1
                 case:
                 }
             }
@@ -4754,7 +4754,7 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
                             if fvi < 0 { return -1 }
-                            return fvi.add(1)
+                            return fvi + 1
                         case:
                         }
                         break
@@ -4936,12 +4936,12 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
 
         for j in 0..old_args.len() {
             ji := j.cast(I32)
-            if ji.gte(ki).and(ji.lt(ki.add(kc.cast(I32)))) {
+            if ji.gte(ki).and(ji.lt(ki + kc.cast(I32))) {
                 if kw_inserted.not() {
                     mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
                     kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
                     mut bit : U64 = 1
-                    for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+                    for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                     new_own = new_own.bor(bit)
                     fcall_new_ch.push(own kw_id)
                     kw_inserted = true
@@ -4952,17 +4952,17 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
                 mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
                 kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
                 mut bit : U64 = 1
-                for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+                for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                 new_own = new_own.bor(bit)
                 fcall_new_ch.push(own kw_id)
                 kw_inserted = true
             }
             // Transfer own bit from old position j to new position
             mut old_bit : U64 = 1
-            for _ in 0..j { old_bit = old_bit.mul(2) }
+            for _ in 0..j { old_bit = old_bit * 2 }
             if old_own.band(old_bit) > 0 {
                 mut nb : U64 = 1
-                for _ in 0..fcall_new_ch.len() { nb = nb.mul(2) }
+                for _ in 0..fcall_new_ch.len() { nb = nb * 2 }
                 new_own = new_own.bor(nb)
             }
             fcall_new_ch.push_take(old_args, j)
@@ -4971,7 +4971,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
             mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
             kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
             mut bit : U64 = 1
-            for _ in 0..fcall_new_ch.len() { bit = bit.mul(2) }
+            for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
             new_own = new_own.bor(bit)
             fcall_new_ch.push(own kw_id)
         }

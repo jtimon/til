@@ -61,10 +61,10 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
     lp.ctx.scope = TypeScope()
 
     if lp.skip_core.not() {
-        ref core_root : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
+        ref core_root : ProgramUnit = lp.core_units[lp.core_units.len() - 1]
         init_file(core_root.path, lp.ctx)
     }
-    ref user_root : ProgramUnit = lp.units[lp.units.len().sub(1)]
+    ref user_root : ProgramUnit = lp.units[lp.units.len() - 1]
     init_file(user_root.path, lp.ctx)
 
     // Global init: methods/layouts later phases assume exist.
@@ -85,7 +85,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
 
     retarget_loaded_aliases(lp)
     if lp.units.len() > 0 {
-        ref last : ProgramUnit = lp.units[lp.units.len().sub(1)]
+        ref last : ProgramUnit = lp.units[lp.units.len() - 1]
         context_enter_file(lp.ctx, last.path)
     }
 
@@ -94,10 +94,10 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
 
     mut errs : I32 = 0
     if lp.skip_core.not() {
-        ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len().sub(1)]
-        errs = errs.add(type_file(core_root2.path, lp.ctx))
+        ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len() - 1]
+        errs = errs + type_file(core_root2.path, lp.ctx)
     }
-    errs = errs.add(type_file(user_root.path, lp.ctx))
+    errs = errs + type_file(user_root.path, lp.ctx)
     return errs
 }
 
@@ -114,7 +114,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
 //     check works uniformly.
 repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     if peek_ast.children.len() == 0 { return false }
-    ref puser : Expr = peek_ast.children[peek_ast.children.len().sub(1)]
+    ref puser : Expr = peek_ast.children[peek_ast.children.len() - 1]
     switch puser.node_type {
     case NodeType.Decl:        return false
     case NodeType.Assign:      return false
@@ -134,7 +134,7 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     case:
     }
     if typed_ast.children.len() == 0 { return false }
-    ref tlast : Expr = typed_ast.children[typed_ast.children.len().sub(1)]
+    ref tlast : Expr = typed_ast.children[typed_ast.children.len() - 1]
     tlast_t := tlast.expr_til_type()
     if tlast_t.is(Type.None) { return false }
     if tlast_t.is(Type.Unknown) { return false }
@@ -188,7 +188,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         // entered one, return so the outer driver can restart the session
         // in the new mode (discarding prior declarations).
         source_keep.push(own block.clone())
-        ref kept : Str = source_keep[source_keep.len().sub(1)]
+        ref kept : Str = source_keep[source_keep.len() - 1]
         peek_tokens := tokenize(kept, "<repl>")
         mut peek_mode_out := ""
         peek_ast := parse(peek_tokens, kept, "<repl>", peek_mode_out, repl_anon_type_counter)
@@ -263,7 +263,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 prefix_match := full_out.starts_with(prev_out)
                 if prefix_match {
                     start_idx : USize = prev_out.len()
-                    new_chunk = full_out.substr(start_idx, full_out.len().sub(start_idx))
+                    new_chunk = full_out.substr(start_idx, full_out.len() - start_idx)
                 } else {
                     new_chunk = full_out.clone()
                 }
@@ -424,13 +424,13 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.path_idx++
             break
         } else if flag.eq("-o").and(cli.path_idx.add(1).lt(args.len())) {
-            ref oval : Str = args[cli.path_idx.add(1)]
+            ref oval : Str = args[cli.path_idx + 1]
             cli.custom_bin = oval.clone()
-            cli.path_idx = cli.path_idx.add(2)
+            cli.path_idx = cli.path_idx + 2
         } else if flag.eq("-c").and(cli.path_idx.add(1).lt(args.len())) {
-            ref cval : Str = args[cli.path_idx.add(1)]
+            ref cval : Str = args[cli.path_idx + 1]
             cli.custom_c = cval.clone()
-            cli.path_idx = cli.path_idx.add(2)
+            cli.path_idx = cli.path_idx + 2
         } else if flag.starts_with("--target=") {
             cli.target_str = flag.strip_prefix("--target=").clone()
             cli.path_idx++
@@ -445,9 +445,9 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.cc = format(flag.strip_prefix("--cc="))
             cli.path_idx++
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
-            ref pval : Str = args[cli.path_idx.add(1)]
+            ref pval : Str = args[cli.path_idx + 1]
             cli.install_prefix = pval.clone()
-            cli.path_idx = cli.path_idx.add(2)
+            cli.path_idx = cli.path_idx + 2
         } else if flag.starts_with("--prefix=") {
             // format(), not strip_prefix(...).clone(): same view-clone
             // miscompile as --cc above (issue #258); install_prefix is read
@@ -533,7 +533,7 @@ main := proc(args: ..Str) {
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
     lp.target = target
-    user_argv := collect_user_argv(lp, args, cli.path_idx.add(1))
+    user_argv := collect_user_argv(lp, args, cli.path_idx + 1)
 
     // `ast` prints the raw parsed AST -- skip init/typecheck/constfolder/scavenge
     // so output matches the parser's direct output and stays cheap on large

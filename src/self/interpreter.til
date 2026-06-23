@@ -733,13 +733,13 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         while i < raw.count {
             ref ch : I8 = raw.unsafe_get(i)
             if ch == 92 {
-                if i.add(1) < raw.count {
-                    ref next : I8 = raw.unsafe_get(i.add(1))
-                    if next == 110 { memset(ptr_add(buf, j.cast(U64)), 10, 1); j = j.add(1); i = i.add(2); continue }
-                    if next == 116 { memset(ptr_add(buf, j.cast(U64)), 9, 1); j = j.add(1); i = i.add(2); continue }
-                    if next == 92 { memset(ptr_add(buf, j.cast(U64)), 92, 1); j = j.add(1); i = i.add(2); continue }
-                    if next == 34 { memset(ptr_add(buf, j.cast(U64)), 34, 1); j = j.add(1); i = i.add(2); continue }
-                    if next == 48 { memset(ptr_add(buf, j.cast(U64)), 0, 1); j = j.add(1); i = i.add(2); continue }
+                if i + 1 < raw.count {
+                    ref next : I8 = raw.unsafe_get(i + 1)
+                    if next == 110 { memset(ptr_add(buf, j.cast(U64)), 10, 1); j = j + 1; i = i + 2; continue }
+                    if next == 116 { memset(ptr_add(buf, j.cast(U64)), 9, 1); j = j + 1; i = i + 2; continue }
+                    if next == 92 { memset(ptr_add(buf, j.cast(U64)), 92, 1); j = j + 1; i = i + 2; continue }
+                    if next == 34 { memset(ptr_add(buf, j.cast(U64)), 34, 1); j = j + 1; i = i + 2; continue }
+                    if next == 48 { memset(ptr_add(buf, j.cast(U64)), 0, 1); j = j + 1; i = i + 2; continue }
                 }
             }
             memcpy(ptr_add(buf, j.cast(U64)), ptr_add(raw.c_str, i.cast(U64)), 1)
@@ -966,7 +966,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                     ref inline_etag : I32 = p
                     mut inline_psz : USize = 0
                     if total_size >= ENUM_PAYLOAD_OFFSET {
-                        inline_psz = total_size.sub(ENUM_PAYLOAD_OFFSET)
+                        inline_psz = total_size - ENUM_PAYLOAD_OFFSET
                     }
                     return val_enum_flat(type_name, inline_etag, ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, enum_variant_is_str(type_name, inline_etag, ctx), false, ctx)
                 }
@@ -1444,7 +1444,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 if pipe_pos >= 0 {
                     pipe_u := pipe_pos.to_u32()
                     enum_var_name := payload_alias.substr(0, pipe_u)
-                    type_name := payload_alias.substr(pipe_u.add(1), payload_alias.len().sub(pipe_u).sub(1))
+                    type_name := payload_alias.substr(pipe_u + 1, payload_alias.len().sub(pipe_u) - 1)
                     ref enum_cell : Cell = scope_get(scope, enum_var_name)
                     if enum_cell.is_null().not() {
                         switch enum_cell.val {
@@ -1755,7 +1755,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     case NodeType.FuncDef(fdef_params):
         for pi in 0..fdef_params.params.len() {
             ref param : Declaration = fdef_params.params[pi]
-            ref arg_expr : Expr = e.children[pi.add(1)]
+            ref arg_expr : Expr = e.children[pi + 1]
             switch arg_expr.node_type {
             case NodeType.Ident(arg_ident):
                 ref arg_cell : Cell = scope_get(caller_scope, arg_ident.ident_name())
@@ -2163,11 +2163,11 @@ priv free_value_full := func(shallow v: Value) {
 priv container_elem_type := func(struct_name: Str) returns Str {
     array_prefix := "Array__"
     if struct_name.starts_with(array_prefix) {
-        return struct_name.substr(array_prefix.count, struct_name.count.sub(array_prefix.count))
+        return struct_name.substr(array_prefix.count, struct_name.count - array_prefix.count)
     }
     vec_prefix := "Vec__"
     if struct_name.starts_with(vec_prefix) {
-        return struct_name.substr(vec_prefix.count, struct_name.count.sub(vec_prefix.count))
+        return struct_name.substr(vec_prefix.count, struct_name.count - vec_prefix.count)
     }
     return ""
 }
@@ -2267,7 +2267,7 @@ priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def
         for pi in 0..fdef.params.len() {
             ref param : Declaration = fdef.params[pi]
             if param.own_type.is(OwnType.Own) { continue }
-            if call_expr.children[pi.add(1)].node_type.is(NodeType.Ident) { continue }
+            if call_expr.children[pi + 1].node_type.is(NodeType.Ident) { continue }
             ref cell : Cell = scope_get(call_scope, param.name)
             if cell.is_null().not() {
                 free_temp_arg_value(cell.val)
@@ -2887,8 +2887,8 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
     if alloc_count == 0 { alloc_count = 1 }
     data : Dynamic = calloc(alloc_count.cast(U64), esz.cast(U64))
     for i in 0..count {
-        v := parse_cli_arg(argv[offset.add(i)], elem_type, ctx)
-        value_to_buf(ptr_add(data, i.cast(U64).mul(esz.cast(U64))), v, elem_type)
+        v := parse_cli_arg(argv[offset + i], elem_type, ctx)
+        value_to_buf(ptr_add(data, i.cast(U64) * esz.cast(U64)), v, elem_type)
     }
     array_name := format("Array__", elem_type)
     ref array_binding : TypeBinding = ctx.scope.get_binding(array_name)
@@ -3557,7 +3557,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 if nparam > 0 {
                     mut fixed := nparam
                     if vi >= 0 {
-                        fixed = nparam.sub(1)
+                        fixed = nparam - 1
                         if user_argc < fixed {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
@@ -3580,10 +3580,10 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     for pi in 0..nparam {
                         ref param : Declaration = fd.params[pi]
                         if pi.to_i64() == vi.cast(I64) {
-                            va_count := user_argc.sub(fixed)
+                            va_count := user_argc - fixed
                             arr := build_argv_array(user_argv, argi.cast(U32), va_count, fd.params[vi.to_usize()].explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
-                            argi = argi.add(va_count.cast(I32))
+                            argi = argi + va_count.cast(I32)
                         } else {
                             v := parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, v)
@@ -3720,9 +3720,9 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
         return
     }
     mut i : USize = 0
-    while i.add(1) < link_flags.len() {
-        if link_flags.unsafe_get(i).eq(45).and(link_flags.unsafe_get(i.add(1)).eq(108)) {
-            i = i.add(2)
+    while i + 1 < link_flags.len() {
+        if link_flags.unsafe_get(i).eq(45).and(link_flags.unsafe_get(i + 1).eq(108)) {
+            i = i + 2
             start := i
             while i < link_flags.len() {
                 if link_flags.unsafe_get(i) == 32 {
@@ -3731,7 +3731,7 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
                 i++
             }
             if i > start {
-                lib := link_flags.substr(start, i.sub(start))
+                lib := link_flags.substr(start, i - start)
                 soname := format("lib", lib, ".so")
                 ffi_load_global_lib(soname)
             }
@@ -4758,13 +4758,13 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
     switch struct_def.node_type {
     case NodeType.StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
-        elements : Dynamic = malloc(nfields.add(1).cast(U64).mul(Dynamic.size().cast(U64)))
+        elements : Dynamic = malloc(nfields.add(1).cast(U64) * Dynamic.size().cast(U64))
         for i in 0..nfields {
             ref fd : Declaration = bsf_sdd.fields[i]
             ref ft : ffi_type = field_ffi_type(fd, ctx)
-            memcpy(ptr_add(elements, i.cast(U64).mul(Dynamic.size().cast(U64))), ft, Dynamic.size().cast(U64))
+            memcpy(ptr_add(elements, i.cast(U64) * Dynamic.size().cast(U64)), ft, Dynamic.size().cast(U64))
         }
-        memset(ptr_add(elements, nfields.cast(U64).mul(Dynamic.size().cast(U64))), 0, Dynamic.size().cast(U64))
+        memset(ptr_add(elements, nfields.cast(U64) * Dynamic.size().cast(U64)), 0, Dynamic.size().cast(U64))
         st : Dynamic = malloc(ffi_type.size().cast(U64))
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
@@ -5038,7 +5038,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
         UNREACHABLE()
     }
     for ai in 0..nargs {
-        fake_call.push_child_clone(e.children[ai.add(4)])
+        fake_call.push_child_clone(e.children[ai + 4])
     }
 
     r = eval_call(s, fake_call, ctx)
@@ -5245,7 +5245,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if ctx.ffi_map.has(name).not() { return false }
 
     ref fe : FFIEntry = ctx.ffi_map[name]
-    nargs := e.children.len().sub(1)
+    nargs := e.children.len() - 1
     mut alloc_n := nargs
     if alloc_n == 0 { alloc_n = 1 }
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
@@ -5264,7 +5264,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     mut arg_vals := Vec(Value).new()
 
     for i in 0..nargs {
-        v := eval_expr(scope, e.children[i.add(1)], ctx)
+        v := eval_expr(scope, e.children[i + 1], ctx)
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))
         if is_shallow {

@@ -35,6 +35,6 @@ namespace:
         if b == F32.from_i64(0) {
             throw DivideByZero(msg = format(loc, ":F32.safe_div: divide by zero"))
         }
-        return a.div(b)
+        return a / b
     }
 }

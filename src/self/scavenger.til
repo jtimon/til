@@ -353,7 +353,7 @@ priv dyn_call_real_arg_count := func(e: Expr) returns USize {
     case:
         return e.children.len()
     }
-    real := nargs.add(4)
+    real := nargs + 4
     if real > e.children.len() { return e.children.len() }
     return real
 }
@@ -660,7 +660,7 @@ priv fix_stale_litstr_in_body := func(mut body: Expr) {
             ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is_literal_str().not() { continue }
             dd.own_type = OwnType.Shallow
-            mut j : USize = i.add(1)
+            mut j : USize = i + 1
             while j < n {
                 ref del : Expr = body.children[j]
                 if match_named_delete(del, dd.name) {

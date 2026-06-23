@@ -25,24 +25,24 @@ namespace:
         mut v := val
         if val < 0 {
             is_neg = true
-            v = 0.sub(val)
+            v = 0 - val
         }
         mut ndigits : U64 = 0
         mut tmp := v
         while tmp > 0 {
             ndigits++
-            tmp = tmp.div(10)
+            tmp = tmp / 10
         }
         mut total := ndigits
         if is_neg { total++ }
-        buf : Dynamic = malloc(total.add(1))
+        buf : Dynamic = malloc(total + 1)
         if is_neg {
             memcpy(buf, 45, 1)
         }
-        mut i := total.sub(1)
+        mut i := total - 1
         while v > 0 {
             memcpy(ptr_add(buf, i), v.mod(10).add(48).to_u8(), 1)
-            v = v.div(10)
+            v = v / 10
             i--
         }
         memset(ptr_add(buf, total), 0, 1)
@@ -64,16 +64,16 @@ namespace:
     mul := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     div := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mod := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
-    inc := func(mut self: I64) { self = self.add(1) }
-    dec := func(mut self: I64) { self = self.sub(1) }
+    inc := func(mut self: I64) { self = self + 1 }
+    dec := func(mut self: I64) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I64) returns I64 { return 1 }
     eq := ext_func(shallow a: I64, shallow b: I64) returns shallow Bool {}
     cmp := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     /// Negate the value.
-    neg := func(a: I64) returns I64 { return 0.sub(a) }
+    neg := func(a: I64) returns I64 { return 0 - a }
     /// Absolute value.
-    abs := func(a: I64) returns I64 { if a < 0 { return 0.sub(a) } return a }
+    abs := func(a: I64) returns I64 { if a < 0 { return 0 - a } return a }
     band := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     bor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     bxor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
@@ -99,13 +99,13 @@ namespace:
         if b == 0 {
             throw DivideByZero(msg = format(loc, ":I64.safe_div: divide by zero"))
         }
-        return a.div(b)
+        return a / b
     }
 
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I64.add for the wrapping variant.
     safe_add := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow {
-        result := a.add(b)
+        result := a + b
         if b > 0 {
             if result < a {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_add: ",
@@ -124,7 +124,7 @@ namespace:
     /// Subtraction that throws IntegerOverflow on signed wrap.
     /// Use I64.sub for the wrapping variant.
     safe_sub := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow {
-        result := a.sub(b)
+        result := a - b
         if b > 0 {
             if result > a {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_sub: ",
@@ -143,7 +143,7 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I64.mul for the wrapping variant.
     safe_mul := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow {
-        result := a.mul(b)
+        result := a * b
         if a.eq(0).not() {
             if result.div(a).eq(b).not() {
                 throw IntegerOverflow(msg = format(loc, ":I64.safe_mul: ",

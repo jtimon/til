@@ -65,7 +65,7 @@ forward_header_path := func(path: Str) returns Str {
 // Directory part of an absolute path (no trailing slash).
 priv dir_of := func(abs: Str) returns Str {
     if abs.len() == 0 { return "." }
-    mut last_slash := abs.len().sub(1)
+    mut last_slash := abs.len() - 1
     while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
         last_slash--
     }
@@ -389,7 +389,7 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     if tdecl.node_type.is(NodeType.Decl).not() { return NULL }
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_u32()
-    method_part := name.substr(dot_u.add(1), name.len().sub(dot_u).sub(1))
+    method_part := name.substr(dot_u + 1, name.len().sub(dot_u) - 1)
     ref ns : Vec(Declaration) = def_ns_decls(tdecl.children[0])
     for nsd : Declaration in ns {
         if nsd.name == method_part {
@@ -550,7 +550,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // top-level type by expanding to concrete Type.m names; the BFS
         // then walks each kept method's body normally.
         if name.starts_with("*.") {
-            wc_method := name.substr(2, name.len().sub(2))
+            wc_method := name.substr(2, name.len() - 2)
             for wk in top.keys {
                 push_qn(worklist, wk, wc_method)
             }
@@ -1207,14 +1207,14 @@ priv append_doc_lines_indented := func(mut out: Str, doc: Str, indent: Str) {
         if c == 10 {
             out.push_str(indent)
             out.push_str("/// ")
-            if i > start { out.push_str(doc.substr(start, i.sub(start))) }
+            if i > start { out.push_str(doc.substr(start, i - start)) }
             out.push_str("\n")
-            start = i.add(1)
+            start = i + 1
         }
     }
     out.push_str(indent)
     out.push_str("/// ")
-    if start < doc.len() { out.push_str(doc.substr(start, doc.len().sub(start))) }
+    if start < doc.len() { out.push_str(doc.substr(start, doc.len() - start)) }
     out.push_str("\n")
 }
 
@@ -1229,7 +1229,7 @@ DocMeta := struct {
 doc_keyword_value := func(line: Str, key: Str) returns Str {
     trimmed := line.trim()
     if trimmed.starts_with(key).not() { return "" }
-    return trimmed.substr(key.len(), trimmed.len().sub(key.len())).trim().clone()
+    return trimmed.substr(key.len(), trimmed.len() - key.len()).trim().clone()
 }
 
 doc_false_value := func(value: Str) returns Bool {
@@ -1266,16 +1266,16 @@ parse_doc_meta := func(doc: Str) returns DocMeta {
     for i in 0..doc.len() {
         ref c : I8 = doc.unsafe_get(i)
         if c == 10 {
-            line := doc.substr(start, i.sub(start))
+            line := doc.substr(start, i - start)
             if doc_meta_line(line, meta).not() {
                 if body.is_empty().not() { body.push_str("\n") }
                 body.push_str(line)
             }
-            start = i.add(1)
+            start = i + 1
         }
     }
     if start < doc.len() {
-        line := doc.substr(start, doc.len().sub(start))
+        line := doc.substr(start, doc.len() - start)
         if doc_meta_line(line, meta).not() {
             if body.is_empty().not() { body.push_str("\n") }
             body.push_str(line)
@@ -1288,7 +1288,7 @@ parse_doc_meta := func(doc: Str) returns DocMeta {
 format_doc_for_help := func(doc: Str) returns Str {
     meta := parse_doc_meta(doc)
     if meta.hidden { return "" }
-    cap := meta.body.len().add(meta.group.len()).add(meta.since.len()).add(meta.deprecated.len()).add(64)
+    cap := meta.body.len().add(meta.group.len()).add(meta.since.len()).add(meta.deprecated.len()) + 64
     mut out := Str.with_capacity(cap)
     if meta.since.is_empty().not() { out.push_str("Since: "); out.push_str(meta.since); out.push_str("\n") }
     if meta.deprecated.is_empty().not() { out.push_str("Deprecated: "); out.push_str(meta.deprecated); out.push_str("\n") }
@@ -1349,9 +1349,9 @@ priv format_var_info := func(name: Str, dd: Declaration, scope: TypeScope) retur
 }
 
 priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
-    mut cap : USize = name.len().add(fd.return_type.len()).add(64)
+    mut cap : USize = name.len().add(fd.return_type.len()) + 64
     for p : Declaration in fd.params {
-        cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
+        cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
     }
     mut out := Str.with_capacity(cap)
     out.push_str(func_kind(fd.func_type))
@@ -1362,24 +1362,24 @@ priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
 }
 
 priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
-    mut cap : USize = name.len().add(128)
+    mut cap : USize = name.len() + 128
     for f : Declaration in sdef.fields {
-        cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len().mul(2)).add(128)
+        cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len() * 2) + 128
     }
     for d : Declaration in sdef.ns_decls {
-        cap = cap.add(d.name.len()).add(d.doc.len().mul(2)).add(192)
+        cap = cap.add(d.name.len()).add(d.doc.len() * 2) + 192
         if d.default_value.is_null().not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
-                cap = cap.add(fd.return_type.len()).add(48)
+                cap = cap.add(fd.return_type.len()) + 48
                 for p : Declaration in fd.params {
-                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
+                    cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
                 }
             case:
             }
         }
     }
-    cap = cap.mul(2)
+    cap = cap * 2
     mut out := Str.with_capacity(cap)
     out.push_str("struct ")
     out.push_str(name)
@@ -1400,24 +1400,24 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
 }
 
 priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
-    mut cap : USize = name.len().add(128)
+    mut cap : USize = name.len() + 128
     for v : Str in edef.variants {
-        cap = cap.add(v.len()).add(96)
+        cap = cap.add(v.len()) + 96
     }
     for d : Declaration in edef.ns_decls {
-        cap = cap.add(d.name.len()).add(d.doc.len().mul(2)).add(192)
+        cap = cap.add(d.name.len()).add(d.doc.len() * 2) + 192
         if d.default_value.is_null().not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
-                cap = cap.add(fd.return_type.len()).add(48)
+                cap = cap.add(fd.return_type.len()) + 48
                 for p : Declaration in fd.params {
-                    cap = cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
+                    cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
                 }
             case:
             }
         }
     }
-    cap = cap.mul(2)
+    cap = cap * 2
     mut out := Str.with_capacity(cap)
     out.push_str("enum ")
     out.push_str(name)
@@ -1463,21 +1463,21 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
 // Append "Type.method" qualified entry for a single namespace method.
 priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
     qual := type_name.format(".", d.name)
-    mut info_cap : USize = qual.len().add(64)
+    mut info_cap : USize = qual.len() + 64
     mut is_func := false
     if d.default_value.is_null().not() {
         switch d.default_value.node_type {
         case NodeType.FuncDef(fd):
             is_func = true
-            info_cap = info_cap.add(fd.return_type.len()).add(48)
+            info_cap = info_cap.add(fd.return_type.len()) + 48
             for p : Declaration in fd.params {
-                info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()).add(48)
+                info_cap = info_cap.add(p.name.len()).add(p.explicit_type.len()) + 48
             }
         case:
         }
     }
     if is_func.not() {
-        info_cap = info_cap.add(d.explicit_type.len()).add(8)
+        info_cap = info_cap.add(d.explicit_type.len()) + 8
     }
     mut method_info := Str.with_capacity(info_cap)
     if is_func {
@@ -1511,7 +1511,7 @@ priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut in
 priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
     for f : Declaration in sdef.fields {
         qual := type_name.format(".", f.name)
-        mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()).add(64))
+        mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()) + 64)
         field_info.push_str("field ")
         append_qualifier_prefix(field_info, f, OwnType.Shallow)
         field_info.push_str(qual)
@@ -1537,7 +1537,7 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
 priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
     for i in 0..edef.variants.len() {
         qual := type_name.format(".", edef.variants[i])
-        mut variant_info := Str.with_capacity(qual.len().add(64))
+        mut variant_info := Str.with_capacity(qual.len() + 64)
         variant_info.push_str("variant ")
         variant_info.push_str(qual)
         if edef.payload_types.has(i.to_i64()) {
@@ -1881,13 +1881,13 @@ priv lazy_make_bool_match := func(own cond: Expr, own x: Expr, own y: Expr, line
 // from guard i to the trailing return at n-1. Recursive so no loop-carried
 // ownership transfer is needed.
 priv lazy_build_guard_chain := func(body: Expr, i: USize, n: USize) returns Expr {
-    if i.eq(n.sub(1)) {
+    if i.eq(n - 1) {
         // the trailing `return Y`
-        return body.children[n.sub(1)].children[0].clone()
+        return body.children[n - 1].children[0].clone()
     }
     ref g : Expr = body.children[i]               // `if cond { return X }`
     gx := lazy_single_return_value(g.children[1])
-    inner := lazy_build_guard_chain(body, i.add(1), n)
+    inner := lazy_build_guard_chain(body, i + 1, n)
     return lazy_make_bool_match(own g.children[0].clone(), own gx, own inner, g.line, g.col)
 }
 
@@ -1902,7 +1902,7 @@ priv lazy_build_guard_chain := func(body: Expr, i: USize, n: USize) returns Expr
 priv lazy_body_as_expr := func(body: Expr) returns Expr {
     if lazy_body_inlinable(body).not() { return NULL }
     n := body.children.len()
-    ref last : Expr = body.children[n.sub(1)]
+    ref last : Expr = body.children[n - 1]
     if n.eq(1) {
         switch last.node_type {
         case NodeType.Return:
@@ -1938,7 +1938,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.variadic_index < 0 {
-            mut nargs := call.children.len().sub(1)
+            mut nargs := call.children.len() - 1
             if is_method_call { nargs = call.children.len() }
             if nargs == fd.params.len() {
                 for j in 0..fd.params.len() {
@@ -1946,7 +1946,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
                     if is_method_call.and(j.eq(0)) {
                         subs.set(param.name, own call_callee.children[0].clone())
                     } else {
-                        mut arg_idx := j.add(1)
+                        mut arg_idx := j + 1
                         if is_method_call { arg_idx = j }
                         subs.set(param.name, own call.children[arg_idx].clone())
                     }
@@ -1985,7 +1985,7 @@ priv lazy_eff_arg_clone := func(call: Expr, is_method: Bool, k: USize) returns E
         if k == 0 { return call.children[0].children[0].clone() }
         return call.children[k].clone()
     }
-    return call.children[k.add(1)].clone()
+    return call.children[k + 1].clone()
 }
 
 // Build a right-folded binary-call tree over effective args [lo, hi]:
@@ -1997,7 +1997,7 @@ priv lazy_build_fold := func(call: Expr, is_method: Bool, lo: USize, hi: USize,
     mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
     nc.add_child(own Expr.new(ident_node(name), line, col))
     nc.add_child(own lazy_eff_arg_clone(call, is_method, lo))
-    nc.add_child(own lazy_build_fold(call, is_method, lo.add(1), hi, name, line, col))
+    nc.add_child(own lazy_build_fold(call, is_method, lo + 1, hi, name, line, col))
     return nc
 }
 
@@ -2027,11 +2027,11 @@ priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: 
     case NodeType.FieldAccess: is_method = call.children[0].children.len() == 1
     case:
     }
-    mut n := call.children.len().sub(1)
+    mut n := call.children.len() - 1
     if is_method { n = call.children.len() }
     if n.gt(2).not() { return }
 
-    folded := lazy_build_fold(call, is_method, 0, n.sub(1), name, call.line, call.col)
+    folded := lazy_build_fold(call, is_method, 0, n - 1, name, call.line, call.col)
     parent.children[idx] = folded
 }
 
@@ -2059,14 +2059,14 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
                         if inline_lazy_call(e, i, fdef) {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).
-                            expand_lazy_in_expr(e.children[i], scope, depth.add(1))
+                            expand_lazy_in_expr(e.children[i], scope, depth + 1)
                             inlined = true
                         }
                     }
                 }
             }
         }
-        if inlined.not() { expand_lazy_in_expr(c, scope, depth.add(1)) }
+        if inlined.not() { expand_lazy_in_expr(c, scope, depth + 1) }
     }
 }
 
@@ -2112,9 +2112,9 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // Init phase (rstil-style): recursive imports per file.
     context_reset_type_scope(lp.ctx)
     if lp.skip_core.not() {
-        init_file(lp.core_units[lp.core_units.len().sub(1)].path, lp.ctx)
+        init_file(lp.core_units[lp.core_units.len() - 1].path, lp.ctx)
     }
-    ref user_root : ProgramUnit = lp.units[lp.units.len().sub(1)]
+    ref user_root : ProgramUnit = lp.units[lp.units.len() - 1]
     init_file(user_root.path, lp.ctx)
     for mode_file : Str in lp.mode_files {
         init_file(mode_file, lp.ctx)
@@ -2142,7 +2142,7 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
 
     // Ensure ctx.path is set to the user entrypoint by default.
     if lp.units.len() > 0 {
-        context_enter_file(lp.ctx, lp.units[lp.units.len().sub(1)].path)
+        context_enter_file(lp.ctx, lp.units[lp.units.len() - 1].path)
     }
 
     // #165 step 1: resolve any Type.Custom(name) bindings (written by
@@ -2158,25 +2158,25 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     // Type checking (rstil-style): recursive imports per file.
     mut type_errors : I32 = 0
     if lp.skip_core.not() {
-        type_errors = type_errors.add(type_file(lp.core_units[lp.core_units.len().sub(1)].path, lp.ctx))
+        type_errors = type_errors.add(type_file(lp.core_units[lp.core_units.len() - 1].path, lp.ctx))
     }
-    type_errors = type_errors.add(type_file(user_root.path, lp.ctx))
+    type_errors = type_errors + type_file(user_root.path, lp.ctx)
     // Issue #187 step 1: priv top-level decls that nothing in the
     // file references are dead code -- no importer can reach them.
-    type_errors = type_errors.add(check_unused_priv_top_level(lp.ctx.scope, lp.ctx))
+    type_errors = type_errors + check_unused_priv_top_level(lp.ctx.scope, lp.ctx)
     // Issue #187 steps 2-3: priv struct fields and namespace members
     // that no code in the struct's own namespace ever reads. Walk
     // every loaded unit's AST.
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            type_errors = type_errors.add(check_unused_priv_members_in_program(lp.ctx.imported[cu.path].ast, cu.path, lp.ctx))
+            type_errors = type_errors + check_unused_priv_members_in_program(lp.ctx.imported[cu.path].ast, cu.path, lp.ctx)
         }
     }
     for uu : ProgramUnit in lp.units {
-        type_errors = type_errors.add(check_unused_priv_members_in_program(lp.ctx.imported[uu.path].ast, uu.path, lp.ctx))
+        type_errors = type_errors + check_unused_priv_members_in_program(lp.ctx.imported[uu.path].ast, uu.path, lp.ctx)
     }
     for mode_file : Str in lp.mode_files {
-        type_errors = type_errors.add(type_file(mode_file, lp.ctx))
+        type_errors = type_errors + type_file(mode_file, lp.ctx)
     }
 
     if type_errors > 0 {

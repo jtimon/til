@@ -40,23 +40,23 @@ __doc_lookup__ := func(blob: Str, name: Str) returns Str {
             sep1++
         }
         if sep1 >= n { return "" }
-        mut sep2 := sep1.add(1)
+        mut sep2 := sep1 + 1
         while sep2.lt(n).and(blob.unsafe_get(sep2).neq(2)) {
             sep2++
         }
         if sep2 > n { return "" }
-        if sep1.sub(i) == nm_len {
+        if sep1 - i == nm_len {
             mut hit := true
             for k in 0..nm_len {
-                ref a : I8 = blob.unsafe_get(i.add(k))
+                ref a : I8 = blob.unsafe_get(i + k)
                 ref b : I8 = name.unsafe_get(k)
                 if a != b { hit = false }
             }
             if hit {
-                return blob.substr(sep1.add(1), sep2.sub(sep1).sub(1)).clone()
+                return blob.substr(sep1 + 1, sep2.sub(sep1) - 1).clone()
             }
         }
-        i = sep2.add(1)
+        i = sep2 + 1
     }
     return ""
 }

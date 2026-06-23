@@ -100,7 +100,7 @@ namespace:
         }
         if existing >= 0 {
             slot_idx : USize = existing.to_usize()
-            slot_off : USize = slot_idx.mul(self.values.elem_size)
+            slot_off : USize = slot_idx * self.values.elem_size
             self.values.elem_delete(ptr_add(self.values.data, slot_off.cast(U64)), false)
             memcpy(ptr_add(self.values.data, slot_off.cast(U64)), val, self.values.elem_size.cast(U64))
             free(own val)
@@ -120,14 +120,14 @@ namespace:
             self.keys.push(own cloned_key)
             self.values.push(own val)
             self.buckets.unsafe_set(bi, own new_idx)
-            if self.keys.count.mul(4) > self.buckets.count.mul(3) {
+            if self.keys.count * 4 > self.buckets.count * 3 {
                 self.rehash()
             }
         }
     }
 
     rehash := func(mut self: DynHashMap) {
-        new_count : USize = self.buckets.count.mul(2)
+        new_count : USize = self.buckets.count * 2
         for i in 0..self.buckets.count {
             self.buckets.unsafe_set(i, own -1)
         }
@@ -174,8 +174,8 @@ namespace:
         if found.not() { return }
 
         idx_u : USize = entry.to_usize()
-        keys_off : USize = idx_u.mul(self.keys.elem_size)
-        values_off : USize = idx_u.mul(self.values.elem_size)
+        keys_off : USize = idx_u * self.keys.elem_size
+        values_off : USize = idx_u * self.values.elem_size
 
         self.keys.elem_delete(ptr_add(self.keys.data, keys_off.cast(U64)), false)
         self.values.elem_delete(ptr_add(self.values.data, values_off.cast(U64)), false)
@@ -188,7 +188,7 @@ namespace:
             self.nexts.unsafe_set(prev.to_usize(), own nxt_val)
         }
 
-        last_idx : I64 = self.keys.count.to_i64().sub(1)
+        last_idx : I64 = self.keys.count.to_i64() - 1
         if entry.eq(last_idx).not() {
             last_u : USize = last_idx.to_usize()
             ref last_key : Dynamic = self.keys.unsafe_get(last_u)
@@ -209,8 +209,8 @@ namespace:
                 }
             }
 
-            last_keys_off : USize = last_u.mul(self.keys.elem_size)
-            last_values_off : USize = last_u.mul(self.values.elem_size)
+            last_keys_off : USize = last_u * self.keys.elem_size
+            last_values_off : USize = last_u * self.values.elem_size
             memcpy(ptr_add(self.keys.data, keys_off.cast(U64)),
                    ptr_add(self.keys.data, last_keys_off.cast(U64)), self.keys.elem_size.cast(U64))
             memcpy(ptr_add(self.values.data, values_off.cast(U64)),
@@ -219,8 +219,8 @@ namespace:
             self.nexts.unsafe_set(idx_u, own last_nxt.clone())
         }
 
-        self.keys.count = self.keys.count.sub(1)
-        self.values.count = self.values.count.sub(1)
-        self.nexts.count = self.nexts.count.sub(1)
+        self.keys.count = self.keys.count - 1
+        self.values.count = self.values.count - 1
+        self.nexts.count = self.nexts.count - 1
     }
 }

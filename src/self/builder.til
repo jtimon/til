@@ -825,7 +825,7 @@ priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Contex
     ref def : Expr = ctx.scope.get_struct(ename)
     if def.is_null() { return false }
     if def.node_type.is(NodeType.EnumDef).not() { return false }
-    vname := callee_name.substr(prefix.len(), callee_name.len().sub(prefix.len()))
+    vname := callee_name.substr(prefix.len(), callee_name.len() - prefix.len())
     switch def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
@@ -892,13 +892,13 @@ priv c_lit_byte_count := func(s: Str) returns USize {
     while i < n {
         ref b : I8 = s.unsafe_get(i)
         if b.eq('\\').and(i.add(1).lt(n)) {
-            ref nx : I8 = s.unsafe_get(i.add(1))
+            ref nx : I8 = s.unsafe_get(i + 1)
             if nx.eq('x').and(i.add(3).lt(n)) {
-                i = i.add(4)
+                i = i + 4
                 count++
                 continue
             }
-            i = i.add(2)
+            i = i + 2
             count++
             continue
         }
@@ -907,8 +907,8 @@ priv c_lit_byte_count := func(s: Str) returns USize {
         // hex/digit chars into the escape. The C compiler concatenates the
         // two adjacent literals and the `""` contributes zero bytes to the
         // resulting global array, so don't count them.
-        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i.add(1)).eq('"')) {
-            i = i.add(2)
+        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i + 1).eq('"')) {
+            i = i + 2
             continue
         }
         i++
@@ -1186,17 +1186,17 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
             }
         }
         if emitted_inline_closure { continue }
-        if callee_param_is_shallow(callee_name, i.sub(1), ctx) {
+        if callee_param_is_shallow(callee_name, i - 1, ctx) {
             emit_deref(f, arg, depth, ctx)
-        } else if callee_param_is_usize(callee_name, i.sub(1), ctx).and(callee_param_is_own(callee_name, i.sub(1), ctx).not()) {
+        } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()) {
             f.write("USIZE_REF(").emit_deref(arg, depth, ctx).write(")")
-        } else if callee_param_is_uptr(callee_name, i.sub(1), ctx).and(callee_param_is_own(callee_name, i.sub(1), ctx).not()) {
+        } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()) {
             f.write("UPTR_REF(").emit_deref(arg, depth, ctx).write(")")
         } else {
             mut own_arg := get_own_arg(e, i)
-            if templated_container_fcall_arg_is_own(callee_name, i.sub(1)) { own_arg = true }
+            if templated_container_fcall_arg_is_own(callee_name, i - 1) { own_arg = true }
             saved_force_heap := ctx.builder_func.force_heap_stack_lit_str_own
-            if own_arg.and(callee_param_explicit_type(callee_name, i.sub(1), ctx).eq("Dynamic")) {
+            if own_arg.and(callee_param_explicit_type(callee_name, i - 1, ctx).eq("Dynamic")) {
                 ctx.builder_func.force_heap_stack_lit_str_own = true
             }
             emit_as_ptr(f, arg, depth, own_arg, ctx)
@@ -1253,7 +1253,7 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
             case NodeType.FuncDef(fd):
                 if fd.params.len() > 0 {
                     for a in 1..e.children.len() {
-                        pi := a.sub(1)
+                        pi := a - 1
                         if pi < fd.params.len() {
                             if fd.params[pi].is_mut {
                                 switch e.children[a].node_type {
@@ -2026,7 +2026,7 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         emit_indent(f, depth)
         if cn.children.len() == 1 {
             f.write("default: {\n")
-            emit_body_scoped(f, cn.children[0], depth.add(1), ctx)
+            emit_body_scoped(f, cn.children[0], depth + 1, ctx)
         } else {
             f.write("case ")
             if is_enum {
@@ -2056,9 +2056,9 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 emit_expr(f, cn.children[0], depth, ctx)
             }
             f.write(": {\n")
-            emit_body_scoped(f, cn.children[1], depth.add(1), ctx)
+            emit_body_scoped(f, cn.children[1], depth + 1, ctx)
         }
-        emit_indent(f, depth.add(1))
+        emit_indent(f, depth + 1)
         f.write("break;\n")
         emit_indent(f, depth)
         f.write("}\n")
@@ -2445,19 +2445,19 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     case NodeType.Return:
         emit_stmt_return(f, e, depth, ctx)
     case NodeType.Body:
-        f.write("{\n"); emit_body_scoped(f, e, depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
+        f.write("{\n"); emit_body_scoped(f, e, depth + 1, ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.CaptureBlock:
         // Issue #54: capture restriction is a compile-time check; emit the
         // body as a plain scoped block (child 0 is the Body).
-        f.write("{\n"); emit_body_scoped(f, e.children[0], depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
+        f.write("{\n"); emit_body_scoped(f, e.children[0], depth + 1, ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.If:
         f.write("if ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
-        emit_body_scoped(f, e.children[1], depth.add(1), ctx); emit_indent(f, depth)
-        if e.children.len() > 2 { f.write("} else {\n"); emit_body_scoped(f, e.children[2], depth.add(1), ctx); emit_indent(f, depth) }
+        emit_body_scoped(f, e.children[1], depth + 1, ctx); emit_indent(f, depth)
+        if e.children.len() > 2 { f.write("} else {\n"); emit_body_scoped(f, e.children[2], depth + 1, ctx); emit_indent(f, depth) }
         f.write("}\n")
     case NodeType.While:
         f.write("while ("); emit_deref(f, e.children[0], depth, ctx); f.write(") {\n")
-        emit_body_scoped(f, e.children[1], depth.add(1), ctx); emit_indent(f, depth); f.write("}\n")
+        emit_body_scoped(f, e.children[1], depth + 1, ctx); emit_indent(f, depth); f.write("}\n")
     case NodeType.Break: f.write("break;\n")
     case NodeType.Continue: f.write("continue;\n")
     case NodeType.Switch: emit_stmt_switch(f, e, depth, ctx)
@@ -2489,8 +2489,8 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
             f.write(", ")
             ref arg : Expr = e.children[i]
             mut arg_shallow := false
-            if i.sub(1) < sfd.params.len() {
-                ref p : Declaration = sfd.params[i.sub(1)]
+            if i - 1 < sfd.params.len() {
+                ref p : Declaration = sfd.params[i - 1]
                 arg_shallow = p.own_type.is(OwnType.Shallow)
             }
             mut arg_c := "void *"
@@ -2537,8 +2537,8 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ct
         for i in 1..e.children.len() {
             if i > 1 { f.write(", ") }
             mut arg_shallow := false
-            if i.sub(1) < sfd.params.len() {
-                ref p : Declaration = sfd.params[i.sub(1)]
+            if i - 1 < sfd.params.len() {
+                ref p : Declaration = sfd.params[i - 1]
                 arg_shallow = p.own_type.is(OwnType.Shallow)
             }
             if arg_shallow { emit_deref(f, e.children[i], depth, ctx) }
@@ -2582,7 +2582,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
 }
 
 priv emit_str_lit_expr := proc(f: File, s: Str, ctx: Context) {
-    ctx.ctor_seq = ctx.ctor_seq.add(1)
+    ctx.ctor_seq = ctx.ctor_seq + 1
     id := ctx.ctor_seq
     f.write("({ static Str _lit")
     emit_i32(f, id)
@@ -2618,7 +2618,7 @@ priv num_lit_to_c := func(text: Str) returns Str {
         neg = true
         start = 1
     }
-    body := text.substr(start, n.sub(start))
+    body := text.substr(start, n - start)
     // Binary/octal -> decimal constant (C has no 0b/0o literal syntax).
     if body.len().gte(2).and(body.unsafe_get(0).eq('0')) {
         ref p1 : I8 = body.unsafe_get(1)
@@ -2705,18 +2705,18 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write("(")
                 for i in 1..e.children.len() {
                     if i > 1 { f.write(", ") }
-                    if callee_param_is_shallow(flat, i.sub(1), ctx) {
+                    if callee_param_is_shallow(flat, i - 1, ctx) {
                         emit_deref(f, e.children[i], depth, ctx)
-                    } else if callee_param_is_usize(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
+                    } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()) {
                         f.write("USIZE_REF(").emit_deref(e.children[i], depth, ctx).write(")")
-                    } else if callee_param_is_uptr(flat, i.sub(1), ctx).and(callee_param_is_own(flat, i.sub(1), ctx).not()) {
+                    } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()) {
                         f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else {
                         mut own_arg := get_own_arg(e, i)
                         if i.eq(1).and(enum_ctor_payload_is_own(flat, e, ctx)) { own_arg = true }
-                        if templated_container_method_arg_is_own(sname, mname.field_access_name(), i.sub(1)) { own_arg = true }
+                        if templated_container_method_arg_is_own(sname, mname.field_access_name(), i - 1) { own_arg = true }
                         saved_force_heap := ctx.builder_func.force_heap_stack_lit_str_own
-                        if own_arg.and(callee_param_explicit_type(flat, i.sub(1), ctx).eq("Dynamic")) {
+                        if own_arg.and(callee_param_explicit_type(flat, i - 1, ctx).eq("Dynamic")) {
                             ctx.builder_func.force_heap_stack_lit_str_own = true
                         }
                         emit_as_ptr(f, e.children[i], depth, own_arg, ctx)
@@ -2885,7 +2885,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             } else if til_type_name(e.expr_til_type()).len().gt(0).and(name.ident_name().eq(til_type_name(e.expr_til_type()))) {
                 // Struct constructor
                 ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
-                ctx.ctor_seq = ctx.ctor_seq.add(1)
+                ctx.ctor_seq = ctx.ctor_seq + 1
                 id := ctx.ctor_seq
                 f.write("({ ")
                 f.write(ctype)
@@ -3057,7 +3057,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                     case NodeType.Ident(callee_ident):
                         if callee_ident.ident_name() == arg_sname {
                             ct := c_type_name(arg.expr_til_type(), arg_sname, ctx)
-                            ctx.ctor_seq = ctx.ctor_seq.add(1)
+                            ctx.ctor_seq = ctx.ctor_seq + 1
                             id := ctx.ctor_seq
                             tmp := format("_cs", id.to_str())
                             f.write(ct)
@@ -3112,7 +3112,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                             is_ctor_call = true
                         } else {
                         ct := c_type_name(arg.expr_til_type(), arg_sname2, ctx)
-                        ctx.ctor_seq = ctx.ctor_seq.add(1)
+                        ctx.ctor_seq = ctx.ctor_seq + 1
                         id := ctx.ctor_seq
                         tmp := format("_cs", id.to_str())
                         f.write(ct)
@@ -3358,7 +3358,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             case NodeType.Ident(callee_ident):
                 if callee_ident.ident_name() == e_sname {
                     ctype := c_type_name(e.expr_til_type(), e_sname, ctx)
-                    ctx.ctor_seq = ctx.ctor_seq.add(1)
+                    ctx.ctor_seq = ctx.ctor_seq + 1
                     id := ctx.ctor_seq
                     f.write("({ ")
                     f.write(ctype)
@@ -7239,11 +7239,11 @@ priv derive_build_paths := func(lp: LoadedProgram, custom_bin: Str, custom_c: St
     mut basename := lp.path
     if last_slash >= 0 {
         last_slash_u : USize = last_slash.to_usize()
-        basename = lp.path.substr(last_slash_u.add(1), lp.path.len().sub(last_slash_u).sub(1))
+        basename = lp.path.substr(last_slash_u + 1, lp.path.len().sub(last_slash_u) - 1)
     }
     mut name_len := basename.len()
     if basename.ends_with(".til") {
-        name_len = name_len.sub(4)
+        name_len = name_len - 4
     }
     name := basename.substr(0, name_len)
     paths.name = name.clone()
@@ -7644,7 +7644,7 @@ priv doc_unit_entry_capacity := func(e: DocEntry) returns USize {
         .add(e.deprecated.len())
         .add(e.group.len())
         .add(e.info.len())
-        .add(160)
+         + 160
 }
 
 priv append_doc_unit_entry := func(mut out: Str, e: DocEntry) {
@@ -7679,9 +7679,9 @@ priv format_unit_doc_org := func(unit_path: Str, catalog: DocCatalog) returns St
     if title.starts_with("./") {
         title = title.strip_prefix("./").clone()
     }
-    mut total : USize = title.len().add(64)
+    mut total : USize = title.len() + 64
     for e : DocEntry in catalog.entries {
-        if e.unit_path == unit_path { total = total.add(doc_unit_entry_capacity(e)) }
+        if e.unit_path == unit_path { total = total + doc_unit_entry_capacity(e) }
     }
     mut buf := Str.with_capacity(total)
     buf.push_str("#+TITLE: ")
@@ -7726,7 +7726,7 @@ priv doc_index_entry_capacity := func(e: DocEntry) returns USize {
         .add(e.info.len())
         .add(e.since.len())
         .add(e.deprecated.len())
-        .add(160)
+         + 160
 }
 
 priv doc_index_add_group_if_present := func(mut groups: Vec(Str), catalog: DocCatalog, group: Str) {
@@ -7760,14 +7760,14 @@ priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
     groups := doc_index_collect_groups(catalog)
     mut has_ungrouped := false
     mut total : USize = 128
-    for group : Str in groups { total = total.add(group.len()).add(8) }
+    for group : Str in groups { total = total.add(group.len()) + 8 }
     for e : DocEntry in catalog.entries {
-        total = total.add(doc_index_entry_capacity(e))
+        total = total + doc_index_entry_capacity(e)
         if e.group.is_empty() {
             has_ungrouped = true
         }
     }
-    if has_ungrouped { total = total.add(16) }
+    if has_ungrouped { total = total + 16 }
 
     mut out := Str.with_capacity(total)
     out.push_str("#+TITLE: til documentation index\n#+OPTIONS: toc:t\n\n")
