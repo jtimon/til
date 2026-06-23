@@ -1,0 +1,43 @@
+# priority: low
+# category: features
+** OPEN #290 Tooling gap: no regex / text-processing library for source-rewriting tasks
+
+*** Summary
+
+til has no regular-expression engine and no general text/stream processing
+library, so mechanical source-to-source edits across the tree cannot be
+written IN til -- they fall back to external sed / awk / Python. The
+immediate trigger was the gte/lte/lt/gt -> >= / <= / < / > sweep across
+src/ (the inverse of how the parser desugars the operators): doing it
+safely needs balanced-paren matching plus string/comment skipping plus
+cross-line chain detection, which a one-line sed cannot express, so it was
+done with a throwaway Python script instead of a checked-in til tool.
+
+*** What is missing (the "regexp and all that stuff")
+
+- A regex engine: compile + match + capture groups + replace. Even a small
+  backtracking matcher over Str would cover most tooling needs.
+- Str conveniences for scanning/rewriting: split, replace_all, trim,
+  index-of-from, find-all (some of starts_with/ends_with/find exist; the
+  rest do not), and a char-class predicate set.
+- Stream/line helpers: read a file as lines, map/filter/rewrite lines, write
+  back. File.readfile exists; the iterate + rewrite glue does not.
+- A glob / directory-listing helper so a til tool can act on a file set
+  without shelling out.
+
+*** Note: til already has a better lever than regex for til sources
+
+Source rewrites that must respect nesting/precedence (like the comparison
+sweep) are really AST transforms, and til already lexes and parses itself
+(src/self/lexer.til, src/self/parser.til). Exposing the lexer/parser as a
+reusable library plus an unparse/format-back step would let refactors run as
+typed AST passes -- safer than regex for structured edits. Regex is still
+the right tool for unstructured text (logs, docs, csv), which is what this
+issue is mainly about.
+
+*** Why low priority
+
+Nice-to-have developer tooling, not a compiler-correctness gap. Filed so the
+"had to drop to sed/python" friction is tracked rather than forgotten. Pick
+the smallest useful slice first (likely a regex matcher + Str.replace_all +
+line iteration) when someone wants to write the next source sweep in til.
