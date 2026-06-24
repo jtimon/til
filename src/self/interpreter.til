@@ -5462,7 +5462,7 @@ priv scalar_is_binop := func(op: Str) returns Bool {
 }
 
 // Compute the binary op at U64 width (unsigned ops: the low bits are correct
-// for every narrower unsigned type after truncation in scalar_build_uint).
+// for every narrower unsigned type after truncation in scalar_build).
 priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
     if op == "add" { return a.add(b) }
     if op == "sub" { return a.sub(b) }
@@ -5477,7 +5477,7 @@ priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
 }
 
 // Compute the binary op at I64 width (signed: arithmetic shr sign-extends;
-// scalar_build_int truncates to the narrower signed type).
+// scalar_build truncates to the narrower signed type).
 priv scalar_apply_i64 := func(op: Str, a: I64, b: I64) returns I64 {
     if op == "add" { return a.add(b) }
     if op == "sub" { return a.sub(b) }
@@ -5499,20 +5499,19 @@ priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
     return a
 }
 
-// Truncate a U64 result to the unsigned type's width and box it.
-priv scalar_build_uint := func(t: Str, v: U64) returns shallow Value {
-    iv := v.cast(I64)
-    if t == "U8" { return val_u8(iv) }
-    if t == "U16" { return val_u16(iv) }
-    if t == "U32" { return val_u32(iv) }
-    return Value.Uint64(v)
-}
-
-// Truncate an I64 result to the signed type's width and box it.
-priv scalar_build_int := func(t: Str, v: I64) returns shallow Value {
+// Truncate an integer result to `t`'s width and box it. The unsigned ops
+// compute at U64 and pass the result reinterpreted as I64 (`.cast(I64)`):
+// truncation to a narrower width is sign-agnostic, and U64 round-trips back
+// through `v.cast(U64)`. One builder for both signednesses (the two apply_*
+// helpers stay split because shr is logical vs arithmetic).
+priv scalar_build := func(t: Str, v: I64) returns shallow Value {
+    if t == "U8" { return val_u8(v) }
     if t == "I8" { return val_i8(v) }
+    if t == "U16" { return val_u16(v) }
     if t == "I16" { return val_i16(v) }
+    if t == "U32" { return val_u32(v) }
     if t == "I32" { return val_i32(v) }
+    if t == "U64" { return Value.Uint64(v.cast(U64)) }
     return Value.Int(v)
 }
 
@@ -5525,6 +5524,12 @@ priv scalar_read_arg := proc(scope: Scope, arg: Expr, type_str: Str, ctx: Contex
 }
 
 priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
+    // Cheap reject: every scalar primitive type name starts with U, I or F.
+    // This skips the find/substr parse for the common non-scalar dispatch
+    // names (Str_*, Vec_*, Map_*, ...) before any allocation.
+    if name.len() == 0 { return false }
+    ref c0 : I8 = name.unsafe_get(0)
+    if (c0 == 'U').not().and((c0 == 'I').not()).and((c0 == 'F').not()) { return false }
     us := name.find("_")
     if us < 0 { return false }
     u_pos : USize = us.to_usize()
@@ -5548,8 +5553,8 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
     // bnot: unary bitwise complement (integer only).
     if op_str == "bnot" {
         av := scalar_read_arg(scope, e.children[1], type_str, ctx)
-        if cat == "u" { result = scalar_build_uint(type_str, value_to_u64(av).bnot()); return true }
-        if cat == "i" { result = scalar_build_int(type_str, value_as_i64(av).bnot()); return true }
+        if cat == "u" { result = scalar_build(type_str, value_to_u64(av).bnot().cast(I64)); return true }
+        if cat == "i" { result = scalar_build(type_str, value_as_i64(av).bnot()); return true }
         return false
     }
 
@@ -5557,11 +5562,11 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
         av := scalar_read_arg(scope, e.children[1], type_str, ctx)
         bv := scalar_read_arg(scope, e.children[2], type_str, ctx)
         if cat == "u" {
-            result = scalar_build_uint(type_str, scalar_apply_u64(op_str, value_to_u64(av), value_to_u64(bv)))
+            result = scalar_build(type_str, scalar_apply_u64(op_str, value_to_u64(av), value_to_u64(bv)).cast(I64))
             return true
         }
         if cat == "i" {
-            result = scalar_build_int(type_str, scalar_apply_i64(op_str, value_as_i64(av), value_as_i64(bv)))
+            result = scalar_build(type_str, scalar_apply_i64(op_str, value_as_i64(av), value_as_i64(bv)))
             return true
         }
         // cat == "f": only add/sub/mul exist on F32 (no bitwise/shift).
