@@ -32,37 +32,17 @@ typedef struct Str Str;
 I64 I64_clone(const I64 *v);
 
 // I64 arithmetic (shallow params)
-I64 I64_add(I64 a, I64 b);
-I64 I64_sub(I64 a, I64 b);
-I64 I64_mul(I64 a, I64 b);
 I64 I64_div(I64 a, I64 b);
 I64 I64_mod(I64 a, I64 b);
-I64 I64_band(I64 a, I64 b);
-I64 I64_bor(I64 a, I64 b);
-I64 I64_bxor(I64 a, I64 b);
-I64 I64_bnot(I64 a);
-I64 I64_shl(I64 a, I64 b);
-I64 I64_shr(I64 a, I64 b);
 
 // I64 comparisons
-Bool I64_eq(I64 a, I64 b);
 I64 I64_cmp(I64 a, I64 b);
 
 // U8 arithmetic
-U8 U8_add(U8 a, U8 b);
-U8 U8_sub(U8 a, U8 b);
-U8 U8_mul(U8 a, U8 b);
 U8 U8_div(U8 a, U8 b);
 U8 U8_mod(U8 a, U8 b);
-U8 U8_band(U8 a, U8 b);
-U8 U8_bor(U8 a, U8 b);
-U8 U8_bxor(U8 a, U8 b);
-U8 U8_bnot(U8 a);
-U8 U8_shl(U8 a, U8 b);
-U8 U8_shr(U8 a, U8 b);
 
 // U8 comparisons
-Bool U8_eq(U8 a, U8 b);
 I64 U8_cmp(U8 a, U8 b);
 
 // U8 conversions
@@ -77,20 +57,10 @@ U8 U8_from_i64_ext(const I64 *a);
 U8 U8_clone(const U8 *v);
 
 // I8 arithmetic
-I8 I8_add(I8 a, I8 b);
-I8 I8_sub(I8 a, I8 b);
-I8 I8_mul(I8 a, I8 b);
 I8 I8_div(I8 a, I8 b);
 I8 I8_mod(I8 a, I8 b);
-I8 I8_band(I8 a, I8 b);
-I8 I8_bor(I8 a, I8 b);
-I8 I8_bxor(I8 a, I8 b);
-I8 I8_bnot(I8 a);
-I8 I8_shl(I8 a, I8 b);
-I8 I8_shr(I8 a, I8 b);
 
 // I8 comparisons
-Bool I8_eq(I8 a, I8 b);
 I64 I8_cmp(I8 a, I8 b);
 
 // I8 conversions
@@ -102,20 +72,10 @@ I8 I8_from_i64_ext(const I64 *a);
 I8 I8_clone(const I8 *v);
 
 // I16 arithmetic
-I16 I16_add(I16 a, I16 b);
-I16 I16_sub(I16 a, I16 b);
-I16 I16_mul(I16 a, I16 b);
 I16 I16_div(I16 a, I16 b);
 I16 I16_mod(I16 a, I16 b);
-I16 I16_band(I16 a, I16 b);
-I16 I16_bor(I16 a, I16 b);
-I16 I16_bxor(I16 a, I16 b);
-I16 I16_bnot(I16 a);
-I16 I16_shl(I16 a, I16 b);
-I16 I16_shr(I16 a, I16 b);
 
 // I16 comparisons
-Bool I16_eq(I16 a, I16 b);
 I64 I16_cmp(I16 a, I16 b);
 
 // I16 conversions
@@ -133,20 +93,10 @@ I16 I16_from_i64_ext(const I64 *a);
 I16 I16_clone(const I16 *v);
 
 // U16 arithmetic
-U16 U16_add(U16 a, U16 b);
-U16 U16_sub(U16 a, U16 b);
-U16 U16_mul(U16 a, U16 b);
 U16 U16_div(U16 a, U16 b);
 U16 U16_mod(U16 a, U16 b);
-U16 U16_band(U16 a, U16 b);
-U16 U16_bor(U16 a, U16 b);
-U16 U16_bxor(U16 a, U16 b);
-U16 U16_bnot(U16 a);
-U16 U16_shl(U16 a, U16 b);
-U16 U16_shr(U16 a, U16 b);
 
 // U16 comparisons
-Bool U16_eq(U16 a, U16 b);
 I64 U16_cmp(U16 a, U16 b);
 
 // U16 conversions
@@ -159,20 +109,10 @@ U16 U16_from_i64_ext(const I64 *a);
 U16 U16_clone(const U16 *v);
 
 // I32 arithmetic
-I32 I32_add(I32 a, I32 b);
-I32 I32_sub(I32 a, I32 b);
-I32 I32_mul(I32 a, I32 b);
 I32 I32_div(I32 a, I32 b);
 I32 I32_mod(I32 a, I32 b);
-I32 I32_band(I32 a, I32 b);
-I32 I32_bor(I32 a, I32 b);
-I32 I32_bxor(I32 a, I32 b);
-I32 I32_bnot(I32 a);
-I32 I32_shl(I32 a, I32 b);
-I32 I32_shr(I32 a, I32 b);
 
 // I32 comparisons
-Bool I32_eq(I32 a, I32 b);
 I64 I32_cmp(I32 a, I32 b);
 
 // I32 conversions
@@ -185,13 +125,9 @@ I32 I32_from_i64_ext(const I64 *a);
 I32 I32_clone(const I32 *v);
 
 // F32 arithmetic
-F32 F32_add(F32 a, F32 b);
-F32 F32_sub(F32 a, F32 b);
-F32 F32_mul(F32 a, F32 b);
 F32 F32_div(F32 a, F32 b);
 
 // F32 comparisons
-Bool F32_eq(F32 a, F32 b);
 I64 F32_cmp(F32 a, F32 b);
 
 // F32 conversions
@@ -205,20 +141,10 @@ F32 str_parse_f32(const Str *s);
 F32 F32_clone(const F32 *v);
 
 // U32 arithmetic
-U32 U32_add(U32 a, U32 b);
-U32 U32_sub(U32 a, U32 b);
-U32 U32_mul(U32 a, U32 b);
 U32 U32_div(U32 a, U32 b);
 U32 U32_mod(U32 a, U32 b);
-U32 U32_band(U32 a, U32 b);
-U32 U32_bor(U32 a, U32 b);
-U32 U32_bxor(U32 a, U32 b);
-U32 U32_bnot(U32 a);
-U32 U32_shl(U32 a, U32 b);
-U32 U32_shr(U32 a, U32 b);
 
 // U32 comparisons
-Bool U32_eq(U32 a, U32 b);
 I64 U32_cmp(U32 a, U32 b);
 
 // U32 conversions
@@ -233,20 +159,10 @@ U32 U32_from_i64_ext(const I64 *a);
 U32 U32_clone(const U32 *v);
 
 // U64 arithmetic
-U64 U64_add(U64 a, U64 b);
-U64 U64_sub(U64 a, U64 b);
-U64 U64_mul(U64 a, U64 b);
 U64 U64_div(U64 a, U64 b);
 U64 U64_mod(U64 a, U64 b);
-U64 U64_band(U64 a, U64 b);
-U64 U64_bor(U64 a, U64 b);
-U64 U64_bxor(U64 a, U64 b);
-U64 U64_bnot(U64 a);
-U64 U64_shl(U64 a, U64 b);
-U64 U64_shr(U64 a, U64 b);
 
 // U64 comparisons
-Bool U64_eq(U64 a, U64 b);
 I64 U64_cmp(U64 a, U64 b);
 
 // U64 conversions

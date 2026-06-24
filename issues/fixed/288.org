@@ -1,6 +1,46 @@
 # priority: low
 # category: optimizations
-** WIP #288 core_func/core_proc: primitive intrinsics each codegen lowers natively
+** FIXED #288 core_func/core_proc: primitive intrinsics each codegen lowers natively
+
+*** Post-mortem (FIXED)
+
+  Delivered ~core_func~ / ~core_proc~: declaration forms for primitive
+  intrinsics that every backend lowers natively -- no emitted symbol, no
+  per-backend impl, inline-only by a typer-enforced invariant (a core_func may
+  never be dyn_fn'd / address-taken / FuncPtr'd / FFI'd). The trivial scalar
+  ops (add/sub/mul/eq/band/bor/bxor/bnot/shl/shr on the 9 numeric types) were
+  declared ~ext_func~ and implemented in src/c/ext.c, so gcc could not inline
+  across the TU boundary (no LTO) -- every `a.add(b)` emitted a real
+  `call U32_add`. They now lower to native C operators inline in compiled code
+  and are native-evaluated on the operand Values in the interpreter. Measured
+  perf improvement confirmed once the migration (B3) landed.
+
+  Root cause of the cost: the inline/link boundary was buried in builder.til;
+  the fix makes it source-visible (a `core_func` decl in src/core is inlined by
+  every backend; an `ext_func` is a real linked per-backend symbol) and removes
+  the call overhead from the compiler's hottest paths (loop indices, compares,
+  arithmetic).
+
+  Staging arc (each green on make test_two_pass): A keyword+AST+parser+typer
+  +enforcement; B1 interpreter native eval; B2 C backend inline lowering +
+  interpreter routing (+ the scalar-evaluator switch refactor); B3 migrate
+  src/core decls ext_func->core_func + skip the now-dead dyn wrappers; B4 delete
+  the dead impls from src/c/ext.c + ext.h. Kept as ext_func: div/mod
+  (zero-guarded), the to_*/from_* conversions, cmp/clone (dyn_fn'd). B4 also
+  dropped the never-bound u16/i16 bnot/shl/shr C impls (dead before #288 -- no
+  til method ever referenced them).
+
+  Gotcha for future readers: the wrapper-skip is a builder change, so it only
+  reaches boot/til.c on the SECOND self-apply. B3's merge committed a pass-1
+  boot that still carried the dead `_dyn` wrappers; harmless (never called) but
+  they still referenced the ext.c symbols. B4 therefore had to regenerate boot
+  to drop the wrappers BEFORE deleting the symbols -- otherwise bin/til_boot,
+  linked from the wrapper-bearing boot, fails on the missing symbols.
+
+  Regression tests: test/core_func_errors.til pins the inline-only enforcement
+  (dyn_fn / address-of / FuncPtr / FFI on a core_func is a hard typer error);
+  scalar-op correctness is covered by the full interpret-vs-compile suite, which
+  runs every op in both modes and compares (162/162 per stage).
 
 Related: follow-up to the container-perf thread -- unchecked accessors
   [[../fixed/284.org][#284]], for-in [[../fixed/287.org][#287]], and the
@@ -49,13 +89,16 @@ Related: follow-up to the container-perf thread -- unchecked accessors
     _dyn wrapper + closure were dead code that only kept the ext.c symbol alive.
     After this, boot/til.c has ZERO references to the migrated symbols (no call,
     no wrapper), which is exactly what makes B4 a clean delete.
-  - Commit B4 (Stage 5 delete): delete the now-dead trivial scalar impls from
-    src/c/ext.c -- nothing references them now that boot inlines, interpret
-    native-evals, and the dyn wrappers are gone (B3). Separate commit: B3's
-    boot is the first that drops every reference, so the symbol can only be
-    removed once B3's boot is the build base. This lands the last piece ->
-    moves the issue to fixed/. (div/mod, the to_* conversions and cmp/clone
-    stay ext_func; migrating those is an optional follow-up.)
+  - Commit B4 DONE (Stage 5 delete): deleted the now-dead trivial scalar impls
+    from src/c/ext.c and their src/c/ext.h prototypes -- nothing references them
+    now that boot inlines, interpret native-evals, and the dyn wrappers are gone
+    (B3). 78 migrated impls (add/sub/mul/eq/band/bor/bxor/bnot/shl/shr per the
+    migration) plus the 6 never-bound u16/i16 bnot/shl/shr orphans = 84 removed.
+    boot had to be regenerated first (so it drops the pass-1 dyn wrappers that
+    still referenced the symbols) before the ext.c link could lose them. 162/162
+    on make test_two_pass. (div/mod, the to_*/from_* conversions and cmp/clone
+    stay ext_func; migrating those is an optional follow-up.) This is the last
+    piece -> issue moved to fixed/.
 
 *** Motivation
 
