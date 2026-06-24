@@ -64,7 +64,7 @@
 
    Consequences:
    - every body pays 7x (or more) the cost of a single rebuild
-   - each pass clones every kept child into its own ~new_ch~ (see ~[[../open/144.org][#144]]~)
+   - each pass clones every kept child into its own ~new_ch~ (see ~[[./144.org][#144]]~)
    - the clones cascade through nested bodies recursively
    - most of the remaining ASAN leaks (~[[../open/109.org][#109]]~) trace back to these
      rebuilds
@@ -72,12 +72,12 @@
    Desired direction:
    - merge the desugar/insert passes into one walk per body
    - at each statement, apply all relevant transformations before moving on
-   - would also interact with ~[[../open/144.org][#144]]~: a single-pass rebuild lets
+   - would also interact with ~[[./144.org][#144]]~: a single-pass rebuild lets
      ~take_children~ / move-based reconstruction work without fighting
      seven separate consumers of the same vector
 
    Related:
-   - ~[[../open/144.org][#144]]~ clone-and-assign in each pass -- one pass would reduce but
+   - ~[[./144.org][#144]]~ clone-and-assign in each pass -- one pass would reduce but
      not eliminate the cost
    - ~[[../open/109.org][#109]]~ the leaks around ~body.children = new_ch~ are dominated by
      the number of times each body is rebuilt
