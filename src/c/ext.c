@@ -267,16 +267,12 @@ I32 til_setenv(const I8 *name, const I8 *value, I32 overwrite)
 I64 I64_clone(const I64 *v) { return *v; }
 
 // I64 arithmetic (shallow params, shallow return)
-I64 I64_div(I64 a, I64 b) { return (b == 0) ? 0 : a / b; }
-I64 I64_mod(I64 a, I64 b) { return (b == 0) ? 0 : a % b; }
 
 // I64 comparisons
 I64 I64_cmp(I64 a, I64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 
 // U8 arithmetic
-U8 U8_div(U8 a, U8 b) { return (b == 0) ? 0 : (U8)(a / b); }
-U8 U8_mod(U8 a, U8 b) { return (b == 0) ? 0 : (U8)(a % b); }
 
 // U8 comparisons
 I64 U8_cmp(U8 a, U8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -301,8 +297,6 @@ U8 U8_from_i64_ext(const I64 *a) { return (U8)*a; }
 U8 U8_clone(const U8 *v) { return *v; }
 
 // I8 arithmetic
-I8 I8_div(I8 a, I8 b) { return (b == 0) ? 0 : (I8)(a / b); }
-I8 I8_mod(I8 a, I8 b) { return (b == 0) ? 0 : (I8)(a % b); }
 
 // I8 comparisons
 I64 I8_cmp(I8 a, I8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -317,8 +311,6 @@ I8 I8_clone(const I8 *v) { return *v; }
 
 
 // I16 arithmetic
-I16 I16_div(I16 a, I16 b) { return (b == 0) ? 0 : (I16)(a / b); }
-I16 I16_mod(I16 a, I16 b) { return (b == 0) ? 0 : (I16)(a % b); }
 
 // I16 comparisons
 I64 I16_cmp(I16 a, I16 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -335,8 +327,6 @@ I16 I16_from_i64_ext(const I64 *a) { return (I16)*a; }
 I16 I16_clone(const I16 *v) { return *v; }
 
 // U16 arithmetic
-U16 U16_div(U16 a, U16 b) { return (b == 0) ? 0 : (U16)(a / b); }
-U16 U16_mod(U16 a, U16 b) { return (b == 0) ? 0 : (U16)(a % b); }
 
 // U16 comparisons
 I64 U16_cmp(U16 a, U16 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -351,8 +341,6 @@ U16 U16_from_i64_ext(const I64 *a) { return (U16)*a; }
 U16 U16_clone(const U16 *v) { return *v; }
 
 // I32 arithmetic
-I32 I32_div(I32 a, I32 b) { return (b == 0) ? 0 : a / b; }
-I32 I32_mod(I32 a, I32 b) { return (b == 0) ? 0 : a % b; }
 
 // I32 comparisons
 I64 I32_cmp(I32 a, I32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -369,7 +357,6 @@ I32 I32_from_i64_ext(const I64 *a) { return (I32)*a; }
 I32 I32_clone(const I32 *v) { return *v; }
 
 // F32 arithmetic
-F32 F32_div(F32 a, F32 b) { return (b == 0) ? 0 : a / b; }
 
 // F32 comparisons
 I64 F32_cmp(F32 a, F32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -422,8 +409,6 @@ F32 str_parse_f32(const Str *s) {
 F32 F32_clone(const F32 *v) { return *v; }
 
 // U32 arithmetic
-U32 U32_div(U32 a, U32 b) { return (b == 0) ? 0 : a / b; }
-U32 U32_mod(U32 a, U32 b) { return (b == 0) ? 0 : a % b; }
 
 // U32 comparisons
 I64 U32_cmp(U32 a, U32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
@@ -442,8 +427,6 @@ U32 U32_from_i64_ext(const I64 *a) { return (U32)*a; }
 U32 U32_clone(const U32 *v) { return *v; }
 
 // U64 arithmetic
-U64 U64_div(U64 a, U64 b) { return (b == 0) ? 0 : a / b; }
-U64 U64_mod(U64 a, U64 b) { return (b == 0) ? 0 : a % b; }
 
 // U64 comparisons
 I64 U64_cmp(U64 a, U64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
