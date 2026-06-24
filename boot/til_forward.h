@@ -3920,6 +3920,15 @@ Expr * priv___src_self_interpreter_til__ffi_call_ret_struct_def(FFIEntry * fe, C
 Bool priv___src_self_interpreter_til__ffi_shallow_type_info(void * atype, Str * type_name, U32 * size);
 Bool priv___src_self_interpreter_til__ffi_write_shallow_arg(Scope * scope, Value * v, void * atype, void * dst, Context * ctx);
 Bool priv___src_self_interpreter_til__ext_dispatch_ffi(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
+Str * priv___src_self_interpreter_til__scalar_op_cat(Str * t);
+Bool priv___src_self_interpreter_til__scalar_is_binop(Str * op);
+U64 priv___src_self_interpreter_til__scalar_apply_u64(Str * op, U64 a, U64 b);
+I64 priv___src_self_interpreter_til__scalar_apply_i64(Str * op, I64 a, I64 b);
+F32 priv___src_self_interpreter_til__scalar_apply_f32(Str * op, F32 a, F32 b);
+Value priv___src_self_interpreter_til__scalar_build_uint(Str * t, U64 v);
+Value priv___src_self_interpreter_til__scalar_build_int(Str * t, I64 v);
+Value priv___src_self_interpreter_til__scalar_read_arg(Scope * scope, Expr * arg, Str * type_str, Context * ctx);
+Bool priv___src_self_interpreter_til__scalar_core_op_eval(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
 Bool priv___src_self_interpreter_til__ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
 void priv___src_self_interpreter_til__ffi_register(Str * name, void * fn, Expr * fdef, Context * ctx);
 void ffi_init_scan_program(Expr * program, Context * ctx);

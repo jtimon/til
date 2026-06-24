@@ -916,6 +916,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
         if type_name == "Dynamic" { return shallow_copy_value(val) }
         if type_name == "I64" { ref v : I64 = p; return Value.Int(v) }
         if type_name == "U8" { ref v : U8 = p; return Value.Byte(v) }
+        if type_name == "I8" { ref v : I8 = p; return Value.Sbyte(v) }
         if type_name == "I16" { ref v : I16 = p; return Value.Short(v) }
         if type_name == "U16" { ref v : U16 = p; return Value.Ushort(v) }
         if type_name == "I32" { ref v : I32 = p; return Value.Int32(v) }
@@ -5421,9 +5422,163 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     return true
 }
 
+// #288 Stage 4: native interpreter evaluation of the scalar primitive ISA.
+// A scalar op call like `a.mul(b)` reaches ext_function_dispatch as the flat
+// name "U32_mul". Rather than dlsym'ing the ext.c symbol (a slow libffi round
+// trip) we compute the result directly on the operand Values, matching the
+// exact C semantics in src/c/ext.c: modular wrapping at the type width and
+// signed-vs-unsigned shifts. This is the interpreter half of the core_func
+// ISA -- once src/core's scalar ops migrate ext_func -> core_func and their
+// ext.c symbols are deleted, this is the ONLY path. It is already live for the
+// ext_func ops, so the whole suite (interpret + both-mode compare) proves it
+// matches ext.c. div/mod (zero-guarded), the to_* conversions, cmp and clone
+// are NOT handled here and keep dispatching to their ext.c symbols.
+
+// Category of a scalar type name: "u" unsigned int, "i" signed int, "f" F32;
+// "" for anything that is not one of the nine numeric primitives.
+priv scalar_op_cat := func(t: Str) returns Str {
+    if t == "U8" { return "u" }
+    if t == "U16" { return "u" }
+    if t == "U32" { return "u" }
+    if t == "U64" { return "u" }
+    if t == "I8" { return "i" }
+    if t == "I16" { return "i" }
+    if t == "I32" { return "i" }
+    if t == "I64" { return "i" }
+    if t == "F32" { return "f" }
+    return ""
+}
+
+priv scalar_is_binop := func(op: Str) returns Bool {
+    if op == "add" { return true }
+    if op == "sub" { return true }
+    if op == "mul" { return true }
+    if op == "band" { return true }
+    if op == "bor" { return true }
+    if op == "bxor" { return true }
+    if op == "shl" { return true }
+    if op == "shr" { return true }
+    return false
+}
+
+// Compute the binary op at U64 width (unsigned ops: the low bits are correct
+// for every narrower unsigned type after truncation in scalar_build_uint).
+priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
+    if op == "add" { return a.add(b) }
+    if op == "sub" { return a.sub(b) }
+    if op == "mul" { return a.mul(b) }
+    if op == "band" { return a.band(b) }
+    if op == "bor" { return a.bor(b) }
+    if op == "bxor" { return a.bxor(b) }
+    if op == "shl" { return a.shl(b) }
+    if op == "shr" { return a.shr(b) }
+    panic(__LOC__, ": scalar_apply_u64: unhandled op ", op)
+    return a
+}
+
+// Compute the binary op at I64 width (signed: arithmetic shr sign-extends;
+// scalar_build_int truncates to the narrower signed type).
+priv scalar_apply_i64 := func(op: Str, a: I64, b: I64) returns I64 {
+    if op == "add" { return a.add(b) }
+    if op == "sub" { return a.sub(b) }
+    if op == "mul" { return a.mul(b) }
+    if op == "band" { return a.band(b) }
+    if op == "bor" { return a.bor(b) }
+    if op == "bxor" { return a.bxor(b) }
+    if op == "shl" { return a.shl(b) }
+    if op == "shr" { return a.shr(b) }
+    panic(__LOC__, ": scalar_apply_i64: unhandled op ", op)
+    return a
+}
+
+priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
+    if op == "add" { return a.add(b) }
+    if op == "sub" { return a.sub(b) }
+    if op == "mul" { return a.mul(b) }
+    panic(__LOC__, ": scalar_apply_f32: unhandled op ", op)
+    return a
+}
+
+// Truncate a U64 result to the unsigned type's width and box it.
+priv scalar_build_uint := func(t: Str, v: U64) returns shallow Value {
+    iv := v.cast(I64)
+    if t == "U8" { return val_u8(iv) }
+    if t == "U16" { return val_u16(iv) }
+    if t == "U32" { return val_u32(iv) }
+    return Value.Uint64(v)
+}
+
+// Truncate an I64 result to the signed type's width and box it.
+priv scalar_build_int := func(t: Str, v: I64) returns shallow Value {
+    if t == "I8" { return val_i8(v) }
+    if t == "I16" { return val_i16(v) }
+    if t == "I32" { return val_i32(v) }
+    return Value.Int(v)
+}
+
+// Evaluate `arg` and, if it is a borrowed Value.Ref (e.g. an unsafe_get
+// element view or a `ref` binding), narrow it to the scalar Value for
+// `type_str` -- the same deref the dlsym path did for by-value ext params. A
+// non-ref scalar Value passes through unchanged.
+priv scalar_read_arg := proc(scope: Scope, arg: Expr, type_str: Str, ctx: Context) returns shallow Value {
+    return reinterpret_ptr_value(eval_expr(scope, arg, ctx), type_str, scope, ctx, false)
+}
+
+priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
+    us := name.find("_")
+    if us < 0 { return false }
+    u_pos : USize = us.to_usize()
+    zero : USize = 0
+    type_str := name.substr(zero, u_pos)
+    cat := scalar_op_cat(type_str)
+    if cat == "" { return false }
+    op_start := u_pos.add(1)
+    op_str := name.substr(op_start, name.len().sub(op_start))
+
+    // eq: binary comparison -> Bool.
+    if op_str == "eq" {
+        av := scalar_read_arg(scope, e.children[1], type_str, ctx)
+        bv := scalar_read_arg(scope, e.children[2], type_str, ctx)
+        if cat == "u" { result = Value.Boolean(value_to_u64(av).eq(value_to_u64(bv))); return true }
+        if cat == "i" { result = Value.Boolean(value_as_i64(av).eq(value_as_i64(bv))); return true }
+        result = Value.Boolean(value_to_f32(av).eq(value_to_f32(bv)))
+        return true
+    }
+
+    // bnot: unary bitwise complement (integer only).
+    if op_str == "bnot" {
+        av := scalar_read_arg(scope, e.children[1], type_str, ctx)
+        if cat == "u" { result = scalar_build_uint(type_str, value_to_u64(av).bnot()); return true }
+        if cat == "i" { result = scalar_build_int(type_str, value_as_i64(av).bnot()); return true }
+        return false
+    }
+
+    if scalar_is_binop(op_str) {
+        av := scalar_read_arg(scope, e.children[1], type_str, ctx)
+        bv := scalar_read_arg(scope, e.children[2], type_str, ctx)
+        if cat == "u" {
+            result = scalar_build_uint(type_str, scalar_apply_u64(op_str, value_to_u64(av), value_to_u64(bv)))
+            return true
+        }
+        if cat == "i" {
+            result = scalar_build_int(type_str, scalar_apply_i64(op_str, value_as_i64(av), value_as_i64(bv)))
+            return true
+        }
+        // cat == "f": only add/sub/mul exist on F32 (no bitwise/shift).
+        if (op_str == "add").or(op_str == "sub").or(op_str == "mul") {
+            result = Value.Float(scalar_apply_f32(op_str, value_to_f32(av), value_to_f32(bv)))
+            return true
+        }
+        return false
+    }
+
+    return false
+}
+
 priv ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if ctx.dispatch_inited.not() { dispatch_init(ctx) }
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
+    if scalar_core_op_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
 priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {

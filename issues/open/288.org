@@ -15,23 +15,35 @@ Related: follow-up to the container-perf thread -- unchecked accessors
   the same commit that INTRODUCES it -- HEAD's til_boot can't parse it; see
   doc/self.org "Staged migration across master merges").
 
-  - WIP commit A (Stages 1-2, `Two-pass:`): the keyword + AST + parser, the
-    typer treating CoreFunc/CoreProc exactly like ExtFunc/ExtProc (initer,
-    constfolder/context foldables, comptime, UFCS, ownership, is_builtin,
-    unused-param), and the inline-only ENFORCEMENT -- dyn_fn on a core_func/
-    core_proc is a typer error (the one path that turns a (type, method) pair
-    into a funcptr, so it also blocks the FuncPtr-field/function-pointer
-    vectors). src/core stays on ext_func; the builder and interpreter are
-    NOT touched yet, so make test stays green. Tested by
-    test/core_func_errors.til (2 expected typer errors). Must land on master
-    before commit B is authored.
-  - Commit B (Stages 3-5, after A merges): C backend lowers core_func calls
-    to native operators + skips symbol/wrapper emission (Stage 3);
-    interpreter evaluates the core_func ISA natively (Stage 4); flip the
-    direct-only scalar ops in src/core/<type>.til from ext_func to core_func
-    and delete the now-dead trivial impls from src/c/ext.c (Stage 5). The
-    full suite exercises lowering + native eval once src/core uses core_func.
-    This commit lands the last piece -> moves the issue to fixed/.
+  - Commit A DONE (merged, master 03ecda4): Stages 1-2 -- keyword + AST +
+    parser, the typer treating CoreFunc/CoreProc exactly like ExtFunc/ExtProc,
+    and the inline-only ENFORCEMENT (dyn_fn on a core_func/core_proc is a typer
+    error). src/core stays on ext_func; builder/interpreter untouched. Tested
+    by test/core_func_errors.til.
+  - Commit B1 DONE (Stage 4, `Two-pass:`): the interpreter evaluates the scalar
+    primitive ISA natively -- a flat dispatch name like "U32_mul" computes on
+    the operand Values (modular wrap at the type width, signed-vs-unsigned
+    shifts) instead of dlsym'ing ext.c. Handles add/sub/mul/eq/band/bor/bxor/
+    bnot/shl/shr for the nine numeric types; div/mod (zero-guarded), the to_*
+    conversions, cmp and clone keep dlsym'ing ext.c. It is LIVE for the
+    ext_func ops now, so the whole suite (interpret + both-mode compare) proves
+    it matches ext.c. Also fixes a pre-existing gap: the missing I8 case in
+    reinterpret_ptr_value (so an `unsafe_get` ref-I8 operand narrows).
+  - Commit B2 (Stage 3 + routing): the C backend lowers a core_func call to a
+    native C operator and skips its symbol/wrapper/body emission; the
+    interpreter routes a core_func method call into the flat dispatch (so B1's
+    native eval handles it). Dormant until B3. Must land before the migration
+    (HEAD's builder cannot emit a core_func body otherwise).
+  - Commit B3 (Stage 5 migrate): flip the direct-only scalar ops in
+    src/core/<type>.til (add/sub/mul/eq/band/bor/bxor/bnot/shl/shr) from
+    ext_func to core_func, KEEPING ext.c for now. Compiled inlines (B2);
+    interpret native-evals (B1). The full suite exercises both.
+  - Commit B4 (Stage 5 delete): delete the now-dead trivial scalar impls from
+    src/c/ext.c -- nothing references them once boot inlines and interpret
+    native-evals. Separate commit: B3's pre-migration boot still calls
+    U32_mul, so deleting the symbol earlier breaks the pass-1 link. This lands
+    the last piece -> moves the issue to fixed/. (div/mod, the to_* conversions
+    and cmp/clone stay ext_func; migrating those is an optional follow-up.)
 
 *** Motivation
 
