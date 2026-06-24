@@ -2035,6 +2035,186 @@ priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: 
     parent.children[idx] = folded
 }
 
+// Issue #262: statement-inlining for non-inlinable-but-single-exit lazy
+// bodies. A body `{ <safe prelude statements> <inlinable tail> }` (e.g.
+// `x := f(a); return x.and(b)`) cannot become a single expression, so at a
+// statement-position call (a Decl RHS or a Return operand) we splice the
+// prelude into a fresh block and route the tail through a result temp:
+//   r := lazyf(p, q)
+// becomes
+//   mut _lzr_N : R = <default>
+//   { x := f(p); _lzr_N = <tail expr> }
+//   r := _lzr_N
+// The block scopes the body's locals (so repeated calls don't collide), the
+// prelude runs unconditionally (matching the body), and the tail expr is
+// short-circuited by the expression inliner below. Call-by-name, zero runtime
+// cost. First-class / loop / early-return bodies are NOT handled here.
+mut lazy_stmt_temp_counter := 0
+
+priv lazy_call_arity_ok := func(call: Expr, fdef: Expr) returns Bool {
+    mut is_method := false
+    switch call.children[0].node_type {
+    case NodeType.FieldAccess: is_method = call.children[0].children.len() == 1
+    case:
+    }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.variadic_index >= 0 { return false }
+        mut nargs := call.children.len().sub(1)
+        if is_method { nargs = call.children.len() }
+        return nargs == fd.params.len()
+    case: return false
+    }
+}
+
+priv lazy_build_subs := func(call: Expr, fdef: Expr) returns Map(Str, Expr) {
+    mut subs := Map(Str, Expr).new()
+    mut is_method := false
+    ref callee : Expr = call.children[0]
+    switch callee.node_type {
+    case NodeType.FieldAccess: is_method = callee.children.len() == 1
+    case:
+    }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        for j in 0..fd.params.len() {
+            ref param : Declaration = fd.params[j]
+            if is_method.and(j.eq(0)) {
+                subs.set(param.name, own callee.children[0].clone())
+            } else {
+                mut arg_idx := j.add(1)
+                if is_method { arg_idx = j }
+                subs.set(param.name, own call.children[arg_idx].clone())
+            }
+        }
+    case:
+    }
+    return subs
+}
+
+priv lazy_make_temp_decl := func(name: Str, type_name: Str, own init: Expr, line: U32, col: U32) returns Expr {
+    mut dd := decl_typed(name = name, explicit_type = type_name, is_mut = true)
+    mut decl := Expr.new(NodeType.Decl(dd), line, col)
+    decl.add_child(own init)
+    return decl
+}
+
+priv lazy_make_assign := func(name: Str, own rhs: Expr, line: U32, col: U32) returns Expr {
+    mut a := Expr.new(NodeType.Assign(AssignData(name = name.clone())), line, col)
+    a.add_child(own rhs)
+    return a
+}
+
+// The fdef of a statement-inlinable lazy call at `call`, else NULL: a call to
+// a lazy callable whose body is NOT expression-inlinable but IS statement-
+// inlinable, with matching arity.
+priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope) returns ref Expr {
+    if call.node_type.is(NodeType.FCall).not() { return NULL }
+    if call.children.len() == 0 { return NULL }
+    mut lname := ""
+    switch call.children[0].node_type {
+    case NodeType.Ident(idn): lname = idn.ident_name()
+    case NodeType.FieldAccess(fa): lname = fa.field_access_name()
+    case:
+    }
+    if lname.len() == 0 { return NULL }
+    ref fdef : Expr = scope.lookup_func(lname)
+    if fdef.is_null() { return NULL }
+    ft := func_def_type(fdef)
+    if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { return NULL }
+    if fdef.children.len() == 0 { return NULL }
+    ref body : Expr = fdef.children[0]
+    if lazy_body_inlinable(body) { return NULL }
+    if lazy_body_stmt_inlinable(body).not() { return NULL }
+    if lazy_call_arity_ok(call, fdef).not() { return NULL }
+    return fdef
+}
+
+// Build `mut _lzr_N : R = default` + `{ <prelude>; _lzr_N = <tail> }`, push
+// both into `new`, and return the result Ident `_lzr_N`. NULL on failure.
+priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) returns Expr {
+    ref body : Expr = fdef.children[0]
+    split := lazy_body_split_point(body)
+    if split < 0 { return NULL }
+    sp : USize = split.cast(USize)
+    mut ret_type := ""
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd): ret_type = fd.return_type.clone()
+    case:
+    }
+    if ret_type.len() == 0 { return NULL }
+    line := call.line
+    col := call.col
+
+    subs := lazy_build_subs(call, fdef)
+    mut bclone := body.clone()
+    lazy_substitute_idents(bclone, subs)
+    nstmts := bclone.children.len()
+
+    // Tail expression from the substituted suffix [sp, nstmts).
+    mut tailb := Expr.new(NodeType.Body, line, col)
+    for i in sp..nstmts { tailb.add_child(own bclone.children[i].clone()) }
+    tail_expr := lazy_body_as_expr(tailb)
+    if tail_expr.is_null() { return NULL }
+
+    name := format("_lzr_", lazy_stmt_temp_counter.to_str())
+    lazy_stmt_temp_counter = lazy_stmt_temp_counter.add(1)
+
+    // The block: substituted prelude [0, sp) + `_lzr_N = tail`.
+    mut blk := Expr.new(NodeType.Body, line, col)
+    for i in 0..sp { blk.add_child(own bclone.children[i].clone()) }
+    blk.add_child(own lazy_make_assign(name, own tail_expr, line, col))
+
+    deflt := make_default_value_expr(ret_type, line, col)
+    new.push(own lazy_make_temp_decl(name, ret_type, own deflt, line, col))
+    new.push(own blk)
+    return Expr.new(ident_node(name), line, col)
+}
+
+// The value-position child of a statement that could hold a lazy call (a
+// Decl RHS or a Return operand), else NULL.
+priv lazy_stmt_value_slot := func(s: Expr) returns ref Expr {
+    switch s.node_type {
+    case NodeType.Decl:   if s.children.len() > 0 { return s.children[0] }
+    case NodeType.Return: if s.children.len() > 0 { return s.children[0] }
+    case:
+    }
+    return NULL
+}
+
+priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope) {
+    mut old := Vec(Expr).new()
+    old.move_from(body.children)
+    mut new := Vec(Expr).new()
+    for idx in 0..old.len() {
+        ref s : Expr = old[idx]
+        ref slot_call : Expr = lazy_stmt_value_slot(s)
+        mut handled := false
+        if slot_call.is_null().not() {
+            ref fdef : Expr = lazy_stmt_inlinable_call(slot_call, scope)
+            if fdef.is_null().not() {
+                result := lazy_build_prelude(slot_call, fdef, new)
+                if result.is_null().not() {
+                    s.children[0] = result
+                    new.push_take(old, idx)
+                    handled = true
+                }
+            }
+        }
+        if handled.not() { new.push_take(old, idx) }
+    }
+    body.children = new
+}
+
+priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32) {
+    if e.is_null() { return }
+    if depth > 256 { return }
+    if e.node_type.is(NodeType.Body) { lazy_stmt_inline_body(e, scope) }
+    for i in 0..e.children.len() {
+        lazy_stmt_inline_walk(e.children[i], scope, depth.add(1))
+    }
+}
+
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     expect(e.is_null().not(), "e is null")
     if depth > 256 { return }
@@ -2071,6 +2251,20 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
 }
 
 priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
+    // Pass 1: statement-inline non-inlinable (local-binding) lazy bodies so
+    // their inlinable tails are left for pass 2.
+    if lp.skip_core.not() {
+        for cu : ProgramUnit in lp.core_units {
+            lazy_stmt_inline_walk(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0)
+        }
+    }
+    for uu : ProgramUnit in lp.units {
+        lazy_stmt_inline_walk(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0)
+    }
+    for mf : Str in lp.mode_files {
+        lazy_stmt_inline_walk(lp.ctx.imported[mf].ast, lp.ctx.scope, 0)
+    }
+    // Pass 2: expression inlining of (now exposed) inlinable lazy calls.
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
             expand_lazy_in_expr(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0)

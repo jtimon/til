@@ -742,12 +742,13 @@ for mut k, v in terr_kvmut_map {
     println(v.to_str())
 }
 
-// #262: a lazy_func/lazy_proc body must be inlinable (single `return <expr>`,
-// `if/else` with single returns, or a guard chain). A body with a local
-// binding is not inlinable and is rejected until the thunk fallback exists.
+// #262: a lazy_func/lazy_proc body must be inline- or statement-inlinable
+// (a prelude of local bindings + an inlinable tail). A body with control
+// flow that is not a guard chain -- here a `while` loop -- is neither, and
+// is rejected until the thunk fallback exists.
 terr_bad_lazy := lazy_func(a: Bool, b: Bool) returns Bool {
-    both := a.and(b)
-    return both
+    while a { return b }
+    return false
 }
 
 // #294: a numeric conversion on a numeric literal is redundant -- the bare

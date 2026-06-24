@@ -1008,12 +1008,14 @@ priv lazy_is_guard := func(stmt: Expr) returns Bool {
     return lazy_single_return_body(stmt.children[1])
 }
 
-lazy_body_inlinable := func(body: Expr) returns Bool {
-    if body.node_type.is(NodeType.Body).not() { return false }
+// True when body.children[start..] forms an inlinable tail: a single
+// `return <expr>`, a single `if/else` with single returns, or a guard chain
+// `if c1 { return X1 } ... return Y`.
+priv lazy_stmts_inlinable := func(body: Expr, start: USize) returns Bool {
     n := body.children.len()
-    if n == 0 { return false }
+    if start >= n { return false }
     ref last : Expr = body.children[n - 1]
-    if n == 1 {
+    if start == n - 1 {
         switch last.node_type {
         case NodeType.Return:
             return last.children.len() >= 1
@@ -1025,13 +1027,55 @@ lazy_body_inlinable := func(body: Expr) returns Bool {
             return false
         }
     }
-    // n >= 2: a guard chain ends in `return Y`, preceded by `if c { return X }`
-    // guards.
+    // start < n-1: a guard chain ends in `return Y`, preceded by guards.
     if last.node_type.is(NodeType.Return).not().or(last.children.len() < 1) { return false }
-    for i in 0..n - 1 {
+    for i in start..n - 1 {
         if lazy_is_guard(body.children[i]).not() { return false }
     }
     return true
+}
+
+lazy_body_inlinable := func(body: Expr) returns Bool {
+    if body.node_type.is(NodeType.Body).not() { return false }
+    if body.children.len() == 0 { return false }
+    return lazy_stmts_inlinable(body, 0)
+}
+
+// A statement safe to splice as an unconditional prelude when statement-
+// inlining a lazy body: a local decl, an assignment, or a call. Control flow
+// and returns are excluded (an early return or a loop can't be flattened).
+priv lazy_is_safe_prelude := func(stmt: Expr) returns Bool {
+    switch stmt.node_type {
+    case NodeType.Decl:        return true
+    case NodeType.Assign:      return true
+    case NodeType.FieldAssign: return true
+    case NodeType.FCall:       return true
+    case:                      return false
+    }
+}
+
+// Issue #262: the split index for a statement-inlinable lazy body --
+// `{ <safe prelude statements> <inlinable tail> }`. The prefix [0, k) is a
+// non-empty run of safe-prelude statements (local bindings, assignments,
+// calls) and the suffix [k, n) is an inlinable tail. Returns -1 when the body
+// is not statement-inlinable (already inlinable with no prefix, all-prelude
+// with no tail, or a prefix containing control flow / early returns).
+lazy_body_split_point := func(body: Expr) returns I32 {
+    if body.node_type.is(NodeType.Body).not() { return -1 }
+    n := body.children.len()
+    mut k : USize = 0
+    while k < n {
+        if lazy_is_safe_prelude(body.children[k]).not() { break }
+        k = k.add(1)
+    }
+    if k == 0 { return -1 }
+    if k >= n { return -1 }
+    if lazy_stmts_inlinable(body, k).not() { return -1 }
+    return k.cast(I32)
+}
+
+lazy_body_stmt_inlinable := func(body: Expr) returns Bool {
+    return lazy_body_split_point(body) >= 0
 }
 
 // --- ast_print ---

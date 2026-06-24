@@ -70,25 +70,45 @@ v1 status (implemented):
         after it.
     til's ~if~ is a statement (not a value-expression), hence the rewrite to
     ~match~. All these inline at zero runtime cost and short-circuit.
+  - Statement-inlining (zero-cost; covers the common local-binding case
+    without thunks). A single-exit body that is NOT a single expression --
+    a prelude of safe statements (local bindings, assignments, calls)
+    followed by an inlinable tail, e.g. ~x := f(a); return x.and(b)~ -- is
+    inlined at statement-position calls (a Decl RHS or Return operand): the
+    substituted prelude goes into a fresh block and the tail flows through a
+    result temp:
+        r := lazyf(p, q)
+      becomes
+        mut _lzr_N : R = <default>
+        { x := f(p); _lzr_N = <tail expr> }
+        r := _lzr_N
+    The block scopes the body's locals (so repeated calls don't collide), the
+    prelude runs unconditionally (matching the body), and the tail is
+    short-circuited by the expression inliner. ~lazy_body_split_point~ /
+    ~lazy_body_stmt_inlinable~ (src/core/ast.til) classify the shape;
+    ~lazy_stmt_inline_walk~ (src/self/loader.til) does the rewrite, a pre-typer
+    pass that runs before the expression inliner. Call-by-name, semantically
+    exact. Verified short-circuit: in ~x := costly(a); return x.and(b)~,
+    ~costly(a)~ runs once (used unconditionally) and ~b~ only when reached.
   - Non-inlinable lazy bodies HARD-ERROR instead of silently degrading to an
-    eager call. ~lazy_body_inlinable~ (src/core/ast.til) is the shared shape
-    predicate; the typer rejects anything outside the shapes above in
-    ~infer_func_def_expr~ before the body is lowered. This makes the current
-    limitation loud and is the placeholder the thunk fallback will replace
-    with a real lowering. Bodies still needing thunks: those with local
-    bindings between/around the returns, loops, and first-class/recursive use.
+    eager call. The typer (~infer_func_def_expr~) rejects any body that is
+    neither ~lazy_body_inlinable~ nor ~lazy_body_stmt_inlinable~ -- i.e. loops,
+    early returns, and first-class/recursive use. These are the only cases
+    left; they need the thunk fallback (or are genuinely rare/exotic).
   - Regression test: test/lazy.til (functional and/or, nested lazy calls,
     core Bool and/or, operator syntax, N-ary fold and its short-circuit,
-    if/else-body and guard-chain lazy funcs and their short-circuit, decisive
-    short-circuit proofs where an unused side-effecting argument must not run,
-    and a throwing call in a lazy and/or argument that must compile and
-    short-circuit). Negative: test/typer_errors.til (terr_bad_lazy, a body
-    with a local binding) checks the non-inlinable hard error.
+    if/else-body and guard-chain lazy funcs, statement-inlined local-binding
+    bodies and their short-circuit, decisive short-circuit proofs where an
+    unused side-effecting argument must not run, and a throwing call in a lazy
+    and/or argument that must compile and short-circuit). Negative:
+    test/typer_errors.til (terr_bad_lazy, a ~while~-loop body) checks the
+    non-inlinable hard error.
 
-Next, IN PROGRESS (decided -- the thunk fallback, Design 2 below):
-  - Build the thunk fallback so any non-inlinable lazy body works: a body
-    with local bindings, loops, or first-class/recursive use (each currently
-    a hard error) lowers by wrapping each arg in a ~() -> T~ closure at the
+Remaining (deferred -- only first-class / loop / early-return bodies left):
+  - The thunk fallback (Design 2 below) for the genuinely-non-inlinable cases
+    that statement-inlining does not cover: loops, early returns inside
+    control flow, and FIRST-CLASS lazy callables (storing/passing one as a
+    value). It would lower by wrapping each arg in a ~() -> T~ closure at the
     call site, forcing on use. Type-directed, in the typer/desugarer:
     free-variable analysis (none exists yet -- captures are explicit, so it
     must be written), synthesized capturing closures per arg, auto-force at

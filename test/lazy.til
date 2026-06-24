@@ -34,6 +34,14 @@ gchain := lazy_func(a: Bool, b: Bool, c: Bool) returns Bool {
     return a
 }
 
+# A body with a local binding before the inlinable tail is statement-inlined:
+# the prelude (`x := costly(a)`) runs in a fresh block, the tail short-circuits.
+costly := func(v: Bool) returns Bool { eval_count = eval_count.add(1); return v }
+stmt_and := lazy_func(a: Bool, b: Bool) returns Bool {
+    x := costly(a)
+    return x.and(b)
+}
+
 # --- functional correctness ---
 
 test_lazy_and := test() {
@@ -69,6 +77,27 @@ test_guard_chain_short_circuits := test() {
     r2 := gchain(false, false, bump())    # a,b false -> a; c (bump) never reached
     expect(r2.not(), "a,b false skips c")
     assert_eq(I64, eval_count, 0)
+}
+
+# --- statement-inlining: a local binding prelude + an inlinable tail ---
+
+test_stmt_inline := test() {
+    expect(stmt_and(true, true), "stmt T,T")
+    expect(stmt_and(true, false).not(), "stmt T,F")
+    expect(stmt_and(false, true).not(), "stmt F,T")
+}
+
+test_stmt_inline_short_circuits := test() {
+    # a=false -> x=costly(false)=false (1 eval), so x.and(bump()) skips bump().
+    eval_count = 0
+    r := stmt_and(false, bump())
+    expect(r.not(), "stmt false short-circuits b")
+    assert_eq(I64, eval_count, 1)         # only the prelude costly(a) ran
+    # a=true -> x=true (1 eval), b (bump) IS evaluated.
+    eval_count = 0
+    r2 := stmt_and(true, bump())
+    expect(r2, "stmt true evaluates b")
+    assert_eq(I64, eval_count, 2)         # costly(a) + bump()
 }
 
 # --- if/else-body lazy funcs: same results and same short-circuit as match ---
