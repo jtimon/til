@@ -86,3 +86,19 @@ test_block_capture_isolation := test() {
     assert_eq(I64, touched, 1)
     assert_eq(I64, untouched, 99)
 }
+
+// #295: a capturing closure is first-class -- callable by its own local name,
+// not only when passed through a parameter. (Previously the by-name call
+// typed as 'unknown' because the initer mis-registered it as a named func.)
+// Captures a runtime value (compile-time-constant captures hit a separate
+// const-folding edge tracked in #295).
+Adder295 := func(x: I64) returns I64
+mk_base295 := func() returns I64 { return 5 }
+test_capturing_closure_by_name := test() {
+    base := mk_base295()
+    add1 : Adder295 = func(x: I64) returns I64 [base] { return base.add(x) }
+    assert_eq(I64, add1(10), 15)
+    // also still works through a parameter
+    apply := func(f: Adder295) returns I64 { return f(10) }
+    assert_eq(I64, apply(add1), 15)
+}

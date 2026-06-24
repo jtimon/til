@@ -957,8 +957,19 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         }
         e.children = new_ch
         for i in 1..e.children.len() {
-            if e.children[i].expr_til_type().is(Type.Unknown) {
-                infer_expr(scope, e.children[i], in_func, ctx)
+            // Issue #295: a FuncDef's expr_til_type is FuncPtr (not Unknown),
+            // so a capturing-closure arg would skip inference and its body
+            // would never be typed against this (enclosing) scope -- losing the
+            // captured variables' types in codegen. Infer capturing closures
+            // here too so `n.add(1)` etc. resolve against the live scope.
+            ref ci : Expr = e.children[i]
+            mut needs_infer := ci.expr_til_type().is(Type.Unknown)
+            switch ci.node_type {
+            case NodeType.FuncDef(ci_fd): if ci_fd.captures.len() > 0 { needs_infer = true }
+            case:
+            }
+            if needs_infer {
+                infer_expr(scope, ci, in_func, ctx)
             }
         }
         for fi in 0..nfields {

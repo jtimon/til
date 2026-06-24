@@ -1,0 +1,117 @@
+# priority: medium
+# category: bugs
+** WIP #295 Capturing closures are not first-class: only call-through-param works
+
+Progress (partial fix landed):
+  FIXED:
+    - Call by local name (`add1()`). Root: the initer
+      (~register_function_def_for_stmt~) registered a capturing-closure Decl as
+      a named function and stripped its FuncSig annotation, so the call typed
+      as the funcptr type ("unknown") instead of the return type. Fix: skip
+      named-function registration when the FuncDef has captures, so the typer's
+      typed Decl path binds it as a FuncPtr value and the existing return-type
+      resolution fires. Works in both backends (interpret + compiled), at top
+      level and in-function (for runtime-valued captures).
+    - Capturing closure passed as a struct-constructor named arg: its body was
+      never type-inferred against the enclosing scope (a FuncDef's
+      expr_til_type is FuncPtr, not Unknown, so the ctor's "infer if Unknown"
+      guard skipped it), losing the captured variables' types in codegen
+      (`n.add(1)` -> `_add`). Fix: also infer capturing-closure ctor args
+      (~infer_struct_constructor_fcall_impl~). The simple struct-field call
+      `b.t()` now works COMPILED.
+    - Builder: a closure whose body does not reference any capture left
+      `til_env` unused under -Werror; emit `(void)til_env;`.
+  Regression test: test/closures.til (test_capturing_closure_by_name).
+
+  STILL BROKEN (remaining work):
+    - Interpreter, closure stored in a struct field (`b.t()`): "namespace field
+      is not a function". ~write_field~/~read_field~ (src/self/interpreter.til)
+      have no ~Value.Closure~ case, so the closure is dropped on store and read
+      back as a non-callable. Needs closure boxing on store + reconstruction on
+      read (distinguish func vs closure by whether the box has an env).
+    - Const-folder elides a COMPILE-TIME-CONSTANT captured local in-function
+      (compiled): `n := 5; ... [n] ...` -> `til_env->n = n` with `n` undeclared,
+      because the const-folder dropped the dead constant without knowing the
+      closure captures it. Narrow (runtime-valued captures are fine); fix:
+      mark captured locals used so they are not elided.
+    - Recursive lazy structure (`LazyNat` = head + `tail : () -> LazyNat`
+      capturing, forced recursively) still SEGFAULTS compiled -- a deeper
+      closure-env-lifetime issue beyond the above. This is the actual
+      lazy-list / alpha-beta target and needs its own investigation.
+
+A capturing closure (`func(...) returns T [x] { ... }`, captures non-empty)
+can only be CALLED when it flows through a function PARAMETER. Calling one by
+its own local name, or stored in a struct field, fails -- in the typer, the
+interpreter, and the builder. Non-capturing closures work everywhere. This
+blocks first-class thunks, and therefore lazy data structures (lazy lists,
+infinite streams, lazy game trees for alpha-beta pruning) -- the lazy-value
+direction that #262 (lazy_func/lazy_proc) is a step toward.
+
+Root cause (suspected): capturing lambdas are deliberately NOT lifted to a
+top-level closure -- they "stay inline" so their func scope chains to the
+enclosing scope where the captures live (~typer_is_lambda_target~ in
+src/self/desugarer.til returns false when ~captures.len() > 0~; see the
+comment there). That inline form is only wired up for the
+call-through-parameter path (where the callee is an explicit FuncPtr/
+FuncPtrSig-typed value). Calling the inline capturing lambda by local name or
+via a struct field is not handled by the typer (return type comes back
+~unknown~), the interpreter ("namespace field is not a function"), or the
+builder (the captured variable loses its type inside the generated closure
+body).
+
+Minimal repros (all use a trivial capture of an I64):
+
+  WORKS -- non-capturing, called by local name:
+      Adder := func() returns I64
+      add1 : Adder = func() returns I64 [] { return 42 }
+      println(add1().to_str())                 # 42
+
+  WORKS -- capturing, called through a parameter:
+      Adder := func() returns I64
+      apply := func(f: Adder) returns I64 { return f() }
+      n := 5
+      add1 : Adder = func() returns I64 [n] { return n.add(1) }
+      println(apply(add1).to_str())            # 6
+
+  FAILS (typer) -- capturing, called by local name:
+      Adder := func() returns I64
+      n := 5
+      add1 : Adder = func() returns I64 [n] { return n.add(1) }
+      println(add1().to_str())
+      # error: no method 'to_str' for type 'unknown'  (add1() types as unknown)
+
+  FAILS (interpreter + builder) -- capturing, stored in a struct field:
+      Thunk := func() returns I64
+      Box := struct { t : Thunk }
+      n := 5
+      b := Box(t = func() returns I64 [n] { return n.add(1) })
+      println(b.t().to_str())
+      # interpret: error: namespace field is not a function
+      # compile:   gen C closure body emits `_add` (implicit decl) and
+      #            `returning int from a function with return type I64 *`,
+      #            i.e. the captured `n`'s type is lost inside the closure.
+
+  FAILS (segfault, earlier observation) -- the lazy-stream that motivated
+  this: a `LazyNat` struct with `head : I64` and `tail : NatThunk` (a
+  capturing `() -> LazyNat` closure), forced recursively. It hits the
+  struct-field-capturing-closure path above.
+
+Fix sketch (3 sites, since capturing closures must become real first-class
+values, not stay inline):
+  - typer: a call whose callee is a capturing-closure-typed local / field
+    must resolve its return type from the FuncPtr/FuncPtrSig signature, like
+    the parameter path already does.
+  - interpreter: ~obj.field()~ where ~field~ holds a closure value must
+    dispatch a closure call, not look up a namespace method.
+  - builder: a capturing closure body must keep the captured variables'
+    types (the env field types) so method calls on them (e.g. ~n.add(1)~)
+    emit the right C (~til_I64_add~), and the return type must be handled
+    like the non-capturing case.
+  Likely the cleaner route is to LIFT capturing lambdas to env-backed
+  closures uniformly (the builder already has the env/closure_name codegen),
+  rather than keeping the inline/scope-chained form -- then all three call
+  sites use the one closure-value path.
+
+Regression test (to add with the fix): a new test exercising a capturing
+closure called by local name, via a struct field, and a small lazy list
+(head + thunk tail) forced for the first k elements.

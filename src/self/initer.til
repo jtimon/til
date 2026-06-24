@@ -1259,6 +1259,17 @@ priv register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: Typ
     ref def : Expr = stmt.children[0]
     if def.node_type.is(NodeType.FuncDef).not() { return }
 
+    // Issue #295: a capturing closure (captures non-empty) is a first-class
+    // closure VALUE, not a named function. Skip named-function registration so
+    // the typer's typed Decl path binds it as a FuncPtr(Sig) value
+    // (is_func_decl stays false) and types the body in this scope; then a call
+    // by local name resolves the closure's return type, the same way a call
+    // through a parameter already does. Non-capturing closures are real
+    // top-level functions and keep the existing registration.
+    switch def.node_type {
+    case NodeType.FuncDef(fd_cap): if fd_cap.captures.len() > 0 { return }
+    case:
+    }
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         if def.children.len() == 0 {
