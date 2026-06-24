@@ -1,0 +1,83 @@
+# priority: high
+# category: cleanups
+** FIXED #146 Unify typer desugar/insert passes into a single walk
+
+*** Post-mortem
+
+  Already resolved by the #158 ("one pass per phase") + #144 (move-based
+  reconstruction) work; this issue's description was stale. The 7 passes
+  it lists -- each rebuilding ~body.children~ with a full deep clone of
+  every kept child -- no longer exist as separate passes.
+
+  The desugar/insert transforms are now one function, ~body_pre_passes~
+  in src/self/desugarer.til, which:
+  - scans the body ONCE to detect what is present (set/map/array-vec
+    literals, variadic, kwargs, field-deletes) and early-outs when there
+    is nothing to do;
+  - then does a SINGLE rebuild that is MOVE-based (~old.move_from(body
+    .children)~ then ~new_ch.push_take(old, i)~ -- no per-kept-child
+    clone), applying literal / variadic / kwargs desugar + hoist +
+    field-assign deletes per statement in that one walk.
+
+  That is exactly this issue's "merge into one walk per body", "apply all
+  relevant transformations at each statement", and the #144 "take_children
+  / move-based reconstruction" it asked for. The six named passes
+  (~desugar_set_literals~, ~desugar_map_literals~, ~desugar_variadic_calls~,
+  ~desugar_kwargs_calls~, ~hoist_fcall_args~, ~insert_field_deletes~) are
+  gone as standalone functions.
+
+  Current per-body pipeline is three PHASE walks -- not redundant passes,
+  but real data dependencies:
+  1. inference walk (~infer_body_stmt~) types each statement; the
+     type-dependent desugars (for-in / switch / throw) interleave here
+     because they emit new nodes that need re-typing;
+  2. ~body_pre_passes~ -- the one move-based desugar+hoist+field-delete
+     walk above;
+  3. garbager ~insert_free_calls~ -- asap / scope-exit deletes, which need
+     whole-body live-range analysis.
+
+  The residual split (the for-in/switch/throw desugars living in
+  src/self/typer.til rather than the desugarer) is deliberate: commit
+  ~74b6ac2~ "Desugarer: keep type inference in the typer" moved them into
+  the typer precisely because they call ~infer_expr~ and re-type their
+  emitted block. Collapsing the remaining phase walks further, or moving
+  those desugars to the desugarer (so the desugarer types its own output),
+  is a separate architectural decision, not part of #146's stated ask.
+
+  No new regression test: the consolidation was covered by the full suite
+  when #158/#144 landed; this commit only closes the now-satisfied issue.
+
+*** Original report (for history)
+
+  ~infer_body~ in typer.til (lines 2489-2495) runs 7 separate passes in
+   sequence over every body, each rebuilding ~body.children~ with a full
+   deep clone of kept children:
+   - ~desugar_set_literals~
+   - ~desugar_map_literals~
+   - ~desugar_variadic_calls~
+   - ~desugar_kwargs_calls~
+   - ~hoist_fcall_args~
+   - ~insert_field_deletes~
+   - ~insert_free_calls~
+
+   Plus ~insert_exit_deletes~ runs from other call sites.
+
+   Consequences:
+   - every body pays 7x (or more) the cost of a single rebuild
+   - each pass clones every kept child into its own ~new_ch~ (see ~[[../open/144.org][#144]]~)
+   - the clones cascade through nested bodies recursively
+   - most of the remaining ASAN leaks (~[[../open/109.org][#109]]~) trace back to these
+     rebuilds
+
+   Desired direction:
+   - merge the desugar/insert passes into one walk per body
+   - at each statement, apply all relevant transformations before moving on
+   - would also interact with ~[[../open/144.org][#144]]~: a single-pass rebuild lets
+     ~take_children~ / move-based reconstruction work without fighting
+     seven separate consumers of the same vector
+
+   Related:
+   - ~[[../open/144.org][#144]]~ clone-and-assign in each pass -- one pass would reduce but
+     not eliminate the cost
+   - ~[[../open/109.org][#109]]~ the leaks around ~body.children = new_ch~ are dominated by
+     the number of times each body is rebuilt
