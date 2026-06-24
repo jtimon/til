@@ -2188,7 +2188,7 @@ Str * I64_to_str(I64 val) {
         U64_inc(&ndigits);
         I64 hoisted__I64_1909 = 10;
         (void)hoisted__I64_1909;
-        I64 hoisted__I64_1910 = I64_div(tmp, hoisted__I64_1909);
+        I64 hoisted__I64_1910 = ({ I64 _cf_a = tmp; I64 _cf_b = hoisted__I64_1909; (I64)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
         (void)hoisted__I64_1910;
         tmp = hoisted__I64_1910;
     }
@@ -2222,7 +2222,7 @@ Str * I64_to_str(I64 val) {
         }
         I64 hoisted__I64_1915 = 10;
         (void)hoisted__I64_1915;
-        I64 hoisted__I64_1916 = I64_mod(v, hoisted__I64_1915);
+        I64 hoisted__I64_1916 = ({ I64 _cf_a = v; I64 _cf_b = hoisted__I64_1915; (I64)((_cf_b == 0) ? 0 : (_cf_a % _cf_b)); });
         (void)hoisted__I64_1916;
         I64 hoisted__I64_1917 = 48;
         (void)hoisted__I64_1917;
@@ -2238,7 +2238,7 @@ Str * I64_to_str(I64 val) {
         memcpy(hoisted__v_1919, &hoisted__U8_1920, hoisted__U64_1921);
         I64 hoisted__I64_1922 = 10;
         (void)hoisted__I64_1922;
-        I64 hoisted__I64_1923 = I64_div(v, hoisted__I64_1922);
+        I64 hoisted__I64_1923 = ({ I64 _cf_a = v; I64 _cf_b = hoisted__I64_1922; (I64)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
         (void)hoisted__I64_1923;
         v = hoisted__I64_1923;
         U64_dec(&i);
@@ -6542,16 +6542,6 @@ U8 I64_to_u8_dyn(void *til_env, void *_a0) {
     return I64_to_u8(*(I64 *)_a0);
 }
 static __attribute__((unused)) TilClosure I64_to_u8_dyn__til_closure = { (void *)I64_to_u8_dyn, NULL, NULL };
-I64 I64_div_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return I64_div(*(I64 *)_a0, *(I64 *)_a1);
-}
-static __attribute__((unused)) TilClosure I64_div_dyn__til_closure = { (void *)I64_div_dyn, NULL, NULL };
-I64 I64_mod_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return I64_mod(*(I64 *)_a0, *(I64 *)_a1);
-}
-static __attribute__((unused)) TilClosure I64_mod_dyn__til_closure = { (void *)I64_mod_dyn, NULL, NULL };
 I64 I64_cmp_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
     return I64_cmp(*(I64 *)_a0, *(I64 *)_a1);
@@ -7571,8 +7561,6 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Dynamic_delete_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)&I64_to_str_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "to_u8", 5ULL) == 0) return (void*)&I64_to_u8_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "div", 3ULL) == 0) return (void*)&I64_div_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "mod", 3ULL) == 0) return (void*)&I64_mod_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) return (void*)&I64_cmp_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&I64_clone_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&I64_delete_dyn__til_closure;

@@ -18,8 +18,8 @@ namespace:
     add := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     sub := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     mul := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
-    div := ext_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
-    mod := ext_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
+    div := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
+    mod := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     inc := func(mut self: U16) { self = self + 1 }
     dec := func(mut self: U16) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
