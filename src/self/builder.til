@@ -657,7 +657,7 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee.children[0].expr_til_type())
         if sname.len() == 0 { return false }
-        flat := sname.format("_", mname.field_access_name())
+        flat := sname.concat3("_", mname.field_access_name())
         if callee_returns_shallow(flat, ctx) { return true }
     case:
     }
@@ -683,7 +683,7 @@ priv fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee_node.children[0].expr_til_type())
         if sname.len() == 0 { return false }
-        flat := sname.format("_", mname.field_access_name())
+        flat := sname.concat3("_", mname.field_access_name())
         return callee_returns_dynamic(flat, ctx)
     case NodeType.Ident(ident): return callee_returns_dynamic(ident.ident_name(), ctx)
     case:
@@ -1150,7 +1150,7 @@ priv resolve_callee_name := func(fcall: Expr) returns Str {
     case NodeType.FieldAccess(mname):
         sname := til_type_name(callee_node.children[0].expr_til_type())
         if sname.len() == 0 { return "" }
-        return sname.format("_", mname.field_access_name())
+        return sname.concat3("_", mname.field_access_name())
     case NodeType.Ident(ident): return ident.ident_name()
     case:
         return ""
@@ -2729,7 +2729,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             sname := til_type_name(callee.children[0].expr_til_type())
             switch callee.node_type {
             case NodeType.FieldAccess(mname):
-                flat := sname.format("_", mname.field_access_name())
+                flat := sname.concat3("_", mname.field_access_name())
                 if builder_callee_is_core(flat, ctx) {
                     // #288 Stage 3: a core_func scalar op lowers to a native C
                     // operator inline -- no call, no symbol. The result cast is
@@ -3866,7 +3866,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: Lo
     // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
     if fdef.children.len() == 0 { return }
-    full_name := name.format("_", dd_name)
+    full_name := name.concat3("_", dd_name)
     emit_func_def(f, full_name, fdef, NULL, false, lp)
     f.write("\n")
 }
@@ -4402,7 +4402,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                             if fdd.default_value.is_null() { continue }
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
-                                full_name := dd.name.format("_", fdd.name)
+                                full_name := dd.name.concat3("_", fdd.name)
                                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
@@ -4439,7 +4439,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     for fdd : Declaration in fwd_ns {
                         if fdd.default_value.is_null() { continue }
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                        full_name := dd.name.format("_", fdd.name)
+                        full_name := dd.name.concat3("_", fdd.name)
                         emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                     }
                 } else if rhs.node_type.is(NodeType.FuncDef) {
@@ -5323,7 +5323,7 @@ priv register_lookups_prog := func(prog: Expr, ctx: Context) {
                     ref nsd : Declaration = d_j
                     if nsd.default_value.is_null() { continue }
                     if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    key := dd.name.format("_", nsd.name)
+                    key := dd.name.concat3("_", nsd.name)
                     if ctx.func_defs.has(key) { continue }
                     fv : Dynamic = malloc(I64.size().cast(U64))
                     write_ptr(fv, nsd.default_value)
@@ -5446,7 +5446,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
                                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
-                                full_name := dd.name.format("_", fdd.name)
+                                full_name := dd.name.concat3("_", fdd.name)
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
                             }
@@ -5491,7 +5491,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         switch fdd.default_value.node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
-                            full_name := dd.name.format("_", fdd.name)
+                            full_name := dd.name.concat3("_", fdd.name)
                             emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                         case:
                         }
@@ -5570,7 +5570,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
                                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
-                                full_name := dd.name.format("_", fdd.name)
+                                full_name := dd.name.concat3("_", fdd.name)
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
                             }
@@ -5610,7 +5610,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     for fdd : Declaration in afd_ns {
                         if fdd.default_value.is_null() { continue }
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                        full_name := dd.name.format("_", fdd.name)
+                        full_name := dd.name.concat3("_", fdd.name)
                         emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                     }
                 } else {
@@ -7011,7 +7011,7 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                         switch nsfdef.node_type {
                         case NodeType.FuncDef(nsfd):
                             if nsfd.func_type.is(FuncType.Test).not() { continue }
-                            full_name := dd.name.format("_", nsd.name)
+                            full_name := dd.name.concat3("_", nsd.name)
                             qual_name := dd.name.format(".", nsd.name)
                             f.write("    ").write(full_name).write("();\n")
                             f.write("    fprintf(stderr, \"  pass: %s\\n\", \"").write(qual_name).write("\");\n")

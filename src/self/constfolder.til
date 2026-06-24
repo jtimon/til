@@ -1052,7 +1052,7 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
-        qname := sname.format("_", mname.field_access_name())
+        qname := sname.concat3("_", mname.field_access_name())
         return constfolder_has_macro(ctx, qname)
     case:
         return false
@@ -1069,7 +1069,7 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     case NodeType.FieldAccess(mname):
         sname := fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
-        qname := sname.format("_", mname.field_access_name())
+        qname := sname.concat3("_", mname.field_access_name())
         return constfolder_has_func(ctx, qname)
     case:
         return false

@@ -25,6 +25,20 @@ format := func(parts: ..Str) returns Str {
     return out
 }
 
+/// Concatenate exactly three strings WITHOUT the variadic Array(Str) that
+/// `format` makes the caller build per call. One pre-sized result Str, no
+/// per-call Array alloc. Used on the hot flat-name path (`sname + "_" +
+/// method`) that the dispatch / codegen / scope lookups rebuild on every
+/// method resolution -- the self-host --prof run flagged Array__Str_new
+/// (1.6M allocs) as a top string-churn source.
+concat3 := func(a: Str, b: Str, c: Str) returns Str {
+    mut out := Str.with_capacity(a.len() + b.len() + c.len())
+    out.push_str(a)
+    out.push_str(b)
+    out.push_str(c)
+    return out
+}
+
 /// UTF-8 string with owned heap storage. The byte buffer is typed as
 /// I8 (= C `char`) so direct FFI bindings against `const char *` APIs
 /// can pass `s.c_str` without an intermediate pointer-cast helper.

@@ -1978,6 +1978,7 @@ void Array__Dynamic_delete(Array__Dynamic * self, Bool call_free);
 Array__Dynamic * Array__Dynamic_clone(Array__Dynamic * self);
 U32 Array__Dynamic_size(void);
 Str * format(Array__Str * parts);
+Str * concat3(Str * a, Str * b, Str * c);
 U32 Str_len(Str * self);
 I8 * Str_get(Str * self, U32 * i);
 I8 * Str_unsafe_get(Str * self, U32 * i);

@@ -1836,7 +1836,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 // the unqualified top-level name. Required for and/or/not.
                 mut flat_str := fn_name.field_access_name()
                 if sn.len() > 0 {
-                    flat_str = sn.format("_", fn_name.field_access_name())
+                    flat_str = sn.concat3("_", fn_name.field_access_name())
                 }
                 orig_callee_val := callee_expr.clone()
                 mut flat_ident2 := callee_expr.clone()
@@ -5675,7 +5675,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                             continue
                         }
                         if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
-                            flat_name := sdd.name.clone().format("_", fdd.name)
+                            flat_name := sdd.name.concat3("_", fdd.name)
                             ref fn_ptr : U8 = ffi_dlsym(flat_name)
                             if fn_ptr.is_null().not() {
                                 ffi_register(flat_name, fn_ptr, fdef, ctx)

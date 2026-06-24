@@ -631,7 +631,7 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                 ref fdd : Declaration = d_j
                 switch fdd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    qname := sdd.name.format("_", fdd.name)
+                    qname := sdd.name.concat3("_", fdd.name)
                     if ffd.func_type.is(FuncType.Macro) {
                         ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                     } else if ffd.func_type.is(FuncType.Func)
@@ -651,7 +651,7 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                 if nsd.default_value.is_null() { continue }
                 switch nsd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    qname := sdd.name.format("_", nsd.name)
+                    qname := sdd.name.concat3("_", nsd.name)
                     if ffd.func_type.is(FuncType.Macro) {
                         ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                     } else if ffd.func_type.is(FuncType.Func)
