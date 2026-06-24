@@ -3412,6 +3412,8 @@ Bool priv___src_self_builder_til__is_ext_h_type(Str * name);
 Bool priv___src_self_builder_til__is_exported_top_level_global(Expr * stmt);
 Expr * priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Expr * priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
+Bool priv___src_self_builder_til__builder_callee_is_core(Str * name, Context * ctx);
+Str * priv___src_self_builder_til__core_binop_to_c(Str * op);
 Str * priv___src_self_builder_til__fa_struct_name(Expr * e);
 Bool priv___src_self_builder_til__builder_fa_is_ptr_with_fname(Str * sname, Str * fname, Context * ctx);
 Bool priv___src_self_builder_til__builder_fa_is_ptr(Expr * e, Context * ctx);

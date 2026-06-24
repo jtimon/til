@@ -1870,7 +1870,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         case:
             UNREACHABLE()
         }
-        if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)) {
+        if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)) {
             parent_sname := til_type_name(callee_expr.children[0].expr_til_type())
             ref tc : Cell = scope_get(scope, parent_sname)
             if tc.is_null().not() {
@@ -5437,41 +5437,47 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
 // Category of a scalar type name: "u" unsigned int, "i" signed int, "f" F32;
 // "" for anything that is not one of the nine numeric primitives.
 priv scalar_op_cat := func(t: Str) returns Str {
-    if t == "U8" { return "u" }
-    if t == "U16" { return "u" }
-    if t == "U32" { return "u" }
-    if t == "U64" { return "u" }
-    if t == "I8" { return "i" }
-    if t == "I16" { return "i" }
-    if t == "I32" { return "i" }
-    if t == "I64" { return "i" }
-    if t == "F32" { return "f" }
+    switch t {
+    case "U8":  return "u"
+    case "U16": return "u"
+    case "U32": return "u"
+    case "U64": return "u"
+    case "I8":  return "i"
+    case "I16": return "i"
+    case "I32": return "i"
+    case "I64": return "i"
+    case "F32": return "f"
+    }
     return ""
 }
 
 priv scalar_is_binop := func(op: Str) returns Bool {
-    if op == "add" { return true }
-    if op == "sub" { return true }
-    if op == "mul" { return true }
-    if op == "band" { return true }
-    if op == "bor" { return true }
-    if op == "bxor" { return true }
-    if op == "shl" { return true }
-    if op == "shr" { return true }
+    switch op {
+    case "add": return true
+    case "sub": return true
+    case "mul": return true
+    case "band": return true
+    case "bor": return true
+    case "bxor": return true
+    case "shl": return true
+    case "shr": return true
+    }
     return false
 }
 
 // Compute the binary op at U64 width (unsigned ops: the low bits are correct
 // for every narrower unsigned type after truncation in scalar_build).
 priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
-    if op == "add" { return a.add(b) }
-    if op == "sub" { return a.sub(b) }
-    if op == "mul" { return a.mul(b) }
-    if op == "band" { return a.band(b) }
-    if op == "bor" { return a.bor(b) }
-    if op == "bxor" { return a.bxor(b) }
-    if op == "shl" { return a.shl(b) }
-    if op == "shr" { return a.shr(b) }
+    switch op {
+    case "add": return a.add(b)
+    case "sub": return a.sub(b)
+    case "mul": return a.mul(b)
+    case "band": return a.band(b)
+    case "bor": return a.bor(b)
+    case "bxor": return a.bxor(b)
+    case "shl": return a.shl(b)
+    case "shr": return a.shr(b)
+    }
     panic(__LOC__, ": scalar_apply_u64: unhandled op ", op)
     return a
 }
@@ -5479,22 +5485,26 @@ priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
 // Compute the binary op at I64 width (signed: arithmetic shr sign-extends;
 // scalar_build truncates to the narrower signed type).
 priv scalar_apply_i64 := func(op: Str, a: I64, b: I64) returns I64 {
-    if op == "add" { return a.add(b) }
-    if op == "sub" { return a.sub(b) }
-    if op == "mul" { return a.mul(b) }
-    if op == "band" { return a.band(b) }
-    if op == "bor" { return a.bor(b) }
-    if op == "bxor" { return a.bxor(b) }
-    if op == "shl" { return a.shl(b) }
-    if op == "shr" { return a.shr(b) }
+    switch op {
+    case "add": return a.add(b)
+    case "sub": return a.sub(b)
+    case "mul": return a.mul(b)
+    case "band": return a.band(b)
+    case "bor": return a.bor(b)
+    case "bxor": return a.bxor(b)
+    case "shl": return a.shl(b)
+    case "shr": return a.shr(b)
+    }
     panic(__LOC__, ": scalar_apply_i64: unhandled op ", op)
     return a
 }
 
 priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
-    if op == "add" { return a.add(b) }
-    if op == "sub" { return a.sub(b) }
-    if op == "mul" { return a.mul(b) }
+    switch op {
+    case "add": return a.add(b)
+    case "sub": return a.sub(b)
+    case "mul": return a.mul(b)
+    }
     panic(__LOC__, ": scalar_apply_f32: unhandled op ", op)
     return a
 }
@@ -5505,13 +5515,15 @@ priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
 // through `v.cast(U64)`. One builder for both signednesses (the two apply_*
 // helpers stay split because shr is logical vs arithmetic).
 priv scalar_build := func(t: Str, v: I64) returns shallow Value {
-    if t == "U8" { return val_u8(v) }
-    if t == "I8" { return val_i8(v) }
-    if t == "U16" { return val_u16(v) }
-    if t == "I16" { return val_i16(v) }
-    if t == "U32" { return val_u32(v) }
-    if t == "I32" { return val_i32(v) }
-    if t == "U64" { return Value.Uint64(v.cast(U64)) }
+    switch t {
+    case "U8":  return val_u8(v)
+    case "I8":  return val_i8(v)
+    case "U16": return val_u16(v)
+    case "I16": return val_i16(v)
+    case "U32": return val_u32(v)
+    case "I32": return val_i32(v)
+    case "U64": return Value.Uint64(v.cast(U64))
+    }
     return Value.Int(v)
 }
 

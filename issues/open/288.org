@@ -29,11 +29,14 @@ Related: follow-up to the container-perf thread -- unchecked accessors
     ext_func ops now, so the whole suite (interpret + both-mode compare) proves
     it matches ext.c. Also fixes a pre-existing gap: the missing I8 case in
     reinterpret_ptr_value (so an `unsafe_get` ref-I8 operand narrows).
-  - Commit B2 (Stage 3 + routing): the C backend lowers a core_func call to a
-    native C operator and skips its symbol/wrapper/body emission; the
-    interpreter routes a core_func method call into the flat dispatch (so B1's
-    native eval handles it). Dormant until B3. Must land before the migration
-    (HEAD's builder cannot emit a core_func body otherwise).
+  - Commit B2 DONE (Stage 3 + routing, `Two-pass:`): the C backend lowers a
+    core_func call to a native C operator and skips its symbol/wrapper/body
+    emission; the interpreter routes a core_func method call into the flat
+    dispatch (so B1's native eval handles it). Dormant until B3 (no core_func
+    in src/ yet), so the suite stays green by structure. Must land before the
+    migration (HEAD's builder cannot emit a core_func body otherwise). Also
+    folds B1's scalar evaluator if-chains into `switch` on the op/type string
+    (scalar_op_cat/scalar_is_binop/scalar_apply_u64/i64/f32/scalar_build).
   - Commit B3 (Stage 5 migrate): flip the direct-only scalar ops in
     src/core/<type>.til (add/sub/mul/eq/band/bor/bxor/bnot/shl/shr) from
     ext_func to core_func, KEEPING ext.c for now. Compiled inlines (B2);
