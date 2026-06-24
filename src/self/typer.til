@@ -1139,8 +1139,8 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                 ref arg_e : Expr = e.children[ci]
                 switch arg_e.node_type {
                 case NodeType.Ident(arg_id):
-                    ref mut arg_b : TypeBinding = scope.get_binding(ident_name(arg_id))
-                    if is_null(arg_b).not() { arg_b.written = true }
+                    ref mut arg_b : TypeBinding = scope.get_binding(arg_id.ident_name())
+                    if arg_b.is_null().not() { arg_b.written = true }
                 case NodeType.FieldAccess:
                     if arg_e.children.len() > 0 {
                         mark_field_assign_root_written(scope, arg_e.children[0])
@@ -2281,10 +2281,10 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
         return false
     }
     ref sig_bind : TypeBinding = scope.get_binding(sig_name)
-    if is_null(sig_bind) { return false }
+    if sig_bind.is_null() { return false }
     if sig_bind.type.is_funcptr().not() { return false }
     ref sig_def : Expr = scope.lookup_func(sig_bind.name)
-    if is_null(sig_def) { return false }
+    if sig_def.is_null() { return false }
     switch sig_def.node_type {
     case NodeType.FuncDef(sfd):
         nargs := e.children.len() - 1
@@ -3450,8 +3450,8 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        if is_null(scope.struct_def_of(b.name)).not() { continue }
-        if is_null(scope.lookup_func(b.name)).not() { continue }
+        if scope.struct_def_of(b.name).is_null().not() { continue }
+        if scope.lookup_func(b.name).is_null().not() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         if b.name.starts_with("hoisted__") { continue }
@@ -3846,8 +3846,8 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
 priv mark_field_assign_root_written := func(scope: TypeScope, obj: Expr) {
     switch obj.node_type {
     case NodeType.Ident(root_id):
-        ref mut rb : TypeBinding = scope.get_binding(ident_name(root_id))
-        if is_null(rb).not() { rb.written = true }
+        ref mut rb : TypeBinding = scope.get_binding(root_id.ident_name())
+        if rb.is_null().not() { rb.written = true }
     case NodeType.FieldAccess:
         if obj.children.len() > 0 {
             mark_field_assign_root_written(scope, obj.children[0])
@@ -5266,7 +5266,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     // so the write actually persists (find returns Value semantics).
     {
         ref mut ab_w : TypeBinding = scope.get_binding(aname)
-        if is_null(ab_w).not() { ab_w.written = true }
+        if ab_w.is_null().not() { ab_w.written = true }
     }
     sf_assign := scope.find(aname)
     mut is_ref_target := false

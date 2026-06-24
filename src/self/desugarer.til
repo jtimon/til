@@ -2675,8 +2675,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         if bind_is_mut {
                                             switch sw_ref.node_type {
                                             case NodeType.Ident(sw_idn2):
-                                                ref mut sw_b2 : TypeBinding = scope.get_binding(ident_name(sw_idn2))
-                                                if is_null(sw_b2).not() { sw_b2.written = true }
+                                                ref mut sw_b2 : TypeBinding = scope.get_binding(sw_idn2.ident_name())
+                                                if sw_b2.is_null().not() { sw_b2.written = true }
                                             case:
                                             }
                                         }
@@ -3161,7 +3161,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     root_name := lvalue_root_name(sw_expr)
     if root_name.len() > 0 {
         ref mut rb : TypeBinding = scope.get_binding(root_name)
-        if is_null(rb).not() {
+        if rb.is_null().not() {
             if rb.is_mut { rb.written = true }
         }
     }

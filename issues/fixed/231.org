@@ -1,0 +1,56 @@
+# priority: medium
+# category: cleanups
+** FIXED #231 Use UFCS for standalone functions throughout the codebase
+
+*** Post-mortem
+
+  til supports UFCS: ~x.func(args)~ desugars to ~func(x, args)~ via the
+  typer's ~try_ufcs_rewrite~. The seven enumerated standalone, first-param-
+  is-receiver helpers are now called UFCS-style everywhere (each reads as a
+  left-to-right pipeline instead of an inside-out ~func(x)~):
+
+  | Function          | prefix calls now |
+  |-------------------+------------------|
+  | is_null           |                0 |
+  | expr_til_type     |                0 |
+  | ident_name        |                0 |
+  | set_expr_til_type |                0 |
+  | field_access_name |                0 |
+  | ptr_eq            |                0 |
+  | literal_num_text  |                0 |
+
+  The bulk was converted incrementally across earlier commits;
+  examples/find_ufcs_opportunities.til (the AST-walker that flags
+  prefix-call opportunities) was written as planned. This final commit
+  converted the last 19 prefix calls -- 14 ~is_null(x)~ -> ~x.is_null()~
+  and 5 ~ident_name(id)~ -> ~id.ident_name()~ -- across builder.til,
+  desugarer.til, interpreter.til and typer.til (receivers were plain
+  idents or call results like ~scope.struct_def_of(b.name)~, all
+  UFCS-eligible).
+
+  Semantics-preserving: ~x.func()~ desugars straight back to ~func(x)~,
+  so the generated code is identical. No new regression test -- the full
+  suite (162/162, interp + compile) is the check, since these helpers are
+  exercised pervasively throughout the compiler.
+
+*** Plan (done)
+
+  - [x] Write examples/find_ufcs_opportunities.til (AST walker)
+  - [x] Convert is_null(x) -> x.is_null()
+  - [x] Convert expr_til_type(e) -> e.expr_til_type()
+  - [x] Convert ident_name(id) -> id.ident_name()
+  - [x] Convert set_expr_til_type(mut e, t) -> e.set_expr_til_type(t)
+  - [x] Convert field_access_name(fa) -> fa.field_access_name()
+  - [x] Convert ptr_eq(a, b) -> a.ptr_eq(b)
+  - [x] Convert literal_num_text(n) -> n.literal_num_text()
+  - [x] make test after each batch
+
+*** Original report (for history)
+
+  til supports Uniform Function Call Syntax: ~x.func(args)~
+  desugars to ~func(x, args)~. The typer's ~try_ufcs_rewrite~
+  handles this automatically. We use UFCS aggressively for
+  methods but almost never for standalone functions.
+
+  Example: ~is_null(x)~ reads worse than ~x.is_null()~. The
+  latter reads left-to-right as a pipeline.

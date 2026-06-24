@@ -142,7 +142,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         switch sf {
         case ScopeFind.Found(ftb):
             ref ftbfd : Expr = s.lookup_func(ftb.name)
-            if is_null(ftbfd) { return NULL }
+            if ftbfd.is_null() { return NULL }
             if ftbfd.children.len() != 0 { return NULL }
             return ftbfd
         case:
@@ -2679,7 +2679,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         if callee.node_type.is(NodeType.FCall) {
             if callee.expr_til_type().is_funcptr() {
                 ref sig_cc : Expr = fcall_fn_sig(e, ctx)
-                if is_null(sig_cc).not() {
+                if sig_cc.is_null().not() {
                     emit_fcall_closure_call(f, e, callee, sig_cc, depth, ctx)
                     return f
                 }
