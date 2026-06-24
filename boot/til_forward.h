@@ -2260,6 +2260,7 @@ void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free);
 Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self);
 U32 Vec__Declaration_size(void);
 Vec__Expr * Vec__Expr_new(void);
+Vec__Expr * Vec__Expr_with_capacity(U32 n);
 U32 Vec__Expr_len(Vec__Expr * self);
 void Vec__Expr_clear(Vec__Expr * self);
 void Vec__Expr_push(Vec__Expr * self, Expr * val);

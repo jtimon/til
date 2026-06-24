@@ -20,6 +20,18 @@ namespace:
         return Vec(T)(data = malloc(T.size().cast(U64)), cap = 1)
     }
 
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    with_capacity := func(n: USize) returns Vec(T) {
+        mut cap : USize = 1
+        if n > 0 { cap = n }
+        return Vec(T)(data = malloc(cap.mul(T.size()).cast(U64)), cap = cap)
+    }
+
     len := func(self: Vec(T)) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated

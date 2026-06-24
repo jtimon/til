@@ -27,7 +27,9 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
         }
         mut va_args := Vec(Expr).new()
         mut kw_args := Vec(Expr).new()
-        mut new_args := Vec(Expr).new()
+        // new_args is filled with exactly nparam placeholders below; pre-size
+        // it so that fill does zero reallocs (Vec grow-realloc churn).
+        mut new_args := Vec(Expr).with_capacity(nparam)
         for _ in 0..nparam {
             new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
         }
@@ -100,7 +102,10 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                 e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
             }
         }
-        mut new_ch := Vec(Expr).new()
+        // Rebuilt call args: callee + (per-param) one arg, or the expanded
+        // variadic / kwargs runs. Over-estimate the capacity (never under) so
+        // the fill below reallocs zero times on the hot per-call path.
+        mut new_ch := Vec(Expr).with_capacity(nparam + va_args.len() + kw_args.len() + 1)
         ref callee : Expr = e.children[0]
         new_ch.push(own callee.clone())
         for i in 0..nparam {
