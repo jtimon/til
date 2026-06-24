@@ -1774,6 +1774,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             mut fsz : USize = 0
             mut falign : USize = 0
             mut field_struct_name := ""
+            mut field_is_enum := false
 
             if fd.own_type.is(OwnType.Shallow).not() {
                 fsz = 8
@@ -1796,6 +1797,25 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         if ftype.len() > 0 {
                             fd.explicit_type = ftype
                             fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                        }
+                    }
+                }
+                // #286: classify own-pointer struct/enum fields so the cache-
+                // driven deep free can recurse into them (they are pointers to
+                // separate heap blocks). Exclude primitives (incl. U8 -- a
+                // container's own data buffer, reclaimed via the container
+                // path, not as a struct), funcptrs, and Dynamic.
+                if ftype.len() > 0 {
+                    mut oprim : Primitive = Primitive.I64
+                    mut opsz : USize = 0
+                    mut opal : USize = 0
+                    mut opbi : Bool = false
+                    o_is_prim : Bool = primitive_type_info(ftype, scope, oprim, opsz, opal, opbi)
+                    if o_is_prim.not().and(type_from_name_init(ftype, scope).is_funcptr().not()).and(ftype.eq("Dynamic").not()) {
+                        ref o_nested : Expr = scope.get_struct(ftype)
+                        if o_nested.is_null().not() {
+                            field_struct_name = ftype.clone()
+                            if o_nested.node_type.is(NodeType.EnumDef) { field_is_enum = true }
                         }
                     }
                 }
@@ -1875,6 +1895,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                 fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
                                 if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
                                 field_struct_name = ftype.clone()
+                                field_is_enum = true
                             } else {
                                 compute_struct_layout(ftype, nested_def, scope, ctx)
                                 ref nested_layout : StructLayout = ctx.struct_layouts[ftype]
@@ -1891,7 +1912,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name))
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum))
             if falign > max_align { max_align = falign }
             offset = offset + fsz
         }

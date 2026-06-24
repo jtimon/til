@@ -541,6 +541,9 @@ typedef struct FieldLayout {
     U32 offset;
     U32 size;
     Str struct_name;
+    OwnType own_type;
+    Bool is_str;
+    Bool is_enum;
 } FieldLayout;
 
 
@@ -686,7 +689,7 @@ typedef struct Map__Str_Str {
 
 
 typedef struct EvalHeap {
-    U32 live_blocks;
+    U8 unused;
 } EvalHeap;
 
 
@@ -1009,7 +1012,6 @@ typedef struct {
 typedef struct StructInstance {
     Str *struct_name;
     Bool is_str;
-    Expr *struct_def;
     Context *ctx;
     U8 *data;
     Bool borrowed;
@@ -2461,6 +2463,8 @@ Map__Str_Str * Map__Str_Str_clone(Map__Str_Str * self);
 U64 Map__Str_Str_hash(Map__Str_Str * self, HashFn hasher);
 U32 Map__Str_Str_size(void);
 EvalHeap EvalHeap_new(void);
+void * EvalHeap_heap_alloc(U32 size);
+void EvalHeap_heap_free(void * ptr);
 void EvalHeap_delete(EvalHeap * self, Bool call_free);
 EvalHeap EvalHeap_clone(EvalHeap self);
 U64 EvalHeap_hash(EvalHeap self, HashFn hasher);
@@ -3699,9 +3703,7 @@ void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Con
 Expr * priv___src_self_interpreter_til__field_nested_def(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
-void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, Expr * sdef, void * data, Context * ctx);
-void priv___src_self_interpreter_til__heap_free(Str * struct_name, Expr * struct_def, void * data, Context * ctx);
-void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, Expr * struct_def, void * data, Context * ctx);
+void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
 void StructInstance_delete(StructInstance * self, Bool call_free);
@@ -3786,15 +3788,17 @@ void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpret
 U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
 void priv___src_self_interpreter_til__free_value_full(Value v);
 Str * priv___src_self_interpreter_til__container_elem_type(Str * struct_name);
+void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_str_data(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__clone_container_str_buffer(Str * struct_name, void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
+void priv___src_self_interpreter_til__reclone_return(Context * ctx);
 void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope, Expr * call_expr, Expr * func_def);
 Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);
 Value priv___src_self_interpreter_til__shallow_copy_value(Value * v);
 Value priv___src_self_interpreter_til__borrow_value(Value * v);
 Value * priv___src_self_interpreter_til__box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free);
-Value priv___src_self_interpreter_til__make_struct_value(Str * sname, Expr * sdef, void * data, Bool borrowed, Context * ctx);
+Value priv___src_self_interpreter_til__make_struct_value(Str * sname, void * data, Bool borrowed, Context * ctx);
 Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * priv___src_self_interpreter_til__widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);

@@ -417,6 +417,13 @@ FieldLayout := struct {
     offset : USize = 0
     size : USize = 0
     struct_name := ""
+    // #286: per-field info the cache-driven deep free / clone read instead of
+    // the dangling AST struct_def. own_type distinguishes own-pointer fields
+    // from inline; is_str marks a Str field (free its c_str); is_enum marks an
+    // enum-typed field (struct_name names an enum, not a struct).
+    own_type := OwnType.Shallow
+    is_str := false
+    is_enum := false
 namespace:
     eq := func(a: FieldLayout, b: FieldLayout) returns Bool {
         return a.offset.eq(b.offset).and(a.size.eq(b.size)).and(a.struct_name.eq(b.struct_name))

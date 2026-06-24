@@ -31,33 +31,33 @@ mode lib
 // test/eval_heap.til.
 
 EvalHeap := struct {
-    // Outstanding allocations (heap_alloc ++ / heap_free --). Trends to 0
-    // and flags an unbalanced free; the real leak check is ASAN.
-    live_blocks : USize = 0
+    // #286: the EvalHeap is the chokepoint for value-payload memory. It holds
+    // no state -- heap_alloc / heap_free are static (no self), so the whole
+    // value path can route through them from a non-mut `ctx` without threading
+    // `mut ctx` through 120+ functions (til has no module globals by design).
+    // The balance/leak check is ASAN, not an instance counter.
+    unused : U8 = 0
 
 namespace:
     new := func() returns EvalHeap {
-        return EvalHeap(live_blocks = 0)
+        return EvalHeap(unused = 0)
     }
 
     // Allocate a zeroed block of `size` bytes and return its real address.
     // A zero-size request still gets one byte so the address is unique
     // (mirrors rstil: distinct empty structs must not alias).
-    heap_alloc := func(mut self: EvalHeap, size: USize) returns Dynamic {
+    heap_alloc := func(size: USize) returns Dynamic {
         mut sz := size
         if sz == 0 { sz = 1 }
         p : Dynamic = calloc(1, sz.cast(U64))
         if p.is_null() { panic("EvalHeap.heap_alloc: allocation failed") }
-        self.live_blocks = self.live_blocks + 1
         return p
     }
 
     // Free a block returned by heap_alloc, taking ownership of the pointer
     // (the caller must not use it afterwards).
-    heap_free := func(mut self: EvalHeap, own ptr: Dynamic) {
-        if self.live_blocks == 0 { panic("EvalHeap.heap_free: no live blocks") }
+    heap_free := func(own ptr: Dynamic) {
         free(own ptr)
-        self.live_blocks = self.live_blocks - 1
     }
 
     delete := func(own self: EvalHeap, call_free: Bool = true) {

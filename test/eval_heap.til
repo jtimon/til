@@ -10,108 +10,94 @@ mode test
 import("../src/self/eval_heap")
 
 test_eval_heap_basic := test() {
-    h := EvalHeap.new()
-    assert_eq(USize, h.live_blocks, 0)
 
-    a : Dynamic = h.heap_alloc(8)
+    a : Dynamic = EvalHeap.heap_alloc(8)
     assert(a.is_null().not())
-    assert_eq(USize, h.live_blocks, 1)
     EvalHeap.set_i64(a, 1234567890123)
     assert_eq(I64, EvalHeap.get_i64(a), 1234567890123)
 
-    b : Dynamic = h.heap_alloc(8)
+    b : Dynamic = EvalHeap.heap_alloc(8)
     assert(a.ptr_eq(b).not())
     EvalHeap.set_i64(b, 0.sub(42))
     assert_eq(I64, EvalHeap.get_i64(b), 0.sub(42))
     // Writing b leaves a untouched (distinct blocks).
     assert_eq(I64, EvalHeap.get_i64(a), 1234567890123)
-    assert_eq(USize, h.live_blocks, 2)
 
-    h.heap_free(own a)
-    h.heap_free(own b)
-    assert_eq(USize, h.live_blocks, 0)
+    EvalHeap.heap_free(own a)
+    EvalHeap.heap_free(own b)
 }
 
 test_eval_heap_zeroed := test() {
-    h := EvalHeap.new()
     // calloc-backed: a fresh block reads back as all zeros.
-    p : Dynamic = h.heap_alloc(16)
+    p : Dynamic = EvalHeap.heap_alloc(16)
     assert_eq(I64, EvalHeap.get_i64(p), 0)
     assert_eq(I64, EvalHeap.get_i64(ptr_add(p, 8)), 0)
-    h.heap_free(own p)
+    EvalHeap.heap_free(own p)
 }
 
 test_eval_heap_typed := test() {
-    h := EvalHeap.new()
 
-    pu : Dynamic = h.heap_alloc(8)
+    pu : Dynamic = EvalHeap.heap_alloc(8)
     EvalHeap.set_u64(pu, 1234567890123456789)
     assert_eq(U64, EvalHeap.get_u64(pu), 1234567890123456789)
 
-    pb : Dynamic = h.heap_alloc(1)
+    pb : Dynamic = EvalHeap.heap_alloc(1)
     EvalHeap.set_u8(pb, 200)
     assert_eq(U8, EvalHeap.get_u8(pb), 200)
 
-    pf : Dynamic = h.heap_alloc(4)
+    pf : Dynamic = EvalHeap.heap_alloc(4)
     EvalHeap.set_f32(pf, 2.5)
     assert_eq(F32, EvalHeap.get_f32(pf), 2.5)
 
-    pbool : Dynamic = h.heap_alloc(1)
+    pbool : Dynamic = EvalHeap.heap_alloc(1)
     EvalHeap.set_bool(pbool, true)
     assert(EvalHeap.get_bool(pbool))
     EvalHeap.set_bool(pbool, false)
     assert(EvalHeap.get_bool(pbool).not())
 
-    h.heap_free(own pu)
-    h.heap_free(own pb)
-    h.heap_free(own pf)
-    h.heap_free(own pbool)
+    EvalHeap.heap_free(own pu)
+    EvalHeap.heap_free(own pb)
+    EvalHeap.heap_free(own pf)
+    EvalHeap.heap_free(own pbool)
 }
 
 test_eval_heap_subblock := test() {
-    h := EvalHeap.new()
-    p : Dynamic = h.heap_alloc(16)
+    p : Dynamic = EvalHeap.heap_alloc(16)
     EvalHeap.set_i64(p, 111)
     EvalHeap.set_i64(ptr_add(p, 8), 222)
     assert_eq(I64, EvalHeap.get_i64(p), 111)
     assert_eq(I64, EvalHeap.get_i64(ptr_add(p, 8)), 222)
-    h.heap_free(own p)
+    EvalHeap.heap_free(own p)
 }
 
 test_eval_heap_bytes := test() {
-    h := EvalHeap.new()
-    src : Dynamic = h.heap_alloc(8)
+    src : Dynamic = EvalHeap.heap_alloc(8)
     EvalHeap.set_i64(src, 999888777)
-    dst : Dynamic = h.heap_alloc(8)
+    dst : Dynamic = EvalHeap.heap_alloc(8)
     tmp : Dynamic = malloc(8)
     EvalHeap.get_bytes(src, tmp, 8)
     EvalHeap.set_bytes(dst, tmp, 8)
     free(own tmp)
     assert_eq(I64, EvalHeap.get_i64(dst), 999888777)
-    h.heap_free(own src)
-    h.heap_free(own dst)
+    EvalHeap.heap_free(own src)
+    EvalHeap.heap_free(own dst)
 }
 
 test_eval_heap_zero_size := test() {
-    h := EvalHeap.new()
     // Zero-size request still yields a unique, freeable address.
-    p : Dynamic = h.heap_alloc(0)
+    p : Dynamic = EvalHeap.heap_alloc(0)
     assert(p.is_null().not())
-    assert_eq(USize, h.live_blocks, 1)
-    h.heap_free(own p)
-    assert_eq(USize, h.live_blocks, 0)
+    EvalHeap.heap_free(own p)
 }
 
 test_eval_heap_many := test() {
-    h := EvalHeap.new()
     // Many independent alloc/write/read/free cycles balance to zero.
     mut i : USize = 0
     while i.lt(50) {
-        p : Dynamic = h.heap_alloc(8)
+        p : Dynamic = EvalHeap.heap_alloc(8)
         EvalHeap.set_i64(p, i.to_i64())
         assert_eq(I64, EvalHeap.get_i64(p), i.to_i64())
-        h.heap_free(own p)
+        EvalHeap.heap_free(own p)
         i = i.add(1)
     }
-    assert_eq(USize, h.live_blocks, 0)
 }

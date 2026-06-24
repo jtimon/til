@@ -66,104 +66,22 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
     return true
 }
 
-// Issue #275: free a struct's nested owned heap -- the dual of clone's deep
-// copy. StructInstance.clone deep-copies Str-typed fields (Str_clone) and
-// inline nested structs; the shallow scope teardown freed only the struct
-// buffer, so every cloned struct-with-Str-field leaked the field's c_str.
-// Frees owned Str-field c_strs (cap<CAP_VIEW guards against borrowed views and
-// literals), recurses into inline nested structs, and -- the dual of clone's
-// own-field deep-copy -- frees `own` struct/container fields whose nested type
-// is a StructDef (clone deep-copies exactly those, so the buffer is never
-// shared). Own enum fields, inline payload-enum fields, and own non-struct
-// pointers (own Dynamic) stay deferred -- those construction paths can share a
-// pointer, so freeing here would risk a double-free. Only call while the AST is
-// live (scope teardown during execution); reads struct_def/field names.
-priv struct_deep_free := func(struct_name: Str, sdef: Expr, data: Dynamic, ctx: Context) {
-    if sdef.is_null() { return }
-    if data.is_null() { return }
-    switch sdef.node_type {
-    case NodeType.StructDef(sdef_data):
-        if struct_def_shallow_safe(sdef_data, ctx) { return }
-        for dd : Declaration in sdef_data.fields {
-            if dd.own_type.is(OwnType.Ref) { continue }
-            ref ftype : Str = dd.explicit_type
-            foff := ctx_field_layout(struct_name, dd.name, ctx).offset
-            if dd.own_type.is(OwnType.Own) {
-                // Issue #275: free an `own` struct/container field. clone's
-                // own-field branch (StructInstance.clone's tmp.clone()) deep-
-                // copies these, so the field owns an independent buffer -- this
-                // is the dual free. Only fields whose nested type is a StructDef
-                // are freed: that is exactly what clone deep-copies, so the
-                // buffer is never shared. Own fields with no struct nested type
-                // (a container's own `data` element buffer is reclaimed by
-                // free_container_str_data below; own Dynamic stays shallow) and
-                // own enum fields are left on the shallow path.
-                ref own_nested : Expr = field_nested_def(dd, ctx)
-                if own_nested.is_null().not() {
-                    if own_nested.node_type.is(NodeType.StructDef) {
-                        ref own_hdr : DynPtrBox = ptr_add(data, foff.cast(U64))
-                        if own_hdr.p.is_null().not() {
-                            ref stable_own_ftype : Str = stable_type_name(ftype, ctx)
-                            struct_deep_free(stable_own_ftype, own_nested, own_hdr.p, ctx)
-                            free(own own_hdr.p)
-                        }
-                    }
-                }
-                continue
-            }
-            if ftype == "Str" {
-                ref s : Str = ptr_add(data, foff.cast(U64))
-                if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
-                    if s.c_str.is_null().not() { free(own s.c_str) }
-                }
-                continue
-            }
-            ref nested_def : Expr = field_nested_def(dd, ctx)
-            if nested_def.is_null().not() {
-                switch nested_def.node_type {
-                case NodeType.StructDef:
-                    ref stable_ftype : Str = stable_type_name(ftype, ctx)
-                    struct_deep_free(stable_ftype, nested_def, ptr_add(data, foff.cast(U64)), ctx)
-                case:
-                }
-            }
-        }
-        // Issue #275: free a Str-element container's `own data` buffer + element
-        // c_strs. The field loop above skips `own` fields, so an Array(Str)/
-        // Vec(Str) would otherwise leak its buffer and every element c_str at
-        // scope teardown (e.g. the constfolder's va_scope arrays from 25de8797).
-        // No double-free: clone_container_str_buffer gives each clone its own
-        // buffer, and borrowed containers never reach struct_deep_free.
-        if container_elem_type(struct_name) == "Str" {
-            free_container_str_data(struct_name, data, ctx)
-        }
-    case:
-    }
-}
-
-// #286 commit 2: byte-level deep-free of a struct value at `data` of type
-// `struct_name`. Frees the nested owned heap (Str c_strs, owned struct /
-// container fields) via struct_deep_free, then the struct buffer itself --
-// the offset+type+ctx form of StructInstance.delete's payload path, so eval
-// can free a struct by its heap_index pointer without a StructInstance
-// wrapper. Callers must skip a NULL `data` (a moved-out binding):
-// struct_deep_free would dereference it.
-priv heap_free := func(struct_name: Str, struct_def: Expr, own data: Dynamic, ctx: Context) {
-    struct_deep_free(struct_name, struct_def, data, ctx)
-    free(own data)
-}
-
 // #286 commit 2: byte-level deep-CLONE of a struct value at `data` of type
 // `struct_name`. Returns a fresh malloc'd buffer with an independent copy of
 // every owned-pointer field (Str c_strs, owned struct / container fields) --
 // the offset+type+ctx form of StructInstance.clone's body, so eval can clone
 // a struct by its heap_index pointer. The nested recursions still build a
 // temporary StructInstance and call .clone(), which now delegates back here.
-priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: Context) returns Dynamic {
+priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns Dynamic {
+    // #286: look the def up by name (ctx.interp_type_defs) rather than taking
+    // it as a ref param -- heap_clone only runs during eval (cloning a live
+    // value), when the AST is still live, so the lookup is safe and the
+    // dangling struct_def ref on StructInstance is no longer needed.
+    ref struct_def : Expr = lookup_interp_type_def(struct_name, ctx)
     switch struct_def.node_type {
     case NodeType.StructDef(sdef_data):
         sz := ctx_total_size(struct_name, ctx)
-        dst_data : Dynamic = malloc(sz.cast(U64))
+        dst_data : Dynamic = EvalHeap.heap_alloc(sz)
         memcpy(dst_data, data, sz.cast(U64))
         if struct_name == "Str" {
             ref s : Str = to_ptr(data)
@@ -189,11 +107,8 @@ priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: 
                     if src_ptr.is_null().not() {
                         if nested_def.is_null().not() {
                             ref stable_ftype : Str = stable_type_name(ftype, ctx)
-                            mut tmp := StructInstance(struct_name = stable_ftype, struct_def = nested_def, ctx = ctx, data = to_ptr(src_ptr), borrowed = true)
-                            mut cloned := tmp.clone()
-                            tmp.data = NULL
-                            write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned.data)
-                            cloned.data = NULL
+                            cloned_ptr : Dynamic = heap_clone(stable_ftype, to_ptr(src_ptr), ctx)
+                            write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_ptr)
                         }
                     }
                     continue
@@ -220,7 +135,7 @@ priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: 
                                 if ei_ref.is_null().not() {
                                     ref ei : EnumInstance = ei_ref
                                     cloned_ei := ei.clone()
-                                    heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+                                    heap_ei : Dynamic = EvalHeap.heap_alloc(EnumInstance.size())
                                     move(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
                                     write_ptr(ptr_add(dst_data, foff.cast(U64)), heap_ei)
                                 }
@@ -254,12 +169,9 @@ priv heap_clone := func(struct_name: Str, struct_def: Expr, data: Dynamic, ctx: 
                         switch nested_def.node_type {
                         case NodeType.StructDef:
                             ref stable_ftype2 : Str = stable_type_name(ftype, ctx)
-                            mut tmp := StructInstance(struct_name = stable_ftype2, struct_def = nested_def, ctx = ctx, data = ptr_add(data, foff.cast(U64)), borrowed = true)
-                            mut cloned := tmp.clone()
-                            tmp.data = NULL
-                            memcpy(ptr_add(dst_data, foff.cast(U64)), cloned.data, ctx_total_size(ftype, ctx).cast(U64))
-                            free(own cloned.data)
-                            cloned.data = NULL
+                            cloned_ptr2 : Dynamic = heap_clone(stable_ftype2, ptr_add(data, foff.cast(U64)), ctx)
+                            memcpy(ptr_add(dst_data, foff.cast(U64)), cloned_ptr2, ctx_total_size(ftype, ctx).cast(U64))
+                            EvalHeap.heap_free(own cloned_ptr2)
                         case:
                             UNREACHABLE()
                         }
@@ -283,7 +195,6 @@ StructInstance := struct {
     // is still valid -- to decide whether the payload is a Str needing its
     // c_str freed.
     is_str := false
-    ref struct_def : Expr = NULL
     // Issue #147 step 4: reference to the running Context so the
     // fixed-signature clone path can reach the type-def registry
     // (lookup_interp_type_def) and struct_layouts for nested-field lookup,
@@ -303,8 +214,8 @@ namespace:
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
-        dst_data : Dynamic = heap_clone(self.struct_name, self.struct_def, self.data, self.ctx)
-        return StructInstance(struct_name = self.struct_name, is_str = self.is_str, struct_def = self.struct_def, ctx = self.ctx, data = dst_data, borrowed = false)
+        dst_data : Dynamic = heap_clone(self.struct_name, self.data, self.ctx)
+        return StructInstance(struct_name = self.struct_name, is_str = self.is_str, ctx = self.ctx, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
         // Deep delete: free the struct payload buffer (and, for a Str
@@ -316,23 +227,18 @@ namespace:
         // value's last use, so this is where the payload is reclaimed.
         if self.borrowed.not() {
             if self.data.is_null().not() {
-                // Issue #239: consult the cached is_str flag, NOT struct_name
-                // (a ref that may already be freed at teardown).
+                // #286: deep free, but CACHE-driven (struct_deep_free reads
+                // ctx.struct_layouts, which outlives the AST) instead of the
+                // dangling struct_def -- safe at scope teardown, no #239 UAF.
                 if self.is_str {
                     ref s_str : Str = to_ptr(self.data)
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
-                    free(own self.data)
                 } else if self.ctx.is_null().not() {
-                    // Issue #275: free nested Str-field heap (clone/write_field
-                    // deep-copied it) plus the buffer itself. heap_free reads
-                    // struct_def, so this assumes the AST is live (true at a
-                    // value's last-use delete during execution).
-                    heap_free(self.struct_name, self.struct_def, own self.data, self.ctx)
-                } else {
-                    free(own self.data)
+                    struct_deep_free(self.struct_name, self.data, self.ctx)
                 }
+                EvalHeap.heap_free(own self.data)
             }
         }
         if call_free { free(own self) }
@@ -362,7 +268,7 @@ namespace:
             return EnumInstance(enum_name = self.enum_name,
                                 data = NULL, data_size = self.data_size, borrowed = false, is_str = self.is_str)
         }
-        pdata : Dynamic = malloc(self.data_size.cast(U64))
+        pdata : Dynamic = EvalHeap.heap_alloc(self.data_size)
         memcpy(pdata, self.data, self.data_size.cast(U64))
         // Issue #272: the memcpy shared the Str-payload c_str; deep-copy it so
         // the clone owns an independent buffer (mirrors StructInstance.clone).
@@ -380,7 +286,7 @@ namespace:
         if self.data.is_null().not().and(self.borrowed.not()) {
             // Issue #272: free the owned Str-payload c_str before the buffer.
             if self.is_str { enum_free_str_payload(self.data) }
-            free(own self.data)
+            EvalHeap.heap_free(own self.data)
         }
         if call_free { free(own self) }
     }
@@ -601,7 +507,7 @@ priv enum_variant_is_str := func(enum_name: Str, etag: I32, ctx: Context) return
 priv enum_clone_str_payload := func(data: Dynamic) {
     ref pstr : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
     if pstr.c_str.is_null().not().and(pstr.count.gt(0)).and(pstr.cap.lt(CAP_VIEW)) {
-        new_buf : Dynamic = malloc(pstr.count.add(1).cast(U64))
+        new_buf : Dynamic = EvalHeap.heap_alloc(pstr.count.add(1))
         memcpy(new_buf, pstr.c_str, pstr.count.cast(U64))
         memset(ptr_add(new_buf, pstr.count.cast(U64)), 0, 1)
         // The Str's c_str is the first field (offset 0); write the owned copy
@@ -623,7 +529,7 @@ priv val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, pay
     if alloc_size < 8 {
         alloc_size = 8
     }
-    data : Dynamic = calloc(1, alloc_size.cast(U64))
+    data : Dynamic = EvalHeap.heap_alloc(alloc_size)
     memcpy(data, etag, 4)
     mut is_str := false
     if payload_data.is_null().not() {
@@ -717,7 +623,7 @@ priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str,
         if tdef.node_type.is(NodeType.StructDef) {
             if is_value_ptr(obj) {
                 ref pv : Dynamic = value_ptr_view(obj)
-                obj = make_struct_value(obj_sname, tdef, deref(pv), true, ctx)
+                obj = make_struct_value(obj_sname, deref(pv), true, ctx)
             }
         }
     case:
@@ -868,7 +774,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         }
         switch obj {
         case Value.Struct(si):
-            ref fdecl : Declaration = find_field_decl(si.struct_def, fname.field_access_name())
+            ref fdecl : Declaration = find_field_decl(lookup_interp_type_def(si.struct_name, si.ctx), fname.field_access_name())
             if fdecl.is_null() {
                 interp_error(e, format("no field '", fname.field_access_name(), "'"), ctx)
                 exit(1)
@@ -940,7 +846,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                 // value-binding path below still COPIES: see its comment.)
                 ref str_sdef : Expr = lookup_interp_type_def("Str", ctx)
                 if str_sdef.is_null().not() {
-                    return make_struct_value("Str", str_sdef, p, true, ctx)
+                    return make_struct_value("Str", p, true, ctx)
                 }
             }
             ref sp : Str = p
@@ -975,7 +881,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                 return Value.Int32(etag)
             }
             if tdef.node_type.is(NodeType.StructDef) {
-                return make_struct_value(type_name, tdef, p, true, ctx)
+                return make_struct_value(type_name, p, true, ctx)
             }
         }
         // Independent clone, not a borrow: callers use `val = reinterpret_
@@ -1040,7 +946,7 @@ priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref
         if cell.is_null() { return NULL }
         switch cell.val {
         case Value.Struct(si):
-            return si.struct_def
+            return lookup_interp_type_def(si.struct_name, si.ctx)
         case:
             return NULL
         }
@@ -1146,7 +1052,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         if matched {
             case_scope := scope_new(scope)
             eval_body(case_scope, cn.children[1], ctx)
-            if c.has_return { c.return_value = c.return_value.clone() }
+            reclone_return(c)
             scope_free(own case_scope)
             return
         }
@@ -1154,7 +1060,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     if has_default {
         def_scope := scope_new(scope)
         eval_body(def_scope, stmt.children[default_idx].children[0], ctx)
-        if c.has_return { c.return_value = c.return_value.clone() }
+        reclone_return(c)
         scope_free(own def_scope)
     }
 }
@@ -1308,12 +1214,12 @@ priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     if cv {
         then_scope := scope_new(scope)
         eval_body(then_scope, stmt.children[1], ctx)
-        if c.has_return { c.return_value = c.return_value.clone() }
+        reclone_return(c)
         scope_free(own then_scope)
     } else if stmt.children.len() > 2 {
         else_scope := scope_new(scope)
         eval_body(else_scope, stmt.children[2], ctx)
-        if c.has_return { c.return_value = c.return_value.clone() }
+        reclone_return(c)
         scope_free(own else_scope)
     }
 }
@@ -1336,7 +1242,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         if cv.not() { break }
         while_scope := scope_new(scope)
         eval_body(while_scope, stmt.children[1], ctx)
-        if c.has_return { c.return_value = c.return_value.clone() }
+        reclone_return(c)
         scope_free(own while_scope)
         if c.has_break { c.has_break = false; break }
         if c.has_continue { c.has_continue = false }
@@ -1597,7 +1503,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                             switch cell.val {
                             case Value.Struct(si):
                                 base = to_ptr(si.data)
-                                cur_sdef = si.struct_def
+                                cur_sdef = lookup_interp_type_def(si.struct_name, si.ctx)
                                 cur_sname = si.struct_name
                                 // For simplicity, handle depth=1 (most common: a.field = val)
                                 if depth == 1 {
@@ -1645,9 +1551,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         case NodeType.Body:
             block_scope := scope_new(scope)
             eval_body(block_scope, stmt, ctx)
-            if c.has_return {
-                c.return_value = c.return_value.clone()
-            }
+            reclone_return(c)
             scope_free(own block_scope)
         case NodeType.CaptureBlock:
             // Issue #54: a capture block runs its body inline -- the typer
@@ -1655,9 +1559,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             // behaves exactly like a bare `{ ... }` block.
             cb_scope := scope_new(scope)
             eval_body(cb_scope, stmt.children[0], ctx)
-            if c.has_return {
-                c.return_value = c.return_value.clone()
-            }
+            reclone_return(c)
             scope_free(own cb_scope)
         case NodeType.If:
             eval_if(scope, stmt, ctx)
@@ -1798,6 +1700,10 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     mut result := val_none()
     if c.has_return {
         result = c.return_value.clone()
+        // #286: reclaim the old return payload (no-op on a borrow into
+        // call_scope, which scope_free reclaims; frees an owned return).
+        free_temp_arg_value(c.return_value)
+        memcpy(c.return_value, val_none(), Value.size().cast(U64))
         c.has_return = false
     }
     free_non_own_temp_args(call_scope, e, func_def)
@@ -2009,25 +1915,25 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         if si_edef.node_type.is(NodeType.StructDef) {
             switch si_edef.node_type {
             case NodeType.StructDef(sdd):
-                inst_data : Dynamic = calloc(1, ctx_total_size(name.ident_name(), ctx).cast(U64))
+                inst_data : Dynamic = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx))
                 mut inst := val_none()
                 switch e.node_type {
                 case NodeType.FCall(fcd_ctor):
                     switch fcd_ctor.til_type {
                     case Type.Struct(es):
-                        if es.len() > 0 { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
-                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
+                        if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
+                        else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
                     case Type.Enum(es):
-                        if es.len() > 0 { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
-                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
+                        if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
+                        else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
                     case Type.Custom(es):
-                        if es.len() > 0 { inst = make_struct_value(es, si_edef, inst_data, false, ctx) }
-                        else              { inst = make_struct_value(name.name, si_edef, inst_data, false, ctx) }
+                        if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
+                        else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
                     case:
-                        inst = make_struct_value(name.name, si_edef, inst_data, false, ctx)
+                        inst = make_struct_value(name.name, inst_data, false, ctx)
                     }
                 case:
-                    inst = make_struct_value(name.name, si_edef, inst_data, false, ctx)
+                    inst = make_struct_value(name.name, inst_data, false, ctx)
                 }
                 switch inst {
                 case Value.Struct(si_inst):
@@ -2108,10 +2014,10 @@ priv free_value := func(shallow v: Value) {
     switch v {
     case Value.Struct(si):
         if si.borrowed.not() {
-            if si.data.is_null().not() { free(own si.data) }
+            if si.data.is_null().not() { EvalHeap.heap_free(own si.data) }
         }
     case Value.Enum(ei):
-        if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
+        if ei.data.is_null().not().and(ei.borrowed.not()) { EvalHeap.heap_free(own ei.data) }
     case Value.Closure(cl):
         interp_closure_free(cl)
     case:
@@ -2173,17 +2079,62 @@ priv container_elem_type := func(struct_name: Str) returns Str {
     return ""
 }
 
-// Free an Array(Str)/Vec(Str) `own data` buffer and its element c_strs. Does
-// not touch the struct instance bytes (the scope teardown frees those) nor
-// borrowed/view element c_strs (cap >= CAP_VIEW guards them, mirroring the
-// Str-field handling in struct_deep_free).
+// #286: cache-driven deep free of a struct value's nested heap. Reads
+// ctx.struct_layouts (a name-keyed cache that outlives the AST) instead of the
+// dangling struct_def, so it is safe at scope teardown. Frees own struct
+// fields' blocks (recursing first), Str fields' c_strs, recurses into inline
+// nested structs, and reclaims a Str-element container's data buffer. Enum
+// fields and own non-struct pointers stay shallow (their construction can
+// share a pointer, so freeing here would risk a double-free).
+priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
+    if data.is_null() { return }
+    if ctx.struct_layouts.has(struct_name).not() { return }
+    ref sl : StructLayout = ctx.struct_layouts[struct_name]
+    for i in 0..sl.fields.len() {
+        ref fl : FieldLayout = sl.fields[i]
+        if fl.own_type.is(OwnType.Ref) { continue }
+        foff := fl.offset
+        if fl.own_type.is(OwnType.Own) {
+            if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
+                ref own_hdr : DynPtrBox = ptr_add(data, foff.cast(U64))
+                if own_hdr.p.is_null().not() {
+                    if fl.struct_name == "Str" {
+                        // own Str: recursing into "Str" would NOT free the
+                        // c_str (that is the is_str special case, not a struct
+                        // field). Free it here before the buffer.
+                        ref os : Str = to_ptr(own_hdr.p)
+                        if os.count.gt(0).and(os.cap.lt(CAP_VIEW)) {
+                            if os.c_str.is_null().not() { free(own os.c_str) }
+                        }
+                    } else {
+                        struct_deep_free(fl.struct_name, own_hdr.p, ctx)
+                    }
+                    EvalHeap.heap_free(own own_hdr.p)
+                }
+            }
+            continue
+        }
+        if fl.is_str {
+            ref s : Str = ptr_add(data, foff.cast(U64))
+            if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+                if s.c_str.is_null().not() { free(own s.c_str) }
+            }
+            continue
+        }
+        if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
+            struct_deep_free(fl.struct_name, ptr_add(data, foff.cast(U64)), ctx)
+        }
+    }
+    if container_elem_type(struct_name) == "Str" {
+        free_container_str_data(struct_name, data, ctx)
+    }
+}
+
+// Free an Array(Str)/Vec(Str) `own data` buffer and its element c_strs (the
+// field loop skips `own` fields, so the buffer + element c_strs would
+// otherwise leak). cap >= CAP_VIEW guards borrowed/view element c_strs.
 priv free_container_str_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
     data_fl := ctx_field_layout(struct_name, "data", ctx)
-    // Reinterpret the container's `own data` field (an 8-byte owned pointer,
-    // same shape as DynPtrBox.p) so the buffer is freed via the proven
-    // `free(own <struct>.<field>)` path -- a `ref Dynamic` from deref() cannot
-    // be moved into free's `own` parameter. (Mirrors free_value_full's
-    // `ref box : DynPtrBox = slot; free(own box.p)`.)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
     mut count_field := "cap"
@@ -2197,7 +2148,7 @@ priv free_container_str_data := func(struct_name: Str, data: Dynamic, ctx: Conte
             if s.c_str.is_null().not() { free(own s.c_str) }
         }
     }
-    free(own hdr.p)
+    EvalHeap.heap_free(own hdr.p)
 }
 
 // Deep-copy an Array(Str)/Vec(Str) `own data` buffer into a freshly cloned
@@ -2213,7 +2164,7 @@ priv clone_container_str_buffer := func(struct_name: Str, src_data: Dynamic, dst
     ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
     esz := Str.size()
     buf_bytes := cap.mul(esz).cast(U64)
-    new_buf : Dynamic = malloc(buf_bytes)
+    new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(esz))
     memcpy(new_buf, src_hdr.p, buf_bytes)
     mut count_field := "cap"
     if struct_name.starts_with("Vec__") { count_field = "count" }
@@ -2240,30 +2191,45 @@ priv free_temp_arg_value := func(shallow v: Value) {
     case Value.Struct(si):
         if si.borrowed.not() {
             if si.data.is_null().not() {
+                // #286: cache-driven deep free (struct_deep_free reads
+                // ctx.struct_layouts, AST-independent), restoring nested
+                // reclamation without the dangling struct_def ref.
                 if si.is_str {
                     ref s_str : Str = to_ptr(si.data)
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 } else if si.ctx.is_null().not() {
-                    // Issue #275: free nested Str-field heap that clone deep-
-                    // copied -- otherwise every cloned struct-with-Str-field
-                    // leaks the field's c_str at scope teardown.
-                    struct_deep_free(si.struct_name, si.struct_def, si.data, si.ctx)
+                    struct_deep_free(si.struct_name, si.data, si.ctx)
                 }
-                free(own si.data)
+                EvalHeap.heap_free(own si.data)
             }
         }
     case Value.Enum(ei):
-        if ei.data.is_null().not().and(ei.borrowed.not()) { free(own ei.data) }
+        if ei.data.is_null().not().and(ei.borrowed.not()) { EvalHeap.heap_free(own ei.data) }
     case Value.Closure(cl):
         interp_closure_free(cl)
     case:
     }
 }
 
-priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def: Expr) {
-    switch func_def.node_type {
+// #286: a return value is re-cloned at each block boundary it propagates up
+// through (so it survives the about-to-be-freed scope), but the value it
+// replaced was overwritten WITHOUT a free -- every boundary orphaned the
+// previous clone's heap (a dominant interpret leak). Clone first, free the old
+// in place (free_temp_arg_value no-ops on a borrow into the freed scope and
+// reclaims an owned intermediate), move the clone's bytes in, then neutralize
+// the local so its own scope-end delete is a no-op (the make_struct_value
+// move-out idiom).
+priv reclone_return := func(mut ctx: Context) {
+    if ctx.has_return.not() { return }
+    moved := ctx.return_value.clone()
+    free_temp_arg_value(ctx.return_value)
+    memcpy(ctx.return_value, moved, Value.size().cast(U64))
+    memcpy(moved, val_none(), Value.size().cast(U64))
+}
+
+priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def: Expr) {    switch func_def.node_type {
     case NodeType.FuncDef(fdef):
         for pi in 0..fdef.params.len() {
             ref param : Declaration = fdef.params[pi]
@@ -2371,7 +2337,7 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_fr
     return r
 }
 
-priv make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: Bool, ctx: Context) returns shallow Value {
+priv make_struct_value := func(sname: Str, data: Dynamic, borrowed: Bool, ctx: Context) returns shallow Value {
     ref stable_sname : Str = stable_type_name(sname, ctx)
     mut r := Value.None
     tag : I32 = 10
@@ -2379,10 +2345,10 @@ priv make_struct_value := func(sname: Str, sdef: Expr, data: Dynamic, borrowed: 
     switch r {
     case Value.Struct(payload):
         payload.struct_name = stable_sname
+        // #286: struct_def removed -- looked up by name where needed.
         // Issue #239: cache whether this is a Str value while sname is valid,
         // so the deep delete need not read the (possibly-freed) struct_name.
         payload.is_str = stable_sname == "Str"
-        payload.struct_def = sdef
         payload.ctx = ctx
         payload.data = data
         payload.borrowed = borrowed
@@ -2860,7 +2826,7 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     case Value.Uint32(v):  if type_name == "U32"  { memcpy(dest, v, 4); return }
     case Value.Boolean(v): if type_name == "Bool" { memcpy(dest, v, 1); return }
     case Value.Struct(si):
-        switch si.struct_def.node_type {
+        switch lookup_interp_type_def(si.struct_name, si.ctx).node_type {
         case NodeType.StructDef:
             sz := ctx_total_size(si.struct_name, si.ctx)
             // Always deep-clone into the buffer: the caller deletes `val`
@@ -2886,7 +2852,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
     esz := elem_size_for_type(elem_type)
     mut alloc_count := count
     if alloc_count == 0 { alloc_count = 1 }
-    data : Dynamic = calloc(alloc_count.cast(U64), esz.cast(U64))
+    data : Dynamic = EvalHeap.heap_alloc(alloc_count.mul(esz))
     for i in 0..count {
         v := parse_cli_arg(argv[offset + i], elem_type, ctx)
         value_to_buf(ptr_add(data, i.cast(U64) * esz.cast(U64)), v, elem_type)
@@ -2897,13 +2863,13 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
     ref array_canon_name : Str = array_binding.name
     ref array_def : Expr = lookup_interp_type_def(array_canon_name, ctx)
     sz := ctx_total_size(array_canon_name, ctx)
-    inst_data : Dynamic = calloc(1, sz.cast(U64))
+    inst_data : Dynamic = EvalHeap.heap_alloc(sz)
     ba_data_fl := ctx_field_layout(array_canon_name, "data", ctx)
     write_ptr(ptr_add(inst_data, ba_data_fl.offset.cast(U64)), data)
     ref ba_cap_d : Declaration = find_field_decl(array_def, "cap")
     ba_cap_fl := ctx_field_layout(array_canon_name, "cap", ctx)
     write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, Value.Uint32(count), ctx)
-    return make_struct_value(array_canon_name, array_def, to_ptr(inst_data), false, ctx)
+    return make_struct_value(array_canon_name, to_ptr(inst_data), false, ctx)
 }
 
 // Cache-only pass: populate ctx.cached_str/array/vec_def/name without
@@ -2995,7 +2961,7 @@ priv ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context
 }
 
 make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = malloc(Str.size().cast(U64))
+    inst_data : Dynamic = EvalHeap.heap_alloc(Str.size())
     if len == 0 {
         // Empty string: no owned buffer to allocate. Point at the shared ""
         // literal (cap=CAP_LIT) so teardown frees nothing. Avoids a 1-byte
@@ -3004,9 +2970,9 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
         write_ptr(inst_data, "".c_str)
         write_u32(ptr_add(inst_data, 8), 0)
         write_u32(ptr_add(inst_data, 12), CAP_LIT)
-        return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+        return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
     }
-    copy : Dynamic = malloc(len.add(1).cast(U64))
+    copy : Dynamic = EvalHeap.heap_alloc(len.add(1))
     memcpy(copy, data, len.cast(U64))
     memset(ptr_add(copy, len.cast(U64)), 0, 1)
     write_ptr(inst_data, copy)
@@ -3015,7 +2981,7 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed constfolder fold).
     write_u32(ptr_add(inst_data, 12), len)
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
 }
 
 // Like make_str_value but builds a Value.Struct(Str) that VIEWS into
@@ -3024,19 +2990,19 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
 // Used by constfolder to track LiteralStr Decls without copying the buffer:
 // the LiteralStr's c_str is stable for the entire constfolder lifetime.
 make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = malloc(Str.size().cast(U64))
+    inst_data : Dynamic = EvalHeap.heap_alloc(Str.size())
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().cast(U64))
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
 }
 
 priv make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = malloc(Str.size().cast(U64))
+    inst_data : Dynamic = EvalHeap.heap_alloc(Str.size())
     write_ptr(inst_data, data)
     write_u32(ptr_add(inst_data, 8), len)
     write_u32(ptr_add(inst_data, 12), len)
-    return make_struct_value(ctx.cached_str_name, ctx.cached_str_def, inst_data, false, ctx)
+    return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {
     // Top-level Decl + Return so the typer's
@@ -3099,7 +3065,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
         ref nd_own : Expr = field_nested_def(dd, ctx)
         if nd_own.is_null().not() {
             ref owned : Dynamic = deref(ptr)
-            return make_struct_value(ftype, nd_own, owned, true, ctx)
+            return make_struct_value(ftype, owned, true, ctx)
         }
         ref owned2 : Dynamic = deref(ptr)
         // Reading an own field yields a borrowed view: the struct still
@@ -3112,7 +3078,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
         ref nd_ref : Expr = field_nested_def(dd, ctx)
         if nd_ref.is_null().not() {
             ref rp : Dynamic = deref(ptr)
-            return make_struct_value(ftype, nd_ref, rp, true, ctx)
+            return make_struct_value(ftype, rp, true, ctx)
         }
         ref rp2 : Dynamic = deref(ptr)
         return Value.Ref(rp2)
@@ -3157,7 +3123,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     ref sdef3 : Expr = lookup_interp_type_def(ftype, ctx)
     if sdef3.is_null().not() {
         if sdef3.node_type.is(NodeType.StructDef) {
-            return make_struct_value(ftype, sdef3, ptr, true, ctx)
+            return make_struct_value(ftype, ptr, true, ctx)
         }
     }
     // FuncSig-typed field or fallback -- re-read ptr since ownership may have transferred
@@ -3254,10 +3220,10 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         mut total : USize = ei.data_size
         if total < 8 { total = 8 }
         if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
-            heap_ei : Dynamic = malloc(EnumInstance.size().cast(U64))
+            heap_ei : Dynamic = EvalHeap.heap_alloc(EnumInstance.size())
             memcpy(heap_ei, ei, EnumInstance.size().cast(U64))
             // Deep-copy the data buffer
-            new_data : Dynamic = malloc(total.cast(U64))
+            new_data : Dynamic = EvalHeap.heap_alloc(total)
             memcpy(new_data, ei.data, total.cast(U64))
             // Write data pointer into the heap EnumInstance. After dropping the
             // dead enum_def field, EnumInstance is { enum_name(0..8),
@@ -3474,9 +3440,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 test_scope := scope_new(global)
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
-                                if c.has_return {
-                                    c.return_value = c.return_value.clone()
-                                }
+                                reclone_return(c)
                                 scope_free(own test_scope)
                                 pass_count++
                                 eprint_single("  pass: ")
@@ -3504,9 +3468,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                     test_scope := scope_new(global)
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
-                                    if c.has_return {
-                                        c.return_value = c.return_value.clone()
-                                    }
+                                    reclone_return(c)
                                     scope_free(own test_scope)
                                     pass_count++
                                     eprint_single("  pass: ")
@@ -5090,8 +5052,8 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 case Value.Float(x):   pdata = to_ptr(x); psz = 4
                 case Value.Boolean(x): pdata = to_ptr(x); psz = 1
                 case Value.Struct(si):
-                    if si.struct_def.is_null().not() {
-                        switch si.struct_def.node_type {
+                    if lookup_interp_type_def(si.struct_name, si.ctx).is_null().not() {
+                        switch lookup_interp_type_def(si.struct_name, si.ctx).node_type {
                         case NodeType.StructDef:
                             psz = ctx_total_size(si.struct_name, si.ctx)
                         case:
@@ -5118,7 +5080,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                     mut cloned_ei := ei.clone()
                     // Same hand-off: the garbager would deep-delete this fresh
                     // clone at its last use (the to_ptr); mark borrowed so the
-                    // manual free(own pdata) below is the sole owner.
+                    // manual EvalHeap.heap_free(own pdata) below is the sole owner.
                     cloned_ei.borrowed = true
                     pdata = to_ptr(cloned_ei.data)
                     psz = cloned_ei.data_size
@@ -5140,7 +5102,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                     // val_enum_flat MOVED the Str payload's c_str into the enum
                     // (nulling pdata's c_str), so freeing pdata releases only
                     // the now-empty Str struct box.
-                    free(own pdata)
+                    EvalHeap.heap_free(own pdata)
                 }
             } else {
                 total_size : USize = ctx_total_size(enum_name, ctx)
@@ -5359,7 +5321,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
     if fe.return_type.is_null() {
         result = val_none()
     } else if ret_sdef.is_null().not() {
-        result = make_struct_value(fe.return_type, ret_sdef, ret_buf, false, ctx)
+        result = make_struct_value(fe.return_type, ret_buf, false, ctx)
     } else if fe.return_is_shallow {
         if ffi_decode_scalar(fe.return_type, to_ptr(raw), result, ctx).not() {
             result = val_none()
@@ -5386,19 +5348,17 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
                 // so delete reclaims the c_str (mirrors make_str_value_own;
                 // ExtStr and Str share the {ptr, count, cap} layout).
                 write_u32(ptr_add(raw_ptr, 12), sp.count)
-                result = make_struct_value(ctx.cached_str_name, ctx.cached_str_def, raw_ptr, false, ctx)
+                result = make_struct_value(ctx.cached_str_name, raw_ptr, false, ctx)
             }
         } else if rtype == "Dynamic" {
             result = Value.Dynamic(raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
         } else if ctx.ffi_struct_defs.has(fe.return_type) {
-            ref box : ExprPtrBox = ctx.ffi_struct_defs[fe.return_type]
-            ref sdef : Expr = box.ptr
             // `returns ref T` hands back a borrowed pointer into foreign / C
             // memory; flag the wrapper borrowed so the garbager's deep delete
             // does not free a buffer the runtime never malloc'd (ext_libc:
             // getenv returns a pointer into libc's environ).
-            result = make_struct_value(fe.return_type, sdef, raw_ptr, fe.return_is_ref, ctx)
+            result = make_struct_value(fe.return_type, raw_ptr, fe.return_is_ref, ctx)
         } else {
             result = val_none()
         }

@@ -352,7 +352,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         // at runtime. Nested POD structs recurse through value_to_expr.
         // read_field returns a shallow (borrowed) view into si.data, so the
         // field values are not freed here.
-        ref sdef : Expr = si.struct_def
+        ref sdef : Expr = lookup_interp_type_def(si.struct_name, ctx)
         expect(sdef.is_null().not(), "sdef is null")
         // si.to_str() is called fresh per consumer: each builds its own
         // owned Str so no buffer is shared across the Ident and the two
@@ -806,6 +806,23 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             }
         case:
         }
+    }
+
+    // #286: a call whose return type is a container (Vec/Array/Map) can never
+    // be folded -- value_to_expr always bails on the container's `own data`
+    // field and returns NULL, so the call already stays at runtime. Evaluating
+    // it anyway runs the whole call (allocating the container plus its element
+    // buffers) only to discard the result, leaking every block the eval cloned
+    // (the clone_container_str_buffer / make_str_value treadmill). The outcome
+    // (NULL -> call left for runtime) is identical without the wasted eval, so
+    // skip it for non-macro folds. Macros (require_known) may run compile-time
+    // effects and must still evaluate.
+    if require_known.not() {
+        ret_tname := til_type_name(fcall.expr_til_type())
+        is_container := ret_tname.starts_with("Vec__")
+                       .or(ret_tname.starts_with("Array__"))
+                       .or(ret_tname.starts_with("Map__"))
+        if is_container { return NULL }
     }
 
     // Build a call with literal args for the interpreter
