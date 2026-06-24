@@ -1211,7 +1211,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                 if interp_is_primitive_type_name(dd.explicit_type) {
                     ref ptr_view : Dynamic = value_ptr_view(val)
                     ref source_addr : Dynamic = deref(ptr_view)
-                    if is_null(source_addr).not() {
+                    if source_addr.is_null().not() {
                         holder : Dynamic = malloc(8)
                         write_ptr(holder, source_addr)
                         scope.ref_primitive_ptrs.set(dd.name, own holder)
@@ -1418,7 +1418,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             // the original ptr_add target unmodified -- the compile-path
             // equivalent of issue #226's pointer-rebind bug.
             ref ref_ptr : Dynamic = scope_get_ref_primitive_ptr(scope, ad.name)
-            if is_null(ref_ptr).not() {
+            if ref_ptr.is_null().not() {
                 switch new_val {
                 case Value.Int(iv):     write_i64(ref_ptr, iv)
                 case Value.Byte(u8v):   write_u8(ref_ptr, u8v)
@@ -2009,7 +2009,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         if si_edef.node_type.is(NodeType.StructDef) {
             switch si_edef.node_type {
             case NodeType.StructDef(sdd):
-                inst_data : Dynamic = calloc(1, ctx_total_size(ident_name(name), ctx).cast(U64))
+                inst_data : Dynamic = calloc(1, ctx_total_size(name.ident_name(), ctx).cast(U64))
                 mut inst := val_none()
                 switch e.node_type {
                 case NodeType.FCall(fcd_ctor):
@@ -2083,7 +2083,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     }
 
     if fn_cell.val.is(Value.Func).not().and(fn_cell.val.is(Value.Closure).not()) {
-        interp_error(e, format(ident_name(name), " is not a function"), ctx)
+        interp_error(e, format(name.ident_name(), " is not a function"), ctx)
         exit(1)
     }
 
@@ -2564,7 +2564,7 @@ priv interp_is_primitive_type_name := func(name: Str) returns Bool {
 priv scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dynamic {
     ref mut cur : Scope = s
     while true {
-        if is_null(cur) { return NULL }
+        if cur.is_null() { return NULL }
         if cur.ref_primitive_ptrs.has(name) {
             ref holder : Dynamic = cur.ref_primitive_ptrs[name]
             ref stored : Dynamic = deref(holder)
