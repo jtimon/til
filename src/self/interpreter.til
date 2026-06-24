@@ -5461,6 +5461,8 @@ priv scalar_is_binop := func(op: Str) returns Bool {
     case "bxor": return true
     case "shl": return true
     case "shr": return true
+    case "div": return true
+    case "mod": return true
     }
     return false
 }
@@ -5477,6 +5479,8 @@ priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
     case "bxor": return a.bxor(b)
     case "shl": return a.shl(b)
     case "shr": return a.shr(b)
+    case "div": return a.div(b)
+    case "mod": return a.mod(b)
     }
     panic(__LOC__, ": scalar_apply_u64: unhandled op ", op)
     return a
@@ -5494,6 +5498,8 @@ priv scalar_apply_i64 := func(op: Str, a: I64, b: I64) returns I64 {
     case "bxor": return a.bxor(b)
     case "shl": return a.shl(b)
     case "shr": return a.shr(b)
+    case "div": return a.div(b)
+    case "mod": return a.mod(b)
     }
     panic(__LOC__, ": scalar_apply_i64: unhandled op ", op)
     return a
@@ -5504,6 +5510,7 @@ priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
     case "add": return a.add(b)
     case "sub": return a.sub(b)
     case "mul": return a.mul(b)
+    case "div": return a.div(b)
     }
     panic(__LOC__, ": scalar_apply_f32: unhandled op ", op)
     return a
@@ -5581,8 +5588,8 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
             result = scalar_build(type_str, scalar_apply_i64(op_str, value_as_i64(av), value_as_i64(bv)))
             return true
         }
-        // cat == "f": only add/sub/mul exist on F32 (no bitwise/shift).
-        if (op_str == "add").or(op_str == "sub").or(op_str == "mul") {
+        // cat == "f": only add/sub/mul/div exist on F32 (no bitwise/shift/mod).
+        if (op_str == "add").or(op_str == "sub").or(op_str == "mul").or(op_str == "div") {
             result = Value.Float(scalar_apply_f32(op_str, value_to_f32(av), value_to_f32(bv)))
             return true
         }

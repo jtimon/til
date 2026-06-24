@@ -2742,6 +2742,27 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         f.write(")(~(")
                         emit_deref(f, e.children[1], depth, ctx)
                         f.write(")))")
+                    } else if (core_op == "div").or(core_op == "mod") {
+                        // #288 follow-up: div/mod keep ext.c's divide-by-zero
+                        // guard -- they return 0 on a zero divisor (safe_div is
+                        // the throwing variant). A statement expression binds
+                        // both operands to temps so the guarded divisor is
+                        // evaluated exactly once: ((T)(_b==0 ? 0 : _a OP _b)).
+                        mut divmod_c_op := "/"
+                        if core_op == "mod" { divmod_c_op = "%" }
+                        f.write("({ ")
+                        f.write(core_ret_c)
+                        f.write(" _cf_a = ")
+                        emit_deref(f, e.children[1], depth, ctx)
+                        f.write("; ")
+                        f.write(core_ret_c)
+                        f.write(" _cf_b = ")
+                        emit_deref(f, e.children[2], depth, ctx)
+                        f.write("; (")
+                        f.write(core_ret_c)
+                        f.write(")((_cf_b == 0) ? 0 : (_cf_a ")
+                        f.write(divmod_c_op)
+                        f.write(" _cf_b)); })")
                     } else {
                         core_c_op := core_binop_to_c(core_op)
                         if core_c_op.len() == 0 { panic(__LOC__, ": core_func backend lowering: unknown op '", core_op, "'") }
