@@ -1100,7 +1100,7 @@ U64 F32_hash(F32 self, HashFn hasher) {
 void U64_inc(U64 * self) {
     U64 hoisted__U64_36 = 1ULL;
     (void)hoisted__U64_36;
-    U64 hoisted__U64_37 = U64_add(DEREF(self), hoisted__U64_36);
+    U64 hoisted__U64_37 = ((U64)(DEREF(self) + hoisted__U64_36));
     (void)hoisted__U64_37;
     *self = hoisted__U64_37;
 }
@@ -1108,7 +1108,7 @@ void U64_inc(U64 * self) {
 void U64_dec(U64 * self) {
     U64 hoisted__U64_38 = 1ULL;
     (void)hoisted__U64_38;
-    U64 hoisted__U64_39 = U64_sub(DEREF(self), hoisted__U64_38);
+    U64 hoisted__U64_39 = ((U64)(DEREF(self) - hoisted__U64_38));
     (void)hoisted__U64_39;
     *self = hoisted__U64_39;
 }
@@ -1144,7 +1144,7 @@ Str * U32_to_str(U32 val) {
 void U32_inc(U32 * self) {
     U32 hoisted__U32_147 = 1;
     (void)hoisted__U32_147;
-    U32 hoisted__U32_148 = U32_add(DEREF(self), hoisted__U32_147);
+    U32 hoisted__U32_148 = ((U32)(DEREF(self) + hoisted__U32_147));
     (void)hoisted__U32_148;
     *self = hoisted__U32_148;
 }
@@ -1152,7 +1152,7 @@ void U32_inc(U32 * self) {
 void U32_dec(U32 * self) {
     U32 hoisted__U32_149 = 1;
     (void)hoisted__U32_149;
-    U32 hoisted__U32_150 = U32_sub(DEREF(self), hoisted__U32_149);
+    U32 hoisted__U32_150 = ((U32)(DEREF(self) - hoisted__U32_149));
     (void)hoisted__U32_150;
     *self = hoisted__U32_150;
 }
@@ -1182,7 +1182,7 @@ Bool U32_lt(U32 a, U32 b) {
     (void)hoisted__I64_246;
     I64 hoisted__I64_247 = -1;
     (void)hoisted__I64_247;
-    Bool hoisted__Bool_248 = I64_eq(hoisted__I64_246, hoisted__I64_247);
+    Bool hoisted__Bool_248 = ((Bool)(hoisted__I64_246 == hoisted__I64_247));
     (void)hoisted__Bool_248;
     return hoisted__Bool_248;
 }
@@ -1192,13 +1192,13 @@ Bool U32_gt(U32 a, U32 b) {
     (void)hoisted__I64_249;
     I64 hoisted__I64_250 = 1;
     (void)hoisted__I64_250;
-    Bool hoisted__Bool_251 = I64_eq(hoisted__I64_249, hoisted__I64_250);
+    Bool hoisted__Bool_251 = ((Bool)(hoisted__I64_249 == hoisted__I64_250));
     (void)hoisted__Bool_251;
     return hoisted__Bool_251;
 }
 
 Bool U32_neq(U32 a, U32 b) {
-    Bool hoisted__Bool_252 = U32_eq(a, b);
+    Bool hoisted__Bool_252 = ((Bool)(a == b));
     (void)hoisted__Bool_252;
     Bool hoisted__Bool_253 = not(hoisted__Bool_252);
     (void)hoisted__Bool_253;
@@ -1246,7 +1246,7 @@ Bool I32_lt(I32 a, I32 b) {
     (void)hoisted__I64_424;
     I64 hoisted__I64_425 = -1;
     (void)hoisted__I64_425;
-    Bool hoisted__Bool_426 = I64_eq(hoisted__I64_424, hoisted__I64_425);
+    Bool hoisted__Bool_426 = ((Bool)(hoisted__I64_424 == hoisted__I64_425));
     (void)hoisted__Bool_426;
     return hoisted__Bool_426;
 }
@@ -1256,7 +1256,7 @@ Bool I32_gt(I32 a, I32 b) {
     (void)hoisted__I64_427;
     I64 hoisted__I64_428 = 1;
     (void)hoisted__I64_428;
-    Bool hoisted__Bool_429 = I64_eq(hoisted__I64_427, hoisted__I64_428);
+    Bool hoisted__Bool_429 = ((Bool)(hoisted__I64_427 == hoisted__I64_428));
     (void)hoisted__Bool_429;
     return hoisted__Bool_429;
 }
@@ -1321,12 +1321,12 @@ Str * format(Array__Str * parts) {
             Str *s = Array__Str_unsafe_get(_fc_Array__Str_701, &_fi_USize_701);
             U32 hoisted__U32_704 = 1;
             (void)hoisted__U32_704;
-            U32 hoisted__U32_705 = U32_add(_fi_USize_701, hoisted__U32_704);
+            U32 hoisted__U32_705 = ((U32)(_fi_USize_701 + hoisted__U32_704));
             (void)hoisted__U32_705;
             _fi_USize_701 = hoisted__U32_705;
             U32 hoisted__U32_706 = Str_len(s);
             (void)hoisted__U32_706;
-            U32 hoisted__U32_707 = U32_add(total, hoisted__U32_706);
+            U32 hoisted__U32_707 = ((U32)(total + hoisted__U32_706));
             (void)hoisted__U32_707;
             total = hoisted__U32_707;
         }
@@ -1350,7 +1350,7 @@ Str * format(Array__Str * parts) {
             Str *s = Array__Str_unsafe_get(_fc_Array__Str_708, &_fi_USize_708);
             U32 hoisted__U32_711 = 1;
             (void)hoisted__U32_711;
-            U32 hoisted__U32_712 = U32_add(_fi_USize_708, hoisted__U32_711);
+            U32 hoisted__U32_712 = ((U32)(_fi_USize_708 + hoisted__U32_711));
             (void)hoisted__U32_712;
             _fi_USize_708 = hoisted__U32_712;
             Str_push_str(out, s);
@@ -1400,7 +1400,7 @@ I64 Str_cmp(Str * a, Str * b) {
 Str * Str_with_capacity(U32 n) {
     U32 hoisted__U32_729 = 1;
     (void)hoisted__U32_729;
-    U32 hoisted__U64_730 = U32_add(n, hoisted__U32_729);
+    U32 hoisted__U64_730 = ((U64)(n + hoisted__U32_729));
     (void)hoisted__U64_730;
     void * buf = malloc(hoisted__U64_730);
     I32 hoisted__I32_731 = 0;
@@ -1445,7 +1445,7 @@ void Str_push_str(Str * self, Str * s) {
         panic(_va_Array_18, &hoisted__Str_741);
         Str_delete(&hoisted__Str_741, (Bool){0});
     }
-    U32 new_len = U32_add(self->count, s->count);
+    U32 new_len = ((U32)(self->count + s->count));
     Bool hoisted__Bool_748 = U32_gt(new_len, self->cap);
     (void)hoisted__Bool_748;
     if (hoisted__Bool_748) {
@@ -1490,7 +1490,7 @@ void Str_push_str(Str * self, Str * s) {
 Str * Str_clone(Str * val) {
     U32 hoisted__U32_753 = 1;
     (void)hoisted__U32_753;
-    U32 hoisted__U64_754 = U32_add(val->count, hoisted__U32_753);
+    U32 hoisted__U64_754 = ((U64)(val->count + hoisted__U32_753));
     (void)hoisted__U64_754;
     void * new_data = malloc(hoisted__U64_754);
     memcpy(new_data, val->c_str, val->count);
@@ -1548,7 +1548,7 @@ Bool Str_eq(Str * a, Str * b) {
     (void)hoisted__I64_1142;
     I64 hoisted__I64_1143 = 0;
     (void)hoisted__I64_1143;
-    Bool hoisted__Bool_1144 = I64_eq(hoisted__I64_1142, hoisted__I64_1143);
+    Bool hoisted__Bool_1144 = ((Bool)(hoisted__I64_1142 == hoisted__I64_1143));
     (void)hoisted__Bool_1144;
     return hoisted__Bool_1144;
 }
@@ -1614,7 +1614,7 @@ U32 Array__Str_len(Array__Str * self) {
 Str * Array__Str_unsafe_get(Array__Str * self, U32 * i) {
     U32 hoisted__U32_1296 = 16;
     (void)hoisted__U32_1296;
-    U32 hoisted__U32_1297 = U32_mul(DEREF(i), hoisted__U32_1296);
+    U32 hoisted__U32_1297 = ((U32)(DEREF(i) * hoisted__U32_1296));
     (void)hoisted__U32_1297;
     U64 hoisted__U64_1298 = (U64)(hoisted__U32_1297);
     (void)hoisted__U64_1298;
@@ -1724,7 +1724,7 @@ void Array__Str_set(Array__Str * self, U32 i, Str * val, I64 * _err_kind, OutOfB
     }
     I64 hoisted__I64_1357 = 0;
     (void)hoisted__I64_1357;
-    Bool hoisted__Bool_1358 = I64_eq(DEREF(_err_kind), hoisted__I64_1357);
+    Bool hoisted__Bool_1358 = ((Bool)(DEREF(_err_kind) == hoisted__I64_1357));
     (void)hoisted__Bool_1358;
     if (hoisted__Bool_1358) {
         Array__Str_unsafe_set(self, i, val);
@@ -1751,7 +1751,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                 U32_inc(&_rc_U32_1359);
                 U32 hoisted__U32_1361 = 16;
                 (void)hoisted__U32_1361;
-                U32 hoisted__U32_1362 = U32_mul(i, hoisted__U32_1361);
+                U32 hoisted__U32_1362 = ((U32)(i * hoisted__U32_1361));
                 (void)hoisted__U32_1362;
                 U64 hoisted__U64_1363 = (U64)(hoisted__U32_1362);
                 (void)hoisted__U64_1363;
@@ -1774,7 +1774,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                 U32_dec(&_rc_U32_1359);
                 U32 hoisted__U32_1367 = 16;
                 (void)hoisted__U32_1367;
-                U32 hoisted__U32_1368 = U32_mul(i, hoisted__U32_1367);
+                U32 hoisted__U32_1368 = ((U32)(i * hoisted__U32_1367));
                 (void)hoisted__U32_1368;
                 U64 hoisted__U64_1369 = (U64)(hoisted__U32_1368);
                 (void)hoisted__U64_1369;
@@ -1796,7 +1796,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
 Array__Str * Array__Str_clone(Array__Str * self) {
     U32 hoisted__U32_1401 = 16;
     (void)hoisted__U32_1401;
-    U32 hoisted__U32_1402 = U32_mul(self->cap, hoisted__U32_1401);
+    U32 hoisted__U32_1402 = ((U32)(self->cap * hoisted__U32_1401));
     (void)hoisted__U32_1402;
     U64 hoisted__U64_1403 = (U64)(hoisted__U32_1402);
     (void)hoisted__U64_1403;
@@ -1820,7 +1820,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 U32_inc(&_rc_U32_1373);
                 U32 hoisted__U32_1375 = 16;
                 (void)hoisted__U32_1375;
-                U32 hoisted__U32_1376 = U32_mul(i, hoisted__U32_1375);
+                U32 hoisted__U32_1376 = ((U32)(i * hoisted__U32_1375));
                 (void)hoisted__U32_1376;
                 U64 hoisted__U64_1377 = (U64)(hoisted__U32_1376);
                 (void)hoisted__U64_1377;
@@ -1828,7 +1828,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 Str *cloned = Str_clone(src);
                 U32 hoisted__U32_1378 = 16;
                 (void)hoisted__U32_1378;
-                U32 hoisted__U32_1379 = U32_mul(i, hoisted__U32_1378);
+                U32 hoisted__U32_1379 = ((U32)(i * hoisted__U32_1378));
                 (void)hoisted__U32_1379;
                 U64 hoisted__U64_1380 = (U64)(hoisted__U32_1379);
                 (void)hoisted__U64_1380;
@@ -1861,7 +1861,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 U32_dec(&_rc_U32_1373);
                 U32 hoisted__U32_1388 = 16;
                 (void)hoisted__U32_1388;
-                U32 hoisted__U32_1389 = U32_mul(i, hoisted__U32_1388);
+                U32 hoisted__U32_1389 = ((U32)(i * hoisted__U32_1388));
                 (void)hoisted__U32_1389;
                 U64 hoisted__U64_1390 = (U64)(hoisted__U32_1389);
                 (void)hoisted__U64_1390;
@@ -1869,7 +1869,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 Str *cloned = Str_clone(src);
                 U32 hoisted__U32_1391 = 16;
                 (void)hoisted__U32_1391;
-                U32 hoisted__U32_1392 = U32_mul(i, hoisted__U32_1391);
+                U32 hoisted__U32_1392 = ((U32)(i * hoisted__U32_1391));
                 (void)hoisted__U32_1392;
                 U64 hoisted__U64_1393 = (U64)(hoisted__U32_1392);
                 (void)hoisted__U64_1393;
@@ -1944,7 +1944,7 @@ void Vec__Str_clear(Vec__Str * self) {
                 U32_inc(&_rc_U32_1421);
                 U32 hoisted__U32_1423 = 16;
                 (void)hoisted__U32_1423;
-                U32 hoisted__U32_1424 = U32_mul(i, hoisted__U32_1423);
+                U32 hoisted__U32_1424 = ((U32)(i * hoisted__U32_1423));
                 (void)hoisted__U32_1424;
                 U64 hoisted__U64_1425 = (U64)(hoisted__U32_1424);
                 (void)hoisted__U64_1425;
@@ -1967,7 +1967,7 @@ void Vec__Str_clear(Vec__Str * self) {
                 U32_dec(&_rc_U32_1421);
                 U32 hoisted__U32_1429 = 16;
                 (void)hoisted__U32_1429;
-                U32 hoisted__U32_1430 = U32_mul(i, hoisted__U32_1429);
+                U32 hoisted__U32_1430 = ((U32)(i * hoisted__U32_1429));
                 (void)hoisted__U32_1430;
                 U64 hoisted__U64_1431 = (U64)(hoisted__U32_1430);
                 (void)hoisted__U64_1431;
@@ -1996,7 +1996,7 @@ void Vec__Str_delete(Vec__Str * self, Bool call_free) {
 Vec__Str * Vec__Str_clone(Vec__Str * self) {
     U32 hoisted__U32_1705 = 16;
     (void)hoisted__U32_1705;
-    U32 hoisted__U32_1706 = U32_mul(self->cap, hoisted__U32_1705);
+    U32 hoisted__U32_1706 = ((U32)(self->cap * hoisted__U32_1705));
     (void)hoisted__U32_1706;
     U64 hoisted__U64_1707 = (U64)(hoisted__U32_1706);
     (void)hoisted__U64_1707;
@@ -2020,7 +2020,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 U32_inc(&_rc_U32_1677);
                 U32 hoisted__U32_1679 = 16;
                 (void)hoisted__U32_1679;
-                U32 hoisted__U32_1680 = U32_mul(i, hoisted__U32_1679);
+                U32 hoisted__U32_1680 = ((U32)(i * hoisted__U32_1679));
                 (void)hoisted__U32_1680;
                 U64 hoisted__U64_1681 = (U64)(hoisted__U32_1680);
                 (void)hoisted__U64_1681;
@@ -2028,7 +2028,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 Str *cloned = Str_clone(src);
                 U32 hoisted__U32_1682 = 16;
                 (void)hoisted__U32_1682;
-                U32 hoisted__U32_1683 = U32_mul(i, hoisted__U32_1682);
+                U32 hoisted__U32_1683 = ((U32)(i * hoisted__U32_1682));
                 (void)hoisted__U32_1683;
                 U64 hoisted__U64_1684 = (U64)(hoisted__U32_1683);
                 (void)hoisted__U64_1684;
@@ -2061,7 +2061,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 U32_dec(&_rc_U32_1677);
                 U32 hoisted__U32_1692 = 16;
                 (void)hoisted__U32_1692;
-                U32 hoisted__U32_1693 = U32_mul(i, hoisted__U32_1692);
+                U32 hoisted__U32_1693 = ((U32)(i * hoisted__U32_1692));
                 (void)hoisted__U32_1693;
                 U64 hoisted__U64_1694 = (U64)(hoisted__U32_1693);
                 (void)hoisted__U64_1694;
@@ -2069,7 +2069,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 Str *cloned = Str_clone(src);
                 U32 hoisted__U32_1695 = 16;
                 (void)hoisted__U32_1695;
-                U32 hoisted__U32_1696 = U32_mul(i, hoisted__U32_1695);
+                U32 hoisted__U32_1696 = ((U32)(i * hoisted__U32_1695));
                 (void)hoisted__U32_1696;
                 U64 hoisted__U64_1697 = (U64)(hoisted__U32_1696);
                 (void)hoisted__U64_1697;
@@ -2125,7 +2125,7 @@ void Dynamic_delete(void * self, Bool call_free) {
 Str * I64_to_str(I64 val) {
     I64 hoisted__I64_1924 = 0;
     (void)hoisted__I64_1924;
-    Bool hoisted__Bool_1925 = I64_eq(val, hoisted__I64_1924);
+    Bool hoisted__Bool_1925 = ((Bool)(val == hoisted__I64_1924));
     (void)hoisted__Bool_1925;
     if (hoisted__Bool_1925) {
         U64 hoisted__U64_1894 = 2ULL;
@@ -2170,7 +2170,7 @@ Str * I64_to_str(I64 val) {
         is_neg = hoisted__Bool_1904;
         I64 hoisted__I64_1905 = 0;
         (void)hoisted__I64_1905;
-        I64 hoisted__I64_1906 = I64_sub(hoisted__I64_1905, val);
+        I64 hoisted__I64_1906 = ((I64)(hoisted__I64_1905 - val));
         (void)hoisted__I64_1906;
         v = hoisted__I64_1906;
     }
@@ -2198,7 +2198,7 @@ Str * I64_to_str(I64 val) {
     }
     U64 hoisted__U64_1928 = 1ULL;
     (void)hoisted__U64_1928;
-    U64 hoisted__U64_1929 = U64_add(total, hoisted__U64_1928);
+    U64 hoisted__U64_1929 = ((U64)(total + hoisted__U64_1928));
     (void)hoisted__U64_1929;
     void * buf = malloc(hoisted__U64_1929);
     if (is_neg) {
@@ -2210,7 +2210,7 @@ Str * I64_to_str(I64 val) {
     }
     U64 hoisted__U64_1930 = 1ULL;
     (void)hoisted__U64_1930;
-    U64 i = U64_sub(total, hoisted__U64_1930);
+    U64 i = ((U64)(total - hoisted__U64_1930));
     while (1) {
         I64 hoisted__I64_1914 = 0;
         (void)hoisted__I64_1914;
@@ -2226,7 +2226,7 @@ Str * I64_to_str(I64 val) {
         (void)hoisted__I64_1916;
         I64 hoisted__I64_1917 = 48;
         (void)hoisted__I64_1917;
-        I64 hoisted__I64_1918 = I64_add(hoisted__I64_1916, hoisted__I64_1917);
+        I64 hoisted__I64_1918 = ((I64)(hoisted__I64_1916 + hoisted__I64_1917));
         (void)hoisted__I64_1918;
         void *hoisted__v_1919 = ptr_add(buf, i);
         (void)hoisted__v_1919;
@@ -2284,7 +2284,7 @@ Bool I64_lt(I64 a, I64 b) {
     (void)hoisted__I64_2114;
     I64 hoisted__I64_2115 = -1;
     (void)hoisted__I64_2115;
-    Bool hoisted__Bool_2116 = I64_eq(hoisted__I64_2114, hoisted__I64_2115);
+    Bool hoisted__Bool_2116 = ((Bool)(hoisted__I64_2114 == hoisted__I64_2115));
     (void)hoisted__Bool_2116;
     return hoisted__Bool_2116;
 }
@@ -2294,13 +2294,13 @@ Bool I64_gt(I64 a, I64 b) {
     (void)hoisted__I64_2117;
     I64 hoisted__I64_2118 = 1;
     (void)hoisted__I64_2118;
-    Bool hoisted__Bool_2119 = I64_eq(hoisted__I64_2117, hoisted__I64_2118);
+    Bool hoisted__Bool_2119 = ((Bool)(hoisted__I64_2117 == hoisted__I64_2118));
     (void)hoisted__Bool_2119;
     return hoisted__Bool_2119;
 }
 
 Bool I64_neq(I64 a, I64 b) {
-    Bool hoisted__Bool_2120 = I64_eq(a, b);
+    Bool hoisted__Bool_2120 = ((Bool)(a == b));
     (void)hoisted__Bool_2120;
     Bool hoisted__Bool_2121 = not(hoisted__Bool_2120);
     (void)hoisted__Bool_2121;
@@ -4536,7 +4536,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                 U32_inc(&_rc_U32_4575);
                 U32 hoisted__U32_4577 = 1;
                 (void)hoisted__U32_4577;
-                U32 hoisted__U32_4578 = U32_mul(i, hoisted__U32_4577);
+                U32 hoisted__U32_4578 = ((U32)(i * hoisted__U32_4577));
                 (void)hoisted__U32_4578;
                 U64 hoisted__U64_4579 = (U64)(hoisted__U32_4578);
                 (void)hoisted__U64_4579;
@@ -4559,7 +4559,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                 U32_dec(&_rc_U32_4575);
                 U32 hoisted__U32_4583 = 1;
                 (void)hoisted__U32_4583;
-                U32 hoisted__U32_4584 = U32_mul(i, hoisted__U32_4583);
+                U32 hoisted__U32_4584 = ((U32)(i * hoisted__U32_4583));
                 (void)hoisted__U32_4584;
                 U64 hoisted__U64_4585 = (U64)(hoisted__U32_4584);
                 (void)hoisted__U64_4585;
@@ -4588,7 +4588,7 @@ void Vec__Bool_delete(Vec__Bool * self, Bool call_free) {
 Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
     U32 hoisted__U32_4859 = 1;
     (void)hoisted__U32_4859;
-    U32 hoisted__U32_4860 = U32_mul(self->cap, hoisted__U32_4859);
+    U32 hoisted__U32_4860 = ((U32)(self->cap * hoisted__U32_4859));
     (void)hoisted__U32_4860;
     U64 hoisted__U64_4861 = (U64)(hoisted__U32_4860);
     (void)hoisted__U64_4861;
@@ -4612,7 +4612,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 U32_inc(&_rc_U32_4831);
                 U32 hoisted__U32_4833 = 1;
                 (void)hoisted__U32_4833;
-                U32 hoisted__U32_4834 = U32_mul(i, hoisted__U32_4833);
+                U32 hoisted__U32_4834 = ((U32)(i * hoisted__U32_4833));
                 (void)hoisted__U32_4834;
                 U64 hoisted__U64_4835 = (U64)(hoisted__U32_4834);
                 (void)hoisted__U64_4835;
@@ -4620,7 +4620,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 Bool cloned = Bool_clone(src);
                 U32 hoisted__U32_4836 = 1;
                 (void)hoisted__U32_4836;
-                U32 hoisted__U32_4837 = U32_mul(i, hoisted__U32_4836);
+                U32 hoisted__U32_4837 = ((U32)(i * hoisted__U32_4836));
                 (void)hoisted__U32_4837;
                 U64 hoisted__U64_4838 = (U64)(hoisted__U32_4837);
                 (void)hoisted__U64_4838;
@@ -4652,7 +4652,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 U32_dec(&_rc_U32_4831);
                 U32 hoisted__U32_4846 = 1;
                 (void)hoisted__U32_4846;
-                U32 hoisted__U32_4847 = U32_mul(i, hoisted__U32_4846);
+                U32 hoisted__U32_4847 = ((U32)(i * hoisted__U32_4846));
                 (void)hoisted__U32_4847;
                 U64 hoisted__U64_4848 = (U64)(hoisted__U32_4847);
                 (void)hoisted__U64_4848;
@@ -4660,7 +4660,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 Bool cloned = Bool_clone(src);
                 U32 hoisted__U32_4849 = 1;
                 (void)hoisted__U32_4849;
-                U32 hoisted__U32_4850 = U32_mul(i, hoisted__U32_4849);
+                U32 hoisted__U32_4850 = ((U32)(i * hoisted__U32_4849));
                 (void)hoisted__U32_4850;
                 U64 hoisted__U64_4851 = (U64)(hoisted__U32_4850);
                 (void)hoisted__U64_4851;
@@ -4735,7 +4735,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                 U32_inc(&_rc_U32_5183);
                 U32 hoisted__U32_5185 = 104;
                 (void)hoisted__U32_5185;
-                U32 hoisted__U32_5186 = U32_mul(i, hoisted__U32_5185);
+                U32 hoisted__U32_5186 = ((U32)(i * hoisted__U32_5185));
                 (void)hoisted__U32_5186;
                 U64 hoisted__U64_5187 = (U64)(hoisted__U32_5186);
                 (void)hoisted__U64_5187;
@@ -4758,7 +4758,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                 U32_dec(&_rc_U32_5183);
                 U32 hoisted__U32_5191 = 104;
                 (void)hoisted__U32_5191;
-                U32 hoisted__U32_5192 = U32_mul(i, hoisted__U32_5191);
+                U32 hoisted__U32_5192 = ((U32)(i * hoisted__U32_5191));
                 (void)hoisted__U32_5192;
                 U64 hoisted__U64_5193 = (U64)(hoisted__U32_5192);
                 (void)hoisted__U64_5193;
@@ -4787,7 +4787,7 @@ void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free) {
 Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
     U32 hoisted__U32_5467 = 104;
     (void)hoisted__U32_5467;
-    U32 hoisted__U32_5468 = U32_mul(self->cap, hoisted__U32_5467);
+    U32 hoisted__U32_5468 = ((U32)(self->cap * hoisted__U32_5467));
     (void)hoisted__U32_5468;
     U64 hoisted__U64_5469 = (U64)(hoisted__U32_5468);
     (void)hoisted__U64_5469;
@@ -4811,7 +4811,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 U32_inc(&_rc_U32_5439);
                 U32 hoisted__U32_5441 = 104;
                 (void)hoisted__U32_5441;
-                U32 hoisted__U32_5442 = U32_mul(i, hoisted__U32_5441);
+                U32 hoisted__U32_5442 = ((U32)(i * hoisted__U32_5441));
                 (void)hoisted__U32_5442;
                 U64 hoisted__U64_5443 = (U64)(hoisted__U32_5442);
                 (void)hoisted__U64_5443;
@@ -4819,7 +4819,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 Declaration *cloned = Declaration_clone(src);
                 U32 hoisted__U32_5444 = 104;
                 (void)hoisted__U32_5444;
-                U32 hoisted__U32_5445 = U32_mul(i, hoisted__U32_5444);
+                U32 hoisted__U32_5445 = ((U32)(i * hoisted__U32_5444));
                 (void)hoisted__U32_5445;
                 U64 hoisted__U64_5446 = (U64)(hoisted__U32_5445);
                 (void)hoisted__U64_5446;
@@ -4852,7 +4852,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 U32_dec(&_rc_U32_5439);
                 U32 hoisted__U32_5454 = 104;
                 (void)hoisted__U32_5454;
-                U32 hoisted__U32_5455 = U32_mul(i, hoisted__U32_5454);
+                U32 hoisted__U32_5455 = ((U32)(i * hoisted__U32_5454));
                 (void)hoisted__U32_5455;
                 U64 hoisted__U64_5456 = (U64)(hoisted__U32_5455);
                 (void)hoisted__U64_5456;
@@ -4860,7 +4860,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 Declaration *cloned = Declaration_clone(src);
                 U32 hoisted__U32_5457 = 104;
                 (void)hoisted__U32_5457;
-                U32 hoisted__U32_5458 = U32_mul(i, hoisted__U32_5457);
+                U32 hoisted__U32_5458 = ((U32)(i * hoisted__U32_5457));
                 (void)hoisted__U32_5458;
                 U64 hoisted__U64_5459 = (U64)(hoisted__U32_5458);
                 (void)hoisted__U64_5459;
@@ -4936,7 +4936,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                 U32_inc(&_rc_U32_5487);
                 U32 hoisted__U32_5489 = 144;
                 (void)hoisted__U32_5489;
-                U32 hoisted__U32_5490 = U32_mul(i, hoisted__U32_5489);
+                U32 hoisted__U32_5490 = ((U32)(i * hoisted__U32_5489));
                 (void)hoisted__U32_5490;
                 U64 hoisted__U64_5491 = (U64)(hoisted__U32_5490);
                 (void)hoisted__U64_5491;
@@ -4959,7 +4959,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                 U32_dec(&_rc_U32_5487);
                 U32 hoisted__U32_5495 = 144;
                 (void)hoisted__U32_5495;
-                U32 hoisted__U32_5496 = U32_mul(i, hoisted__U32_5495);
+                U32 hoisted__U32_5496 = ((U32)(i * hoisted__U32_5495));
                 (void)hoisted__U32_5496;
                 U64 hoisted__U64_5497 = (U64)(hoisted__U32_5496);
                 (void)hoisted__U64_5497;
@@ -4988,7 +4988,7 @@ void Vec__Expr_delete(Vec__Expr * self, Bool call_free) {
 Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
     U32 hoisted__U32_5771 = 144;
     (void)hoisted__U32_5771;
-    U32 hoisted__U32_5772 = U32_mul(self->cap, hoisted__U32_5771);
+    U32 hoisted__U32_5772 = ((U32)(self->cap * hoisted__U32_5771));
     (void)hoisted__U32_5772;
     U64 hoisted__U64_5773 = (U64)(hoisted__U32_5772);
     (void)hoisted__U64_5773;
@@ -5012,7 +5012,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 U32_inc(&_rc_U32_5743);
                 U32 hoisted__U32_5745 = 144;
                 (void)hoisted__U32_5745;
-                U32 hoisted__U32_5746 = U32_mul(i, hoisted__U32_5745);
+                U32 hoisted__U32_5746 = ((U32)(i * hoisted__U32_5745));
                 (void)hoisted__U32_5746;
                 U64 hoisted__U64_5747 = (U64)(hoisted__U32_5746);
                 (void)hoisted__U64_5747;
@@ -5020,7 +5020,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 Expr *cloned = Expr_clone(src);
                 U32 hoisted__U32_5748 = 144;
                 (void)hoisted__U32_5748;
-                U32 hoisted__U32_5749 = U32_mul(i, hoisted__U32_5748);
+                U32 hoisted__U32_5749 = ((U32)(i * hoisted__U32_5748));
                 (void)hoisted__U32_5749;
                 U64 hoisted__U64_5750 = (U64)(hoisted__U32_5749);
                 (void)hoisted__U64_5750;
@@ -5053,7 +5053,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 U32_dec(&_rc_U32_5743);
                 U32 hoisted__U32_5758 = 144;
                 (void)hoisted__U32_5758;
-                U32 hoisted__U32_5759 = U32_mul(i, hoisted__U32_5758);
+                U32 hoisted__U32_5759 = ((U32)(i * hoisted__U32_5758));
                 (void)hoisted__U32_5759;
                 U64 hoisted__U64_5760 = (U64)(hoisted__U32_5759);
                 (void)hoisted__U64_5760;
@@ -5061,7 +5061,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 Expr *cloned = Expr_clone(src);
                 U32 hoisted__U32_5761 = 144;
                 (void)hoisted__U32_5761;
-                U32 hoisted__U32_5762 = U32_mul(i, hoisted__U32_5761);
+                U32 hoisted__U32_5762 = ((U32)(i * hoisted__U32_5761));
                 (void)hoisted__U32_5762;
                 U64 hoisted__U64_5763 = (U64)(hoisted__U32_5762);
                 (void)hoisted__U64_5763;
@@ -5137,7 +5137,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                 U32_inc(&_rc_U32_5791);
                 U32 hoisted__U32_5793 = 8;
                 (void)hoisted__U32_5793;
-                U32 hoisted__U32_5794 = U32_mul(i, hoisted__U32_5793);
+                U32 hoisted__U32_5794 = ((U32)(i * hoisted__U32_5793));
                 (void)hoisted__U32_5794;
                 U64 hoisted__U64_5795 = (U64)(hoisted__U32_5794);
                 (void)hoisted__U64_5795;
@@ -5160,7 +5160,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                 U32_dec(&_rc_U32_5791);
                 U32 hoisted__U32_5799 = 8;
                 (void)hoisted__U32_5799;
-                U32 hoisted__U32_5800 = U32_mul(i, hoisted__U32_5799);
+                U32 hoisted__U32_5800 = ((U32)(i * hoisted__U32_5799));
                 (void)hoisted__U32_5800;
                 U64 hoisted__U64_5801 = (U64)(hoisted__U32_5800);
                 (void)hoisted__U64_5801;
@@ -5189,7 +5189,7 @@ void Vec__I64_delete(Vec__I64 * self, Bool call_free) {
 Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
     U32 hoisted__U32_6075 = 8;
     (void)hoisted__U32_6075;
-    U32 hoisted__U32_6076 = U32_mul(self->cap, hoisted__U32_6075);
+    U32 hoisted__U32_6076 = ((U32)(self->cap * hoisted__U32_6075));
     (void)hoisted__U32_6076;
     U64 hoisted__U64_6077 = (U64)(hoisted__U32_6076);
     (void)hoisted__U64_6077;
@@ -5213,7 +5213,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 U32_inc(&_rc_U32_6047);
                 U32 hoisted__U32_6049 = 8;
                 (void)hoisted__U32_6049;
-                U32 hoisted__U32_6050 = U32_mul(i, hoisted__U32_6049);
+                U32 hoisted__U32_6050 = ((U32)(i * hoisted__U32_6049));
                 (void)hoisted__U32_6050;
                 U64 hoisted__U64_6051 = (U64)(hoisted__U32_6050);
                 (void)hoisted__U64_6051;
@@ -5221,7 +5221,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 I64 cloned = I64_clone(src);
                 U32 hoisted__U32_6052 = 8;
                 (void)hoisted__U32_6052;
-                U32 hoisted__U32_6053 = U32_mul(i, hoisted__U32_6052);
+                U32 hoisted__U32_6053 = ((U32)(i * hoisted__U32_6052));
                 (void)hoisted__U32_6053;
                 U64 hoisted__U64_6054 = (U64)(hoisted__U32_6053);
                 (void)hoisted__U64_6054;
@@ -5253,7 +5253,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 U32_dec(&_rc_U32_6047);
                 U32 hoisted__U32_6062 = 8;
                 (void)hoisted__U32_6062;
-                U32 hoisted__U32_6063 = U32_mul(i, hoisted__U32_6062);
+                U32 hoisted__U32_6063 = ((U32)(i * hoisted__U32_6062));
                 (void)hoisted__U32_6063;
                 U64 hoisted__U64_6064 = (U64)(hoisted__U32_6063);
                 (void)hoisted__U64_6064;
@@ -5261,7 +5261,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 I64 cloned = I64_clone(src);
                 U32 hoisted__U32_6065 = 8;
                 (void)hoisted__U32_6065;
-                U32 hoisted__U32_6066 = U32_mul(i, hoisted__U32_6065);
+                U32 hoisted__U32_6066 = ((U32)(i * hoisted__U32_6065));
                 (void)hoisted__U32_6066;
                 U64 hoisted__U64_6067 = (U64)(hoisted__U32_6066);
                 (void)hoisted__U64_6067;
@@ -5408,7 +5408,7 @@ void println(Array__Str * parts) {
             Str *s = Array__Str_unsafe_get(_fc_Array__Str_7236, &_fi_USize_7236);
             U32 hoisted__U32_7239 = 1;
             (void)hoisted__U32_7239;
-            U32 hoisted__U32_7240 = U32_add(_fi_USize_7236, hoisted__U32_7239);
+            U32 hoisted__U32_7240 = ((U32)(_fi_USize_7236 + hoisted__U32_7239));
             (void)hoisted__U32_7240;
             _fi_USize_7236 = hoisted__U32_7240;
             print_single(s);
@@ -6187,16 +6187,6 @@ U64 F32_hash_dyn(void *til_env, void *_a0, void *_a1) {
     return F32_hash(*(F32 *)_a0, _a1);
 }
 static __attribute__((unused)) TilClosure F32_hash_dyn__til_closure = { (void *)F32_hash_dyn, NULL, NULL };
-U64 U64_add_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return U64_add(*(U64 *)_a0, *(U64 *)_a1);
-}
-static __attribute__((unused)) TilClosure U64_add_dyn__til_closure = { (void *)U64_add_dyn, NULL, NULL };
-U64 U64_sub_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return U64_sub(*(U64 *)_a0, *(U64 *)_a1);
-}
-static __attribute__((unused)) TilClosure U64_sub_dyn__til_closure = { (void *)U64_sub_dyn, NULL, NULL };
 void U64_inc_dyn(void *til_env, void *_a0) {
     (void)til_env;
     U64_inc(_a0);
@@ -6242,21 +6232,6 @@ void *U32_to_str_dyn(void *til_env, void *_a0) {
     return (void *)U32_to_str(*(U32 *)_a0);
 }
 static __attribute__((unused)) TilClosure U32_to_str_dyn__til_closure = { (void *)U32_to_str_dyn, NULL, NULL };
-U32 U32_add_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return U32_add(*(U32 *)_a0, *(U32 *)_a1);
-}
-static __attribute__((unused)) TilClosure U32_add_dyn__til_closure = { (void *)U32_add_dyn, NULL, NULL };
-U32 U32_sub_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return U32_sub(*(U32 *)_a0, *(U32 *)_a1);
-}
-static __attribute__((unused)) TilClosure U32_sub_dyn__til_closure = { (void *)U32_sub_dyn, NULL, NULL };
-U32 U32_mul_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return U32_mul(*(U32 *)_a0, *(U32 *)_a1);
-}
-static __attribute__((unused)) TilClosure U32_mul_dyn__til_closure = { (void *)U32_mul_dyn, NULL, NULL };
 void U32_inc_dyn(void *til_env, void *_a0) {
     (void)til_env;
     U32_inc(_a0);
@@ -6267,11 +6242,6 @@ void U32_dec_dyn(void *til_env, void *_a0) {
     U32_dec(_a0);
 }
 static __attribute__((unused)) TilClosure U32_dec_dyn__til_closure = { (void *)U32_dec_dyn, NULL, NULL };
-Bool U32_eq_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return U32_eq(*(U32 *)_a0, *(U32 *)_a1);
-}
-static __attribute__((unused)) TilClosure U32_eq_dyn__til_closure = { (void *)U32_eq_dyn, NULL, NULL };
 I64 U32_cmp_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
     return U32_cmp(*(U32 *)_a0, *(U32 *)_a1);
@@ -6572,16 +6542,6 @@ U8 I64_to_u8_dyn(void *til_env, void *_a0) {
     return I64_to_u8(*(I64 *)_a0);
 }
 static __attribute__((unused)) TilClosure I64_to_u8_dyn__til_closure = { (void *)I64_to_u8_dyn, NULL, NULL };
-I64 I64_add_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return I64_add(*(I64 *)_a0, *(I64 *)_a1);
-}
-static __attribute__((unused)) TilClosure I64_add_dyn__til_closure = { (void *)I64_add_dyn, NULL, NULL };
-I64 I64_sub_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return I64_sub(*(I64 *)_a0, *(I64 *)_a1);
-}
-static __attribute__((unused)) TilClosure I64_sub_dyn__til_closure = { (void *)I64_sub_dyn, NULL, NULL };
 I64 I64_div_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
     return I64_div(*(I64 *)_a0, *(I64 *)_a1);
@@ -6592,11 +6552,6 @@ I64 I64_mod_dyn(void *til_env, void *_a0, void *_a1) {
     return I64_mod(*(I64 *)_a0, *(I64 *)_a1);
 }
 static __attribute__((unused)) TilClosure I64_mod_dyn__til_closure = { (void *)I64_mod_dyn, NULL, NULL };
-Bool I64_eq_dyn(void *til_env, void *_a0, void *_a1) {
-    (void)til_env;
-    return I64_eq(*(I64 *)_a0, *(I64 *)_a1);
-}
-static __attribute__((unused)) TilClosure I64_eq_dyn__til_closure = { (void *)I64_eq_dyn, NULL, NULL };
 I64 I64_cmp_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
     return I64_cmp(*(I64 *)_a0, *(I64 *)_a1);
@@ -7545,8 +7500,6 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&F32_delete_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&F32_size_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&F32_hash_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)&U64_add_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "sub", 3ULL) == 0) return (void*)&U64_sub_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "inc", 3ULL) == 0) return (void*)&U64_inc_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "dec", 3ULL) == 0) return (void*)&U64_dec_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) return (void*)&U64_cmp_dyn__til_closure;
@@ -7556,12 +7509,8 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&U64_hash_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_i64", 6ULL) == 0) return (void*)&U32_to_i64_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)&U32_to_str_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)&U32_add_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "sub", 3ULL) == 0) return (void*)&U32_sub_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "mul", 3ULL) == 0) return (void*)&U32_mul_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "inc", 3ULL) == 0) return (void*)&U32_inc_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "dec", 3ULL) == 0) return (void*)&U32_dec_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "eq", 2ULL) == 0) return (void*)&U32_eq_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) return (void*)&U32_cmp_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&U32_clone_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&U32_delete_dyn__til_closure;
@@ -7622,11 +7571,8 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Dynamic_delete_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)&I64_to_str_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "to_u8", 5ULL) == 0) return (void*)&I64_to_u8_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)&I64_add_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "sub", 3ULL) == 0) return (void*)&I64_sub_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "div", 3ULL) == 0) return (void*)&I64_div_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "mod", 3ULL) == 0) return (void*)&I64_mod_dyn__til_closure;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "eq", 2ULL) == 0) return (void*)&I64_eq_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) return (void*)&I64_cmp_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&I64_clone_dyn__til_closure;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&I64_delete_dyn__til_closure;

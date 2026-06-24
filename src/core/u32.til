@@ -18,23 +18,23 @@ namespace:
     to_str := func(val: U32) returns Str {
         return val.to_i64().to_str()
     }
-    add := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    sub := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    mul := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    add := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    sub := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    mul := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     div := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     mod := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     inc := func(mut self: U32) { self = self + 1 }
     dec := func(mut self: U32) { self = self - 1 }
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U32) returns U32 { return 1 }
-    eq := ext_func(shallow a: U32, shallow b: U32) returns shallow Bool {}
+    eq := core_func(shallow a: U32, shallow b: U32) returns shallow Bool {}
     cmp := ext_func(shallow a: U32, shallow b: U32) returns shallow I64 {}
-    band := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    bor := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    bxor := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    bnot := ext_func(shallow a: U32) returns shallow U32 {}
-    shl := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    shr := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    band := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    bor := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    bxor := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    bnot := core_func(shallow a: U32) returns shallow U32 {}
+    shl := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
+    shr := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     clone := ext_func(val: U32) returns shallow U32 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {

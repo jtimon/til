@@ -3548,6 +3548,7 @@ void priv___src_self_builder_til__emit_monolithic_header_lp(File * f, Mode * mod
 void priv___src_self_builder_til__emit_all_forward_declarations(File * f, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_fn_wrapper(File * f, Str * type_name, Str * method_name, FunctionDef * fd, Context * ctx);
 Bool priv___src_self_builder_til__def_is_interface(Expr * def);
+Bool priv___src_self_builder_til__func_type_is_core(FuncType * ft);
 void emit_dyn_fn_closure_value(File * f, Str * type_name, Str * method_name, Str * suffix);
 void priv___src_self_builder_til__emit_dyn_fn_wrappers(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_size_of_body(File * f, LoadedProgram * lp);

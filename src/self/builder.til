@@ -5929,6 +5929,13 @@ priv def_is_interface := func(def: Expr) returns Bool {
     }
 }
 
+// #288: a core_func/core_proc is a symbol-less primitive intrinsic -- it can
+// never be dyn_fn'd (the typer enforces this), so it gets NO dyn wrapper, NO
+// closure value, and NO dyn_fn dispatch entry. The call lowers inline instead.
+priv func_type_is_core := func(ft: FuncType) returns Bool {
+    return ft.is(FuncType.CoreFunc).or(ft.is(FuncType.CoreProc))
+}
+
 emit_dyn_fn_closure_value := proc(f: File, type_name: Str, method_name: Str, suffix: Str) {
     value_name := type_name.format("_", method_name, suffix, "__til_closure")
     call_name := type_name.format("_", method_name, suffix)
@@ -5954,7 +5961,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                             // #269: no wrapper for abstract interface
                             // methods -- there is no C function behind them.
                             // ext_funcs on non-interface types are C-backed.
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()) {
                                 emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd, lp.ctx)
                                 emit_dyn_fn_closure_value(f, dd.name, nsd.name, "_dyn")
                             }
@@ -5983,7 +5990,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: no wrapper for abstract interface methods --
                         // there is no C function behind them. ext_funcs on
                         // non-interface types are C-backed.
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()) {
                             emit_dyn_fn_wrapper(f, dd.name, nsd.name, fd, lp.ctx)
                             emit_dyn_fn_closure_value(f, dd.name, nsd.name, "_dyn")
                         }
@@ -6014,7 +6021,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                             // #269: abstract interface methods have no
                             // _dyn wrapper closure to point at. ext_funcs
                             // on non-interface types are C-backed.
-                            if dfn_fd.func_type.is(FuncType.ExtFunc).or(dfn_fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                            if dfn_fd.func_type.is(FuncType.ExtFunc).or(dfn_fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()) {
                                 tlen := dd.name.len()
                                 mlen := nsd.name.len()
                                 f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd.name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd.name).write("_dyn__til_closure;\n")
@@ -6044,7 +6051,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: abstract interface methods have no _dyn
                         // wrapper closure to point at. ext_funcs on
                         // non-interface types are C-backed.
-                        if dfn_fd2.func_type.is(FuncType.ExtFunc).or(dfn_fd2.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not() {
+                        if dfn_fd2.func_type.is(FuncType.ExtFunc).or(dfn_fd2.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()) {
                             tlen := dd.name.len()
                             mlen := nsd.name.len()
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd.name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd.name).write("_dyn__til_closure;\n")

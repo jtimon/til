@@ -16,11 +16,11 @@ namespace:
         F32_from_i64_ext := ext_func(val: I64) returns shallow F32 {}
         return F32_from_i64_ext(val)
     }
-    add := ext_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
-    sub := ext_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
-    mul := ext_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
+    add := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
+    sub := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
+    mul := core_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
     div := ext_func(shallow a: F32, shallow b: F32) returns shallow F32 {}
-    eq := ext_func(shallow a: F32, shallow b: F32) returns shallow Bool {}
+    eq := core_func(shallow a: F32, shallow b: F32) returns shallow Bool {}
     cmp := ext_func(shallow a: F32, shallow b: F32) returns shallow I64 {}
     clone := ext_func(val: F32) returns shallow F32 {}
     delete := func(own self: F32, call_free: Bool = true) {

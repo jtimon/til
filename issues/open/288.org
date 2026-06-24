@@ -37,16 +37,25 @@ Related: follow-up to the container-perf thread -- unchecked accessors
     migration (HEAD's builder cannot emit a core_func body otherwise). Also
     folds B1's scalar evaluator if-chains into `switch` on the op/type string
     (scalar_op_cat/scalar_is_binop/scalar_apply_u64/i64/f32/scalar_build).
-  - Commit B3 (Stage 5 migrate): flip the direct-only scalar ops in
-    src/core/<type>.til (add/sub/mul/eq/band/bor/bxor/bnot/shl/shr) from
-    ext_func to core_func, KEEPING ext.c for now. Compiled inlines (B2);
-    interpret native-evals (B1). The full suite exercises both.
+  - Commit B3 DONE (Stage 5 migrate, `Two-pass:`): flipped the direct-only
+    scalar ops in src/core/<type>.til (add/sub/mul/eq/band/bor/bxor/bnot/shl/shr
+    on the 8 integer types; add/sub/mul/eq on F32 -- no bitwise/shift on floats)
+    from ext_func to core_func, KEEPING ext.c for now. Compiled inlines (B2);
+    interpret native-evals (B1). The full suite exercises both; 162/162 on
+    make test_two_pass. Also completes the Stage-3 wrapper-skip that B2 deferred:
+    emit_dyn_fn_wrappers / the dyn_fn() dispatch table now skip CoreFunc/CoreProc
+    (a new func_type_is_core helper gates all four sites -- two wrapper-emit, two
+    dispatch-entry). A core_func can never be dyn_fn'd (typer-enforced), so its
+    _dyn wrapper + closure were dead code that only kept the ext.c symbol alive.
+    After this, boot/til.c has ZERO references to the migrated symbols (no call,
+    no wrapper), which is exactly what makes B4 a clean delete.
   - Commit B4 (Stage 5 delete): delete the now-dead trivial scalar impls from
-    src/c/ext.c -- nothing references them once boot inlines and interpret
-    native-evals. Separate commit: B3's pre-migration boot still calls
-    U32_mul, so deleting the symbol earlier breaks the pass-1 link. This lands
-    the last piece -> moves the issue to fixed/. (div/mod, the to_* conversions
-    and cmp/clone stay ext_func; migrating those is an optional follow-up.)
+    src/c/ext.c -- nothing references them now that boot inlines, interpret
+    native-evals, and the dyn wrappers are gone (B3). Separate commit: B3's
+    boot is the first that drops every reference, so the symbol can only be
+    removed once B3's boot is the build base. This lands the last piece ->
+    moves the issue to fixed/. (div/mod, the to_* conversions and cmp/clone
+    stay ext_func; migrating those is an optional follow-up.)
 
 *** Motivation
 
