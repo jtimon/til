@@ -30,6 +30,11 @@ write_bool := ext_func(dest: Dynamic, shallow val: Bool) {}
 memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
 memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: UPtr) {}
 memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: UPtr) {}
+// libc memcmp: compares `len` raw bytes as unsigned char, returns <0/0/>0.
+// Used by Str.cmp to compare a whole prefix in one call instead of a
+// per-byte I8.cmp loop. Dispatches at comptime via the same FFI path as
+// memcpy/memset (not a hardcoded builtin), so no interp change is needed.
+memcmp := ext_func(a: Dynamic, b: Dynamic, shallow len: UPtr) returns shallow I32 {}
 ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 
 // is_null used to live in ext.c; it's now a one-liner over ptr_eq so

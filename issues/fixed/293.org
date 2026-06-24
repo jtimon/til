@@ -1,6 +1,34 @@
 # priority: medium
 # category: optimizations
-** OPEN #293 Speed up Str.cmp -- per-byte ext_func calls at -O0 dominate compare time
+** FIXED #293 Speed up Str.cmp -- per-byte ext_func calls at -O0 dominate compare time
+
+*** Post-mortem
+
+  Implemented Option A (memcmp). Root cause: Str.cmp looped over the
+  common prefix calling Str.unsafe_get (-> ptr_add) twice and I8.cmp once
+  per byte; at -g/-O0 (no inlining) that is ~5 real calls per byte, and
+  ordered Maps run Str.cmp on every key comparison -- the compiler's #1 CPU
+  cost (20M calls, ~37s).
+
+  Fix: added a `memcmp` ext_func binding in src/core/mem.til and rewrote
+  Str.cmp to compare the prefix in one memcmp call, then fall back to the
+  length compare. memcmp compares bytes as UNSIGNED (the strcmp
+  convention), where the old loop read them as signed I8 -- identical for
+  ASCII (every string the compiler handles), differing only for bytes
+  >= 128. So this also aligns Str ordering with strcmp as a side effect.
+
+  The comptime concern in Option A turned out to be a non-issue: memcpy /
+  memset / memmove are NOT hardcoded in the interpreter's dispatch
+  (ext_function_dispatch -> ext_dispatch_builtin -> ext_dispatch_ffi); they
+  already go through the libffi fallback. A new memcmp takes the same path,
+  so it dispatches at comptime with no interpreter change.
+
+  Regression coverage: the full Str-keyed Map / Set / sorting suite
+  (test/maps.til, test/sets.til, test/strings.til, ...) exercises Str.cmp
+  pervasively; `make clean && make test` (161 tests) passes.
+
+  Not done here: Option B (word-at-a-time, semantics-preserving) is moot now
+  that memcmp landed; interning (#292) still subsumes both cmp and clone.
 
   Str.cmp (src/core/str.til) compares byte-by-byte:
     for i in 0..min_len {

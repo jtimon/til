@@ -47,7 +47,6 @@
 *** [[./open/292.org][#292]] Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
 ** Medium
 *** [[./open/291.org][#291]] Lazy Vec.new() -- no allocation until first push
-*** [[./open/293.org][#293]] Speed up Str.cmp -- per-byte ext_func calls at -O0 dominate compare time
 ** Low
 *** [[./open/288.org][#288]] core_func/core_proc: primitive intrinsics each codegen lowers natively
 * Features

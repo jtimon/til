@@ -52,14 +52,16 @@ namespace:
     /// Lexicographic comparison. Returns 0 if equal, negative if a < b,
     /// positive if a > b.
     cmp := func(a: Str, b: Str) returns I64 {
+        // Compare the common prefix in one libc memcmp instead of a
+        // per-byte I8.cmp loop -- at -O0 the loop was ~5 ext_func calls
+        // per byte and the compiler's #1 CPU cost (Str-keyed Map searches).
+        // memcmp compares bytes as UNSIGNED (like strcmp), where the old
+        // loop read them as signed I8; identical for ASCII (every compiler
+        // string), differing only for bytes >= 128.
         mut min_len := a.count
         if b.count < a.count { min_len = b.count }
-        for i in 0..min_len {
-            ref ab : I8 = a.unsafe_get(i)
-            ref bb : I8 = b.unsafe_get(i)
-            c := ab.cmp(bb)
-            if c != 0 { return c }
-        }
+        c := memcmp(a.c_str, b.c_str, min_len)
+        if c != 0 { return c.cast(I64) }
         return a.count.cmp(b.count)
     }
 
