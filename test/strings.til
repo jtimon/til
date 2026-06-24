@@ -7,6 +7,25 @@ test_eq := test() {
     assert("a".eq("ab").not())
 }
 
+test_cmp := test() {
+    // Regression: memcmp returns the raw byte difference, but cmp must
+    // normalise to -1/0/1 -- the auto-derived lt/gt are cmp(a,b).eq(-1) /
+    // .eq(1), so a raw diff (e.g. 'a'-'z' = -25) would break ordering for
+    // strings whose first differing bytes are not adjacent.
+    assert("apple".lt("zebra"))
+    assert("zebra".gt("apple"))
+    assert("apple".lt("apricot"))
+    assert("apricot".gt("apple"))
+    assert("app".lt("apple"))
+    assert("apple".gt("app"))
+    assert("abc".lt("abz"))
+    assert("abz".gt("abc"))
+    assert("abc".lte("abc"))
+    assert("abc".gte("abc"))
+    assert("abc".lte("abz"))
+    assert("abz".gte("abc"))
+}
+
 test_concat := test() {
     assert_eq(Str, format("hello", " world"), "hello world")
     assert_eq(Str, format("", "abc"), "abc")

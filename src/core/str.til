@@ -58,10 +58,15 @@ namespace:
         // memcmp compares bytes as UNSIGNED (like strcmp), where the old
         // loop read them as signed I8; identical for ASCII (every compiler
         // string), differing only for bytes >= 128.
+        // Normalise to -1/0/1: memcmp returns the raw byte difference, but
+        // the cmp contract is exactly -1/0/1 (auto-generated lt/gt derive as
+        // cmp(a,b).eq(-1) / .eq(1), not a sign test), so returning the raw
+        // diff would break Str.lt/gt/lte/gte for non-adjacent bytes.
         mut min_len := a.count
         if b.count < a.count { min_len = b.count }
         c := memcmp(a.c_str, b.c_str, min_len)
-        if c != 0 { return c.cast(I64) }
+        if c < 0 { return -1 }
+        if c > 0 { return 1 }
         return a.count.cmp(b.count)
     }
 
