@@ -2346,6 +2346,7 @@ Bool priv___src_self_lexer_til__is_bin_digit(I8 c);
 Bool priv___src_self_lexer_til__is_oct_digit(I8 c);
 Bool priv___src_self_lexer_til__is_doc_ws(I8 c);
 Map__Str_TokenType * priv___src_self_lexer_til__keyword_map(void);
+void lexer_cleanup(void);
 Str * tok_name(TokenType * type);
 TokenType priv___src_self_lexer_til__lookup_single_char(I8 c);
 TokenType priv___src_self_lexer_til__lookup_two_char(I8 c, I8 c2);

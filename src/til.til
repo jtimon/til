@@ -596,5 +596,6 @@ main := proc(args: ..Str) {
     }
 
     ffi_cleanup(lp.ctx)
+    lexer_cleanup()
     if result != 0 { exit(result.cast(I64)) }
 }

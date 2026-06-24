@@ -169,6 +169,19 @@ priv keyword_map := func() returns Map(Str, TokenType) {
 // call (keyword_map() allocates a fresh Map per invocation).
 priv KEYWORDS := keyword_map()
 
+// Reclaim the keyword table at program teardown. KEYWORDS is the one
+// module-level allocation that lives for the whole program (every lex /
+// tok_name reads it), so main calls this after the last lex -- otherwise its
+// backing Vecs leak at exit. `own` cannot move a module-level value in place,
+// so the codegen materialises a malloc'd Map copy that shares KEYWORDS's
+// backing pointers; delete(true) frees that shared backing AND the copy
+// itself (delete(false) would reclaim the backing but leak the copy). memset
+// then zeroes the now-dangling module slot.
+lexer_cleanup := func() {
+    own KEYWORDS.delete(true)
+    memset(KEYWORDS, 0, Map(Str, TokenType).size().cast(U64))
+}
+
 // --- tok_name ---
 // Returns a human-readable name for a token type.
 // Matches C tok_name() output exactly. Keyword types resolve through the
