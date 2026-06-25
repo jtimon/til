@@ -325,6 +325,15 @@ the merger decides whether to accept them.
 
 ## Issue Tracking
 
+- NEVER create, defer, cancel, recategorize, reprioritize, or close an issue
+  on your own initiative. Issue management is the human's call. You may SUGGEST
+  any of these in plain chat ("this looks like a separate bug, want me to file
+  it?", "this item could be deferred") and wait for an explicit yes before
+  touching `issues/`. Do not file a new issue, mark work "deferred" or "won't
+  do", or split/merge issues without that consent -- not even when it seems
+  obviously warranted, tidy, or helpful. Suggest, do not act unilaterally.
+  (The lone exception is the in-commit FIXED move + post-mortem when you land
+  the commit that closes an issue the human already asked you to fix.)
 - Issues live in `issues/open/`, one file per issue (e.g. `issues/open/189.org`).
 - Each file starts with `# priority: high|medium|low`, then `# category: <cat>`,
   then `** OPEN #NNN Title`. Categories: bugs, cleanups, features, optimizations,
