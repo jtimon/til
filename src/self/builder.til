@@ -1380,49 +1380,129 @@ priv builder_is_file_static_str_lit_name := func(name: Str) returns Bool {
     return name.starts_with("hoisted__Str_")
 }
 
-priv builder_emit_file_static_str_lit := proc(f: File, name: Str, s: Str) {
-    f.write("static Str ").write(name).write(" = (Str){.c_str = (void *)\"")
+priv builder_reset_str_lit_pool := func(mut ctx: Context) {
+    ctx.builder_str_lit_symbols = Map(Str, Str).new()
+    ctx.builder_str_lit_values = Vec(Str).new()
+    ctx.builder_str_lit_alias_symbols = Map(Str, Str).new()
+    ctx.builder_str_lit_alias_names = Vec(Str).new()
+}
+
+priv builder_register_str_lit := func(mut ctx: Context, s: Str) returns Str {
+    if ctx.builder_str_lit_symbols.has(s) { return ctx.builder_str_lit_symbols[s].clone() }
+    sym := format("_til_str_lit_", ctx.builder_str_lit_values.len().to_str())
+    ctx.builder_str_lit_symbols.set(s, own sym.clone())
+    ctx.builder_str_lit_values.push(own s.clone())
+    return sym
+}
+
+priv builder_register_str_lit_alias := func(mut ctx: Context, name: Str, s: Str) {
+    sym := builder_register_str_lit(ctx, s)
+    if ctx.builder_str_lit_alias_symbols.has(name).not() {
+        ctx.builder_str_lit_alias_symbols.set(name, own sym)
+        ctx.builder_str_lit_alias_names.push(own name.clone())
+    }
+}
+
+priv builder_emit_str_lit_decl := proc(f: File, name: Str, s: Str) {
+    f.write("static __attribute__((unused)) Str ").write(name).write(" = (Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
     emit_usize(f, c_lit_byte_count(s))
     f.write("ULL, .cap = TIL_CAP_LIT};\n")
 }
 
-priv builder_emit_file_static_str_lits_for_expr := proc(f: File, e: Expr, mut emitted: Set(Str), mut ctx: Context) {
+priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
     expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Decl(dd):
-        if dd.is_mut.not().and(builder_is_file_static_str_lit_name(dd.name)).and(e.children.len().gt(0)) {
+        if e.children.len().gt(0) {
             ref rhs : Expr = e.children[0]
             switch rhs.node_type {
             case NodeType.Literal(Literal.Str(s)):
-                if emitted.has(dd.name).not() {
-                    builder_emit_file_static_str_lit(f, dd.name, s)
-                    emitted.add(own dd.name.clone())
-                    ctx.builder_file_static_str_lits.add(own dd.name.clone())
+                builder_register_str_lit(ctx, s)
+                if dd.is_mut.not().and(builder_is_file_static_str_lit_name(dd.name)) {
+                    builder_register_str_lit_alias(ctx, dd.name, s)
+                }
+            case NodeType.StructDef(sd):
+                for field : Declaration in sd.fields {
+                    builder_register_str_lit(ctx, field.name)
+                    builder_register_str_lit(ctx, field.explicit_type)
+                }
+            case NodeType.EnumDef(ed):
+                for i in 0..ed.variants.len() {
+                    builder_register_str_lit(ctx, ed.variants[i])
+                    idx := i.to_i64()
+                    if ed.payload_types.has(idx) { builder_register_str_lit(ctx, ed.payload_types[idx]) }
+                }
+                builder_register_str_lit(ctx, "")
+            case NodeType.FuncDef(fd):
+                if rhs.children.len().eq(0) {
+                    for p : Declaration in fd.params { builder_register_str_lit(ctx, p.explicit_type) }
+                    if fd.return_type.len().gt(0) { builder_register_str_lit(ctx, fd.return_type) }
+                    for tt : Str in fd.throw_types { builder_register_str_lit(ctx, tt) }
                 }
             case:
             }
         }
     case:
+        switch e.node_type {
+        case NodeType.Literal(Literal.Str(s2)):
+            builder_register_str_lit(ctx, s2)
+        case:
+        }
     }
-    for child : Expr in e.children { builder_emit_file_static_str_lits_for_expr(f, child, emitted, ctx) }
+    for child : Expr in e.children { builder_register_str_lits_for_expr(child, ctx) }
 }
 
-priv builder_emit_file_static_str_lits := proc(f: File, lp: LoadedProgram) {
-    lp.ctx.builder_file_static_str_lits = Set(Str).new()
-    mut emitted := Set(Str).new()
+priv builder_register_dyn_type_to_str_lits := func(lp: LoadedProgram) {
+    mut variant_names := Vec(Str).new()
+    mut variant_types := Vec(Str).new()
+    if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() { return }
+    for j in 0..variant_names.len() {
+        ref vn : Str = variant_names[j]
+        ref vt : Str = variant_types[j]
+        if vt.len().eq(0) {
+            display := dyn_type_str_display(vn)
+            builder_register_str_lit(lp.ctx, display)
+        } else if vt.eq("Str") {
+        } else {
+            mut inner_names := Vec(Str).new()
+            mut inner_types := Vec(Str).new()
+            if find_loaded_enum_variants(vt, inner_names, inner_types, lp) {
+                for ivn : Str in inner_names { builder_register_str_lit(lp.ctx, ivn) }
+            }
+        }
+    }
+    builder_register_str_lit(lp.ctx, "?")
+}
+
+priv builder_register_str_lits := proc(lp: LoadedProgram) {
+    builder_reset_str_lit_pool(lp.ctx)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
-            builder_emit_file_static_str_lits_for_expr(f, iu.ast, emitted, lp.ctx)
+            builder_register_str_lits_for_expr(iu.ast, lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
-        builder_emit_file_static_str_lits_for_expr(f, iu.ast, emitted, lp.ctx)
+        builder_register_str_lits_for_expr(iu.ast, lp.ctx)
     }
-    if emitted.len() > 0 { f.write("\n") }
+    builder_register_dyn_type_to_str_lits(lp)
+}
+
+priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
+    for i in 0..ctx.builder_str_lit_values.len() {
+        ref val : Str = ctx.builder_str_lit_values[i]
+        ref sym : Str = ctx.builder_str_lit_symbols[val]
+        builder_emit_str_lit_decl(f, sym, val)
+    }
+    for j in 0..ctx.builder_str_lit_alias_names.len() {
+        ref alias : Str = ctx.builder_str_lit_alias_names[j]
+        ref target : Str = ctx.builder_str_lit_alias_symbols[alias]
+        f.write("#define ").write(alias).write(" ").write(target).write("\n")
+    }
+    if ctx.builder_str_lit_values.len().gt(0).or(ctx.builder_str_lit_alias_names.len().gt(0)) { f.write("\n") }
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
@@ -1678,7 +1758,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     // Vec_push, etc.) emit_as_ptr's stack_local + is_own=true
                     // branch does the usual malloc round-trip so `free(own
                     // val)` still operates on a heap wrapper.
-                    if dd.is_mut.not().and(ctx.builder_file_static_str_lits.has(dd.name)) {
+                    if dd.is_mut.not().and(ctx.builder_str_lit_alias_symbols.has(dd.name)) {
                         f.write("(void)").write(dd.name).write(";\n")
                     } else {
                         if dd.is_mut.not() { f.write("static ") }
@@ -2618,6 +2698,11 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
 }
 
 priv emit_str_lit_expr := proc(f: File, s: Str, ctx: Context) {
+    if ctx.builder_str_lit_symbols.has(s) {
+        ref sym : Str = ctx.builder_str_lit_symbols[s]
+        f.write("&").write(sym)
+        return
+    }
     ctx.ctor_seq = ctx.ctor_seq + 1
     id := ctx.ctor_seq
     f.write("({ static Str _lit")
@@ -6448,70 +6533,16 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() {
         panic("emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
     }
-    // First pass: collect all unique display strings so we can emit
-    // static-local Str variables for the literal cases (one
-    // malloc-free static wrapper per unique name).
-    mut static_displays := Vec(Str).new()
-    mut static_index_by_display := Map(Str, USize).new()
-    mut seq : USize = 0
-    for j in 0..variant_names.len() {
-        ref vn : Str = variant_names[j]
-        ref vt : Str = variant_types[j]
-        if vt.len() == 0 {
-            display := dyn_type_str_display(vn)
-            if static_index_by_display.has(display).not() {
-                val : USize = seq
-                static_index_by_display.set(display, own val)
-                static_displays.push(own display)
-                seq++
-            }
-        } else if vt == "Str" {
-        } else {
-            // Nested enum: collect inner variant names
-            mut inner_names := Vec(Str).new()
-            mut inner_types := Vec(Str).new()
-            if find_loaded_enum_variants(vt, inner_names, inner_types, lp).not() {
-                panic("emit_dyn_type_to_str_body: cannot find payload enum '", vt, "'")
-            }
-            for ivn : Str in inner_names {
-                if static_index_by_display.has(ivn).not() {
-                    val2 : USize = seq
-                    static_index_by_display.set(ivn, own val2)
-                    static_displays.push(own ivn.clone())
-                    seq++
-                }
-            }
-        }
-    }
-    // Fallback "?" literal
-    if static_index_by_display.has("?").not() {
-        fallback_val : USize = seq
-        static_index_by_display.set("?", own fallback_val)
-        static_displays.push(own "?")
-        seq++
-    }
-    // Emit static-local Str variables before the switch
-    for j in 0..static_displays.len() {
-        ref display : Str = static_displays[j]
-        f.write("    static Str _dts_")
-        emit_usize(f, j)
-        f.write(" = (Str){.c_str = (void *)\"")
-        f.write(display)
-        f.write("\", .count = ")
-        emit_usize(f, c_lit_byte_count(display))
-        f.write("ULL, .cap = TIL_CAP_LIT};\n")
-    }
     f.write("    switch (type->tag) {\n")
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
         ref vt : Str = variant_types[j]
         if vt.len() == 0 {
             display := dyn_type_str_display(vn)
-            ref idx : USize = static_index_by_display[display]
             f.write("    case Type_TAG_")
             f.write(vn)
-            f.write(": return &_dts_")
-            emit_usize(f, idx)
+            f.write(": return ")
+            emit_str_lit_expr(f, display, lp.ctx)
             f.write(";\n")
         } else if vt == "Str" {
             f.write("    case Type_TAG_")
@@ -6537,8 +6568,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
                 f.write(vt)
                 f.write("_TAG_")
                 f.write(ivn)
-                f.write(": return &_dts_")
-                emit_usize(f, static_index_by_display[ivn])
+                f.write(": return ")
+                emit_str_lit_expr(f, ivn, lp.ctx)
                 f.write(";\n")
             }
             f.write("        }\n")
@@ -6547,8 +6578,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
     }
     f.write("    default: break;\n")
     f.write("    }\n")
-    f.write("    return &_dts_")
-    emit_usize(f, static_index_by_display["?"])
+    f.write("    return ")
+    emit_str_lit_expr(f, "?", lp.ctx)
     f.write(";\n")
     f.write("}\n\n")
 }
@@ -7236,7 +7267,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     f.write("    putchar('\\n');\n")
     f.write("}\n\n")
 
-    builder_emit_file_static_str_lits(f, lp)
+    builder_register_str_lits(lp)
+    builder_emit_str_lit_pool(f, lp.ctx)
 
     emit_global_declarations(f, lp)
     emit_function_bodies(f, mode, lp)

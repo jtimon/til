@@ -304,7 +304,6 @@ typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_t
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
 typedef struct Array__Bool Array__Bool;
-typedef struct Map__Str_U32 Map__Str_U32;
 typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct Vec__CollectionInfo Vec__CollectionInfo;
 typedef struct Vec__DocEntry Vec__DocEntry;
@@ -942,12 +941,6 @@ typedef struct Array__Bool {
     U8 *data;
     U32 cap;
 } Array__Bool;
-
-
-typedef struct Map__Str_U32 {
-    Vec__Str keys;
-    Vec__U32 values;
-} Map__Str_U32;
 
 
 typedef struct Vec__DynCallInfo {
@@ -1867,7 +1860,10 @@ typedef struct Context {
     I32 auto_gen_depth;
     Set__Str throw_used_local_names;
     BuilderFuncScratch builder_func;
-    Set__Str builder_file_static_str_lits;
+    Map__Str_Str builder_str_lit_symbols;
+    Vec__Str builder_str_lit_values;
+    Map__Str_Str builder_str_lit_alias_symbols;
+    Vec__Str builder_str_lit_alias_names;
     Set__Str swap_freed;
     Expr *current_fdef;
     Expr *cached_str_def;
@@ -2273,7 +2269,6 @@ void Vec__U32_clear(Vec__U32 * self);
 void Vec__U32_push(Vec__U32 * self, U32 * val);
 U32 * Vec__U32_unsafe_get(Vec__U32 * self, U32 * i);
 U32 * Vec__U32_get(Vec__U32 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
-void Vec__U32_unsafe_set(Vec__U32 * self, U32 i, U32 * val);
 void Vec__U32_delete(Vec__U32 * self, Bool call_free);
 Vec__U32 * Vec__U32_clone(Vec__U32 * self);
 U32 Vec__U32_size(void);
@@ -3453,9 +3448,14 @@ void priv___src_self_builder_til__check_fcall_mut_args(Context * ctx, Expr * e);
 void priv___src_self_builder_til__collect_unsafe_to_hoist(Context * ctx, Expr * body);
 void priv___src_self_builder_til__builder_reset_func_scratch(Context * ctx);
 Bool priv___src_self_builder_til__builder_is_file_static_str_lit_name(Str * name);
-void priv___src_self_builder_til__builder_emit_file_static_str_lit(File * f, Str * name, Str * s);
-void priv___src_self_builder_til__builder_emit_file_static_str_lits_for_expr(File * f, Expr * e, Set__Str * emitted, Context * ctx);
-void priv___src_self_builder_til__builder_emit_file_static_str_lits(File * f, LoadedProgram * lp);
+void priv___src_self_builder_til__builder_reset_str_lit_pool(Context * ctx);
+Str * priv___src_self_builder_til__builder_register_str_lit(Context * ctx, Str * s);
+void priv___src_self_builder_til__builder_register_str_lit_alias(Context * ctx, Str * name, Str * s);
+void priv___src_self_builder_til__builder_emit_str_lit_decl(File * f, Str * name, Str * s);
+void priv___src_self_builder_til__builder_register_str_lits_for_expr(Expr * e, Context * ctx);
+void priv___src_self_builder_til__builder_register_dyn_type_to_str_lits(LoadedProgram * lp);
+void priv___src_self_builder_til__builder_register_str_lits(LoadedProgram * lp);
+void priv___src_self_builder_til__builder_emit_str_lit_pool(File * f, Context * ctx);
 void priv___src_self_builder_til__collect_dyn_has_methods(Expr * e, Vec__Str * methods);
 Bool priv___src_self_builder_til__fcall_is_struct_ctor(Expr * e);
 Bool priv___src_self_builder_til__pod_ctor_args_are_safe(Expr * ctor, Context * ctx);
@@ -3623,14 +3623,6 @@ void Array__Bool_set(Array__Bool * self, U32 i, Bool * val, I64 * _err_kind, Out
 void Array__Bool_delete(Array__Bool * self, Bool call_free);
 Array__Bool * Array__Bool_clone(Array__Bool * self);
 U32 Array__Bool_size(void);
-Map__Str_U32 * Map__Str_U32_new(void);
-Bool Map__Str_U32_has(Map__Str_U32 * self, Str * key);
-U32 * Map__Str_U32_get(Map__Str_U32 * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
-void Map__Str_U32_set(Map__Str_U32 * self, Str * key, U32 * val);
-void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
-Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self);
-U64 Map__Str_U32_hash(Map__Str_U32 * self, HashFn hasher);
-U32 Map__Str_U32_size(void);
 Vec__DynCallInfo * Vec__DynCallInfo_new(void);
 U32 Vec__DynCallInfo_len(Vec__DynCallInfo * self);
 void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);

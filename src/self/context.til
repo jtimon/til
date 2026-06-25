@@ -513,7 +513,10 @@ Context := struct {
     // emission. emit_func_def is not actually recursive (the typer lifts
     // nested funcs to top level), so a per-emit reset is sufficient.
     builder_func := BuilderFuncScratch()
-    builder_file_static_str_lits := Set(Str).new()
+    builder_str_lit_symbols := Map(Str, Str).new()
+    builder_str_lit_values := Vec(Str).new()
+    builder_str_lit_alias_symbols := Map(Str, Str).new()
+    builder_str_lit_alias_names := Vec(Str).new()
     swap_freed := Set(Str).new()
     ref current_fdef : Expr = NULL
 
