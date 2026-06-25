@@ -2,7 +2,7 @@ mode lib
 
 import("ast")
 import("bool")
-import("i64")
+import("numbers")
 import("str")
 
 /// Ordered map from typed keys to typed values.

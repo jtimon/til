@@ -3,9 +3,8 @@ mode lib
 import("ast")
 import("bool")
 import("dyn")
+import("numbers")
 import("str")
-import("u8")
-import("usize")
 import("vec")
 
 /// Heterogeneous sequence of values with mixed types.

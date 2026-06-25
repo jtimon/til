@@ -1,6 +1,6 @@
 mode lib
 
-import("i64")
+import("numbers")
 import("str")
 
 and := lazy_func(a: Bool, b: Bool) returns Bool {

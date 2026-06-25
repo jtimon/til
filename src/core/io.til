@@ -2,8 +2,8 @@ mode lib
 
 import("bool")
 import("dyn")
+import("numbers")
 import("str")
-import("u8")
 
 print_single := ext_proc(s: Str) {}
 eprint_single := ext_proc(s: Str) {}

@@ -2,13 +2,9 @@ mode lib
 
 import("bool")
 import("dyn")
-import("i32")
-import("i64")
 import("map")
+import("numbers")
 import("str")
-import("u32")
-import("u64")
-import("u8")
 import("vec")
 
 // builtin types

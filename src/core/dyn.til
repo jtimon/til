@@ -1,7 +1,7 @@
 mode lib
 
 import("bool")
-import("i64")
+import("numbers")
 import("str")
 
 Dynamic : StructDef = struct {

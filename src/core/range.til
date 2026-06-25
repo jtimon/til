@@ -1,7 +1,7 @@
 mode lib
 
 import("bool")
-import("u64")
+import("numbers")
 
 /// Integer interval from start (inclusive) to end (exclusive).
 Range := struct {
