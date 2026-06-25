@@ -1007,6 +1007,7 @@ typedef struct {
 typedef struct StructInstance {
     Str *struct_name;
     Bool is_str;
+    Bool is_str_container;
     Context *ctx;
     U8 *data;
     Bool borrowed;
@@ -3783,6 +3784,7 @@ void priv___src_self_interpreter_til__free_value_full(Value v);
 Str * priv___src_self_interpreter_til__container_elem_type(Str * struct_name);
 void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_str_data(Str * struct_name, void * data, Context * ctx);
+void priv___src_self_interpreter_til__free_container_str_data_cached(void * data);
 void priv___src_self_interpreter_til__clone_container_str_buffer(Str * struct_name, void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
 void priv___src_self_interpreter_til__reclone_return(Context * ctx);

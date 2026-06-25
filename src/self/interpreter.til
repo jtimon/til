@@ -221,6 +221,7 @@ StructInstance := struct {
     // is still valid -- to decide whether the payload is a Str needing its
     // c_str freed.
     is_str := false
+    is_str_container := false
     // Issue #147 step 4: reference to the running Context so the
     // fixed-signature clone path can reach the type-def registry
     // (lookup_interp_type_def) and struct_layouts for nested-field lookup,
@@ -241,7 +242,8 @@ namespace:
     }
     clone := func(self: StructInstance) returns StructInstance {
         dst_data : Dynamic = heap_clone(self.struct_name, self.data, self.ctx)
-        return StructInstance(struct_name = self.struct_name, is_str = self.is_str, ctx = self.ctx, data = dst_data, borrowed = false)
+        is_str_container := self.is_str_container.or(container_elem_type(self.struct_name) == "Str")
+        return StructInstance(struct_name = self.struct_name, is_str = self.is_str, is_str_container = is_str_container, ctx = self.ctx, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
         // Deep delete: free the struct payload buffer (and, for a Str
@@ -261,6 +263,8 @@ namespace:
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
+                } else if self.is_str_container {
+                    free_container_str_data_cached(self.data)
                 } else if self.ctx.is_null().not() {
                     struct_deep_free(self.struct_name, self.data, self.ctx)
                 }
@@ -2047,7 +2051,10 @@ priv free_value := func(shallow v: Value) {
     switch v {
     case Value.Struct(si):
         if si.borrowed.not() {
-            if si.data.is_null().not() { EvalHeap.heap_free(own si.data) }
+            if si.data.is_null().not() {
+                if si.is_str_container { free_container_str_data_cached(si.data) }
+                EvalHeap.heap_free(own si.data)
+            }
         }
     case Value.Enum(ei):
         if ei.data.is_null().not().and(ei.borrowed.not()) { EvalHeap.heap_free(own ei.data) }
@@ -2203,6 +2210,20 @@ priv free_container_str_data := func(struct_name: Str, data: Dynamic, ctx: Conte
     EvalHeap.heap_free(own hdr.p)
 }
 
+priv free_container_str_data_cached := func(data: Dynamic) {
+    ref hdr : DynPtrBox = data
+    if hdr.p.is_null() { return }
+    ref n : USize = ptr_add(data, 8)
+    esz := Str.size()
+    for i in 0..n {
+        ref s : Str = ptr_add(hdr.p, i.mul(esz).cast(U64))
+        if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+            if s.c_str.is_null().not() { free(own s.c_str) }
+        }
+    }
+    EvalHeap.heap_free(own hdr.p)
+}
+
 // Deep-copy an Array(Str)/Vec(Str) `own data` buffer into a freshly cloned
 // instance (dual of free_container_str_data). StructInstance.clone's outer
 // memcpy shallow-copies the data pointer, so without this the clone would
@@ -2251,6 +2272,8 @@ priv free_temp_arg_value := func(shallow v: Value) {
                     if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
+                } else if si.is_str_container {
+                    free_container_str_data_cached(si.data)
                 } else if si.ctx.is_null().not() {
                     struct_deep_free(si.struct_name, si.data, si.ctx)
                 }
@@ -2411,6 +2434,7 @@ priv make_struct_value := func(sname: Str, data: Dynamic, borrowed: Bool, ctx: C
         // Issue #239: cache whether this is a Str value while sname is valid,
         // so the deep delete need not read the (possibly-freed) struct_name.
         payload.is_str = stable_sname == "Str"
+        payload.is_str_container = container_elem_type(stable_sname) == "Str"
         payload.ctx = ctx
         payload.data = data
         payload.borrowed = borrowed
