@@ -401,6 +401,37 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
     }
 }
 
+priv result_type_can_fold_to_expr := func(t: Type, ctx: Context) returns Bool {
+    switch t {
+    case Type.Primitive:
+        return true
+    case Type.Enum:
+        return true
+    case Type.Struct(sname):
+        return struct_result_can_fold_to_expr(sname, ctx)
+    case Type.Custom(sname):
+        return struct_result_can_fold_to_expr(sname, ctx)
+    case:
+        return false
+    }
+}
+
+priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bool {
+    if sname.eq("Str") { return true }
+    ref sdef : Expr = lookup_interp_type_def(sname, ctx)
+    if sdef.is_null() { return false }
+    switch sdef.node_type {
+    case NodeType.StructDef(sfd):
+        for fd : Declaration in sfd.fields {
+            if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
+            if result_type_can_fold_to_expr(fd.til_type, ctx).not() { return false }
+        }
+        return true
+    case:
+        return false
+    }
+}
+
 priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
     switch e.node_type {
     case NodeType.Literal(Literal.Num(num)):
@@ -1403,7 +1434,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                         break
                     }
                 }
-                if all_comptime {
+                if all_comptime.and(result_type_can_fold_to_expr(child.expr_til_type(), ctx)) {
                     mut lit : Expr = try_fast_fold_call(scope, child, ctx)
                     if lit.is_null().not() {
                         e.children[i] = lit

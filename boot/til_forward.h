@@ -3200,6 +3200,8 @@ Str * priv___src_self_constfolder_til__from_source_form(Str * s);
 Bool priv___src_self_constfolder_til__needs_source_escape(Str * s);
 Str * priv___src_self_constfolder_til__str_to_source_form(Str * s);
 Expr * priv___src_self_constfolder_til__value_to_expr(Value val, Expr * src, Context * ctx);
+Bool priv___src_self_constfolder_til__result_type_can_fold_to_expr(Type * t, Context * ctx);
+Bool priv___src_self_constfolder_til__struct_result_can_fold_to_expr(Str * sname, Context * ctx);
 Value priv___src_self_constfolder_til__expr_to_value(Expr * e, Context * ctx);
 Bool priv___src_self_constfolder_til__is_known(Context * ctx, Expr * e, Value * out);
 Bool priv___src_self_constfolder_til__func_sig_has_dynamic(Expr * fdef);
