@@ -1,7 +1,7 @@
 mode pura
 
 import("bool")
-import("i64")
+import("numbers")
 import("str")
 
 exit := ext_func(shallow code: I64) {}

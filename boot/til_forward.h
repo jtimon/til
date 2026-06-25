@@ -410,12 +410,6 @@ typedef struct CliArgs CliArgs;
 typedef TilClosure *HashFn;
 typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
 
-
-
-
-
-
-
 typedef struct Array__Dynamic {
     U8 *data;
     U32 cap;
@@ -455,6 +449,13 @@ typedef struct Vec__Str {
 typedef struct Dynamic {
     char _;
 } Dynamic;
+
+
+
+
+
+
+
 
 
 
@@ -644,7 +645,6 @@ typedef struct Range {
     U64 start;
     U64 end;
 } Range;
-
 
 
 struct TokenType {
@@ -1923,35 +1923,6 @@ Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool call_free);
 U64 Mode_hash(Mode * self, HashFn hasher);
 U32 Mode_size(void);
-void F32_delete(F32 * self, Bool call_free);
-U32 F32_size(void);
-U64 F32_hash(F32 self, HashFn hasher);
-Str * U64_to_str(U64 val);
-void U64_inc(U64 * self);
-void U64_dec(U64 * self);
-void U64_delete(U64 * self, Bool call_free);
-U32 U64_size(void);
-U64 U64_hash(U64 self, HashFn hasher);
-Str * U32_to_str(U32 val);
-void U32_inc(U32 * self);
-void U32_dec(U32 * self);
-void U32_delete(U32 * self, Bool call_free);
-U32 U32_size(void);
-U64 U32_hash(U32 self, HashFn hasher);
-Str * I32_to_str(I32 val);
-void I32_inc(I32 * self);
-void I32_dec(I32 * self);
-void I32_delete(I32 * self, Bool call_free);
-U32 I32_size(void);
-U64 I32_hash(I32 self, HashFn hasher);
-Str * I8_to_str(I8 val);
-void I8_delete(I8 * self, Bool call_free);
-U32 I8_size(void);
-U64 I8_hash(I8 self, HashFn hasher);
-Str * U8_to_str(U8 val);
-void U8_delete(U8 * self, Bool call_free);
-U32 U8_size(void);
-U64 U8_hash(U8 self, HashFn hasher);
 void Array__Dynamic_delete(Array__Dynamic * self, Bool call_free);
 Array__Dynamic * Array__Dynamic_clone(Array__Dynamic * self);
 U32 Array__Dynamic_size(void);
@@ -2027,16 +1998,49 @@ U32 Vec__Str_size(void);
 U32 Dynamic_size(void);
 void * Dynamic_clone(void * self);
 void Dynamic_delete(void * self, Bool call_free);
+Str * U8_to_str(U8 val);
+void U8_delete(U8 * self, Bool call_free);
+U32 U8_size(void);
+U64 U8_hash(U8 self, HashFn hasher);
+Str * U16_to_str(U16 val);
+void U16_delete(U16 * self, Bool call_free);
+U32 U16_size(void);
+U64 U16_hash(U16 self, HashFn hasher);
+Str * U32_to_str(U32 val);
+void U32_inc(U32 * self);
+void U32_dec(U32 * self);
+void U32_delete(U32 * self, Bool call_free);
+U32 U32_size(void);
+U64 U32_hash(U32 self, HashFn hasher);
+Str * U64_to_str(U64 val);
+void U64_inc(U64 * self);
+void U64_dec(U64 * self);
+void U64_delete(U64 * self, Bool call_free);
+U32 U64_size(void);
+U64 U64_hash(U64 self, HashFn hasher);
+Str * I8_to_str(I8 val);
+void I8_delete(I8 * self, Bool call_free);
+U32 I8_size(void);
+U64 I8_hash(I8 self, HashFn hasher);
 Str * I16_to_str(I16 val);
 void I16_delete(I16 * self, Bool call_free);
 U32 I16_size(void);
 U64 I16_hash(I16 self, HashFn hasher);
+Str * I32_to_str(I32 val);
+void I32_inc(I32 * self);
+void I32_dec(I32 * self);
+void I32_delete(I32 * self, Bool call_free);
+U32 I32_size(void);
+U64 I32_hash(I32 self, HashFn hasher);
 Str * I64_to_str(I64 val);
 void I64_inc(I64 * self);
 void I64_dec(I64 * self);
 void I64_delete(I64 * self, Bool call_free);
 U32 I64_size(void);
 U64 I64_hash(I64 self, HashFn hasher);
+void F32_delete(F32 * self, Bool call_free);
+U32 F32_size(void);
+U64 F32_hash(F32 self, HashFn hasher);
 DivideByZero * DivideByZero_clone(DivideByZero * self);
 void DivideByZero_delete(DivideByZero * self, Bool call_free);
 U64 DivideByZero_hash(DivideByZero * self, HashFn hasher);
@@ -2303,10 +2307,6 @@ Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool call_free);
 U64 Range_hash(Range * self, HashFn hasher);
 U32 Range_size(void);
-Str * U16_to_str(U16 val);
-void U16_delete(U16 * self, Bool call_free);
-U32 U16_size(void);
-U64 U16_hash(U16 self, HashFn hasher);
 I64 wait_cmd(I64 pid);
 I64 run_cmd(Str * output, Array__Str * args);
 Bool TokenType_is(TokenType * self, TokenType * other);

@@ -2,11 +2,7 @@ mode lib
 
 import("bool")
 import("dyn")
-import("f32")
-import("i32")
-import("i64")
-import("i8")
-import("u8")
+import("numbers")
 import("vec")
 
 CAP_LIT : USize = -1.to_usize()

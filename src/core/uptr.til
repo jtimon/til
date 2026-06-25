@@ -1,9 +1,0 @@
-mode lib
-
-import("u64")
-
-/// UPtr is the target-native unsigned integer for raw pointer arithmetic,
-/// address calculations, and byte counts that must match pointer width.
-/// The source alias defaults to U64; the loader retargets it to U32 for
-/// 32-bit targets before typecheck/codegen.
-UPtr := U64

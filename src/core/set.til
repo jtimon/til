@@ -3,9 +3,8 @@ mode lib
 import("ast")
 import("bool")
 import("dyn")
-import("i64")
+import("numbers")
 import("str")
-import("u8")
 
 /// Unordered collection of unique typed elements.
 Set := struct<T: Type> {

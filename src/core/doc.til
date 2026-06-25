@@ -1,8 +1,8 @@
 mode lib
 
 import("bool")
+import("numbers")
 import("str")
-import("u8")
 
 // Packed registry blobs populated by the loader at startup. Each blob
 // uses 0x01 as field-sep and 0x02 as record-sep:
