@@ -7769,12 +7769,84 @@ priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog:
     }
 }
 
+priv doc_catalog_lookup := func(catalog: DocCatalog, name: Str, loc: Str) returns DocEntry {
+    for e : DocEntry in catalog.entries {
+        if e.name == name { return e.clone() }
+    }
+    panic("unresolved til doc link '", name, "' in ", loc)
+    return DocEntry()
+}
+
+priv doc_entry_org_link := func(e: DocEntry, label: Str) returns Str {
+    return format("[[file:", e.page, "::#", e.id, "][", label, "]]")
+}
+
+priv doc_find_link_end := func(body: Str, start: USize, loc: Str) returns USize {
+    mut i := start
+    while i + 1 < body.len() {
+        if body.substr(i, 2) == "]]" { return i }
+        i++
+    }
+    panic("unterminated til doc link in ", loc)
+    return body.len()
+}
+
+priv doc_expand_til_links := func(body: Str, catalog: DocCatalog, loc: Str) returns Str {
+    mut out := ""
+    mut pos : USize = 0
+    while pos < body.len() {
+        rest := body.substr(pos, body.len() - pos)
+        link_rel := rest.find("[[til:")
+        if link_rel < 0 {
+            out = format(out, rest)
+            return out
+        }
+
+        link_start := pos + link_rel.to_usize()
+        if link_start > pos { out = format(out, body.substr(pos, link_start - pos)) }
+
+        content_start := link_start + 6
+        link_end := doc_find_link_end(body, content_start, loc)
+        content := body.substr(content_start, link_end - content_start)
+        sep := content.find("][")
+        mut target := ""
+        mut label := ""
+        if sep < 0 {
+            target = content.clone()
+            label = content.clone()
+        } else {
+            sep_u := sep.to_usize()
+            target = content.substr(0, sep_u).clone()
+            label = content.substr(sep_u + 2, content.len() - sep_u - 2).clone()
+        }
+        if target.is_empty() { panic("empty til doc link target in ", loc) }
+        if label.is_empty() { panic("empty til doc link label in ", loc) }
+        entry := doc_catalog_lookup(catalog, target, loc)
+        out = format(out, doc_entry_org_link(entry, label))
+        pos = link_end + 2
+    }
+    return out
+}
+
+priv expand_doc_catalog_links := func(mut catalog: DocCatalog) {
+    expanded := Vec(Str).new()
+    for e : DocEntry in catalog.entries {
+        expanded.push(own doc_expand_til_links(e.body, catalog, e.name))
+    }
+    for i in 0..expanded.len() {
+        ref mut e : DocEntry = catalog.entries[i]
+        ref body : Str = expanded[i]
+        e.body = body.clone()
+    }
+}
+
 priv build_doc_catalog := func(lp: LoadedProgram) returns DocCatalog {
     mut catalog := DocCatalog()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units { collect_unit_doc_catalog(u, lp.ctx, catalog) }
     }
     for u : ProgramUnit in lp.units { collect_unit_doc_catalog(u, lp.ctx, catalog) }
+    expand_doc_catalog_links(catalog)
     return catalog
 }
 

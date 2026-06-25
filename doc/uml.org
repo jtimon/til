@@ -27,7 +27,7 @@
 *** Neq
 *** Lt
 *** LtEq
-*** ... (53 more)
+*** ... (55 more)
 ** Token: StructDef
 *** const type := TokenType.Eof
 *** const start : USize = 0
@@ -68,6 +68,8 @@
 *** ExtProc
 *** LazyFunc
 *** LazyProc
+*** CoreFunc
+*** CoreProc
 ** OwnType: EnumDef
 *** Own
 *** Ref
@@ -391,6 +393,10 @@
 *** data_size : USize = 0
 *** borrowed := false
 *** is_str := false
+** InterpClosure: StructDef
+*** ref func_def : Expr = NULL
+*** ref env : Scope = NULL
+*** borrowed := false
 ** Value: EnumDef
 *** None
 *** Int:I64
@@ -408,6 +414,7 @@
 *** Dynamic:Dynamic
 *** Sbyte:I8
 *** Ushort:U16
+*** Closure:InterpClosure
 ** Cell: StructDef
 *** val := Value.None
 ** Binding: StructDef

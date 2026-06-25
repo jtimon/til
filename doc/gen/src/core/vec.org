@@ -17,7 +17,7 @@ ext_func vec(T: Type, elements: ..Dynamic) returns Vec
 :group: Core
 :END:
 
-Dynamic array of typed elements.
+Dynamic array of typed elements. Checked indexing throws [[file:src/core/str.org::#til.src.core.str.OutOfBounds][OutOfBounds]].
 
 #+begin_src til
 macro Vec(T: Type) returns StructDef

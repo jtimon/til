@@ -8,7 +8,7 @@ import("str")
 
 vec := ext_func(T: Type, elements: ..Dynamic) returns Vec {}
 
-/// Dynamic array of typed elements.
+/// Dynamic array of typed elements. Checked indexing throws [[til:OutOfBounds]].
 Vec := struct<T: Type> {
     own data : U8 = 0
     count : USize = 0

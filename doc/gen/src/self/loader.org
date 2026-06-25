@@ -252,6 +252,16 @@ namespace:
 func build_repl_core_doc_cache(lp: LoadedProgram) returns ReplCoreDocCache
 #+end_src
 
+* lazy_stmt_temp_counter
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.lazy_stmt_temp_counter
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+lazy_stmt_temp_counter is a I64
+#+end_src
+
 * init_and_type_program
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.loader.init_and_type_program

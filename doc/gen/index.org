@@ -1085,6 +1085,8 @@ enum FuncType {
     ExtProc
     LazyFunc
     LazyProc
+    CoreFunc
+    CoreProc
 namespace:
     Func
     Proc
@@ -1094,6 +1096,8 @@ namespace:
     ExtProc
     LazyFunc
     LazyProc
+    CoreFunc
+    CoreProc
     func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
@@ -1643,6 +1647,16 @@ func func_type_name(ft: FuncType) returns Str
 ** [[file:src/core/ast.org::#til.src.core.ast.lazy_body_inlinable][lazy_body_inlinable]]
 #+begin_src til
 func lazy_body_inlinable(body: Expr) returns shallow Bool
+#+end_src
+
+** [[file:src/core/ast.org::#til.src.core.ast.lazy_body_split_point][lazy_body_split_point]]
+#+begin_src til
+func lazy_body_split_point(body: Expr) returns shallow I32
+#+end_src
+
+** [[file:src/core/ast.org::#til.src.core.ast.lazy_body_stmt_inlinable][lazy_body_stmt_inlinable]]
+#+begin_src til
+func lazy_body_stmt_inlinable(body: Expr) returns shallow Bool
 #+end_src
 
 ** [[file:src/core/ast.org::#til.src.core.ast.ast_print][ast_print]]
@@ -2536,6 +2550,11 @@ ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
 ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
 #+end_src
 
+** [[file:src/core/mem.org::#til.src.core.mem.memcmp][memcmp]]
+#+begin_src til
+ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: U64) returns shallow I32
+#+end_src
+
 ** [[file:src/core/mem.org::#til.src.core.mem.ptr_eq][ptr_eq]]
 #+begin_src til
 ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
@@ -2791,6 +2810,8 @@ enum TokenType {
     KwExtStruct
     KwLazyFunc
     KwLazyProc
+    KwCoreFunc
+    KwCoreProc
     KwReturns
     KwThrows
     KwIf
@@ -2872,6 +2893,8 @@ namespace:
     KwExtStruct
     KwLazyFunc
     KwLazyProc
+    KwCoreFunc
+    KwCoreProc
     KwReturns
     KwThrows
     KwIf
@@ -2922,6 +2945,11 @@ namespace:
 ** [[file:src/self/lexer.org::#til.src.self.lexer.is_alnum][is_alnum]]
 #+begin_src til
 func is_alnum(shallow c: I8) returns shallow Bool
+#+end_src
+
+** [[file:src/self/lexer.org::#til.src.self.lexer.lexer_cleanup][lexer_cleanup]]
+#+begin_src til
+func lexer_cleanup()
 #+end_src
 
 ** [[file:src/self/lexer.org::#til.src.self.lexer.tok_name][tok_name]]
@@ -5392,6 +5420,11 @@ namespace:
 func build_repl_core_doc_cache(lp: LoadedProgram) returns ReplCoreDocCache
 #+end_src
 
+** [[file:src/self/loader.org::#til.src.self.loader.lazy_stmt_temp_counter][lazy_stmt_temp_counter]]
+#+begin_src til
+lazy_stmt_temp_counter is a I64
+#+end_src
+
 ** [[file:src/self/loader.org::#til.src.self.loader.init_and_type_program][init_and_type_program]]
 #+begin_src til
 proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
@@ -6263,6 +6296,19 @@ namespace:
 }
 #+end_src
 
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.InterpClosure][InterpClosure]]
+#+begin_src til
+struct InterpClosure {
+    ref mut func_def : Expr
+    ref mut env : Scope
+    mut borrowed : Bool
+namespace:
+    func clone(self: InterpClosure) returns InterpClosure
+    func delete(own self: InterpClosure, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.Value][Value]]
 #+begin_src til
 enum Value {
@@ -6282,6 +6328,7 @@ enum Value {
     Dynamic: Dynamic
     Sbyte: I8
     Ushort: U16
+    Closure: InterpClosure
 namespace:
     func eq(a: Value, b: Value) returns shallow Bool
     func to_str(self: Value) returns Str
@@ -6302,6 +6349,7 @@ namespace:
     ext_func Dynamic(val: Dynamic) returns Value
     ext_func Sbyte(val: I8) returns Value
     ext_func Ushort(val: U16) returns Value
+    ext_func Closure(own val: InterpClosure) returns Value
     func is(self: Value, other: Value) returns shallow Bool
     func delete(own self: Value, shallow call_free: Bool)
     func size() returns shallow U32

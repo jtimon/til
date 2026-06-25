@@ -165,6 +165,8 @@ enum FuncType {
     ExtProc
     LazyFunc
     LazyProc
+    CoreFunc
+    CoreProc
 namespace:
     Func
     Proc
@@ -174,6 +176,8 @@ namespace:
     ExtProc
     LazyFunc
     LazyProc
+    CoreFunc
+    CoreProc
     func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
@@ -976,6 +980,26 @@ func func_type_name(ft: FuncType) returns Str
 
 #+begin_src til
 func lazy_body_inlinable(body: Expr) returns shallow Bool
+#+end_src
+
+* lazy_body_split_point
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.lazy_body_split_point
+:group: Core
+:END:
+
+#+begin_src til
+func lazy_body_split_point(body: Expr) returns shallow I32
+#+end_src
+
+* lazy_body_stmt_inlinable
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.lazy_body_stmt_inlinable
+:group: Core
+:END:
+
+#+begin_src til
+func lazy_body_stmt_inlinable(body: Expr) returns shallow Bool
 #+end_src
 
 * ast_print

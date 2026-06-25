@@ -67,6 +67,8 @@ enum TokenType {
     KwExtStruct
     KwLazyFunc
     KwLazyProc
+    KwCoreFunc
+    KwCoreProc
     KwReturns
     KwThrows
     KwIf
@@ -148,6 +150,8 @@ namespace:
     KwExtStruct
     KwLazyFunc
     KwLazyProc
+    KwCoreFunc
+    KwCoreProc
     KwReturns
     KwThrows
     KwIf
@@ -208,6 +212,16 @@ namespace:
 
 #+begin_src til
 func is_alnum(shallow c: I8) returns shallow Bool
+#+end_src
+
+* lexer_cleanup
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.lexer_cleanup
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func lexer_cleanup()
 #+end_src
 
 * tok_name

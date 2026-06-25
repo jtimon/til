@@ -56,6 +56,24 @@ namespace:
 }
 #+end_src
 
+* InterpClosure
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.InterpClosure
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct InterpClosure {
+    ref mut func_def : Expr
+    ref mut env : Scope
+    mut borrowed : Bool
+namespace:
+    func clone(self: InterpClosure) returns InterpClosure
+    func delete(own self: InterpClosure, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
 * Value
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.Value
@@ -80,6 +98,7 @@ enum Value {
     Dynamic: Dynamic
     Sbyte: I8
     Ushort: U16
+    Closure: InterpClosure
 namespace:
     func eq(a: Value, b: Value) returns shallow Bool
     func to_str(self: Value) returns Str
@@ -100,6 +119,7 @@ namespace:
     ext_func Dynamic(val: Dynamic) returns Value
     ext_func Sbyte(val: I8) returns Value
     ext_func Ushort(val: U16) returns Value
+    ext_func Closure(own val: InterpClosure) returns Value
     func is(self: Value, other: Value) returns shallow Bool
     func delete(own self: Value, shallow call_free: Bool)
     func size() returns shallow U32

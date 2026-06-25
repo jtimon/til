@@ -211,6 +211,16 @@ ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
 ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
 #+end_src
 
+* memcmp
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.memcmp
+:group: Core
+:END:
+
+#+begin_src til
+ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: U64) returns shallow I32
+#+end_src
+
 * ptr_eq
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.mem.ptr_eq
