@@ -102,3 +102,14 @@ test_capturing_closure_by_name := test() {
     apply := func(f: Adder295) returns I64 { return f(10) }
     assert_eq(I64, apply(add1), 15)
 }
+
+// #295/#262: a struct with a funcptr field, built from a constant-arg
+// constructor, must not be mishandled by the const-folder (which folds a
+// struct value field by field). Guards the funcptr-field const-fold path.
+Thunk295 := func() returns I64
+Box295 := struct { t : Thunk295 }
+forty_two295 := func() returns I64 { return 42 }
+test_funcptr_field_constfold := test() {
+    b := Box295(t = forty_two295)
+    assert_eq(I64, b.t(), 42)
+}

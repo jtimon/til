@@ -23,21 +23,42 @@ Progress (partial fix landed):
       `til_env` unused under -Werror; emit `(void)til_env;`.
   Regression test: test/closures.til (test_capturing_closure_by_name).
 
-  STILL BROKEN (remaining work):
+    - The recursive lazy structure (`LazyNat` = head + `tail : () -> LazyNat`,
+      forced recursively) no longer segfaults COMPILED. Root cause was NOT a
+      closure-lifetime issue: the const-folder folded the constant-arg
+      constructor `make_nats(0)` via the interpreter, whose write_field drops
+      the closure (the interpreter bug below), so the struct folded with a
+      zeroed (NULL) closure field -> NULL-deref segfault. Fix: ~value_to_expr~
+      (src/self/constfolder.til) bails (keeps the call at runtime) when a struct
+      field is funcptr/closure-typed -- a closure can't be baked into a static
+      compound literal. COMPILED lazy / infinite lists now WORK (regression
+      test: test/lazy_list.til, registered as lazy_list_compile).
+
+  REMAINING:
     - Interpreter, closure stored in a struct field (`b.t()`): "namespace field
       is not a function". ~write_field~/~read_field~ (src/self/interpreter.til)
       have no ~Value.Closure~ case, so the closure is dropped on store and read
       back as a non-callable. Needs closure boxing on store + reconstruction on
-      read (distinguish func vs closure by whether the box has an env).
+      read (distinguish func vs closure by whether the box has an env). This is
+      what blocks lazy lists in INTERPRET (compiled already works).
+    - Closure cleanup: a capturing closure (TilClosure + env) stored in a struct
+      field or escaping its scope is never freed -> ASAN reports leaks (e.g. the
+      lazy stream leaks 24 bytes per cell). The struct's auto-generated delete
+      does not drop a closure-typed field. This is why a compiled lazy-list
+      regression test cannot yet go in the suite (it runs under ASAN). Needs
+      the generated delete to call the closure `_drop` for funcptr fields, and
+      escaping-closure ownership to be tracked.
     - Const-folder elides a COMPILE-TIME-CONSTANT captured local in-function
-      (compiled): `n := 5; ... [n] ...` -> `til_env->n = n` with `n` undeclared,
-      because the const-folder dropped the dead constant without knowing the
-      closure captures it. Narrow (runtime-valued captures are fine); fix:
-      mark captured locals used so they are not elided.
-    - Recursive lazy structure (`LazyNat` = head + `tail : () -> LazyNat`
-      capturing, forced recursively) still SEGFAULTS compiled -- a deeper
-      closure-env-lifetime issue beyond the above. This is the actual
-      lazy-list / alpha-beta target and needs its own investigation.
+      (compiled): `n := 5; ... [n] ...` -> `til_env->n = n` with `n` undeclared.
+      Narrow (runtime-valued captures are fine); fix: mark captured locals used
+      so they are not elided.
+    - Hard error for an escaping by-reference capture (separate footgun). An
+      escaping closure must capture by VALUE (`[shallow n]` / `[own n]`); the
+      default `[n]` is by-REFERENCE, so if the closure escapes its creating
+      scope (stored in a returned struct), `&n` dangles and forcing it later
+      reads garbage (a silent wrong answer, e.g. take_sum -> 7 instead of 10).
+      ~check_returned_borrowed_closure_captures_in~ does not catch the
+      closure-stored-in-a-struct-field case; it should reject it loudly.
 
 A capturing closure (`func(...) returns T [x] { ... }`, captures non-empty)
 can only be CALLED when it flows through a function PARAMETER. Calling one by

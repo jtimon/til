@@ -373,6 +373,16 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
                     return NULL
                 }
+                // Issue #295/#262: a funcptr/closure-typed field holds a
+                // runtime value (a closure carries an env), and the interpreter
+                // const-eval mis-stores it (reads back as 0). A closure can't be
+                // baked into a static compound literal, so bail -- keep the call
+                // at runtime. (This is what makes a struct built from a closure,
+                // e.g. a lazy-list cell `{ head, tail : () -> Cell }`, survive
+                // const-folding of a constant-arg constructor like make_nats(0).)
+                if is_funcptr(fd.til_type) {
+                    return NULL
+                }
                 fl_pre := ctx_field_layout(si.to_str(), fd.name, ctx)
                 mut farg : Expr = value_to_expr(read_field(si.data, fd, fl_pre.offset, ctx), src, ctx)
                 if farg.is_null() { return NULL }
