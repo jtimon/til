@@ -4429,6 +4429,13 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                         for j in 0..fwd_edd.variants.len() {
                             if j > 0 { f.write(",\n") }
                             f.write("    ").write(dd.name).write("_TAG_").write(fwd_edd.variants[j])
+                            // Stage C (#264 follow-up): emit an explicit tag value when
+                            // it differs from the auto-number (index). GCC widens the
+                            // enum's underlying type for >int values (no -Wpedantic).
+                            if j < fwd_edd.tag_values.len() {
+                                ref tvj : I64 = fwd_edd.tag_values[j]
+                                if tvj != j.to_i64() { f.write(" = ").write(tvj.to_str()) }
+                            }
                         }
                         f.write("\n} ").write(dd.name).write("_tag;\n")
                         f.write("typedef struct ").write(dd.name).write(" ").write(dd.name).write(";\n")
@@ -4462,6 +4469,10 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     for j in 0..fwd_edd.variants.len() {
                         if j > 0 { f.write(",\n") }
                         f.write("    ").write(dd.name).write("_TAG_").write(fwd_edd.variants[j])
+                        if j < fwd_edd.tag_values.len() {
+                            ref tvj : I64 = fwd_edd.tag_values[j]
+                            if tvj != j.to_i64() { f.write(" = ").write(tvj.to_str()) }
+                        }
                     }
                     f.write("\n} ").write(dd.name).write("_tag;\n")
                     f.write("typedef struct ").write(dd.name).write(" ").write(dd.name).write(";\n")

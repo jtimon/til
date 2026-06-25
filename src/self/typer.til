@@ -6378,9 +6378,9 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                                 if inner_pat.node_type.is(NodeType.Ident) {
                                     return false
                                 }
-                                vt_tag := enum_variant_tag(enum_def, variant_name2)
-                                if vt_tag >= 0 {
-                                    inner_type_name := enum_variant_type(enum_def, vt_tag)
+                                vt_idx := enum_variant_index(enum_def, variant_name2)
+                                if vt_idx >= 0 {
+                                    inner_type_name := enum_variant_type(enum_def, vt_idx)
                                     if inner_type_name.len() > 0 {
                                         ref inner_def : Expr = scope.get_struct(inner_type_name)
                                         if inner_def.is_null().not().and(inner_def.node_type.is(NodeType.EnumDef)) {
@@ -6466,9 +6466,9 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                                     sub2.fully_covered = true
                                 } else {
                                     // Nested pattern: find inner enum and recurse.
-                                    vt_tag := enum_variant_tag(enum_def, variant_name2)
-                                    if vt_tag >= 0 {
-                                        inner_type_name := enum_variant_type(enum_def, vt_tag)
+                                    vt_idx := enum_variant_index(enum_def, variant_name2)
+                                    if vt_idx >= 0 {
+                                        inner_type_name := enum_variant_type(enum_def, vt_idx)
                                         if inner_type_name.len() > 0 {
                                             ref inner_def : Expr = scope.get_struct(inner_type_name)
                                             if inner_def.is_null().not().and(inner_def.node_type.is(NodeType.EnumDef)) {
@@ -6508,9 +6508,9 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
             }
             if sub.fully_covered { continue }
             mut recursed := false
-            vt_tag := enum_variant_tag(enum_def, vn)
-            if vt_tag >= 0 {
-                inner_type_name := enum_variant_type(enum_def, vt_tag)
+            vt_idx := enum_variant_index(enum_def, vn)
+            if vt_idx >= 0 {
+                inner_type_name := enum_variant_type(enum_def, vt_idx)
                 if inner_type_name.len() > 0 {
                     ref inner_def : Expr = scope.get_struct(inner_type_name)
                     if inner_def.is_null().not().and(inner_def.node_type.is(NodeType.EnumDef)) {

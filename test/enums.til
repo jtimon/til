@@ -888,3 +888,52 @@ test_enum_tag_width_payload := test() {
     case: assert_eq(Str, "wrong variant", "")
     }
 }
+
+// #264 follow-up: explicit enum tag values (`enum { A = N }`), C-like
+// auto-increment after an explicit value, and a no-payload U64 tag beyond
+// U32.MAX -- the case that needs the full 64-bit tag end to end (compiled
+// is_n(8) + interpreter Value.Int).
+TagExplicit := enum(U8) { A = 10, B = 20, C }
+
+test_enum_explicit_value := test() {
+    expect(TagExplicit.A.eq(TagExplicit.A), "explicit: A eq A")
+    expect(TagExplicit.A.eq(TagExplicit.B).not(), "explicit: A neq B")
+    // C auto-increments from B (20) -> 21.
+    expect(TagExplicit.C.eq(TagExplicit.C), "explicit: C eq C")
+    expect(TagExplicit.C.eq(TagExplicit.A).not(), "explicit: C neq A")
+    mut r := 0
+    switch TagExplicit.B {
+    case TagExplicit.A: r = 1
+    case TagExplicit.B: r = 2
+    case TagExplicit.C: r = 3
+    }
+    assert_eq(I64, r, 2)
+}
+
+TagU64Hi := enum(U64) { A = 0, B = 4294967296 }
+
+test_enum_u64_high_value := test() {
+    expect(TagU64Hi.B.eq(TagU64Hi.B), "u64hi: B eq B")
+    // If the tag were truncated to 32 bits, B (2^32) would collide with A (0).
+    expect(TagU64Hi.B.eq(TagU64Hi.A).not(), "u64hi: B neq A")
+    mut r := 0
+    switch TagU64Hi.B {
+    case TagU64Hi.A: r = 1
+    case TagU64Hi.B: r = 2
+    }
+    assert_eq(I64, r, 2)
+}
+
+// A payload variant with an explicit tag: guards the tag-vs-index split --
+// Num's tag value is 7 but its payload_types entry is at index 1.
+TagPayloadExplicit := enum(U8) { None = 5, Num: I64 = 7 }
+
+test_enum_explicit_payload := test() {
+    v := TagPayloadExplicit.Num(42)
+    mut got := -1
+    switch v {
+    case TagPayloadExplicit.None: got = 0
+    case TagPayloadExplicit.Num(n): got = n
+    }
+    assert_eq(I64, got, 42)
+}

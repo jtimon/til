@@ -950,7 +950,28 @@ enum_tag_size := func(enum_def: Expr) returns USize {
     return 4
 }
 
-enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
+// The discriminant VALUE of a variant. With explicit `= N` tags this is the
+// assigned value; otherwise the declaration index. FFI-built defs
+// (enum_def_of) carry no tag_values, so they fall back to the index.
+enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for i in 0..edd.variants.len() {
+            if edd.variants[i] == variant_name {
+                if i < edd.tag_values.len() { return edd.tag_values[i].clone() }
+                return i.to_i64()
+            }
+        }
+    case:
+        UNREACHABLE()
+    }
+    return -1
+}
+
+// The declaration INDEX of a variant (0-based). Distinct from the tag VALUE
+// once explicit tags are used. payload_types / payload_consts are keyed by
+// index, so payload lookups must use this, NOT enum_variant_tag.
+enum_variant_index := func(enum_def: Expr, variant_name: Str) returns I32 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
@@ -962,12 +983,15 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     return -1
 }
 
-enum_variant_type := func(enum_def: Expr, tag: I32) returns Str {
+// Payload type of a variant by its declaration INDEX (payload_types is
+// index-keyed). Callers holding a tag VALUE must convert via
+// enum_variant_index -- do NOT pass a tag here.
+enum_variant_type := func(enum_def: Expr, idx: I32) returns Str {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        idx := tag.cast(I64)
-        if edd.payload_types.has(idx) {
-            return edd.payload_types[idx].clone()
+        k := idx.cast(I64)
+        if edd.payload_types.has(k) {
+            return edd.payload_types[k].clone()
         }
     case:
         UNREACHABLE()
@@ -975,12 +999,15 @@ enum_variant_type := func(enum_def: Expr, tag: I32) returns Str {
     return ""
 }
 
-enum_variant_payload_const := func(enum_def: Expr, tag: I32) returns Bool {
+// Payload-const flag of a variant by its declaration INDEX (payload_consts is
+// index-keyed). Like enum_variant_type, callers with a tag VALUE convert via
+// enum_variant_index first.
+enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        tag_u := tag.cast(U32)
-        if tag_u < edd.payload_consts.len() {
-            if edd.payload_consts[tag_u] { return true }
+        idx_u := idx.cast(U32)
+        if idx_u < edd.payload_consts.len() {
+            if edd.payload_consts[idx_u] { return true }
         }
     case:
         UNREACHABLE()

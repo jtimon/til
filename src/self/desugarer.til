@@ -2636,10 +2636,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 // `enum_def` is NULL (e.g. cross-file priv).
                                 if enum_def.is_null().not() {
                                 if enum_def.node_type.is(NodeType.EnumDef) {
-                                    vt_tag := enum_variant_tag(enum_def, variant_name)
+                                    vt_idx := enum_variant_index(enum_def, variant_name)
                                     mut payload_type := ""
-                                    if vt_tag >= 0 {
-                                        payload_type = enum_variant_type(enum_def, vt_tag)
+                                    if vt_idx >= 0 {
+                                        payload_type = enum_variant_type(enum_def, vt_idx)
                                     }
                                     if payload_type.len() > 0 {
                                         // #264: width-correct tag comparison.
@@ -2672,7 +2672,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                             if sw_b.is_null().not() { source_mut = sw_b.is_mut }
                                         case:
                                         }
-                                        payload_const := enum_variant_payload_const(enum_def, vt_tag)
+                                        payload_const := enum_variant_payload_const(enum_def, vt_idx)
                                         bind_is_mut := source_mut.and(payload_const.not())
                                         // #164: a ref-mut payload binding allows writes that
                                         // propagate back into the source's payload memory, so
@@ -2741,10 +2741,10 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 // above. til's `.and` is strict.
                                 if enum_def3.is_null().not() {
                                 if enum_def3.node_type.is(NodeType.EnumDef) {
-                                    vt_tag3 := enum_variant_tag(enum_def3, variant_name3)
+                                    vt_idx3 := enum_variant_index(enum_def3, variant_name3)
                                     mut payload_type3 := ""
-                                    if vt_tag3 >= 0 {
-                                        payload_type3 = enum_variant_type(enum_def3, vt_tag3)
+                                    if vt_idx3 >= 0 {
+                                        payload_type3 = enum_variant_type(enum_def3, vt_idx3)
                                     }
                                     if payload_type3.len() > 0 {
                                         // outer condition: sw_ref.is(Type.Variant)
@@ -2810,8 +2810,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     // above. til's `.and` is strict.
                     if enum_def.is_null().not() {
                     if enum_def.node_type.is(NodeType.EnumDef) {
-                        vt_tag2 := enum_variant_tag(enum_def, variant_name)
-                        if vt_tag2 >= 0 {
+                        vt_idx2 := enum_variant_index(enum_def, variant_name)
+                        if vt_idx2 >= 0 {
                             // `case Variant` (no payload binding) -> sw.is(Type.Variant).
                             // Use .is rather than .eq so the desugared check is a
                             // tag-only comparison and never recurses through a
@@ -3074,9 +3074,9 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
             }
             if base_ok.not() { return false }
             ref edef1 : Expr = scope.get_struct(sw_sname)
-            vtag := enum_variant_tag(edef1, vname)
-            if vtag < 0 { return false }
-            if needs_payload.and(enum_variant_type(edef1, vtag).len().eq(0)) { return false }
+            vidx := enum_variant_index(edef1, vname)
+            if vidx < 0 { return false }
+            if needs_payload.and(enum_variant_type(edef1, vidx).len().eq(0)) { return false }
             lit_text = vname
         } else if is_bool {
             switch pat.node_type {
@@ -3144,9 +3144,9 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     }
     ref enum_def : Expr = scope.get_struct(sw_sname)
     if enum_def.is_null() { return }
-    vt_tag := enum_variant_tag(enum_def, variant_name)
-    if vt_tag < 0 { return }
-    payload_type := enum_variant_type(enum_def, vt_tag)
+    vt_idx := enum_variant_index(enum_def, variant_name)
+    if vt_idx < 0 { return }
+    payload_type := enum_variant_type(enum_def, vt_idx)
     if payload_type.len() == 0 { return }
     mut source_mut := false
     switch sw_expr.node_type {
@@ -3155,7 +3155,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
         if sw_b.is_null().not() { source_mut = sw_b.is_mut }
     case:
     }
-    payload_const := enum_variant_payload_const(enum_def, vt_tag)
+    payload_const := enum_variant_payload_const(enum_def, vt_idx)
     bind_is_mut := source_mut.and(payload_const.not())
     // Mark the scrutinee's root binding written: the case body holds a `ref`
     // into the scrutinee's payload (get_payload) and may write through it

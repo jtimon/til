@@ -562,13 +562,21 @@ priv enum_free_str_payload := func(data: Dynamic) {
     }
 }
 
-priv val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, str_payload: Bool, move_src: Bool, ctx: Context) returns shallow Value {
+priv val_enum_flat := func(enum_name: Str, etag: I64, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, str_payload: Bool, move_src: Bool, ctx: Context) returns shallow Value {
     mut alloc_size : USize = total_enum_size
     if alloc_size < 8 {
         alloc_size = 8
     }
     data : Dynamic = EvalHeap.heap_alloc(alloc_size)
-    memcpy(data, etag, 4)
+    // #264 follow-up: write the enum's full tag width (1/2/4/8 bytes) so a
+    // >32-bit U64 tag is stored intact. til's memcpy(dest, value, n) copies
+    // the n low bytes of `etag`. REM: an anon / macro-generated enum is not
+    // name-registered, so the lookup legitimately misses -- such enums are the
+    // historical default width (4 bytes).
+    ref tedef : Expr = lookup_interp_type_def(enum_name, ctx)
+    mut tag_w : USize = 4
+    if tedef.is_null().not() { tag_w = enum_tag_size(tedef) }
+    memcpy(data, etag, tag_w.cast(UPtr))
     mut is_str := false
     if payload_data.is_null().not() {
         if payload_size > 0 {
@@ -588,7 +596,7 @@ priv val_enum_flat := func(enum_name: Str, etag: I32, payload_data: Dynamic, pay
     return make_enum_value(enum_name, data, alloc_size, false, is_str, ctx)
 }
 
-priv val_enum_simple := func(enum_name: Str, etag: I32, total_enum_size: USize, ctx: Context) returns shallow Value {
+priv val_enum_simple := func(enum_name: Str, etag: I64, total_enum_size: USize, ctx: Context) returns shallow Value {
     return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size, false, false, ctx)
 }
 
@@ -776,7 +784,10 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                                 if enum_has_payloads(edef) {
                                                     return val_enum_flat(sname, tag, NULL, 0, total_size, false, false, ctx)
                                                 } else {
-                                                    return Value.Int32(tag)
+                                                    // #264 follow-up: a U64 (8-byte) tag may exceed I32,
+                                                    // so carry it as a full I64; narrower tags stay Int32.
+                                                    if enum_tag_size(edef) > 4 { return Value.Int(tag) }
+                                                    return Value.Int32(tag.to_i32())
                                                 }
                                             }
                                         }
@@ -912,7 +923,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                     if total_size >= ENUM_PAYLOAD_OFFSET {
                         inline_psz = total_size - ENUM_PAYLOAD_OFFSET
                     }
-                    return val_enum_flat(type_name, inline_etag, ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, enum_variant_is_str(type_name, inline_etag, ctx), false, ctx)
+                    return val_enum_flat(type_name, inline_etag.cast(I64), ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, enum_variant_is_str(type_name, inline_etag, ctx), false, ctx)
                 }
                 ref etag : I32 = p
                 return Value.Int32(etag)
@@ -1077,7 +1088,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         }
         mut matched := false
         if is_enum_subj.and(enum_def.is_null().not()) {
-            matched = enum_variant_tag(enum_def, clike_case_variant_name(cn.children[0])).cast(I64) == subj_i
+            matched = enum_variant_tag(enum_def, clike_case_variant_name(cn.children[0])) == subj_i
         } else if is_range_new_call(cn.children[0]) {
             // #254 range case `lo..hi`: match lo <= subj <= hi.
             lo := value_switch_key(eval_expr(scope, cn.children[0].children[1], ctx))
@@ -4663,7 +4674,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
         }
         ref tag_ptr : Dynamic = ei.data
         ref tag_ref : I32 = tag_ptr
-        tag := tag_ref
+        tag := tag_ref.cast(I64)
         if tag.eq(enum_variant_tag(til_type_def, "Unknown")).or(tag.eq(enum_variant_tag(til_type_def, "None"))) {
             r = make_str_value("".c_str, 0, ctx)
             return true
@@ -4753,7 +4764,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
                 panic("dyn_type_to_str: Primitive definition not registered")
             }
             ref prim_tag_ref : I32 = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
-            ptag := prim_tag_ref
+            ptag := prim_tag_ref.cast(I64)
             if ptag == enum_variant_tag(prim_def, "I16") { r = make_str_value("I16".c_str, 3, ctx); return true }
             if ptag == enum_variant_tag(prim_def, "U16") { r = make_str_value("U16".c_str, 3, ctx); return true }
             if ptag == enum_variant_tag(prim_def, "I8")  { r = make_str_value("I8".c_str, 2, ctx); return true }
@@ -5250,8 +5261,11 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
 priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if enum_has_payloads(enum_def) {
         ctor_tag := enum_variant_tag(enum_def, method)
+        // Payload lookup is index-keyed; construction (val_enum_flat below)
+        // needs the tag VALUE -- keep both distinct.
+        ctor_idx := enum_variant_index(enum_def, method)
         if ctor_tag >= 0 {
-            vtype := enum_variant_type(enum_def, ctor_tag)
+            vtype := enum_variant_type(enum_def, ctor_idx)
             has_payload := vtype.len() > 0
             if has_payload {
                 mut payload := eval_expr(scope, e.children[1], ctx)

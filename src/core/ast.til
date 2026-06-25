@@ -393,6 +393,11 @@ EnumDef : StructDef = struct {
     // C-`enum`-backed width). Appended at the end to minimise layout
     // disturbance for til_boot.
     tag_type := ""
+    // Explicit per-variant tag values (`enum { A = 5 }`), dense and parallel
+    // to `variants`. Empty when the def came from FFI introspection
+    // (enum_def_of) -- readers fall back to the variant index. Appended at
+    // the end to minimise layout disturbance for til_boot.
+    tag_values := Vec(I64).new()
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len() == b.variants.len()

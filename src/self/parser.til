@@ -1087,6 +1087,9 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 
     mut in_namespace := false
     mut variant_idx : I64 = 0
+    // Issue #264 follow-up: next auto-assigned tag value (C-like -- an
+    // explicit `= N` sets it, otherwise previous tag + 1, starting at 0).
+    mut next_tag : I64 = 0
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.DocComment) {
             drain_doc_comments(p)
@@ -1138,7 +1141,19 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
                 advance(p)
                 vtype = expect_text(p, TokenType.Ident)
             }
+            // Issue #264 follow-up: optional explicit tag value `= N` (integer
+            // literal). Unspecified variants auto-increment from the previous
+            // tag. The value is the discriminant; with an explicit value the
+            // tag can differ from the variant index (see context.enum_variant_tag
+            // vs enum_variant_index).
+            mut this_tag := next_tag
+            if check(p, TokenType.Eq) {
+                advance(p)
+                this_tag = expect_text(p, TokenType.Number).to_i64()
+            }
+            next_tag = this_tag + 1
             edd.variants.push(own vname.clone())
+            edd.tag_values.push(own this_tag.clone())
             if vtype.len() > 0 {
                 edd.payload_types.set(variant_idx, own vtype.clone())
             }

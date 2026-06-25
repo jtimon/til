@@ -122,10 +122,10 @@ typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Map__I64_Str Map__I64_Str;
 typedef struct Vec__Bool Vec__Bool;
+typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__FieldLayout Vec__FieldLayout;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
-typedef struct Vec__I64 Vec__I64;
 typedef struct Tuple Tuple;
 typedef struct Vec__U32 Vec__U32;
 typedef struct KwargsMap KwargsMap;
@@ -594,6 +594,13 @@ typedef struct Vec__Bool {
 } Vec__Bool;
 
 
+typedef struct Vec__I64 {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__I64;
+
+
 typedef struct Vec__FieldLayout {
     U8 *data;
     U32 count;
@@ -613,13 +620,6 @@ typedef struct Vec__Expr {
     U32 count;
     U32 cap;
 } Vec__Expr;
-
-
-typedef struct Vec__I64 {
-    U8 *data;
-    U32 count;
-    U32 cap;
-} Vec__I64;
 
 
 typedef struct Vec__U32 {
@@ -1758,6 +1758,7 @@ typedef struct EnumDef {
     Vec__Bool payload_consts;
     Str implements_name;
     Str tag_type;
+    Vec__I64 tag_values;
 } EnumDef;
 
 
@@ -2229,6 +2230,16 @@ Bool * Vec__Bool_get(Vec__Bool * self, U32 * i, I64 * _err_kind, OutOfBounds * _
 void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
 Vec__Bool * Vec__Bool_clone(Vec__Bool * self);
 U32 Vec__Bool_size(void);
+Vec__I64 * Vec__I64_new(void);
+U32 Vec__I64_len(Vec__I64 * self);
+void Vec__I64_clear(Vec__I64 * self);
+void Vec__I64_push(Vec__I64 * self, I64 * val);
+I64 * Vec__I64_unsafe_get(Vec__I64 * self, U32 * i);
+I64 * Vec__I64_get(Vec__I64 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
+void Vec__I64_unsafe_set(Vec__I64 * self, U32 i, I64 * val);
+void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
+U32 Vec__I64_size(void);
 Vec__FieldLayout * Vec__FieldLayout_new(void);
 U32 Vec__FieldLayout_len(Vec__FieldLayout * self);
 void Vec__FieldLayout_clear(Vec__FieldLayout * self);
@@ -2265,15 +2276,6 @@ void Vec__Expr_push_take(Vec__Expr * self, Vec__Expr * src, U32 i);
 void Vec__Expr_delete(Vec__Expr * self, Bool call_free);
 Vec__Expr * Vec__Expr_clone(Vec__Expr * self);
 U32 Vec__Expr_size(void);
-Vec__I64 * Vec__I64_new(void);
-void Vec__I64_clear(Vec__I64 * self);
-void Vec__I64_push(Vec__I64 * self, I64 * val);
-I64 * Vec__I64_unsafe_get(Vec__I64 * self, U32 * i);
-I64 * Vec__I64_get(Vec__I64 * self, U32 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
-void Vec__I64_unsafe_set(Vec__I64 * self, U32 i, I64 * val);
-void Vec__I64_delete(Vec__I64 * self, Bool call_free);
-Vec__I64 * Vec__I64_clone(Vec__I64 * self);
-U32 Vec__I64_size(void);
 void Tuple_delete(Tuple * self, Bool call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 Tuple_size(void);
@@ -2516,9 +2518,10 @@ Vec__Declaration * def_ns_decls(Expr * sdef);
 Bool enum_has_payloads(Expr * enum_def);
 Str * enum_tag_type(Expr * enum_def);
 U32 enum_tag_size(Expr * enum_def);
-I32 enum_variant_tag(Expr * enum_def, Str * variant_name);
-Str * enum_variant_type(Expr * enum_def, I32 tag);
-Bool enum_variant_payload_const(Expr * enum_def, I32 tag);
+I64 enum_variant_tag(Expr * enum_def, Str * variant_name);
+I32 enum_variant_index(Expr * enum_def, Str * variant_name);
+Str * enum_variant_type(Expr * enum_def, I32 idx);
+Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
@@ -3754,8 +3757,8 @@ Value priv___src_self_interpreter_til__make_enum_value(Str * enum_name, void * d
 Bool priv___src_self_interpreter_til__enum_variant_is_str(Str * enum_name, I32 etag, Context * ctx);
 void priv___src_self_interpreter_til__enum_clone_str_payload(void * data);
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data);
-Value priv___src_self_interpreter_til__val_enum_flat(Str * enum_name, I32 etag, void * payload_data, U32 payload_size, U32 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
-Value priv___src_self_interpreter_til__val_enum_simple(Str * enum_name, I32 etag, U32 total_enum_size, Context * ctx);
+Value priv___src_self_interpreter_til__val_enum_flat(Str * enum_name, I64 etag, void * payload_data, U32 payload_size, U32 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
+Value priv___src_self_interpreter_til__val_enum_simple(Str * enum_name, I64 etag, U32 total_enum_size, Context * ctx);
 U32 priv___src_self_interpreter_til__elem_size_for_type(Str * type_name);
 Value priv___src_self_interpreter_til__parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 void * priv___src_self_interpreter_til__value_ptr_view(Value * v);
