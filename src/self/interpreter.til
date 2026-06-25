@@ -5476,6 +5476,64 @@ priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
     return a
 }
 
+// True for the six comparison ops that return Bool (eq/neq + the four
+// ordering ops). Separate from scalar_is_binop because these build a
+// Value.Boolean, not a width-truncated scalar.
+priv scalar_is_cmp := func(op: Str) returns Bool {
+    switch op {
+    case "eq":  return true
+    case "neq": return true
+    case "lt":  return true
+    case "gt":  return true
+    case "lte": return true
+    case "gte": return true
+    }
+    return false
+}
+
+// Apply a comparison at U64 width (unsigned operands: eq/neq are bit-equal,
+// the ordering ops use unsigned comparison).
+priv scalar_cmp_u64 := func(op: Str, a: U64, b: U64) returns Bool {
+    switch op {
+    case "eq":  return a.eq(b)
+    case "neq": return a.neq(b)
+    case "lt":  return a.lt(b)
+    case "gt":  return a.gt(b)
+    case "lte": return a.lte(b)
+    case "gte": return a.gte(b)
+    }
+    panic(__LOC__, ": scalar_cmp_u64: unhandled op ", op)
+    return false
+}
+
+// Apply a comparison at I64 width (signed operands).
+priv scalar_cmp_i64 := func(op: Str, a: I64, b: I64) returns Bool {
+    switch op {
+    case "eq":  return a.eq(b)
+    case "neq": return a.neq(b)
+    case "lt":  return a.lt(b)
+    case "gt":  return a.gt(b)
+    case "lte": return a.lte(b)
+    case "gte": return a.gte(b)
+    }
+    panic(__LOC__, ": scalar_cmp_i64: unhandled op ", op)
+    return false
+}
+
+// Apply a comparison on F32 operands.
+priv scalar_cmp_f32 := func(op: Str, a: F32, b: F32) returns Bool {
+    switch op {
+    case "eq":  return a.eq(b)
+    case "neq": return a.neq(b)
+    case "lt":  return a.lt(b)
+    case "gt":  return a.gt(b)
+    case "lte": return a.lte(b)
+    case "gte": return a.gte(b)
+    }
+    panic(__LOC__, ": scalar_cmp_f32: unhandled op ", op)
+    return false
+}
+
 // Truncate an integer result to `t`'s width and box it. The unsigned ops
 // compute at U64 and pass the result reinterpreted as I64 (`.cast(I64)`):
 // truncation to a narrower width is sign-agnostic, and U64 round-trips back
@@ -5519,13 +5577,15 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
     op_start := u_pos.add(1)
     op_str := name.substr(op_start, name.len().sub(op_start))
 
-    // eq: binary comparison -> Bool.
-    if op_str == "eq" {
+    // eq/neq/lt/gt/lte/gte: binary comparison -> Bool. eq/neq are bit-equal
+    // for both signednesses; the ordering ops use the category's signed,
+    // unsigned, or float comparison.
+    if scalar_is_cmp(op_str) {
         av := scalar_read_arg(scope, e.children[1], type_str, ctx)
         bv := scalar_read_arg(scope, e.children[2], type_str, ctx)
-        if cat == "u" { result = Value.Boolean(value_to_u64(av).eq(value_to_u64(bv))); return true }
-        if cat == "i" { result = Value.Boolean(value_as_i64(av).eq(value_as_i64(bv))); return true }
-        result = Value.Boolean(value_to_f32(av).eq(value_to_f32(bv)))
+        if cat == "u" { result = Value.Boolean(scalar_cmp_u64(op_str, value_to_u64(av), value_to_u64(bv))); return true }
+        if cat == "i" { result = Value.Boolean(scalar_cmp_i64(op_str, value_as_i64(av), value_as_i64(bv))); return true }
+        result = Value.Boolean(scalar_cmp_f32(op_str, value_to_f32(av), value_to_f32(bv)))
         return true
     }
 
