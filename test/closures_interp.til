@@ -1,5 +1,7 @@
 mode test
 
+import("../src/std/dyn_vec")
+
 // --- Function closures (issue #54) ---
 // A capturing function/lambda `func(a: I64) returns I64 [scale] { ... }`
 // is a closure: it reads (and with `mut`, writes) the listed outer-scope
@@ -21,6 +23,10 @@ WordBox := struct {
 }
 
 BoxSupplier := func() returns WordBox
+
+OpHolder := struct {
+    op : UnaryOp = func(x: I64) returns I64 { return x }
+}
 
 apply_unary := func(op: UnaryOp, x: I64) returns I64 {
     return op(x)
@@ -91,4 +97,21 @@ test_closure_return_owns_struct_with_str := test() {
     get_box := make_box_supplier()
     box := get_box()
     assert_eq(Str, box.text, "boxed")
+}
+
+make_op_holder := func(factor: I64) returns OpHolder {
+    return OpHolder(op = make_multiplier(factor))
+}
+
+test_closure_stored_in_struct_field := test() {
+    holder := make_op_holder(4)
+    assert_eq(I64, holder.op(6), 24)
+}
+
+test_closure_stored_in_dyn_vec := test() {
+    op := make_multiplier(5)
+    mut ops := DynVec.new(UnaryOp)
+    ops.push(own op)
+    ref stored : UnaryOp = ops[0]
+    assert_eq(I64, stored(6), 30)
 }

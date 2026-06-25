@@ -342,17 +342,28 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
             // tail and skip the field loop entirely.  Saves both
             // compile-time codegen and runtime call frames per POD
             // struct destruction.
-            pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
+            mut pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
+            for d_pod : Declaration in sdd.fields {
+                if d_pod.own_type.is(OwnType.Ref) { continue }
+                if d_pod.explicit_type.len().gt(0).and(type_from_name_init(d_pod.explicit_type, scope).is_funcptr()) {
+                    pod_no_field_deletes = false
+                }
+            }
             del_field_names := Vec(Str).new()
             del_field_owns := Vec(Bool).new()
+            del_field_funcptrs := Vec(Bool).new()
             if pod_no_field_deletes.not() {
                 for d_j : Declaration in sdd.fields {
                     ref fd : Declaration = d_j
                     if fd.own_type.is(OwnType.Ref) { continue }
                     if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is_funcptr()) {
+                        del_field_names.push(own fd.name.clone())
+                        del_field_owns.push(own false)
+                        del_field_funcptrs.push(own true)
                         continue
                     }
                     del_field_names.push(own fd.name.clone())
+                    del_field_funcptrs.push(own false)
                     if fd.own_type.is(OwnType.Own) {
                         del_field_owns.push(own true)
                     } else {
@@ -366,6 +377,15 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                 mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
                 mut field_acc := Expr.new(field_access_node(del_field_names[j]), stmt.line, stmt.col)
                 field_acc.add_child(own self_id)
+
+                if del_field_funcptrs[j] {
+                    mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                    mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
+                    closure_del.add_child(own closure_del_id)
+                    closure_del.add_child(own field_acc.clone())
+                    proc_body.add_child(own closure_del)
+                    continue
+                }
 
                 mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
                 del_acc.add_child(own field_acc)
@@ -1775,6 +1795,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             mut falign : USize = 0
             mut field_struct_name := ""
             mut field_is_enum := false
+            mut field_is_funcptr := false
 
             if fd.own_type.is(OwnType.Shallow).not() {
                 fsz = 8
@@ -1811,7 +1832,9 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     mut opal : USize = 0
                     mut opbi : Bool = false
                     o_is_prim : Bool = primitive_type_info(ftype, scope, oprim, opsz, opal, opbi)
-                    if o_is_prim.not().and(type_from_name_init(ftype, scope).is_funcptr().not()).and(ftype.eq("Dynamic").not()) {
+                    if type_from_name_init(ftype, scope).is_funcptr() {
+                        field_is_funcptr = true
+                    } else if o_is_prim.not().and(ftype.eq("Dynamic").not()) {
                         ref o_nested : Expr = scope.get_struct(ftype)
                         if o_nested.is_null().not() {
                             field_struct_name = ftype.clone()
@@ -1886,6 +1909,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         fsz = psz
                         falign = pal
                     } else if type_from_name_init(ftype, scope).is_funcptr() {
+                        field_is_funcptr = true
                         fsz = 8
                         falign = 8
                     } else {
@@ -1912,7 +1936,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum))
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr))
             if falign > max_align { max_align = falign }
             offset = offset + fsz
         }
@@ -2015,7 +2039,7 @@ ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns Fiel
             if sdd.fields[i].name == field_name {
                 if i < sl.fields.len() {
                     ref fl : FieldLayout = sl.fields[i]
-                    return FieldLayout(offset = fl.offset, size = fl.size, struct_name = fl.struct_name.clone())
+                    return FieldLayout(offset = fl.offset, size = fl.size, struct_name = fl.struct_name.clone(), own_type = fl.own_type, is_str = fl.is_str, is_enum = fl.is_enum, is_funcptr = fl.is_funcptr)
                 }
                 return FieldLayout()
             }

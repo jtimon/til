@@ -6,6 +6,7 @@ import("numbers")
 
 free := ext_func(own elem: Dynamic) {}
 til_closure_delete := ext_func(closure: Fn) {}
+til_closure_slot_delete := ext_func(slot: Dynamic) {}
 malloc := ext_func(shallow count: UPtr) returns Dynamic {}
 calloc := ext_func(shallow nmemb: UPtr, shallow size: UPtr) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, shallow count: UPtr) returns Dynamic {}

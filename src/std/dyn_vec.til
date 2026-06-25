@@ -20,10 +20,9 @@ namespace:
             return DynVec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_kind = ELEM_POD)
         }
-        // Issue #58: function pointers are 8-byte plain values, not heap
-        // boxes. Use the same path as Dynamic so push/get/delete are
-        // byte-copy + no-op clone/delete instead of trying to dispatch
-        // through a non-existent FuncSig.clone/delete.
+        // Issue #58/#54: function pointers are 8-byte callable values.
+        // Store them in slots directly; cleanup uses the closure hook
+        // instead of a non-existent FuncSig.delete method.
         if elem_type == "Fn" {
             return DynVec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_kind = ELEM_FN)
@@ -49,6 +48,10 @@ namespace:
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
             }
+        } else if self.elem_kind == ELEM_FN {
+            for i in 0..self.count {
+                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
+            }
         }
         self.count = 0
     }
@@ -61,9 +64,9 @@ namespace:
             self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
             self.cap = new_cap
         }
-        // Issue #58: function pointers arrive as a direct pointer value
-        // (the code address), not a heap box of one. Store the pointer
-        // value itself into the slot and skip the free.
+        // Issue #58/#54: function pointers arrive as direct callable
+        // pointers. Store the pointer value itself into the slot and
+        // leave cleanup to til_closure_slot_delete.
         if self.elem_kind == ELEM_FN {
             write_ptr(ptr_add(self.data, self.count.mul(self.elem_size).cast(U64)), val)
             self.count = self.count + 1
@@ -110,6 +113,10 @@ namespace:
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+            }
+        } else if self.elem_kind == ELEM_FN {
+            for i in 0..self.count {
+                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
             }
         }
         needed := other.count
@@ -190,6 +197,10 @@ namespace:
     unsafe_set := func(mut self: DynVec, i: USize, own val: Dynamic) {
         if self.elem_kind == ELEM_BOXED {
             self.elem_delete(self.unsafe_get(i), false)
+        } else if self.elem_kind == ELEM_FN {
+            til_closure_slot_delete(self.unsafe_get(i))
+            write_ptr(self.unsafe_get(i), val)
+            return
         }
         memcpy(self.unsafe_get(i), val, self.elem_size.cast(U64))
         free(own val)

@@ -331,6 +331,7 @@ typedef enum {
     Value_TAG_Closure
 } Value_tag;
 typedef struct Value Value;
+typedef struct InterpCallableBox InterpCallableBox;
 typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct Scope Scope;
@@ -544,6 +545,7 @@ typedef struct FieldLayout {
     OwnType own_type;
     Bool is_str;
     Bool is_enum;
+    Bool is_funcptr;
 } FieldLayout;
 
 
@@ -1048,6 +1050,12 @@ struct Value {
         InterpClosure Closure;
     } data;
 };
+
+typedef struct InterpCallableBox {
+    U64 magic;
+    Value val;
+} InterpCallableBox;
+
 
 typedef struct Cell {
     Value val;
@@ -1916,6 +1924,7 @@ typedef struct Scope {
     Map__Str_Str payload_aliases;
     Map__Str_Dynamic ref_primitive_ptrs;
     Vec__DynPtrBox box_owned_dynamics;
+    Vec__DynPtrBox box_owned_callables;
 } Scope;
 
 
@@ -3673,6 +3682,7 @@ Str * priv___src_self_interpreter_til__interp_error_path(Context * ctx);
 void priv___src_self_interpreter_til__interp_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Context * ctx);
 Expr * priv___src_self_interpreter_til__field_nested_def(Declaration * dd, Context * ctx);
+Bool priv___src_self_interpreter_til__decl_is_funcsig(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
 void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx);
@@ -3707,6 +3717,10 @@ Value * Value_Closure(InterpClosure * val);
 Bool Value_is(Value * self, Value * other);
 void Value_delete(Value * self, Bool call_free);
 U32 Value_size(void);
+InterpCallableBox * InterpCallableBox_clone(InterpCallableBox * self);
+void InterpCallableBox_delete(InterpCallableBox * self, Bool call_free);
+U64 InterpCallableBox_hash(InterpCallableBox * self, HashFn hasher);
+U32 InterpCallableBox_size(void);
 Cell * Cell_clone(Cell * self);
 void Cell_delete(Cell * self, Bool call_free);
 U64 Cell_hash(Cell * self, HashFn hasher);
@@ -3758,6 +3772,7 @@ void priv___src_self_interpreter_til__free_value(Value v);
 priv___src_self_interpreter_til__DynPtrBox * priv___src_self_interpreter_til__DynPtrBox_clone(priv___src_self_interpreter_til__DynPtrBox * self);
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 U32 priv___src_self_interpreter_til__DynPtrBox_size(void);
+void * priv___src_self_interpreter_til__dynamic_value_payload_copy(Value * v);
 void priv___src_self_interpreter_til__free_value_full(Value v);
 Str * priv___src_self_interpreter_til__container_elem_type(Str * struct_name);
 void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, void * data, Context * ctx);
@@ -3787,6 +3802,13 @@ Scope * priv___src_self_interpreter_til__closure_env_clone(Scope * env);
 InterpClosure * priv___src_self_interpreter_til__interp_closure_clone(InterpClosure * cl);
 void priv___src_self_interpreter_til__interp_closure_free(InterpClosure * cl);
 Value * priv___src_self_interpreter_til__make_interp_closure(Expr * func_def, Scope * scope);
+Bool priv___src_self_interpreter_til__callable_box_is(void * ptr);
+Bool priv___src_self_interpreter_til__value_is_callable(Value * v);
+void * priv___src_self_interpreter_til__callable_box_new(Value * v);
+Value * priv___src_self_interpreter_til__callable_box_read(void * ptr);
+Value * priv___src_self_interpreter_til__callable_from_pointer_value(void * ptr);
+void * priv___src_self_interpreter_til__callable_box_clone_ptr(void * ptr);
+void priv___src_self_interpreter_til__callable_box_free(void * ptr);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(Expr * obj_expr, Str * sname, Expr * sdef, Str * fname);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_inner(Scope * scope, Expr * e, Str * sname);
 Cell * priv___src_self_interpreter_til__field_assign_dyn_move_src(Scope * scope, Expr * val_expr);
@@ -3891,7 +3913,9 @@ ffi_type * priv___src_self_interpreter_til__shallow_ffi_type(Str * type_name, Co
 ffi_type * priv___src_self_interpreter_til__field_ffi_type(Declaration * dd, Context * ctx);
 ffi_type * priv___src_self_interpreter_til__build_struct_ffi_type(Expr * struct_def, Context * ctx);
 Bool priv___src_self_interpreter_til__h_free(Scope * s, Expr * e, Value * r, Context * ctx);
+void priv___src_self_interpreter_til__free_callable_storage(Value * v);
 Bool priv___src_self_interpreter_til__h_til_closure_delete(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_til_closure_slot_delete(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
@@ -4410,6 +4434,7 @@ extern I32 FFI_BAD_TYPEDEF;
 extern I32 FFI_BAD_ABI;
 extern I32 FFI_BAD_ARGTYPE;
 extern I64 FFI_SIZEOF_ARG;
+extern U64 CALLABLE_BOX_MAGIC;
 extern U32 ENUM_PAYLOAD_OFFSET;
 extern U32 ENUM_PAYLOAD_OFFSET;
 extern I64 RAYLIB_VERSION_MAJOR;

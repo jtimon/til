@@ -53,11 +53,15 @@
       test/closures_compile_escape.til::test_closure_return_captures_local,
       test_closure_return_owns_str, and
       test_closure_return_owns_struct_with_str, plus
-      test/closures_interp.til::test_closure_return_owns_i64,
-      test_closure_return_owns_str, and
-      test_closure_return_owns_struct_with_str.
-      Remaining: broader stored-closure escape paths not covered by return /
-      own-arg checks.
+       test/closures_interp.til::test_closure_return_owns_i64,
+       test_closure_return_owns_str, and
+       test_closure_return_owns_struct_with_str. Stored closures now also
+       survive struct fields and DynVec(Fn) slots in interpret and compile
+       mode via callable storage boxes / closure slot cleanup. Tests:
+       test/closures_interp.til::test_closure_stored_in_struct_field and
+       test_closure_stored_in_dyn_vec.
+       Remaining: broader stored-closure escape paths not covered by return,
+       struct fields, DynVec(Fn), or own-arg checks.
    - [ ] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
 
 :DEPENDENCIES: [[./61.org][#61]]

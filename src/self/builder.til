@@ -2473,9 +2473,22 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             case NodeType.Ident(cname0):
                 if cname0.ident_name() == "til_closure_delete" {
                     if e.children.len() >= 2 {
+                        switch e.children[1].node_type {
+                        case NodeType.Ident(del_arg):
+                            if ctx.swap_freed.has(del_arg.ident_name()) { return }
+                        case:
+                        }
                         f.write("{ TilClosure *til_closure = ")
                         emit_expr(f, e.children[1], depth, ctx)
                         f.write("; if (til_closure && til_closure->drop) { til_closure->drop(til_closure->env); free(til_closure); } }\n")
+                        return
+                    }
+                }
+                if cname0.ident_name() == "til_closure_slot_delete" {
+                    if e.children.len() >= 2 {
+                        f.write("{ TilClosure **til_closure_slot = (TilClosure **)(")
+                        emit_expr(f, e.children[1], depth, ctx)
+                        f.write("); TilClosure *til_closure = *til_closure_slot; if (til_closure && til_closure->drop) { til_closure->drop(til_closure->env); free(til_closure); } *til_closure_slot = NULL; }\n")
                         return
                     }
                 }
@@ -3202,6 +3215,15 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
             }
         }
         ref arg : Expr = ctor.children[i]
+        if field_type.is_funcptr() {
+            switch arg.node_type {
+            case NodeType.Ident(arg_ident):
+                if arg_ident.ident_name().starts_with("hoisted__") {
+                    ctx.swap_freed.add(own arg_ident.ident_name().clone())
+                }
+            case:
+            }
+        }
         emit_indent(f, depth)
         if fld_own.is(OwnType.Ref) {
             emit_field(f, var, fname, ctx)
