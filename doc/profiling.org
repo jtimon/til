@@ -196,16 +196,16 @@ ranking is what matters).
 
   | function                                           | signal                         | suspected fix                                            |
   |----------------------------------------------------+--------------------------------+----------------------------------------------------------|
-  | U32_lt / I64_eq / U32_cmp                          | 97M / 174M / 105M calls        | cut generated integer helper traffic in tight loops      |
-  | Str_delete / Str_clone                             | 26.8M frees, 12.0M allocs, 147 MB | reduce temporary string churn; share refs/views/intern repeat idents |
-  | Str_cmp                                            | 20.2M calls, 1.6s self / 6.5s total | how Maps compare Str keys -> HashMap/HashSet for Str keys (#234) |
-  | is / U32_neq / and                                 | 87M / 27M / 31M calls          | reduce repeated predicate helper calls                   |
-  | I32_lt / I32_gt / I32_cmp                          | 21M / 13M / 34M calls          | reduce generated signed-integer helper traffic           |
-  | Vec__Expr_clone / Expr_clone                       | 331K / 165K allocs, 55 MB      | cut Expr_clone in typer; share/borrow AST where ownership allows |
-  | Array__Str_new / Vec__Str_new / Vec__Str_clone      | 1.6M / 440K / 5.4K allocs, 43 MB | avoid rebuilding string arrays/vectors in repeated lookups |
-  | Vec__Expr_new / Vec__Expr_push / Vec__Expr_push_take | 378K news, 39 MB push reallocs | reserve expression vectors at known-size sites           |
-  | Vec__Value_clone                                   | 300 allocs, 23 MB              | avoid cloning large value vectors; move/borrow where ownership permits |
-  | expr_uses_var / expr_used_in_nested_func / expr_transfers_own | 3.6M CPU calls, 37 MB alloc | memoize repeated AST ownership/use walks                 |
+  | and / Bool_eq / Str_eq                             | 30M / 34M / 6.6M calls         | reduce repeated predicate helper calls                   |
+  | Str_delete / Str_clone                             | 25.7M frees, 11.5M allocs, 143 MB | reduce temporary string churn; share refs/views/intern repeat idents |
+  | expr_uses_var / expr_transfers_own                 | 3.7M / 1.2M calls, 76s total   | memoize repeated AST ownership/use walks                 |
+  | Str_cmp / Vec__Str_unsafe_get                      | 19.3M / 12.4M calls            | keep compare/string scans on bulk unchecked paths        |
+  | Vec__Expr_unsafe_get / Vec__Expr_len               | 9.3M / 15.2M calls             | avoid repeated Vec bounds/length helper traffic in AST walks |
+  | priv___src_self_typer_til__fcall_has_own_arg       | 1.1M calls, 18 MB              | cache fcall ownership checks during typing               |
+  | Vec__Expr_clone / Expr_clone                       | 320K / 159K allocs, 59 MB      | cut Expr_clone in typer; share/borrow AST where ownership allows |
+  | Vec__Expr_new / Vec__Expr_push / Vec__Expr_push_take | 373K news, 42 MB push reallocs | reserve expression vectors at known-size sites           |
+  | Array__Str_new / Vec__Str_clone                    | 1.4M / 5.6K allocs, 32 MB      | avoid rebuilding string arrays/vectors in repeated lookups |
+  | Map__Str_Dynamic_has/get / TypeScope_get_struct    | 2.0M / 567K / 1.8M calls       | cache hot map/type-scope lookups or move them to HashMap paths |
 
 ** Status
 
