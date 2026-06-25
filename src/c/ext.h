@@ -186,6 +186,8 @@ void *get_payload(void *self);
 // System primitives
 Str *File_readfile(const Str *path);
 void File_writefile(const Str *path, const Str *content);
+void stdio_capture_begin(const Str *path);
+void stdio_capture_end(void);
 I64 *spawn_cmd(const Str *cmd);
 I64 check_cmd_status(I64 pid);
 void sleep_ms(I64 ms);

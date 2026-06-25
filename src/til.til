@@ -52,67 +52,23 @@ repl_read_line := proc(mode_name: Str) returns Str {
 
 // Run init+typecheck on a REPL-loaded program. Returns the type-error
 // count instead of panicking, so the REPL can decide what to do.
-// Mirrors the first half of `prepare_program` (loader.til).
 repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
-    // Mirrors prepare_program's init+type pipeline (loader.til) so the
-    // REPL sees the same scope and types as a regular `til interpret`
-    // run, but returns the type-error count instead of exit(1)-ing so
-    // we can fall back to letting the subprocess re-print errors.
-    lp.ctx.scope = TypeScope()
-
-    if lp.skip_core.not() {
-        ref core_root : ProgramUnit = lp.core_units[lp.core_units.len() - 1]
-        init_file(core_root.path, lp.ctx)
-    }
-    ref user_root : ProgramUnit = lp.units[lp.units.len() - 1]
-    init_file(user_root.path, lp.ctx)
-
-    // Global init: methods/layouts later phases assume exist.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            lp.ctx.mode = iu.mode.clone()
-            context_enter_file(lp.ctx, u.path)
-            init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        lp.ctx.mode = iu.mode.clone()
-        context_enter_file(lp.ctx, u.path)
-        init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
-    }
-
-    retarget_loaded_aliases(lp)
-    if lp.units.len() > 0 {
-        ref last : ProgramUnit = lp.units[lp.units.len() - 1]
-        context_enter_file(lp.ctx, last.path)
-    }
-
-    // Resolve Type.Custom(name) bindings now that every name is in scope.
-    normalize_scope_bindings(lp.ctx.scope)
-
-    mut errs : I32 = 0
-    if lp.skip_core.not() {
-        ref core_root2 : ProgramUnit = lp.core_units[lp.core_units.len() - 1]
-        errs = errs + type_file(core_root2.path, lp.ctx)
-    }
-    errs = errs + type_file(user_root.path, lp.ctx)
-    return errs
+    return type_program_errors(lp, false)
 }
 
-// Decide whether the user's input should be auto-echoed Python-style
-// by wrapping with `println((...).to_str())`.
-//
-// Two pieces of info:
-//   - peek_ast: the freshly parsed user input; tells us the user's intent
-//     (FCall vs Decl vs control flow). Statement-level forms never wrap.
-//   - typed_ast: the merged user AST after typecheck; the LAST child's til_type
-//     tells us if the user's expression returns a value. The typer hoists
-//     value-producing FCalls into synthetic `_t_TYPE_N := <expr>` Decls,
-//     but the Decl's til_type is still the expression's type, so the
-//     check works uniformly.
-repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
+repl_capture_interpret := proc(lp: LoadedProgram, out_path: Str) returns Str {
+    user_argv := Vec(Str).new()
+    stdio_capture_begin(out_path)
+    _ := cmd_interpret(lp, user_argv)
+    stdio_capture_end()
+    return File.readfile(out_path)
+}
+
+// Decide whether the user's input is syntactically eligible for Python-style
+// auto-echo by wrapping with `println((...).to_str())`. Statement-level forms
+// never wrap; expression-like forms try the wrapper and fall back to the raw
+// input if the wrapped source does not typecheck.
+repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
     if peek_ast.children.len() == 0 { return false }
     ref puser : Expr = peek_ast.children[peek_ast.children.len() - 1]
     switch puser.node_type {
@@ -133,12 +89,26 @@ repl_should_wrap := func(peek_ast: Expr, typed_ast: Expr) returns Bool {
     case NodeType.Body:        return false
     case:
     }
-    if typed_ast.children.len() == 0 { return false }
-    ref tlast : Expr = typed_ast.children[typed_ast.children.len() - 1]
-    tlast_t := tlast.expr_til_type()
-    if tlast_t.is(Type.None) { return false }
-    if tlast_t.is(Type.Unknown) { return false }
     return true
+}
+
+repl_ast_has_help_call := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.FCall:
+        if e.children.len() > 0 {
+            ref callee : Expr = e.children[0]
+            switch callee.node_type {
+            case NodeType.Ident(name):
+                if name.ident_name() == "help" { return true }
+            case:
+            }
+        }
+    case:
+    }
+    for child : Expr in e.children {
+        if repl_ast_has_help_call(child) { return true }
+    }
+    return false
 }
 
 // Run one REPL session in a given mode. On EOF, leaves next_mode_out empty.
@@ -159,15 +129,17 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
     ext_c_path := bin_dir.format("/src/c/ext.c")
-    til_bin := bin_dir.format("/bin/til")
-    escaped_core_info := File.readfile(bin_dir.format("/", REPL_CORE_INFO_CACHE))
-    escaped_core_docs := File.readfile(bin_dir.format("/", REPL_CORE_DOCS_CACHE))
+    mut escaped_core_info := ""
+    mut escaped_core_docs := ""
+    mut docs_loaded := false
 
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
     // Full output produced by the last successful run. Used to compute the
     // delta so we only show new output each turn.
     mut prev_out := ""
+    mut user_info_cache := ""
+    mut user_docs_cache := ""
 
     // Keep block Strs alive so parsed AST views don't dangle.
     source_keep := Vec(Str).new()
@@ -198,39 +170,25 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         }
         _discard := peek_ast.children.len()
 
-        // Build combined source (no wrap yet) and write to temp.
-        mut combined := ""
-        combined = combined.format("mode ", mode_str, "\n")
-        combined = combined.format(accum)
-        if accum.len() > 0 { combined = combined.format("\n") }
-        combined = combined.format(block)
-        File.writefile(tmp_path, combined)
-
-        // In-process typecheck: lets us look at the typed AST and decide
-        // whether the user's input is a value-producing expression worth
-        // auto-echoing. Errors print directly via the typer and we skip
-        // the subprocess interpret (which would just re-print them).
-        mut typed_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
-        typer_errs := repl_typecheck(typed_lp)
-
         mut block_eff := block.clone()
-        if typer_errs == 0 {
-            // Build user-only packed blobs every turn (cheap -- only the
-            // user's accumulated decls).
-            mut user_merged := Expr.new(NodeType.Body, 0, 0)
-            for u : ProgramUnit in typed_lp.units {
-                ref iu : ImportUnit = typed_lp.ctx.imported[u.path]
-                for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
+        mut full_out := ""
+        mut ran_ok := false
+        need_docs := repl_ast_has_help_call(peek_ast)
+        if need_docs {
+            if docs_loaded.not() {
+                escaped_core_info = File.readfile(bin_dir.format("/", REPL_CORE_INFO_CACHE))
+                escaped_core_docs = File.readfile(bin_dir.format("/", REPL_CORE_DOCS_CACHE))
+                docs_loaded = true
             }
-            mut user_info := Str.with_capacity(65536)
-            mut user_docs := Str.with_capacity(65536)
-            collect_decl_packed(user_merged, typed_lp.ctx.scope, user_info, user_docs)
+        }
+        mut doc_line := ""
+        if need_docs {
+            doc_line = build_doc_init_line_cached(escaped_core_info, escaped_core_docs, user_info_cache, user_docs_cache)
+        }
 
-            // Core cache comes first to match the previous unified walk order.
-            doc_line := build_doc_init_line_cached(escaped_core_info, escaped_core_docs, user_info, user_docs)
-
-            // Rebuild combined source with REPL doc registry init.
-            combined = ""
+        if repl_parse_allows_wrap(peek_ast) {
+            block_eff = format("println((", block, ").to_str())")
+            mut combined := ""
             combined = combined.format("mode ", mode_str, "\n")
             combined = combined.format(doc_line)
             combined = combined.format(accum)
@@ -238,26 +196,53 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             combined = combined.format(block_eff)
             File.writefile(tmp_path, combined)
 
-            if repl_should_wrap(peek_ast, user_merged) {
-                block_eff = format("println((", block, ").to_str())")
-                combined = ""
-                combined = combined.format("mode ", mode_str, "\n")
-                combined = combined.format(doc_line)
-                combined = combined.format(accum)
-                if accum.len() > 0 { combined = combined.format("\n") }
-                combined = combined.format(block_eff)
-                File.writefile(tmp_path, combined)
+            mut run_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+            stdio_capture_begin(out_path)
+            run_errs := init_and_type_program_errors(run_lp, false)
+            stdio_capture_end()
+            if run_errs == 0 {
+                finish_prepare_program(run_lp)
+                full_out = repl_capture_interpret(run_lp, out_path)
+                ran_ok = true
             }
+            ffi_cleanup(run_lp.ctx)
+            if ran_ok.not() { block_eff = block.clone() }
+        }
 
-            // Run subprocess til interpret on the (possibly wrapped) source.
-            cmd := til_bin.format(" interpret ", tmp_path, " > ", out_path, " 2>&1")
-            system_cmd(cmd)
+        if ran_ok.not() {
+            mut combined := ""
+            combined = combined.format("mode ", mode_str, "\n")
+            combined = combined.format(doc_line)
+            combined = combined.format(accum)
+            if accum.len() > 0 { combined = combined.format("\n") }
+            combined = combined.format(block_eff)
+            File.writefile(tmp_path, combined)
 
+            mut typed_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+            typer_errs := repl_typecheck(typed_lp)
+            if typer_errs == 0 {
+                mut user_merged := Expr.new(NodeType.Body, 0, 0)
+                for u : ProgramUnit in typed_lp.units {
+                    ref iu : ImportUnit = typed_lp.ctx.imported[u.path]
+                    for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
+                }
+                user_info_cache = Str.with_capacity(65536)
+                user_docs_cache = Str.with_capacity(65536)
+                collect_decl_packed(user_merged, typed_lp.ctx.scope, user_info_cache, user_docs_cache)
+
+                finish_init_and_type_program(typed_lp)
+                finish_prepare_program(typed_lp)
+                full_out = repl_capture_interpret(typed_lp, out_path)
+                ran_ok = true
+            }
+            ffi_cleanup(typed_lp.ctx)
+        }
+
+        if ran_ok {
             // Print only the delta vs the previous run's output. Since the
             // combined program is re-run from scratch each turn, prior side
             // effects (println output, etc.) replay; we hide them by
             // comparing against prev_out.
-            full_out := File.readfile(out_path)
             mut new_chunk := ""
             if prev_out.len() < full_out.len() {
                 prefix_match := full_out.starts_with(prev_out)
@@ -279,7 +264,6 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if accum.len() > 0 { accum = accum.format("\n") }
             accum = accum.format(block_eff)
         }
-        ffi_cleanup(typed_lp.ctx)
     }
 }
 

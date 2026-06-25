@@ -258,9 +258,9 @@ tmp:
 #
 # Pipes a single help() call into bin/til, captures stdout, and verifies
 # the expected core doc text appears. Run on demand because the REPL
-# spawns bin/til + a til interpret subprocess per turn, which dominates
-# `make test` wall time. The test driver itself is a TIL script
-# (mode cli) -- test/repl_help.til.
+# still runs the compiler pipeline per turn, which is too expensive for
+# `make test`. The test driver itself is a TIL script (mode cli) --
+# test/repl_help.til.
 test_repl_help: bin/til tmp
 	bin/til run test/repl_help.til
 

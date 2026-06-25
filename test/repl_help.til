@@ -4,9 +4,9 @@ import("../src/std/sys")
 
 // REPL smoke test for #157: pipe one help() call into bin/til, capture
 // stdout, and verify the expected core doc text appears. Invoked via
-// `make test_repl_help` rather than `make test` because the REPL spawns
-// bin/til + a til interpret subprocess for each turn, costing 30-80 s
-// of wall time -- too heavy for the regular test suite.
+// `make test_repl_help` rather than `make test` because the REPL still
+// runs the compiler pipeline for each turn, costing too much wall time
+// for the regular test suite.
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }

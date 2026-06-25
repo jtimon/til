@@ -18,6 +18,8 @@ host_os := ext_proc() returns Str {}
 mkdir_p := ext_proc(path: Str) returns shallow I32 {}
 copy_file := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 copy_tree := ext_proc(src: Str, dst: Str) returns shallow I32 {}
+stdio_capture_begin := ext_proc(path: Str) {}
+stdio_capture_end := ext_proc() {}
 
 wait_cmd := proc(pid: I64) returns I64 {
     while true {

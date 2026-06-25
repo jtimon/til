@@ -6,10 +6,41 @@
 #include <limits.h>
 #include <stdint.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
+
+#ifdef _WIN32
+#define TIL_DUP _dup
+#define TIL_DUP2 _dup2
+#define TIL_CLOSE _close
+#define TIL_OPEN _open
+#define TIL_FILENO _fileno
+#define TIL_O_WRONLY _O_WRONLY
+#define TIL_O_CREAT _O_CREAT
+#define TIL_O_TRUNC _O_TRUNC
+#define TIL_O_BINARY _O_BINARY
+#else
+#define TIL_DUP dup
+#define TIL_DUP2 dup2
+#define TIL_CLOSE close
+#define TIL_OPEN open
+#define TIL_FILENO fileno
+#define TIL_O_WRONLY O_WRONLY
+#define TIL_O_CREAT O_CREAT
+#define TIL_O_TRUNC O_TRUNC
+#define TIL_O_BINARY 0
+#endif
+
+static int stdio_capture_stdout_fd = -1;
+static int stdio_capture_stderr_fd = -1;
+
+static void stdio_capture_fail(const char *op) {
+    perror(op);
+    exit(1);
+}
 
 #ifdef _WIN32
 // winnt.h declares 'TokenType' as an enum constant inside
@@ -542,6 +573,44 @@ void File_writefile(const Str *path, const Str *content) {
     free(p);
     fwrite(content->c_str, 1, content->count, f);
     fclose(f);
+}
+
+void stdio_capture_begin(const Str *path) {
+    if (stdio_capture_stdout_fd != -1 || stdio_capture_stderr_fd != -1) {
+        fprintf(stderr, "stdio_capture_begin: capture already active\n");
+        exit(1);
+    }
+    fflush(stdout);
+    fflush(stderr);
+
+    char *p = dup_n(path->c_str, path->count);
+    int fd = TIL_OPEN(p, TIL_O_WRONLY | TIL_O_CREAT | TIL_O_TRUNC | TIL_O_BINARY, 0666);
+    free(p);
+    if (fd < 0) stdio_capture_fail("stdio_capture_begin: open");
+
+    stdio_capture_stdout_fd = TIL_DUP(TIL_FILENO(stdout));
+    if (stdio_capture_stdout_fd < 0) stdio_capture_fail("stdio_capture_begin: dup stdout");
+    stdio_capture_stderr_fd = TIL_DUP(TIL_FILENO(stderr));
+    if (stdio_capture_stderr_fd < 0) stdio_capture_fail("stdio_capture_begin: dup stderr");
+
+    if (TIL_DUP2(fd, TIL_FILENO(stdout)) < 0) stdio_capture_fail("stdio_capture_begin: dup2 stdout");
+    if (TIL_DUP2(fd, TIL_FILENO(stderr)) < 0) stdio_capture_fail("stdio_capture_begin: dup2 stderr");
+    if (TIL_CLOSE(fd) != 0) stdio_capture_fail("stdio_capture_begin: close");
+}
+
+void stdio_capture_end(void) {
+    if (stdio_capture_stdout_fd == -1 || stdio_capture_stderr_fd == -1) {
+        fprintf(stderr, "stdio_capture_end: capture not active\n");
+        exit(1);
+    }
+    fflush(stdout);
+    fflush(stderr);
+    if (TIL_DUP2(stdio_capture_stdout_fd, TIL_FILENO(stdout)) < 0) stdio_capture_fail("stdio_capture_end: restore stdout");
+    if (TIL_DUP2(stdio_capture_stderr_fd, TIL_FILENO(stderr)) < 0) stdio_capture_fail("stdio_capture_end: restore stderr");
+    if (TIL_CLOSE(stdio_capture_stdout_fd) != 0) stdio_capture_fail("stdio_capture_end: close stdout");
+    if (TIL_CLOSE(stdio_capture_stderr_fd) != 0) stdio_capture_fail("stdio_capture_end: close stderr");
+    stdio_capture_stdout_fd = -1;
+    stdio_capture_stderr_fd = -1;
 }
 
 // --- File handle I/O ---

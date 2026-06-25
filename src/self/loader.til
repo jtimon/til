@@ -2278,7 +2278,7 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
     }
 }
 
-init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
+type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
     // #192: register target-dependent USize/UPtr widths before any
@@ -2374,10 +2374,13 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     }
 
     if type_errors > 0 {
-        println(type_errors.to_str(), " type error(s) found")
-        exit(1)
+        return type_errors
     }
 
+    return 0
+}
+
+finish_init_and_type_program := proc(mut lp: LoadedProgram) {
     // Asap-destruction phase. Walks every imported file's program
     // body and inserts the Type.delete() / free() calls for owned
     // globals. Sub-body asap (function bodies + nested if/while/
@@ -2387,9 +2390,22 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
     garbager_destroy(lp.ctx)
 }
 
-prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
-    init_and_type_program(lp, run_tests)
+init_and_type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
+    type_errors := type_program_errors(lp, run_tests)
+    if type_errors > 0 { return type_errors }
+    finish_init_and_type_program(lp)
+    return 0
+}
 
+init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
+    type_errors := init_and_type_program_errors(lp, run_tests)
+    if type_errors > 0 {
+        println(type_errors.to_str(), " type error(s) found")
+        exit(1)
+    }
+}
+
+finish_prepare_program := proc(mut lp: LoadedProgram) {
     constfolder_imported(lp)
 
     // Skip top-level scavenging for libraries only. link() and link_c()
@@ -2410,6 +2426,11 @@ prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
             dce_program_bodies(lp.ctx.imported[u.path].ast)
         }
     }
+}
+
+prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
+    init_and_type_program(lp, run_tests)
+    finish_prepare_program(lp)
 }
 
 // --- Commands ---
