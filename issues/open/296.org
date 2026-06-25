@@ -1,0 +1,43 @@
+# priority: low
+# category: cleanups
+** OPEN #296 Confusing errors when a FuncSig is written with an empty body `{}`
+
+A function-pointer signature (FuncSig) is the BODYLESS form
+`func(Types) returns T`. Writing it WITH an empty body --
+`func() returns T {}` -- is a common mistake (e.g. by analogy with
+`ext_func(...) returns T {}`, which legitimately uses `{}`). The braces make
+it a function DEFINITION (a value) instead of a type, so when the name is then
+used as a field/param type it resolves to `unknown`, and the user gets a pile
+of misleading cascading diagnostics that never mention the real cause.
+
+Repro:
+    Sig := func() returns I64 {}        // meant a FuncSig type; the {} makes
+                                        // it a (def) value instead
+    B := struct { t : Sig }
+    forty := func() returns I64 { return 40 }
+    b := B(t = forty)
+    println(b.t().to_str())
+
+Current output (none of which points at the `{}`):
+    error: no method 'clone' for type 'unknown'
+    error: no method 'delete' for type 'unknown'
+    error: no method 't' for type 'B'
+
+Correct form (works):
+    Sig := func() returns I64           // bodyless = FuncSig type
+
+Desired: a clear, single diagnostic at the source of the mistake. Options:
+  - When a name bound to a func DEFINITION (a FuncDef with a body) is used as a
+    TYPE (field/param/return annotation), say so explicitly: "'Sig' is a
+    function definition, not a type; for a function-pointer signature, omit the
+    body: `func() returns I64`". This is the most direct fix and kills the
+    cascade.
+  - Possibly also: a plain (non-ext) `func(...) returns T {}` with an EMPTY
+    body and a declared return type is almost certainly a mistaken FuncSig --
+    flag it at the definition ("empty body; did you mean a FuncSig (drop the
+    `{}`) or a function (add a `return`)?").
+
+Not a correctness bug -- the program is correctly rejected -- just a
+diagnostics-quality / discoverability issue. The `{}`-vs-bodyless distinction
+is verified in the parser (~parse_func_def~, src/self/parser.til:672: an
+`LBrace` parses a body; no brace = bodyless FuncSig).
