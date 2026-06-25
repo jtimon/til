@@ -31,16 +31,8 @@ typedef struct Str Str;
 // I64 clone
 I64 I64_clone(const I64 *v);
 
-// I64 arithmetic (shallow params)
-I64 I64_div(I64 a, I64 b);
-I64 I64_mod(I64 a, I64 b);
-
 // I64 comparisons
 I64 I64_cmp(I64 a, I64 b);
-
-// U8 arithmetic
-U8 U8_div(U8 a, U8 b);
-U8 U8_mod(U8 a, U8 b);
 
 // U8 comparisons
 I64 U8_cmp(U8 a, U8 b);
@@ -56,10 +48,6 @@ U8 U8_from_i64_ext(const I64 *a);
 // U8 clone
 U8 U8_clone(const U8 *v);
 
-// I8 arithmetic
-I8 I8_div(I8 a, I8 b);
-I8 I8_mod(I8 a, I8 b);
-
 // I8 comparisons
 I64 I8_cmp(I8 a, I8 b);
 
@@ -70,10 +58,6 @@ I8 I8_from_i64_ext(const I64 *a);
 
 // I8 clone
 I8 I8_clone(const I8 *v);
-
-// I16 arithmetic
-I16 I16_div(I16 a, I16 b);
-I16 I16_mod(I16 a, I16 b);
 
 // I16 comparisons
 I64 I16_cmp(I16 a, I16 b);
@@ -92,10 +76,6 @@ I16 I16_from_i64_ext(const I64 *a);
 // I16 clone
 I16 I16_clone(const I16 *v);
 
-// U16 arithmetic
-U16 U16_div(U16 a, U16 b);
-U16 U16_mod(U16 a, U16 b);
-
 // U16 comparisons
 I64 U16_cmp(U16 a, U16 b);
 
@@ -108,10 +88,6 @@ U16 U16_from_i64_ext(const I64 *a);
 // U16 clone
 U16 U16_clone(const U16 *v);
 
-// I32 arithmetic
-I32 I32_div(I32 a, I32 b);
-I32 I32_mod(I32 a, I32 b);
-
 // I32 comparisons
 I64 I32_cmp(I32 a, I32 b);
 
@@ -123,9 +99,6 @@ I32 I32_from_i64_ext(const I64 *a);
 
 // I32 clone
 I32 I32_clone(const I32 *v);
-
-// F32 arithmetic
-F32 F32_div(F32 a, F32 b);
 
 // F32 comparisons
 I64 F32_cmp(F32 a, F32 b);
@@ -140,10 +113,6 @@ F32 str_parse_f32(const Str *s);
 // F32 clone
 F32 F32_clone(const F32 *v);
 
-// U32 arithmetic
-U32 U32_div(U32 a, U32 b);
-U32 U32_mod(U32 a, U32 b);
-
 // U32 comparisons
 I64 U32_cmp(U32 a, U32 b);
 
@@ -157,10 +126,6 @@ U32 U32_from_i64_ext(const I64 *a);
 
 // U32 clone
 U32 U32_clone(const U32 *v);
-
-// U64 arithmetic
-U64 U64_div(U64 a, U64 b);
-U64 U64_mod(U64 a, U64 b);
 
 // U64 comparisons
 I64 U64_cmp(U64 a, U64 b);

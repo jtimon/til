@@ -25,10 +25,21 @@
   +enforcement; B1 interpreter native eval; B2 C backend inline lowering +
   interpreter routing (+ the scalar-evaluator switch refactor); B3 migrate
   src/core decls ext_func->core_func + skip the now-dead dyn wrappers; B4 delete
-  the dead impls from src/c/ext.c + ext.h. Kept as ext_func: div/mod
-  (zero-guarded), the to_*/from_* conversions, cmp/clone (dyn_fn'd). B4 also
-  dropped the never-bound u16/i16 bnot/shl/shr C impls (dead before #288 -- no
-  til method ever referenced them).
+  the dead impls from src/c/ext.c + ext.h. B4 also dropped the never-bound
+  u16/i16 bnot/shl/shr C impls (dead before #288 -- no til method ever
+  referenced them).
+
+  Follow-up (C1-C3, after the issue first closed): migrated div/mod too -- the
+  one scalar op that is NOT a bare C operator, since ext.c guarded the zero
+  divisor (return 0; safe_div is the throwing variant). C1 added the builder
+  lowering -- a statement expression `({ T _a=x; T _b=y; (T)(_b==0?0:_a OP _b); })`
+  that binds the operands once and inlines the guard -- plus the interpreter
+  eval. C2 flipped the src/core decls (div on all 9 numeric types, mod on the 8
+  integer types; F32 has no mod). C3 deleted the div/mod impls from ext.c/ext.h.
+  Perf was ~flat (div/mod are rare, the idiv cost dwarfs the removed call, and
+  the guard adds a branch), so this was kept for ISA consistency, not speed.
+  After it, only the to_*/from_* conversions and cmp/clone (dyn_fn'd) remain
+  ext_func among the scalar ops.
 
   Gotcha for future readers: the wrapper-skip is a builder change, so it only
   reaches boot/til.c on the SECOND self-apply. B3's merge committed a pass-1
@@ -96,9 +107,25 @@ Related: follow-up to the container-perf thread -- unchecked accessors
     migration) plus the 6 never-bound u16/i16 bnot/shl/shr orphans = 84 removed.
     boot had to be regenerated first (so it drops the pass-1 dyn wrappers that
     still referenced the symbols) before the ext.c link could lose them. 162/162
-    on make test_two_pass. (div/mod, the to_*/from_* conversions and cmp/clone
-    stay ext_func; migrating those is an optional follow-up.) This is the last
-    piece -> issue moved to fixed/.
+    on make test_two_pass. (The to_*/from_* conversions and cmp/clone stay
+    ext_func; div/mod were migrated in the C1-C3 follow-up below.) This closed
+    the original arc -> issue moved to fixed/.
+  - Commit C1 DONE (div/mod lowering + interpreter eval, `Two-pass:`): builder
+    lowers a core_func div/mod to a guarded statement expression
+    `({ T _a=x; T _b=y; (T)(_b==0?0:_a OP _b); })` (binds operands once, inlines
+    ext.c's zero-divisor guard); interpreter scalar eval gains div/mod. Builder
+    path dormant until C2; interpreter eval live.
+  - Commit C2 DONE (migrate div/mod, `Two-pass:`): flipped div/mod from ext_func
+    to core_func in src/core -- div on all 9 numeric types, mod on the 8 integer
+    types (F32 has no mod). Compiled inlines the guarded division, interpret
+    native-evals. No pass-1 wrapper carryover this time: the wrapper-skip (B3)
+    and div/mod lowering (C1) were already in master, so the merger's boot
+    inlined div/mod with zero references straight away.
+  - Commit C3 DONE (delete div/mod from ext.c/ext.h): removed the 17 div/mod
+    impls + 17 prototypes -- now dead since C2's boot has zero references. A
+    clean single delete (no boot-regen needed, unlike B4). Perf was ~flat
+    (div/mod are rare, idiv dwarfs the removed call, the guard adds a branch);
+    kept for ISA consistency. This is the last piece of the div/mod follow-up.
 
 *** Motivation
 
