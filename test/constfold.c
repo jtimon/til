@@ -2518,82 +2518,82 @@ Primitive *Primitive_Bool() {
     return r;
 }
 Bool Primitive_eq(Primitive * self, Primitive * other) {
-    Bool hoisted__Bool_2208 = is(self, &(Primitive){.tag = Primitive_TAG_I16});
+    Bool hoisted__Bool_2208 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I16})));
     (void)hoisted__Bool_2208;
     if (hoisted__Bool_2208) {
-        Bool hoisted__Bool_2198 = is(other, &(Primitive){.tag = Primitive_TAG_I16});
+        Bool hoisted__Bool_2198 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I16})));
         (void)hoisted__Bool_2198;
         { Bool _ret_val = hoisted__Bool_2198;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2209 = is(self, &(Primitive){.tag = Primitive_TAG_U16});
+    Bool hoisted__Bool_2209 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U16})));
     (void)hoisted__Bool_2209;
     if (hoisted__Bool_2209) {
-        Bool hoisted__Bool_2199 = is(other, &(Primitive){.tag = Primitive_TAG_U16});
+        Bool hoisted__Bool_2199 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U16})));
         (void)hoisted__Bool_2199;
         { Bool _ret_val = hoisted__Bool_2199;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2210 = is(self, &(Primitive){.tag = Primitive_TAG_I8});
+    Bool hoisted__Bool_2210 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I8})));
     (void)hoisted__Bool_2210;
     if (hoisted__Bool_2210) {
-        Bool hoisted__Bool_2200 = is(other, &(Primitive){.tag = Primitive_TAG_I8});
+        Bool hoisted__Bool_2200 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I8})));
         (void)hoisted__Bool_2200;
         { Bool _ret_val = hoisted__Bool_2200;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2211 = is(self, &(Primitive){.tag = Primitive_TAG_U8});
+    Bool hoisted__Bool_2211 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U8})));
     (void)hoisted__Bool_2211;
     if (hoisted__Bool_2211) {
-        Bool hoisted__Bool_2201 = is(other, &(Primitive){.tag = Primitive_TAG_U8});
+        Bool hoisted__Bool_2201 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U8})));
         (void)hoisted__Bool_2201;
         { Bool _ret_val = hoisted__Bool_2201;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2212 = is(self, &(Primitive){.tag = Primitive_TAG_U32});
+    Bool hoisted__Bool_2212 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U32})));
     (void)hoisted__Bool_2212;
     if (hoisted__Bool_2212) {
-        Bool hoisted__Bool_2202 = is(other, &(Primitive){.tag = Primitive_TAG_U32});
+        Bool hoisted__Bool_2202 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U32})));
         (void)hoisted__Bool_2202;
         { Bool _ret_val = hoisted__Bool_2202;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2213 = is(self, &(Primitive){.tag = Primitive_TAG_I32});
+    Bool hoisted__Bool_2213 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I32})));
     (void)hoisted__Bool_2213;
     if (hoisted__Bool_2213) {
-        Bool hoisted__Bool_2203 = is(other, &(Primitive){.tag = Primitive_TAG_I32});
+        Bool hoisted__Bool_2203 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I32})));
         (void)hoisted__Bool_2203;
         { Bool _ret_val = hoisted__Bool_2203;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2214 = is(self, &(Primitive){.tag = Primitive_TAG_U64});
+    Bool hoisted__Bool_2214 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U64})));
     (void)hoisted__Bool_2214;
     if (hoisted__Bool_2214) {
-        Bool hoisted__Bool_2204 = is(other, &(Primitive){.tag = Primitive_TAG_U64});
+        Bool hoisted__Bool_2204 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_U64})));
         (void)hoisted__Bool_2204;
         { Bool _ret_val = hoisted__Bool_2204;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2215 = is(self, &(Primitive){.tag = Primitive_TAG_I64});
+    Bool hoisted__Bool_2215 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I64})));
     (void)hoisted__Bool_2215;
     if (hoisted__Bool_2215) {
-        Bool hoisted__Bool_2205 = is(other, &(Primitive){.tag = Primitive_TAG_I64});
+        Bool hoisted__Bool_2205 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_I64})));
         (void)hoisted__Bool_2205;
         { Bool _ret_val = hoisted__Bool_2205;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2216 = is(self, &(Primitive){.tag = Primitive_TAG_F32});
+    Bool hoisted__Bool_2216 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_F32})));
     (void)hoisted__Bool_2216;
     if (hoisted__Bool_2216) {
-        Bool hoisted__Bool_2206 = is(other, &(Primitive){.tag = Primitive_TAG_F32});
+        Bool hoisted__Bool_2206 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_F32})));
         (void)hoisted__Bool_2206;
         { Bool _ret_val = hoisted__Bool_2206;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2217 = is(self, &(Primitive){.tag = Primitive_TAG_Bool});
+    Bool hoisted__Bool_2217 = ((Bool)(*(I32*)(self) == *(I32*)(&(Primitive){.tag = Primitive_TAG_Bool})));
     (void)hoisted__Bool_2217;
     if (hoisted__Bool_2217) {
-        Bool hoisted__Bool_2207 = is(other, &(Primitive){.tag = Primitive_TAG_Bool});
+        Bool hoisted__Bool_2207 = ((Bool)(*(I32*)(other) == *(I32*)(&(Primitive){.tag = Primitive_TAG_Bool})));
         (void)hoisted__Bool_2207;
         { Bool _ret_val = hoisted__Bool_2207;
                 return _ret_val; }
@@ -2756,7 +2756,7 @@ Type *Type_FuncPtrSig(Str * val) {
     return r;
 }
 void Type_delete(Type * self, Bool call_free) {
-    Bool hoisted__Bool_2303 = is(self, &(Type){.tag = Type_TAG_Struct});
+    Bool hoisted__Bool_2303 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Struct})));
     (void)hoisted__Bool_2303;
     if (hoisted__Bool_2303) {
         Str *hoisted__Str_2293 = get_payload(self);
@@ -2766,7 +2766,7 @@ void Type_delete(Type * self, Bool call_free) {
         (void)hoisted__Bool_2294;
         Str_delete(hoisted__Str_2293, hoisted__Bool_2294);
     }
-    Bool hoisted__Bool_2304 = is(self, &(Type){.tag = Type_TAG_Enum});
+    Bool hoisted__Bool_2304 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Enum})));
     (void)hoisted__Bool_2304;
     if (hoisted__Bool_2304) {
         Str *hoisted__Str_2295 = get_payload(self);
@@ -2776,7 +2776,7 @@ void Type_delete(Type * self, Bool call_free) {
         (void)hoisted__Bool_2296;
         Str_delete(hoisted__Str_2295, hoisted__Bool_2296);
     }
-    Bool hoisted__Bool_2305 = is(self, &(Type){.tag = Type_TAG_Custom});
+    Bool hoisted__Bool_2305 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Custom})));
     (void)hoisted__Bool_2305;
     if (hoisted__Bool_2305) {
         Str *hoisted__Str_2297 = get_payload(self);
@@ -2786,7 +2786,7 @@ void Type_delete(Type * self, Bool call_free) {
         (void)hoisted__Bool_2298;
         Str_delete(hoisted__Str_2297, hoisted__Bool_2298);
     }
-    Bool hoisted__Bool_2306 = is(self, &(Type){.tag = Type_TAG_Primitive});
+    Bool hoisted__Bool_2306 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Primitive})));
     (void)hoisted__Bool_2306;
     if (hoisted__Bool_2306) {
         Primitive *hoisted__Primitive_2299 = get_payload(self);
@@ -2796,7 +2796,7 @@ void Type_delete(Type * self, Bool call_free) {
         (void)hoisted__Bool_2300;
         Primitive_delete(hoisted__Primitive_2299, hoisted__Bool_2300);
     }
-    Bool hoisted__Bool_2307 = is(self, &(Type){.tag = Type_TAG_FuncPtrSig});
+    Bool hoisted__Bool_2307 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_FuncPtrSig})));
     (void)hoisted__Bool_2307;
     if (hoisted__Bool_2307) {
         Str *hoisted__Str_2301 = get_payload(self);
@@ -2812,19 +2812,19 @@ void Type_delete(Type * self, Bool call_free) {
 }
 
 Type * Type_clone(Type * self) {
-    Bool hoisted__Bool_2391 = is(self, &(Type){.tag = Type_TAG_Unknown});
+    Bool hoisted__Bool_2391 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Unknown})));
     (void)hoisted__Bool_2391;
     if (hoisted__Bool_2391) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Unknown;
                 return _r; }
     }
-    Bool hoisted__Bool_2392 = is(self, &(Type){.tag = Type_TAG_None});
+    Bool hoisted__Bool_2392 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_None})));
     (void)hoisted__Bool_2392;
     if (hoisted__Bool_2392) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_None;
                 return _r; }
     }
-    Bool hoisted__Bool_2393 = is(self, &(Type){.tag = Type_TAG_Struct});
+    Bool hoisted__Bool_2393 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Struct})));
     (void)hoisted__Bool_2393;
     if (hoisted__Bool_2393) {
         Str *_clone_payload_Struct_2 = get_payload(self);
@@ -2837,13 +2837,13 @@ Type * Type_clone(Type * self) {
         { Type * _ret_val = hoisted__Type_2384;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2394 = is(self, &(Type){.tag = Type_TAG_StructDef});
+    Bool hoisted__Bool_2394 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_StructDef})));
     (void)hoisted__Bool_2394;
     if (hoisted__Bool_2394) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_StructDef;
                 return _r; }
     }
-    Bool hoisted__Bool_2395 = is(self, &(Type){.tag = Type_TAG_Enum});
+    Bool hoisted__Bool_2395 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Enum})));
     (void)hoisted__Bool_2395;
     if (hoisted__Bool_2395) {
         Str *_clone_payload_Enum_4 = get_payload(self);
@@ -2856,31 +2856,31 @@ Type * Type_clone(Type * self) {
         { Type * _ret_val = hoisted__Type_2386;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2396 = is(self, &(Type){.tag = Type_TAG_EnumDef});
+    Bool hoisted__Bool_2396 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_EnumDef})));
     (void)hoisted__Bool_2396;
     if (hoisted__Bool_2396) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_EnumDef;
                 return _r; }
     }
-    Bool hoisted__Bool_2397 = is(self, &(Type){.tag = Type_TAG_FuncDef});
+    Bool hoisted__Bool_2397 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_FuncDef})));
     (void)hoisted__Bool_2397;
     if (hoisted__Bool_2397) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncDef;
                 return _r; }
     }
-    Bool hoisted__Bool_2398 = is(self, &(Type){.tag = Type_TAG_FuncPtr});
+    Bool hoisted__Bool_2398 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_FuncPtr})));
     (void)hoisted__Bool_2398;
     if (hoisted__Bool_2398) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncPtr;
                 return _r; }
     }
-    Bool hoisted__Bool_2399 = is(self, &(Type){.tag = Type_TAG_Dynamic});
+    Bool hoisted__Bool_2399 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Dynamic})));
     (void)hoisted__Bool_2399;
     if (hoisted__Bool_2399) {
         { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Dynamic;
                 return _r; }
     }
-    Bool hoisted__Bool_2400 = is(self, &(Type){.tag = Type_TAG_Custom});
+    Bool hoisted__Bool_2400 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Custom})));
     (void)hoisted__Bool_2400;
     if (hoisted__Bool_2400) {
         Str *_clone_payload_Custom_9 = get_payload(self);
@@ -2893,7 +2893,7 @@ Type * Type_clone(Type * self) {
         { Type * _ret_val = hoisted__Type_2388;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2401 = is(self, &(Type){.tag = Type_TAG_Primitive});
+    Bool hoisted__Bool_2401 = ((Bool)(*(I32*)(self) == *(I32*)(&(Type){.tag = Type_TAG_Primitive})));
     (void)hoisted__Bool_2401;
     if (hoisted__Bool_2401) {
         Primitive *_clone_payload_Primitive_10 = get_payload(self);
@@ -2974,82 +2974,82 @@ FuncType *FuncType_CoreProc() {
     return r;
 }
 Bool FuncType_eq(FuncType * self, FuncType * other) {
-    Bool hoisted__Bool_2507 = is(self, &(FuncType){.tag = FuncType_TAG_Func});
+    Bool hoisted__Bool_2507 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Func})));
     (void)hoisted__Bool_2507;
     if (hoisted__Bool_2507) {
-        Bool hoisted__Bool_2497 = is(other, &(FuncType){.tag = FuncType_TAG_Func});
+        Bool hoisted__Bool_2497 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Func})));
         (void)hoisted__Bool_2497;
         { Bool _ret_val = hoisted__Bool_2497;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2508 = is(self, &(FuncType){.tag = FuncType_TAG_Proc});
+    Bool hoisted__Bool_2508 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Proc})));
     (void)hoisted__Bool_2508;
     if (hoisted__Bool_2508) {
-        Bool hoisted__Bool_2498 = is(other, &(FuncType){.tag = FuncType_TAG_Proc});
+        Bool hoisted__Bool_2498 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Proc})));
         (void)hoisted__Bool_2498;
         { Bool _ret_val = hoisted__Bool_2498;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2509 = is(self, &(FuncType){.tag = FuncType_TAG_Test});
+    Bool hoisted__Bool_2509 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Test})));
     (void)hoisted__Bool_2509;
     if (hoisted__Bool_2509) {
-        Bool hoisted__Bool_2499 = is(other, &(FuncType){.tag = FuncType_TAG_Test});
+        Bool hoisted__Bool_2499 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Test})));
         (void)hoisted__Bool_2499;
         { Bool _ret_val = hoisted__Bool_2499;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2510 = is(self, &(FuncType){.tag = FuncType_TAG_Macro});
+    Bool hoisted__Bool_2510 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Macro})));
     (void)hoisted__Bool_2510;
     if (hoisted__Bool_2510) {
-        Bool hoisted__Bool_2500 = is(other, &(FuncType){.tag = FuncType_TAG_Macro});
+        Bool hoisted__Bool_2500 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_Macro})));
         (void)hoisted__Bool_2500;
         { Bool _ret_val = hoisted__Bool_2500;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2511 = is(self, &(FuncType){.tag = FuncType_TAG_ExtFunc});
+    Bool hoisted__Bool_2511 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_ExtFunc})));
     (void)hoisted__Bool_2511;
     if (hoisted__Bool_2511) {
-        Bool hoisted__Bool_2501 = is(other, &(FuncType){.tag = FuncType_TAG_ExtFunc});
+        Bool hoisted__Bool_2501 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_ExtFunc})));
         (void)hoisted__Bool_2501;
         { Bool _ret_val = hoisted__Bool_2501;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2512 = is(self, &(FuncType){.tag = FuncType_TAG_ExtProc});
+    Bool hoisted__Bool_2512 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_ExtProc})));
     (void)hoisted__Bool_2512;
     if (hoisted__Bool_2512) {
-        Bool hoisted__Bool_2502 = is(other, &(FuncType){.tag = FuncType_TAG_ExtProc});
+        Bool hoisted__Bool_2502 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_ExtProc})));
         (void)hoisted__Bool_2502;
         { Bool _ret_val = hoisted__Bool_2502;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2513 = is(self, &(FuncType){.tag = FuncType_TAG_LazyFunc});
+    Bool hoisted__Bool_2513 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_LazyFunc})));
     (void)hoisted__Bool_2513;
     if (hoisted__Bool_2513) {
-        Bool hoisted__Bool_2503 = is(other, &(FuncType){.tag = FuncType_TAG_LazyFunc});
+        Bool hoisted__Bool_2503 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_LazyFunc})));
         (void)hoisted__Bool_2503;
         { Bool _ret_val = hoisted__Bool_2503;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2514 = is(self, &(FuncType){.tag = FuncType_TAG_LazyProc});
+    Bool hoisted__Bool_2514 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_LazyProc})));
     (void)hoisted__Bool_2514;
     if (hoisted__Bool_2514) {
-        Bool hoisted__Bool_2504 = is(other, &(FuncType){.tag = FuncType_TAG_LazyProc});
+        Bool hoisted__Bool_2504 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_LazyProc})));
         (void)hoisted__Bool_2504;
         { Bool _ret_val = hoisted__Bool_2504;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2515 = is(self, &(FuncType){.tag = FuncType_TAG_CoreFunc});
+    Bool hoisted__Bool_2515 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_CoreFunc})));
     (void)hoisted__Bool_2515;
     if (hoisted__Bool_2515) {
-        Bool hoisted__Bool_2505 = is(other, &(FuncType){.tag = FuncType_TAG_CoreFunc});
+        Bool hoisted__Bool_2505 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_CoreFunc})));
         (void)hoisted__Bool_2505;
         { Bool _ret_val = hoisted__Bool_2505;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2516 = is(self, &(FuncType){.tag = FuncType_TAG_CoreProc});
+    Bool hoisted__Bool_2516 = ((Bool)(*(I32*)(self) == *(I32*)(&(FuncType){.tag = FuncType_TAG_CoreProc})));
     (void)hoisted__Bool_2516;
     if (hoisted__Bool_2516) {
-        Bool hoisted__Bool_2506 = is(other, &(FuncType){.tag = FuncType_TAG_CoreProc});
+        Bool hoisted__Bool_2506 = ((Bool)(*(I32*)(other) == *(I32*)(&(FuncType){.tag = FuncType_TAG_CoreProc})));
         (void)hoisted__Bool_2506;
         { Bool _ret_val = hoisted__Bool_2506;
                 return _ret_val; }
@@ -3157,26 +3157,26 @@ OwnType *OwnType_Shallow() {
     return r;
 }
 Bool OwnType_eq(OwnType * self, OwnType * other) {
-    Bool hoisted__Bool_2555 = is(self, &(OwnType){.tag = OwnType_TAG_Own});
+    Bool hoisted__Bool_2555 = ((Bool)(*(I32*)(self) == *(I32*)(&(OwnType){.tag = OwnType_TAG_Own})));
     (void)hoisted__Bool_2555;
     if (hoisted__Bool_2555) {
-        Bool hoisted__Bool_2552 = is(other, &(OwnType){.tag = OwnType_TAG_Own});
+        Bool hoisted__Bool_2552 = ((Bool)(*(I32*)(other) == *(I32*)(&(OwnType){.tag = OwnType_TAG_Own})));
         (void)hoisted__Bool_2552;
         { Bool _ret_val = hoisted__Bool_2552;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2556 = is(self, &(OwnType){.tag = OwnType_TAG_Ref});
+    Bool hoisted__Bool_2556 = ((Bool)(*(I32*)(self) == *(I32*)(&(OwnType){.tag = OwnType_TAG_Ref})));
     (void)hoisted__Bool_2556;
     if (hoisted__Bool_2556) {
-        Bool hoisted__Bool_2553 = is(other, &(OwnType){.tag = OwnType_TAG_Ref});
+        Bool hoisted__Bool_2553 = ((Bool)(*(I32*)(other) == *(I32*)(&(OwnType){.tag = OwnType_TAG_Ref})));
         (void)hoisted__Bool_2553;
         { Bool _ret_val = hoisted__Bool_2553;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2557 = is(self, &(OwnType){.tag = OwnType_TAG_Shallow});
+    Bool hoisted__Bool_2557 = ((Bool)(*(I32*)(self) == *(I32*)(&(OwnType){.tag = OwnType_TAG_Shallow})));
     (void)hoisted__Bool_2557;
     if (hoisted__Bool_2557) {
-        Bool hoisted__Bool_2554 = is(other, &(OwnType){.tag = OwnType_TAG_Shallow});
+        Bool hoisted__Bool_2554 = ((Bool)(*(I32*)(other) == *(I32*)(&(OwnType){.tag = OwnType_TAG_Shallow})));
         (void)hoisted__Bool_2554;
         { Bool _ret_val = hoisted__Bool_2554;
                 return _ret_val; }
@@ -3770,7 +3770,7 @@ Literal *Literal_SetLit() {
     return r;
 }
 void Literal_delete(Literal * self, Bool call_free) {
-    Bool hoisted__Bool_2914 = is(self, &(Literal){.tag = Literal_TAG_Str});
+    Bool hoisted__Bool_2914 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Str})));
     (void)hoisted__Bool_2914;
     if (hoisted__Bool_2914) {
         Str *hoisted__Str_2908 = get_payload(self);
@@ -3780,7 +3780,7 @@ void Literal_delete(Literal * self, Bool call_free) {
         (void)hoisted__Bool_2909;
         Str_delete(hoisted__Str_2908, hoisted__Bool_2909);
     }
-    Bool hoisted__Bool_2915 = is(self, &(Literal){.tag = Literal_TAG_Num});
+    Bool hoisted__Bool_2915 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Num})));
     (void)hoisted__Bool_2915;
     if (hoisted__Bool_2915) {
         LiteralNumData *hoisted__LiteralNumData_2910 = get_payload(self);
@@ -3790,7 +3790,7 @@ void Literal_delete(Literal * self, Bool call_free) {
         (void)hoisted__Bool_2911;
         LiteralNumData_delete(hoisted__LiteralNumData_2910, hoisted__Bool_2911);
     }
-    Bool hoisted__Bool_2916 = is(self, &(Literal){.tag = Literal_TAG_Bool});
+    Bool hoisted__Bool_2916 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Bool})));
     (void)hoisted__Bool_2916;
     if (hoisted__Bool_2916) {
         Bool *hoisted__Bool_2912 = get_payload(self);
@@ -3806,7 +3806,7 @@ void Literal_delete(Literal * self, Bool call_free) {
 }
 
 Literal * Literal_clone(Literal * self) {
-    Bool hoisted__Bool_2965 = is(self, &(Literal){.tag = Literal_TAG_Str});
+    Bool hoisted__Bool_2965 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Str})));
     (void)hoisted__Bool_2965;
     if (hoisted__Bool_2965) {
         Str *_clone_payload_Str_0 = get_payload(self);
@@ -3819,7 +3819,7 @@ Literal * Literal_clone(Literal * self) {
         { Literal * _ret_val = hoisted__Literal_2961;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2966 = is(self, &(Literal){.tag = Literal_TAG_Num});
+    Bool hoisted__Bool_2966 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Num})));
     (void)hoisted__Bool_2966;
     if (hoisted__Bool_2966) {
         LiteralNumData *_clone_payload_Num_1 = get_payload(self);
@@ -3832,7 +3832,7 @@ Literal * Literal_clone(Literal * self) {
         { Literal * _ret_val = hoisted__Literal_2963;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2967 = is(self, &(Literal){.tag = Literal_TAG_Bool});
+    Bool hoisted__Bool_2967 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Bool})));
     (void)hoisted__Bool_2967;
     if (hoisted__Bool_2967) {
         Bool *_clone_payload_Bool_2 = get_payload(self);
@@ -3843,13 +3843,13 @@ Literal * Literal_clone(Literal * self) {
         { Literal * _ret_val = hoisted__Literal_2964;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_2968 = is(self, &(Literal){.tag = Literal_TAG_Null});
+    Bool hoisted__Bool_2968 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_Null})));
     (void)hoisted__Bool_2968;
     if (hoisted__Bool_2968) {
         { Literal *_r = malloc(sizeof(Literal)); _r->tag = Literal_TAG_Null;
                 return _r; }
     }
-    Bool hoisted__Bool_2969 = is(self, &(Literal){.tag = Literal_TAG_MapLit});
+    Bool hoisted__Bool_2969 = ((Bool)(*(I32*)(self) == *(I32*)(&(Literal){.tag = Literal_TAG_MapLit})));
     (void)hoisted__Bool_2969;
     if (hoisted__Bool_2969) {
         { Literal *_r = malloc(sizeof(Literal)); _r->tag = Literal_TAG_MapLit;
@@ -4094,7 +4094,7 @@ NodeType *NodeType_Loc() {
     return r;
 }
 void NodeType_delete(NodeType * self, Bool call_free) {
-    Bool hoisted__Bool_3166 = is(self, &(NodeType){.tag = NodeType_TAG_Literal});
+    Bool hoisted__Bool_3166 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Literal})));
     (void)hoisted__Bool_3166;
     if (hoisted__Bool_3166) {
         Literal *hoisted__Literal_3138 = get_payload(self);
@@ -4104,7 +4104,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3139;
         Literal_delete(hoisted__Literal_3138, hoisted__Bool_3139);
     }
-    Bool hoisted__Bool_3167 = is(self, &(NodeType){.tag = NodeType_TAG_Ident});
+    Bool hoisted__Bool_3167 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Ident})));
     (void)hoisted__Bool_3167;
     if (hoisted__Bool_3167) {
         IdentData *hoisted__IdentData_3140 = get_payload(self);
@@ -4114,7 +4114,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3141;
         IdentData_delete(hoisted__IdentData_3140, hoisted__Bool_3141);
     }
-    Bool hoisted__Bool_3168 = is(self, &(NodeType){.tag = NodeType_TAG_Decl});
+    Bool hoisted__Bool_3168 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Decl})));
     (void)hoisted__Bool_3168;
     if (hoisted__Bool_3168) {
         Declaration *hoisted__Declaration_3142 = get_payload(self);
@@ -4124,7 +4124,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3143;
         Declaration_delete(hoisted__Declaration_3142, hoisted__Bool_3143);
     }
-    Bool hoisted__Bool_3169 = is(self, &(NodeType){.tag = NodeType_TAG_Assign});
+    Bool hoisted__Bool_3169 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Assign})));
     (void)hoisted__Bool_3169;
     if (hoisted__Bool_3169) {
         AssignData *hoisted__AssignData_3144 = get_payload(self);
@@ -4134,7 +4134,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3145;
         AssignData_delete(hoisted__AssignData_3144, hoisted__Bool_3145);
     }
-    Bool hoisted__Bool_3170 = is(self, &(NodeType){.tag = NodeType_TAG_FCall});
+    Bool hoisted__Bool_3170 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FCall})));
     (void)hoisted__Bool_3170;
     if (hoisted__Bool_3170) {
         FCallData *hoisted__FCallData_3146 = get_payload(self);
@@ -4144,7 +4144,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3147;
         FCallData_delete(hoisted__FCallData_3146, hoisted__Bool_3147);
     }
-    Bool hoisted__Bool_3171 = is(self, &(NodeType){.tag = NodeType_TAG_FuncDef});
+    Bool hoisted__Bool_3171 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FuncDef})));
     (void)hoisted__Bool_3171;
     if (hoisted__Bool_3171) {
         FunctionDef *hoisted__FunctionDef_3148 = get_payload(self);
@@ -4154,7 +4154,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3149;
         FunctionDef_delete(hoisted__FunctionDef_3148, hoisted__Bool_3149);
     }
-    Bool hoisted__Bool_3172 = is(self, &(NodeType){.tag = NodeType_TAG_StructDef});
+    Bool hoisted__Bool_3172 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_StructDef})));
     (void)hoisted__Bool_3172;
     if (hoisted__Bool_3172) {
         StructDef *hoisted__StructDef_3150 = get_payload(self);
@@ -4164,7 +4164,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3151;
         StructDef_delete(hoisted__StructDef_3150, hoisted__Bool_3151);
     }
-    Bool hoisted__Bool_3173 = is(self, &(NodeType){.tag = NodeType_TAG_EnumDef});
+    Bool hoisted__Bool_3173 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_EnumDef})));
     (void)hoisted__Bool_3173;
     if (hoisted__Bool_3173) {
         EnumDef *hoisted__EnumDef_3152 = get_payload(self);
@@ -4174,7 +4174,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3153;
         EnumDef_delete(hoisted__EnumDef_3152, hoisted__Bool_3153);
     }
-    Bool hoisted__Bool_3174 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAccess});
+    Bool hoisted__Bool_3174 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FieldAccess})));
     (void)hoisted__Bool_3174;
     if (hoisted__Bool_3174) {
         FieldAccessData *hoisted__FieldAccessData_3154 = get_payload(self);
@@ -4184,7 +4184,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3155;
         FieldAccessData_delete(hoisted__FieldAccessData_3154, hoisted__Bool_3155);
     }
-    Bool hoisted__Bool_3175 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAssign});
+    Bool hoisted__Bool_3175 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FieldAssign})));
     (void)hoisted__Bool_3175;
     if (hoisted__Bool_3175) {
         FieldAssignData *hoisted__FieldAssignData_3156 = get_payload(self);
@@ -4194,7 +4194,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3157;
         FieldAssignData_delete(hoisted__FieldAssignData_3156, hoisted__Bool_3157);
     }
-    Bool hoisted__Bool_3176 = is(self, &(NodeType){.tag = NodeType_TAG_ForIn});
+    Bool hoisted__Bool_3176 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_ForIn})));
     (void)hoisted__Bool_3176;
     if (hoisted__Bool_3176) {
         ForInData *hoisted__ForInData_3158 = get_payload(self);
@@ -4204,7 +4204,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3159;
         ForInData_delete(hoisted__ForInData_3158, hoisted__Bool_3159);
     }
-    Bool hoisted__Bool_3177 = is(self, &(NodeType){.tag = NodeType_TAG_NamedArg});
+    Bool hoisted__Bool_3177 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_NamedArg})));
     (void)hoisted__Bool_3177;
     if (hoisted__Bool_3177) {
         Str *hoisted__Str_3160 = get_payload(self);
@@ -4214,7 +4214,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3161;
         Str_delete(hoisted__Str_3160, hoisted__Bool_3161);
     }
-    Bool hoisted__Bool_3178 = is(self, &(NodeType){.tag = NodeType_TAG_Match});
+    Bool hoisted__Bool_3178 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Match})));
     (void)hoisted__Bool_3178;
     if (hoisted__Bool_3178) {
         MatchData *hoisted__MatchData_3162 = get_payload(self);
@@ -4224,7 +4224,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
         (void)hoisted__Bool_3163;
         MatchData_delete(hoisted__MatchData_3162, hoisted__Bool_3163);
     }
-    Bool hoisted__Bool_3179 = is(self, &(NodeType){.tag = NodeType_TAG_CaptureBlock});
+    Bool hoisted__Bool_3179 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_CaptureBlock})));
     (void)hoisted__Bool_3179;
     if (hoisted__Bool_3179) {
         CaptureBlockData *hoisted__CaptureBlockData_3164 = get_payload(self);
@@ -4240,13 +4240,13 @@ void NodeType_delete(NodeType * self, Bool call_free) {
 }
 
 NodeType * NodeType_clone(NodeType * self) {
-    Bool hoisted__Bool_3403 = is(self, &(NodeType){.tag = NodeType_TAG_Body});
+    Bool hoisted__Bool_3403 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Body})));
     (void)hoisted__Bool_3403;
     if (hoisted__Bool_3403) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Body;
                 return _r; }
     }
-    Bool hoisted__Bool_3404 = is(self, &(NodeType){.tag = NodeType_TAG_Literal});
+    Bool hoisted__Bool_3404 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Literal})));
     (void)hoisted__Bool_3404;
     if (hoisted__Bool_3404) {
         Literal *_clone_payload_Literal_1 = get_payload(self);
@@ -4259,7 +4259,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3376;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3405 = is(self, &(NodeType){.tag = NodeType_TAG_Ident});
+    Bool hoisted__Bool_3405 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Ident})));
     (void)hoisted__Bool_3405;
     if (hoisted__Bool_3405) {
         IdentData *_clone_payload_Ident_2 = get_payload(self);
@@ -4272,7 +4272,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3378;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3406 = is(self, &(NodeType){.tag = NodeType_TAG_Decl});
+    Bool hoisted__Bool_3406 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Decl})));
     (void)hoisted__Bool_3406;
     if (hoisted__Bool_3406) {
         Declaration *_clone_payload_Decl_3 = get_payload(self);
@@ -4285,7 +4285,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3380;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3407 = is(self, &(NodeType){.tag = NodeType_TAG_Assign});
+    Bool hoisted__Bool_3407 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Assign})));
     (void)hoisted__Bool_3407;
     if (hoisted__Bool_3407) {
         AssignData *_clone_payload_Assign_4 = get_payload(self);
@@ -4298,7 +4298,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3382;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3408 = is(self, &(NodeType){.tag = NodeType_TAG_FCall});
+    Bool hoisted__Bool_3408 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FCall})));
     (void)hoisted__Bool_3408;
     if (hoisted__Bool_3408) {
         FCallData *_clone_payload_FCall_5 = get_payload(self);
@@ -4311,7 +4311,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3384;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3409 = is(self, &(NodeType){.tag = NodeType_TAG_FuncDef});
+    Bool hoisted__Bool_3409 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FuncDef})));
     (void)hoisted__Bool_3409;
     if (hoisted__Bool_3409) {
         FunctionDef *_clone_payload_FuncDef_6 = get_payload(self);
@@ -4324,7 +4324,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3386;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3410 = is(self, &(NodeType){.tag = NodeType_TAG_StructDef});
+    Bool hoisted__Bool_3410 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_StructDef})));
     (void)hoisted__Bool_3410;
     if (hoisted__Bool_3410) {
         StructDef *_clone_payload_StructDef_7 = get_payload(self);
@@ -4337,7 +4337,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3388;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3411 = is(self, &(NodeType){.tag = NodeType_TAG_EnumDef});
+    Bool hoisted__Bool_3411 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_EnumDef})));
     (void)hoisted__Bool_3411;
     if (hoisted__Bool_3411) {
         EnumDef *_clone_payload_EnumDef_8 = get_payload(self);
@@ -4350,7 +4350,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3390;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3412 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAccess});
+    Bool hoisted__Bool_3412 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FieldAccess})));
     (void)hoisted__Bool_3412;
     if (hoisted__Bool_3412) {
         FieldAccessData *_clone_payload_FieldAccess_9 = get_payload(self);
@@ -4363,7 +4363,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3392;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3413 = is(self, &(NodeType){.tag = NodeType_TAG_FieldAssign});
+    Bool hoisted__Bool_3413 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_FieldAssign})));
     (void)hoisted__Bool_3413;
     if (hoisted__Bool_3413) {
         FieldAssignData *_clone_payload_FieldAssign_10 = get_payload(self);
@@ -4376,25 +4376,25 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3394;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3414 = is(self, &(NodeType){.tag = NodeType_TAG_Return});
+    Bool hoisted__Bool_3414 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Return})));
     (void)hoisted__Bool_3414;
     if (hoisted__Bool_3414) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Return;
                 return _r; }
     }
-    Bool hoisted__Bool_3415 = is(self, &(NodeType){.tag = NodeType_TAG_If});
+    Bool hoisted__Bool_3415 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_If})));
     (void)hoisted__Bool_3415;
     if (hoisted__Bool_3415) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_If;
                 return _r; }
     }
-    Bool hoisted__Bool_3416 = is(self, &(NodeType){.tag = NodeType_TAG_While});
+    Bool hoisted__Bool_3416 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_While})));
     (void)hoisted__Bool_3416;
     if (hoisted__Bool_3416) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_While;
                 return _r; }
     }
-    Bool hoisted__Bool_3417 = is(self, &(NodeType){.tag = NodeType_TAG_ForIn});
+    Bool hoisted__Bool_3417 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_ForIn})));
     (void)hoisted__Bool_3417;
     if (hoisted__Bool_3417) {
         ForInData *_clone_payload_ForIn_14 = get_payload(self);
@@ -4407,7 +4407,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3396;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3418 = is(self, &(NodeType){.tag = NodeType_TAG_NamedArg});
+    Bool hoisted__Bool_3418 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_NamedArg})));
     (void)hoisted__Bool_3418;
     if (hoisted__Bool_3418) {
         Str *_clone_payload_NamedArg_15 = get_payload(self);
@@ -4420,25 +4420,25 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3398;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3419 = is(self, &(NodeType){.tag = NodeType_TAG_Break});
+    Bool hoisted__Bool_3419 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Break})));
     (void)hoisted__Bool_3419;
     if (hoisted__Bool_3419) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Break;
                 return _r; }
     }
-    Bool hoisted__Bool_3420 = is(self, &(NodeType){.tag = NodeType_TAG_Continue});
+    Bool hoisted__Bool_3420 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Continue})));
     (void)hoisted__Bool_3420;
     if (hoisted__Bool_3420) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Continue;
                 return _r; }
     }
-    Bool hoisted__Bool_3421 = is(self, &(NodeType){.tag = NodeType_TAG_Switch});
+    Bool hoisted__Bool_3421 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Switch})));
     (void)hoisted__Bool_3421;
     if (hoisted__Bool_3421) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Switch;
                 return _r; }
     }
-    Bool hoisted__Bool_3422 = is(self, &(NodeType){.tag = NodeType_TAG_Match});
+    Bool hoisted__Bool_3422 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Match})));
     (void)hoisted__Bool_3422;
     if (hoisted__Bool_3422) {
         MatchData *_clone_payload_Match_19 = get_payload(self);
@@ -4451,37 +4451,37 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType * _ret_val = hoisted__NodeType_3400;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_3423 = is(self, &(NodeType){.tag = NodeType_TAG_Case});
+    Bool hoisted__Bool_3423 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Case})));
     (void)hoisted__Bool_3423;
     if (hoisted__Bool_3423) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Case;
                 return _r; }
     }
-    Bool hoisted__Bool_3424 = is(self, &(NodeType){.tag = NodeType_TAG_NoDefaultArg});
+    Bool hoisted__Bool_3424 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_NoDefaultArg})));
     (void)hoisted__Bool_3424;
     if (hoisted__Bool_3424) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_NoDefaultArg;
                 return _r; }
     }
-    Bool hoisted__Bool_3425 = is(self, &(NodeType){.tag = NodeType_TAG_Throw});
+    Bool hoisted__Bool_3425 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Throw})));
     (void)hoisted__Bool_3425;
     if (hoisted__Bool_3425) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Throw;
                 return _r; }
     }
-    Bool hoisted__Bool_3426 = is(self, &(NodeType){.tag = NodeType_TAG_Catch});
+    Bool hoisted__Bool_3426 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_Catch})));
     (void)hoisted__Bool_3426;
     if (hoisted__Bool_3426) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Catch;
                 return _r; }
     }
-    Bool hoisted__Bool_3427 = is(self, &(NodeType){.tag = NodeType_TAG_RestPattern});
+    Bool hoisted__Bool_3427 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_RestPattern})));
     (void)hoisted__Bool_3427;
     if (hoisted__Bool_3427) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_RestPattern;
                 return _r; }
     }
-    Bool hoisted__Bool_3428 = is(self, &(NodeType){.tag = NodeType_TAG_CaptureBlock});
+    Bool hoisted__Bool_3428 = ((Bool)(*(I32*)(self) == *(I32*)(&(NodeType){.tag = NodeType_TAG_CaptureBlock})));
     (void)hoisted__Bool_3428;
     if (hoisted__Bool_3428) {
         CaptureBlockData *_clone_payload_CaptureBlock_25 = get_payload(self);
@@ -5912,26 +5912,26 @@ Color *Color_Blue() {
     return r;
 }
 Bool Color_eq(Color * self, Color * other) {
-    Bool hoisted__Bool_8214 = is(self, &(Color){.tag = Color_TAG_Red});
+    Bool hoisted__Bool_8214 = ((Bool)(*(I32*)(self) == *(I32*)(&(Color){.tag = Color_TAG_Red})));
     (void)hoisted__Bool_8214;
     if (hoisted__Bool_8214) {
-        Bool hoisted__Bool_8211 = is(other, &(Color){.tag = Color_TAG_Red});
+        Bool hoisted__Bool_8211 = ((Bool)(*(I32*)(other) == *(I32*)(&(Color){.tag = Color_TAG_Red})));
         (void)hoisted__Bool_8211;
         { Bool _ret_val = hoisted__Bool_8211;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_8215 = is(self, &(Color){.tag = Color_TAG_Green});
+    Bool hoisted__Bool_8215 = ((Bool)(*(I32*)(self) == *(I32*)(&(Color){.tag = Color_TAG_Green})));
     (void)hoisted__Bool_8215;
     if (hoisted__Bool_8215) {
-        Bool hoisted__Bool_8212 = is(other, &(Color){.tag = Color_TAG_Green});
+        Bool hoisted__Bool_8212 = ((Bool)(*(I32*)(other) == *(I32*)(&(Color){.tag = Color_TAG_Green})));
         (void)hoisted__Bool_8212;
         { Bool _ret_val = hoisted__Bool_8212;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_8216 = is(self, &(Color){.tag = Color_TAG_Blue});
+    Bool hoisted__Bool_8216 = ((Bool)(*(I32*)(self) == *(I32*)(&(Color){.tag = Color_TAG_Blue})));
     (void)hoisted__Bool_8216;
     if (hoisted__Bool_8216) {
-        Bool hoisted__Bool_8213 = is(other, &(Color){.tag = Color_TAG_Blue});
+        Bool hoisted__Bool_8213 = ((Bool)(*(I32*)(other) == *(I32*)(&(Color){.tag = Color_TAG_Blue})));
         (void)hoisted__Bool_8213;
         { Bool _ret_val = hoisted__Bool_8213;
                 return _ret_val; }
@@ -6018,13 +6018,13 @@ Token *Token_Eof() {
     return r;
 }
 Bool Token_is(Token * self, Token * other) {
-    Bool hoisted__Bool_8235 = is(self, other);
+    Bool hoisted__Bool_8235 = ((Bool)(*(I32*)(self) == *(I32*)(other)));
     (void)hoisted__Bool_8235;
     return hoisted__Bool_8235;
 }
 
 void Token_delete(Token * self, Bool call_free) {
-    Bool hoisted__Bool_8253 = is(self, &(Token){.tag = Token_TAG_Num});
+    Bool hoisted__Bool_8253 = ((Bool)(*(I32*)(self) == *(I32*)(&(Token){.tag = Token_TAG_Num})));
     (void)hoisted__Bool_8253;
     if (hoisted__Bool_8253) {
         I64 *hoisted__I64_8249 = get_payload(self);
@@ -6034,7 +6034,7 @@ void Token_delete(Token * self, Bool call_free) {
         (void)hoisted__Bool_8250;
         I64_delete(hoisted__I64_8249, hoisted__Bool_8250);
     }
-    Bool hoisted__Bool_8254 = is(self, &(Token){.tag = Token_TAG_Name});
+    Bool hoisted__Bool_8254 = ((Bool)(*(I32*)(self) == *(I32*)(&(Token){.tag = Token_TAG_Name})));
     (void)hoisted__Bool_8254;
     if (hoisted__Bool_8254) {
         Str *hoisted__Str_8251 = get_payload(self);
@@ -6050,7 +6050,7 @@ void Token_delete(Token * self, Bool call_free) {
 }
 
 Token * Token_clone(Token * self) {
-    Bool hoisted__Bool_8285 = is(self, &(Token){.tag = Token_TAG_Num});
+    Bool hoisted__Bool_8285 = ((Bool)(*(I32*)(self) == *(I32*)(&(Token){.tag = Token_TAG_Num})));
     (void)hoisted__Bool_8285;
     if (hoisted__Bool_8285) {
         I64 *_clone_payload_Num_0 = get_payload(self);
@@ -6061,7 +6061,7 @@ Token * Token_clone(Token * self) {
         { Token * _ret_val = hoisted__Token_8282;
                 return _ret_val; }
     }
-    Bool hoisted__Bool_8286 = is(self, &(Token){.tag = Token_TAG_Name});
+    Bool hoisted__Bool_8286 = ((Bool)(*(I32*)(self) == *(I32*)(&(Token){.tag = Token_TAG_Name})));
     (void)hoisted__Bool_8286;
     if (hoisted__Bool_8286) {
         Str *_clone_payload_Name_1 = get_payload(self);

@@ -3085,6 +3085,21 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // Indirect call through function pointer variable
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
+            } else if name.ident_name() == "is" {
+                // Peephole: inline the `is` enum-tag check as ext.c's
+                // `*(I32*)a == *(I32*)b` -- the hottest discriminant (4.4B
+                // calls translating the self-host) without a function call.
+                // `is` stays an ext_func (the interpreter FFIs it, so both
+                // modes agree); is_n stays a call (non-4-byte tags). Gated by
+                // name like the other flat builtins (memset/cast/ptr_add).
+                core_ret_c := til_type_name_c(e.expr_til_type())
+                f.write("((")
+                f.write(core_ret_c)
+                f.write(")(*(I32*)(")
+                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
+                f.write(") == *(I32*)(")
+                emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
+                f.write(")))")
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
