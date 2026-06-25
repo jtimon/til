@@ -1,6 +1,16 @@
 # priority: medium
 # category: bugs
-** WIP #295 Capturing closures are not first-class: only call-through-param works
+** CANCELLED #295 Capturing closures are not first-class: only call-through-param works
+
+CANCELLED: duplicates #54 (Explicit capture syntax / closures), which is the
+canonical closures issue and already tracks this under its open "Escaping
+closure lifetimes for stored/returned closures" item. This issue should not
+have been created. The fixes that landed under it (by-name capturing call
+binding, struct-ctor-arg closure body typing, and not const-folding a struct
+with a funcptr field) advanced #54; the remaining sub-bugs documented below
+(interpreter closure-in-struct-field round-trip, closure-field leak/cleanup,
+by-reference escaping-capture hard error, const captured-local elision) belong
+to #54. Repros kept here for reference.
 
 Progress (partial fix landed):
   FIXED:

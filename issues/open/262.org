@@ -8,7 +8,7 @@ Numbering note: this issue was originally filed as #260 and renumbered to
 #260" predate the renumber -- the lazy work is #262, and #260 is an unrelated,
 already-fixed issue. They are NOT the same.
 
-Status summary (what is merged) and decision:
+Status summary (what is merged):
   DONE: lazy_func/lazy_proc callables; a pre-typer inline pass with
   call-by-name semantics; inlinable body shapes = single ~return <expr>~,
   ~if/else~ with single returns, and N-clause guard chains; bare and UFCS
@@ -17,12 +17,11 @@ Status summary (what is merged) and decision:
   FIXED); throwing calls inside a lazy arg lower correctly into the match
   arm; non-inlinable bodies HARD-ERROR (no silent eager fallback). Tests in
   test/lazy.til and test/typer_errors.til.
-  DECIDED (now building): the "best of both worlds" hybrid -- inline where we
-  can (above), and a THUNK fallback for any body the inliner cannot handle
-  (local bindings, loops, first-class, recursion), so ~lazy_func~ is fully
-  general with no user-visible special cases. Semantics = call-by-name (makes
-  the inline and thunk lowerings observationally identical). Design 2 below is
-  the chosen approach; the detailed options are kept for the record.
+  NOT YET DONE: a THUNK fallback for any body the inliner cannot handle
+  (local bindings, loops, first-class, recursion), which would make
+  ~lazy_func~ fully general. The design options for it are documented below
+  (no approach picked -- that is the human's call). First-class lazy callables
+  in particular depend on the closures work (#54).
 
 v1 status (implemented):
   - ~lazy_func~ / ~lazy_proc~ keywords parse to ~FuncType.LazyFunc~ /
@@ -104,7 +103,7 @@ v1 status (implemented):
     test/typer_errors.til (terr_bad_lazy, a ~while~-loop body) checks the
     non-inlinable hard error.
 
-Remaining (deferred -- only first-class / loop / early-return bodies left):
+Remaining (not yet done):
   - The thunk fallback (Design 2 below) for the genuinely-non-inlinable cases
     that statement-inlining does not cover: loops, early returns inside
     control flow, and FIRST-CLASS lazy callables (storing/passing one as a
@@ -118,15 +117,15 @@ Remaining (deferred -- only first-class / loop / early-return bodies left):
     (2) thunk synthesis at non-inlinable call sites + the def becoming a real
     closure-taking function, (3) auto-force, (4) ownership/lifetime.
 
-Remaining (deferred, after the thunk fallback):
+Remaining (not yet done):
   - General declared-variadic lazy callables (~lazy_func(xs: ..Bool)~): the
     N-ary fold special-cases binary associative callables; a true variadic
     lazy param needs the thunk-array (Design 2) or compile-time unroll
     (Design 1). An ordinary ~Array(Bool)~ would eagerly evaluate every
     operand and destroy short-circuiting.
-  - call-by-need (memoize a reused argument once) vs the chosen call-by-name
-    (re-evaluate on each use). Deferred: it would break the inline == thunk
-    equivalence and only helps params reused within a body.
+  - call-by-need (memoize a reused argument once) vs call-by-name (re-evaluate
+    on each use). Call-by-need would break the inline == thunk equivalence and
+    only helps params reused within a body.
 
 Introduce ~lazy_func~ and ~lazy_proc~ as new callable kinds (alongside
   ~func~/~proc~ and ~ext_func~/~ext_proc~). When you call a lazy callable,
@@ -165,8 +164,8 @@ Open questions / honest caveats (these are why this is its own issue, not a
     re-evaluate its argument unless we bind it once; decide whether lazy means
     call-by-name (re-eval) or call-by-need (memoized once).
 
-Design options considered (the "inline + thunk fallback" hybrid, Design 2
-below, is the CHOSEN approach; the rest is kept for the record):
+Design options considered (no approach picked -- documented for the human to
+decide):
 
   Core constraint. Ordinary variadic args become a runtime collection of
   VALUES (today an ~Array(Bool)~ built in ~desugar_user_func_fcall_args~).
@@ -231,8 +230,8 @@ below, is the CHOSEN approach; the rest is kept for the record):
   promise's cache cell would never earn its keep there. Call-by-need also
   adds the "not-forced-yet" representation + cached-value ownership cost.
 
-  CHOSEN approach -- "inline when possible, thunk otherwise", with semantics
-  = call-by-name (decided; now being built):
+  One candidate -- "inline when possible, thunk otherwise", with semantics
+  = call-by-name:
     - Pick call-by-name. Under it, inline-splice and thunk-call are
       OBSERVATIONALLY IDENTICAL (an unused arg never runs; an arg used N
       times runs N times), so the compiler may choose either lowering per
@@ -268,13 +267,11 @@ below, is the CHOSEN approach; the rest is kept for the record):
   thunk fallback lands, this hard error becomes a THUNK lowering instead, so
   those bodies start working rather than erroring.
 
-  Staged path: (1) DONE -- stopped the silent-eager fallback (hard error) and
-  widened the inline path (return-expr, if/else, guard chains, N-ary fold,
-  UFCS); (2) IN PROGRESS -- Design 2 thunks as the generic fallback, keeping
-  the inline path as the fast path; (3) DEFERRED -- Design 1's compile-time
-  list-patterns + spread, justified only if N-ary lazy calls turn out to be
-  hot (unlikely -- they are rare); (4) DEFERRED -- call-by-need / promises
-  until a concrete need for shared reuse.
+  A possible ordering (for the human to decide, not chosen): (1) DONE --
+  stopped the silent-eager fallback (hard error) and widened the inline path
+  (return-expr, if/else, guard chains, N-ary fold, UFCS); (2) Design 2 thunks
+  as the generic fallback, keeping the inline path as the fast path; (3)
+  Design 1's compile-time list-patterns + spread; (4) call-by-need / promises.
 
 Note: the binary short-circuit ~and~/~or~ from #117 could also be done as a
   narrow, special-cased desugar rewrite (~a.and(b)~ -> ~if a { b } else
