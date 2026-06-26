@@ -1157,7 +1157,10 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
 }
 
-priv register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
+// Issue #262: the lazy thunk-lowering pass in loader.til registers
+// synthetic `_Fn_ret_<T>` funcptr aliases through this same path, so it
+// is non-priv (called from loader.til too).
+register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if is_func_decl(stmt).not() { return }
     if stmt.children[0].children.len() != 0 { return }
     switch stmt.node_type {

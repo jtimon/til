@@ -742,13 +742,16 @@ for mut k, v in terr_kvmut_map {
     println(v.to_str())
 }
 
-// #262: a lazy_func/lazy_proc body must be inline- or statement-inlinable
-// (a prelude of local bindings + an inlinable tail). A body with control
-// flow that is not a guard chain -- here a `while` loop -- is neither, and
-// is rejected until the thunk fallback exists.
+// #262: the thunk fallback lowers non-inlinable lazy bodies (loops, early
+// returns) to ordinary thunk-taking functions, so a plain loop body now
+// compiles. The fallback is NOT applied when a param name is SHADOWED inside
+// the body (auto-forcing a shadowed use would be wrong), so such a def stays
+// lazy and still hard-errors as non-inlinable. Here the for-loop variable `b`
+// shadows the param `b`, so the def is left lazy and rejected.
 terr_bad_lazy := lazy_func(a: Bool, b: Bool) returns Bool {
-    while a { return b }
-    return false
+    if b { return a }
+    for b in 0..3 { if b.eq(2) { return a } }
+    return a
 }
 
 // #294: a numeric conversion on a numeric literal is redundant -- the bare

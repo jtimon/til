@@ -242,6 +242,63 @@ test_pipepipe_short_circuits := test() {
     assert_eq(I64, eval_count, 0)
 }
 
+# --- thunk fallback (#262): a non-inlinable body (loop + early return) is
+#     lowered to an ordinary function whose args are passed as zero-arg thunks
+#     (call-by-name). It must still short-circuit: when `a` is false the loop
+#     returns false before `b` is ever forced, so a side-effecting `b` arg
+#     never runs. ---
+
+both := lazy_func(a: Bool, b: Bool) returns Bool {
+    for _ in 0..3 {
+        if a.not() { return false }
+    }
+    return b
+}
+
+test_thunk_noninlinable := test() {
+    expect(both(true, true), "both(T,T)")
+    expect(both(true, false).not(), "both(T,F)")
+    expect(both(false, true).not(), "both(F,T)")
+    expect(both(false, false).not(), "both(F,F)")
+}
+
+test_thunk_short_circuits := test() {
+    # a=false -> loop returns false before b is forced: bump() must NOT run.
+    eval_count = 0
+    r := both(false, bump())
+    expect(r.not(), "both(false, bump()) is false")
+    assert_eq(I64, eval_count, 0)
+    # a=true -> the trailing `return b` forces bump() exactly once.
+    eval_count = 0
+    r2 := both(true, bump())
+    expect(r2, "both(true, bump()) is true")
+    assert_eq(I64, eval_count, 1)
+}
+
+test_thunk_captures_local := test() {
+    # Local args -> each thunk captures the local BY REFERENCE and is forced
+    # synchronously inside `both` (exercises the capture path, not just the
+    # literal/global args above where the thunk captures nothing).
+    x := true
+    y := false
+    rtt := both(x, x)
+    expect(rtt, "both(x, x) is true via captured locals")
+    rtf := both(x, y)
+    expect(rtf.not(), "both(x, y) is false via captured locals")
+    rft := both(y, x)
+    expect(rft.not(), "both(y, x) short-circuits on a captured local")
+}
+
+test_thunk_mixed_arg_short_circuits := test() {
+    # arg 1 is a captured local, arg 2 a side-effecting global call: when the
+    # captured local is false the loop short-circuits before arg 2 is forced.
+    flag := false
+    eval_count = 0
+    r := both(flag, bump())
+    expect(r.not(), "both(flag=false, bump()) is false")
+    assert_eq(I64, eval_count, 0)
+}
+
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
 #     (a side-effecting expression). ---
 

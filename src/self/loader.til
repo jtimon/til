@@ -2250,7 +2250,303 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
     }
 }
 
+// Issue #262 thunk fallback. A top-level lazy_func / lazy_proc whose body is
+// NEITHER expression-inlinable NOR statement-inlinable (loops, early returns
+// inside control flow) is lowered to an ordinary closure-taking function: each
+// param `p: T` becomes a zero-arg funcptr `p: func() returns T`, every
+// value-use of `p` in the body is auto-forced to `p()`, and at each call site
+// the argument expression `e` is wrapped in a synthesized capturing closure
+// `func() returns T { return e }` (call-by-name). The synthetic funcptr type is
+// named `_Fn_ret_<T>`, registered through register_funcsig_alias_for_stmt so the
+// builder emits the typedef. Scope: top-level defs, bare-name calls, exact
+// (non-variadic) arity, no shadowing of a param name inside the body.
+
+// True if `body` (a FuncDef body) binds any name equal to a lazy param name --
+// a Decl, an Assign target, or a for-loop variable. Walk stops at nested
+// FuncDef boundaries (their params/locals are their own). When shadowing is
+// present we do NOT thunk-lower the def at all (the existing typer hard error
+// fires) rather than risk mis-rewriting a shadowed use.
+priv lazy_param_shadowed := func(e: Expr, pnames: Set(Str), depth: I32) returns Bool {
+    if depth > 256 { return false }
+    for i in 0..e.children.len() {
+        ref c : Expr = e.children[i]
+        switch c.node_type {
+        case NodeType.FuncDef: continue   // nested closure: its own scope
+        case NodeType.Decl(dd):
+            if pnames.has(dd.name) { return true }
+        case NodeType.Assign(ad):
+            if pnames.has(ad.name) { return true }
+        case NodeType.ForIn(fd):
+            if pnames.has(fd.name) { return true }
+            if fd.name2.len().gt(0).and(pnames.has(fd.name2)) { return true }
+        case:
+        }
+        if lazy_param_shadowed(c, pnames, depth + 1) { return true }
+    }
+    return false
+}
+
+// Rewrite every value-use of a lazy param name into a zero-arg force call
+// `p()`. Each matching Ident child is replaced by `(FCall (Ident p))`. Walk
+// stops at nested FuncDef boundaries. Shadowing is rejected earlier, so every
+// Ident naming a param here is genuinely that param.
+priv lazy_autoforce := func(mut e: Expr, pnames: Set(Str), depth: I32) {
+    if depth > 256 { return }
+    for i in 0..e.children.len() {
+        ref c : Expr = e.children[i]
+        switch c.node_type {
+        case NodeType.FuncDef: continue   // nested closure: leave its body
+        case NodeType.Ident(idn):
+            nm := idn.ident_name()
+            if pnames.has(nm) {
+                line := c.line
+                col := c.col
+                mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+                call.add_child(own Expr.new(ident_node(nm), line, col))
+                e.children[i] = call
+                continue
+            }
+        case:
+        }
+        lazy_autoforce(c, pnames, depth + 1)
+    }
+}
+
+// Build the bodyless `_Fn_ret_<T>` funcsig Decl (mirrors parser.til
+// parse_fn_signature) and register it via the initer path, appending it to the
+// unit AST so the C builder emits the typedef. Deduped per name through `seen`
+// and the existing scope binding.
+priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram, unit_path: Str,
+        ret_type: Str, line: U32, col: U32, mut seen: Set(Str)) {
+    name := format("_Fn_ret_", ret_type)
+    if seen.has(name) { return }
+    seen.add(own name.clone())
+    // Reuse a hand-written `func() returns T` alias if one already exists.
+    ref existing : TypeBinding = lp.ctx.scope.get_binding(name)
+    if existing.is_null().not() { return }
+
+    mut fd := FunctionDef()
+    fd.func_type = FuncType.Func
+    fd.return_type = ret_type.clone()
+    fd.return_own_type = OwnType.Own
+    fd.variadic_index = -1
+    fd.kwargs_index = -1
+    mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
+    decl.add_child(own sig)
+    register_funcsig_alias_for_stmt(lp.ctx, decl, lp.ctx.scope)
+    lp.ctx.imported[unit_path].ast.add_child(own decl)
+}
+
+// Lower one non-inlinable top-level lazy def in place: LazyFunc->Func /
+// LazyProc->Proc, retype each param `p: T` to `p: _Fn_ret_T`, auto-force the
+// body, and register the funcptr aliases. Records the lowered name in `lowered`.
+priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
+        name: Str, mut fdef: Expr, mut lowered: Set(Str), mut seen: Set(Str)) {
+    if fdef.children.len() == 0 { return }
+    ref body : Expr = fdef.children[0]
+    mut pnames := Set(Str).new()
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.variadic_index >= 0 { return }   // variadic: out of scope
+        for p : Declaration in fd.params { pnames.add(own p.name.clone()) }
+    case:
+        return
+    }
+    // Shadowing: leave the def lazy so the existing typer hard error fires.
+    if lazy_param_shadowed(body, pnames, 0) { return }
+
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
+        else { fd.func_type = FuncType.Proc }
+        for i in 0..fd.params.len() {
+            ref mut param : Declaration = fd.params[i]
+            ret_type := param.explicit_type.clone()
+            lazy_register_fn_ret_alias(lp, unit_path, ret_type, fdef.line, fdef.col, seen)
+            param.explicit_type = format("_Fn_ret_", ret_type)
+            param.til_type = til_type_from_explicit_type(param.explicit_type)
+        }
+    case:
+        return
+    }
+    lazy_autoforce(body, pnames, 0)
+    lowered.add(own name.clone())
+    lp.ctx.scope.set_func_def(name, fdef)
+}
+
+// Classify one name referenced inside a thunk arg expression against the
+// program ROOT scope (lp.ctx.scope at this phase). A name is a CAPTURE iff it
+// is not bound inside the thunk body and is not resolvable at root scope: at
+// this phase only globals / top-level funcs / builtins are in scope, so any
+// other name is an enclosing local the thunk must capture by reference (#54).
+priv lazy_thunk_classify_capture := func(name: Str, scope: TypeScope,
+        bound: Set(Str), mut caps: Vec(Declaration)) {
+    if bound.has(name) { return }                  // bound inside the thunk body
+    ref b : TypeBinding = scope.get_binding(name)
+    if b.is_null().not() { return }                // global / top-level func / builtin
+    for existing : Declaration in caps {
+        if existing.name == name { return }
+    }
+    caps.push(own Declaration(name = name.clone(), own_type = OwnType.Ref))
+}
+
+// Free-variable analysis over a thunk arg expression: collect every Ident /
+// Assign-target that resolves to an enclosing local into `caps`. Names bound
+// inside the expression (a Decl, a for-loop variable) are tracked in `bound`
+// so they are not mistaken for captures. Stops at nested FuncDef / CaptureBlock
+// boundaries (those carry their own capture rules).
+priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
+        mut bound: Set(Str), mut caps: Vec(Declaration)) {
+    switch e.node_type {
+    case NodeType.FuncDef: return
+    case NodeType.CaptureBlock: return
+    case NodeType.Decl(dd):
+        if dd.name.len() > 0 { bound.add(own dd.name.clone()) }
+    case NodeType.ForIn(fd):
+        if fd.name.len() > 0 { bound.add(own fd.name.clone()) }
+        if fd.name2.len() > 0 { bound.add(own fd.name2.clone()) }
+    case NodeType.Ident(idd):
+        lazy_thunk_classify_capture(idd.name, scope, bound, caps)
+    case NodeType.Assign(ad):
+        lazy_thunk_classify_capture(ad.name, scope, bound, caps)
+    case:
+    }
+    for c : Expr in e.children {
+        lazy_thunk_collect_captures(c, scope, bound, caps)
+    }
+}
+
+// Wrap each argument of a call to a thunk-lowered def in a synthesized closure
+// `func() returns T [caps] { return <arg> }` (call-by-name). `T` is the param's
+// ORIGINAL return type, recovered from the param's `_Fn_ret_<T>` explicit_type;
+// `caps` is the arg expression's enclosing-local free variables (by reference).
+// A thunk with no captures is left non-capturing, so the lambda lifter hoists
+// it to a plain top-level function -- exactly like any other non-capturing
+// lambda. The typer's #54 closure-escape checks then gate any captured local
+// that would escape its defining call (first-class / infinite uses await #54).
+priv lazy_wrap_thunk_call := func(mut call: Expr, fdef: Expr, scope: TypeScope) {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        for j in 0..fd.params.len() {
+            arg_idx := j + 1
+            ref param : Declaration = fd.params[j]
+            ret_type := param.explicit_type.strip_prefix("_Fn_ret_")
+            ref a : Expr = call.children[arg_idx]
+            line := a.line
+            col := a.col
+            mut caps := Vec(Declaration).new()
+            mut bound := Set(Str).new()
+            lazy_thunk_collect_captures(a, scope, bound, caps)
+            mut cfd := FunctionDef()
+            cfd.func_type = FuncType.Func
+            cfd.return_type = ret_type.clone()
+            cfd.variadic_index = -1
+            cfd.kwargs_index = -1
+            cfd.captures = caps
+            mut ret := Expr.new(NodeType.Return, line, col)
+            ret.add_child(own a.clone())
+            mut cbody := Expr.new(NodeType.Body, line, col)
+            cbody.add_child(own ret)
+            mut clos := Expr.new(NodeType.FuncDef(cfd), line, col)
+            clos.add_child(own cbody)
+            call.children[arg_idx] = clos
+        }
+    case:
+    }
+}
+
+// Walk all exprs; for every bare-Ident FCall naming a thunk-lowered def with
+// matching (non-variadic, exact) arity, wrap its arguments in thunk closures.
+priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), depth: I32) {
+    if depth > 256 { return }
+    for i in 0..e.children.len() {
+        ref c : Expr = e.children[i]
+        if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
+            mut lname := ""
+            switch c.children[0].node_type {
+            case NodeType.Ident(idn): lname = idn.ident_name()
+            case:                                  // bare-name calls only
+            }
+            if lname.len().gt(0).and(lowered.has(lname)) {
+                ref fdef : Expr = scope.lookup_func(lname)
+                if fdef.is_null().not() {
+                    mut nparams : USize = 0
+                    switch fdef.node_type {
+                    case NodeType.FuncDef(fd): nparams = fd.params.len()
+                    case:
+                    }
+                    if c.children.len().sub(1).eq(nparams) {
+                        lazy_wrap_thunk_call(c, fdef, scope)
+                    }
+                }
+            }
+        }
+        lazy_wrap_thunk_calls(c, scope, lowered, depth + 1)
+    }
+}
+
+// Find and lower every non-inlinable top-level lazy def in one unit AST, then
+// collect the lowered names. Defs are the direct top-level Decl children.
+priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
+        mut lowered: Set(Str), mut seen: Set(Str)) {
+    ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
+    n := unit_ast.children.len()
+    for i in 0..n {
+        ref stmt : Expr = unit_ast.children[i]
+        if is_func_decl(stmt).not() { continue }
+        mut lname := ""
+        switch stmt.node_type {
+        case NodeType.Decl(dd): lname = dd.name.clone()
+        case:
+        }
+        if lname.len() == 0 { continue }
+        ref fdef : Expr = stmt.children[0]
+        ft := func_def_type(fdef)
+        if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { continue }
+        ref body : Expr = fdef.children[0]
+        if lazy_body_inlinable(body).or(lazy_body_stmt_inlinable(body)) { continue }
+        lazy_thunk_lower_def(lp, unit_path, lname, fdef, lowered, seen)
+    }
+}
+
+// Issue #262: the thunk-fallback pass. Lower all non-inlinable top-level lazy
+// defs, then wrap their bare-name call arguments in thunk closures. Runs BEFORE
+// the inline passes; once a def's func_type flips to Func/Proc the inline
+// passes skip its calls (they gate on LazyFunc/LazyProc), which is correct --
+// the call-wrapping here already handled them.
+priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
+    mut lowered := Set(Str).new()
+    mut seen := Set(Str).new()
+    if lp.skip_core.not() {
+        for cu : ProgramUnit in lp.core_units {
+            lazy_thunk_lower_unit(lp, cu.path, lowered, seen)
+        }
+    }
+    for uu : ProgramUnit in lp.units {
+        lazy_thunk_lower_unit(lp, uu.path, lowered, seen)
+    }
+    for mf : Str in lp.mode_files {
+        lazy_thunk_lower_unit(lp, mf, lowered, seen)
+    }
+    if lowered.len() == 0 { return }
+    if lp.skip_core.not() {
+        for cu : ProgramUnit in lp.core_units {
+            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, 0)
+        }
+    }
+    for uu : ProgramUnit in lp.units {
+        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, 0)
+    }
+    for mf : Str in lp.mode_files {
+        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, 0)
+    }
+}
+
 priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
+    // Issue #262: thunk-lower non-inlinable lazy defs + wrap their calls FIRST,
+    // so the inline passes below only see the still-Lazy inlinable defs/calls.
+    expand_lazy_thunks_in_program(lp)
     // Pass 1: statement-inline non-inlinable (local-binding) lazy bodies so
     // their inlinable tails are left for pass 2.
     if lp.skip_core.not() {
