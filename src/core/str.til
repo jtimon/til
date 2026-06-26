@@ -82,6 +82,7 @@ namespace:
 
     /// Create an empty Str pre-allocated for up to `n` bytes.
     with_capacity := func(n: USize) returns Str {
+        if n == 0 { return "" }
         buf : Dynamic = malloc(n + 1)
         memset(buf, 0, 1)
         return Str(c_str = buf, count = 0, cap = n)
@@ -96,6 +97,7 @@ namespace:
     /// Append `s` to `self`. Panics if `self` is a view/literal or if
     /// capacity is exceeded.
     push_str := func(mut self: Str, s: Str) {
+        if s.count == 0 { return }
         if self.cap >= CAP_VIEW {
             panic("Str.push_str: cannot mutate a string view or literal")
         }
@@ -110,6 +112,7 @@ namespace:
 
     /// Deep-copy the string into a new owned Str.
     clone := func(val: Str) returns Str {
+        if val.count == 0 { return "" }
         new_data : Dynamic = malloc(val.count + 1)
         memcpy(new_data, val.c_str, val.count)
         memset(ptr_add(new_data, val.count), 0, 1)
