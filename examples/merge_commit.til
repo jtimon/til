@@ -286,12 +286,12 @@ main := proc(args: ..Str) {
     }
 
     mut int_status : I64 = 0
-    int_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til", int_status)
+    int_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/first_class.til", int_status)
     File.writefile("tmp/asan_interpret.log", int_summary.clone())
     require_asan_output_ok("interpret", int_status, int_summary)
 
     mut trans_status : I64 = 0
-    trans_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til", trans_status)
+    trans_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/first_class.til", trans_status)
     File.writefile("tmp/asan_translate.log", trans_summary.clone())
     require_asan_output_ok("translate", trans_status, trans_summary)
 
