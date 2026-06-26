@@ -7731,4 +7731,3 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
     replace_body_stmt_with_block(body, stmt_idx, own block)
     return true
 }
-

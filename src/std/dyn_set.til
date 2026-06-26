@@ -92,9 +92,6 @@ namespace:
     delete := func(own self: DynSet, call_free: Bool = true) {
         DynSet.clear(self)
         free(own self.data)
-        til_closure_delete(self.elem_clone)
-        til_closure_delete(self.elem_delete)
-        til_closure_delete(self.elem_cmp)
         if call_free { free(own self) }
     }
 

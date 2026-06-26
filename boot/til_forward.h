@@ -3865,9 +3865,11 @@ Value * priv___src_self_interpreter_til__make_interp_closure(Expr * func_def, Sc
 Bool priv___src_self_interpreter_til__callable_box_is(void * ptr);
 Bool priv___src_self_interpreter_til__value_is_callable(Value * v);
 void * priv___src_self_interpreter_til__callable_box_new(Value * v);
-Value * priv___src_self_interpreter_til__callable_box_read(void * ptr);
-Value * priv___src_self_interpreter_til__callable_from_pointer_value(void * ptr);
-void * priv___src_self_interpreter_til__callable_box_clone_ptr(void * ptr);
+Value * priv___src_self_interpreter_til__callable_storage_read(void * ptr);
+Value * priv___src_self_interpreter_til__callable_slot_read(void * ptr);
+Value * priv___src_self_interpreter_til__callable_box_or_slot_read(void * ptr);
+void * priv___src_self_interpreter_til__callable_storage_clone(void * ptr);
+void priv___src_self_interpreter_til__callable_storage_free(void * ptr);
 void priv___src_self_interpreter_til__callable_box_free(void * ptr);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_with_fname(Expr * obj_expr, Str * sname, Expr * sdef, Str * fname);
 Bool priv___src_self_interpreter_til__interp_fa_is_ns_inner(Scope * scope, Expr * e, Str * sname);

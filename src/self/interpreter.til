@@ -120,7 +120,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                     if decl_is_funcsig(dd, ctx) {
                         ref src_callable : Dynamic = deref(ptr_add(data, foff.cast(U64)))
                         if src_callable.is_null().not() {
-                            write_ptr(ptr_add(dst_data, foff.cast(U64)), callable_box_clone_ptr(src_callable))
+                            write_ptr(ptr_add(dst_data, foff.cast(U64)), callable_storage_clone(src_callable))
                         }
                         continue
                     }
@@ -138,7 +138,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 if decl_is_funcsig(dd, ctx) {
                     ref src_callable2 : Dynamic = deref(ptr_add(data, foff.cast(U64)))
                     if src_callable2.is_null().not() {
-                        write_ptr(ptr_add(dst_data, foff.cast(U64)), callable_box_clone_ptr(src_callable2))
+                        write_ptr(ptr_add(dst_data, foff.cast(U64)), callable_storage_clone(src_callable2))
                     }
                     continue
                 }
@@ -922,8 +922,8 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
         if tdef.is_null().not() {
             if tdef.node_type.is(NodeType.FuncDef) {
                 if tdef.children.len() == 0 {
-                    // FuncSig: p is either a callable box or a slot holding one.
-                    return callable_from_pointer_value(p)
+                    // Dynamic params can carry either a callable box or a slot.
+                    return callable_box_or_slot_read(p)
                 }
             }
             if tdef.node_type.is(NodeType.EnumDef) {
@@ -2224,7 +2224,7 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
         foff := fl.offset
         if fl.is_funcptr {
             ref stored_callable : Dynamic = deref(ptr_add(data, foff.cast(U64)))
-            if stored_callable.is_null().not() { callable_box_free(stored_callable) }
+            if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
             continue
         }
         if fl.own_type.is(OwnType.Own) {
@@ -2925,7 +2925,7 @@ priv callable_box_new := func(v: Value) returns Dynamic {
     return box
 }
 
-priv callable_box_read := func(ptr: Dynamic) returns Value {
+priv callable_storage_read := func(ptr: Dynamic) returns Value {
     if callable_box_is(ptr) {
         ref b : InterpCallableBox = to_ptr(ptr)
         return borrow_value(b.val)
@@ -2933,15 +2933,24 @@ priv callable_box_read := func(ptr: Dynamic) returns Value {
     return Value.Func(ptr)
 }
 
-priv callable_from_pointer_value := func(ptr: Dynamic) returns Value {
-    if callable_box_is(ptr) { return callable_box_read(ptr) }
+priv callable_slot_read := func(ptr: Dynamic) returns Value {
     ref stored : Dynamic = deref(ptr)
-    return callable_box_read(stored)
+    return callable_storage_read(stored)
 }
 
-priv callable_box_clone_ptr := func(ptr: Dynamic) returns Dynamic {
-    v := callable_from_pointer_value(ptr)
+priv callable_box_or_slot_read := func(ptr: Dynamic) returns Value {
+    if callable_box_is(ptr) { return callable_storage_read(ptr) }
+    return callable_slot_read(ptr)
+}
+
+priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
+    if callable_box_is(ptr).not() { return ptr }
+    v := callable_storage_read(ptr)
     return callable_box_new(v)
+}
+
+priv callable_storage_free := func(ptr: Dynamic) {
+    if callable_box_is(ptr) { callable_box_free(ptr) }
 }
 
 priv callable_box_free := func(ptr: Dynamic) {
@@ -3322,7 +3331,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     if dd.til_type.is(Type.Enum) { is_enum_field = true }
     if decl_is_funcsig(dd, ctx) {
         ref stored_callable : Dynamic = deref(ptr)
-        return callable_box_read(stored_callable)
+        return callable_storage_read(stored_callable)
     }
     if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
         ref nd_own : Expr = field_nested_def(dd, ctx)
@@ -3432,20 +3441,21 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
     if val.is(Value.Enum) { is_enum_field = true }
     if decl_is_funcsig(dd, ctx) {
         ref old_callable : Dynamic = deref(ptr)
-        if old_callable.is_null().not() { callable_box_free(old_callable) }
+        if old_callable.is_null().not() { callable_storage_free(old_callable) }
         switch val {
-        case Value.Func:
-            write_ptr(ptr, callable_box_new(val))
+        case Value.Func(fv):
+            write_ptr(ptr, deref(fv))
         case Value.Closure:
             write_ptr(ptr, callable_box_new(val))
         case Value.Ref(pv):
             ref stored_ref : Dynamic = deref(pv)
-            write_ptr(ptr, callable_box_clone_ptr(stored_ref))
+            if dd.own_type.is(OwnType.Own) { write_ptr(ptr, callable_storage_clone(stored_ref)) }
+            else { write_ptr(ptr, stored_ref) }
         case Value.Dynamic(pv):
             ref stored_dyn : Dynamic = deref(pv)
-            write_ptr(ptr, callable_box_clone_ptr(stored_dyn))
-        case:
-            UNREACHABLE()
+            if dd.own_type.is(OwnType.Own) { write_ptr(ptr, callable_storage_clone(stored_dyn)) }
+            else { write_ptr(ptr, stored_dyn) }
+        case: UNREACHABLE()
         }
         return
     }
@@ -4323,11 +4333,11 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
             return true
         case Value.Dynamic(p):
             ref slot_addr : Dynamic = deref(p)
-            r = callable_from_pointer_value(slot_addr)
+            r = callable_box_or_slot_read(slot_addr)
             return true
         case Value.Ref(p):
             ref slot_addr : Dynamic = deref(p)
-            r = callable_from_pointer_value(slot_addr)
+            r = callable_box_or_slot_read(slot_addr)
             return true
         case:
         }
@@ -5132,13 +5142,13 @@ priv free_callable_storage := func(mut v: Value) {
     case Value.Dynamic(pv):
         if callable_box_is(deref(pv)) {
             ref stored_dyn : Dynamic = deref(pv)
-            callable_box_free(stored_dyn)
+            callable_storage_free(stored_dyn)
             write_ptr(pv, NULL)
         }
     case Value.Ref(pv):
         ref stored_ref : Dynamic = deref(pv)
         if callable_box_is(stored_ref) {
-            callable_box_free(stored_ref)
+            callable_storage_free(stored_ref)
             write_ptr(pv, NULL)
         }
     case:
@@ -5168,7 +5178,7 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
                                 fl := ctx_field_layout(si.struct_name, fa.field_access_name(), ctx)
                                 ref slot : Dynamic = ptr_add(si.data, fl.offset.cast(U64))
                                 ref stored : Dynamic = deref(slot)
-                                if stored.is_null().not() { callable_box_free(stored) }
+                                if stored.is_null().not() { callable_storage_free(stored) }
                                 write_ptr(slot, NULL)
                                 r = val_none()
                                 return true
@@ -5198,13 +5208,13 @@ priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Con
     case Value.Ref(pv):
         ref stored : Dynamic = deref(pv)
         if stored.is_null().not() {
-            callable_box_free(stored)
+            callable_storage_free(stored)
             write_ptr(pv, NULL)
         }
     case Value.Dynamic(pv):
         ref stored2 : Dynamic = deref(pv)
         if stored2.is_null().not() {
-            callable_box_free(stored2)
+            callable_storage_free(stored2)
             write_ptr(pv, NULL)
         }
     case:

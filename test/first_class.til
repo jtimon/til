@@ -108,6 +108,13 @@ test_struct_field_lambda_ctor := test() {
     assert_eq(I64, h.on_click(4, 6), 24)
 }
 
+test_struct_field_funcptr_clone := test() {
+    h := Handler(on_click = func(a: I64, b: I64) returns I64 { return a.sub(b) })
+    h2 := h.clone()
+    assert_eq(I64, h.on_click(10, 3), 7)
+    assert_eq(I64, h2.on_click(10, 3), 7)
+}
+
 // --- FuncSig-form lambda (type separated from param names) ---
 
 test_funcsig_form_lambda_unary := test() {

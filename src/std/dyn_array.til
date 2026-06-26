@@ -72,8 +72,6 @@ namespace:
             self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
         }
         free(own self.data)
-        til_closure_delete(self.elem_clone)
-        til_closure_delete(self.elem_delete)
         if call_free { free(own self) }
     }
 
