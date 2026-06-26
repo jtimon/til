@@ -238,16 +238,28 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     mut kind := "AnonStruct"
     if def.node_type.is(NodeType.EnumDef) { kind = "AnonEnum" }
     key := anon_def_key(def)
+    mut result := ""
     if p.anon_cache.has(key) {
-        return p.anon_cache[key].clone()
+        // anon_cache hit: a structurally-identical literal already generated
+        // this type, so `def` is redundant. The contract is "Consumes def";
+        // the miss branch consumes it via decl.add_child(own def). The old
+        // early return dropped it on the floor instead -- every repeated
+        // `enum {...}` / `struct {...}` literal then orphaned its whole parsed
+        // subtree (the dominant first_class.til leak). Delete the redundant
+        // def here, so def is consumed on exactly one branch (if/else, not an
+        // early return, keeps the ownership flow analysable).
+        result = p.anon_cache[key].clone()
+        own def.delete()
+    } else {
+        name := format(kind, p.anon_type_counter.to_str())
+        p.anon_type_counter++
+        p.anon_cache.set(key, own name.clone())
+        mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
+        decl.add_child(own def)
+        p.anon_decls.push(own decl)
+        result = name.clone()
     }
-    name := format(kind, p.anon_type_counter.to_str())
-    p.anon_type_counter++
-    p.anon_cache.set(key, own name.clone())
-    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone())), line, col)
-    decl.add_child(own def)
-    p.anon_decls.push(own decl)
-    return name.clone()
+    return result
 }
 
 priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), mangled: Str, line: U32, col: U32) {
