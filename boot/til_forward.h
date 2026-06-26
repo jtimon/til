@@ -473,11 +473,11 @@ typedef struct IntegerOverflow {
 
 
 struct Primitive {
-    Primitive_tag tag;
+    U8 tag;
 };
 
 struct Type {
-    Type_tag tag;
+    U8 tag;
     union {
         Str Struct;
         Str Enum;
@@ -488,11 +488,11 @@ struct Type {
 };
 
 struct FuncType {
-    FuncType_tag tag;
+    U8 tag;
 };
 
 struct OwnType {
-    OwnType_tag tag;
+    U8 tag;
 };
 
 typedef struct Declaration {
@@ -573,7 +573,7 @@ typedef struct ForInData {
 
 
 struct Literal {
-    Literal_tag tag;
+    U8 tag;
     union {
         Str Str;
         LiteralNumData Num;
@@ -650,7 +650,7 @@ typedef struct Range {
 
 
 struct TokenType {
-    TokenType_tag tag;
+    U8 tag;
 };
 
 typedef struct Token {
@@ -718,7 +718,7 @@ typedef struct TypeBinding {
 
 
 struct ScopeFind {
-    ScopeFind_tag tag;
+    U8 tag;
     union {
         TypeBinding Found;
     } data;
@@ -827,11 +827,11 @@ typedef struct Map__Str_I64 {
 
 
 struct Lang {
-    Lang_tag tag;
+    U8 tag;
 };
 
 struct Target {
-    Target_tag tag;
+    U8 tag;
 };
 
 typedef struct Vec__CtorArg {
@@ -1031,7 +1031,7 @@ typedef struct InterpClosure {
 
 
 struct Value {
-    Value_tag tag;
+    U8 tag;
     union {
         I64 Int;
         U8 Byte;
@@ -1763,7 +1763,7 @@ typedef struct EnumDef {
 
 
 struct NodeType {
-    NodeType_tag tag;
+    U8 tag;
     union {
         Literal Literal;
         IdentData Ident;
@@ -1895,7 +1895,7 @@ typedef struct Context {
 
 
 struct priv___src_self_typer_til__CtorArg {
-    priv___src_self_typer_til__CtorArg_tag tag;
+    U8 tag;
     union {
         Expr Filled;
     } data;
