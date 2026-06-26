@@ -251,6 +251,8 @@ namespace:
     delete := func(own self: DynVec, call_free: Bool = true) {
         DynVec.clear(self)
         free(own self.data)
+        til_closure_delete(self.elem_clone)
+        til_closure_delete(self.elem_delete)
         if call_free { free(own self) }
     }
 

@@ -2117,7 +2117,10 @@ priv free_value := func(shallow v: Value) {
             }
         }
     case Value.Enum(ei):
-        if ei.data.is_null().not().and(ei.borrowed.not()) { EvalHeap.heap_free(own ei.data) }
+        if ei.data.is_null().not().and(ei.borrowed.not()) {
+            if ei.is_str { enum_free_str_payload(ei.data) }
+            EvalHeap.heap_free(own ei.data)
+        }
     case Value.Closure(cl):
         interp_closure_free(cl)
     case:
@@ -2341,7 +2344,10 @@ priv free_temp_arg_value := func(shallow v: Value) {
             }
         }
     case Value.Enum(ei):
-        if ei.data.is_null().not().and(ei.borrowed.not()) { EvalHeap.heap_free(own ei.data) }
+        if ei.data.is_null().not().and(ei.borrowed.not()) {
+            if ei.is_str { enum_free_str_payload(ei.data) }
+            EvalHeap.heap_free(own ei.data)
+        }
     case Value.Closure(cl):
         interp_closure_free(cl)
     case:
@@ -5087,6 +5093,37 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
         if cell.is_null() { panic("til_closure_delete: undefined ", id.ident_name()) }
         free_callable_storage(cell.val)
         memcpy(cell.val, val_none(), Value.size().cast(U64))
+    case NodeType.FieldAccess(fa):
+        if e.children[1].children.len().gt(0) {
+            ref obj_expr : Expr = e.children[1].children[0]
+            switch obj_expr.node_type {
+            case NodeType.Ident(obj_id):
+                ref obj_cell : Cell = scope_get(s, obj_id.ident_name())
+                if obj_cell.is_null().not() {
+                    switch obj_cell.val {
+                    case Value.Struct(si):
+                        ref sdef : Expr = lookup_interp_type_def(si.struct_name, si.ctx)
+                        ref fdecl : Declaration = find_field_decl(sdef, fa.field_access_name())
+                        if fdecl.is_null().not() {
+                            if decl_is_funcsig(fdecl, ctx) {
+                                fl := ctx_field_layout(si.struct_name, fa.field_access_name(), ctx)
+                                ref slot : Dynamic = ptr_add(si.data, fl.offset.cast(U64))
+                                ref stored : Dynamic = deref(slot)
+                                if stored.is_null().not() { callable_box_free(stored) }
+                                write_ptr(slot, NULL)
+                                r = val_none()
+                                return true
+                            }
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+        val := eval_expr(s, e.children[1], ctx)
+        free_callable_storage(val)
+        memcpy(val, val_none(), Value.size().cast(U64))
     case:
         val := eval_expr(s, e.children[1], ctx)
         free_callable_storage(val)
