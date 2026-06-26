@@ -3699,6 +3699,7 @@ Expr * priv___src_self_interpreter_til__field_nested_def(Declaration * dd, Conte
 Bool priv___src_self_interpreter_til__decl_is_funcsig(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
+Bool priv___src_self_interpreter_til__str_owns_c_str(Str s);
 void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
@@ -3779,6 +3780,8 @@ void priv___src_self_interpreter_til__eval_fcall(Scope * scope, Expr * stmt, FCa
 void priv___src_self_interpreter_til__eval_if(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
+void priv___src_self_interpreter_til__materialize_str_result(Value * v);
+void priv___src_self_interpreter_til__free_struct_contents_keep_outer(StructInstance * si);
 Value priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx);
 Value priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, Value * callable, Context * ctx);
 Value priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx);
@@ -3841,6 +3844,7 @@ Value priv___src_self_interpreter_til__make_str_value_own(void * data, U32 len, 
 Str str_view(Value v);
 Declaration * priv___src_self_interpreter_til__find_field_decl(Expr * struct_def, Str * fname);
 Value read_field(void * inst_data, Declaration * dd, U32 field_offset, Context * ctx);
+void priv___src_self_interpreter_til__free_owned_struct_slot(void * ptr, Str * struct_name, Context * ctx);
 void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration * dd, U32 field_offset, U32 field_size, Value * val, Context * ctx);
 void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog);
 void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog);

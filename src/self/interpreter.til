@@ -78,6 +78,10 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
     return true
 }
 
+priv str_owns_c_str := func(shallow s: Str) returns Bool {
+    return s.count.gt(0).and(s.c_str.is_null().not()).and(s.cap.lt(CAP_VIEW))
+}
+
 // #286 commit 2: byte-level deep-CLONE of a struct value at `data` of type
 // `struct_name`. Returns a fresh malloc'd buffer with an independent copy of
 // every owned-pointer field (Str c_strs, owned struct / container fields) --
@@ -97,14 +101,12 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         memcpy(dst_data, data, sz.cast(U64))
         if struct_name == "Str" {
             ref s : Str = to_ptr(data)
-            if s.count > 0 {
-                if s.c_str.is_null().not() {
-                    cloned_str := s.clone()
-                    write_ptr(dst_data, cloned_str.c_str)
-                    ref mut dst_cap : U32 = ptr_add(dst_data, 12)
-                    dst_cap = s.count.clone()
-                    memset(cloned_str, 0, Str.size().cast(U64))
-                }
+            if str_owns_c_str(s) {
+                cloned_str := s.clone()
+                write_ptr(dst_data, cloned_str.c_str)
+                ref mut dst_cap : U32 = ptr_add(dst_data, 12)
+                dst_cap = s.count.clone()
+                memset(cloned_str, 0, Str.size().cast(U64))
             }
         } else if container_elem_type(struct_name) == "Str" {
             clone_container_str_buffer(struct_name, data, dst_data, ctx)
@@ -142,14 +144,12 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 }
                 if ftype == "Str" {
                     ref s : Str = ptr_add(data, foff.cast(U64))
-                    if s.count > 0 {
-                        if s.c_str.is_null().not() {
-                            cloned_str := s.clone()
-                            write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
-                            ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.cast(U64)), 12)
-                            dst_cap = s.count.clone()
-                            memset(cloned_str, 0, Str.size().cast(U64))
-                        }
+                    if str_owns_c_str(s) {
+                        cloned_str := s.clone()
+                        write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
+                        ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.cast(U64)), 12)
+                        dst_cap = s.count.clone()
+                        memset(cloned_str, 0, Str.size().cast(U64))
                     }
                     continue
                 }
@@ -260,7 +260,7 @@ namespace:
                 // dangling struct_def -- safe at scope teardown, no #239 UAF.
                 if self.is_str {
                     ref s_str : Str = to_ptr(self.data)
-                    if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                    if str_owns_c_str(s_str) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 } else if self.is_str_container {
@@ -544,7 +544,7 @@ priv enum_variant_is_str := func(enum_name: Str, etag: I32, ctx: Context) return
 // owned deep copy so the enum no longer shares the source's buffer.
 priv enum_clone_str_payload := func(data: Dynamic) {
     ref pstr : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
-    if pstr.c_str.is_null().not().and(pstr.count.gt(0)).and(pstr.cap.lt(CAP_VIEW)) {
+    if str_owns_c_str(pstr) {
         new_buf : Dynamic = EvalHeap.heap_alloc(pstr.count.add(1))
         memcpy(new_buf, pstr.c_str, pstr.count.cast(U64))
         memset(ptr_add(new_buf, pstr.count.cast(U64)), 0, 1)
@@ -557,7 +557,7 @@ priv enum_clone_str_payload := func(data: Dynamic) {
 // Free the owned Str-payload c_str (set up by enum_clone_str_payload).
 priv enum_free_str_payload := func(data: Dynamic) {
     ref s_str : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
-    if s_str.c_str.is_null().not().and(s_str.count.gt(0)).and(s_str.cap.lt(CAP_VIEW)) {
+    if str_owns_c_str(s_str) {
         free(own s_str.c_str)
     }
 }
@@ -1449,13 +1449,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                     }
                                     if sz > 0 {
                                         // #221 paired: for Str payloads the old payload's
-                                        // c_str may own heap (cap < CAP_VIEW && count > 0);
+                                        // c_str may own heap (cap < CAP_VIEW);
                                         // free it before overwriting the bytes so the
                                         // writeback doesn't leak. Literal sources have
                                         // cap == CAP_LIT and are skipped.
                                         if type_name == "Str" {
                                             ref old_str : Str = to_ptr(dest)
-                                            if old_str.count.gt(0).and(old_str.cap.lt(CAP_VIEW)) {
+                                            if str_owns_c_str(old_str) {
                                                 if old_str.c_str.is_null().not() { free(own old_str.c_str) }
                                             }
                                         }
@@ -1634,6 +1634,43 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
 }
 
 
+priv materialize_str_result := func(mut v: Value) {
+    switch v {
+    case Value.Struct(si):
+        if si.is_str {
+            ref s : Str = to_ptr(si.data)
+            if s.count.gt(0).and(s.cap.gte(CAP_VIEW)) {
+                copy : Dynamic = EvalHeap.heap_alloc(s.count.add(1))
+                memcpy(copy, s.c_str, s.count.cast(U64))
+                memset(ptr_add(copy, s.count.cast(U64)), 0, 1)
+                write_ptr(si.data, copy)
+                ref mut dst_cap : U32 = ptr_add(si.data, 12)
+                dst_cap = s.count.clone()
+            }
+        }
+    case:
+    }
+}
+
+priv free_struct_contents_keep_outer := func(si: StructInstance) {
+    if si.data.is_null() { return }
+    if si.is_str {
+        ref s_str : Str = to_ptr(si.data)
+        if str_owns_c_str(s_str) {
+            if s_str.c_str.is_null().not() { free(own s_str.c_str) }
+        }
+        memset(si.data, 0, Str.size().cast(U64))
+    } else if si.is_str_container {
+        free_container_str_data_cached(si.data)
+        if si.ctx.is_null().not() {
+            memset(si.data, 0, ctx_total_size(si.struct_name, si.ctx).cast(U64))
+        }
+    } else if si.ctx.is_null().not() {
+        struct_deep_free(si.struct_name, si.data, si.ctx)
+        memset(si.data, 0, ctx_total_size(si.struct_name, si.ctx).cast(U64))
+    }
+}
+
 priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context) returns shallow Value {
     ref mut c : Context = ctx
     ref callee_expr : Expr = e.children[0]
@@ -1651,18 +1688,23 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     // box-only release, so a plain struct's nested Str-field c_strs leaked at
     // its delete -- the dominant constfolder Str_clone leak (folding clones
     // such values then deletes them). free_temp_arg_value reclaims them
-    // (is_str c_str / struct_deep_free + the buffer). Scoped to the top-level
-    // garbager delete `p.delete()` (call_free defaulted, so exactly the
-    // receiver Ident arg); explicit-arg / non-Ident (borrowed-view nested)
-    // calls fall through to the normal body. Custom deletes (Tuple/Vec/Map)
-    // are not auto_generated and are unaffected.
+    // (is_str c_str / struct_deep_free + the buffer). Scoped to top-level
+    // deletes (method form or flattened *_delete) whose receiver is an Ident;
+    // explicit-arg / non-Ident (borrowed-view nested) calls fall through to
+    // the normal body. call_free=false frees nested contents but keeps the
+    // outer slot valid for callers that immediately memset/free it. Str-element
+    // containers are also intercepted: their custom Vec/Array delete bodies
+    // call Str.delete(false) on borrowed element views, which cannot free the
+    // element c_strs.
     mut del_method := false
     switch callee_expr.node_type {
     case NodeType.FieldAccess(del_fn):
         if del_fn.field_access_name() == "delete" { del_method = true }
+    case NodeType.Ident(del_ident):
+        if del_ident.ident_name().ends_with("_delete") { del_method = true }
     case:
     }
-    if del_method {
+    if del_method.and(e.children.len().gt(1)) {
         switch e.children[1].node_type {
         case NodeType.Ident(recv_id):
             mut call_free := true
@@ -1673,25 +1715,31 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 case:
                 }
             }
-            if call_free {
-                ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())
-                if recv_cell.is_null().not() {
-                    mut do_intercept := false
-                    switch func_def.node_type {
-                    case NodeType.FuncDef(fd_ag):
-                        if fd_ag.auto_generated { do_intercept = true }
-                    case:
-                    }
-                    switch recv_cell.val {
-                    case Value.Struct(rsi):
-                        if rsi.struct_name == "Str" { do_intercept = true }
-                    case:
-                    }
-                    if do_intercept {
+            ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())
+            if recv_cell.is_null().not() {
+                mut do_intercept := false
+                switch func_def.node_type {
+                case NodeType.FuncDef(fd_ag):
+                    if fd_ag.auto_generated { do_intercept = true }
+                case:
+                }
+                switch recv_cell.val {
+                case Value.Struct(rsi):
+                    if rsi.struct_name == "Str" { do_intercept = true }
+                    if rsi.is_str_container { do_intercept = true }
+                case:
+                }
+                if do_intercept {
+                    if call_free {
                         free_temp_arg_value(recv_cell.val)
                         memcpy(recv_cell.val, val_none(), Value.size().cast(U64))
-                        return val_none()
+                    } else {
+                        switch recv_cell.val {
+                        case Value.Struct(rsi2): free_struct_contents_keep_outer(rsi2)
+                        case:
+                        }
                     }
+                    return val_none()
                 }
             }
         case:
@@ -1748,6 +1796,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     mut result := val_none()
     if c.has_return {
         result = c.return_value.clone()
+        materialize_str_result(result)
         // #286: reclaim the old return payload (no-op on a borrow into
         // call_scope, which scope_free reclaims; frees an owned return).
         free_temp_arg_value(c.return_value)
@@ -2173,7 +2222,7 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
                         // c_str (that is the is_str special case, not a struct
                         // field). Free it here before the buffer.
                         ref os : Str = to_ptr(own_hdr.p)
-                        if os.count.gt(0).and(os.cap.lt(CAP_VIEW)) {
+                        if str_owns_c_str(os) {
                             if os.c_str.is_null().not() { free(own os.c_str) }
                         }
                     } else {
@@ -2186,7 +2235,7 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
         }
         if fl.is_str {
             ref s : Str = ptr_add(data, foff.cast(U64))
-            if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+            if str_owns_c_str(s) {
                 if s.c_str.is_null().not() { free(own s.c_str) }
             }
             continue
@@ -2214,7 +2263,7 @@ priv free_container_str_data := func(struct_name: Str, data: Dynamic, ctx: Conte
     esz := Str.size()
     for i in 0..n {
         ref s : Str = ptr_add(hdr.p, i.mul(esz).cast(U64))
-        if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+        if str_owns_c_str(s) {
             if s.c_str.is_null().not() { free(own s.c_str) }
         }
     }
@@ -2228,7 +2277,7 @@ priv free_container_str_data_cached := func(data: Dynamic) {
     esz := Str.size()
     for i in 0..n {
         ref s : Str = ptr_add(hdr.p, i.mul(esz).cast(U64))
-        if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+        if str_owns_c_str(s) {
             if s.c_str.is_null().not() { free(own s.c_str) }
         }
     }
@@ -2257,7 +2306,7 @@ priv clone_container_str_buffer := func(struct_name: Str, src_data: Dynamic, dst
     for i in 0..n {
         elem_off := i.mul(esz).cast(U64)
         ref s : Str = ptr_add(src_hdr.p, elem_off)
-        if s.count.gt(0).and(s.cap.lt(CAP_VIEW)) {
+        if str_owns_c_str(s) {
             if s.c_str.is_null().not() {
                 cloned_str := s.clone()
                 write_ptr(ptr_add(new_buf, elem_off), cloned_str.c_str)
@@ -2280,7 +2329,7 @@ priv free_temp_arg_value := func(shallow v: Value) {
                 // reclamation without the dangling struct_def ref.
                 if si.is_str {
                     ref s_str : Str = to_ptr(si.data)
-                    if s_str.count.gt(0).and(s_str.cap.lt(CAP_VIEW)) {
+                    if str_owns_c_str(s_str) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 } else if si.is_str_container {
@@ -3295,6 +3344,21 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     return Value.Int(fi)
 }
 
+priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
+    ref old_owned_ref : Dynamic = deref(ptr)
+    if old_owned_ref.is_null() { return }
+    old_owned : Dynamic = old_owned_ref
+    if struct_name == "Str" {
+        ref old_str : Str = to_ptr(old_owned)
+        if str_owns_c_str(old_str) {
+            if old_str.c_str.is_null().not() { free(own old_str.c_str) }
+        }
+    } else {
+        struct_deep_free(struct_name, old_owned, ctx)
+    }
+    EvalHeap.heap_free(own old_owned)
+}
+
 priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
     ref ptr : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     fsz := field_size
@@ -3329,6 +3393,7 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         return
     }
     if dd.own_type.is(OwnType.Own).and(is_enum_field.not()) {
+        ref owned_def : Expr = field_nested_def(dd, ctx)
         switch val {
         case Value.Struct:
             // OWN field stores a pointer to a struct payload the field OWNS.
@@ -3339,15 +3404,31 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             mut cloned := val.clone()
             switch cloned {
             case Value.Struct(csi):
+                if owned_def.is_null().not() {
+                    ref owned_struct_name : Str = stable_type_name(dd.explicit_type, ctx)
+                    free_owned_struct_slot(ptr, owned_struct_name, ctx)
+                }
                 write_ptr(ptr, csi.data)
                 csi.data = NULL
             case:
             }
         case Value.Ref(pv):
+            if owned_def.is_null().not() {
+                ref owned_struct_name2 : Str = stable_type_name(dd.explicit_type, ctx)
+                free_owned_struct_slot(ptr, owned_struct_name2, ctx)
+            }
             write_ptr(ptr, deref(pv))
         case Value.Dynamic(pv):
+            if owned_def.is_null().not() {
+                ref owned_struct_name3 : Str = stable_type_name(dd.explicit_type, ctx)
+                free_owned_struct_slot(ptr, owned_struct_name3, ctx)
+            }
             write_ptr(ptr, deref(pv))
         case Value.Func(fv):
+            if owned_def.is_null().not() {
+                ref owned_struct_name4 : Str = stable_type_name(dd.explicit_type, ctx)
+                free_owned_struct_slot(ptr, owned_struct_name4, ctx)
+            }
             write_ptr(ptr, deref(fv))
         case:
             UNREACHABLE()
