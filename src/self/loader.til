@@ -2718,6 +2718,11 @@ finish_init_and_type_program := proc(mut lp: LoadedProgram) {
     // scope-management sites because per-body scopes are stack
     // locals; issue #204 step 3b covers lifting those too.
     garbager_destroy(lp.ctx)
+
+    // #286: now that every struct/enum layout exists and struct_layouts is
+    // frozen, wire each field's nested_layout borrow so the deep free/clone
+    // can recurse without a ctx.
+    wire_nested_layouts(lp.ctx)
 }
 
 init_and_type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {

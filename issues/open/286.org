@@ -47,6 +47,92 @@
   ~Two-pass:~ removal commit. Do not keep a thin scalar ~Value~ fallback; the
   end state removes ~Value~ completely.
 
+  - Merged follow-up ("collapse toward the model"): cache-driven deep free
+    -- ~struct_deep_free~ reads ~ctx.struct_layouts~ (a name-keyed cache
+    that OUTLIVES the AST) instead of the dangling ~struct_def~, with
+    ~FieldLayout~ extended (struct_name / own_type / is_str / is_enum) so the
+    free walks nested own / inline / Str-container fields safely at teardown.
+    ~EvalHeap~ made static (heap_alloc / heap_free, no instance counter) so
+    the value path routes through it from a non-mut ~ctx~. Constfolder no
+    longer speculatively evals a call whose return type is a container
+    (~value_to_expr~ always bails on the own-data field -> NULL, so the eval
+    was pure leaked work). strings.til interp leak 2494 -> 2320, no test
+    regression. The box (Value.Struct/Enum + StructInstance/EnumInstance)
+    still stands -- this is groundwork, not the removal.
+
+  - Branch follow-up ("the clone/free pair + no dangling type-refs"): the
+    box now carries a STABLE ~ref layout : StructLayout~ borrowed from the
+    frozen ~struct_layouts~ cache (which outlives the AST), and ALL the
+    AST-lifetime type-refs are gone:
+    1. ~heap_clone~ rewritten as the ctx-free, layout-driven dual of
+       ~struct_deep_free~ -- one symmetric heap_clone/heap_free pair (#286's
+       Stage 4). Both walk the layout's fields, recurse into nested own/inline
+       struct fields via ~FieldLayout.nested_layout~ (wired once post-init by
+       ~wire_nested_layouts~), and SKIP enum fields, so clone and free stay
+       balanced (shared inline-enum payload, freed by neither -> no
+       double-free). ~StructInstance.clone~ is the exact dual of ~.delete~.
+    2. ~StructInstance~ dropped ~ref ctx~ (eval sites take the live ctx; the
+       layout-less clone fallback is now a loud panic, never hit by the suite).
+    3. ~StructInstance~ dropped ~ref struct_name~; the name is DERIVED from
+       ~layout.name~ via a ~struct_name()~ accessor (store sites clone the
+       borrow). ~EnumInstance~ likewise: dropped ~ref enum_name~, gained
+       ~ref layout~, derives ~enum_name()~ from it.
+    Net: the box's value is now (is_str, layout, data, borrowed) with layout a
+    stable non-dangling borrow -- "no dangling type-refs" from the target is
+    DONE and the #239 UAF class is structurally closed. ~make clean && make
+    test~ green at 162/162. The Value.Struct/Enum variants + StructInstance/
+    EnumInstance still stand (the bootstrap-staged Two-pass finale).
+
+*** Design resolution: the box removal fits no-globals (read before Commit 2)
+
+  rstil leans on a GLOBAL ~EvalHeap::g()~; til forbids module globals. The
+  apparent blocker -- ~StructInstance~ carries ~ref ctx~ so the fixed-
+  signature ~StructInstance.clone/delete~ (what the garbager's
+  ~x.clone()~/~x.delete()~ dispatch to) can reach ~ctx.struct_layouts~ for
+  the deep clone/free -- is NOT fundamental:
+
+  - Eval-time: ~x.clone()~/~x.delete()~ in the user AST are EVALUATED by
+    eval, which already has ~ctx~ in scope; eval can lower them to
+    heap_clone / heap_free with eval's ctx -- no value-carried ctx.
+  - Teardown: ~scope_free~'s callers (eval_body / eval_if / eval_while /
+    eval_user_func_call / interpret_units) all have ~ctx~, so thread ~ctx~
+    into scope_free (+ free_temp_arg_value). So the value becomes just
+    (heap offset, type name); ctx is supplied at every use site. No global.
+
+  Entanglement caveat (why Stage 3 is NOT an isolated step): the generic
+  ~Value.clone~/~Value.delete~ dispatch has no ctx and is invoked from the
+  ~56 clone sites plus every teardown. Threading ctx through it only makes
+  sense once the box is gone and clone/delete ARE heap ops. So the staged
+  "drop the dangling refs first" plan collapses: Commits 2-4 are one
+  coherent change (remove Value.Struct/Enum + StructInstance/EnumInstance;
+  in the same change eval/scope_free own heap_clone/heap_free with their
+  ctx). Stay green via DUAL representation -- Value.Struct remains the
+  carrier for unnamed intermediates (~f().g~) while named bindings migrate
+  to ~Scope.heap_index~ -- until the final ~Two-pass:~ cut drops the
+  variants.
+
+  Foundation first -- garbager clone-insertion (rstil #159): the interpreter
+  CANNOT simply stop cloning implicitly. Tried as a probe: make
+  ~eval_user_func_call~ MOVE an owned/non-borrowed return instead of
+  ~c.return_value.clone()~, and make ~return <owned local>~ move the cell out
+  so it arrives non-borrowed. It broke ~get_char~ (strings.til:128) and
+  files.til: the clone-on-return is LOAD-BEARING -- it MATERIALISES views.
+  ~"hello".get_char(0)~ returns a Str VIEW (c_str into the receiver, cap >=
+  CAP_VIEW); the receiver lives in the callee's call_scope, freed on return,
+  so the clone must copy the viewed bytes into owned storage BEFORE teardown.
+  A move leaves a dangling view. And ~StructInstance.borrowed~ does NOT
+  capture this: a Str view has borrowed = false yet aliases foreign memory
+  (view-ness is cap-encoded, not flagged), and a container can hold view
+  ELEMENTS the same way. So "stop cloning implicitly" is unsafe until the
+  garbager inserts the materialising ~.clone()~ calls (rstil #159) at exactly
+  the assignment / return-of-borrowed sites -- that insertion is the
+  PREREQUISITE for the box removal, not a later step. til's garbager today
+  inserts deletes and reasons about some clones (rhs_is_clone_fcall,
+  auto-cloned Ident RHS) but does not own view materialisation. Next code
+  step: audit garbager clone-insertion vs the interpreter's implicit clones
+  (eval_user_func_call return, scope_set_owned, the ~56 Value.clone sites)
+  and close the gap before touching the representation.
+
 *** Why the current model leaks (band-aids will not converge)
 
   ~Value.Struct(StructInstance { struct_name, ctx, data, borrowed, ... })~

@@ -439,6 +439,16 @@ FieldLayout := struct {
     is_str := false
     is_enum := false
     is_funcptr := false
+    // #286: the field's own name, so a layout-driven (ctx-free) deep free can
+    // locate a container's data / count / cap fields by name without the
+    // struct_layouts map.
+    name := ""
+    // #286: borrow of the nested struct/enum/container field's own
+    // StructLayout, wired in a post-init pass once struct_layouts is frozen
+    // (read-only during eval, so the pointer is stable). Lets struct_deep_free
+    // / heap_clone recurse into an own/inline aggregate field WITHOUT a ctx --
+    // a ref, so auto-gen clone shares it and auto-gen delete never frees it.
+    ref nested_layout : StructLayout = NULL
 namespace:
     eq := func(a: FieldLayout, b: FieldLayout) returns Bool {
         return a.offset.eq(b.offset).and(a.size.eq(b.size)).and(a.struct_name.eq(b.struct_name))
@@ -452,6 +462,10 @@ StructLayout := struct {
     total_size : USize = 0
     align : USize = 1
     fields := Vec(FieldLayout).new()
+    // #286: the struct's own type name (e.g. "Vec__Str"), so a layout-driven
+    // deep free can detect Str-element containers without the struct_layouts
+    // map / a ctx.
+    name := ""
 namespace:
     eq := func(a: StructLayout, b: StructLayout) returns Bool {
         return a.total_size.eq(b.total_size).and(a.align.eq(b.align))

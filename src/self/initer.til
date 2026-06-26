@@ -1791,12 +1791,12 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
     // Set sentinel so nested recursion into self-referential types
     // (e.g. linked-list-style struct with a ref field of its own type)
     // sees a non-empty entry and short-circuits.
-    ctx.struct_layouts.set(name, own StructLayout(total_size = 1))
+    ctx.struct_layouts.set(name, own StructLayout(total_size = 1, name = name.clone()))
     switch struct_def.node_type {
     case NodeType.StructDef(struct_meta):
         mut offset : USize = 0
         mut max_align : USize = 1
-        mut sl := StructLayout()
+        mut sl := StructLayout(name = name.clone())
 
         for mut fd : Declaration in struct_meta.fields {
             mut fsz : USize = 0
@@ -1945,7 +1945,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr))
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr, name = fd.name.clone()))
             if falign > max_align { max_align = falign }
             offset = offset + fsz
         }
@@ -1993,7 +1993,7 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
 compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns USize {
     if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
     // Set sentinel before recursing to break self-referential cycles.
-    ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4))
+    ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4, name = name.clone()))
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         // #264: the tag width is chosen by `enum(Type)`; default U32 (4).
@@ -2015,11 +2015,33 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
             total = total + max_payload_size
         }
         total = align_up(total, max_payload_align)
-        ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align))
+        ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align, name = name.clone()))
         return total
     case:
         UNREACHABLE()
         return 0
+    }
+}
+
+// #286: wire each FieldLayout.nested_layout to the borrowed StructLayout of
+// its struct/container field type. Runs ONCE after every compute_*_layout is
+// done (struct_layouts is read-only during eval, so the pointers are stable).
+// Lets struct_deep_free / heap_clone recurse into an own/inline aggregate
+// field with no ctx -- the value carries its own layout, the layout carries
+// its fields' layouts. Enum fields are skipped (both the deep free and the
+// deep clone skip enum payloads); container data fields have struct_name ""
+// (own U8) and are handled by free_container_str_data via field names.
+wire_nested_layouts := func(mut ctx: Context) {
+    for k : Str in ctx.struct_layouts.keys {
+        ref sl : StructLayout = ctx.struct_layouts[k]
+        for i in 0..sl.fields.len() {
+            ref fl : FieldLayout = sl.fields[i]
+            if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
+                if ctx.struct_layouts.has(fl.struct_name) {
+                    fl.nested_layout = ctx.struct_layouts[fl.struct_name]
+                }
+            }
+        }
     }
 }
 
@@ -2049,7 +2071,7 @@ ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns Fiel
             if sdd.fields[i].name == field_name {
                 if i < sl.fields.len() {
                     ref fl : FieldLayout = sl.fields[i]
-                    return FieldLayout(offset = fl.offset, size = fl.size, struct_name = fl.struct_name.clone(), own_type = fl.own_type, is_str = fl.is_str, is_enum = fl.is_enum, is_funcptr = fl.is_funcptr)
+                    return FieldLayout(offset = fl.offset, size = fl.size, struct_name = fl.struct_name.clone(), own_type = fl.own_type, is_str = fl.is_str, is_enum = fl.is_enum, is_funcptr = fl.is_funcptr, name = fl.name.clone())
                 }
                 return FieldLayout()
             }

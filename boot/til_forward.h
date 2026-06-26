@@ -552,6 +552,8 @@ typedef struct FieldLayout {
     Bool is_str;
     Bool is_enum;
     Bool is_funcptr;
+    Str name;
+    StructLayout *nested_layout;
 } FieldLayout;
 
 
@@ -1011,17 +1013,17 @@ typedef struct {
 
 
 typedef struct StructInstance {
-    Str *struct_name;
     Bool is_str;
     Bool is_str_container;
     Context *ctx;
+    StructLayout *layout;
     U8 *data;
     Bool borrowed;
 } StructInstance;
 
 
 typedef struct EnumInstance {
-    Str *enum_name;
+    StructLayout *layout;
     U8 *data;
     U32 data_size;
     Bool borrowed;
@@ -1624,6 +1626,7 @@ typedef struct StructLayout {
     U32 total_size;
     U32 align;
     Vec__FieldLayout fields;
+    Str name;
 } StructLayout;
 
 
@@ -2183,7 +2186,6 @@ U64 EnumDef_hash(EnumDef * self, HashFn hasher);
 U32 EnumDef_size(void);
 FieldLayout * FieldLayout_clone(FieldLayout * self);
 void FieldLayout_delete(FieldLayout * self, Bool call_free);
-U64 FieldLayout_hash(FieldLayout * self, HashFn hasher);
 U32 FieldLayout_size(void);
 StructLayout * StructLayout_clone(StructLayout * self);
 void StructLayout_delete(StructLayout * self, Bool call_free);
@@ -2775,6 +2777,7 @@ void gen_cmp_derived_for_stmt(Expr * stmt);
 void compute_struct_layout(Str * name, Expr * struct_def, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__type_size_align(Str * ftype, TypeScope * scope, Context * ctx, U32 * sz, U32 * al);
 U32 compute_enum_layout(Str * name, Expr * enum_def, TypeScope * scope, Context * ctx);
+void wire_nested_layouts(Context * ctx);
 U32 ctx_total_size(Str * name, Context * ctx);
 FieldLayout * ctx_field_layout(Str * sname, Str * field_name, Context * ctx);
 Bool priv___src_self_initer_til__infer_top_level_decl_type(Expr * stmt, TypeScope * scope, Type * out_type);
@@ -3788,10 +3791,12 @@ Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ct
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
 Bool priv___src_self_interpreter_til__str_owns_c_str(Str s);
 void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx);
+Str * StructInstance_struct_name(StructInstance * self);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
 void StructInstance_delete(StructInstance * self, Bool call_free);
 U32 StructInstance_size(void);
+Str * EnumInstance_enum_name(EnumInstance * self);
 EnumInstance * EnumInstance_clone(EnumInstance * self);
 void EnumInstance_delete(EnumInstance * self, Bool call_free);
 U32 EnumInstance_size(void);

@@ -217,37 +217,38 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
 }
 
 StructInstance := struct {
-    ref struct_name : Str = NULL
-    // Issue #239: struct_name is a `ref` into the AST and dangles once the
-    // AST Expr is freed (program teardown frees the AST before the Context's
-    // cached Values). The deep delete must NOT read struct_name (UAF), so it
-    // consults this flag instead -- computed at construction while the name
-    // is still valid -- to decide whether the payload is a Str needing its
-    // c_str freed.
+    // Issue #239 / #286: the type name is no longer a `ref` into the AST (which
+    // dangled once the AST Expr was freed -- the #239 UAF). It is DERIVED from
+    // `layout`, a stable borrow of the frozen struct_layouts cache that outlives
+    // the AST, via the struct_name() accessor below.
     is_str := false
     is_str_container := false
     // Issue #147 step 4: reference to the running Context so the
     // fixed-signature clone path can reach the type-def registry
-    // (lookup_interp_type_def) and struct_layouts for nested-field lookup,
-    // enabling later removal of Declaration.field_struct_def /
-    // field_offset / field_size / StructDef.total_struct_size from the AST.
-    // Populated by make_struct_value and the few direct StructInstance
-    // constructors; left NULL only for empty/sentinel instances.
+    // (lookup_interp_type_def) and struct_layouts for nested-field lookup.
     ref ctx : Context = NULL
+    // #286: borrow of this struct's StructLayout (from the frozen struct_layouts
+    // cache). The value's sole source of its type name. Set by make_struct_value;
+    // NULL only for empty/sentinel instances.
+    ref layout : StructLayout = NULL
     own data : U8 = 0
     borrowed := false
 namespace:
+    // #286: type name derived from the stable layout (no AST-lifetime ref).
+    struct_name := func(self: StructInstance) returns ref Str {
+        return self.layout.name
+    }
     eq := func(a: StructInstance, b: StructInstance) returns Bool {
-        return a.struct_name == b.struct_name
+        return a.struct_name() == b.struct_name()
     }
     to_str := func(self: StructInstance) returns Str {
-        expect(self.struct_name.is_null().not(), "self.struct_name is null")
-        return self.struct_name.clone()
+        expect(self.layout.is_null().not(), "self.layout is null")
+        return self.struct_name().clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
-        dst_data : Dynamic = heap_clone(self.struct_name, self.data, self.ctx)
-        is_str_container := self.is_str_container.or(container_elem_type(self.struct_name) == "Str")
-        return StructInstance(struct_name = self.struct_name, is_str = self.is_str, is_str_container = is_str_container, ctx = self.ctx, data = dst_data, borrowed = false)
+        dst_data : Dynamic = heap_clone(self.struct_name(), self.data, self.ctx)
+        is_str_container := self.is_str_container.or(container_elem_type(self.struct_name()) == "Str")
+        return StructInstance(is_str = self.is_str, is_str_container = is_str_container, ctx = self.ctx, layout = self.layout, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
         // Deep delete: free the struct payload buffer (and, for a Str
@@ -270,7 +271,7 @@ namespace:
                 } else if self.is_str_container {
                     free_container_str_data_cached(self.data)
                 } else if self.ctx.is_null().not() {
-                    struct_deep_free(self.struct_name, self.data, self.ctx)
+                    struct_deep_free(self.struct_name(), self.data, self.ctx)
                 }
                 EvalHeap.heap_free(own self.data)
             }
@@ -280,7 +281,10 @@ namespace:
 }
 
 EnumInstance := struct {
-    ref enum_name : Str = NULL
+    // Issue #239 / #286: no AST-lifetime enum_name ref. The type name is DERIVED
+    // from `layout`, a stable borrow of the frozen struct_layouts cache, via the
+    // enum_name() accessor below.
+    ref layout : StructLayout = NULL
     own data : U8 = 0
     data_size : USize = 0
     borrowed := false
@@ -290,16 +294,20 @@ EnumInstance := struct {
     // leaking (shallow scopes) or dangling (deep scopes) once the source died.
     is_str := false
 namespace:
+    // #286: type name derived from the stable layout (no AST-lifetime ref).
+    enum_name := func(self: EnumInstance) returns ref Str {
+        return self.layout.name
+    }
     eq := func(a: EnumInstance, b: EnumInstance) returns Bool {
         return a.enum_name == b.enum_name
     }
     to_str := func(self: EnumInstance) returns Str {
-        expect(self.enum_name.is_null().not(), "self.enum_name is null")
-        return self.enum_name.clone()
+        expect(self.layout.is_null().not(), "self.layout is null")
+        return self.enum_name().clone()
     }
     clone := func(self: EnumInstance) returns EnumInstance {
         if self.data.is_null() {
-            return EnumInstance(enum_name = self.enum_name,
+            return EnumInstance(layout = self.layout,
                                 data = NULL, data_size = self.data_size, borrowed = false, is_str = self.is_str)
         }
         pdata : Dynamic = EvalHeap.heap_alloc(self.data_size)
@@ -307,7 +315,7 @@ namespace:
         // Issue #272: the memcpy shared the Str-payload c_str; deep-copy it so
         // the clone owns an independent buffer (mirrors StructInstance.clone).
         if self.is_str { enum_clone_str_payload(pdata) }
-        return EnumInstance(enum_name = self.enum_name,
+        return EnumInstance(layout = self.layout,
                             data = pdata, data_size = self.data_size, borrowed = false, is_str = self.is_str)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
@@ -542,8 +550,14 @@ priv val_u32 := func(v: I64) returns shallow Value {
 ENUM_PAYLOAD_OFFSET : USize = 8
 
 priv make_enum_value := func(enum_name: Str, data: Dynamic, data_size: USize, borrowed: Bool, is_str: Bool, ctx: Context) returns shallow Value {
+    // #286: borrow the enum's layout from the frozen cache as the value's type-
+    // name source (enum_name()); NULL only when no layout is computed.
     ref stable_enum_name : Str = stable_type_name(enum_name, ctx)
-    return Value.Enum(EnumInstance(enum_name = stable_enum_name, data = data, data_size = data_size, borrowed = borrowed, is_str = is_str))
+    if ctx.struct_layouts.has(stable_enum_name) {
+        ref elayout : StructLayout = ctx.struct_layouts[stable_enum_name]
+        return Value.Enum(EnumInstance(layout = elayout, data = data, data_size = data_size, borrowed = borrowed, is_str = is_str))
+    }
+    return Value.Enum(EnumInstance(data = data, data_size = data_size, borrowed = borrowed, is_str = is_str))
 }
 
 // Issue #272: does enum `enum_name`'s variant `etag` carry a Str payload?
@@ -779,7 +793,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             mut sname := ""
             switch obj {
             case Value.Struct(si):
-                sname = si.struct_name
+                sname = si.struct_name().clone()
             case Value.Enum(ei):
                 // Issue: variant access on an enum instance (`v.Some`)
                 // resolves through the enum's type name, not the variable
@@ -788,7 +802,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 // some reason the obj_expr is type-stripped.
                 sname = til_type_name(e.children[0].expr_til_type())
                 if sname.len() == 0 {
-                    sname = ei.enum_name
+                    sname = ei.enum_name().clone()
                 }
             case:
                 // Issue #297: prefer the typer-set til_type (reliable, and
@@ -868,12 +882,12 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         }
         switch obj {
         case Value.Struct(si):
-            ref fdecl : Declaration = find_field_decl(lookup_interp_type_def(si.struct_name, si.ctx), fname.field_access_name())
+            ref fdecl : Declaration = find_field_decl(lookup_interp_type_def(si.struct_name(), si.ctx), fname.field_access_name())
             if fdecl.is_null() {
                 interp_error(e, format("no field '", Str.clone(fname.field_access_name()), "'"), ctx)
                 exit(1)
             }
-            fl := ctx_field_layout(si.struct_name, fname.field_access_name(), ctx)
+            fl := ctx_field_layout(si.struct_name(), fname.field_access_name(), ctx)
             return read_field(si.data, fdecl, fl.offset, ctx)
         case:
             UNREACHABLE()
@@ -1038,7 +1052,7 @@ priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref
         if cell.is_null() { return NULL }
         switch cell.val {
         case Value.Struct(si):
-            return lookup_interp_type_def(si.struct_name, si.ctx)
+            return lookup_interp_type_def(si.struct_name(), si.ctx)
         case:
             return NULL
         }
@@ -1116,7 +1130,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     mut sname := til_type_name(stmt.children[0].expr_til_type())
     if sname.is_empty() {
         switch subj {
-        case Value.Enum(ei): sname = ei.enum_name
+        case Value.Enum(ei): sname = ei.enum_name().clone()
         case:
         }
     }
@@ -1554,7 +1568,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 mut sname := ""
                 switch obj {
                 case Value.Struct(si):
-                    sname = si.struct_name
+                    sname = si.struct_name().clone()
                 case:
                     switch stmt.children[0].node_type {
                     case NodeType.Ident(oi):
@@ -1574,7 +1588,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     if obj_cell.is_null().not() {
                         switch obj_cell.val {
                         case Value.Struct(obj_si):
-                            cur_sname = obj_si.struct_name
+                            cur_sname = obj_si.struct_name().clone()
                         case:
                         }
                     }
@@ -1595,15 +1609,15 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                             switch cell.val {
                             case Value.Struct(si):
                                 base = to_ptr(si.data)
-                                cur_sdef = lookup_interp_type_def(si.struct_name, si.ctx)
-                                cur_sname = si.struct_name
+                                cur_sdef = lookup_interp_type_def(si.struct_name(), si.ctx)
+                                cur_sname = si.struct_name().clone()
                                 // For simplicity, handle depth=1 (most common: a.field = val)
                                 if depth == 1 {
                                     switch stmt.children[0].node_type {
                                     case NodeType.FieldAccess(fa_name):
                                             ref fd : Declaration = find_field_decl(cur_sdef, fa_name.field_access_name())
                                         if fd.is_null().not() {
-                                            fa_off := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx).offset
+                                            fa_off := ctx_field_layout(si.struct_name(), fa_name.field_access_name(), ctx).offset
                                             if fd.own_type.is(OwnType.Shallow).not() {
                                                 base = deref(ptr_add(base, fa_off.cast(U64)))
                                             } else {
@@ -1707,11 +1721,11 @@ priv free_struct_contents_keep_outer := func(si: StructInstance) {
     } else if si.is_str_container {
         free_container_str_data_cached(si.data)
         if si.ctx.is_null().not() {
-            memset(si.data, 0, ctx_total_size(si.struct_name, si.ctx).cast(U64))
+            memset(si.data, 0, ctx_total_size(si.struct_name(), si.ctx).cast(U64))
         }
     } else if si.ctx.is_null().not() {
-        struct_deep_free(si.struct_name, si.data, si.ctx)
-        memset(si.data, 0, ctx_total_size(si.struct_name, si.ctx).cast(U64))
+        struct_deep_free(si.struct_name(), si.data, si.ctx)
+        memset(si.data, 0, ctx_total_size(si.struct_name(), si.ctx).cast(U64))
     }
 }
 
@@ -1880,10 +1894,10 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 }
                 switch recv_cell.val {
                 case Value.Struct(rsi):
-                    if rsi.struct_name == "Str" { do_intercept = true }
-                    if rsi.struct_name == "DynVec" { do_intercept = true }
+                    if rsi.struct_name() == "Str" { do_intercept = true }
+                    if rsi.struct_name() == "DynVec" { do_intercept = true }
                     if rsi.is_str_container { do_intercept = true }
-                    if container_elem_type(rsi.struct_name).len() > 0 { do_intercept = true }
+                    if container_elem_type(rsi.struct_name()).len() > 0 { do_intercept = true }
                     // A delete whose body is pure field cleanup -- no Assign/
                     // FieldAssign side effect and no manual `free(own self.x)` --
                     // is safe to replace with the cache-driven deep teardown:
@@ -2292,7 +2306,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                         case:
                             val = eval_expr(scope, arg, ctx)
                         }
-                        ctor_fl := ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
+                        ctor_fl := ctx_field_layout(si_inst.struct_name(), fdd.name, ctx)
                         write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
                     }
                 case:
@@ -2697,7 +2711,7 @@ priv free_temp_arg_value := func(shallow v: Value) {
                 } else if si.is_str_container {
                     free_container_str_data_cached(si.data)
                 } else if si.ctx.is_null().not() {
-                    struct_deep_free(si.struct_name, si.data, si.ctx)
+                    struct_deep_free(si.struct_name(), si.data, si.ctx)
                 }
                 EvalHeap.heap_free(own si.data)
             }
@@ -2854,13 +2868,18 @@ priv make_struct_value := func(sname: Str, data: Dynamic, borrowed: Bool, ctx: C
     memcpy(r, tag, 4)
     switch r {
     case Value.Struct(payload):
-        payload.struct_name = stable_sname
-        // #286: struct_def removed -- looked up by name where needed.
-        // Issue #239: cache whether this is a Str value while sname is valid,
-        // so the deep delete need not read the (possibly-freed) struct_name.
+        // #286: the type name is DERIVED from `layout` (struct_name()); no
+        // AST-lifetime ref is stored. is_str/is_str_container still cache while
+        // sname is valid so the deep delete need not consult the layout.
         payload.is_str = stable_sname == "Str"
         payload.is_str_container = container_elem_type(stable_sname) == "Str"
         payload.ctx = ctx
+        // #286: borrow this struct's layout from the frozen cache as the value's
+        // type-name source. NULL only when the type has no computed layout
+        // (sentinels); struct_name() must not be called on such a value.
+        if ctx.struct_layouts.has(stable_sname) {
+            payload.layout = ctx.struct_layouts[stable_sname]
+        }
         payload.data = data
         payload.borrowed = borrowed
     case:
@@ -3456,9 +3475,9 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     case Value.Uint32(v):  if type_name == "U32"  { memcpy(dest, v, 4); return }
     case Value.Boolean(v): if type_name == "Bool" { memcpy(dest, v, 1); return }
     case Value.Struct(si):
-        switch lookup_interp_type_def(si.struct_name, si.ctx).node_type {
+        switch lookup_interp_type_def(si.struct_name(), si.ctx).node_type {
         case NodeType.StructDef:
-            sz := ctx_total_size(si.struct_name, si.ctx)
+            sz := ctx_total_size(si.struct_name(), si.ctx)
             // Always deep-clone into the buffer: the caller deletes `val`
             // after this (e.g. build_argv_array), so the buffer must own an
             // independent copy of any nested heap (a Str payload's c_str). A
@@ -3762,7 +3781,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
                 if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
                     ref ei : EnumInstance = deref(ptr)
                     if ei.is_null() { return val_enum_simple(ftype, 0, total_size, ctx) }
-                    return make_enum_value(ei.enum_name, to_ptr(ei.data), total_size, true, ei.is_str, ctx)
+                    return make_enum_value(ei.enum_name(), to_ptr(ei.data), total_size, true, ei.is_str, ctx)
                 }
                 ref vtag : I32 = ptr
                 return make_enum_value(ftype, to_ptr(ptr), total_size, true, enum_variant_is_str(ftype, vtag, ctx), ctx)
@@ -5602,7 +5621,7 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         mut free_owned_cstr := false
         switch base {
         case Value.Struct(bsi):
-            if bsi.struct_name.eq("Str").and(bsi.borrowed.not()).and(fa.field_access_name().eq("c_str")) {
+            if bsi.struct_name().eq("Str").and(bsi.borrowed.not()).and(fa.field_access_name().eq("c_str")) {
                 free_owned_cstr = true
             }
         case:
@@ -5675,11 +5694,11 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
                 if obj_cell.is_null().not() {
                     switch obj_cell.val {
                     case Value.Struct(si):
-                        ref sdef : Expr = lookup_interp_type_def(si.struct_name, si.ctx)
+                        ref sdef : Expr = lookup_interp_type_def(si.struct_name(), si.ctx)
                         ref fdecl : Declaration = find_field_decl(sdef, fa.field_access_name())
                         if fdecl.is_null().not() {
                             if decl_is_funcsig(fdecl, ctx) {
-                                fl := ctx_field_layout(si.struct_name, fa.field_access_name(), ctx)
+                                fl := ctx_field_layout(si.struct_name(), fa.field_access_name(), ctx)
                                 ref slot : Dynamic = ptr_add(si.data, fl.offset.cast(U64))
                                 ref stored : Dynamic = deref(slot)
                                 if stored.is_null().not() { callable_storage_free(stored) }
@@ -5975,10 +5994,10 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 case Value.Float(x):   pdata = to_ptr(x); psz = 4
                 case Value.Boolean(x): pdata = to_ptr(x); psz = 1
                 case Value.Struct(si):
-                    if lookup_interp_type_def(si.struct_name, si.ctx).is_null().not() {
-                        switch lookup_interp_type_def(si.struct_name, si.ctx).node_type {
+                    if lookup_interp_type_def(si.struct_name(), si.ctx).is_null().not() {
+                        switch lookup_interp_type_def(si.struct_name(), si.ctx).node_type {
                         case NodeType.StructDef:
-                            psz = ctx_total_size(si.struct_name, si.ctx)
+                            psz = ctx_total_size(si.struct_name(), si.ctx)
                         case:
                         }
                     }

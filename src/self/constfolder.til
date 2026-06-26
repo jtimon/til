@@ -352,7 +352,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         // at runtime. Nested POD structs recurse through value_to_expr.
         // read_field returns a shallow (borrowed) view into si.data, so the
         // field values are not freed here.
-        ref sdef : Expr = lookup_interp_type_def(si.struct_name, ctx)
+        ref sdef : Expr = lookup_interp_type_def(si.struct_name(), ctx)
         expect(sdef.is_null().not(), "sdef is null")
         // si.to_str() is called fresh per consumer: each builds its own
         // owned Str so no buffer is shared across the Ident and the two
